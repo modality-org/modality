@@ -8,16 +8,16 @@ title: Predicates
 This page names the language vocabulary. The currently verified local
 first-contract path is narrower: method labels, `signed_by`, `any_signed`,
 `all_signed`, `threshold`, `modifies`, `post_to_path`, `has_property`,
-`state_exists`, `text_eq`, `amount_in_range`, `num_eq`, `num_gt`, `num_gte`,
-`num_lt`, `num_lte`, `bool_true`, and `bool_false` are enforced from
+`state_exists`, `text_eq`, `text_contains`, `amount_in_range`, `num_eq`, `num_gt`,
+`num_gte`, `num_lt`, `num_lte`, `bool_true`, and `bool_false` are enforced from
 replayable commit artifacts. See the
 [standard predicate evidence matrix](../reference/standard-predicates.md) for
 the exact source of each fact.
 
 Do not treat the future vocabulary below as runtime evidence until a validator
-path documents its artifact format and tests. Oracle, time, text-contains,
-hash, and most WASM predicates are extension vocabulary in the local
-first-contract path, not proof that external facts were checked.
+path documents its artifact format and tests. Oracle, time, hash, and most
+WASM predicates are extension vocabulary in the local first-contract path, not
+proof that external facts were checked.
 
 ## Signature Predicates
 
@@ -88,6 +88,11 @@ that commit.
 The local validator also derives `num_eq`, `num_gt`, `num_gte`, `num_lt`, and
 `num_lte` from accepted-state numbers only. The right-hand side can be a
 literal number or another accepted-state number path; a number written by the
+same pending commit is not evidence for that commit.
+
+The local validator derives `text_eq` and `text_contains` from accepted-state
+strings only. `text_eq` can compare two accepted-state string paths or one path
+to a literal; `text_contains` checks a literal substring. Text written by the
 same pending commit is not evidence for that commit.
 
 ## Hash Predicates

@@ -1219,6 +1219,10 @@ impl CommitFacts {
                 (Some(path), Some(expected)) => self.state_text_eq(path, expected),
                 _ => false,
             },
+            "text_contains" => match (args.first(), args.get(1)) {
+                (Some(path), Some(needle)) => self.state_text_contains(path, needle),
+                _ => false,
+            },
             "amount_in_range" => match (args.first(), args.get(1), args.get(2)) {
                 (Some(path), Some(min), Some(max)) => self.amount_in_range(path, min, max),
                 _ => false,
@@ -1304,6 +1308,15 @@ impl CommitFacts {
             if let (Some(path), Some(expected)) = (args.first(), args.get(1)) {
                 return format!(
                     "missing {formatted} (accepted state text at {path} does not equal {expected})"
+                );
+            }
+        }
+
+        if property.name == "text_contains" {
+            let args = predicate_args(property);
+            if let (Some(path), Some(needle)) = (args.first(), args.get(1)) {
+                return format!(
+                    "missing {formatted} (accepted state text at {path} does not contain {needle})"
                 );
             }
         }
@@ -1448,6 +1461,14 @@ impl CommitFacts {
         };
 
         expected.map(|expected| actual == expected).unwrap_or(false)
+    }
+
+    fn state_text_contains(&self, path: &str, needle: &str) -> bool {
+        self.state
+            .get(&normalize_path(path))
+            .and_then(Value::as_str)
+            .map(|actual| actual.contains(needle))
+            .unwrap_or(false)
     }
 
     fn amount_in_range(&self, path: &str, min: &str, max: &str) -> bool {
@@ -2422,6 +2443,69 @@ model TextEqPath {
         assert!(
             has_valid_transition(&path_model, &current_states, &facts),
             "accepted-state text should satisfy path-to-path text_eq"
+        );
+    }
+
+    #[test]
+    fn enforces_text_contains_against_accepted_state_strings() {
+        let model = parse_content_lalrpop(
+            r#"
+model TextContains {
+  initial active
+  active --> active: +POST +text_contains(/status.text, "approve")
+}
+            "#,
+        )
+        .unwrap();
+        let mut current_states = HashSet::new();
+        current_states.insert("active".to_string());
+        let mut state = HashMap::new();
+        state.insert(
+            "status.text".to_string(),
+            Value::String("approved by reviewer".to_string()),
+        );
+
+        let mut commit = CommitFile::new();
+        commit.add_action(
+            "post".to_string(),
+            Some("/notes/next.text".to_string()),
+            Value::String("ok".to_string()),
+        );
+        let facts = CommitFacts::from_commit(&commit, &state);
+
+        assert!(
+            has_valid_transition(&model, &current_states, &facts),
+            "accepted-state text should satisfy text_contains"
+        );
+
+        let mut pending_only = CommitFile::new();
+        pending_only.add_action(
+            "post".to_string(),
+            Some("/status.text".to_string()),
+            Value::String("approved by reviewer".to_string()),
+        );
+        let pending_only_facts = CommitFacts::from_commit(&pending_only, &HashMap::new());
+        let err = explain_no_valid_transition(&model, &current_states, &pending_only_facts);
+
+        assert!(
+            err.contains("missing +text_contains(/status.text, approve)"),
+            "{err}"
+        );
+        assert!(
+            err.contains("accepted state text at /status.text does not contain approve"),
+            "{err}"
+        );
+
+        state.insert(
+            "status.text".to_string(),
+            Value::String("rejected by reviewer".to_string()),
+        );
+        let wrong_facts = CommitFacts::from_commit(&commit, &state);
+        let err = explain_no_valid_transition(&model, &current_states, &wrong_facts);
+
+        assert!(
+            err.contains("missing +text_contains(/status.text, approve)"),
+            "{err}"
         );
     }
 

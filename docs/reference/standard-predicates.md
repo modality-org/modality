@@ -27,6 +27,7 @@ local validator path.
 | `has_property(/path, "a.b")` | Accepted-state JSON at `/path` | Reads previously committed JSON and follows dot-separated object keys |
 | `state_exists(/path)` | Accepted-state path map | Checks that a path was already committed before the pending commit |
 | `text_eq(/path, "value")` or `text_eq(/left, /right)` | Accepted-state text | Compares previously committed string values or a committed string to a literal |
+| `text_contains(/path, "needle")` | Accepted-state text | Checks whether a previously committed string contains a literal substring |
 | `amount_in_range(/path, "min", "max")` | Accepted-state number | Compares a previously committed number to inclusive quoted numeric or accepted-state numeric bounds |
 | `num_eq`, `num_gt`, `num_gte`, `num_lt`, `num_lte` | Accepted-state number | Compares a previously committed number to a literal or accepted-state numeric bound |
 | `bool_true(/path)` and `bool_false(/path)` | Accepted-state boolean | Checks a previously committed boolean value |
@@ -43,7 +44,7 @@ currently enforced by the local first-contract validator.
 | Predicate family | Local first-contract validator | Notes |
 |------------------|--------------------------------|-------|
 | Method labels such as `+POST`, `+REPOST`, and `+MODEL` | Enforced | Derived from pending commit body methods |
-| `signed_by`, `any_signed`, `all_signed`, `threshold`, `modifies`, `post_to_path`, `has_property`, `state_exists`, `text_eq`, `amount_in_range`, `num_eq`, `num_gt`, `num_gte`, `num_lt`, `num_lte`, `bool_true`, `bool_false` | Enforced | Derived from pending signatures, accepted state, pending methods, pending paths, accepted-state path existence, accepted-state JSON, accepted-state text, accepted-state numbers, and accepted-state booleans |
+| `signed_by`, `any_signed`, `all_signed`, `threshold`, `modifies`, `post_to_path`, `has_property`, `state_exists`, `text_eq`, `text_contains`, `amount_in_range`, `num_eq`, `num_gt`, `num_gte`, `num_lt`, `num_lte`, `bool_true`, `bool_false` | Enforced | Derived from pending signatures, accepted state, pending methods, pending paths, accepted-state path existence, accepted-state JSON, accepted-state text, accepted-state numbers, and accepted-state booleans |
 | `timestamp_valid` | Unit-tested extension module only | Implemented in `modality-wasm-validation`; not yet replay evidence for the local first-contract validator |
 | `before`, `after`, other state-value predicates, hash predicates, `oracle_attests`, and `wasm` | Not first-contract-local yet | Intended extension vocabulary; treat as external or future predicate checks unless a validator path explicitly documents support |
 
@@ -52,7 +53,7 @@ currently enforced by the local first-contract validator.
 For first-contract checkpoint review, the local validator evidence surface now
 covers method labels, pending signatures, accepted-state identity paths,
 segment-aware pending write paths, accepted-state JSON properties,
-accepted-state path existence, accepted-state text comparisons, accepted-state numeric ranges, and
+accepted-state path existence, accepted-state text comparisons and contains checks, accepted-state numeric ranges, and
 accepted-state numeric comparisons plus accepted-state boolean checks. That is
 enough to review local log conformance for the current onboarding
 access-control and state-guard examples without depending on clocks, oracles,
@@ -232,7 +233,7 @@ text_eq(/actual/status.text, /expected/status.text)
 ```
 
 The `modality-wasm-validation` crate also has unit-tested state-inspection modules.
-The `has_property`, `state_exists`, `text_eq`, `amount_in_range`, numeric
+The `has_property`, `state_exists`, `text_eq`, `text_contains`, `amount_in_range`, numeric
 comparison, `bool_true`, and `bool_false` bindings above are
 first-contract-local replay evidence today. They read only accepted state; they
 do not see JSON, path existence, text, numbers, or booleans written by the same
@@ -252,12 +253,17 @@ bool_true(/status/delivered.bool)
 bool_false(/flags/cancelled.bool)
 ```
 
-### text_eq
+### text_eq / text_contains
 
-Intended predicate for comparing text values.
+Checks accepted-state text values. `text_eq` compares the previously committed
+string at the first path with either a literal string or the previously
+committed string at a second path. `text_contains` checks whether the
+previously committed string at the path contains a literal substring. Neither
+predicate sees text written by the same pending commit.
 
 ```modality
 text_eq(/status.text, "approved")
+text_contains(/review.text, "approved")
 ```
 
 ### num_eq / num_gt / num_gte / num_lt / num_lte
@@ -349,7 +355,7 @@ WASM predicates are intended custom predicate modules. They are not part of the
 current local first-contract validator evidence matrix unless the predicate is
 explicitly listed above. The local validator now derives `post_to_path(/path)`
 from the pending commit body directly, `has_property(/path, "a.b")` from
-accepted-state JSON directly, `text_eq` from accepted-state strings, numeric
+accepted-state JSON directly, `text_eq` and `text_contains` from accepted-state strings, numeric
 comparisons from accepted-state numbers, and `bool_true`/`bool_false` from
 accepted-state booleans; other WASM-style predicate-test inputs remain
 explicit JSON until a validator path documents their replay binding.

@@ -69,6 +69,8 @@ dot-separated object keys on previously committed state.
 It also derives `state_exists(/path)` from accepted-state path existence.
 It also derives `text_eq` from accepted-state strings when comparing a state
 path to a literal string or to another accepted-state path.
+It also derives `text_contains` from accepted-state strings when checking for a
+literal substring.
 It also derives `amount_in_range` from accepted-state numbers when comparing a
 state path to inclusive literal or accepted-state numeric bounds.
 It also derives `num_eq`, `num_gt`, `num_gte`, `num_lt`, and `num_lte` from
