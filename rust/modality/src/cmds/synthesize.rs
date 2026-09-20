@@ -219,6 +219,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
         if opts.verify {
             parsed_input.ensure_all_parsed()?;
         }
+        parsed_input.warn_lints();
         if parsed_input.formulas.is_empty() {
             return Err(anyhow::anyhow!(
                 "No formulas in the LLM response could be parsed by the Modality parser"
@@ -283,6 +284,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
         if opts.verify {
             parsed_input.ensure_all_parsed()?;
         }
+        parsed_input.warn_lints();
 
         if parsed_input.formulas.is_empty() {
             return Err(parsed_input.no_valid_formulas_error());
@@ -324,6 +326,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
         if opts.verify {
             parsed_input.ensure_all_parsed()?;
         }
+        parsed_input.warn_lints();
         if parsed_input.formulas.is_empty() {
             return Err(parsed_input.no_valid_formulas_error());
         }
@@ -1448,7 +1451,15 @@ fn no_witness_error(reason: &str) -> anyhow::Error {
 struct ParsedFormulaInputs {
     formulas: Vec<modality_lang::FormulaExpr>,
     labels: Vec<String>,
+    lints: Vec<ParsedFormulaLint>,
     unparsed: Vec<String>,
+}
+
+struct ParsedFormulaLint {
+    label: String,
+    code: String,
+    message: String,
+    suggestion: Option<String>,
 }
 
 impl ParsedFormulaInputs {
@@ -1475,6 +1486,21 @@ impl ParsedFormulaInputs {
         }
     }
 
+    fn warn_lints(&self) {
+        if self.lints.is_empty() {
+            return;
+        }
+
+        println!("⚠️  Formula lint warning(s):");
+        for lint in &self.lints {
+            println!("  - {} [{}]: {}", lint.label, lint.code, lint.message);
+            if let Some(suggestion) = &lint.suggestion {
+                println!("    Suggestion: {}", suggestion);
+            }
+        }
+        println!();
+    }
+
     fn no_valid_formulas_error(&self) -> anyhow::Error {
         if self.unparsed.is_empty() {
             anyhow::anyhow!("No valid formulas found")
@@ -1490,6 +1516,7 @@ impl ParsedFormulaInputs {
 fn parse_formula_inputs(formulas: &[String]) -> ParsedFormulaInputs {
     let mut parsed_expressions = Vec::new();
     let mut labels = Vec::new();
+    let mut lints = Vec::new();
     let mut unparsed = Vec::new();
 
     for (index, formula) in formulas.iter().enumerate() {
@@ -1505,6 +1532,17 @@ fn parse_formula_inputs(formulas: &[String]) -> ParsedFormulaInputs {
                         &formula.name,
                         &preview,
                     );
+                    for lint in modality_lang::lint_formula(
+                        &formula,
+                        &modality_lang::FormulaLintOptions::default(),
+                    ) {
+                        lints.push(ParsedFormulaLint {
+                            label: input_label.clone(),
+                            code: lint.code.as_str().to_string(),
+                            message: lint.message,
+                            suggestion: lint.suggestion,
+                        });
+                    }
                     parsed_expressions.push(formula.expression);
                     labels.push(input_label);
                 }
@@ -1533,6 +1571,7 @@ fn parse_formula_inputs(formulas: &[String]) -> ParsedFormulaInputs {
     ParsedFormulaInputs {
         formulas: parsed_expressions,
         labels,
+        lints,
         unparsed,
     }
 }
@@ -2315,6 +2354,23 @@ fn format_synthesis_review_bundle(
     }
     output.push('\n');
 
+    output.push_str("## Formula Lint\n\n");
+    if parsed_input.lints.is_empty() {
+        output.push_str("- Status: clean\n\n");
+    } else {
+        output.push_str("- Status: warnings found\n");
+        for lint in &parsed_input.lints {
+            output.push_str(&format!(
+                "- {} [{}]: {}\n",
+                lint.label, lint.code, lint.message
+            ));
+            if let Some(suggestion) = &lint.suggestion {
+                output.push_str(&format!("  - Suggestion: {}\n", suggestion));
+            }
+        }
+        output.push('\n');
+    }
+
     output.push_str("## Verifier Result\n\n");
     output.push_str("- Status: passed (`--verify`)\n");
     output.push_str("- Scope: synthesized witness model checked against every parser-backed extracted formula\n\n");
@@ -2887,6 +2943,19 @@ mod tests {
         assert_eq!(parsed.len(), 1);
     }
 
+    #[test]
+    fn parsed_formula_inputs_collect_lint_warnings() {
+        let parsed = parse_formula_inputs(&[
+            "always(<+CREATE_ORDER> true implies <+signed_by(/users/account_holder.id)> true)"
+                .to_string(),
+        ]);
+
+        assert_eq!(parsed.formulas.len(), 1);
+        assert_eq!(parsed.lints.len(), 1);
+        assert_eq!(parsed.lints[0].code, "modality/implication-sugar");
+        assert!(parsed.lints[0].message.contains("implication sugar"));
+    }
+
     #[tokio::test]
     async fn formulas_mode_synthesizes_with_bounded_search() {
         let output_path = std::env::temp_dir().join(format!(
@@ -3017,8 +3086,49 @@ rule post_requires_reviewer {
         assert!(bundle.contains("- External-world assumptions flagged: 0"));
         assert!(bundle.contains("- Reviewer assumptions flagged: 0"));
         assert!(bundle.contains("- Verifier result: passed"));
+        assert!(bundle.contains("## Formula Lint"));
+        assert!(bundle.contains("- Status: clean"));
         assert!(bundle.contains("## Witness Model"));
         assert!(bundle.contains("model Contract"));
+    }
+
+    #[tokio::test]
+    async fn rule_file_review_bundle_includes_formula_lint_warnings() {
+        let rule_path = std::env::temp_dir().join(format!(
+            "modality-synthesize-linted-rule-{}.modality",
+            std::process::id()
+        ));
+        let bundle_path = std::env::temp_dir().join(format!(
+            "modality-synthesize-linted-bundle-{}.md",
+            std::process::id()
+        ));
+        std::fs::write(
+            &rule_path,
+            r#"
+rule post_requires_reviewer {
+  formula {
+    always(<+POST> true implies <+POST +signed_by(/users/reviewer.id)> true)
+  }
+}
+"#,
+        )
+        .unwrap();
+
+        let mut opts = default_test_opts();
+        opts.rule = Some(rule_path.clone());
+        opts.verify = true;
+        opts.review_bundle = Some(bundle_path.clone());
+
+        run(&opts).await.unwrap();
+        let bundle = std::fs::read_to_string(&bundle_path).unwrap();
+        std::fs::remove_file(&rule_path).ok();
+        std::fs::remove_file(&bundle_path).ok();
+
+        assert!(bundle.contains("## Formula Lint"));
+        assert!(bundle.contains("- Status: warnings found"));
+        assert!(bundle.contains("modality/implication-sugar"));
+        assert!(bundle.contains("rewrite `A -> B` or `A implies B`"));
+        assert!(bundle.contains("- Status: passed (`--verify`)"));
     }
 
     #[tokio::test]
