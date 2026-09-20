@@ -23,6 +23,7 @@ pub mod contract_get;
 pub mod create;
 pub mod info;
 pub mod inspect;
+pub mod keys;
 pub mod kill;
 pub mod launcher;
 pub mod local;
