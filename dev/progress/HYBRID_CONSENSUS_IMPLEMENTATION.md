@@ -12,9 +12,9 @@ Implemented hybrid consensus system where:
 ### 1. Network Configurations ✅
 
 **Created:**
-- `rust/modal-networks/networks/devnet1-hybrid/info.json` - Single miner/validator network
-- `rust/modal-networks/networks/devnet3-hybrid/info.json` - Three miner/validator network
-- Updated `rust/modal-networks/src/lib.rs` to register new networks
+- `rust/modality-networks/networks/devnet1-hybrid/info.json` - Single miner/validator network
+- `rust/modality-networks/networks/devnet3-hybrid/info.json` - Three miner/validator network
+- Updated `rust/modality-networks/src/lib.rs` to register new networks
 
 **Key Details:**
 - No static validators configured (uses dynamic selection from mining)
@@ -22,7 +22,7 @@ Implemented hybrid consensus system where:
 
 ### 2. Validator Selection Logic ✅
 
-**File:** `rust/modal-datastore/src/models/validator/validator_selection.rs`
+**File:** `rust/modality-datastore/src/models/validator/validator_selection.rs`
 
 **Added Function:**
 ```rust
@@ -41,12 +41,12 @@ pub async fn get_validator_set_for_mining_epoch_hybrid(
 
 ### 3. Epoch Transition Coordination ✅
 
-**Miner Side** (`rust/modal-node/src/actions/miner.rs`):
+**Miner Side** (`rust/modality-node/src/actions/miner.rs`):
 - Added `epoch_transition_tx` broadcast channel to Node struct
 - When `index % 40 == 0` (epoch boundary), broadcasts epoch number
 - Logs: `📡 Broadcasted epoch X transition for validator coordination`
 
-**Validator Side** (`rust/modal-node/src/actions/validator.rs`):
+**Validator Side** (`rust/modality-node/src/actions/validator.rs`):
 - Subscribes to `epoch_transition_tx` when hybrid consensus enabled
 - On startup, checks current epoch and starts validator if >= 2
 - On epoch transition event, calls `check_and_start_validator()`
@@ -69,13 +69,13 @@ This function:
 
 ### 4. Node Configuration ✅
 
-**Config Fields** (`rust/modal-node/src/config.rs`):
+**Config Fields** (`rust/modality-node/src/config.rs`):
 ```rust
 pub hybrid_consensus: Option<bool>,  // Enable hybrid consensus mode
 pub run_validator: Option<bool>,     // Run as validator
 ```
 
-**Node Fields** (`rust/modal-node/src/node.rs`):
+**Node Fields** (`rust/modality-node/src/node.rs`):
 ```rust
 pub hybrid_consensus: bool,
 pub run_validator: bool,
@@ -145,15 +145,15 @@ Mining Epoch Timeline:
 ## Key Files Modified
 
 ### Rust Packages
-1. `rust/modal-networks/src/lib.rs` - Network registration
-2. `rust/modal-networks/networks/devnet1-hybrid/info.json` - Network config
-3. `rust/modal-networks/networks/devnet3-hybrid/info.json` - Network config
-4. `rust/modal-datastore/src/models/validator/validator_selection.rs` - Hybrid selection
-5. `rust/modal-datastore/src/models/validator/mod.rs` - Export new function
-6. `rust/modal-node/src/config.rs` - Hybrid config fields
-7. `rust/modal-node/src/node.rs` - Node struct updates
-8. `rust/modal-node/src/actions/miner.rs` - Epoch transition broadcasts
-9. `rust/modal-node/src/actions/validator.rs` - Hybrid coordinator
+1. `rust/modality-networks/src/lib.rs` - Network registration
+2. `rust/modality-networks/networks/devnet1-hybrid/info.json` - Network config
+3. `rust/modality-networks/networks/devnet3-hybrid/info.json` - Network config
+4. `rust/modality-datastore/src/models/validator/validator_selection.rs` - Hybrid selection
+5. `rust/modality-datastore/src/models/validator/mod.rs` - Export new function
+6. `rust/modality-node/src/config.rs` - Hybrid config fields
+7. `rust/modality-node/src/node.rs` - Node struct updates
+8. `rust/modality-node/src/actions/miner.rs` - Epoch transition broadcasts
+9. `rust/modality-node/src/actions/validator.rs` - Hybrid coordinator
 
 ### Test Examples
 10. `examples/network/10-hybrid-devnet1/` - Single node hybrid test
@@ -167,7 +167,7 @@ Mining Epoch Timeline:
   "passfile_path": "./node.passfile",
   "storage_path": "./storage",
   "listeners": ["/ip4/0.0.0.0/tcp/10111/ws"],
-  "network_config_path": "modal-networks://devnet1-hybrid",
+  "network_config_path": "modality-networks://devnet1-hybrid",
   "run_miner": true,
   "hybrid_consensus": true,
   "run_validator": true,

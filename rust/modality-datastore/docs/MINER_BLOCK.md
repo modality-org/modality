@@ -4,7 +4,7 @@ The `MinerBlock` model stores proof-of-work mining blocks in the datastore, incl
 
 ## Overview
 
-`MinerBlock` is designed to persist mining block data from the `modal-miner` package. It tracks:
+`MinerBlock` is designed to persist mining block data from the `modality-miner` package. It tracks:
 - **Canonical blocks**: Blocks that are part of the main blockchain
 - **Orphaned blocks**: Blocks that were mined but didn't make it into the main chain (due to chain reorganizations, competing blocks, etc.)
 
@@ -42,7 +42,7 @@ The `MinerBlock` model stores proof-of-work mining blocks in the datastore, incl
 ### Canonical Block
 
 ```rust
-use modal_datastore::models::MinerBlock;
+use modality_datastore::models::MinerBlock;
 
 let block = MinerBlock::new_canonical(
     "block_hash_123".to_string(),
@@ -80,7 +80,7 @@ let orphaned = MinerBlock::new_orphaned(
 ## Saving and Loading
 
 ```rust
-use modal_datastore::{NetworkDatastore, Model};
+use modality_datastore::{NetworkDatastore, Model};
 use std::collections::HashMap;
 
 // Save a block
@@ -151,13 +151,13 @@ Blocks are stored with the key pattern:
 
 This allows efficient lookup by hash and prefix-based iteration over all blocks.
 
-## Integration with modal-miner
+## Integration with modality-miner
 
-To convert from a `modal-miner` block to a `MinerBlock`:
+To convert from a `modality-miner` block to a `MinerBlock`:
 
 ```rust
-use modal_miner::Block as MiningBlock;
-use modal_datastore::models::MinerBlock;
+use modality_miner::Block as MiningBlock;
+use modality_datastore::models::MinerBlock;
 
 fn convert_mining_block(mining_block: &MiningBlock, epoch: u64) -> MinerBlock {
     MinerBlock::new_canonical(
@@ -244,6 +244,6 @@ for (epoch, orphans) in orphans_by_epoch {
 See `examples/miner_block_usage.rs` for a complete working example:
 
 ```bash
-cargo run --package modal-datastore --example miner_block_usage
+cargo run --package modality-datastore --example miner_block_usage
 ```
 

@@ -4,14 +4,14 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 DOC="$ROOT_DIR/docs/cli/ai-commands.md"
 MODAL_MAIN="$ROOT_DIR/rust/modal/src/main.rs"
-AI_LIB="$ROOT_DIR/rust/modal-cli-ai/src/lib.rs"
-AI_CONFIG="$ROOT_DIR/rust/modal-cli-ai/src/config.rs"
-AI_COMPLETE="$ROOT_DIR/rust/modal-cli-ai/src/complete.rs"
-CURSOR_AGENT_SOURCE="$ROOT_DIR/rust/modal-cli-ai/src/cursor_agent.rs"
-SET_SOURCE="$ROOT_DIR/rust/modal-cli-ai/src/set.rs"
-SHOW_SOURCE="$ROOT_DIR/rust/modal-cli-ai/src/show.rs"
-UNSET_SOURCE="$ROOT_DIR/rust/modal-cli-ai/src/unset.rs"
-AI_SOURCE="$ROOT_DIR/rust/modal-cli-contract/src/ai.rs"
+AI_LIB="$ROOT_DIR/rust/modality-cli-ai/src/lib.rs"
+AI_CONFIG="$ROOT_DIR/rust/modality-cli-ai/src/config.rs"
+AI_COMPLETE="$ROOT_DIR/rust/modality-cli-ai/src/complete.rs"
+CURSOR_AGENT_SOURCE="$ROOT_DIR/rust/modality-cli-ai/src/cursor_agent.rs"
+SET_SOURCE="$ROOT_DIR/rust/modality-cli-ai/src/set.rs"
+SHOW_SOURCE="$ROOT_DIR/rust/modality-cli-ai/src/show.rs"
+UNSET_SOURCE="$ROOT_DIR/rust/modality-cli-ai/src/unset.rs"
+AI_SOURCE="$ROOT_DIR/rust/modality-cli-contract/src/ai.rs"
 
 required_patterns=(
   "# AI Commands (\`modal ai\`)"
@@ -61,7 +61,7 @@ for pattern in "${required_patterns[@]}"; do
   fi
 done
 
-if ! grep -Fq -- 'modal_cli_ai::Commands' "$MODAL_MAIN"; then
+if ! grep -Fq -- 'modality_cli_ai::Commands' "$MODAL_MAIN"; then
   echo "modal wrapper no longer wires documented modal ai command group" >&2
   exit 1
 fi
@@ -71,7 +71,7 @@ for source_guard in \
   'Show(show::Opts)' \
   'Unset(unset::Opts)'; do
   if ! grep -Fq -- "$source_guard" "$AI_LIB"; then
-    echo "modal-cli-ai no longer exposes documented command: $source_guard" >&2
+    echo "modality-cli-ai no longer exposes documented command: $source_guard" >&2
     exit 1
   fi
 done
@@ -84,7 +84,7 @@ for source_guard in \
   'Provider::CursorAgent => "auto"' \
   'Provider::CursorAgent => Some("CURSOR_API_KEY")'; do
   if ! grep -Fq -- "$source_guard" "$AI_CONFIG"; then
-    echo "modal-cli-ai config no longer exposes documented cursor-agent provider behavior: $source_guard" >&2
+    echo "modality-cli-ai config no longer exposes documented cursor-agent provider behavior: $source_guard" >&2
     exit 1
   fi
 done
@@ -130,7 +130,7 @@ for source_guard in \
   'print: bool' \
   'interactive: bool' \
   '#[command(name = "suggest-rule")]' \
-  'modal_cli_ai::suggest_rule_mode' \
+  'modality_cli_ai::suggest_rule_mode' \
   'SuggestPrintMode::Interactive' \
   'SuggestPrintMode::Print'; do
   if ! grep -Fq -- "$source_guard" "$AI_SOURCE"; then
@@ -144,7 +144,7 @@ for source_guard in \
   'collect_id_paths' \
   'Known identity paths in this contract:'; do
   if ! grep -Fq -- "$source_guard" "$AI_COMPLETE"; then
-    echo "modal-cli-ai completion source no longer passes documented contract context: $source_guard" >&2
+    echo "modality-cli-ai completion source no longer passes documented contract context: $source_guard" >&2
     exit 1
   fi
 done

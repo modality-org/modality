@@ -1,7 +1,7 @@
 use anyhow::Result;
-use modal_datastore::DatastoreManager;
-use modal_datastore::models::MinerBlock;
-use modal_datastore::models::miner::checkpoint::validate_block_against_checkpoints;
+use modality_datastore::DatastoreManager;
+use modality_datastore::models::MinerBlock;
+use modality_datastore::models::miner::checkpoint::validate_block_against_checkpoints;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tokio::sync::Mutex;

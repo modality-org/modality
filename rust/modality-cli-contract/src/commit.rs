@@ -3,8 +3,8 @@ use clap::Parser;
 use serde_json::Value;
 use std::path::PathBuf;
 
-use modal_common::contract_store::{CommitFile, ContractStore};
-use modal_common::keypair::Keypair;
+use modality_common::contract_store::{CommitFile, ContractStore};
+use modality_common::keypair::Keypair;
 
 #[derive(Debug, Parser)]
 #[command(about = "Add a commit to a local contract")]
@@ -217,7 +217,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
         let body_json = serde_json::to_string(&commit.body)?;
 
         for passfile_ref in &opts.sign {
-            let passfile_path = modal_common::passfile::resolve_passfile_path(passfile_ref)?;
+            let passfile_path = modality_common::passfile::resolve_passfile_path(passfile_ref)?;
             let passfile_str = passfile_path.to_str().ok_or_else(|| {
                 anyhow::anyhow!("Invalid passfile path: {}", passfile_path.display())
             })?;

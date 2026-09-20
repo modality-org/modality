@@ -7,14 +7,14 @@ use anyhow::Result;
 use clap::Args;
 use std::path::PathBuf;
 
-use modal_node::actions;
-use modal_node::config::Config;
-use modal_node::config_resolution::load_config_with_node_dir;
-use modal_node::logging;
-use modal_node::node::Node;
-use modal_node::pid::PidGuard;
+use modality_node::actions;
+use modality_node::config::Config;
+use modality_node::config_resolution::load_config_with_node_dir;
+use modality_node::logging;
+use modality_node::node::Node;
+use modality_node::pid::PidGuard;
 
-use modal_cli_common::resolve_node_dir;
+use modality_cli_common::resolve_node_dir;
 
 /// Common options shared by all node run commands.
 #[derive(Debug, Clone, Args)]

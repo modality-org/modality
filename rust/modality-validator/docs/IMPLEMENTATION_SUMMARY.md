@@ -10,7 +10,7 @@ This document provides a comprehensive summary of the complete Shoal consensus i
 
 1. **Narwhal Mempool Protocol** - High-throughput DAG-based transaction dissemination
 2. **Shoal Consensus Algorithm** - Pipelined, reputation-based Byzantine Fault Tolerant consensus
-3. **Complete Integration** - Fully integrated with `modal-sequencer` and `modal-datastore`
+3. **Complete Integration** - Fully integrated with `modal-sequencer` and `modality-datastore`
 4. **Comprehensive Testing** - 60 passing tests (50 unit, 10 integration)
 5. **Performance Benchmarking** - Detailed performance analysis across all components
 

@@ -19,7 +19,7 @@ export class WasmExecutor {
     if (!this.initialized) {
       try {
         // Dynamically import the WASM module
-        const module = await import('modal-wasm-validation');
+        const module = await import('modality-wasm-validation');
         await module.default(); // Initialize WASM
         this.wasmModule = module;
         this.initialized = true;

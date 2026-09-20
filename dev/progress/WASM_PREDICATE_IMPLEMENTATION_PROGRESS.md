@@ -134,7 +134,7 @@ pnpm modal predicate upload <file> --contract-id <id> # Upload custom
 
 **Rust Core:**
 ```
-rust/modal-wasm-validation/src/predicates/
+rust/modality-wasm-validation/src/predicates/
 ├── mod.rs
 ├── signed_by.rs
 ├── amount_in_range.rs
@@ -142,10 +142,10 @@ rust/modal-wasm-validation/src/predicates/
 ├── timestamp_valid.rs
 └── post_to_path.rs
 
-rust/modal-wasm-validation/src/predicate_bindings.rs
-rust/modal-wasm-validation/build-predicates.sh
-rust/modal-wasm-runtime/src/cache.rs
-rust/modal-validator/src/predicate_executor.rs
+rust/modality-wasm-validation/src/predicate_bindings.rs
+rust/modality-wasm-validation/build-predicates.sh
+rust/modality-wasm-runtime/src/cache.rs
+rust/modality-validator/src/predicate_executor.rs
 ```
 
 **JavaScript CLI:**
@@ -178,13 +178,13 @@ WASM_PREDICATE_IMPLEMENTATION_COMPLETE.md
 
 ```
 rust/modality-lang/src/ast.rs
-rust/modal-wasm-validation/src/lib.rs
-rust/modal-wasm-runtime/src/lib.rs
-rust/modal-wasm-runtime/Cargo.toml
-rust/modal-validator/src/lib.rs
-rust/modal-validator/src/contract_processor.rs
-rust/modal-validator/Cargo.toml
-rust/modal-datastore/src/models/wasm_module.rs
+rust/modality-wasm-validation/src/lib.rs
+rust/modality-wasm-runtime/src/lib.rs
+rust/modality-wasm-runtime/Cargo.toml
+rust/modality-validator/src/lib.rs
+rust/modality-validator/src/contract_processor.rs
+rust/modality-validator/Cargo.toml
+rust/modality-datastore/src/models/wasm_module.rs
 js/packages/kripke-machine/src/parts/Property.js
 js/packages/kripke-machine/src/parts/PropertyTable.js
 js/packages/cli/src/cmds/net/genesis.js

@@ -11,9 +11,9 @@
 ### Test Results: 100% Passing
 
 **Rust Tests:**
-- ✅ `modal-wasm-validation`: 32 tests passing
-- ✅ `modal-wasm-runtime`: 10 tests passing (including cache)
-- ✅ `modal-validator`: 4 tests passing
+- ✅ `modality-wasm-validation`: 32 tests passing
+- ✅ `modality-wasm-runtime`: 10 tests passing (including cache)
+- ✅ `modality-validator`: 4 tests passing
 - ✅ `modality-lang`: 21 tests passing
 - **Total Rust**: 67+ tests ✅
 

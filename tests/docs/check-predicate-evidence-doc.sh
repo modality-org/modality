@@ -21,7 +21,7 @@ required_patterns=(
   "| \`bool_true(/path)\` and \`bool_false(/path)\` | Accepted-state boolean | Checks a previously committed boolean value |"
   "## Implementation Status"
   "| \`signed_by\`, \`any_signed\`, \`all_signed\`, \`threshold\`, \`modifies\`, \`post_to_path\`, \`has_property\`, \`text_eq\`, \`amount_in_range\`, \`num_eq\`, \`num_gt\`, \`num_gte\`, \`num_lt\`, \`num_lte\`, \`bool_true\`, \`bool_false\` | Enforced | Derived from pending signatures, accepted state, pending methods, pending paths, accepted-state JSON, accepted-state text, accepted-state numbers, and accepted-state booleans |"
-  "| \`timestamp_valid\` | Unit-tested extension module only | Implemented in \`modal-wasm-validation\`; not yet replay evidence for the local first-contract validator |"
+  "| \`timestamp_valid\` | Unit-tested extension module only | Implemented in \`modality-wasm-validation\`; not yet replay evidence for the local first-contract validator |"
   "| \`before\`, \`after\`, other state predicates, hash predicates, \`oracle_attests\`, and \`wasm\` | Not first-contract-local yet | Intended extension vocabulary; treat as external or future predicate checks unless a validator path explicitly documents support |"
   "## Checkpoint Review Scope"
   "covers method labels, pending signatures, accepted-state identity paths,"
@@ -40,7 +40,7 @@ required_patterns=(
   "Does not match sibling paths that merely share a string prefix"
   "The \`timestamp_valid\` extension module compares an input timestamp with the"
   "replay must define where the trusted clock value"
-  "The \`modal-wasm-validation\` crate also has unit-tested state-inspection modules"
+  "The \`modality-wasm-validation\` crate also has unit-tested state-inspection modules"
   "The local validator now derives \`has_property(/path, \"a.b\")\`"
   "The local validator also derives \`text_eq\` from accepted contract state."
   "see text written by the same pending commit."
@@ -79,7 +79,7 @@ for pattern in "${required_patterns[@]}"; do
   fi
 done
 
-WASM_README="$ROOT_DIR/rust/modal-wasm-validation/src/predicates/README.md"
+WASM_README="$ROOT_DIR/rust/modality-wasm-validation/src/predicates/README.md"
 wasm_patterns=(
   "These modules are locally unit-tested predicate evaluators."
   "not, by"
@@ -97,7 +97,7 @@ wasm_patterns=(
   "previously committed state"
   "The \"current time\" is \`context.timestamp\`"
   "document the trusted clock source"
-  "The \`modal-cli-contract\` local model-governance path also derives"
+  "The \`modality-cli-contract\` local model-governance path also derives"
   "\`post_to_path(/path)\` directly from the pending commit body"
   "matching \`POST\`"
 )

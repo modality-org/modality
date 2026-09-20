@@ -1,10 +1,10 @@
 #[cfg(test)]
 mod tests {
-    use modal_common::keypair::Keypair;
+    use modality_common::keypair::Keypair;
     use anyhow::{Result};
-    use modal_datastore::NetworkDatastore;
-    use modal_datastore::Model;
-    use modal_datastore::models::block::Block;
+    use modality_datastore::NetworkDatastore;
+    use modality_datastore::Model;
+    use modality_datastore::models::block::Block;
 
     #[tokio::test]
     async fn test_page() -> Result<()> {

@@ -126,7 +126,7 @@ impl Keypair {
     /// # Examples
     ///
     /// ```
-    /// use modal_common::keypair::Keypair;
+    /// use modality_common::keypair::Keypair;
     ///
     /// let master = Keypair::generate().unwrap();
     /// let miner = master.derive_from_seed("miner").unwrap();
@@ -183,7 +183,7 @@ impl Keypair {
     /// # Examples
     ///
     /// ```
-    /// use modal_common::keypair::Keypair;
+    /// use modality_common::keypair::Keypair;
     ///
     /// let mnemonic = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
     ///
@@ -208,7 +208,7 @@ impl Keypair {
     /// # Examples
     ///
     /// ```
-    /// use modal_common::keypair::Keypair;
+    /// use modality_common::keypair::Keypair;
     ///
     /// let master = Keypair::generate().unwrap();
     /// let children = master.derive_from_seeds(&["miner", "validator", "treasury"]).unwrap();

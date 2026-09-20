@@ -4,14 +4,14 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 DOC="$ROOT_DIR/docs/cli/contract-commands.md"
 MODAL_MAIN="$ROOT_DIR/rust/modal/src/main.rs"
-COMMIT_SOURCE="$ROOT_DIR/rust/modal-cli-contract/src/commit.rs"
-ADD_RULE_SOURCE="$ROOT_DIR/rust/modal-cli-contract/src/add_rule.rs"
-AI_SOURCE="$ROOT_DIR/rust/modal-cli-contract/src/ai.rs"
-DIFF_SOURCE="$ROOT_DIR/rust/modal-cli-contract/src/diff.rs"
-PUSH_SOURCE="$ROOT_DIR/rust/modal-cli-contract/src/push.rs"
-PULL_SOURCE="$ROOT_DIR/rust/modal-cli-contract/src/pull.rs"
-PACK_SOURCE="$ROOT_DIR/rust/modal-cli-contract/src/pack.rs"
-UNPACK_SOURCE="$ROOT_DIR/rust/modal-cli-contract/src/unpack.rs"
+COMMIT_SOURCE="$ROOT_DIR/rust/modality-cli-contract/src/commit.rs"
+ADD_RULE_SOURCE="$ROOT_DIR/rust/modality-cli-contract/src/add_rule.rs"
+AI_SOURCE="$ROOT_DIR/rust/modality-cli-contract/src/ai.rs"
+DIFF_SOURCE="$ROOT_DIR/rust/modality-cli-contract/src/diff.rs"
+PUSH_SOURCE="$ROOT_DIR/rust/modality-cli-contract/src/push.rs"
+PULL_SOURCE="$ROOT_DIR/rust/modality-cli-contract/src/pull.rs"
+PACK_SOURCE="$ROOT_DIR/rust/modality-cli-contract/src/pack.rs"
+UNPACK_SOURCE="$ROOT_DIR/rust/modality-cli-contract/src/unpack.rs"
 
 required_patterns=(
   "# Contract Commands (\`modal contract\` / \`modal c\`)"
@@ -131,7 +131,7 @@ fi
 for source_guard in \
   'prompt: String' \
   '#[command(name = "suggest-rule")]' \
-  'modal_cli_ai::suggest_rule'; do
+  'modality_cli_ai::suggest_rule'; do
   if ! grep -Fq -- "$source_guard" "$AI_SOURCE"; then
     echo "contract ai source no longer exposes documented option: $source_guard" >&2
     exit 1
@@ -194,14 +194,14 @@ for source_guard in \
 done
 
 for command_variant in \
-  "Commit(modal_cli_contract::commit::Opts)" \
-  "Diff(modal_cli_contract::diff::Opts)" \
-  "Push(modal_cli_contract::push::Opts)" \
-  "Pull(modal_cli_contract::pull::Opts)" \
-  "Pack(modal_cli_contract::pack::Opts)" \
-  "Unpack(modal_cli_contract::unpack::Opts)" \
-  "AddRule(modal_cli_contract::add_rule::Opts)" \
-  "modal_cli_contract::ai::Commands"; do
+  "Commit(modality_cli_contract::commit::Opts)" \
+  "Diff(modality_cli_contract::diff::Opts)" \
+  "Push(modality_cli_contract::push::Opts)" \
+  "Pull(modality_cli_contract::pull::Opts)" \
+  "Pack(modality_cli_contract::pack::Opts)" \
+  "Unpack(modality_cli_contract::unpack::Opts)" \
+  "AddRule(modality_cli_contract::add_rule::Opts)" \
+  "modality_cli_contract::ai::Commands"; do
   if ! grep -Fq -- "$command_variant" "$MODAL_MAIN"; then
     echo "modal wrapper no longer wires documented contract command: $command_variant" >&2
     exit 1

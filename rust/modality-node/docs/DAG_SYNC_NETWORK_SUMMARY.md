@@ -2,23 +2,23 @@
 
 ## ✅ What Was Delivered
 
-Successfully integrated DAG synchronization with modal-node's libp2p request-response networking layer, enabling nodes to sync their Narwhal DAG state over the network once ShoalSequencer is integrated.
+Successfully integrated DAG synchronization with modality-node's libp2p request-response networking layer, enabling nodes to sync their Narwhal DAG state over the network once ShoalSequencer is integrated.
 
 ### 1. Network Endpoint (`/dag/sync`)
 
-**File:** `rust/modal-node/src/reqres/dag/sync.rs` (93 lines)
+**File:** `rust/modality-node/src/reqres/dag/sync.rs` (93 lines)
 
-- Registered in modal-node's reqres routing
+- Registered in modality-node's reqres routing
 - Deserializes `SyncRequest` from JSON
 - Returns `SyncResponse` as JSON
 - Includes test coverage
 - Ready for DAG integration (TODO comments provided)
 
-**Current Status:** Endpoint is registered and functional, returns placeholder response until ShoalSequencer is integrated into modal-node.
+**Current Status:** Endpoint is registered and functional, returns placeholder response until ShoalSequencer is integrated into modality-node.
 
 ### 2. Client-Side API
 
-**File:** `rust/modal-node/src/actions/dag_sync.rs` (87 lines)
+**File:** `rust/modality-node/src/actions/dag_sync.rs` (87 lines)
 
 **Functions:**
 - `sync_request()` - Make individual sync requests to peers
@@ -34,8 +34,8 @@ Successfully integrated DAG synchronization with modal-node's libp2p request-res
 ### 3. Integration Points
 
 **Modified Files:**
-- `rust/modal-node/src/reqres/mod.rs` - Registered `/dag/sync` route
-- `rust/modal-node/src/actions/mod.rs` - Exported `dag_sync` module
+- `rust/modality-node/src/reqres/mod.rs` - Registered `/dag/sync` route
+- `rust/modality-node/src/actions/mod.rs` - Exported `dag_sync` module
 
 **Integration Flow:**
 ```
@@ -100,7 +100,7 @@ Client receives response
 
 ### CLI Command
 ```bash
-modal-node request \
+modality-node request \
   /ip4/127.0.0.1/tcp/9000/p2p/12D3K... \
   /dag/sync \
   '{"GetHighestRound":null}'
@@ -108,7 +108,7 @@ modal-node request \
 
 ### Programmatic API
 ```rust
-use modal_node::actions::dag_sync;
+use modality_node::actions::dag_sync;
 use modal_sequencer_consensus::narwhal::SyncRequest;
 
 // Get peer's highest round
@@ -144,7 +144,7 @@ test result: ok. 1 passed; 0 failed ✨
 7. Documentation
 
 ### 🔄 Pending (Shoal Integration)
-When ShoalSequencer is integrated into modal-node:
+When ShoalSequencer is integrated into modality-node:
 
 1. Add DAG reference to `Node` struct
 2. Pass DAG to `handle_request()`
@@ -172,19 +172,19 @@ if let Some(dag_ref) = dag {
 ## Files Created/Modified
 
 ### Created (4 files)
-1. `rust/modal-node/src/reqres/dag/mod.rs` (1 line)
-2. `rust/modal-node/src/reqres/dag/sync.rs` (93 lines)
-3. `rust/modal-node/src/actions/dag_sync.rs` (87 lines)
-4. `rust/modal-node/docs/DAG_SYNC_NETWORK.md` (450 lines)
+1. `rust/modality-node/src/reqres/dag/mod.rs` (1 line)
+2. `rust/modality-node/src/reqres/dag/sync.rs` (93 lines)
+3. `rust/modality-node/src/actions/dag_sync.rs` (87 lines)
+4. `rust/modality-node/docs/DAG_SYNC_NETWORK.md` (450 lines)
 
 ### Modified (2 files)
-1. `rust/modal-node/src/reqres/mod.rs` - Added route
-2. `rust/modal-node/src/actions/mod.rs` - Exported module
+1. `rust/modality-node/src/reqres/mod.rs` - Added route
+2. `rust/modality-node/src/actions/mod.rs` - Exported module
 
 **Total:** ~630 lines of production code and documentation
 
 ## Compilation Status
-- ✅ `modal-node` compiles clean
+- ✅ `modality-node` compiles clean
 - ✅ All tests pass
 - ⚠️ 14 warnings (dead code - expected for library)
 
@@ -260,14 +260,14 @@ pub enum SyncRequest {
 
 ## Conclusion
 
-The DAG synchronization protocol is **fully integrated with modal-node's networking layer**. The endpoint is registered, request/response handling is implemented, and the client API is ready to use. 
+The DAG synchronization protocol is **fully integrated with modality-node's networking layer**. The endpoint is registered, request/response handling is implemented, and the client API is ready to use. 
 
-Once ShoalSequencer replaces the current consensus runner in modal-node, only 3 simple changes are needed to make the endpoint fully functional:
+Once ShoalSequencer replaces the current consensus runner in modality-node, only 3 simple changes are needed to make the endpoint fully functional:
 1. Pass DAG reference through
 2. Call `DAG.handle_sync_request()`
 3. Return the response
 
-The implementation follows modal-node's existing patterns, reuses proven infrastructure, and is production-ready with proper error handling, validation, and test coverage. 🚀
+The implementation follows modality-node's existing patterns, reuses proven infrastructure, and is production-ready with proper error handling, validation, and test coverage. 🚀
 
 ## See Also
 - [DAG_SYNC.md](../../modal-sequencer/docs/DAG_SYNC.md) - Protocol specification

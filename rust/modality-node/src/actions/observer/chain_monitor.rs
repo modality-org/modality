@@ -3,8 +3,8 @@
 //! This module provides a background task that monitors chain tip changes
 //! and periodically verifies the chain state.
 
-use modal_datastore::models::MinerBlock;
-use modal_datastore::DatastoreManager;
+use modality_datastore::models::MinerBlock;
+use modality_datastore::DatastoreManager;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 

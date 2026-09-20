@@ -3,13 +3,13 @@
 /// This module provides helpers for creating Byzantine (malicious) validators
 /// and setting up test scenarios to verify the consensus protocol's fault tolerance.
 
-use modal_validator_consensus::narwhal::{
+use modality_validator_consensus::narwhal::{
     Certificate, Committee, Header, PublicKey, Validator, AggregatedSignature,
 };
-use modal_validator_consensus::narwhal::dag::DAG;
-use modal_validator_consensus::shoal::{ReputationConfig};
-use modal_validator_consensus::shoal::reputation::ReputationManager;
-use modal_validator_consensus::shoal::consensus::ShoalConsensus;
+use modality_validator_consensus::narwhal::dag::DAG;
+use modality_validator_consensus::shoal::{ReputationConfig};
+use modality_validator_consensus::shoal::reputation::ReputationManager;
+use modality_validator_consensus::shoal::consensus::ShoalConsensus;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::sync::RwLock;

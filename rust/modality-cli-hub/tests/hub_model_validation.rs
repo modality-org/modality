@@ -76,7 +76,7 @@ rule simple_rule {
 
 #[tokio::test]
 async fn test_model_validator_initialization() {
-    use modal_cli_hub::model_validator::{ModelValidator, ReplayCommit};
+    use modality_cli_hub::model_validator::{ModelValidator, ReplayCommit};
     
     // Test that validator initializes with wildcard state
     let validator = ModelValidator::new();
@@ -92,7 +92,7 @@ async fn test_model_validator_initialization() {
 
 #[tokio::test]
 async fn test_model_validation_with_syntax_error_rejected() {
-    use modal_cli_hub::model_validator::ModelValidator;
+    use modality_cli_hub::model_validator::ModelValidator;
     
     let validator = ModelValidator::new();
     
@@ -112,7 +112,7 @@ model BadSyntax {
 
 #[tokio::test]
 async fn test_replay_model_commit() {
-    use modal_cli_hub::model_validator::{ModelValidator, ReplayCommit};
+    use modality_cli_hub::model_validator::{ModelValidator, ReplayCommit};
     use serde_json::json;
     
     // Create a commit with a model

@@ -42,16 +42,16 @@ The status column uses color coding to quickly convey the finalization state:
 
 ### Code Changes
 
-1. **Template Updates** (`rust/modal-node/src/templates/status.html`)
+1. **Template Updates** (`rust/modality-node/src/templates/status.html`)
    - Added `{finalized_rounds_section}` placeholder to the Validators tab
 
-2. **Template Functions** (`rust/modal-node/src/templates/mod.rs`)
+2. **Template Functions** (`rust/modality-node/src/templates/mod.rs`)
    - `render_finalized_rounds_section()` - Renders the entire section with table structure
    - `render_finalized_round_row()` - Renders individual round rows with data
    - `render_empty_finalized_rounds()` - Renders message when no rounds exist
    - Updated `StatusPageVars` struct to include `finalized_rounds_section` field
 
-3. **Status Server Logic** (`rust/modal-node/src/status_server.rs`)
+3. **Status Server Logic** (`rust/modality-node/src/status_server.rs`)
    - `calculate_finalized_rounds()` - Queries validator blocks from the datastore
    - `build_finalized_rounds_html()` - Constructs HTML from round data
    - Integrated into `generate_status_html()` function
@@ -88,7 +88,7 @@ The feature uses the multi-store query system to retrieve validator blocks:
 
 ### Viewing the Section
 
-1. Start a modal-node instance (miner or validator)
+1. Start a modality-node instance (miner or validator)
 2. Access the status page at `http://localhost:<status_port>`
 3. Click on the **Validators** tab
 4. The "Recently Finalized Rounds" section will be displayed at the top
@@ -158,10 +158,10 @@ The implementation includes test coverage:
 
 ## Related Components
 
-- **ValidatorBlock Model** (`modal-datastore/src/models/validator/block.rs`)
+- **ValidatorBlock Model** (`modality-datastore/src/models/validator/block.rs`)
   - Stores individual validator blocks with certificates
   
-- **Multi-Store Queries** (`modal-datastore/src/models/validator/multi_store.rs`)
+- **Multi-Store Queries** (`modality-datastore/src/models/validator/multi_store.rs`)
   - Provides transparent querying across active and final stores
   
 - **Status Page Tabs** (`templates/status.html`)

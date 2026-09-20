@@ -1,9 +1,9 @@
 #[cfg(test)]
 mod tests {
     use anyhow::{Result};
-    use modal_datastore::NetworkDatastore;
-    use modal_datastore::models::block::prelude::*;
-    use modal_datastore::models::block_message::BlockMessage;
+    use modality_datastore::NetworkDatastore;
+    use modality_datastore::models::block::prelude::*;
+    use modality_datastore::models::block_message::BlockMessage;
 
     #[tokio::test]
     async fn test_block_message() -> Result<()> {

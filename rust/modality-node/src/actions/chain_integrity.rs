@@ -5,8 +5,8 @@
 //! automatically repair any inconsistencies by orphaning broken blocks.
 
 use anyhow::Result;
-use modal_datastore::DatastoreManager;
-use modal_datastore::models::MinerBlock;
+use modality_datastore::DatastoreManager;
+use modality_datastore::models::MinerBlock;
 use std::collections::HashMap;
 
 /// Result of a chain integrity check

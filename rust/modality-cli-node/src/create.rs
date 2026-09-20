@@ -3,9 +3,9 @@ use clap::Parser;
 use serde_json::json;
 use std::path::PathBuf;
 
-use modal_common::keypair::Keypair;
-use modal_node::autoupgrade::{DEFAULT_AUTOUPGRADE_BASE_URL, DEFAULT_AUTOUPGRADE_CHECK_INTERVAL_SECS};
-use modal_networks::networks;
+use modality_common::keypair::Keypair;
+use modality_node::autoupgrade::{DEFAULT_AUTOUPGRADE_BASE_URL, DEFAULT_AUTOUPGRADE_CHECK_INTERVAL_SECS};
+use modality_networks::networks;
 
 #[derive(Debug, Parser)]
 #[command(about = "Create a new node directory with config.json and node.modal_passfile")]
@@ -117,13 +117,13 @@ pub struct Opts {
 }
 
 pub async fn run(opts: &Opts) -> Result<()> {
-    // Handle --from-template by loading passfile and config from modal-networks
+    // Handle --from-template by loading passfile and config from modality-networks
     let (template_passfile_content, template_config_content, template_network) = if let Some(template) = &opts.from_template {
         println!("📦 Loading template: {}", template);
         
-        let tmpl = modal_networks::templates::get(template)
+        let tmpl = modality_networks::templates::get(template)
             .ok_or_else(|| {
-                let available = modal_networks::templates::list().join(", ");
+                let available = modality_networks::templates::list().join(", ");
                 anyhow::anyhow!(
                     "Template '{}' not found. Available templates: {}",
                     template,
@@ -430,13 +430,13 @@ pub async fn run(opts: &Opts) -> Result<()> {
         // This ensures template configs keep all their fields like network_config_path, listeners, etc.
         
         // If using a template, inject network_config_path based on the network name
-        // This allows templates to work with embedded network configs from modal-networks
+        // This allows templates to work with embedded network configs from modality-networks
         if let Some(network_name) = &template_network {
-            // Verify the network exists in modal-networks
-            if modal_networks::networks::by_name(network_name).is_some() {
+            // Verify the network exists in modality-networks
+            if modality_networks::networks::by_name(network_name).is_some() {
                 // Use a special marker that the node will recognize to load from embedded configs
-                obj.insert("network_config_path".to_string(), json!(format!("modal-networks://{}", network_name)));
-                println!("📋 Network config: {} (from modal-networks)", network_name);
+                obj.insert("network_config_path".to_string(), json!(format!("modality-networks://{}", network_name)));
+                println!("📋 Network config: {} (from modality-networks)", network_name);
             }
         }
     }

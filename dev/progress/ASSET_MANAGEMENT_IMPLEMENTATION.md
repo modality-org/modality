@@ -12,7 +12,7 @@ Successfully implemented CREATE, SEND, and RECV actions for asset management wit
 
 ### ✅ Step 1: Asset Data Structures
 
-**File:** `rust/modal-datastore/src/models/contract.rs`
+**File:** `rust/modality-datastore/src/models/contract.rs`
 
 **Added Models:**
 - `ContractAsset` - Tracks asset metadata (quantity, divisibility, creation time)
@@ -68,7 +68,7 @@ The validation logic is accessible both locally (CLI) and at consensus level (va
 
 ### ✅ Step 5: Consensus-Level Validation
 
-**File:** `rust/modal-validator/src/contract_processor.rs` (new)
+**File:** `rust/modality-validator/src/contract_processor.rs` (new)
 
 **Features:**
 - `ContractProcessor` struct manages asset state during consensus
@@ -83,7 +83,7 @@ The validation logic is accessible both locally (CLI) and at consensus level (va
 
 ### ✅ Step 6: Validator Integration
 
-**File:** `rust/modal-validator/src/shoal_validator.rs`
+**File:** `rust/modality-validator/src/shoal_validator.rs`
 
 **Changes:**
 - Wired up `ContractProcessor` in transaction ordering flow
@@ -196,14 +196,14 @@ Receives an asset from a matching SEND:
 ## Files Modified
 
 **Core Implementation:**
-- `rust/modal-datastore/src/models/contract.rs` - Asset data models
-- `rust/modal-datastore/src/models/mod.rs` - Export new models
+- `rust/modality-datastore/src/models/contract.rs` - Asset data models
+- `rust/modality-datastore/src/models/mod.rs` - Export new models
 - `rust/modal/src/contract_store/commit_file.rs` - Action validation
 - `rust/modal/src/cmds/contract/commit.rs` - CLI flags and builders
-- `rust/modal-validator/src/contract_processor.rs` - NEW: Consensus processor
-- `rust/modal-validator/src/lib.rs` - Export processor
-- `rust/modal-validator/src/shoal_validator.rs` - Wire up processor
-- `rust/modal-validator/Cargo.toml` - Add serde_json dependency
+- `rust/modality-validator/src/contract_processor.rs` - NEW: Consensus processor
+- `rust/modality-validator/src/lib.rs` - Export processor
+- `rust/modality-validator/src/shoal_validator.rs` - Wire up processor
+- `rust/modality-validator/Cargo.toml` - Add serde_json dependency
 
 **CLI Commands:**
 - `rust/modal/src/cmds/contract/assets.rs` - NEW: Asset query commands

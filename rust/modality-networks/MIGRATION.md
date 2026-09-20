@@ -1,10 +1,10 @@
 # Migration from bootstrap.modality.network
 
-This document describes the migration from the Node.js-based `bootstrap.modality.network` repository to the Rust-based `modal-networks` package.
+This document describes the migration from the Node.js-based `bootstrap.modality.network` repository to the Rust-based `modality-networks` package.
 
 ## Overview
 
-The `modal-networks` package is a Rust implementation that replaces the functionality of `bootstrap.modality.network`. It provides:
+The `modality-networks` package is a Rust implementation that replaces the functionality of `bootstrap.modality.network`. It provides:
 
 1. **Better integration** - Native Rust code that integrates with the rest of the Modality codebase
 2. **Type safety** - Strong typing for network configurations
@@ -27,9 +27,9 @@ bootstrap.modality.network/
 └── package.json
 ```
 
-**New (modal-networks):**
+**New (modality-networks):**
 ```
-modal-networks/
+modality-networks/
 ├── networks/
 │   ├── devnet1/info.json
 │   ├── testnet/info.json
@@ -53,7 +53,7 @@ node source/update-dns.mjs
 
 **New (Rust):**
 ```bash
-cd rust/modal-networks
+cd rust/modality-networks
 
 # Using the convenience script
 ./scripts/manage-dns.sh update
@@ -62,7 +62,7 @@ cd rust/modal-networks
 cargo run -- update-dns
 
 # Or using the built binary
-modal-networks update-dns
+modality-networks update-dns
 ```
 
 ### AWS SDK
@@ -76,7 +76,7 @@ Both use the same AWS credential chain and require the same IAM permissions.
 
 ### 1. Update Network Configurations
 
-The network JSON files have been copied to `modal-networks/networks/`. To update a network:
+The network JSON files have been copied to `modality-networks/networks/`. To update a network:
 
 1. Edit the appropriate `networks/<network>/info.json` file
 2. The Rust code will automatically pick up changes on the next build
@@ -103,11 +103,11 @@ node source/update-dns.mjs
 ```toml
 # Cargo.toml
 [dependencies]
-modal-networks = { path = "../modal-networks" }
+modality-networks = { path = "../modality-networks" }
 ```
 
 ```rust
-use modal_networks::networks;
+use modality_networks::networks;
 
 // Get testnet bootstrappers
 let testnet = networks::testnet();
@@ -144,7 +144,7 @@ To verify the migration was successful:
 
 ## Future Plans
 
-The `modal-networks` package will be the canonical source of truth for network configurations. The old `bootstrap.modality.network` repository can be:
+The `modality-networks` package will be the canonical source of truth for network configurations. The old `bootstrap.modality.network` repository can be:
 
 1. Archived for historical reference
 2. Updated to point to this new location

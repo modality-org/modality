@@ -54,7 +54,7 @@ const commit = {
 When validators process round 0, the contract processor (Rust) handles POST actions:
 
 ```rust
-// In rust/modal-validator/src/contract_processor.rs
+// In rust/modality-validator/src/contract_processor.rs
 match method {
     "post" => {
         // Store value in datastore
@@ -69,7 +69,7 @@ match method {
 Nodes load parameters from the genesis contract (Rust):
 
 ```rust
-// In rust/modal-node/src/node.rs
+// In rust/modality-node/src/node.rs
 if let Some(genesis_contract_id) = network_config.get("genesis_contract_id") {
     let params = datastore
         .load_network_parameters_from_contract(genesis_contract_id)
@@ -145,13 +145,13 @@ Parameters are stored with this key format in the datastore:
 
 ## Implementation Files
 
-- **Rust Contract Processor**: `rust/modal-validator/src/contract_processor.rs`
+- **Rust Contract Processor**: `rust/modality-validator/src/contract_processor.rs`
   - Processes POST actions during consensus
   
-- **Rust Parameter Loading**: `rust/modal-datastore/src/network_datastore.rs`
+- **Rust Parameter Loading**: `rust/modality-datastore/src/network_datastore.rs`
   - Loads parameters from contract state
 
-- **Rust Node Initialization**: `rust/modal-node/src/node.rs`
+- **Rust Node Initialization**: `rust/modality-node/src/node.rs`
   - Calls parameter loading on startup
 
 - **JS Genesis Generation**: `js/packages/cli/src/cmds/net/genesis.js`

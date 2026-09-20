@@ -1,8 +1,8 @@
 use anyhow::Result;
 use crate::reqres::Response;
 use crate::inspection::{InspectionLevel, InspectionData, NodeStatus, DatastoreInfo};
-use modal_datastore::DatastoreManager;
-use modal_datastore::models::MinerBlock;
+use modality_datastore::DatastoreManager;
+use modality_datastore::models::MinerBlock;
 use serde_json;
 
 /// Handler for inspection requests

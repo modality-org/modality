@@ -6,15 +6,15 @@ Modal networks now support static validator sets as an alternative to dynamic va
 
 ## Implementation
 
-### 1. Network Configuration (`modal-networks`)
+### 1. Network Configuration (`modality-networks`)
 
 **Updated Files:**
-- `rust/modal-networks/src/lib.rs` - Added optional `validators` field to `NetworkInfo` struct
-- `rust/modal-networks/networks/devnet1/info.json` - Added 1 validator
-- `rust/modal-networks/networks/devnet2/info.json` - Added 2 validators
-- `rust/modal-networks/networks/devnet3/info.json` - Added 3 validators  
-- `rust/modal-networks/networks/devnet5/info.json` - Added 5 validators
-- `rust/modal-networks/README.md` - Documented the new validators field
+- `rust/modality-networks/src/lib.rs` - Added optional `validators` field to `NetworkInfo` struct
+- `rust/modality-networks/networks/devnet1/info.json` - Added 1 validator
+- `rust/modality-networks/networks/devnet2/info.json` - Added 2 validators
+- `rust/modality-networks/networks/devnet3/info.json` - Added 3 validators  
+- `rust/modality-networks/networks/devnet5/info.json` - Added 5 validators
+- `rust/modality-networks/README.md` - Documented the new validators field
 
 **Key Changes:**
 ```rust
@@ -26,21 +26,21 @@ pub struct NetworkInfo {
 }
 ```
 
-### 2. Datastore Storage (`modal-datastore`)
+### 2. Datastore Storage (`modality-datastore`)
 
 **Updated Files:**
-- `rust/modal-datastore/src/network_datastore.rs` - Added methods to store/retrieve static validators
+- `rust/modality-datastore/src/network_datastore.rs` - Added methods to store/retrieve static validators
 
 **New Methods:**
 - `set_static_validators(&self, validators: &[String])` - Store static validators
 - `get_static_validators(&self)` - Retrieve static validators if configured
 - Updated `load_network_config` to extract and store validators from network config
 
-### 3. Validator Selection (`modal-datastore`)
+### 3. Validator Selection (`modality-datastore`)
 
 **Updated Files:**
-- `rust/modal-datastore/src/models/validator/validator_selection.rs` - Added hybrid selection logic
-- `rust/modal-datastore/src/models/validator/mod.rs` - Exported new function
+- `rust/modality-datastore/src/models/validator/validator_selection.rs` - Added hybrid selection logic
+- `rust/modality-datastore/src/models/validator/mod.rs` - Exported new function
 
 **New Function:**
 ```rust
@@ -55,10 +55,10 @@ This function:
 2. If yes, creates a ValidatorSet from static validators
 3. If no, falls back to `generate_validator_set_from_epoch` (existing dynamic logic)
 
-### 4. Consensus Integration (`modal-validator`)
+### 4. Consensus Integration (`modality-validator`)
 
 **Updated Files:**
-- `rust/modal-validator/src/shoal_validator.rs` - Added method to create config from peer IDs
+- `rust/modality-validator/src/shoal_validator.rs` - Added method to create config from peer IDs
 
 **New Method:**
 ```rust
@@ -104,7 +104,7 @@ This allows creating a validator committee from just peer ID strings, useful for
 ### Loading Network Config with Static Validators
 
 ```rust
-use modal_datastore::NetworkDatastore;
+use modality_datastore::NetworkDatastore;
 
 let datastore = NetworkDatastore::create_in_memory()?;
 let network_config = load_network_config("devnet3")?;
@@ -117,7 +117,7 @@ let validators = datastore.get_static_validators().await?;
 ### Getting Validator Set for an Epoch
 
 ```rust
-use modal_datastore::models::validator::get_validator_set_for_epoch;
+use modality_datastore::models::validator::get_validator_set_for_epoch;
 
 // Automatically uses static validators if configured, 
 // otherwise falls back to dynamic selection
@@ -127,7 +127,7 @@ let validator_set = get_validator_set_for_epoch(&datastore, 0).await?;
 ### Creating Consensus Committee from Peer IDs
 
 ```rust
-use modal_validator::ShoalValidatorConfig;
+use modality_validator::ShoalValidatorConfig;
 
 let peer_ids = vec![
     "12D3KooW9pte76rpnggcLYkFaawuTEs5DC5axHkg3cK3cewGxxHd".to_string(),
@@ -163,16 +163,16 @@ let config = ShoalValidatorConfig::from_peer_ids(peer_ids, 0)?;
 
 Comprehensive tests were added:
 
-1. **modal-networks**: Tests verify validators field parsing and correct counts
-2. **modal-datastore**: Tests verify storage/retrieval and validator selection logic
-3. **modal-validator**: Tests verify committee creation from peer IDs
+1. **modality-networks**: Tests verify validators field parsing and correct counts
+2. **modality-datastore**: Tests verify storage/retrieval and validator selection logic
+3. **modality-validator**: Tests verify committee creation from peer IDs
 4. **Integration tests**: End-to-end test of the complete flow
 
 Run tests:
 ```bash
-cargo test --package modal-networks
-cargo test --package modal-datastore  
-cargo test --package modal-validator
+cargo test --package modality-networks
+cargo test --package modality-datastore  
+cargo test --package modality-validator
 ```
 
 ## Future Enhancements

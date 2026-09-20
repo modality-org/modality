@@ -150,7 +150,7 @@ Gets contract or commit information from a node's datastore.
 
 ### Reqres Handlers
 
-Location: `rust/modal-node/src/reqres/contract/`
+Location: `rust/modality-node/src/reqres/contract/`
 
 #### `/contract/push`
 

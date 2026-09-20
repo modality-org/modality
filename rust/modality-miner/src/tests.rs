@@ -10,8 +10,8 @@
 #[cfg(all(test, feature = "persistence"))]
 mod orphan_detection_tests {
     use crate::{Block, BlockData, Miner};
-    use modal_datastore::{DatastoreManager, models::MinerBlock};
-    use modal_observer::{ChainObserver, ForkConfig};
+    use modality_datastore::{DatastoreManager, models::MinerBlock};
+    use modality_observer::{ChainObserver, ForkConfig};
     use std::sync::Arc;
     use tokio::sync::Mutex;
 

@@ -118,7 +118,7 @@ $ modal contract status
 - `src/cmds/contract/status.rs` - Status command
 - `docs/CONTRACT_COMMANDS.md` - Documentation
 
-**Node Package (`rust/modal-node/`):**
+**Node Package (`rust/modality-node/`):**
 - `src/reqres/contract/push.rs` - Push handler
 - `src/reqres/contract/pull.rs` - Pull handler
 - `src/reqres/contract/list.rs` - List handler

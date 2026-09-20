@@ -101,9 +101,9 @@ async fn test_equivocation_detection_single_validator() {
 async fn test_equivocation_rejected_by_honest_validators() {
     // Create 3 separate DAGs representing 3 honest validators
     let committee = create_test_committee(4);
-    let honest_dag1 = Arc::new(RwLock::new(modal_validator_consensus::narwhal::dag::DAG::new()));
-    let honest_dag2 = Arc::new(RwLock::new(modal_validator_consensus::narwhal::dag::DAG::new()));
-    let honest_dag3 = Arc::new(RwLock::new(modal_validator_consensus::narwhal::dag::DAG::new()));
+    let honest_dag1 = Arc::new(RwLock::new(modality_validator_consensus::narwhal::dag::DAG::new()));
+    let honest_dag2 = Arc::new(RwLock::new(modality_validator_consensus::narwhal::dag::DAG::new()));
+    let honest_dag3 = Arc::new(RwLock::new(modality_validator_consensus::narwhal::dag::DAG::new()));
     
     // Byzantine validator creates conflicting certificates
     let byzantine_validator = test_peer_id(4);

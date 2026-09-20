@@ -3,7 +3,7 @@
 //! This module contains the main mining loop that continuously mines blocks,
 //! handles updates from sync/gossip, and manages mining state.
 
-use modal_datastore::DatastoreManager;
+use modality_datastore::DatastoreManager;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use tokio::sync::Mutex;
@@ -32,7 +32,7 @@ pub fn start_mining_loop(
     swarm: Arc<Mutex<crate::swarm::NodeSwarm>>,
     peerid_str: String,
     miner_nominees: Option<Vec<String>>,
-    fork_config: modal_observer::ForkConfig,
+    fork_config: modality_observer::ForkConfig,
     mining_metrics: crate::mining_metrics::SharedMiningMetrics,
     initial_difficulty: Option<u128>,
     miner_hash_func: Option<String>,

@@ -218,7 +218,7 @@ fn test_existing_methods_still_work() {
 #[test]
 fn test_rule_rejection_explains_failed_consequent_predicate() {
     let contract_dir =
-        std::env::temp_dir().join(format!("modal-common-rule-explain-{}", std::process::id()));
+        std::env::temp_dir().join(format!("modality-common-rule-explain-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&contract_dir);
     std::fs::create_dir_all(&contract_dir).unwrap();
 

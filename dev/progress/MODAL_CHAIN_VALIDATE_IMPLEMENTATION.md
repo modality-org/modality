@@ -85,7 +85,7 @@ Passed: 5/5
 2. **rust/modal/src/cmds/chain/validate.rs** - Command implementation (~450 lines)
 3. **rust/modal/src/cmds/mod.rs** - Added chain module export
 4. **rust/modal/src/main.rs** - Added Chain subcommand and handler
-5. **rust/modal/Cargo.toml** - Added modal-observer and modal-miner dependencies
+5. **rust/modal/Cargo.toml** - Added modality-observer and modality-miner dependencies
 6. **examples/network/orphan-detection/README.md** - Updated with CLI usage
 
 ### Key Features

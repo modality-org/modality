@@ -79,15 +79,15 @@ export PATH="/path/to/modality/rust/target/release:$PATH"
 ## Files Modified Summary
 
 ### Core Implementation (9 Rust files)
-1. `rust/modal-networks/src/lib.rs` - Register networks
-2. `rust/modal-networks/networks/devnet1-hybrid/info.json` - Network config
-3. `rust/modal-networks/networks/devnet3-hybrid/info.json` - Network config
-4. `rust/modal-datastore/src/models/validator/validator_selection.rs` - Hybrid logic
-5. `rust/modal-datastore/src/models/validator/mod.rs` - Export function
-6. `rust/modal-node/src/config.rs` - Config fields
-7. `rust/modal-node/src/node.rs` - Node struct
-8. `rust/modal-node/src/actions/miner.rs` - Epoch broadcasts
-9. `rust/modal-node/src/actions/validator.rs` - Hybrid coordinator
+1. `rust/modality-networks/src/lib.rs` - Register networks
+2. `rust/modality-networks/networks/devnet1-hybrid/info.json` - Network config
+3. `rust/modality-networks/networks/devnet3-hybrid/info.json` - Network config
+4. `rust/modality-datastore/src/models/validator/validator_selection.rs` - Hybrid logic
+5. `rust/modality-datastore/src/models/validator/mod.rs` - Export function
+6. `rust/modality-node/src/config.rs` - Config fields
+7. `rust/modality-node/src/node.rs` - Node struct
+8. `rust/modality-node/src/actions/miner.rs` - Epoch broadcasts
+9. `rust/modality-node/src/actions/validator.rs` - Hybrid coordinator
 
 ### Test Infrastructure (10 files)
 10. `examples/network/10-hybrid-devnet1/README.md`

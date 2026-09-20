@@ -54,7 +54,7 @@ pub enum MiningOutcome {
 - Ensures `current_index` stays synchronized with actual chain state
 
 **Files Modified:**
-- `rust/modal-node/src/actions/miner.rs`
+- `rust/modality-node/src/actions/miner.rs`
 
 **Status:** ✅ IMPLEMENTED, TESTED, COMMITTED
 
@@ -87,7 +87,7 @@ pub enum MiningOutcome {
 - Classify orphan reason based on findings
 
 **Files Modified:**
-- `rust/modal-observer/src/chain_observer.rs`
+- `rust/modality-observer/src/chain_observer.rs`
 
 **Status:** ✅ IMPLEMENTED, TESTED, COMMITTED
 
@@ -175,8 +175,8 @@ Execution time: ~2 seconds
 
 | File | Lines Changed | Purpose |
 |------|---------------|---------|
-| `rust/modal-node/src/actions/miner.rs` | ~80 | Add `MiningOutcome` enum, update mining loop |
-| `rust/modal-observer/src/chain_observer.rs` | ~50 | Improve orphaning logic and messages |
+| `rust/modality-node/src/actions/miner.rs` | ~80 | Add `MiningOutcome` enum, update mining loop |
+| `rust/modality-observer/src/chain_observer.rs` | ~50 | Improve orphaning logic and messages |
 | `examples/network/miner-gossip-race/test.sh` | ~30 | Update for new behavior, adjust timeouts |
 
 ### Documentation Created
@@ -321,8 +321,8 @@ Status: ALL SYSTEMS GO 🚀
 ## 📝 Files Modified/Created
 
 ### Source Code (3 files)
-- `rust/modal-node/src/actions/miner.rs` - Add `MiningOutcome`, update mining loop
-- `rust/modal-observer/src/chain_observer.rs` - Improve orphaning logic
+- `rust/modality-node/src/actions/miner.rs` - Add `MiningOutcome`, update mining loop
+- `rust/modality-observer/src/chain_observer.rs` - Improve orphaning logic
 - `examples/network/miner-gossip-race/test.sh` - Update for new behavior
 
 ### Tests (2 new test suites)

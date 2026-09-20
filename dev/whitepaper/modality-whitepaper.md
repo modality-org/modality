@@ -44,7 +44,7 @@ Use cases include decentralized finance with verified rules, supply chain tracki
 
 ## System Architecture
 
-Modality's architecture comprises two layers: a PoW mining layer for block production and validator nomination, and a BFT consensus layer for finality. Nodes run `modal-node`, integrating `modal-miner` for PoW, `modal-validator-consensus` for BFT, `modal-wasm-runtime` for contracts, and `modality-lang` for verification.
+Modality's architecture comprises two layers: a PoW mining layer for block production and validator nomination, and a BFT consensus layer for finality. Nodes run `modality-node`, integrating `modality-miner` for PoW, `modality-validator-consensus` for BFT, `modality-wasm-runtime` for contracts, and `modality-lang` for verification.
 
 ```
 +-------------------+     +-------------------+
@@ -69,11 +69,11 @@ Key flows:
 
 Add detailed component descriptions:
 
-The PoW layer uses modal-miner for block production. Key files: rust/modal-miner/src/block.rs defines Block and BlockHeader; rust/modal-miner/src/miner.rs handles nonce finding with RandomX.
+The PoW layer uses modality-miner for block production. Key files: rust/modality-miner/src/block.rs defines Block and BlockHeader; rust/modality-miner/src/miner.rs handles nonce finding with RandomX.
 
-The BFT layer uses modal-validator-consensus. Key: rust/modal-validator-consensus/src/shoal/consensus.rs for certificate processing and anchor selection.
+The BFT layer uses modality-validator-consensus. Key: rust/modality-validator-consensus/src/shoal/consensus.rs for certificate processing and anchor selection.
 
-Contract layer: modal-wasm-runtime/src/executor.rs for gas-metered execution.
+Contract layer: modality-wasm-runtime/src/executor.rs for gas-metered execution.
 
 Verification: modality-lang/src/model_checker.rs for formula evaluation.
 
@@ -83,7 +83,7 @@ Modality uses RandomX [7] for ASIC-resistant, CPU-friendly mining, ensuring broa
 
 ### Block Structure
 
-From `rust/modal-miner/src/block.rs`:
+From `rust/modality-miner/src/block.rs`:
 
 ```
 pub struct BlockData {
@@ -110,7 +110,7 @@ Expand: The hash is computed using RandomX in header.calculate_hash, ensuring AS
 
 Miners solve for nonce such that `hash(mining_data + nonce) < difficulty_target`. Using `hash_tax` for RandomX.
 
-From `rust/modal-miner/src/miner.rs`:
+From `rust/modality-miner/src/miner.rs`:
 
 ```
 pub fn mine_block_with_stats(&self, block: Block) -> Result<MinedBlockResult> {
@@ -130,7 +130,7 @@ Add: Difficulty is u128, allowing fine-grained adjustments. Verification in veri
 
 Epochs are 40 blocks. Difficulty adjusts to target block time.
 
-From `rust/modal-miner/src/epoch.rs`:
+From `rust/modality-miner/src/epoch.rs`:
 
 ```
 fn adjust_difficulty(previous_epoch: &Epoch) -> u128 {
@@ -154,7 +154,7 @@ Shoal is a reputation-based BFT protocol built on Narwhal DAG [8].
 
 ### Validator Selection
 
-From `rust/modal-datastore/src/models/validator/validator_selection.rs`:
+From `rust/modality-datastore/src/models/validator/validator_selection.rs`:
 
 ```
 pub async fn generate_validator_set_from_epoch(datastore: &NetworkDatastore, epoch: u64) -> Result<ValidatorSet> {
@@ -175,7 +175,7 @@ Expand: In validator_selection.rs, get_validator_set_for_epoch first checks stat
 
 ### Shoal Algorithm
 
-From `rust/modal-validator-consensus/src/shoal/consensus.rs`:
+From `rust/modality-validator-consensus/src/shoal/consensus.rs`:
 
 ```
 pub async fn process_certificate(&mut self, cert: Certificate) -> Result<Vec<CertificateDigest>> {
@@ -204,7 +204,7 @@ Contracts use WASM for dynamic logic.
 
 ### Runtime
 
-From `rust/modal-wasm-runtime/src/executor.rs`:
+From `rust/modality-wasm-runtime/src/executor.rs`:
 
 ```
 pub fn execute(&mut self, wasm_bytes: &[u8], method: &str, args: &str) -> Result<String> {
@@ -250,7 +250,7 @@ Checker in model_checker.rs evaluates satisfaction per part or any-state.
 
 Mining nominates validators; BFT finalizes blocks; WASM executes with modal verification.
 
-Expand: In modal-node/src/actions/miner.rs, mine_and_gossip_block selects nominees rotationally.
+Expand: In modality-node/src/actions/miner.rs, mine_and_gossip_block selects nominees rotationally.
 
 Validator in actions/validator.rs processes via Shoal.
 

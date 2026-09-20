@@ -3,9 +3,9 @@ use clap::Parser;
 use std::path::PathBuf;
 use std::collections::HashMap;
 
-use modal_node::config::Config;
-use modal_datastore::DatastoreManager;
-use modal_datastore::models::MinerBlock;
+use modality_node::config::Config;
+use modality_datastore::DatastoreManager;
+use modality_datastore::models::MinerBlock;
 
 #[derive(Debug, Parser)]
 #[command(about = "Inspect network datastore and show miner block statistics")]

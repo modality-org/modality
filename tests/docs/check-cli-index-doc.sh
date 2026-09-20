@@ -58,16 +58,16 @@ lean_source_patterns=(
   'Passfile {'
   'fn contract_alias_argv'
   'fn parse_cli_from'
-  'Status(modal_cli_contract::status::Opts)'
-  'Pull(modal_cli_contract::pull::Opts)'
-  'Commit(modal_cli_contract::commit::Opts)'
-  'Diff(modal_cli_contract::diff::Opts)'
-  'Set(modal_cli_contract::set::Opts)'
-  'Repost(modal_cli_contract::repost::Opts)'
-  'AddRule(modal_cli_contract::add_rule::Opts)'
-  'modal_cli_contract::ai::Commands'
-  'modal_cli_ai::Commands'
-  'Download(modal_cli_contract::download::Opts)'
+  'Status(modality_cli_contract::status::Opts)'
+  'Pull(modality_cli_contract::pull::Opts)'
+  'Commit(modality_cli_contract::commit::Opts)'
+  'Diff(modality_cli_contract::diff::Opts)'
+  'Set(modality_cli_contract::set::Opts)'
+  'Repost(modality_cli_contract::repost::Opts)'
+  'AddRule(modality_cli_contract::add_rule::Opts)'
+  'modality_cli_contract::ai::Commands'
+  'modality_cli_ai::Commands'
+  'Download(modality_cli_contract::download::Opts)'
 )
 
 for pattern in "${lean_source_patterns[@]}"; do
@@ -86,7 +86,7 @@ full_source_patterns=(
   'Predicate {'
   'Program {'
   'Chain {'
-  'Killall(modal_cli_node::local::killall_nodes::Opts)'
+  'Killall(modality_cli_node::local::killall_nodes::Opts)'
   'Upgrade(modality::cmds::upgrade::Opts)'
 )
 

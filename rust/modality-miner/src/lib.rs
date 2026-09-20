@@ -26,7 +26,7 @@ pub use persistence::BlockchainPersistence;
 pub use fork_choice::MinerForkChoice;
 
 #[cfg(feature = "persistence")]
-pub use modal_observer::ForkConfig;
+pub use modality_observer::ForkConfig;
 
 /// The number of blocks in each epoch
 pub const BLOCKS_PER_EPOCH: u64 = 40;

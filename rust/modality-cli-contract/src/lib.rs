@@ -27,7 +27,7 @@ pub mod wasm_upload;
 #[cfg(test)]
 mod tests {
     use clap::Parser;
-    use modal_common::contract_store::ContractStore;
+    use modality_common::contract_store::ContractStore;
     use serde_json::Value;
     use tempfile::TempDir;
 

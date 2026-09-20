@@ -259,19 +259,19 @@ build_packages() {
     cp -r dist-bundler "$BUILD_DIR/wasm/modality-lang/bundler"
     log_success "modality-lang WASM built"
     
-    # Build modal-wasm-validation WASM package
-    log_info "Building modal-wasm-validation WASM..."
-    cd "$PROJECT_ROOT/rust/modal-wasm-validation"
+    # Build modality-wasm-validation WASM package
+    log_info "Building modality-wasm-validation WASM..."
+    cd "$PROJECT_ROOT/rust/modality-wasm-validation"
     npm run build
     npm run build-node
     npm run build-bundler
     
-    # Copy modal-wasm-validation WASM builds
-    mkdir -p "$BUILD_DIR/wasm/modal-wasm-validation"
-    cp -r dist "$BUILD_DIR/wasm/modal-wasm-validation/web"
-    cp -r dist-node "$BUILD_DIR/wasm/modal-wasm-validation/node"
-    cp -r dist-bundler "$BUILD_DIR/wasm/modal-wasm-validation/bundler"
-    log_success "modal-wasm-validation WASM built"
+    # Copy modality-wasm-validation WASM builds
+    mkdir -p "$BUILD_DIR/wasm/modality-wasm-validation"
+    cp -r dist "$BUILD_DIR/wasm/modality-wasm-validation/web"
+    cp -r dist-node "$BUILD_DIR/wasm/modality-wasm-validation/node"
+    cp -r dist-bundler "$BUILD_DIR/wasm/modality-wasm-validation/bundler"
+    log_success "modality-wasm-validation WASM built"
     
     log_success "All WASM packages built successfully"
     fi
@@ -342,10 +342,10 @@ build_packages() {
                 "node": "wasm/modality-lang/node/",
                 "bundler": "wasm/modality-lang/bundler/"
             },
-            "modal-wasm-validation": {
-                "web": "wasm/modal-wasm-validation/web/",
-                "node": "wasm/modal-wasm-validation/node/",
-                "bundler": "wasm/modal-wasm-validation/bundler/"
+            "modality-wasm-validation": {
+                "web": "wasm/modality-wasm-validation/web/",
+                "node": "wasm/modality-wasm-validation/node/",
+                "bundler": "wasm/modality-wasm-validation/bundler/"
             }
         }
     }

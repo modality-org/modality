@@ -19,7 +19,7 @@ The duplicate at index 2032 violated the invariant that each index should have e
 
 ### 1. MinerBlockHeight Model (COMPLETE)
 
-Created `rust/modal-datastore/src/models/miner/miner_block_height.rs`:
+Created `rust/modality-datastore/src/models/miner/miner_block_height.rs`:
 - Lightweight index model storing only `index`, `block_hash`, and `is_canonical`
 - Indexed by `/miner_blocks/index/${index}/hash/${block_hash}`
 - Provides efficient lookup of canonical blocks by height
@@ -27,14 +27,14 @@ Created `rust/modal-datastore/src/models/miner/miner_block_height.rs`:
 
 ### 2. MinerBlock Integration (COMPLETE)
 
-Updated `MinerBlock` in `rust/modal-datastore/src/models/miner/miner_block.rs`:
+Updated `MinerBlock` in `rust/modality-datastore/src/models/miner/miner_block.rs`:
 - Custom `save()` method that maintains both hash-based and height-based indices
 - Automatically creates/updates `MinerBlockHeight` entry when saving
 - Updated `save_as_pending()` and `canonize()` signatures to use `&mut NetworkDatastore`
 
 ### 3. Duplicate Detection and Healing Logic (COMPLETE)
 
-Created `rust/modal-datastore/src/models/miner/integrity.rs`:
+Created `rust/modality-datastore/src/models/miner/integrity.rs`:
 
 #### `detect_duplicate_canonical_blocks()`
 - Queries all canonical blocks
@@ -56,7 +56,7 @@ The function:
 
 ### 4. Tests (COMPLETE)
 
-All tests passing in `modal-datastore`:
+All tests passing in `modality-datastore`:
 - `MinerBlockHeight` model tests (create, save, find canonical, detect duplicates)
 - Integrity tests (detect no duplicates, detect and heal duplicates)
 - Updated existing `MinerBlock` tests for new `&mut` signature
@@ -67,7 +67,7 @@ All implementation steps are now complete:
 - ✅ MinerBlockHeight model created
 - ✅ MinerBlock integration complete
 - ✅ Duplicate detection and healing logic implemented
-- ✅ Tests passing in modal-datastore
+- ✅ Tests passing in modality-datastore
 - ✅ Node startup auto-detection added
 - ✅ Manual heal command created (`modal chain heal`)
 - ✅ Chain validate integration complete

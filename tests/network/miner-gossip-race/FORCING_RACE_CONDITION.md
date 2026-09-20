@@ -55,7 +55,7 @@ To increase even further (99.9%+), use 500ms or 1000ms delay.
 
 Add artificial delay to gossip propagation to give more time for overlap.
 
-**In the code** (`rust/modal-node/src/gossip/miner/block.rs`):
+**In the code** (`rust/modality-node/src/gossip/miner/block.rs`):
 
 ```rust
 pub async fn handler(...) {
@@ -70,7 +70,7 @@ This gives the second miner more time to finish mining before receiving the goss
 
 ## Technique 4: Increase Mining Attempts
 
-Edit `rust/modal-common/src/hash_tax.rs` to add logging that slows down mining:
+Edit `rust/modality-common/src/hash_tax.rs` to add logging that slows down mining:
 
 ```rust
 pub fn find_valid_nonce(&self, data: &[u8], prefix_target: &str) -> (u64, usize) {

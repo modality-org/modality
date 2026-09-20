@@ -9,8 +9,8 @@ pub mod inspect;
 use data as reqres_data;
 use tokio::sync::mpsc;
 
-use modal_datastore::DatastoreManager;
-use modal_validator_consensus::communication::Message as ConsensusMessage;
+use modality_datastore::DatastoreManager;
+use modality_validator_consensus::communication::Message as ConsensusMessage;
 
 #[allow(dead_code)]
 pub const PROTOCOL: &str = "/modality-network/reqres/0.0.1";

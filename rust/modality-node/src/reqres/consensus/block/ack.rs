@@ -3,9 +3,9 @@ use anyhow::anyhow;
 use serde_json;
 use tokio::sync::mpsc;
 
-use modal_datastore::DatastoreManager;
-use modal_datastore::models::validator::block::Ack;
-use modal_validator_consensus::communication::Message as ConsensusMessage;
+use modality_datastore::DatastoreManager;
+use modality_datastore::models::validator::block::Ack;
+use modality_validator_consensus::communication::Message as ConsensusMessage;
 
 use crate::reqres::Response;
 

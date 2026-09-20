@@ -1,5 +1,5 @@
 [package]
-name = "modal-wasm-validation"
+name = "modality-wasm-validation"
 version = "0.1.0"
 edition = "2021"
 description = "Built-in validation logic for Modality contracts (WASM + native)"

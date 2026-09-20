@@ -1,4 +1,4 @@
-//! Centralized constants for the modal-node crate.
+//! Centralized constants for the modality-node crate.
 //!
 //! This module consolidates magic numbers and configuration defaults
 //! to improve maintainability and consistency across the codebase.

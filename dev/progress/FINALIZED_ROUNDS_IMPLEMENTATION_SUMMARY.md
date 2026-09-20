@@ -2,17 +2,17 @@
 
 ## Overview
 
-Successfully added a "Recently Finalized Rounds" section to the Validators tab of the modal-node status page. This feature provides real-time visibility into the consensus finalization process across the validator network.
+Successfully added a "Recently Finalized Rounds" section to the Validators tab of the modality-node status page. This feature provides real-time visibility into the consensus finalization process across the validator network.
 
 ## What Was Implemented
 
 ### 1. HTML Template Changes
-**File**: `rust/modal-node/src/templates/status.html`
+**File**: `rust/modality-node/src/templates/status.html`
 
 Added new placeholder `{finalized_rounds_section}` to the Validators tab content, positioned above the existing Epoch Nominees sections.
 
 ### 2. Template Rendering Functions
-**File**: `rust/modal-node/src/templates/mod.rs`
+**File**: `rust/modality-node/src/templates/mod.rs`
 
 Added four new template rendering functions:
 - `render_finalized_rounds_section()` - Main section wrapper with table structure
@@ -21,7 +21,7 @@ Added four new template rendering functions:
 - Updated `StatusPageVars` struct to include `finalized_rounds_section` field
 
 ### 3. Status Server Logic
-**File**: `rust/modal-node/src/status_server.rs`
+**File**: `rust/modality-node/src/status_server.rs`
 
 Added three key components:
 
@@ -56,14 +56,14 @@ fn build_finalized_rounds_html(
 - Generates HTML table rows
 
 ### 4. Configuration Constants
-**File**: `rust/modal-node/src/constants.rs`
+**File**: `rust/modality-node/src/constants.rs`
 
 Added two new constants:
 - `STATUS_FINALIZED_ROUNDS_TO_SHOW: u64 = 10` - Number of rounds to display
 - `BFT_THRESHOLD_PERCENTAGE: f32 = 66.67` - Byzantine fault tolerance threshold
 
 ### 5. Integration
-**File**: `rust/modal-node/src/status_server.rs`
+**File**: `rust/modality-node/src/status_server.rs`
 
 Integrated into `generate_status_html()`:
 ```rust
@@ -105,7 +105,7 @@ Each round shows:
 ## Files Modified
 
 ```
-rust/modal-node/src/
+rust/modality-node/src/
 ├── constants.rs                  (Added 2 constants)
 ├── status_server.rs             (Added 3 functions, integrated logic)
 └── templates/
@@ -124,8 +124,8 @@ docs/progress/
 ## Testing
 
 ### Build Verification
-✅ `cargo build -p modal-node` - Success
-✅ `cargo test -p modal-node --lib` - All 22 tests passed
+✅ `cargo build -p modality-node` - Success
+✅ `cargo test -p modality-node --lib` - All 22 tests passed
 
 ### Test Coverage
 - Template placeholder verification
@@ -136,14 +136,14 @@ docs/progress/
 
 ## Usage
 
-1. Start a modal-node (miner or validator)
+1. Start a modality-node (miner or validator)
 2. Access status page: `http://localhost:<status_port>`
 3. Navigate to **Validators** tab
 4. View "Recently Finalized Rounds" section at top
 
 ## Configuration
 
-Adjust behavior via constants in `rust/modal-node/src/constants.rs`:
+Adjust behavior via constants in `rust/modality-node/src/constants.rs`:
 
 ```rust
 // Show last N rounds

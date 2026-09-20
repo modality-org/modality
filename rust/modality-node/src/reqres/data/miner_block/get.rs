@@ -1,6 +1,6 @@
 use anyhow::Result;
-use modal_datastore::DatastoreManager;
-use modal_datastore::models::MinerBlock;
+use modality_datastore::DatastoreManager;
+use modality_datastore::models::MinerBlock;
 use crate::reqres::Response;
 
 /// Handler for GET /data/miner_block/get

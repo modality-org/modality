@@ -17,7 +17,7 @@ src/
 ```
 
 Current functionality:
-- Wraps `modal-observer::ChainObserver`
+- Wraps `modality-observer::ChainObserver`
 - Observes mining chain without participating
 - Provides `get_chain_tip()`, `initialize()` APIs
 - Uses `NetworkDatastore` for persistence
@@ -54,7 +54,7 @@ User/Application
         ↓
   Sequencer
         ↓
-  ChainObserver (modal-observer)
+  ChainObserver (modality-observer)
         ↓
   NetworkDatastore
 ```

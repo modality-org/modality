@@ -2,7 +2,7 @@ use anyhow::Result;
 use clap::Parser;
 use std::path::PathBuf;
 
-use modal_common::passfile::{public_id_from_file, resolve_public_id};
+use modality_common::passfile::{public_id_from_file, resolve_public_id};
 
 #[derive(Debug, Parser)]
 #[command(about = "Get the public ID from a passfile or named identity")]

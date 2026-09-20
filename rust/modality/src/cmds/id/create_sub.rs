@@ -3,7 +3,7 @@ use clap::Parser;
 use rpassword::read_password;
 use std::path::PathBuf;
 
-use modal_common::keypair::Keypair;
+use modality_common::keypair::Keypair;
 
 #[derive(Debug, Parser)]
 #[command(about = "Create a sub-keypair from a master keypair or mnemonic using a seed string")]
@@ -127,7 +127,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
             .name
             .clone()
             .unwrap_or_else(|| opts.seed.replace([':', '/', '\\'], "-"));
-        modal_common::passfile::named_passfile_create_path(&filename, opts.dir.as_deref())?
+        modality_common::passfile::named_passfile_create_path(&filename, opts.dir.as_deref())?
     };
 
     // Check if file already exists
@@ -181,7 +181,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
             .name
             .clone()
             .unwrap_or_else(|| opts.seed.replace([':', '/', '\\'], "-"));
-        let id_path = modal_common::passfile::write_named_public_id(&name, &address)?;
+        let id_path = modality_common::passfile::write_named_public_id(&name, &address)?;
         println!("🪪 Public ID saved to: {}", id_path.display());
     }
 

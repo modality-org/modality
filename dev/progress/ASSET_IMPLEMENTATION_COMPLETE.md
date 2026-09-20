@@ -77,12 +77,12 @@ cd examples/network/07-contract-assets
 ### Files Modified/Created
 
 **Core Implementation** (11 files):
-- `rust/modal-datastore/src/models/contract.rs` - Asset models
+- `rust/modality-datastore/src/models/contract.rs` - Asset models
 - `rust/modal/src/contract_store/commit_file.rs` - Validation
 - `rust/modal/src/cmds/contract/commit.rs` - CLI flags
 - `rust/modal/src/cmds/contract/assets.rs` - Query commands
-- `rust/modal-validator/src/contract_processor.rs` - Consensus validation
-- `rust/modal-validator/src/shoal_validator.rs` - Integration
+- `rust/modality-validator/src/contract_processor.rs` - Consensus validation
+- `rust/modality-validator/src/shoal_validator.rs` - Integration
 - + 5 more supporting files
 
 **Tests** (2 files):

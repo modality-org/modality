@@ -9,9 +9,9 @@ use crate::block::Block;
 #[cfg(feature = "persistence")]
 use crate::error::MiningError;
 #[cfg(feature = "persistence")]
-use modal_datastore::{DatastoreManager, models::MinerBlock};
+use modality_datastore::{DatastoreManager, models::MinerBlock};
 #[cfg(feature = "persistence")]
-use modal_observer::{ChainObserver, ForkConfig};
+use modality_observer::{ChainObserver, ForkConfig};
 #[cfg(feature = "persistence")]
 use std::sync::Arc;
 #[cfg(feature = "persistence")]

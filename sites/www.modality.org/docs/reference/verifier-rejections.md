@@ -158,7 +158,7 @@ The no-build doc smoke cross-checks the first-contract smoke for the promised
 current-state, closest-candidate, missing-signature, and no-state-mutation
 assertions too.
 
-Shared `modal-common::model_diagnostics` formatter regressions preserve the
+Shared `modality-common::model_diagnostics` formatter regressions preserve the
 proof-fragment text both paths depend on:
 
 - `summarizes_candidate_transition_with_stable_key_and_failures` preserves the
@@ -192,7 +192,7 @@ proof-fragment text both paths depend on:
   failure more than once or in a different order.
 
 The no-build doc smoke cross-checks these names against
-`rust/modal-common/src/model_diagnostics.rs` too, so shared formatter drift is
+`rust/modality-common/src/model_diagnostics.rs` too, so shared formatter drift is
 visible before a full Cargo build is available.
 
 ## Model-Replacement Rule Failures

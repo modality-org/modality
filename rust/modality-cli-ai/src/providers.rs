@@ -263,7 +263,7 @@ fn aws_env_credentials() -> Result<Credentials> {
         secret,
         token,
         None,
-        "modal-cli-ai",
+        "modality-cli-ai",
     ))
 }
 

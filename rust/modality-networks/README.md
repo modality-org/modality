@@ -1,4 +1,4 @@
-# modal-networks
+# modality-networks
 
 Information for bootstrapping and managing Modality Network nodes. This package contains network configurations and tools for managing DNS records for network bootstrappers.
 
@@ -26,13 +26,13 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-modal-networks = { path = "../modal-networks" }
+modality-networks = { path = "../modality-networks" }
 ```
 
 ## Usage as a Library
 
 ```rust
-use modal_networks::networks;
+use modality_networks::networks;
 
 // Get all networks
 let all = networks::all();
@@ -80,19 +80,19 @@ A shell script is provided for easier usage:
 
 ```bash
 # List all networks
-modal-networks list
+modality-networks list
 
 # Show information about a specific network
-modal-networks show testnet
+modality-networks show testnet
 
 # Update DNS records (dry run)
-modal-networks update-dns --dry-run
+modality-networks update-dns --dry-run
 
 # Update all networks
-modal-networks update-dns
+modality-networks update-dns
 
 # Update a specific network
-modal-networks update-dns --network testnet
+modality-networks update-dns --network testnet
 ```
 
 ## DNS Records
@@ -179,7 +179,7 @@ Networks can optionally specify a static set of validators. If the `validators` 
 ## Building
 
 ```bash
-cd rust/modal-networks
+cd rust/modality-networks
 cargo build --release
 ```
 

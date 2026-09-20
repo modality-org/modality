@@ -14,7 +14,7 @@ mod consensus;
 mod hybrid;
 
 use anyhow::Result;
-use modal_common::keypair::Keypair;
+use modality_common::keypair::Keypair;
 
 use crate::gossip;
 use crate::node::Node;
@@ -108,7 +108,7 @@ pub async fn run(node: &mut Node) -> Result<()> {
 
 /// Check and start consensus based on node configuration.
 async fn start_consensus_if_configured(node: &Node) {
-    // Convert libp2p keypair to modal_common Keypair for signing
+    // Convert libp2p keypair to modality_common Keypair for signing
     let keypair = match Keypair::from_libp2p_keypair(node.node_keypair.clone()) {
         Ok(kp) => kp,
         Err(e) => {

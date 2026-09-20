@@ -357,9 +357,9 @@ LOG_DIR=/tmp/network-test-logs ./run-tests.sh --quick
 ## Related Documentation
 
 - [CLI Documentation](../../rust/modality/docs/)
-- [Network Node Documentation](../../rust/modal-node/docs/)
-- [Mining Documentation](../../rust/modal-miner/README.md)
-- [Validator Documentation](../../rust/modal-validator/README.md)
+- [Network Node Documentation](../../rust/modality-node/docs/)
+- [Mining Documentation](../../rust/modality-miner/README.md)
+- [Validator Documentation](../../rust/modality-validator/README.md)
 
 ## Contributing
 

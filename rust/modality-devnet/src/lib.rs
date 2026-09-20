@@ -1,12 +1,12 @@
 use anyhow::Result;
 use lazy_static::lazy_static;
-use modal_datastore::models::ValidatorBlock;
+use modality_datastore::models::ValidatorBlock;
 #[allow(unused_imports)]
-use modal_datastore::{DatastoreManager, Model};
+use modality_datastore::{DatastoreManager, Model};
 use serde_json::{self, Value};
 use std::collections::HashMap;
 
-use modal_common::keypair::Keypair;
+use modality_common::keypair::Keypair;
 
 pub const KEYPAIRS_JSON: &str = include_str!("../keypairs.json");
 

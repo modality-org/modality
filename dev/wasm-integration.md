@@ -8,26 +8,26 @@ This implementation provides a complete WASM-based execution framework for deter
 
 ### Core Components
 
-1. **modal-wasm-runtime** (`rust/modal-wasm-runtime/`)
+1. **modality-wasm-runtime** (`rust/modality-wasm-runtime/`)
    - WASM executor with Wasmtime
    - Gas metering via fuel API
    - Module validation
    - Registry for cached modules
 
-2. **modal-wasm-validation** (`rust/modal-wasm-validation/`)
+2. **modality-wasm-validation** (`rust/modality-wasm-validation/`)
    - Built-in deterministic validators
    - Compiles to WASM for use in JavaScript
    - Transaction validation
    - Asset transfer validation
    - POST action validation
 
-3. **modal-datastore** (WasmModule model)
+3. **modality-datastore** (WasmModule model)
    - Stores WASM binaries in network datastore
    - SHA256 hash verification
    - Gas limit per module
    - Module metadata
 
-4. **modal-validator** (ContractProcessor integration)
+4. **modality-validator** (ContractProcessor integration)
    - Processes POST actions with `.wasm` extension
    - Validates WASM modules during consensus
    - Stores modules in datastore
@@ -122,8 +122,8 @@ const transferResult = await executor.validateAssetTransfer(
 ### Rust Usage
 
 ```rust
-use modal_wasm_runtime::WasmExecutor;
-use modal_wasm_validation::validators;
+use modality_wasm_runtime::WasmExecutor;
+use modality_wasm_validation::validators;
 
 // Built-in validation
 let result = validators::validate_transaction_deterministic(
@@ -178,7 +178,7 @@ std::fs::read("config.json")
 
 4. **Consistent JSON serialization**: Use deterministic ordering
 ```rust
-use modal_common::json_stringify_deterministic;
+use modality_common::json_stringify_deterministic;
 
 let json = json_stringify_deterministic(&data)?;
 ```
@@ -223,7 +223,7 @@ Example gas costs:
 
 ```
 rust/
-├── modal-wasm-runtime/           # WASM executor with gas metering
+├── modality-wasm-runtime/           # WASM executor with gas metering
 │   ├── src/
 │   │   ├── lib.rs
 │   │   ├── executor.rs           # Wasmtime-based executor
@@ -231,7 +231,7 @@ rust/
 │   │   └── registry.rs           # Module registry
 │   └── Cargo.toml
 │
-├── modal-wasm-validation/        # Built-in validators (WASM + native)
+├── modality-wasm-validation/        # Built-in validators (WASM + native)
 │   ├── src/
 │   │   ├── lib.rs
 │   │   ├── validators.rs         # Deterministic validation logic
@@ -239,11 +239,11 @@ rust/
 │   ├── package.json              # For wasm-pack builds
 │   └── Cargo.toml
 │
-├── modal-datastore/
+├── modality-datastore/
 │   └── src/models/
 │       └── wasm_module.rs        # WasmModule storage model
 │
-├── modal-validator/
+├── modality-validator/
 │   └── src/
 │       └── contract_processor.rs # POST .wasm handling
 │
@@ -257,7 +257,7 @@ js/packages/sdk/
     └── wasm-executor.js          # JavaScript wrapper
 
 build/wasm/                       # Compiled WASM modules
-├── modal-wasm-validation/
+├── modality-wasm-validation/
 │   ├── web/                      # For browsers
 │   ├── node/                     # For Node.js
 │   └── bundler/                  # For bundlers
@@ -284,9 +284,9 @@ See `examples/network/10-wasm-validation/` for complete examples:
 Run tests:
 ```bash
 # Rust tests
-cd rust/modal-wasm-runtime && cargo test
-cd rust/modal-wasm-validation && cargo test
-cd rust/modal-validator && cargo test
+cd rust/modality-wasm-runtime && cargo test
+cd rust/modality-wasm-validation && cargo test
+cd rust/modality-validator && cargo test
 
 # JavaScript tests
 cd js && pnpm test

@@ -3,8 +3,8 @@
 /// Usage:
 ///   cargo run --example create_test_blocks -- <data_dir> [num_blocks]
 
-use modal_datastore::DatastoreManager;
-use modal_datastore::models::MinerBlock;
+use modality_datastore::DatastoreManager;
+use modality_datastore::models::MinerBlock;
 use std::env;
 use std::path::PathBuf;
 

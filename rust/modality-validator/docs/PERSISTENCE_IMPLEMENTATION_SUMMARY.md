@@ -6,7 +6,7 @@ Successfully implemented a complete DAG (Directed Acyclic Graph) persistence lay
 
 ## ✅ Completed Deliverables
 
-### 1. Storage Models (4 new files in modal-datastore)
+### 1. Storage Models (4 new files in modality-datastore)
 
 #### `certificate.rs` - Certificate Storage
 - Stores individual DAG certificates with complete metadata
@@ -148,10 +148,10 @@ Added methods to DAG struct:
 ## Files Created/Modified
 
 ### Created (13 files):
-1. `rust/modal-datastore/src/models/certificate.rs` (190 lines)
-2. `rust/modal-datastore/src/models/batch.rs` (123 lines)
-3. `rust/modal-datastore/src/models/dag_state.rs` (129 lines)
-4. `rust/modal-datastore/src/models/consensus_metadata.rs` (105 lines)
+1. `rust/modality-datastore/src/models/certificate.rs` (190 lines)
+2. `rust/modality-datastore/src/models/batch.rs` (123 lines)
+3. `rust/modality-datastore/src/models/dag_state.rs` (129 lines)
+4. `rust/modality-datastore/src/models/consensus_metadata.rs` (105 lines)
 5. `rust/modal-sequencer-consensus/src/persistence/mod.rs` (177 lines)
 6. `rust/modal-sequencer-consensus/src/persistence/recovery.rs` (327 lines)
 7. `rust/modal-sequencer-consensus/tests/persistence_tests.rs` (457 lines)
@@ -159,7 +159,7 @@ Added methods to DAG struct:
 9-13. Test helper updates and documentation
 
 ### Modified (8 files):
-1. `rust/modal-datastore/src/models/mod.rs` - Export new models
+1. `rust/modality-datastore/src/models/mod.rs` - Export new models
 2. `rust/modal-sequencer-consensus/Cargo.toml` - Add base64 dependency, persistence feature
 3. `rust/modal-sequencer-consensus/src/lib.rs` - Export persistence module
 4. `rust/modal-sequencer-consensus/src/narwhal/dag.rs` - Add persistence methods, Debug impl
@@ -188,7 +188,7 @@ test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
 ```
 
 ### Compilation
-- ✅ modal-datastore compiles clean
+- ✅ modality-datastore compiles clean
 - ✅ modal-sequencer-consensus compiles clean (with and without persistence feature)
 - ✅ modal-sequencer compiles clean (with and without persistence feature)
 - ✅ All tests pass
@@ -228,7 +228,7 @@ test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
 
 ```rust
 use modal_sequencer::shoal_sequencer::{ShoalSequencer, ShoalSequencerConfig};
-use modal_datastore::NetworkDatastore;
+use modality_datastore::NetworkDatastore;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 

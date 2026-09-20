@@ -1,6 +1,6 @@
 use anyhow::Result;
 use clap::Parser;
-use modal_datastore::DatastoreManager;
+use modality_datastore::DatastoreManager;
 use std::path::PathBuf;
 
 #[derive(Parser)]
@@ -19,7 +19,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
     let ds = DatastoreManager::open(&opts.datastore)?;
     
     log::info!("Checking for duplicate canonical blocks...");
-    let duplicates = modal_datastore::models::miner::integrity::detect_duplicate_canonical_blocks_multi(&ds).await?;
+    let duplicates = modality_datastore::models::miner::integrity::detect_duplicate_canonical_blocks_multi(&ds).await?;
     
     if duplicates.is_empty() {
         println!("✅ No duplicate canonical blocks found!");
@@ -47,7 +47,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
     }
     
     println!("Healing duplicates...");
-    let orphaned = modal_datastore::models::miner::integrity::heal_duplicate_canonical_blocks_multi(&ds, duplicates).await?;
+    let orphaned = modality_datastore::models::miner::integrity::heal_duplicate_canonical_blocks_multi(&ds, duplicates).await?;
     
     println!("\n✅ Successfully healed {} duplicate blocks:", orphaned.len());
     for hash in &orphaned {

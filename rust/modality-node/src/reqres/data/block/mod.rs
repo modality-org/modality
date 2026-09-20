@@ -5,7 +5,7 @@ pub mod inclusions;
 use anyhow::Result;
 use serde_json;
 
-use modal_datastore::DatastoreManager;
+use modality_datastore::DatastoreManager;
 
 use crate::reqres::Response;
 

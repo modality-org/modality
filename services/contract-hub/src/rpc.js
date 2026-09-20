@@ -1,7 +1,7 @@
 /**
  * JSON-RPC handler for Contract Hub
  * 
- * Provides RPC interface for querying contracts, compatible with modal-rpc.
+ * Provides RPC interface for querying contracts, compatible with modality-rpc.
  */
 
 /**

@@ -115,16 +115,16 @@ jobs:
           cp -r dist-node ../../build/wasm/modality-lang/node
           cp -r dist-bundler ../../build/wasm/modality-lang/bundler
       
-      - name: Build WASM - modal-wasm-validation
-        working-directory: rust/modal-wasm-validation
+      - name: Build WASM - modality-wasm-validation
+        working-directory: rust/modality-wasm-validation
         run: |
           npm run build
           npm run build-node
           npm run build-bundler
-          mkdir -p ../../build/wasm/modal-wasm-validation
-          cp -r dist ../../build/wasm/modal-wasm-validation/web
-          cp -r dist-node ../../build/wasm/modal-wasm-validation/node
-          cp -r dist-bundler ../../build/wasm/modal-wasm-validation/bundler
+          mkdir -p ../../build/wasm/modality-wasm-validation
+          cp -r dist ../../build/wasm/modality-wasm-validation/web
+          cp -r dist-node ../../build/wasm/modality-wasm-validation/node
+          cp -r dist-bundler ../../build/wasm/modality-wasm-validation/bundler
       
       - name: Create package manifest
         run: |
@@ -155,10 +155,10 @@ jobs:
                   "node": "wasm/modality-lang/node/",
                   "bundler": "wasm/modality-lang/bundler/"
                 },
-                "modal-wasm-validation": {
-                  "web": "wasm/modal-wasm-validation/web/",
-                  "node": "wasm/modal-wasm-validation/node/",
-                  "bundler": "wasm/modal-wasm-validation/bundler/"
+                "modality-wasm-validation": {
+                  "web": "wasm/modality-wasm-validation/web/",
+                  "node": "wasm/modality-wasm-validation/node/",
+                  "bundler": "wasm/modality-wasm-validation/bundler/"
                 }
               }
             }
@@ -318,7 +318,7 @@ jobs:
               <h1>WebAssembly Packages</h1>
               <ul>
                   <li><a href="modality-lang/">modality-lang</a></li>
-                  <li><a href="modal-wasm-validation/">modal-wasm-validation</a></li>
+                  <li><a href="modality-wasm-validation/">modality-wasm-validation</a></li>
               </ul>
           </body>
           </html>

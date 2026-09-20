@@ -1,4 +1,4 @@
-# modal-validator
+# modality-validator
 
 Blockchain validator for Modality - provides consensus for transaction ordering.
 
@@ -7,7 +7,7 @@ Blockchain validator for Modality - provides consensus for transaction ordering.
 This package provides validator implementations for Modality nodes:
 
 ### Observer-based Validator (Legacy)
-The original implementation that wraps `modal-observer` functionality to track the canonical mining chain without participating in mining itself.
+The original implementation that wraps `modality-observer` functionality to track the canonical mining chain without participating in mining itself.
 
 ### Shoal Consensus Validator (New)
 A high-performance Byzantine Fault Tolerant (BFT) consensus implementation based on the Shoal protocol, which combines:
@@ -29,8 +29,8 @@ A high-performance Byzantine Fault Tolerant (BFT) consensus implementation based
 ### Observer-based Validator
 
 ```rust
-use modal_validator::{Validator, ValidatorConfig};
-use modal_datastore::NetworkDatastore;
+use modality_validator::{Validator, ValidatorConfig};
+use modality_datastore::NetworkDatastore;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
@@ -48,9 +48,9 @@ let tip = validator.get_chain_tip().await;
 ### Shoal Consensus Validator
 
 ```rust
-use modal_validator::{ShoalValidator, ShoalValidatorConfig};
-use modal_validator_consensus::narwhal::Transaction;
-use modal_datastore::NetworkDatastore;
+use modality_validator::{ShoalValidator, ShoalValidatorConfig};
+use modality_validator_consensus::narwhal::Transaction;
+use modality_datastore::NetworkDatastore;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
@@ -142,7 +142,7 @@ See [PERFORMANCE_BENCHMARKS.md](./docs/PERFORMANCE_BENCHMARKS.md) for detailed a
 Run performance benchmarks:
 
 ```bash
-cd ../modal-validator-consensus
+cd ../modality-validator-consensus
 cargo bench --bench consensus_benchmarks
 
 # View HTML reports
@@ -158,7 +158,7 @@ See [BENCHMARKING_GUIDE.md](./docs/BENCHMARKING_GUIDE.md) for complete benchmark
 - ✅ Shoal consensus engine with pipelining
 - ✅ Leader reputation system with adaptive selection
 - ✅ Transaction ordering via topological sort
-- ✅ Full integration with `modal-validator`
+- ✅ Full integration with `modality-validator`
 - ✅ 50 unit tests + 10 integration tests (100% passing)
 - ✅ 9 comprehensive benchmark suites
 - ✅ Complete documentation (5 specification documents)

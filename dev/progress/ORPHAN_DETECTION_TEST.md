@@ -75,7 +75,7 @@ Total execution time: ~2 seconds (with difficulty=1)
 ### Architecture
 ```
 orphan-detection/
-├── Cargo.toml          # Dependencies: modal-observer, modal-datastore, modal-miner
+├── Cargo.toml          # Dependencies: modality-observer, modality-datastore, modality-miner
 ├── README.md           # Documentation
 └── src/
     └── main.rs         # Test implementation (~320 lines)
@@ -102,10 +102,10 @@ orphan-detection/
 
 ```toml
 [dependencies]
-modal-observer = { path = "../../../rust/modal-observer" }
-modal-datastore = { path = "../../../rust/modal-datastore" }
-modal-miner = { path = "../../../rust/modal-miner" }
-modal-common = { path = "../../../rust/modal-common" }
+modality-observer = { path = "../../../rust/modality-observer" }
+modality-datastore = { path = "../../../rust/modality-datastore" }
+modality-miner = { path = "../../../rust/modality-miner" }
+modality-common = { path = "../../../rust/modality-common" }
 tokio = { version = "1", features = ["full"] }
 anyhow = "1"
 ```

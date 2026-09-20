@@ -101,9 +101,9 @@ pub fn filter_nodes_by_network(nodes: Vec<NodeInfo>, filter: &str) -> Vec<NodeIn
 
 fn matches_network_filter(network_config: &str, filter: &str) -> bool {
     // Extract the network name from the path
-    // e.g., "modal-networks://devnet3" -> "devnet3"
+    // e.g., "modality-networks://devnet3" -> "devnet3"
     let network_name = network_config
-        .strip_prefix("modal-networks://")
+        .strip_prefix("modality-networks://")
         .unwrap_or(network_config);
     
     // Support simple wildcard matching

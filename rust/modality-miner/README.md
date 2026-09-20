@@ -44,10 +44,10 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-modal-miner = { path = "../modal-miner" }
+modality-miner = { path = "../modality-miner" }
 
 # With persistence support
-modal-miner = { path = "../modal-miner", features = ["persistence"] }
+modality-miner = { path = "../modality-miner", features = ["persistence"] }
 ```
 
 ## Usage
@@ -55,7 +55,7 @@ modal-miner = { path = "../modal-miner", features = ["persistence"] }
 ### Basic Mining (Without Persistence)
 
 ```rust
-use modal_miner::{Blockchain, ChainConfig};
+use modality_miner::{Blockchain, ChainConfig};
 
 // Create a new blockchain
 let config = ChainConfig {
@@ -77,8 +77,8 @@ println!("Mined block {}: {}", block.header.index, block.header.hash);
 ### With Persistence
 
 ```rust
-use modal_miner::{Blockchain, ChainConfig, BlockchainPersistence};
-use modal_datastore::NetworkDatastore;
+use modality_miner::{Blockchain, ChainConfig, BlockchainPersistence};
+use modality_datastore::NetworkDatastore;
 use std::sync::Arc;
 
 #[tokio::main]
@@ -167,7 +167,7 @@ match chain.validate_chain() {
 }
 
 // Direct mining with validation
-use modal_miner::{Block, BlockData, Miner};
+use modality_miner::{Block, BlockData, Miner};
 
 let miner = Miner::new_default();
 let data = BlockData::new("QmMiner...".to_string(), 999);
@@ -206,7 +206,7 @@ This can be used for:
 
 ## Persistence
 
-The optional `persistence` feature integrates with `modal-datastore`:
+The optional `persistence` feature integrates with `modality-datastore`:
 
 ```bash
 # Build with persistence
@@ -334,7 +334,7 @@ cargo test test_full_blockchain_lifecycle
 - `serde`/`serde_json`: Serialization
 - `thiserror`: Error handling
 - `modality-utils`: Fisher-Yates shuffle and utilities
-- `modal-datastore`: Optional persistence (feature-gated)
+- `modality-datastore`: Optional persistence (feature-gated)
 - `async-trait`, `tokio`: Optional async support (feature-gated)
 
 ## License
@@ -347,6 +347,6 @@ See [CONTRIBUTING.md](../../CONTRIBUTING.md)
 
 ## Related Packages
 
-- `modal-datastore`: Persistent storage for blockchain data
-- `modal-validator-consensus`: Consensus mechanisms using mining data
+- `modality-datastore`: Persistent storage for blockchain data
+- `modality-validator-consensus`: Consensus mechanisms using mining data
 - `modality-utils`: Shared utilities including crypto functions

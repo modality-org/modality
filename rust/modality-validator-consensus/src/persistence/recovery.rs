@@ -3,8 +3,8 @@ use crate::narwhal::dag::DAG;
 use crate::persistence::FromPersistenceModel;
 use crate::shoal::{ConsensusState, ReputationState};
 use anyhow::{Context, Result};
-use modal_datastore::models::{DAGCertificate, DAGState};
-use modal_datastore::DatastoreManager;
+use modality_datastore::models::{DAGCertificate, DAGState};
+use modality_datastore::DatastoreManager;
 
 /// Strategy for recovering DAG state from persistent storage
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

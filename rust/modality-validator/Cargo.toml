@@ -1,5 +1,5 @@
 [package]
-name = "modal-validator"
+name = "modality-validator"
 version = "0.1.0"
 edition = "2021"
 description = "Blockchain validator for Modality - observes mining chain without mining"
@@ -13,11 +13,11 @@ anyhow = "1.0"
 thiserror = "1.0"
 log = "0.4"
 tokio = { version = "1", features = ["rt", "sync", "time", "macros"] }
-modal-observer = { path = "../modal-observer", version = "0.1.0" }
-modal-datastore = { path = "../modal-datastore", version = "0.1.0" }
-modal-validator-consensus = { path = "../modal-validator-consensus", version = "0.1.0" }
-modal-wasm-runtime = { path = "../modal-wasm-runtime", version = "0.1.0" }
-modal-wasm-validation = { path = "../modal-wasm-validation", version = "0.1.0" }
+modality-observer = { path = "../modality-observer", version = "0.1.0" }
+modality-datastore = { path = "../modality-datastore", version = "0.1.0" }
+modality-validator-consensus = { path = "../modality-validator-consensus", version = "0.1.0" }
+modality-wasm-runtime = { path = "../modality-wasm-runtime", version = "0.1.0" }
+modality-wasm-validation = { path = "../modality-wasm-validation", version = "0.1.0" }
 modality-lang = { path = "../modality-lang", version = "0.1.7" }
 wasmtime = "26.0"
 libp2p-identity = { version = "0.2", features = ["serde"] }
@@ -32,4 +32,4 @@ tempfile = "3.5"
 
 [features]
 default = []
-persistence = ["modal-validator-consensus/persistence"]
+persistence = ["modality-validator-consensus/persistence"]

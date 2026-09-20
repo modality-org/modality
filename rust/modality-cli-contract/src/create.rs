@@ -2,8 +2,8 @@ use anyhow::Result;
 use clap::Parser;
 use std::path::PathBuf;
 
-use modal_common::contract_store::{CommitFile, ContractStore};
-use modal_common::keypair::Keypair;
+use modality_common::contract_store::{CommitFile, ContractStore};
+use modality_common::keypair::Keypair;
 
 #[derive(Debug, Parser)]
 #[command(about = "Create a new contract in a directory")]

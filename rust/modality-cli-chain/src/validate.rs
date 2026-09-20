@@ -1,10 +1,10 @@
 use anyhow::Result;
 use clap::Parser;
-use modal_datastore::DatastoreManager;
-use modal_datastore::models::MinerBlock;
-use modal_observer::{ChainObserver, ForkConfig};
-use modal_miner::block::{Block, BlockData};
-use modal_miner::miner::Miner;
+use modality_datastore::DatastoreManager;
+use modality_datastore::models::MinerBlock;
+use modality_observer::{ChainObserver, ForkConfig};
+use modality_miner::block::{Block, BlockData};
+use modality_miner::miner::Miner;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -350,7 +350,7 @@ async fn test_orphan_promotion(datastore: Arc<Mutex<DatastoreManager>>) -> Resul
 /// Test: Duplicate Canonical Detection - Check for duplicate canonical blocks
 async fn test_duplicate_canonical(datastore: Arc<Mutex<DatastoreManager>>) -> Result<TestResult> {
     let ds = datastore.lock().await;
-    let duplicates = modal_datastore::models::miner::integrity::detect_duplicate_canonical_blocks_multi(&ds).await?;
+    let duplicates = modality_datastore::models::miner::integrity::detect_duplicate_canonical_blocks_multi(&ds).await?;
     drop(ds);
     
     if duplicates.is_empty() {

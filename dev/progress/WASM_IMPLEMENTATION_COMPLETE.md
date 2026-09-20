@@ -14,25 +14,25 @@ Successfully implemented a comprehensive WASM-based execution framework for dete
 
 ### Core Components Created
 
-1. **modal-wasm-runtime** (`rust/modal-wasm-runtime/`)
+1. **modality-wasm-runtime** (`rust/modality-wasm-runtime/`)
    - WASM executor with Wasmtime engine
    - Gas metering using fuel API (10M default, 100M max)
    - Module validation and registry
    - Tests: `tests/gas_tests.rs`
 
-2. **modal-wasm-validation** (`rust/modal-wasm-validation/`)
+2. **modality-wasm-validation** (`rust/modality-wasm-validation/`)
    - Built-in deterministic validators
    - Compiles to WASM for JavaScript use
    - Transaction, POST action, and asset transfer validation
    - Difficulty adjustment computation
    - Tests: `tests/gas_tests.rs`, determinism tests
 
-3. **WasmModule Storage** (`rust/modal-datastore/src/models/wasm_module.rs`)
+3. **WasmModule Storage** (`rust/modality-datastore/src/models/wasm_module.rs`)
    - Stores WASM binaries with SHA256 verification
    - Gas limit per module
    - Module metadata tracking
 
-4. **ContractProcessor Integration** (`rust/modal-validator/src/contract_processor.rs`)
+4. **ContractProcessor Integration** (`rust/modality-validator/src/contract_processor.rs`)
    - Detects `.wasm` extension in POST actions
    - Routes to `process_wasm_post()` handler
    - Validates and stores WASM modules
@@ -87,7 +87,7 @@ Successfully implemented a comprehensive WASM-based execution framework for dete
 
 ### Created Files
 ```
-rust/modal-wasm-runtime/
+rust/modality-wasm-runtime/
 ├── Cargo.toml
 ├── README.md
 └── src/
@@ -98,7 +98,7 @@ rust/modal-wasm-runtime/
 └── tests/
     └── gas_tests.rs
 
-rust/modal-wasm-validation/
+rust/modality-wasm-validation/
 ├── Cargo.toml
 ├── package.json
 └── src/
@@ -108,7 +108,7 @@ rust/modal-wasm-validation/
 └── tests/
     └── gas_tests.rs
 
-rust/modal-datastore/src/models/
+rust/modality-datastore/src/models/
 └── wasm_module.rs
 
 rust/modal/src/cmds/contract/
@@ -132,10 +132,10 @@ docs/
 ### Modified Files
 ```
 rust/Cargo.toml                                    # Added new crates to workspace
-rust/modal-datastore/Cargo.toml                    # Added dependencies
-rust/modal-datastore/src/models/mod.rs             # Exported WasmModule
-rust/modal-validator/Cargo.toml                    # Added WASM dependencies
-rust/modal-validator/src/contract_processor.rs     # Added WASM handling
+rust/modality-datastore/Cargo.toml                    # Added dependencies
+rust/modality-datastore/src/models/mod.rs             # Exported WasmModule
+rust/modality-validator/Cargo.toml                    # Added WASM dependencies
+rust/modality-validator/src/contract_processor.rs     # Added WASM handling
 rust/modal/Cargo.toml                              # Added dependencies
 rust/modal/src/cmds/contract/mod.rs                # Added wasm_upload module
 rust/modal/src/main.rs                             # Added CLI command
@@ -170,7 +170,7 @@ console.log(result.errors);     // []
 
 ### Rust
 ```rust
-use modal_wasm_validation::validators;
+use modality_wasm_validation::validators;
 
 let result = validators::validate_transaction_deterministic(
     r#"{"amount": 100, "to": "addr123"}"#,
@@ -192,9 +192,9 @@ All tests passing:
 
 Run tests:
 ```bash
-cargo test -p modal-wasm-runtime
-cargo test -p modal-wasm-validation
-cargo test -p modal-validator
+cargo test -p modality-wasm-runtime
+cargo test -p modality-wasm-validation
+cargo test -p modality-validator
 ```
 
 ## Security Features
@@ -214,7 +214,7 @@ Build scripts updated to compile WASM for all targets:
 
 Run build:
 ```bash
-cd rust/modal-wasm-validation
+cd rust/modality-wasm-validation
 npm run build        # Web target
 npm run build-node   # Node.js target
 npm run build-bundler # Bundler target

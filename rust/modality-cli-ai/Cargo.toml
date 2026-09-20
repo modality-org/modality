@@ -1,5 +1,5 @@
 [package]
-name = "modal-cli-ai"
+name = "modality-cli-ai"
 version = "0.1.0"
 edition = "2021"
 description = "AI provider configuration and rule suggestion for Modal CLI"
@@ -8,7 +8,7 @@ repository = "https://github.com/modality-org/modality"
 homepage = "https://www.modality.org"
 
 [dependencies]
-modal-common = { path = "../modal-common", version = "0.1.7" }
+modality-common = { path = "../modality-common", version = "0.1.7" }
 modality-lang = { path = "../modality-lang", version = "0.1.7" }
 anyhow = "1.0"
 clap = { version = "4.1.11", features = ["derive", "env"] }

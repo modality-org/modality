@@ -163,5 +163,5 @@ After confirming the validator runs:
 - Try `02-run-devnet2` for a 2-validator network
 - Try `03-run-devnet3` for a 3-validator network
 - See `05-mining` to add miners to the network
-- Review validator documentation in `rust/modal-node/docs/`
+- Review validator documentation in `rust/modality-node/docs/`
 

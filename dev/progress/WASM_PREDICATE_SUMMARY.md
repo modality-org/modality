@@ -80,7 +80,7 @@
 
 ```
 rust/
-├── modal-wasm-validation/
+├── modality-wasm-validation/
 │   ├── src/predicates/
 │   │   ├── signed_by.rs         # 5 standard predicates
 │   │   ├── amount_in_range.rs
@@ -91,13 +91,13 @@ rust/
 │   │   └── README.md            # Documentation
 │   └── predicate_bindings.rs    # WASM entry points
 │
-├── modal-wasm-runtime/
+├── modality-wasm-runtime/
 │   └── src/cache.rs              # LRU cache (5 tests)
 │
-├── modal-datastore/
+├── modality-datastore/
 │   └── src/models/wasm_module.rs # Enhanced lookups
 │
-└── modal-validator/
+└── modality-validator/
     └── src/predicate_executor.rs # Executor + cache
 ```
 

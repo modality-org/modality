@@ -13,12 +13,12 @@ YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
 # Build the binary if needed
-if [ ! -f "../../target/debug/modal-networks" ] || [ "src/main.rs" -nt "../../target/debug/modal-networks" ]; then
-    echo -e "${YELLOW}Building modal-networks binary...${NC}"
+if [ ! -f "../../target/debug/modality-networks" ] || [ "src/main.rs" -nt "../../target/debug/modality-networks" ]; then
+    echo -e "${YELLOW}Building modality-networks binary...${NC}"
     cargo build
 fi
 
-BINARY="../../target/debug/modal-networks"
+BINARY="../../target/debug/modality-networks"
 
 # Default command
 COMMAND="${1:-help}"

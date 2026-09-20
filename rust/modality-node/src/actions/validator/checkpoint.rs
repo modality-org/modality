@@ -6,10 +6,10 @@
 //! - Consensus: Checkpoints are created when a new validator set's second certified round completes
 
 use anyhow::Result;
-use modal_datastore::models::miner::MinerCheckpoint;
-use modal_datastore::models::MinerBlock;
-use modal_datastore::DatastoreManager;
-use modal_networks::{CheckpointMode, NetworkInfo};
+use modality_datastore::models::miner::MinerCheckpoint;
+use modality_datastore::models::MinerBlock;
+use modality_datastore::DatastoreManager;
+use modality_networks::{CheckpointMode, NetworkInfo};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
@@ -129,7 +129,7 @@ pub async fn create_checkpoint_for_epoch(
     
     // Compute merkle root of all block hashes
     let block_hashes: Vec<String> = sorted_blocks.iter().map(|b| b.hash.clone()).collect();
-    let merkle_root = modal_common::merkle::compute_merkle_root_owned(&block_hashes);
+    let merkle_root = modality_common::merkle::compute_merkle_root_owned(&block_hashes);
     
     // Create the checkpoint
     let checkpoint = MinerCheckpoint::new_consensus(

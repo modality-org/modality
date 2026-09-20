@@ -1,9 +1,9 @@
 {
-  "name": "modal-wasm-validation",
+  "name": "modality-wasm-validation",
   "version": "0.1.0",
   "description": "Built-in validation logic for Modality contracts (WASM)",
-  "main": "dist/modal_wasm_validation.js",
-  "types": "dist/modal_wasm_validation.d.ts",
+  "main": "dist/modality_wasm_validation.js",
+  "types": "dist/modality_wasm_validation.d.ts",
   "files": [
     "dist/"
   ],

@@ -2,8 +2,8 @@
 //! 
 //! Demonstrates number predicates for validating bids, prices, and amounts.
 
-use modal_wasm_validation::predicates::text_common::{CorrelationInput, RuleContext};
-use modal_wasm_validation::predicates::{
+use modality_wasm_validation::predicates::text_common::{CorrelationInput, RuleContext};
+use modality_wasm_validation::predicates::{
     num_equals, num_gt, num_gte, num_between,
 };
 

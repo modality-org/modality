@@ -92,11 +92,11 @@ RUST_SYNTHESIZE_CMD="$ROOT_DIR/rust/modality/src/cmds/synthesize.rs"
 MEMBERS_ONLY_INTEGRATION_TEST="$ROOT_DIR/rust/modal/tests/members_only_integration.rs"
 LLM_SYNTHESIS_SRC="$ROOT_DIR/rust/modality-lang/src/llm_synthesis.rs"
 FORMULA_SYNTHESIS_SRC="$ROOT_DIR/rust/modality-lang/src/formula_synthesis.rs"
-MODAL_CLI_HUB_CORE="$ROOT_DIR/rust/modal-cli-hub/src/core.rs"
+MODAL_CLI_HUB_CORE="$ROOT_DIR/rust/modality-cli-hub/src/core.rs"
 MODALITY_SYNTHESIZER_SRC="$ROOT_DIR/rust/modality-synthesizer/src/lib.rs"
-MODAL_COMMON_CONTRACT_STORE="$ROOT_DIR/rust/modal-common/src/contract_store/mod.rs"
-MODAL_COMMON_ONE_STEP_RULE="$ROOT_DIR/rust/modal-common/src/contract_store/one_step_rule.rs"
-MODAL_COMMON_CONTRACT_STORE_TESTS="$ROOT_DIR/rust/modal-common/src/contract_store/tests.rs"
+MODAL_COMMON_CONTRACT_STORE="$ROOT_DIR/rust/modality-common/src/contract_store/mod.rs"
+MODAL_COMMON_ONE_STEP_RULE="$ROOT_DIR/rust/modality-common/src/contract_store/one_step_rule.rs"
+MODAL_COMMON_CONTRACT_STORE_TESTS="$ROOT_DIR/rust/modality-common/src/contract_store/tests.rs"
 MEMBERSHIP_EVOLUTION_TEST="$ROOT_DIR/rust/modality-lang/tests/membership_evolution_test.rs"
 MODALITY_LANG_INTEGRATION_TESTS="$ROOT_DIR/rust/modality-lang/tests/integration_tests.rs"
 
@@ -1858,20 +1858,20 @@ if grep -Eq -- 'always[[:space:]]*\(\[\+ADD_MEMBER\][[:space:]]*implies|always[[
   exit 1
 fi
 
-modal_cli_hub_required_patterns=(
+modality_cli_hub_required_patterns=(
   "always (!<+modifies(/escrow/funds)> true | <+modifies(/escrow/funds) +signed_by(/users/alice.id)> true)"
   "always (!<+RESOLVE> true | <+RESOLVE +signed_by(/users/arbiter.id)> true)"
 )
 
-for pattern in "${modal_cli_hub_required_patterns[@]}"; do
+for pattern in "${modality_cli_hub_required_patterns[@]}"; do
   if ! grep -Fq "$pattern" "$MODAL_CLI_HUB_CORE"; then
-    echo "modal-cli-hub extraction fixture is missing current language-trap style: $pattern" >&2
+    echo "modality-cli-hub extraction fixture is missing current language-trap style: $pattern" >&2
     exit 1
   fi
 done
 
 if grep -Eq -- 'modifies\(/escrow/funds\)[[:space:]]+implies|disputed[[:space:]]+implies' "$MODAL_CLI_HUB_CORE"; then
-  echo "modal-cli-hub extraction fixtures should not use ordinary implication-sugar examples" >&2
+  echo "modality-cli-hub extraction fixtures should not use ordinary implication-sugar examples" >&2
   exit 1
 fi
 
@@ -1922,22 +1922,22 @@ if grep -Eq -- 'implication_may_be_witnessed_vacuously|always\(\[\+POST\] true[[
   exit 1
 fi
 
-modal_common_required_patterns=(
+modality_common_required_patterns=(
   "always (!+modifies(/members) | +all_signed(/members))"
   "Handle legacy implication"
   "Validate a legacy implication"
   "Split on the legacy \"implies\" operator."
 )
 
-for pattern in "${modal_common_required_patterns[@]}"; do
+for pattern in "${modality_common_required_patterns[@]}"; do
   if ! grep -Fq "$pattern" "$MODAL_COMMON_CONTRACT_STORE"; then
-    echo "modal-common contract store is missing current language-trap framing: $pattern" >&2
+    echo "modality-common contract store is missing current language-trap framing: $pattern" >&2
     exit 1
   fi
 done
 
 if ! grep -Fq 'rule protect_members { formula { always (!+modifies(/members) | +all_signed(/members)) } }' "$MODAL_COMMON_CONTRACT_STORE_TESTS"; then
-  echo "modal-common contract store tests should use explicit Boolean member protection" >&2
+  echo "modality-common contract store tests should use explicit Boolean member protection" >&2
   exit 1
 fi
 

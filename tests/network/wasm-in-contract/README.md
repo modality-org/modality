@@ -47,7 +47,7 @@ cd ../../
 
 1. **WASM Upload via POST**: Shows how WASM modules are uploaded as POST actions with `.wasm` extension
 2. **Gas Limits**: Demonstrates setting custom gas limits for execution
-3. **Built-in Validation**: Uses built-in validators from modal-wasm-validation
+3. **Built-in Validation**: Uses built-in validators from modality-wasm-validation
 4. **Cross-Platform**: The same WASM runs identically on all nodes
 
 ## Expected Output

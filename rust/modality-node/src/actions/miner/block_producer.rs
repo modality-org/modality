@@ -5,8 +5,8 @@
 
 use anyhow::Result;
 use libp2p::gossipsub::IdentTopic;
-use modal_datastore::models::MinerBlock;
-use modal_datastore::DatastoreManager;
+use modality_datastore::models::MinerBlock;
+use modality_datastore::DatastoreManager;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
@@ -21,7 +21,7 @@ pub async fn mine_and_gossip_block(
     miner_nominees: &Option<Vec<String>>,
     datastore: Arc<Mutex<DatastoreManager>>,
     swarm: Arc<Mutex<crate::swarm::NodeSwarm>>,
-    fork_config: modal_observer::ForkConfig,
+    fork_config: modality_observer::ForkConfig,
     mining_metrics: crate::mining_metrics::SharedMiningMetrics,
     initial_difficulty: Option<u128>,
     miner_hash_func: Option<String>,
@@ -29,7 +29,7 @@ pub async fn mine_and_gossip_block(
     mining_delay_ms: Option<u64>,
     epoch_transition_tx: Option<tokio::sync::broadcast::Sender<u64>>,
 ) -> Result<MiningOutcome> {
-    use modal_miner::{Blockchain, ChainConfig};
+    use modality_miner::{Blockchain, ChainConfig};
     
     // Determine the nominee
     let nominated_peer_id = match miner_nominees {
@@ -68,12 +68,12 @@ pub async fn mine_and_gossip_block(
     
     // Set RandomX parameters if needed
     if final_hash_func == "randomx" && final_hash_params.is_some() {
-        modal_common::hash_tax::set_randomx_params_from_json(final_hash_params.as_ref());
+        modality_common::hash_tax::set_randomx_params_from_json(final_hash_params.as_ref());
         log::info!("Set custom RandomX parameters for mining");
     }
     
     // Create miner with hash function
-    let custom_miner = modal_miner::Miner::new(modal_miner::MinerConfig {
+    let custom_miner = modality_miner::Miner::new(modality_miner::MinerConfig {
         max_tries: None,
         hash_func_name: Some(final_hash_func.leak()),
         mining_delay_ms: chain.config.mining_delay_ms,

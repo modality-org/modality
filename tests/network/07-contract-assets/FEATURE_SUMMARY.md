@@ -6,7 +6,7 @@ Successfully implemented CREATE, SEND, and RECV actions for asset management wit
 
 ## Implementation Components
 
-### 1. Data Models (`rust/modal-datastore`)
+### 1. Data Models (`rust/modality-datastore`)
 - **ContractAsset**: Stores asset metadata (quantity, divisibility, creator)
 - **AssetBalance**: Tracks asset ownership and balances per contract
 - Full CRUD operations with datastore integration
@@ -27,13 +27,13 @@ Successfully implemented CREATE, SEND, and RECV actions for asset management wit
 - `modal contract push`: Push commits to network
 - `modal contract pull`: Pull commits from network
 
-### 4. Consensus Integration (`rust/modal-validator`)
+### 4. Consensus Integration (`rust/modality-validator`)
 - **ContractProcessor**: Processes commits through consensus
 - Validates CREATE/SEND/RECV actions at consensus level
 - Updates asset state in datastore
 - Integrated with Shoal validator
 
-### 5. Network Support (`rust/modal-node`)
+### 5. Network Support (`rust/modality-node`)
 - libp2p WebSocket connections
 - Request/response protocol for push/pull
 - Automatic random keypair generation for temporary clients
@@ -115,21 +115,21 @@ Tests:
 ## Code Changes
 
 ### New Files
-- `rust/modal-datastore/src/models/contract.rs` (ContractAsset, AssetBalance)
+- `rust/modality-datastore/src/models/contract.rs` (ContractAsset, AssetBalance)
 - `rust/modal/src/cmds/contract/assets.rs` (asset query commands)
 - `rust/modal/src/contract_store/tests.rs` (unit tests)
-- `rust/modal-validator/src/contract_processor.rs` (consensus processing)
+- `rust/modality-validator/src/contract_processor.rs` (consensus processing)
 - `examples/network/07-contract-assets/*` (11 scripts + docs)
 
 ### Modified Files
 - `rust/modal/src/cmds/contract/commit.rs` (added asset flags)
 - `rust/modal/src/contract_store/commit_file.rs` (validation)
 - `rust/modal/src/main.rs` (CLI wiring)
-- `rust/modal-validator/src/shoal_validator.rs` (integration)
-- `rust/modal-validator/src/lib.rs` (exports)
-- `rust/modal-node/src/config.rs` (random keypair generation)
-- `rust/modal-datastore/src/models/mod.rs` (exports)
-- `rust/modal-validator/Cargo.toml` (serde_json dependency)
+- `rust/modality-validator/src/shoal_validator.rs` (integration)
+- `rust/modality-validator/src/lib.rs` (exports)
+- `rust/modality-node/src/config.rs` (random keypair generation)
+- `rust/modality-datastore/src/models/mod.rs` (exports)
+- `rust/modality-validator/Cargo.toml` (serde_json dependency)
 
 ## Usage Examples
 

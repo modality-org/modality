@@ -3,9 +3,9 @@ use clap::Parser;
 use std::path::PathBuf;
 use std::collections::HashMap;
 
-use modal_node::config_resolution::load_config_with_node_dir;
-use modal_datastore::DatastoreManager;
-use modal_datastore::models::miner::MinerBlock;
+use modality_node::config_resolution::load_config_with_node_dir;
+use modality_datastore::DatastoreManager;
+use modality_datastore::models::miner::MinerBlock;
 
 #[derive(Debug, Parser)]
 #[command(about = "Display summary statistics from recent blocks")]

@@ -1,7 +1,7 @@
 use anyhow::Result;
 use clap::Parser;
-use modal_common::contract_store::CommitFile;
-use modal_common::contract_store::ContractStore;
+use modality_common::contract_store::CommitFile;
+use modality_common::contract_store::ContractStore;
 use serde_json::Value;
 use std::path::PathBuf;
 
@@ -140,7 +140,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
 fn validate_wasm_module(wasm_bytes: &[u8]) -> Result<()> {
     #[cfg(feature = "wasm")]
     {
-        modal_wasm_runtime::WasmExecutor::validate_module(wasm_bytes)?;
+        modality_wasm_runtime::WasmExecutor::validate_module(wasm_bytes)?;
         Ok(())
     }
     #[cfg(not(feature = "wasm"))]

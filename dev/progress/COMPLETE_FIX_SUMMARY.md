@@ -56,7 +56,7 @@ if index < chain.height() + 1 && index < chain.blocks.len() as u64 {
 
 #### The Orphaning Logic Issue
 
-**Original Logic (modal-observer/src/chain_observer.rs):**
+**Original Logic (modality-observer/src/chain_observer.rs):**
 ```rust
 // Check if parent exists at index-1
 let parent_canonical = MinerBlock::find_canonical_by_index(&ds, new_block.index - 1).await?;
@@ -82,7 +82,7 @@ orphan_reason = "Parent mismatch or gap - parent hash {} not found in canonical 
 
 ### Fix #1: `MiningOutcome` Enum (PRIMARY FIX)
 
-**File:** `rust/modal-node/src/actions/miner.rs`
+**File:** `rust/modality-node/src/actions/miner.rs`
 
 **Changes:**
 1. Added `MiningOutcome` enum:
@@ -125,7 +125,7 @@ orphan_reason = "Parent mismatch or gap - parent hash {} not found in canonical 
 
 ### Fix #2: Improved Orphaning Logic (DIAGNOSTIC IMPROVEMENT)
 
-**File:** `rust/modal-observer/src/chain_observer.rs`
+**File:** `rust/modality-observer/src/chain_observer.rs`
 
 **Changes:**
 Enhanced orphaning logic to distinguish between three scenarios:
@@ -233,12 +233,12 @@ The mystery of why blocks ended up at 32877 instead of 32876 might be due to:
 
 ## Files Modified
 
-1. `rust/modal-node/src/actions/miner.rs`
+1. `rust/modality-node/src/actions/miner.rs`
    - Added `MiningOutcome` enum
    - Updated `mine_and_gossip_block` signature and implementation
    - Updated mining loop to handle outcomes correctly
 
-2. `rust/modal-observer/src/chain_observer.rs`
+2. `rust/modality-observer/src/chain_observer.rs`
    - Improved orphaning logic with three distinct cases
    - Added gap detection with explicit error messages
    - Added warnings for gap scenarios

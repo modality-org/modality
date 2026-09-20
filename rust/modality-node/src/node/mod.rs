@@ -22,9 +22,9 @@ use libp2p::request_response;
 use libp2p::swarm::SwarmEvent;
 use libp2p::{Multiaddr, PeerId};
 
-use modal_validator_consensus::communication::Message as ConsensusMessage;
-use modal_datastore::DatastoreManager;
-use modal_common::multiaddr_list::resolve_dns_multiaddrs;
+use modality_validator_consensus::communication::Message as ConsensusMessage;
+use modality_datastore::DatastoreManager;
+use modality_common::multiaddr_list::resolve_dns_multiaddrs;
 
 use crate::config::Config;
 use crate::consensus::net_comm::NetComm;
@@ -64,7 +64,7 @@ pub struct Node {
     pub epoch_transition_tx: tokio::sync::broadcast::Sender<u64>,
     pub reqres_response_txs: Arc<Mutex<HashMap<OutboundRequestId, tokio::sync::oneshot::Sender<reqres::Response>>>>,
     pub minimum_block_timestamp: Option<i64>,
-    pub fork_config: modal_observer::ForkConfig,
+    pub fork_config: modality_observer::ForkConfig,
     pub initial_difficulty: Option<u128>,
     pub miner_hash_func: Option<String>,
     pub miner_hash_params: Option<serde_json::Value>,
@@ -391,7 +391,7 @@ impl Node {
             tokio::signal::ctrl_c().await.expect("Failed to listen for Ctrl+C");
             log::info!("Received Ctrl-C, initiating shutdown...");
             
-            modal_common::hash_tax::set_mining_shutdown(true);
+            modality_common::hash_tax::set_mining_shutdown(true);
             
             if let Some(ref flag) = mining_shutdown {
                 flag.store(true, std::sync::atomic::Ordering::Relaxed);
@@ -560,7 +560,7 @@ impl Node {
                                 log::debug!("Identify received from {:?}: agent_version={}", peer_id, info.agent_version);
                                 
                                 // Extract status_url and role from agent version string
-                                // Format: "modal-node/version;status_url=https://...;role=Miner"
+                                // Format: "modality-node/version;status_url=https://...;role=Miner"
                                 let parts: Vec<&str> = info.agent_version.split(';').collect();
                                 let status_url = parts.iter()
                                     .find(|s| s.starts_with("status_url="))
@@ -574,7 +574,7 @@ impl Node {
                                 // Store peer info with status_url and role if either exists
                                 if status_url.is_some() || role.is_some() {
                                     log::info!("Peer {} - status_url: {:?}, role: {:?}", peer_id, status_url, role);
-                                    let peer_info = modal_datastore::models::PeerInfo::with_metadata(
+                                    let peer_info = modality_datastore::models::PeerInfo::with_metadata(
                                         peer_id.to_string(),
                                         status_url,
                                         role

@@ -1,4 +1,4 @@
-use modal_wasm_runtime::{WasmExecutor, DEFAULT_GAS_LIMIT, MAX_GAS_LIMIT};
+use modality_wasm_runtime::{WasmExecutor, DEFAULT_GAS_LIMIT, MAX_GAS_LIMIT};
 
 #[test]
 fn test_gas_limit_enforcement() {
@@ -34,7 +34,7 @@ fn test_max_gas_limit() {
 
 #[test]
 fn test_gas_metrics() {
-    use modal_wasm_runtime::GasMetrics;
+    use modality_wasm_runtime::GasMetrics;
     
     let mut metrics = GasMetrics::new(1000);
     assert_eq!(metrics.remaining(), 1000);

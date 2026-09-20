@@ -38,10 +38,10 @@ Successfully implemented a complete WASM-based predicate verification system for
 5. **post_to_path**: Commit action verification (~40-100 gas)
 
 **Files Created**:
-- `rust/modal-wasm-validation/src/predicates/mod.rs`
-- `rust/modal-wasm-validation/src/predicates/{signed_by,amount_in_range,has_property,timestamp_valid,post_to_path}.rs`
-- `rust/modal-wasm-validation/src/predicate_bindings.rs`
-- `rust/modal-wasm-validation/build-predicates.sh`
+- `rust/modality-wasm-validation/src/predicates/mod.rs`
+- `rust/modality-wasm-validation/src/predicates/{signed_by,amount_in_range,has_property,timestamp_valid,post_to_path}.rs`
+- `rust/modality-wasm-validation/src/predicate_bindings.rs`
+- `rust/modality-wasm-validation/build-predicates.sh`
 
 ### Phase 2: Cross-Contract WASM Execution ✅
 
@@ -60,8 +60,8 @@ Successfully implemented a complete WASM-based predicate verification system for
 - Proposition conversion: `true` → `+name`, `false` → `-name`
 
 **Files Created**:
-- `rust/modal-validator/src/predicate_executor.rs`
-- `rust/modal-datastore/src/models/wasm_module.rs` (enhanced)
+- `rust/modality-validator/src/predicate_executor.rs`
+- `rust/modality-datastore/src/models/wasm_module.rs` (enhanced)
 
 ### Phase 3: WASM Module Caching ✅
 
@@ -84,7 +84,7 @@ Successfully implemented a complete WASM-based predicate verification system for
 - **~87% speedup** from caching
 
 **Files Created**:
-- `rust/modal-wasm-runtime/src/cache.rs`
+- `rust/modality-wasm-runtime/src/cache.rs`
 
 ### Phase 4: Network Genesis Contract with Predicates ✅
 
@@ -103,7 +103,7 @@ Successfully implemented a complete WASM-based predicate verification system for
 
 ## Documentation Created
 
-1. **`rust/modal-wasm-validation/src/predicates/README.md`**
+1. **`rust/modality-wasm-validation/src/predicates/README.md`**
    - Comprehensive reference for all predicates
    - Input/output formats
    - Usage examples
@@ -215,7 +215,7 @@ Cache Hit Flow:
 
 ### New Files (12)
 ```
-rust/modal-wasm-validation/src/predicates/
+rust/modality-wasm-validation/src/predicates/
 ├── mod.rs
 ├── signed_by.rs
 ├── amount_in_range.rs
@@ -224,9 +224,9 @@ rust/modal-wasm-validation/src/predicates/
 ├── post_to_path.rs
 └── README.md
 
-rust/modal-wasm-validation/src/predicate_bindings.rs
-rust/modal-wasm-runtime/src/cache.rs
-rust/modal-validator/src/predicate_executor.rs
+rust/modality-wasm-validation/src/predicate_bindings.rs
+rust/modality-wasm-runtime/src/cache.rs
+rust/modality-validator/src/predicate_executor.rs
 
 docs/standard-predicates.md
 examples/network/predicate-usage/README.md
@@ -237,10 +237,10 @@ WASM_PREDICATE_SUMMARY.md
 
 ### Modified Files (5)
 ```
-rust/modal-wasm-validation/src/lib.rs
-rust/modal-wasm-validation/Cargo.toml
-rust/modal-wasm-runtime/src/lib.rs
-rust/modal-datastore/src/models/wasm_module.rs
+rust/modality-wasm-validation/src/lib.rs
+rust/modality-wasm-validation/Cargo.toml
+rust/modality-wasm-runtime/src/lib.rs
+rust/modality-datastore/src/models/wasm_module.rs
 js/packages/cli/src/cmds/net/genesis.js
 ```
 

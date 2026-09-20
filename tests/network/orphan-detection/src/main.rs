@@ -1,8 +1,8 @@
-use modal_datastore::NetworkDatastore;
-use modal_datastore::models::MinerBlock;
-use modal_observer::{ChainObserver, ForkConfig};
-use modal_miner::block::{Block, BlockData};
-use modal_miner::miner::Miner;
+use modality_datastore::NetworkDatastore;
+use modality_datastore::models::MinerBlock;
+use modality_observer::{ChainObserver, ForkConfig};
+use modality_miner::block::{Block, BlockData};
+use modality_miner::miner::Miner;
 use anyhow::Result;
 use std::sync::Arc;
 use tokio::sync::Mutex;

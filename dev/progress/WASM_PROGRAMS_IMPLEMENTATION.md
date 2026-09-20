@@ -97,8 +97,8 @@ The invoke action is processed and the resulting actions are executed directly. 
 ### Files Created
 
 **Core Types & Bindings:**
-- `rust/modal-wasm-validation/src/programs/mod.rs` - Program types (ProgramInput, ProgramResult, ProgramContext, CommitAction)
-- `rust/modal-wasm-validation/src/programs/bindings.rs` - Encoding/decoding and validation
+- `rust/modality-wasm-validation/src/programs/mod.rs` - Program types (ProgramInput, ProgramResult, ProgramContext, CommitAction)
+- `rust/modality-wasm-validation/src/programs/bindings.rs` - Encoding/decoding and validation
 
 **CLI Commands:**
 - `rust/modal/src/cmds/program/mod.rs` - Program command module
@@ -108,8 +108,8 @@ The invoke action is processed and the resulting actions are executed directly. 
 - `rust/modal/src/cmds/program/upload.rs` - Upload helper (`modal program upload`)
 
 **Validator Integration:**
-- `rust/modal-validator/src/program_executor.rs` - ProgramExecutor (executes WASM programs)
-- `rust/modal-validator/src/contract_processor.rs` - Updated to handle "invoke" actions
+- `rust/modality-validator/src/program_executor.rs` - ProgramExecutor (executes WASM programs)
+- `rust/modality-validator/src/contract_processor.rs` - Updated to handle "invoke" actions
 
 **Action Validation:**
 - `rust/modal/src/contract_store/commit_file.rs` - Added invoke action validation
@@ -121,11 +121,11 @@ The invoke action is processed and the resulting actions are executed directly. 
 
 ### Files Modified
 
-1. `rust/modal-wasm-validation/src/lib.rs` - Export programs module
+1. `rust/modality-wasm-validation/src/lib.rs` - Export programs module
 2. `rust/modal/src/cmds/mod.rs` - Register program commands  
 3. `rust/modal/src/main.rs` - Wire up program command handlers
-4. `rust/modal-validator/src/lib.rs` - Export ProgramExecutor
-5. `rust/modal-validator/src/contract_processor.rs` - Process invoke actions
+4. `rust/modality-validator/src/lib.rs` - Export ProgramExecutor
+5. `rust/modality-validator/src/contract_processor.rs` - Process invoke actions
 6. `rust/modal/src/contract_store/commit_file.rs` - Validate invoke actions
 7. `rust/modal/src/cmds/contract/commit.rs` - Build invoke action values
 8. `js/packages/contract/src/CommitAction.js` - Support invoke method
@@ -295,8 +295,8 @@ if args.amount > 100 {
 ```bash
 cd rust
 cargo build --release --bin modal
-cargo test --package modal-wasm-validation --lib programs
-cargo test --package modal-validator program_executor
+cargo test --package modality-wasm-validation --lib programs
+cargo test --package modality-validator program_executor
 ```
 
 ### Example Workflow

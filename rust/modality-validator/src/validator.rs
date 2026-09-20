@@ -1,6 +1,6 @@
 use crate::error::{Result, ValidatorError};
-use modal_observer::{ChainObserver, ForkConfig};
-use modal_datastore::DatastoreManager;
+use modality_observer::{ChainObserver, ForkConfig};
+use modality_datastore::DatastoreManager;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
@@ -15,7 +15,7 @@ pub struct ValidatorConfig {
 
 /// Validator for observing the blockchain without mining
 /// 
-/// The validator uses modal-observer to track the canonical chain
+/// The validator uses modality-observer to track the canonical chain
 /// by observing mining events via gossip.
 pub struct Validator {
     #[allow(dead_code)]

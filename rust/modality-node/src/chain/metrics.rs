@@ -4,8 +4,8 @@
 //! cumulative difficulty, chain length, and finding chain tips.
 
 use anyhow::Result;
-use modal_datastore::models::MinerBlock;
-use modal_datastore::DatastoreManager;
+use modality_datastore::models::MinerBlock;
+use modality_datastore::DatastoreManager;
 use std::collections::HashMap;
 
 /// Aggregated metrics for a chain

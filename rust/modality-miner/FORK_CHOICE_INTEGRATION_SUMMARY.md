@@ -2,19 +2,19 @@
 
 ## Overview
 
-The miner now inherits the observer's sophisticated fork choice handling by including `modal-observer` as a dependency. This enables proper handling of chain reorganizations, competing forks, and cumulative difficulty-based chain selection.
+The miner now inherits the observer's sophisticated fork choice handling by including `modality-observer` as a dependency. This enables proper handling of chain reorganizations, competing forks, and cumulative difficulty-based chain selection.
 
 ## Changes Made
 
 ### 1. Dependencies (`Cargo.toml`)
 
 **Added:**
-- `modal-observer = { path = "../modal-observer", version = "0.1.0", optional = true }`
+- `modality-observer = { path = "../modality-observer", version = "0.1.0", optional = true }`
 - `log = "0.4"` (for fork choice logging)
 - `tokio = { version = "1", features = ["rt", "sync"], optional = true }` (added "sync" feature)
 
 **Updated:**
-- `persistence` feature now includes `modal-observer`: `persistence = ["modal-datastore", "modal-observer", "async-trait", "tokio"]`
+- `persistence` feature now includes `modality-observer`: `persistence = ["modality-datastore", "modality-observer", "async-trait", "tokio"]`
 
 ### 2. New Module: `fork_choice.rs`
 
@@ -42,7 +42,7 @@ pub mod fork_choice;
 pub use fork_choice::MinerForkChoice;
 
 #[cfg(feature = "persistence")]
-pub use modal_observer::ForkConfig;
+pub use modality_observer::ForkConfig;
 ```
 
 ### 4. Blockchain Integration (`chain.rs`)
@@ -129,7 +129,7 @@ let chain = Blockchain::load_or_create(config, peer_id, datastore).await?;
 All tests pass with the new integration:
 
 ```bash
-$ cargo test -p modal-miner --features persistence
+$ cargo test -p modality-miner --features persistence
 ...
 test result: ok. 35 passed; 0 failed; 0 ignored; 0 measured
 ```
@@ -148,17 +148,17 @@ New tests added:
 
 ## Files Modified
 
-- `rust/modal-miner/Cargo.toml`
-- `rust/modal-miner/src/lib.rs`
-- `rust/modal-miner/src/chain.rs`
-- `rust/modal-miner/src/persistence.rs`
-- `rust/modal-miner/examples/persistence_demo.rs`
+- `rust/modality-miner/Cargo.toml`
+- `rust/modality-miner/src/lib.rs`
+- `rust/modality-miner/src/chain.rs`
+- `rust/modality-miner/src/persistence.rs`
+- `rust/modality-miner/examples/persistence_demo.rs`
 
 ## Files Created
 
-- `rust/modal-miner/src/fork_choice.rs`
-- `rust/modal-miner/FORK_CHOICE.md`
-- `rust/modal-miner/FORK_CHOICE_INTEGRATION_SUMMARY.md` (this file)
+- `rust/modality-miner/src/fork_choice.rs`
+- `rust/modality-miner/FORK_CHOICE.md`
+- `rust/modality-miner/FORK_CHOICE_INTEGRATION_SUMMARY.md` (this file)
 
 ## Next Steps
 

@@ -4,11 +4,11 @@
 //! for participating in consensus.
 
 use anyhow::Result;
-use modal_common::keypair::Keypair;
-use modal_datastore::models::ValidatorBlock;
-use modal_datastore::DatastoreManager;
-use modal_networks::CheckpointMode;
-use modal_validator_consensus::communication::{Communication, Message as ConsensusMessage};
+use modality_common::keypair::Keypair;
+use modality_datastore::models::ValidatorBlock;
+use modality_datastore::DatastoreManager;
+use modality_networks::CheckpointMode;
+use modality_validator_consensus::communication::{Communication, Message as ConsensusMessage};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::{mpsc, Mutex};
@@ -114,12 +114,12 @@ pub async fn create_and_start_shoal_validator_weighted_with_epoch(
         mgr.epoch_config().blocks_per_epoch
     };
     
-    match modal_validator::ShoalValidatorConfig::from_peer_ids_with_stakes(validators, stakes, my_index) {
+    match modality_validator::ShoalValidatorConfig::from_peer_ids_with_stakes(validators, stakes, my_index) {
         Ok(config) => {
             let validator_peer_id = config.validator_key.to_string();
             
             // Create and initialize ShoalValidator
-            match modal_validator::ShoalValidator::new(datastore, config).await {
+            match modality_validator::ShoalValidator::new(datastore, config).await {
                 Ok(shoal_validator) => {
                     match shoal_validator.initialize().await {
                         Ok(()) => {
@@ -214,7 +214,7 @@ fn create_validator_block(
 // TODO: Integrate with node startup for validator mode
 #[allow(dead_code)]
 pub async fn spawn_consensus_loop(
-    shoal_validator: modal_validator::ShoalValidator,
+    shoal_validator: modality_validator::ShoalValidator,
     datastore: Arc<Mutex<DatastoreManager>>,
     validator_peer_id: String,
     committee_size: usize,
@@ -240,7 +240,7 @@ pub async fn spawn_consensus_loop(
 
 /// Spawn a background task to run the Shoal consensus loop with checkpoint support.
 pub async fn spawn_consensus_loop_with_checkpoints(
-    _shoal_validator: modal_validator::ShoalValidator,
+    _shoal_validator: modality_validator::ShoalValidator,
     datastore: Arc<Mutex<DatastoreManager>>,
     validator_peer_id: String,
     committee_size: usize,

@@ -18,7 +18,7 @@ Added `--network` filter option to both `modal local nodes` and `modal local kil
 ### How It Works
 
 1. **Extracts network name** from `network_config_path` in config.json
-   - Example: `"modal-networks://devnet3"` → `"devnet3"`
+   - Example: `"modality-networks://devnet3"` → `"devnet3"`
    
 2. **Matches against filter**
    - Exact: `"devnet3"` matches only "devnet3"
@@ -133,14 +133,14 @@ Running Modal Nodes:
 PID: 12345
 Directory: ./tmp/devnet1-node
 Peer ID: 12D3KooW...
-Network: modal-networks://devnet1
+Network: modality-networks://devnet1
 Listening addresses:
   • /ip4/0.0.0.0/tcp/10101/ws/p2p/12D3KooW...
 
 PID: 12346
 Directory: ./tmp/devnet3-node
 Peer ID: 12D3KooWTest...
-Network: modal-networks://devnet3
+Network: modality-networks://devnet3
 Listening addresses:
   • /ip4/0.0.0.0/tcp/10102/ws/p2p/12D3KooWTest...
 
@@ -198,9 +198,9 @@ pub fn filter_nodes_by_network(nodes: Vec<NodeInfo>, filter: &str) -> Vec<NodeIn
 }
 
 fn matches_network_filter(network_config: &str, filter: &str) -> bool {
-    // Extract: "modal-networks://devnet3" -> "devnet3"
+    // Extract: "modality-networks://devnet3" -> "devnet3"
     let network_name = network_config
-        .strip_prefix("modal-networks://")
+        .strip_prefix("modality-networks://")
         .unwrap_or(network_config);
     
     // Wildcard matching
@@ -252,19 +252,19 @@ mkdir -p devnet1 devnet3 testnet
 # Create and start devnet1 node
 cd devnet1
 modal node create --type validator --port 11001
-# Edit config.json to set network_config_path to "modal-networks://devnet1"
+# Edit config.json to set network_config_path to "modality-networks://devnet1"
 modal node run-validator --dir . &
 
 # Create and start devnet3 node
 cd ../devnet3
 modal node create --type validator --port 11003
-# Edit config.json to set network_config_path to "modal-networks://devnet3"
+# Edit config.json to set network_config_path to "modality-networks://devnet3"
 modal node run-validator --dir . &
 
 # Create and start testnet node
 cd ../testnet
 modal node create --type validator --port 12001
-# Edit config.json to set network_config_path to "modal-networks://testnet"
+# Edit config.json to set network_config_path to "modality-networks://testnet"
 modal node run-validator --dir . &
 
 # Test filtering

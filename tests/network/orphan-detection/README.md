@@ -2,11 +2,11 @@
 
 This directory contains documentation and integration tests for the blockchain's orphaning logic.
 
-## ⚠️ Note: Tests Now in modal-miner
+## ⚠️ Note: Tests Now in modality-miner
 
-The orphan detection tests are now implemented as **unit tests** in the `modal-miner` crate at:
+The orphan detection tests are now implemented as **unit tests** in the `modality-miner` crate at:
 ```
-rust/modal-miner/src/tests.rs
+rust/modality-miner/src/tests.rs
 ```
 
 They are also available via the `modal` CLI command for convenience.
@@ -34,8 +34,8 @@ modal chain validate --json
 ### Running Unit Tests Directly
 
 ```bash
-# Run the unit tests in modal-miner
-cd rust/modal-miner
+# Run the unit tests in modality-miner
+cd rust/modality-miner
 cargo test --features persistence orphan_detection
 
 # Run with output
@@ -60,7 +60,7 @@ When two blocks are mined at the same index but with different content:
 - Block A arrives first → accepted as canonical
 - Block B arrives second → orphaned with reason: "Fork detected" or "Rejected by first-seen rule"
 
-**Unit Test:** `rust/modal-miner/src/tests.rs::test_fork_detection`
+**Unit Test:** `rust/modality-miner/src/tests.rs::test_fork_detection`
 
 ### 2. Gap Detection
 When a block references a parent that exists in the canonical chain but at the wrong index:
@@ -68,33 +68,33 @@ When a block references a parent that exists in the canonical chain but at the w
 - Block at index N+1 is missing (gap)
 - Block at index N+2 arrives → orphaned with reason: "Gap detected: missing block(s) between index N and N+2"
 
-**Unit Test:** `rust/modal-miner/src/tests.rs::test_gap_detection`
+**Unit Test:** `rust/modality-miner/src/tests.rs::test_gap_detection`
 
 ### 3. Missing Parent
 When a block references a parent hash that doesn't exist anywhere in the canonical chain:
 - Block references unknown parent hash
 - Orphaned with reason: "Parent not found" or detected as fork
 
-**Unit Test:** `rust/modal-miner/src/tests.rs::test_missing_parent`
+**Unit Test:** `rust/modality-miner/src/tests.rs::test_missing_parent`
 
 ### 4. Chain Integrity
 Verifies that the canonical chain remains consistent after orphaning events.
 
-**Unit Test:** `rust/modal-miner/src/tests.rs::test_chain_integrity`
+**Unit Test:** `rust/modality-miner/src/tests.rs::test_chain_integrity`
 
 ### 5. Orphan Promotion
 Tests that orphaned blocks can be promoted when their missing parent arrives.
 
-**Unit Test:** `rust/modal-miner/src/tests.rs::test_orphan_promotion`
+**Unit Test:** `rust/modality-miner/src/tests.rs::test_orphan_promotion`
 
 ## Implementation
 
 The tests are implemented in three places:
 
-1. **Unit Tests** (`rust/modal-miner/src/tests.rs`)
+1. **Unit Tests** (`rust/modality-miner/src/tests.rs`)
    - Core test logic using `ChainObserver` directly
    - Fast execution with difficulty=1
-   - Part of `modal-miner` crate test suite
+   - Part of `modality-miner` crate test suite
 
 2. **CLI Command** (`rust/modal/src/cmds/chain/validate.rs`)
    - User-friendly command-line interface
@@ -107,7 +107,7 @@ The tests are implemented in three places:
 
 ### How Tests Work
 
-The tests use the `modal-observer` crate's `ChainObserver` to directly test fork choice logic:
+The tests use the `modality-observer` crate's `ChainObserver` to directly test fork choice logic:
 
 1. Create an in-memory datastore (or use existing one for CLI)
 2. Manually construct blocks with specific properties (using difficulty=1)
@@ -163,9 +163,9 @@ orphan-detection/
 ```
 
 The test is implemented as a standalone Rust project that depends on:
-- `modal-observer` (for ChainObserver)
-- `modal-datastore` (for data models)
-- `modal-miner` (for Block creation)
+- `modality-observer` (for ChainObserver)
+- `modality-datastore` (for data models)
+- `modality-miner` (for Block creation)
 - `tokio` (for async runtime)
 - `anyhow` (for error handling)
 

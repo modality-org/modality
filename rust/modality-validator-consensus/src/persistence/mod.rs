@@ -6,7 +6,7 @@ use crate::narwhal::{
 };
 use anyhow::{Context, Result};
 use libp2p_identity::PeerId;
-use modal_datastore::models::{
+use modality_datastore::models::{
     DAGBatch, DAGCertificate, ConsensusMetadata, DAGState,
 };
 use std::str::FromStr;

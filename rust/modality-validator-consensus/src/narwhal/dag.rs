@@ -3,7 +3,7 @@ use anyhow::{bail, Result};
 use std::collections::{BTreeMap, HashMap};
 
 #[cfg(feature = "persistence")]
-use modal_datastore::DatastoreManager;
+use modality_datastore::DatastoreManager;
 #[cfg(feature = "persistence")]
 use crate::persistence::{ToPersistenceModel, digest_to_hex};
 
@@ -381,7 +381,7 @@ impl DAG {
         reputation_state: &crate::shoal::ReputationState,
         datastore: &DatastoreManager,
     ) -> Result<()> {
-        use modal_datastore::models::DAGState;
+        use modality_datastore::models::DAGState;
         
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)

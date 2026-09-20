@@ -127,7 +127,7 @@ The formula `A -> B` means "if A holds, then B must also hold". Since `"hello"` 
 Run the example:
 
 ```bash
-cargo run -p modal-wasm-validation --example correlate_demo
+cargo run -p modality-wasm-validation --example correlate_demo
 ```
 
 ## Next Steps

@@ -1,4 +1,4 @@
-use modal_common::json_stringify_deterministic::stringify_deterministic;
+use modality_common::json_stringify_deterministic::stringify_deterministic;
 use serde_json::json;
 
 #[cfg(test)]

@@ -29,14 +29,14 @@ In one terminal:
 
 This will:
 1. Create a new node directory at `./tmp/node1` (if it doesn't exist)
-   - Uses the `devnet1/node1` template from `modal-networks` package
+   - Uses the `devnet1/node1` template from `modality-networks` package
    - Automatically loads both passfile and config
    - Creates storage and logs directories
 2. Clear storage (for clean test runs)
 3. Start the node on port 10101
 
 The `modal node create --from-template` command:
-- Loads pre-configured node templates from the `modal-networks` package
+- Loads pre-configured node templates from the `modality-networks` package
 - Automatically includes both passfile and config
 - No manual file copying or path references needed
 
@@ -134,7 +134,7 @@ modal node create --dir ./my-node --network devnet1 --enable-autoupgrade
 
 ## Using Node Templates
 
-This example uses the **`--from-template`** option to load a pre-configured node from the `modal-networks` package.
+This example uses the **`--from-template`** option to load a pre-configured node from the `modality-networks` package.
 
 ### Simple Usage
 
@@ -144,7 +144,7 @@ modal node create --dir ./tmp/node1 --from-template devnet1/node1
 ```
 
 **What this does:**
-1. **Loads template** from `modal-networks` package (embedded in the binary)
+1. **Loads template** from `modality-networks` package (embedded in the binary)
 2. **Imports passfile** ensuring the node has the standard peer ID
 3. **Imports configuration** (listeners, bootstrappers, storage path, etc.)
 4. Creates the complete node directory with all necessary files
@@ -161,10 +161,10 @@ Current templates:
 
 ### How Templates Work
 
-Templates are stored in the `modal-networks` Rust package at `rust/modal-networks/templates/`:
+Templates are stored in the `modality-networks` Rust package at `rust/modality-networks/templates/`:
 
 ```
-modal-networks/
+modality-networks/
 └── templates/
     └── devnet1/
         └── node1/

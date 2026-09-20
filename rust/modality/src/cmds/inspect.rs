@@ -1,8 +1,8 @@
 use anyhow::{Context, Result};
 use clap::Parser;
-use modal_datastore::DatastoreManager;
-use modal_node::config::Config;
-use modal_node::inspection::{InspectionData, InspectionLevel, NodeStatus};
+use modality_datastore::DatastoreManager;
+use modality_node::config::Config;
+use modality_node::inspection::{InspectionData, InspectionLevel, NodeStatus};
 use std::path::PathBuf;
 
 #[derive(Debug, Parser)]
@@ -83,7 +83,7 @@ async fn try_reqres_inspect(
     level: InspectionLevel,
 ) -> Result<InspectionData> {
     use libp2p::multiaddr::Multiaddr;
-    use modal_node::node::Node;
+    use modality_node::node::Node;
 
     // Create a temporary node for making the request
     let mut node = Node::from_config(config.clone()).await?;
@@ -139,7 +139,7 @@ async fn query_datastore_directly(
     let mgr = mgr_guard.lock().await;
 
     let inspection_data =
-        modal_node::reqres::inspect::get_datastore_inspection(&mgr, level).await?;
+        modality_node::reqres::inspect::get_datastore_inspection(&mgr, level).await?;
 
     // Get peer ID from config if available
     let peer_id = if let Ok(keypair) = config.get_libp2p_keypair().await {

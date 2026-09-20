@@ -1,13 +1,13 @@
-use modal_validator_consensus::narwhal::{
+use modality_validator_consensus::narwhal::{
     AggregatedSignature, Batch, Certificate, Committee, Header, Transaction, Validator,
 };
-use modal_validator_consensus::narwhal::dag::DAG;
-use modal_validator_consensus::persistence::{
+use modality_validator_consensus::narwhal::dag::DAG;
+use modality_validator_consensus::persistence::{
     FromPersistenceModel, ToPersistenceModel, recovery::{recover_dag_multi, RecoveryStrategy, verify_dag_consistency},
 };
-use modal_validator_consensus::shoal::{ConsensusState, ReputationState, ReputationConfig};
-use modal_datastore::DatastoreManager;
-use modal_datastore::models::{DAGCertificate, DAGBatch, DAGState, ConsensusMetadata};
+use modality_validator_consensus::shoal::{ConsensusState, ReputationState, ReputationConfig};
+use modality_datastore::DatastoreManager;
+use modality_datastore::models::{DAGCertificate, DAGBatch, DAGState, ConsensusMetadata};
 use libp2p_identity::{ed25519, PeerId};
 use std::net::SocketAddr;
 

@@ -3,8 +3,8 @@ use clap::Parser;
 use serde_json::json;
 use std::path::PathBuf;
 
-use modal_datastore::DatastoreManager;
-use modal_datastore::models::{Contract, Commit};
+use modality_datastore::DatastoreManager;
+use modality_datastore::models::{Contract, Commit};
 
 #[derive(Debug, Parser)]
 #[command(about = "Get contract or commit information")]

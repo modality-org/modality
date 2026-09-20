@@ -154,10 +154,10 @@ Err(e) if e.to_string().contains("rejected by fork choice rules") => {
 ## Code References
 
 The test helps understand these components:
-- `rust/modal-observer/src/chain_observer.rs` - Fork choice logic
-- `rust/modal-node/src/actions/miner.rs` - Mining loop and error handling
-- `rust/modal-node/src/gossip/miner/block.rs` - Gossip block handling
-- `rust/modal-miner/src/fork_choice.rs` - Fork choice integration
+- `rust/modality-observer/src/chain_observer.rs` - Fork choice logic
+- `rust/modality-node/src/actions/miner.rs` - Mining loop and error handling
+- `rust/modality-node/src/gossip/miner/block.rs` - Gossip block handling
+- `rust/modality-miner/src/fork_choice.rs` - Fork choice integration
 
 ## Next Steps
 

@@ -1,14 +1,14 @@
 use crate::error::{Result, ValidatorError};
-use modal_datastore::DatastoreManager;
-use modal_validator_consensus::narwhal::{
+use modality_datastore::DatastoreManager;
+use modality_validator_consensus::narwhal::{
     Certificate, Committee, Primary, PublicKey, Transaction, Validator, Worker,
     SyncClient, SyncRequest, SyncResponse,
 };
-use modal_validator_consensus::narwhal::dag::DAG;
-use modal_validator_consensus::shoal::ReputationConfig;
-use modal_validator_consensus::shoal::reputation::ReputationManager;
-use modal_validator_consensus::shoal::consensus::ShoalConsensus;
-use modal_validator_consensus::shoal::ordering::OrderingEngine;
+use modality_validator_consensus::narwhal::dag::DAG;
+use modality_validator_consensus::shoal::ReputationConfig;
+use modality_validator_consensus::shoal::reputation::ReputationManager;
+use modality_validator_consensus::shoal::consensus::ShoalConsensus;
+use modality_validator_consensus::shoal::ordering::OrderingEngine;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::sync::{Mutex, RwLock};
@@ -491,7 +491,7 @@ impl ShoalValidator {
     
     /// Sync DAG with a peer using a request function
     /// The request_fn should send requests to the peer and return responses
-    pub async fn sync_with_peer<F, Fut>(&self, request_fn: F) -> Result<modal_validator_consensus::narwhal::SyncStats>
+    pub async fn sync_with_peer<F, Fut>(&self, request_fn: F) -> Result<modality_validator_consensus::narwhal::SyncStats>
     where
         F: Fn(SyncRequest) -> Fut,
         Fut: std::future::Future<Output = anyhow::Result<SyncResponse>>,
@@ -502,7 +502,7 @@ impl ShoalValidator {
     /// Request specific certificates from a peer
     pub async fn request_certificates<F, Fut>(
         &self,
-        digests: Vec<modal_validator_consensus::narwhal::CertificateDigest>,
+        digests: Vec<modality_validator_consensus::narwhal::CertificateDigest>,
         request_fn: F,
     ) -> Result<Vec<Certificate>>
     where

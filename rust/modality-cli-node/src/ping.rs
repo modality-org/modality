@@ -3,10 +3,10 @@ use clap::Parser;
 use std::path::PathBuf;
 
 use std::time::Instant;
-use modal_node::actions;
-use modal_node::node::Node;
-use modal_node::config_resolution::load_config_with_node_dir;
-use modal_node::logging;
+use modality_node::actions;
+use modality_node::node::Node;
+use modality_node::config_resolution::load_config_with_node_dir;
+use modality_node::logging;
 use rand::Rng;
 
 #[derive(Debug, Parser)]

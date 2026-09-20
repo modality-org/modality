@@ -128,7 +128,7 @@ All test suites passing in both Rust and JavaScript!
 
 ### New Files (12)
 ```
-rust/modal-wasm-validation/src/predicates/
+rust/modality-wasm-validation/src/predicates/
 ├── mod.rs (Core predicate types)
 ├── signed_by.rs (Signature verification)
 ├── amount_in_range.rs (Numeric validation)
@@ -137,9 +137,9 @@ rust/modal-wasm-validation/src/predicates/
 ├── post_to_path.rs (Action verification)
 └── README.md (Documentation)
 
-rust/modal-wasm-validation/src/predicate_bindings.rs (WASM exports)
-rust/modal-wasm-runtime/src/cache.rs (LRU caching)
-rust/modal-validator/src/predicate_executor.rs (Execution engine)
+rust/modality-wasm-validation/src/predicate_bindings.rs (WASM exports)
+rust/modality-wasm-runtime/src/cache.rs (LRU caching)
+rust/modality-validator/src/predicate_executor.rs (Execution engine)
 
 docs/standard-predicates.md (User guide)
 examples/network/predicate-usage/README.md (Examples)
@@ -150,8 +150,8 @@ examples/network/predicate-usage/README.md (Examples)
 rust/modality-lang/src/ast.rs (Property + PropertySource)
 js/packages/kripke-machine/src/parts/Property.js (Predicate support)
 js/packages/cli/src/cmds/net/genesis.js (Genesis integration)
-rust/modal-datastore/src/models/wasm_module.rs (Path lookups)
-rust/modal-wasm-runtime/src/lib.rs (Cache export)
+rust/modality-datastore/src/models/wasm_module.rs (Path lookups)
+rust/modality-wasm-runtime/src/lib.rs (Cache export)
 ```
 
 ---

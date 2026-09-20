@@ -1,4 +1,4 @@
-use modal_datastore::{NetworkDatastore, Model, models::MinerBlock};
+use modality_datastore::{NetworkDatastore, Model, models::MinerBlock};
 use std::collections::HashMap;
 
 #[tokio::main]

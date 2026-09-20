@@ -1,6 +1,6 @@
 # Blockchain Persistence with NetworkDatastore
 
-This document describes the persistence feature for the modal-miner blockchain.
+This document describes the persistence feature for the modality-miner blockchain.
 
 ## Overview
 
@@ -17,8 +17,8 @@ Add the feature to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-modal-miner = { path = "../modal-miner", features = ["persistence"] }
-modal-datastore = { path = "../modal-datastore" }
+modality-miner = { path = "../modality-miner", features = ["persistence"] }
+modality-datastore = { path = "../modality-datastore" }
 tokio = { version = "1", features = ["rt", "macros"] }
 ```
 
@@ -133,8 +133,8 @@ impl Blockchain {
 ### Basic Usage
 
 ```rust
-use modal_miner::{Blockchain, ChainConfig, BlockchainPersistence};
-use modal_datastore::NetworkDatastore;
+use modality_miner::{Blockchain, ChainConfig, BlockchainPersistence};
+use modality_datastore::NetworkDatastore;
 use std::sync::Arc;
 
 #[tokio::main]
@@ -281,7 +281,7 @@ let blocks = datastore.load_canonical_blocks().await?;
 ## Error Handling
 
 ```rust
-use modal_miner::MiningError;
+use modality_miner::MiningError;
 
 match chain.mine_block_with_persistence(peer_id, number).await {
     Ok(block) => println!("Mined: {}", block.header.hash),
@@ -364,6 +364,6 @@ cargo run --example persistence_demo --features persistence
 ## Related Documentation
 
 - [README.md](./README.md) - Main package documentation
-- [NetworkDatastore Documentation](../modal-datastore/README.md)
-- [MinerBlock Model](../modal-datastore/docs/MINER_BLOCK.md)
+- [NetworkDatastore Documentation](../modality-datastore/README.md)
+- [MinerBlock Model](../modality-datastore/docs/MINER_BLOCK.md)
 

@@ -330,7 +330,7 @@ let listen_addr: Multiaddr = "/ip4/0.0.0.0/tcp/10001/ws".parse()?;
 
 ## Integration with Mining
 
-The sync protocol integrates with `modal-miner`:
+The sync protocol integrates with `modality-miner`:
 
 1. **Mining Node**: Mines blocks with persistence
    ```rust
@@ -363,7 +363,7 @@ The sync protocol integrates with `modal-miner`:
 
 ## Related Documentation
 
-- [Miner Block Model](../../modal-datastore/docs/MINER_BLOCK.md)
-- [Mining Package](../../modal-miner/README.md)
+- [Miner Block Model](../../modality-datastore/docs/MINER_BLOCK.md)
+- [Mining Package](../../modality-miner/README.md)
 - [Request-Response Protocol](./REQRES.md)
 

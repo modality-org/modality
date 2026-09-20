@@ -15,7 +15,7 @@ The persistence layer provides:
 
 ### Storage Models
 
-The persistence layer uses four main models in `modal-datastore`:
+The persistence layer uses four main models in `modality-datastore`:
 
 #### 1. Certificate Model
 Stores individual certificates with complete metadata:
@@ -119,7 +119,7 @@ The `ShoalSequencer` automatically attempts DAG recovery on startup:
 
 ```rust
 use modal_sequencer::shoal_sequencer::{ShoalSequencer, ShoalSequencerConfig};
-use modal_datastore::NetworkDatastore;
+use modality_datastore::NetworkDatastore;
 
 let datastore = Arc::new(Mutex::new(NetworkDatastore::new(path)?));
 let config = ShoalSequencerConfig::new(...);
@@ -218,8 +218,8 @@ let result = recover_dag(&datastore, RecoveryStrategy::Hybrid).await?;
 ### Find Certificates
 
 ```rust
-use modal_datastore::models::DAGCertificate;
-use modal_datastore::Model;
+use modality_datastore::models::DAGCertificate;
+use modality_datastore::Model;
 
 // Find all certificates in a round
 let certs = DAGCertificate::find_all_in_round(&datastore, 42).await?;
@@ -237,7 +237,7 @@ cert_model.mark_committed(&datastore, commit_round).await?;
 ### Find Batches
 
 ```rust
-use modal_datastore::models::DAGBatch;
+use modality_datastore::models::DAGBatch;
 
 // Find batches by author
 let batches = DAGBatch::find_by_author(&datastore, &peer_id.to_base58()).await?;
@@ -249,7 +249,7 @@ let unreferenced = DAGBatch::find_unreferenced(&datastore).await?;
 ### Checkpoint Management
 
 ```rust
-use modal_datastore::models::DAGState;
+use modality_datastore::models::DAGState;
 
 // Get latest checkpoint
 let checkpoint = DAGState::get_latest(&datastore).await?;
@@ -261,7 +261,7 @@ DAGState::prune_old(&datastore, 5).await?;
 ### Consensus Metadata
 
 ```rust
-use modal_datastore::models::ConsensusMetadata;
+use modality_datastore::models::ConsensusMetadata;
 
 // Get current metadata
 let mut metadata = ConsensusMetadata::get_current(&datastore).await?;
@@ -419,5 +419,5 @@ Potential improvements to the persistence layer:
 
 - [SHOAL_SPECIFICATION.md](./SHOAL_SPECIFICATION.md) - Shoal consensus protocol details
 - [ARCHITECTURE.md](./ARCHITECTURE.md) - Overall system architecture
-- [Modal Datastore Documentation](../../modal-datastore/README.md) - Storage layer details
+- [Modal Datastore Documentation](../../modality-datastore/README.md) - Storage layer details
 

@@ -373,7 +373,7 @@ modality net storage --config ./node.json
 ## Implementation Details
 
 - **Query Method**: Uses `MinerBlock::find_all_canonical` or `MinerBlock::find_canonical_by_epoch`
-- **Storage Backend**: RocksDB via `modal-datastore`
+- **Storage Backend**: RocksDB via `modality-datastore`
 - **Model**: Uses the `MinerBlock` model with `Model` trait
 - **Async**: Fully asynchronous using `tokio`
 
@@ -384,7 +384,7 @@ modality net storage --config ./node.json
 
 ## See Also
 
-- [Miner Block Model](../../modal-datastore/docs/MINER_BLOCK.md)
-- [Network Datastore](../../modal-datastore/README.md)
-- [Mining Package](../../modal-miner/README.md)
+- [Miner Block Model](../../modality-datastore/docs/MINER_BLOCK.md)
+- [Network Datastore](../../modality-datastore/README.md)
+- [Mining Package](../../modality-miner/README.md)
 

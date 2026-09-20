@@ -3,13 +3,13 @@ use clap::Parser;
 use serde_json::json;
 use std::path::PathBuf;
 
-use modal_common::contract_store::{CommitFile, ContractStore};
-use modal_common::hub_client::{is_hub_url, HubClient, HubCredentials};
+use modality_common::contract_store::{CommitFile, ContractStore};
+use modality_common::hub_client::{is_hub_url, HubClient, HubCredentials};
 
 #[cfg(feature = "p2p")]
-use modal_node::actions::request;
+use modality_node::actions::request;
 #[cfg(feature = "p2p")]
-use modal_node::node::Node;
+use modality_node::node::Node;
 
 #[derive(Debug, Parser)]
 #[command(about = "Pull commits from the chain or hub")]
@@ -109,7 +109,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
                 let config_path = node_dir.join("config.json");
                 if config_path.exists() {
                     let config_json = std::fs::read_to_string(&config_path)?;
-                    let mut config: modal_node::config::Config =
+                    let mut config: modality_node::config::Config =
                         serde_json::from_str(&config_json)?;
                     config.storage_path = None;
                     config.logs_path = None;
@@ -119,10 +119,10 @@ pub async fn run(opts: &Opts) -> Result<()> {
                     }
                     config
                 } else {
-                    modal_node::config::Config::default()
+                    modality_node::config::Config::default()
                 }
             } else {
-                modal_node::config::Config::default()
+                modality_node::config::Config::default()
             };
 
             let mut node = Node::from_config(node_config).await?;

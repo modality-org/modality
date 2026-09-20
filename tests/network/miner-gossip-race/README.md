@@ -170,10 +170,10 @@ Block X already exists in chain, skipping mining
 
 ## Related Code
 
-- **Fork choice logic**: `rust/modal-observer/src/chain_observer.rs` - `process_gossiped_block()`
-- **First-seen rule**: `rust/modal-observer/src/chain_observer.rs` - `should_accept_single_block()`
-- **Mining loop**: `rust/modal-node/src/actions/miner.rs` - Mining loop error handling
-- **Gossip handler**: `rust/modal-node/src/gossip/miner/block.rs` - Incoming block processing
+- **Fork choice logic**: `rust/modality-observer/src/chain_observer.rs` - `process_gossiped_block()`
+- **First-seen rule**: `rust/modality-observer/src/chain_observer.rs` - `should_accept_single_block()`
+- **Mining loop**: `rust/modality-node/src/actions/miner.rs` - Mining loop error handling
+- **Gossip handler**: `rust/modality-node/src/gossip/miner/block.rs` - Incoming block processing
 
 ## Visual Diagram
 

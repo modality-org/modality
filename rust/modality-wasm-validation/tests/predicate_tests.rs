@@ -1,8 +1,8 @@
 //! Comprehensive tests for all predicates
 
-use modal_wasm_validation::predicates::{PredicateInput, PredicateContext};
-use modal_wasm_validation::predicates::text_common::{CorrelationInput, RuleContext};
-use modal_wasm_validation::predicates::*;
+use modality_wasm_validation::predicates::{PredicateInput, PredicateContext};
+use modality_wasm_validation::predicates::text_common::{CorrelationInput, RuleContext};
+use modality_wasm_validation::predicates::*;
 
 fn ctx() -> PredicateContext {
     PredicateContext::new("test".to_string(), 1, 0)

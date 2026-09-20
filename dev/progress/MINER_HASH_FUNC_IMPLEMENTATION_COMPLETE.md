@@ -30,12 +30,12 @@ Successfully implemented flexible mining hash function configuration for Modalit
 ### 2. Code Changes
 
 #### Rust Changes
-- **`modal-datastore/src/network_params.rs`**: Added fields to `NetworkParameters` struct
-- **`modal-datastore/src/network_datastore.rs`**: Parse parameters from genesis contract
-- **`modal-node/src/config.rs`**: Added config fields for node-level override
-- **`modal-node/src/node.rs`**: Store parameters in `Node` struct
-- **`modal-node/src/actions/miner.rs`**: Implemented precedence logic and miner configuration
-- **`modal-common/src/hash_tax.rs`**: Added `RandomXParams` struct and parameter management
+- **`modality-datastore/src/network_params.rs`**: Added fields to `NetworkParameters` struct
+- **`modality-datastore/src/network_datastore.rs`**: Parse parameters from genesis contract
+- **`modality-node/src/config.rs`**: Added config fields for node-level override
+- **`modality-node/src/node.rs`**: Store parameters in `Node` struct
+- **`modality-node/src/actions/miner.rs`**: Implemented precedence logic and miner configuration
+- **`modality-common/src/hash_tax.rs`**: Added `RandomXParams` struct and parameter management
 
 #### JavaScript Changes
 - **`js/packages/cli/src/cmds/net/genesis.js`**: Generate genesis contracts with mining parameters
@@ -130,12 +130,12 @@ modal net create my-mainnet \
 ## Files Modified
 
 ### Core Implementation
-1. `rust/modal-datastore/src/network_params.rs`
-2. `rust/modal-datastore/src/network_datastore.rs`
-3. `rust/modal-node/src/config.rs`
-4. `rust/modal-node/src/node.rs`
-5. `rust/modal-node/src/actions/miner.rs`
-6. `rust/modal-common/src/hash_tax.rs`
+1. `rust/modality-datastore/src/network_params.rs`
+2. `rust/modality-datastore/src/network_datastore.rs`
+3. `rust/modality-node/src/config.rs`
+4. `rust/modality-node/src/node.rs`
+5. `rust/modality-node/src/actions/miner.rs`
+6. `rust/modality-common/src/hash_tax.rs`
 7. `js/packages/cli/src/cmds/net/genesis.js`
 
 ### Configuration
@@ -194,11 +194,11 @@ let (final_hash_func, final_hash_params) = if let Some(params) = genesis_params 
 
 // 3. Configure RandomX if needed
 if final_hash_func == "randomx" && final_hash_params.is_some() {
-    modal_common::hash_tax::set_randomx_params_from_json(final_hash_params.as_ref());
+    modality_common::hash_tax::set_randomx_params_from_json(final_hash_params.as_ref());
 }
 
 // 4. Create custom miner with configured hash function
-let custom_miner = modal_miner::Miner::new(modal_miner::MinerConfig {
+let custom_miner = modality_miner::Miner::new(modality_miner::MinerConfig {
     max_tries: None,
     hash_func_name: Some(final_hash_func.leak()),
 });

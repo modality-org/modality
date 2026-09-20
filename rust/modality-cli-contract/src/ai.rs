@@ -3,7 +3,7 @@ use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 
 #[derive(Debug, Subcommand)]
-#[command(after_help = modal_cli_ai::LANGUAGE_SKILL_HELP)]
+#[command(after_help = modality_cli_ai::LANGUAGE_SKILL_HELP)]
 pub enum Commands {
     /// Suggest a Modality rule from a plain-language prompt
     #[command(name = "suggest-rule")]
@@ -50,11 +50,11 @@ async fn suggest_rule(opts: &SuggestRuleOpts) -> Result<()> {
         .clone()
         .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
     let print_mode = if opts.interactive {
-        modal_cli_ai::SuggestPrintMode::Interactive
+        modality_cli_ai::SuggestPrintMode::Interactive
     } else {
-        modal_cli_ai::SuggestPrintMode::Print
+        modality_cli_ai::SuggestPrintMode::Print
     };
-    let formula = modal_cli_ai::suggest_rule_mode(
+    let formula = modality_cli_ai::suggest_rule_mode(
         &opts.prompt,
         opts.api_key.as_deref(),
         Some(dir.as_path()),

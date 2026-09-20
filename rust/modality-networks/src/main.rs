@@ -1,9 +1,9 @@
 use anyhow::Result;
 use clap::{Parser, Subcommand};
-use modal_networks::{dns::DnsManager, networks};
+use modality_networks::{dns::DnsManager, networks};
 
 #[derive(Parser)]
-#[command(name = "modal-networks")]
+#[command(name = "modality-networks")]
 #[command(about = "Manage Modality network configurations and DNS records", long_about = None)]
 struct Cli {
     #[command(subcommand)]

@@ -7,10 +7,10 @@
 //! - Forming certificates when 2f+1 acks are received
 
 use anyhow::Result;
-use modal_common::keypair::Keypair;
-use modal_datastore::models::validator::block::Ack;
-use modal_datastore::models::ValidatorBlock;
-use modal_datastore::DatastoreManager;
+use modality_common::keypair::Keypair;
+use modality_datastore::models::validator::block::Ack;
+use modality_datastore::models::ValidatorBlock;
+use modality_datastore::DatastoreManager;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;

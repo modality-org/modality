@@ -67,8 +67,8 @@ Discovers and displays all running modal node processes on the system.
 
 ### PID File Management
 **Files:**
-- `rust/modal-node/src/pid.rs` - PID file utilities
-- `rust/modal-node/src/lib.rs` - Module export
+- `rust/modality-node/src/pid.rs` - PID file utilities
+- `rust/modality-node/src/lib.rs` - Module export
 
 **Functions:**
 - `write_pid_file(node_dir)` - Creates `node.pid` file with current process ID
@@ -164,7 +164,7 @@ As part of this work, several commands were updated to use read-only database ac
 - `modal node inspect` - Uses `NetworkDatastore::create_in_directory_readonly()`
 
 ### Implementation:
-**File:** `rust/modal-datastore/src/network_datastore.rs`
+**File:** `rust/modality-datastore/src/network_datastore.rs`
 
 Added `create_in_directory_readonly()` method that opens RocksDB in read-only mode, allowing multiple readers without exclusive locks.
 
@@ -244,7 +244,7 @@ done
 2. `rust/modal/src/cmds/node/pid.rs`
 3. `rust/modal/src/cmds/node/address.rs`
 4. `rust/modal/src/cmds/nodes.rs`
-5. `rust/modal-node/src/pid.rs`
+5. `rust/modality-node/src/pid.rs`
 6. `docs/node-management-commands.md`
 7. `examples/network/test-nodes-command.sh`
 
@@ -253,11 +253,11 @@ done
 2. `rust/modal/src/cmds/mod.rs`
 3. `rust/modal/src/cmds/node/mod.rs`
 4. `rust/modal/Cargo.toml`
-5. `rust/modal-node/src/lib.rs`
+5. `rust/modality-node/src/lib.rs`
 6. `rust/modal/src/cmds/node/run_validator.rs`
 7. `rust/modal/src/cmds/node/run_miner.rs`
 8. `rust/modal/src/cmds/node/run_observer.rs`
-9. `rust/modal-datastore/src/network_datastore.rs`
+9. `rust/modality-datastore/src/network_datastore.rs`
 10. `rust/modal/src/cmds/node/info.rs`
 11. `rust/modal/src/cmds/node/inspect.rs`
 12. `examples/network/08-network-partition/05-partition-single-node.sh`

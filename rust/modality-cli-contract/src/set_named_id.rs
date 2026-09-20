@@ -2,7 +2,7 @@ use anyhow::Result;
 use clap::Parser;
 use std::path::PathBuf;
 
-use modal_common::passfile::resolve_public_id;
+use modality_common::passfile::resolve_public_id;
 
 #[derive(Debug, Parser)]
 #[command(about = "Set a state .id file from a named identity or passfile")]

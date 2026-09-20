@@ -20,7 +20,7 @@ if [ ! -f "./tmp/node1/config.json" ]; then
     "/ip4/127.0.0.1/tcp/10312/ws/p2p/12D3KooW9pypLnRn67EFjiWgEiDdqo8YizaPn8yKe5cNJd3PGnMB",
     "/ip4/127.0.0.1/tcp/10313/ws/p2p/12D3KooW9qGaMuW7k2a5iEQ37gWgtjfFC4B3j5R1kKJPZofS62Se"
   ],
-  "network_config_path": "modal-networks://devnet3-hybrid",
+  "network_config_path": "modality-networks://devnet3-hybrid",
   "run_miner": true,
   "miner_nominees": [
     "12D3KooW9pte76rpnggcLYkFaawuTEs5DC5axHkg3cK3cewGxxHd",

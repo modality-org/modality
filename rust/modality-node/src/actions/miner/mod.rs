@@ -199,7 +199,7 @@ async fn validate_chain_before_mining(node: &Node) {
 /// Get the starting block index for mining.
 /// Uses observer's get_chain_tip_index and adds 1 for mining.
 async fn get_starting_index(
-    datastore_manager: &Arc<Mutex<modal_datastore::DatastoreManager>>,
+    datastore_manager: &Arc<Mutex<modality_datastore::DatastoreManager>>,
 ) -> Result<u64> {
     use super::observer::get_chain_tip_index;
     

@@ -84,7 +84,7 @@ WASM predicates execute and evaluate to boolean results, which become propositio
 
 **Files Created:**
 ```
-rust/modal-wasm-validation/src/predicates/
+rust/modality-wasm-validation/src/predicates/
 ├── mod.rs (Core types: PredicateResult, PredicateInput, PredicateContext)
 ├── signed_by.rs
 ├── amount_in_range.rs
@@ -100,7 +100,7 @@ rust/modal-wasm-validation/src/predicates/
 
 ### Phase 2: Cross-Contract WASM Execution ✅
 
-**PredicateExecutor (`modal-validator`):**
+**PredicateExecutor (`modality-validator`):**
 - Resolves local, network, and cross-contract predicate references
 - Syntax: `/_code/modal/signed_by.wasm` (network) or `/contract_id/_code/my_predicate.wasm` (cross-contract)
 - Fetches WASM modules from datastore
@@ -118,7 +118,7 @@ rust/modal-wasm-validation/src/predicates/
 
 ### Phase 3: Performance & Caching ✅
 
-**WasmModuleCache (`modal-wasm-runtime`):**
+**WasmModuleCache (`modality-wasm-runtime`):**
 - LRU eviction policy
 - Two limits: max modules (100) + max size (50MB)
 - Cache key: `(contract_id, path, hash)`
@@ -192,7 +192,7 @@ pub struct Property {
 
 #### 5.4: ContractProcessor Integration
 
-**`modal-validator/src/contract_processor.rs`:**
+**`modality-validator/src/contract_processor.rs`:**
 - Integrated `PredicateExecutor`
 - New public method: `evaluate_predicate(contract_id, path, args, block_height, timestamp)`
 - Returns proposition string: "+predicate_name" or "-predicate_name"
@@ -237,20 +237,20 @@ pub struct Property {
 
 **Rust:**
 ```
-rust/modal-wasm-validation/src/predicates/mod.rs
-rust/modal-wasm-validation/src/predicates/signed_by.rs
-rust/modal-wasm-validation/src/predicates/amount_in_range.rs
-rust/modal-wasm-validation/src/predicates/has_property.rs
-rust/modal-wasm-validation/src/predicates/timestamp_valid.rs
-rust/modal-wasm-validation/src/predicates/post_to_path.rs
-rust/modal-wasm-validation/src/predicate_bindings.rs
-rust/modal-wasm-runtime/src/cache.rs
-rust/modal-validator/src/predicate_executor.rs
+rust/modality-wasm-validation/src/predicates/mod.rs
+rust/modality-wasm-validation/src/predicates/signed_by.rs
+rust/modality-wasm-validation/src/predicates/amount_in_range.rs
+rust/modality-wasm-validation/src/predicates/has_property.rs
+rust/modality-wasm-validation/src/predicates/timestamp_valid.rs
+rust/modality-wasm-validation/src/predicates/post_to_path.rs
+rust/modality-wasm-validation/src/predicate_bindings.rs
+rust/modality-wasm-runtime/src/cache.rs
+rust/modality-validator/src/predicate_executor.rs
 ```
 
 **Build:**
 ```
-rust/modal-wasm-validation/build-predicates.sh
+rust/modality-wasm-validation/build-predicates.sh
 ```
 
 **Documentation:**
@@ -263,12 +263,12 @@ examples/network/predicate-usage/README.md
 
 **Rust:**
 ```
-rust/modal-wasm-validation/src/lib.rs
-rust/modal-wasm-runtime/src/lib.rs
-rust/modal-wasm-runtime/Cargo.toml
-rust/modal-validator/src/lib.rs
-rust/modal-validator/src/contract_processor.rs
-rust/modal-datastore/src/models/wasm_module.rs
+rust/modality-wasm-validation/src/lib.rs
+rust/modality-wasm-runtime/src/lib.rs
+rust/modality-wasm-runtime/Cargo.toml
+rust/modality-validator/src/lib.rs
+rust/modality-validator/src/contract_processor.rs
+rust/modality-datastore/src/models/wasm_module.rs
 rust/modality-lang/src/ast.rs
 ```
 
@@ -318,7 +318,7 @@ formula safe_payment:
 ### Example 4: Rust Evaluation
 
 ```rust
-use modal_validator::ContractProcessor;
+use modality_validator::ContractProcessor;
 use serde_json::json;
 
 let processor = ContractProcessor::new(datastore);
@@ -490,7 +490,7 @@ console.log(result); // { value: true, wasPredicate: true }
 6. **`MODEL_CHECKER_PREDICATE_ARCHITECTURE.md`** - Architecture decisions
 7. **`docs/standard-predicates.md`** - User guide
 8. **`examples/network/predicate-usage/README.md`** - Example usage
-9. **`rust/modal-wasm-validation/src/predicates/README.md`** - Predicate docs
+9. **`rust/modality-wasm-validation/src/predicates/README.md`** - Predicate docs
 10. **`WASM_PREDICATE_FINAL.md`** - This file (comprehensive summary)
 
 ---

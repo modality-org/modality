@@ -3,7 +3,7 @@ use clap::Parser;
 use std::path::PathBuf;
 use std::fs;
 
-use modal_node::config_resolution::load_config_with_node_dir;
+use modality_node::config_resolution::load_config_with_node_dir;
 
 #[derive(Debug, Parser)]
 #[command(about = "Kill a running node process")]

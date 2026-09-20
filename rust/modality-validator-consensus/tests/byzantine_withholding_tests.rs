@@ -36,8 +36,8 @@
 mod common;
 
 use common::byzantine_helpers::*;
-use modal_validator_consensus::shoal::{PerformanceRecord, ReputationConfig};
-use modal_validator_consensus::shoal::reputation::ReputationManager;
+use modality_validator_consensus::shoal::{PerformanceRecord, ReputationConfig};
+use modality_validator_consensus::shoal::reputation::ReputationManager;
 
 /// Test: Vote withholding triggers fallback leader selection
 /// 

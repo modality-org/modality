@@ -1,4 +1,4 @@
-//! HTML templates for the modal-node.
+//! HTML templates for the modality-node.
 //!
 //! This module provides the status page HTML template and helper functions
 //! for rendering dynamic content.

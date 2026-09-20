@@ -6,26 +6,26 @@ I've successfully added a `mining_delay_ms` configuration parameter that slows d
 
 ### Changes Made
 
-#### 1. Core Mining Function (`rust/modal-common/src/hash_tax.rs`)
+#### 1. Core Mining Function (`rust/modality-common/src/hash_tax.rs`)
 - Added `mining_delay_ms` parameter to `mine_with_stats()` 
 - Added sleep delay in the mining loop between attempts
 - Added log message when slowdown is enabled: "🐌 Mining slowdown enabled: Xms delay per attempt"
 
-#### 2. Miner Configuration (`rust/modal-miner/src/miner.rs`)
+#### 2. Miner Configuration (`rust/modality-miner/src/miner.rs`)
 - Added `mining_delay_ms: Option<u64>` to `MinerConfig`
 - Updated `mine_block_with_stats()` to pass delay to hash_tax
 
-#### 3. Chain Configuration (`rust/modal-miner/src/chain.rs`)
+#### 3. Chain Configuration (`rust/modality-miner/src/chain.rs`)
 - Added `mining_delay_ms: Option<u64>` to `ChainConfig`
 - Updated all `Blockchain::new*()` methods to create `Miner` with delay
 - Updated `load_or_create_with_fork_config()` to propagate delay
 
-#### 4. Node Configuration (`rust/modal-node/src/config.rs` & `src/node.rs`)
+#### 4. Node Configuration (`rust/modality-node/src/config.rs` & `src/node.rs`)
 - Added `mining_delay_ms: Option<u64>` to `Config` struct
 - Added field to `Node` struct
 - Propagated through node initialization
 
-#### 5. Mining Action (`rust/modal-node/src/actions/miner.rs`)
+#### 5. Mining Action (`rust/modality-node/src/actions/miner.rs`)
 - Updated `mine_and_gossip_block()` to accept `mining_delay_ms` parameter
 - Pass delay from node config through to `ChainConfig`
 - Extract delay from node in `run()` function

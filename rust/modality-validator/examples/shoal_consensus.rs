@@ -8,8 +8,8 @@
 /// 5. Query the consensus state
 
 use modal_sequencer::{ShoalSequencer, ShoalSequencerConfig};
-use modal_validator_consensus::narwhal::Transaction;
-use modal_datastore::DatastoreManager;
+use modality_validator_consensus::narwhal::Transaction;
+use modality_datastore::DatastoreManager;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use tempfile::TempDir;

@@ -3,9 +3,9 @@
 //! Stores contracts and commits in a local directory structure.
 
 use async_trait::async_trait;
-use modal_rpc::methods::RpcHandler;
-use modal_rpc::types::*;
-use modal_rpc::error::RpcError;
+use modality_rpc::methods::RpcHandler;
+use modality_rpc::types::*;
+use modality_rpc::error::RpcError;
 use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::path::PathBuf;

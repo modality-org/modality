@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests {
     use anyhow::Result;
-    use modal_devnet::{Devnet, KEYPAIRS};
+    use modality_devnet::{Devnet, KEYPAIRS};
 
     // Helper function to create a test instance
     fn setup() -> Devnet {

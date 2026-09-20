@@ -32,7 +32,7 @@
 │  │   Runtime   │ │ Contract Log│ │   Crypto (ed25519)  │    │
 │  └─────────────┘ └─────────────┘ └─────────────────────┘    │
 ├─────────────────────────────────────────────────────────────┤
-│                   modal-validator                            │
+│                   modality-validator                            │
 │  ┌─────────────────────────────────────────────────────┐    │
 │  │            ModalityContractProcessor                 │    │
 │  │   - Validate commits against formulas                │    │
@@ -40,7 +40,7 @@
 │  │   - Track contract state                             │    │
 │  └─────────────────────────────────────────────────────┘    │
 ├─────────────────────────────────────────────────────────────┤
-│                     modal-node                               │
+│                     modality-node                               │
 │  ┌───────────┐ ┌───────────┐ ┌───────────┐ ┌───────────┐   │
 │  │  libp2p   │ │ Consensus │ │  Storage  │ │   Sync    │   │
 │  └───────────┘ └───────────┘ └───────────┘ └───────────┘   │
@@ -91,7 +91,7 @@
 
 ### 2.1 ModalityContractProcessor
 ```rust
-// In modal-validator/src/modality_processor.rs
+// In modality-validator/src/modality_processor.rs
 pub struct ModalityContractProcessor {
     datastore: Arc<Mutex<DatastoreManager>>,
     // Cache of contract_id -> ContractLog
@@ -136,7 +136,7 @@ impl ModalityContractProcessor {
 
 ### 2.2 Integration with ShoalValidator
 ```rust
-// In modal-validator/src/shoal_validator.rs
+// In modality-validator/src/shoal_validator.rs
 // Add to process_certificate:
 
 for tx in &transactions {
@@ -218,8 +218,8 @@ modal modality status --contract <id>
 ## Implementation Order
 
 1. **Week 1**: Contract format bridge (Phase 1)
-   - Define commit types in modal-datastore
-   - Add modality-lang dependency to modal-validator
+   - Define commit types in modality-datastore
+   - Add modality-lang dependency to modality-validator
    - Basic parsing of modality commits
 
 2. **Week 2**: Validation integration (Phase 2)
@@ -240,15 +240,15 @@ modal modality status --contract <id>
 ## Files to Create/Modify
 
 ### New Files
-- `modal-validator/src/modality_processor.rs`
-- `modal-validator/src/modality_types.rs`
+- `modality-validator/src/modality_processor.rs`
+- `modality-validator/src/modality_types.rs`
 - `modal/src/cmds/modality.rs` (CLI)
 - `modality-lang/src/network.rs` (network-aware contract)
 
 ### Modified Files
-- `modal-validator/Cargo.toml` (add modality-lang dep)
-- `modal-validator/src/shoal_validator.rs` (hook processor)
-- `modal-datastore/src/models/mod.rs` (commit types)
+- `modality-validator/Cargo.toml` (add modality-lang dep)
+- `modality-validator/src/shoal_validator.rs` (hook processor)
+- `modality-datastore/src/models/mod.rs` (commit types)
 - `modal/src/main.rs` (add modality subcommand)
 
 ## Success Criteria

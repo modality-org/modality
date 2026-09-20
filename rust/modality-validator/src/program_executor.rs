@@ -1,9 +1,9 @@
 use anyhow::{anyhow, Result};
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use modal_datastore::{DatastoreManager, models::WasmModule};
-use modal_wasm_runtime::{WasmExecutor, WasmModuleCache};
-use modal_wasm_validation::{ProgramContext, ProgramResult, encode_program_input, decode_program_result, validate_program_result};
+use modality_datastore::{DatastoreManager, models::WasmModule};
+use modality_wasm_runtime::{WasmExecutor, WasmModuleCache};
+use modality_wasm_validation::{ProgramContext, ProgramResult, encode_program_input, decode_program_result, validate_program_result};
 use serde_json::Value;
 use wasmtime::{Engine, Config, Module};
 
@@ -56,7 +56,7 @@ impl ProgramExecutor {
     }
 
     /// Get cache statistics
-    pub async fn cache_stats(&self) -> modal_wasm_runtime::CacheStats {
+    pub async fn cache_stats(&self) -> modality_wasm_runtime::CacheStats {
         let cache = self.cache.lock().await;
         cache.stats()
     }

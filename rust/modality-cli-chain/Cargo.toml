@@ -1,5 +1,5 @@
 [package]
-name = "modal-cli-chain"
+name = "modality-cli-chain"
 version = "0.1.0"
 edition = "2021"
 description = "Chain validation commands for Modal CLI"
@@ -8,10 +8,10 @@ repository = "https://github.com/modality-org/modality"
 homepage = "https://www.modality.org"
 
 [dependencies]
-modal-cli-common = { path = "../modal-cli-common", version = "0.1.0" }
-modal-datastore = { path = "../modal-datastore", version = "0.1.0" }
-modal-miner = { path = "../modal-miner", version = "0.1.0" }
-modal-observer = { path = "../modal-observer", version = "0.1.0" }
+modality-cli-common = { path = "../modality-cli-common", version = "0.1.0" }
+modality-datastore = { path = "../modality-datastore", version = "0.1.0" }
+modality-miner = { path = "../modality-miner", version = "0.1.0" }
+modality-observer = { path = "../modality-observer", version = "0.1.0" }
 anyhow = "1.0"
 clap = { version = "4.1.11", features = ["derive"] }
 serde = { version = "1.0", features = ["derive"] }

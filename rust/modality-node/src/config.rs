@@ -86,8 +86,8 @@ impl Config {
 
         if let Some(network_config_path_buf) = config.network_config_path {
             let network_config_path = network_config_path_buf.as_path();
-            // Don't convert modal-networks:// URIs to absolute paths
-            if network_config_path.to_string_lossy().starts_with("modal-networks://") {
+            // Don't convert modality-networks:// URIs to absolute paths
+            if network_config_path.to_string_lossy().starts_with("modality-networks://") {
                 // Keep the URI as-is
                 config.network_config_path = Some(network_config_path_buf);
             } else {
@@ -116,7 +116,7 @@ impl Config {
             }
         };
         
-        let passfile = modal_common::passfile::Passfile::load_file(passfile_path.clone(), true)
+        let passfile = modality_common::passfile::Passfile::load_file(passfile_path.clone(), true)
             .await
             .with_context(|| format!(
                 "Failed to load passfile from: {}\n\
@@ -133,7 +133,7 @@ impl Config {
                 passfile_path.display()
             ))?;
         
-        let node_keypair = modal_common::libp2p_identity_keypair::libp2p_identity_from_private_key(passfile.keypair.private_key().as_str()).await?;
+        let node_keypair = modality_common::libp2p_identity_keypair::libp2p_identity_from_private_key(passfile.keypair.private_key().as_str()).await?;
         Ok(node_keypair)
     }
 
@@ -152,8 +152,8 @@ impl Config {
     /// Build a ForkConfig from node configuration
     /// Merges hardcoded fork settings (from fork_name) with user-provided settings
     /// User-provided settings override fork_name defaults
-    pub fn get_fork_config(&self) -> modal_observer::ForkConfig {
-        let mut fork_config = modal_observer::ForkConfig::new();
+    pub fn get_fork_config(&self) -> modality_observer::ForkConfig {
+        let mut fork_config = modality_observer::ForkConfig::new();
         
         // First, apply named fork configuration if specified
         if let Some(ref fork_name) = self.fork_name {
@@ -250,7 +250,7 @@ impl Config {
     pub fn get_network_name(&self) -> String {
         if let Some(ref network_config_path) = self.network_config_path {
             // Try to extract network name from path
-            if let Some(network_name) = network_config_path.to_string_lossy().strip_prefix("modal-networks://") {
+            if let Some(network_name) = network_config_path.to_string_lossy().strip_prefix("modality-networks://") {
                 return network_name.to_string();
             }
             // Try to get filename without extension

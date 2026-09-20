@@ -1,5 +1,5 @@
 [package]
-name = "modal-rpc"
+name = "modality-rpc"
 version = "0.1.0"
 edition = "2021"
 description = "RPC interface for Modal Money hubs and networks"
@@ -7,7 +7,7 @@ license = "MIT"
 repository = "https://github.com/modality-org/modality"
 
 [lib]
-name = "modal_rpc"
+name = "modality_rpc"
 path = "src/lib.rs"
 
 [dependencies]

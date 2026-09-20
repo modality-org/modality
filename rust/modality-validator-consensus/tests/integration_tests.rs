@@ -3,13 +3,13 @@
 /// These tests demonstrate the protocol working with multiple validators,
 /// including consensus formation, certificate propagation, and Byzantine behavior.
 
-use modal_validator_consensus::narwhal::{
+use modality_validator_consensus::narwhal::{
     Certificate, Committee, Header, Primary, Transaction, Validator, Worker,
 };
-use modal_validator_consensus::narwhal::dag::DAG;
-use modal_validator_consensus::shoal::{ReputationConfig, ReputationState};
-use modal_validator_consensus::shoal::reputation::ReputationManager;
-use modal_validator_consensus::shoal::consensus::ShoalConsensus;
+use modality_validator_consensus::narwhal::dag::DAG;
+use modality_validator_consensus::shoal::{ReputationConfig, ReputationState};
+use modality_validator_consensus::shoal::reputation::ReputationManager;
+use modality_validator_consensus::shoal::consensus::ShoalConsensus;
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -36,7 +36,7 @@ fn create_test_cert(
     parents: Vec<[u8; 32]>,
     committee: &Committee,
 ) -> Certificate {
-    use modal_validator_consensus::narwhal::AggregatedSignature;
+    use modality_validator_consensus::narwhal::AggregatedSignature;
     
     let header = Header {
         author,
@@ -242,7 +242,7 @@ async fn test_leader_reputation_adaptation() {
     assert_eq!(initial_score, 1.0, "initial reputation should be perfect");
     
     // Simulate slow performance for validator 0
-    use modal_validator_consensus::shoal::PerformanceRecord;
+    use modality_validator_consensus::shoal::PerformanceRecord;
     for round in 0..5 {
         reputation.record_performance(PerformanceRecord {
             validator: vec![0],
@@ -380,7 +380,7 @@ async fn test_performance_degradation_recovery() {
     };
     let mut reputation = ReputationManager::new(committee.clone(), config);
     
-    use modal_validator_consensus::shoal::PerformanceRecord;
+    use modality_validator_consensus::shoal::PerformanceRecord;
     
     // Phase 1: Validator 0 performs poorly
     for round in 0..3 {

@@ -1546,7 +1546,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "modal-common"
+name = "modality-common"
 version = "0.1.7"
 dependencies = [
  "anyhow",
@@ -1582,7 +1582,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "modal-datastore"
+name = "modality-datastore"
 version = "0.1.0"
 dependencies = [
  "anyhow",
@@ -1592,7 +1592,7 @@ dependencies = [
  "chrono",
  "hex",
  "log",
- "modal-common",
+ "modality-common",
  "regex",
  "rocksdb",
  "serde",
@@ -1605,7 +1605,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "modal-miner"
+name = "modality-miner"
 version = "0.1.0"
 dependencies = [
  "anyhow",
@@ -1613,7 +1613,7 @@ dependencies = [
  "ed25519-dalek 2.2.0",
  "hex",
  "log",
- "modal-common",
+ "modality-common",
  "serde",
  "serde_json",
  "sha2 0.10.9",
@@ -1621,12 +1621,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "modal-observer"
+name = "modality-observer"
 version = "0.1.0"
 dependencies = [
  "anyhow",
  "log",
- "modal-datastore",
+ "modality-datastore",
  "serde",
  "serde_json",
  "thiserror 1.0.69",
@@ -1812,10 +1812,10 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "chrono",
- "modal-common",
- "modal-datastore",
- "modal-miner",
- "modal-observer",
+ "modality-common",
+ "modality-datastore",
+ "modality-miner",
+ "modality-observer",
  "tokio",
 ]
 

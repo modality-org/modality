@@ -1,7 +1,7 @@
 use crate::reqres::Response;
 use anyhow::Result;
-use modal_datastore::DatastoreManager;
-use modal_validator_consensus::narwhal::SyncRequest;
+use modality_datastore::DatastoreManager;
+use modality_validator_consensus::narwhal::SyncRequest;
 use serde_json::Value;
 
 /// Handler for DAG sync requests

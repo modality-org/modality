@@ -27,7 +27,7 @@ pub enum MiningOutcome {
 
 ### Changes Made
 
-#### 1. Added MiningOutcome Enum (`rust/modal-node/src/actions/miner.rs`)
+#### 1. Added MiningOutcome Enum (`rust/modality-node/src/actions/miner.rs`)
 ```rust
 /// Result of a mining operation
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -123,7 +123,7 @@ From test logs:
 
 ## Files Modified
 
-1. **`rust/modal-node/src/actions/miner.rs`**
+1. **`rust/modality-node/src/actions/miner.rs`**
    - Added `MiningOutcome` enum
    - Updated `mine_and_gossip_block` return type
    - Updated mining loop to handle both outcomes

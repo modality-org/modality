@@ -43,36 +43,36 @@ The system uses a three-tier precedence:
 
 ### Rust Core (8 files)
 
-1. **rust/modal-datastore/src/network_params.rs**
+1. **rust/modality-datastore/src/network_params.rs**
    - Added `miner_hash_func: String` field
    - Added `mining_hash_params: Option<serde_json::Value>` field
    - Added unit tests
 
-2. **rust/modal-datastore/src/network_datastore.rs**
+2. **rust/modality-datastore/src/network_datastore.rs**
    - Updated `load_network_parameters_from_contract()` to parse new fields
    - Defaults to "randomx" if not specified
 
-3. **rust/modal-node/src/config.rs**
+3. **rust/modality-node/src/config.rs**
    - Added `miner_hash_func: Option<String>` field
    - Added `miner_hash_params: Option<serde_json::Value>` field
 
-4. **rust/modal-node/src/node.rs**
+4. **rust/modality-node/src/node.rs**
    - Added fields to Node struct
    - Extracted from config and passed to constructor
 
-5. **rust/modal-node/src/actions/miner.rs**
+5. **rust/modality-node/src/actions/miner.rs**
    - Implemented precedence logic (Genesis > Config > Default)
    - Sets RandomX parameters if using randomx with custom params
    - Creates custom Miner with configured hash function
 
-6. **rust/modal-common/src/hash_tax.rs**
+6. **rust/modality-common/src/hash_tax.rs**
    - Added `RandomXParams` struct for custom configuration
    - Added thread-local storage for parameters
    - Added `set_randomx_params()` and `set_randomx_params_from_json()` functions
    - Updated RandomX VM initialization to use custom key and flags
 
-7. **rust/modal-miner/src/miner.rs** (referenced, no changes needed)
-8. **rust/modal-miner/src/chain.rs** (reviewed, no changes needed)
+7. **rust/modality-miner/src/miner.rs** (referenced, no changes needed)
+8. **rust/modality-miner/src/chain.rs** (reviewed, no changes needed)
 
 ### JavaScript (1 file)
 
@@ -92,7 +92,7 @@ The system uses a three-tier precedence:
 
 ### Tests (1 file)
 
-12. **rust/modal-datastore/src/network_params.rs**
+12. **rust/modality-datastore/src/network_params.rs**
     - Added `test_default_includes_miner_hash_func()`
     - Added `test_network_parameters_with_custom_hash_params()`
 
@@ -208,16 +208,16 @@ pub struct RandomXParams {
 ### Compilation Tests
 ```bash
 cd rust
-cargo check --package modal-datastore  # ✓ Passed
-cargo check --package modal-common     # ✓ Passed
-cargo check --package modal-node       # ✓ Passed
-cargo check --package modal-miner      # ✓ Passed
+cargo check --package modality-datastore  # ✓ Passed
+cargo check --package modality-common     # ✓ Passed
+cargo check --package modality-node       # ✓ Passed
+cargo check --package modality-miner      # ✓ Passed
 ```
 
 ### Unit Tests
 ```bash
-cargo test --package modal-datastore --lib network_params  # ✓ 2/2 passed
-cargo test --package modal-common --lib hash_tax           # ✓ 3/3 passed
+cargo test --package modality-datastore --lib network_params  # ✓ 2/2 passed
+cargo test --package modality-common --lib hash_tax           # ✓ 3/3 passed
 ```
 
 ### Integration Tests
@@ -282,8 +282,8 @@ Possible future improvements:
 
 - `NETWORK_GENESIS_CONTRACT_IMPLEMENTATION.md` - Genesis contract parameters
 - `HYBRID_CONSENSUS_STATUS.md` - Hybrid consensus implementation
-- `rust/modal-common/src/hash_tax.rs` - Hash function implementation
-- `rust/modal-datastore/src/network_params.rs` - Network parameters structure
+- `rust/modality-common/src/hash_tax.rs` - Hash function implementation
+- `rust/modality-datastore/src/network_params.rs` - Network parameters structure
 
 ## Conclusion
 

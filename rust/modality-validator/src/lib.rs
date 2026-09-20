@@ -5,7 +5,7 @@
 //! 
 //! Validators are consensus nodes that:
 //! - Observe mining events via gossip
-//! - Maintain the canonical/heaviest chain using modal-observer
+//! - Maintain the canonical/heaviest chain using modality-observer
 //! - Can participate in consensus operations
 //! - Do NOT mine blocks
 //!

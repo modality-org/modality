@@ -51,7 +51,7 @@ pre-build = [
    - Triggers on push to `testnet` or `mainnet` branches
    - Manual trigger option with custom version
    - Builds for Linux x86_64 and macOS ARM64
-   - Compiles WASM packages (modality-lang, modal-wasm-validation)
+   - Compiles WASM packages (modality-lang, modality-wasm-validation)
 
 2. **Cross-Compilation**
    - Uses `cross` with the pinned Docker image from Phase 1

@@ -1,6 +1,6 @@
 # Modal Observer Test Coverage
 
-This document describes the comprehensive test suite for the `modal-observer` package.
+This document describes the comprehensive test suite for the `modality-observer` package.
 
 ## Overview
 
@@ -262,27 +262,27 @@ This enables out-of-order block processing and chain reconstruction.
 
 Run all tests:
 ```bash
-cargo test -p modal-observer
+cargo test -p modality-observer
 ```
 
 Run only unit tests:
 ```bash
-cargo test -p modal-observer --lib
+cargo test -p modality-observer --lib
 ```
 
 Run only integration tests:
 ```bash
-cargo test -p modal-observer --test chain_observer_integration
+cargo test -p modality-observer --test chain_observer_integration
 ```
 
 Run specific test:
 ```bash
-cargo test -p modal-observer -- test_reject_lighter_longer_chain
+cargo test -p modality-observer -- test_reject_lighter_longer_chain
 ```
 
 Run with output:
 ```bash
-cargo test -p modal-observer -- --nocapture
+cargo test -p modality-observer -- --nocapture
 ```
 
 ## Test Results

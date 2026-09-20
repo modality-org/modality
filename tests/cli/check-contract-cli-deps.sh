@@ -8,14 +8,14 @@ FORBIDDEN_DEPS_RE='^(libp2p|rocksdb|librocksdb-sys|zstd-sys)$'
 
 contract_matches="$(
   cd "$ROOT_DIR/rust"
-  cargo tree -p modal-cli-contract --no-default-features --edges normal --prefix none \
+  cargo tree -p modality-cli-contract --no-default-features --edges normal --prefix none \
     | sed 's/ .*//' \
     | sort -u \
     | grep -E "$FORBIDDEN_DEPS_RE" || true
 )"
 
 if [[ -n "$contract_matches" ]]; then
-  echo "modal-cli-contract default dependency tree includes onboarding-heavy deps:" >&2
+  echo "modality-cli-contract default dependency tree includes onboarding-heavy deps:" >&2
   echo "$contract_matches" >&2
   exit 1
 fi

@@ -2,7 +2,7 @@ use anyhow::{Context, Result};
 use clap::Parser;
 use std::path::PathBuf;
 use std::fs;
-use modal_common::contract_store::{ContractStore, CommitFile};
+use modality_common::contract_store::{ContractStore, CommitFile};
 
 #[derive(Parser, Debug)]
 pub struct Opts {
@@ -125,7 +125,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
 fn validate_wasm_module(wasm_bytes: &[u8]) -> Result<()> {
     #[cfg(feature = "wasm")]
     {
-        modal_wasm_runtime::WasmExecutor::validate_module(wasm_bytes)
+        modality_wasm_runtime::WasmExecutor::validate_module(wasm_bytes)
             .context("Invalid WASM module")?;
         Ok(())
     }

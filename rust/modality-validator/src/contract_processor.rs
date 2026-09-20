@@ -1,11 +1,11 @@
 use anyhow::Result;
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use modal_datastore::DatastoreManager;
-use modal_datastore::models::{ContractAsset, AssetBalance, Commit, ReceivedSend, WasmModule};
+use modality_datastore::DatastoreManager;
+use modality_datastore::models::{ContractAsset, AssetBalance, Commit, ReceivedSend, WasmModule};
 use serde_json::Value;
-use modal_wasm_runtime::{WasmExecutor, DEFAULT_GAS_LIMIT};
-use modal_wasm_validation::{PredicateContext, ProgramContext};
+use modality_wasm_runtime::{WasmExecutor, DEFAULT_GAS_LIMIT};
+use modality_wasm_validation::{PredicateContext, ProgramContext};
 use crate::predicate_executor::PredicateExecutor;
 use crate::program_executor::ProgramExecutor;
 
@@ -673,7 +673,7 @@ impl ContractProcessor {
     async fn find_commit_by_id(&self, ds: &DatastoreManager, commit_id: &str) -> Result<Commit> {
         // Since we don't know the contract_id, we need to search all contracts
         // This is inefficient - in production we'd want to index commits by ID
-        use modal_datastore::stores::Store;
+        use modality_datastore::stores::Store;
         
         // Iterate through all commit keys in ValidatorFinal
         let iter = ds.validator_final().iterator("/commits");

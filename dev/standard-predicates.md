@@ -125,7 +125,7 @@ All predicates return:
 To compile the standard predicates:
 
 ```bash
-cd rust/modal-wasm-validation
+cd rust/modality-wasm-validation
 ./build-predicates.sh
 ```
 

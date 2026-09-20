@@ -4,11 +4,11 @@ use serde_json::Value;
 use tokio::sync::mpsc;
 use sha2::{Sha256, Digest};
 
-use modal_datastore::DatastoreManager;
-use modal_datastore::models::Commit;
+use modality_datastore::DatastoreManager;
+use modality_datastore::models::Commit;
 
 use crate::reqres::Response;
-use modal_validator_consensus::communication::Message as ConsensusMessage;
+use modality_validator_consensus::communication::Message as ConsensusMessage;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct SubmitCommitRequest {

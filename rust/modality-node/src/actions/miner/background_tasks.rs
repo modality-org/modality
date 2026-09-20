@@ -7,7 +7,7 @@
 //!
 //! Common chain maintenance tasks are in `observer::chain_maintenance`.
 
-use modal_datastore::DatastoreManager;
+use modality_datastore::DatastoreManager;
 use std::collections::HashSet;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};

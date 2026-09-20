@@ -156,7 +156,7 @@ Bob's rule is rejected before it can cause problems.
 
 ```bash
 cd modality/rust
-cargo run -p modal-wasm-validation --example escrow_validation
+cargo run -p modality-wasm-validation --example escrow_validation
 ```
 
 ## Key Takeaways

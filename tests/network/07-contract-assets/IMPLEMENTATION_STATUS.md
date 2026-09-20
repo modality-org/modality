@@ -32,7 +32,7 @@ Successfully implemented a comprehensive example demonstrating CREATE, SEND, and
 3. Generating random keypair for temporary client nodes
 
 **Technical Fix**:
-- Modified `modal-node/src/config.rs` to generate random libp2p keypair when no passfile is configured
+- Modified `modality-node/src/config.rs` to generate random libp2p keypair when no passfile is configured
 - This allows push/pull commands to create temporary client identities
 
 ## Files Created

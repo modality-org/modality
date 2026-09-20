@@ -1,5 +1,5 @@
-use modal_observer::ChainObserver;
-use modal_datastore::{DatastoreManager, models::MinerBlock};
+use modality_observer::ChainObserver;
+use modality_datastore::{DatastoreManager, models::MinerBlock};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 

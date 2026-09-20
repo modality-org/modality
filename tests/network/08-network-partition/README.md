@@ -214,8 +214,8 @@ These partition scenarios are analogous to Byzantine behaviors:
 - Reputation system dynamics
 
 For precise Byzantine attack simulations (equivocation, sophisticated withholding), see the Rust unit tests:
-- `rust/modal-validator-consensus/tests/byzantine_equivocation_tests.rs`
-- `rust/modal-validator-consensus/tests/byzantine_withholding_tests.rs`
+- `rust/modality-validator-consensus/tests/byzantine_equivocation_tests.rs`
+- `rust/modality-validator-consensus/tests/byzantine_withholding_tests.rs`
 
 ## Understanding the Results
 

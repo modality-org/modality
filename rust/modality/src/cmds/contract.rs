@@ -2,8 +2,8 @@ use anyhow::Result;
 use clap::{Parser, Subcommand};
 use std::path::{Path, PathBuf};
 
-use modal_common::contract_store::{CommitFile, ContractStore};
-use modal_common::keypair::Keypair;
+use modality_common::contract_store::{CommitFile, ContractStore};
+use modality_common::keypair::Keypair;
 
 /// Agent-friendly contract operations
 #[derive(Parser, Debug)]

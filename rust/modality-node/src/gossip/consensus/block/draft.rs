@@ -3,10 +3,10 @@ use anyhow::anyhow;
 use serde_json;
 use tokio::sync::mpsc;
 
-use modal_datastore::DatastoreManager;
-use modal_datastore::Model;
-use modal_datastore::models::ValidatorBlock;
-use modal_validator_consensus::communication::Message as ConsensusMessage;
+use modality_datastore::DatastoreManager;
+use modality_datastore::Model;
+use modality_datastore::models::ValidatorBlock;
+use modality_validator_consensus::communication::Message as ConsensusMessage;
 
 pub const TOPIC: &str = "/consensus/block/draft";
 

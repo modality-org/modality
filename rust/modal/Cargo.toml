@@ -15,35 +15,35 @@ contract-onboarding = [
   "dep:modality",
   "modality/identity",
   "modality/passfile",
-  "dep:modal-common",
-  "dep:modal-cli-contract",
-  "dep:modal-cli-ai",
-  "modal-cli-contract/model-status",
+  "dep:modality-common",
+  "dep:modality-cli-contract",
+  "dep:modality-cli-ai",
+  "modality-cli-contract/model-status",
 ]
 full = [
   "contract-onboarding",
   "modality/upgrade",
-  "modal-cli-contract/full",
-  "dep:modal-cli-chain",
-  "dep:modal-cli-hub",
-  "dep:modal-cli-net",
-  "dep:modal-cli-node",
-  "dep:modal-cli-predicate",
-  "dep:modal-cli-program",
-  "modal-cli-program/full",
+  "modality-cli-contract/full",
+  "dep:modality-cli-chain",
+  "dep:modality-cli-hub",
+  "dep:modality-cli-net",
+  "dep:modality-cli-node",
+  "dep:modality-cli-predicate",
+  "dep:modality-cli-program",
+  "modality-cli-program/full",
 ]
 
 [dependencies]
 modality = { path = "../modality", version = "0.1.7", optional = true }
-modal-common = { path = "../modal-common", version = "0.1.7", optional = true }
-modal-cli-node = { path = "../modal-cli-node", version = "0.1.0", optional = true }
-modal-cli-contract = { path = "../modal-cli-contract", version = "0.1.0", optional = true }
-modal-cli-ai = { path = "../modal-cli-ai", version = "0.1.0", optional = true }
-modal-cli-hub = { path = "../modal-cli-hub", version = "0.1.0", optional = true }
-modal-cli-predicate = { path = "../modal-cli-predicate", version = "0.1.0", optional = true }
-modal-cli-program = { path = "../modal-cli-program", version = "0.1.0", optional = true }
-modal-cli-chain = { path = "../modal-cli-chain", version = "0.1.0", optional = true }
-modal-cli-net = { path = "../modal-cli-net", version = "0.1.0", optional = true }
+modality-common = { path = "../modality-common", version = "0.1.7", optional = true }
+modality-cli-node = { path = "../modality-cli-node", version = "0.1.0", optional = true }
+modality-cli-contract = { path = "../modality-cli-contract", version = "0.1.0", optional = true }
+modality-cli-ai = { path = "../modality-cli-ai", version = "0.1.0", optional = true }
+modality-cli-hub = { path = "../modality-cli-hub", version = "0.1.0", optional = true }
+modality-cli-predicate = { path = "../modality-cli-predicate", version = "0.1.0", optional = true }
+modality-cli-program = { path = "../modality-cli-program", version = "0.1.0", optional = true }
+modality-cli-chain = { path = "../modality-cli-chain", version = "0.1.0", optional = true }
+modality-cli-net = { path = "../modality-cli-net", version = "0.1.0", optional = true }
 anyhow = "1.0"
 clap = { version = "4.1.11", features = ["cargo", "derive", "env"] }
 tokio = { version = "1.42.0", features = ["rt-multi-thread", "macros"] }

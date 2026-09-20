@@ -6,7 +6,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use tracing::info;
 
-use modal_rpc::server::{RpcServer, RpcServerConfig};
+use modality_rpc::server::{RpcServer, RpcServerConfig};
 use super::core::HubCore;
 use super::handler::HubHandler;
 use super::rest;
@@ -41,7 +41,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
         .with_env_filter(
             tracing_subscriber::EnvFilter::from_default_env()
                 .add_directive("modal=info".parse()?)
-                .add_directive("modal_rpc=info".parse()?)
+                .add_directive("modality_rpc=info".parse()?)
         )
         .init();
 

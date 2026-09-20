@@ -5,7 +5,7 @@
 
 use anyhow::Result;
 use libp2p::gossipsub::IdentTopic;
-use modal_datastore::models::MinerBlock;
+use modality_datastore::models::MinerBlock;
 
 use crate::gossip;
 use crate::node::Node;

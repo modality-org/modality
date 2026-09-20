@@ -3,9 +3,9 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 // use std::sync::Mutex;
 
-use modal_validator_consensus::communication::Communication;
-use modal_datastore::models::validator::block::ValidatorBlock;
-use modal_datastore::models::validator::block::Ack;
+use modality_validator_consensus::communication::Communication;
+use modality_datastore::models::validator::block::ValidatorBlock;
+use modality_datastore::models::validator::block::Ack;
 
 use crate::node::Node;
 use crate::gossip::consensus::block::draft::TOPIC as BLOCK_DRAFT_TOPIC;

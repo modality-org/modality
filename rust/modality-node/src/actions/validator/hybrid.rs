@@ -3,12 +3,12 @@
 //! In hybrid consensus mode, validators are selected based on mining nominations
 //! from epoch N-2.
 
-use modal_common::keypair::Keypair;
-use modal_datastore::models::MinerBlock;
-use modal_datastore::models::validator::get_validator_set_for_mining_epoch_hybrid_multi;
-use modal_datastore::DatastoreManager;
-use modal_networks::CheckpointMode;
-use modal_validator_consensus::communication::Message as ConsensusMessage;
+use modality_common::keypair::Keypair;
+use modality_datastore::models::MinerBlock;
+use modality_datastore::models::validator::get_validator_set_for_mining_epoch_hybrid_multi;
+use modality_datastore::DatastoreManager;
+use modality_networks::CheckpointMode;
+use modality_validator_consensus::communication::Message as ConsensusMessage;
 use std::sync::Arc;
 use tokio::sync::{broadcast, mpsc, Mutex};
 

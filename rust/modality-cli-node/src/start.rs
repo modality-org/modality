@@ -7,8 +7,8 @@ use clap::Parser;
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
 
-use modal_node::config_resolution::load_config_with_node_dir;
-use modal_node::pid::read_pid_file;
+use modality_node::config_resolution::load_config_with_node_dir;
+use modality_node::pid::read_pid_file;
 
 #[derive(Debug, Parser)]
 #[command(about = "Start a node in the background")]

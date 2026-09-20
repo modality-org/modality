@@ -2,13 +2,13 @@
 
 ## Summary
 
-Successfully migrated the orphan detection tests from a standalone example binary into proper unit tests in the `modal-miner` crate, while keeping the CLI command and example documentation.
+Successfully migrated the orphan detection tests from a standalone example binary into proper unit tests in the `modality-miner` crate, while keeping the CLI command and example documentation.
 
 ## Changes Made
 
-### 1. Created Unit Tests in modal-miner
+### 1. Created Unit Tests in modality-miner
 
-**File:** `rust/modal-miner/src/tests.rs` (new)
+**File:** `rust/modality-miner/src/tests.rs` (new)
 
 Added comprehensive unit tests for fork choice and orphaning logic:
 - `test_fork_detection` - Tests first-seen rule for competing blocks
@@ -22,9 +22,9 @@ All tests use:
 - Difficulty=1 for fast mining
 - `ChainObserver` directly for fork choice logic
 
-### 2. Updated modal-miner lib.rs
+### 2. Updated modality-miner lib.rs
 
-**File:** `rust/modal-miner/src/lib.rs`
+**File:** `rust/modality-miner/src/lib.rs`
 
 Added:
 ```rust
@@ -34,7 +34,7 @@ mod tests;
 
 ### 3. Fixed Existing Tests
 
-**File:** `rust/modal-miner/src/chain.rs`
+**File:** `rust/modality-miner/src/chain.rs`
 
 Updated all existing test `ChainConfig` initializations to include the new `mining_delay_ms: None` field.
 
@@ -53,7 +53,7 @@ Total: 10 tests (5 unit + 5 CLI)
 **File:** `examples/network/orphan-detection/README.md`
 
 Updated to reflect that:
-- Tests are now unit tests in `modal-miner`
+- Tests are now unit tests in `modality-miner`
 - Available via `modal chain validate` CLI
 - Standalone binary kept for reference
 - Links to specific test functions
@@ -62,7 +62,7 @@ Updated to reflect that:
 
 ### Unit Tests
 ```bash
-cd rust/modal-miner
+cd rust/modality-miner
 cargo test --features persistence --lib orphan_detection
 ```
 
@@ -89,12 +89,12 @@ Result: **All tests passed**
 ## Benefits
 
 ### 1. Proper Test Organization
-- Tests are now part of the crate they test (`modal-miner`)
+- Tests are now part of the crate they test (`modality-miner`)
 - Run automatically with `cargo test`
 - Part of CI/CD pipeline
 
 ### 2. Multiple Access Methods
-- **Unit tests**: For developers working on modal-miner
+- **Unit tests**: For developers working on modality-miner
 - **CLI**: For users and operators
 - **Example**: For documentation and reference
 
@@ -111,7 +111,7 @@ Result: **All tests passed**
 ## File Structure
 
 ```
-rust/modal-miner/src/
+rust/modality-miner/src/
 ├── tests.rs                  # NEW: Unit tests for orphan detection
 ├── lib.rs                    # UPDATED: Added tests module
 └── chain.rs                  # UPDATED: Fixed existing test configs
@@ -130,8 +130,8 @@ examples/network/orphan-detection/
 ### For Developers
 
 ```bash
-# Run all modal-miner tests
-cd rust/modal-miner
+# Run all modality-miner tests
+cd rust/modality-miner
 cargo test --features persistence
 
 # Run just orphan detection tests
@@ -174,7 +174,7 @@ cd examples/network/orphan-detection
 - Requires manual execution
 
 ### After  
-- **Unit tests** in `rust/modal-miner/src/tests.rs` ✅
+- **Unit tests** in `rust/modality-miner/src/tests.rs` ✅
 - CLI command uses same test logic (reusable)
 - Part of `cargo test` suite ✅
 - Runs automatically in CI/CD ✅

@@ -1,4 +1,4 @@
-# modal-observer
+# modality-observer
 
 Validation and chain observation for Modality network consensus.
 
@@ -22,7 +22,7 @@ Validators have several key responsibilities:
 The `ChainObserver` struct provides an API for tracking the canonical mining chain with proper fork choice rules:
 
 ```rust
-use modal_observer::{ChainObserver, ForkConfig};
+use modality_observer::{ChainObserver, ForkConfig};
 
 // Create observer with optional forced fork specification
 let fork_config = ForkConfig::from_pairs(vec![
@@ -56,7 +56,7 @@ let orphans_at_height = observer.get_orphaned_blocks_at_index(50).await?;
 Node operators can override automatic fork choice by specifying required blocks at specific heights, including the genesis block:
 
 ```rust
-use modal_observer::ForkConfig;
+use modality_observer::ForkConfig;
 
 // Create a forced fork config (checkpoints)
 let fork_config = ForkConfig::from_pairs(vec![
@@ -170,6 +170,6 @@ modality net run-validator --config /path/to/config.json
 Run tests:
 
 ```bash
-cargo test -p modal-observer
+cargo test -p modality-observer
 ```
 

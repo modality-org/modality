@@ -5,7 +5,7 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 use async_trait::async_trait;
 
-use modal_rpc::{
+use modality_rpc::{
     RpcHandler, RpcServer, RpcServerConfig, RpcError,
     types::*,
 };
@@ -59,13 +59,13 @@ impl RpcHandler for TestHub {
     async fn get_health(&self) -> Result<HealthResponse, RpcError> {
         Ok(HealthResponse {
             status: "ok".to_string(),
-            version: modal_rpc::API_VERSION.to_string(),
+            version: modality_rpc::API_VERSION.to_string(),
             node_type: NodeType::Hub,
         })
     }
 
     async fn get_version(&self) -> Result<String, RpcError> {
-        Ok(modal_rpc::API_VERSION.to_string())
+        Ok(modality_rpc::API_VERSION.to_string())
     }
 
     async fn get_block_height(&self) -> Result<BlockHeightResponse, RpcError> {

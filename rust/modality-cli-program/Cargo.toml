@@ -1,5 +1,5 @@
 [package]
-name = "modal-cli-program"
+name = "modality-cli-program"
 version = "0.1.0"
 edition = "2021"
 description = "Program management commands for Modal CLI"
@@ -9,13 +9,13 @@ homepage = "https://www.modality.org"
 
 [features]
 default = []
-wasm = ["dep:modal-wasm-runtime"]
+wasm = ["dep:modality-wasm-runtime"]
 full = ["wasm"]
 
 [dependencies]
-modal-cli-common = { path = "../modal-cli-common", version = "0.1.0" }
-modal-common = { path = "../modal-common", version = "0.1.7" }
-modal-wasm-runtime = { path = "../modal-wasm-runtime", version = "0.1.0", optional = true }
+modality-cli-common = { path = "../modality-cli-common", version = "0.1.0" }
+modality-common = { path = "../modality-common", version = "0.1.7" }
+modality-wasm-runtime = { path = "../modality-wasm-runtime", version = "0.1.0", optional = true }
 anyhow = "1.0"
 clap = { version = "4.1.11", features = ["derive"] }
 colored = "2.1"

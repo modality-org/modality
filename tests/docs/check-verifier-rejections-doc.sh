@@ -4,9 +4,9 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 DOC="$ROOT_DIR/docs/reference/verifier-rejections.md"
 FIRST_CONTRACT_SMOKE="$ROOT_DIR/tests/cli/run-first-contract-cli-smoke.sh"
-LOCAL_GOVERNANCE="$ROOT_DIR/rust/modal-cli-contract/src/model_governance.rs"
-HUB_VALIDATOR="$ROOT_DIR/rust/modal-cli-hub/src/model_validator.rs"
-COMMON_DIAGNOSTICS="$ROOT_DIR/rust/modal-common/src/model_diagnostics.rs"
+LOCAL_GOVERNANCE="$ROOT_DIR/rust/modality-cli-contract/src/model_governance.rs"
+HUB_VALIDATOR="$ROOT_DIR/rust/modality-cli-hub/src/model_validator.rs"
+COMMON_DIAGNOSTICS="$ROOT_DIR/rust/modality-common/src/model_diagnostics.rs"
 
 required_patterns=(
   "# Verifier Rejection Explanations"
@@ -48,7 +48,7 @@ required_patterns=(
   "test_model_replacement_rule_rejection_explains_formula_failure"
   "test_model_replacement_rule_rejection_explains_action_modal_witness"
   "test_model_replacement_rule_rejection_explains_fixed_point_unfolding"
-  'Shared `modal-common::model_diagnostics` formatter regressions'
+  'Shared `modality-common::model_diagnostics` formatter regressions'
   "The no-build doc smoke cross-checks the first-contract smoke"
   "wrong-state \`POST\` fixture"
   "current-state candidates"

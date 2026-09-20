@@ -1,5 +1,5 @@
 [package]
-name = "modal-cli-common"
+name = "modality-cli-common"
 version = "0.1.0"
 edition = "2021"
 description = "Shared utilities for Modal CLI domain crates"

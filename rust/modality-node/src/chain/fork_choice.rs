@@ -8,7 +8,7 @@
 //! 2. Longer chain wins (if difficulty is equal)
 //! 3. Lower block hash wins (as final tiebreaker)
 
-use modal_datastore::models::MinerBlock;
+use modality_datastore::models::MinerBlock;
 
 /// Result of comparing two chains or blocks
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

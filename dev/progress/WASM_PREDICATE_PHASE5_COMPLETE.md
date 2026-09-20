@@ -99,7 +99,7 @@ console.log(result2); // { value: true, wasPredicate: true }
 
 #### 5.4: ContractProcessor Integration ✅
 
-**`modal-validator/src/contract_processor.rs`:**
+**`modality-validator/src/contract_processor.rs`:**
 - ✅ Added `PredicateExecutor` to `ContractProcessor`
 - ✅ New public method `evaluate_predicate()`
   - Takes: contract_id, predicate_path, args, block_height, timestamp
@@ -180,10 +180,10 @@ let proposition = processor.evaluate_predicate(
 ```bash
 $ cargo test --lib
   - modality-lang: 21 tests ✅
-  - modal-wasm-validation: 32 tests ✅
-  - modal-wasm-runtime: 10 tests ✅
-  - modal-validator: 4 tests ✅
-  - modal-datastore: All tests ✅
+  - modality-wasm-validation: 32 tests ✅
+  - modality-wasm-runtime: 10 tests ✅
+  - modality-validator: 4 tests ✅
+  - modality-datastore: All tests ✅
 Total: 67+ tests passing
 ```
 
@@ -230,7 +230,7 @@ js/packages/kripke-machine/src/parts/PropertyTable.js
   - New getValue() async method
   - Cache management methods
 
-rust/modal-validator/src/contract_processor.rs
+rust/modality-validator/src/contract_processor.rs
   - Added PredicateExecutor integration
   - New evaluate_predicate() method
 ```

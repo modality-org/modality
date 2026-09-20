@@ -43,7 +43,7 @@ currently enforced by the local first-contract validator.
 |------------------|--------------------------------|-------|
 | Method labels such as `+POST` and `+MODEL` | Enforced | Derived from pending commit body methods |
 | `signed_by`, `any_signed`, `all_signed`, `threshold`, `modifies`, `post_to_path`, `has_property`, `text_eq`, `amount_in_range`, `num_eq`, `num_gt`, `num_gte`, `num_lt`, `num_lte`, `bool_true`, `bool_false` | Enforced | Derived from pending signatures, accepted state, pending methods, pending paths, accepted-state JSON, accepted-state text, accepted-state numbers, and accepted-state booleans |
-| `timestamp_valid` | Unit-tested extension module only | Implemented in `modal-wasm-validation`; not yet replay evidence for the local first-contract validator |
+| `timestamp_valid` | Unit-tested extension module only | Implemented in `modality-wasm-validation`; not yet replay evidence for the local first-contract validator |
 | `before`, `after`, other state predicates, hash predicates, `oracle_attests`, and `wasm` | Not first-contract-local yet | Intended extension vocabulary; treat as external or future predicate checks unless a validator path explicitly documents support |
 
 ## Checkpoint Review Scope
@@ -221,7 +221,7 @@ text_eq(/status.text, "approved")
 text_eq(/actual/status.text, /expected/status.text)
 ```
 
-The `modal-wasm-validation` crate also has unit-tested state-inspection modules.
+The `modality-wasm-validation` crate also has unit-tested state-inspection modules.
 The `has_property`, `text_eq`, `amount_in_range`, numeric comparison,
 `bool_true`, and `bool_false` bindings above are first-contract-local replay
 evidence today. They read only accepted state; they do not see JSON, text,

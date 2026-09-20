@@ -12,11 +12,11 @@ use anyhow::Result;
 use futures::StreamExt;
 use libp2p::{Multiaddr, Swarm};
 use libp2p::swarm::SwarmEvent;
-use modal_datastore::models::MinerBlock;
-use modal_datastore::DatastoreManager;
-use modal_node::config::Config;
-use modal_node::reqres::{Request, Response};
-use modal_node::swarm;
+use modality_datastore::models::MinerBlock;
+use modality_datastore::DatastoreManager;
+use modality_node::config::Config;
+use modality_node::reqres::{Request, Response};
+use modality_node::swarm;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use std::time::Duration;
@@ -311,7 +311,7 @@ async fn handle_sync(
     request_id: libp2p::request_response::OutboundRequestId,
 ) -> Result<Response> {
     use libp2p::request_response;
-    use modal_validator_consensus::communication::Message as ConsensusMessage;
+    use modality_validator_consensus::communication::Message as ConsensusMessage;
     
     let timeout = Duration::from_secs(30);
     let start = std::time::Instant::now();
@@ -332,7 +332,7 @@ async fn handle_sync(
                     }
                 )) = event1 {
                     // Handle request on Node 1
-                    let response = modal_node::reqres::handle_request(request, datastore1.clone(), tx.clone()).await?;
+                    let response = modality_node::reqres::handle_request(request, datastore1.clone(), tx.clone()).await?;
                     node1_swarm.behaviour_mut().reqres.send_response(channel, response).ok();
                 }
             }

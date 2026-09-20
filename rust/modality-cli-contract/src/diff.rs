@@ -3,7 +3,7 @@ use clap::Parser;
 use std::collections::HashSet;
 use std::path::PathBuf;
 
-use modal_common::contract_store::ContractStore;
+use modality_common::contract_store::ContractStore;
 
 #[derive(Debug, Parser)]
 #[command(about = "Show changes between state directory and committed state")]

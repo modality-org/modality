@@ -12,7 +12,7 @@ Successfully implemented comprehensive validation at the consensus level for SEN
 
 Added a new model to track which SEND commits have been received, preventing double-receiving:
 
-**File**: `rust/modal-datastore/src/models/contract.rs`
+**File**: `rust/modality-datastore/src/models/contract.rs`
 
 ```rust
 pub struct ReceivedSend {
@@ -29,7 +29,7 @@ pub struct ReceivedSend {
 
 ### 2. SEND Validation
 
-**File**: `rust/modal-validator/src/contract_processor.rs` - `process_send()`
+**File**: `rust/modality-validator/src/contract_processor.rs` - `process_send()`
 
 **Validation Logic**:
 ```rust
@@ -62,7 +62,7 @@ balance.save(&ds).await?;
 
 ### 3. RECV Validation
 
-**File**: `rust/modal-validator/src/contract_processor.rs` - `process_recv()`
+**File**: `rust/modality-validator/src/contract_processor.rs` - `process_recv()`
 
 **Validation Logic**:
 ```rust
@@ -143,7 +143,7 @@ let iter = ds.iterator("");  // Empty prefix, not "/commits/"
 
 ## Testing
 
-**File**: `rust/modal-validator/tests/asset_validation_tests.rs`
+**File**: `rust/modality-validator/tests/asset_validation_tests.rs`
 
 ### Test Coverage (5 tests, all passing ✅)
 
@@ -173,7 +173,7 @@ let iter = ds.iterator("");  // Empty prefix, not "/commits/"
 
 ```bash
 cd rust
-cargo test --package modal-validator --test asset_validation_tests
+cargo test --package modality-validator --test asset_validation_tests
 
 # Result: ok. 5 passed; 0 failed
 ```
@@ -234,12 +234,12 @@ cargo test --package modal-validator --test asset_validation_tests
 ## Files Modified
 
 ### New Files
-- `rust/modal-datastore/src/models/contract.rs` - Added `ReceivedSend` struct
-- `rust/modal-validator/tests/asset_validation_tests.rs` - 5 comprehensive tests
+- `rust/modality-datastore/src/models/contract.rs` - Added `ReceivedSend` struct
+- `rust/modality-validator/tests/asset_validation_tests.rs` - 5 comprehensive tests
 
 ### Modified Files
-- `rust/modal-datastore/src/models/mod.rs` - Export `ReceivedSend`
-- `rust/modal-validator/src/contract_processor.rs`:
+- `rust/modality-datastore/src/models/mod.rs` - Export `ReceivedSend`
+- `rust/modality-validator/src/contract_processor.rs`:
   - Added `ReceivedSend` tracking
   - Enhanced `process_send()` with balance validation
   - Enhanced `process_recv()` with comprehensive checks
@@ -250,7 +250,7 @@ cargo test --package modal-validator --test asset_validation_tests
 
 The validation is automatically enforced by the consensus layer:
 
-**File**: `rust/modal-validator/src/shoal_validator.rs`
+**File**: `rust/modality-validator/src/shoal_validator.rs`
 
 ```rust
 // In process_certificate():

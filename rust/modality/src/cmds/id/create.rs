@@ -3,7 +3,7 @@ use clap::Parser;
 use rpassword::read_password;
 use std::path::PathBuf;
 
-use modal_common::keypair::Keypair;
+use modality_common::keypair::Keypair;
 
 #[derive(Debug, Parser)]
 #[command(about = "Create a new Modality ID and associated passfile file")]
@@ -122,7 +122,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
         path.clone()
     } else {
         let filename = opts.name.clone().unwrap_or_else(|| address.clone());
-        modal_common::passfile::named_passfile_create_path(&filename, opts.dir.as_deref())?
+        modality_common::passfile::named_passfile_create_path(&filename, opts.dir.as_deref())?
     };
 
     // Check if file already exists to prevent accidental overwrites
@@ -168,7 +168,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
     println!("💾 Modality Passfile saved to: {}", filepath.display());
     if opts.path.is_none() {
         let name = opts.name.as_deref().unwrap_or(&address);
-        let id_path = modal_common::passfile::write_named_public_id(name, &address)?;
+        let id_path = modality_common::passfile::write_named_public_id(name, &address)?;
         println!("🪪 Public ID saved to: {}", id_path.display());
     }
     println!("\n🚨🚨🚨  IMPORTANT: Keep your passfile secure and never share it! 🚨🚨🚨");

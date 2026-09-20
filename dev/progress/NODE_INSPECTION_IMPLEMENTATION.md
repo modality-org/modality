@@ -7,14 +7,14 @@ Implemented a comprehensive node inspection system that enables querying node st
 
 ### 1. Core Components
 
-#### Node Configuration (`rust/modal-node/src/config.rs`)
+#### Node Configuration (`rust/modality-node/src/config.rs`)
 - Added `inspect_whitelist: Option<Vec<String>>` to Config struct
 - Whitelist behavior:
   - `None` (default): Only self (same peer ID) can inspect
   - `Some(vec![])`: Reject all external requests (local direct access only)
   - `Some(vec!["peer1", "peer2"])`: Allow specific peer IDs
 
-#### Inspection Types (`rust/modal-node/src/inspection.rs`)
+#### Inspection Types (`rust/modality-node/src/inspection.rs`)
 - `InspectionLevel` enum: Basic, Full, Network, Datastore, Mining
 - `InspectionData` struct with comprehensive node state:
   - Peer ID and status (Running/Offline)
@@ -22,12 +22,12 @@ Implemented a comprehensive node inspection system that enables querying node st
   - Datastore info (blocks, chain tip, epochs, miners)
   - Mining info (status, nominees, hashrate, total hashes)
 
-#### Node State Introspection (`rust/modal-node/src/node.rs`)
+#### Node State Introspection (`rust/modality-node/src/node.rs`)
 - `get_inspection_data()` method gathers node state based on requested level
 - Uses `MinerBlock::find_all_canonical()` for block data
 - Reads mining metrics from shared `MiningMetrics` structure
 
-#### Reqres Handler (`rust/modal-node/src/reqres/inspect.rs`)
+#### Reqres Handler (`rust/modality-node/src/reqres/inspect.rs`)
 - `/inspect` endpoint added to reqres system
 - `get_datastore_inspection()` function for datastore-only queries
 - `is_authorized()` function for whitelist validation
@@ -159,12 +159,12 @@ modal node inspect --config ./miner.json --level mining | grep "Is Mining: Yes"
 ## Files Modified
 
 ### Modal Node Package
-- `rust/modal-node/src/config.rs` - Added whitelist field
-- `rust/modal-node/src/inspection.rs` - New module for types
-- `rust/modal-node/src/lib.rs` - Exported inspection module
-- `rust/modal-node/src/node.rs` - Added get_inspection_data() method
-- `rust/modal-node/src/reqres/mod.rs` - Added /inspect route
-- `rust/modal-node/src/reqres/inspect.rs` - New handler module
+- `rust/modality-node/src/config.rs` - Added whitelist field
+- `rust/modality-node/src/inspection.rs` - New module for types
+- `rust/modality-node/src/lib.rs` - Exported inspection module
+- `rust/modality-node/src/node.rs` - Added get_inspection_data() method
+- `rust/modality-node/src/reqres/mod.rs` - Added /inspect route
+- `rust/modality-node/src/reqres/inspect.rs` - New handler module
 
 ### Modality CLI Package
 - `rust/modality/Cargo.toml` - Added dependencies

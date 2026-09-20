@@ -2,7 +2,7 @@ use anyhow::Result;
 use clap::Parser;
 use std::path::PathBuf;
 
-use modal_common::contract_store::{CommitFile, ContractStore};
+use modality_common::contract_store::{CommitFile, ContractStore};
 
 #[derive(Debug, Parser)]
 #[command(about = "Show commit history for a contract")]
@@ -141,7 +141,7 @@ fn commit_signers(commit: &CommitFile) -> Vec<String> {
 #[cfg(test)]
 mod tests {
     use super::{commit_signers, commit_summary_json};
-    use modal_common::contract_store::CommitFile;
+    use modality_common::contract_store::CommitFile;
 
     #[test]
     fn json_summary_reports_signature_evidence() {

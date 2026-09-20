@@ -1,5 +1,5 @@
-use modal_wasm_validation::predicates::text_common::{CorrelationInput, RuleContext};
-use modal_wasm_validation::predicates::text_equals;
+use modality_wasm_validation::predicates::text_common::{CorrelationInput, RuleContext};
+use modality_wasm_validation::predicates::text_equals;
 
 fn main() {
     // Case 1: Compatible - equals("hello") + length_eq(5)

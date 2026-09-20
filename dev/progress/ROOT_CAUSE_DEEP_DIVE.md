@@ -10,7 +10,7 @@ After analyzing the testnet2 datastore and codebase, I've identified **TWO disti
 ## Bug #1: Incorrect Orphaning Logic in ChainObserver
 
 ### Location
-`rust/modal-observer/src/chain_observer.rs` lines 390-447
+`rust/modality-observer/src/chain_observer.rs` lines 390-447
 
 ### The Problem
 
@@ -59,7 +59,7 @@ All 78 blocks correctly reference 32875 as their parent, but get orphaned becaus
 ## Bug #2: Index Desynchronization (FIXED by MiningOutcome)
 
 ### Location
-`rust/modal-node/src/actions/miner.rs` lines 1410-1416
+`rust/modality-node/src/actions/miner.rs` lines 1410-1416
 
 ### The Original Bug (Before MiningOutcome Fix)
 
@@ -104,7 +104,7 @@ Actually, I need to understand the exact sequence. Let me analyze what happens s
 
 Actually, looking at the code more carefully:
 
-```rust:1410:1416:rust/modal-node/src/actions/miner.rs
+```rust:1410:1416:rust/modality-node/src/actions/miner.rs
 // Check if we're trying to mine a block that already exists
 if index < chain.height() + 1 && index < chain.blocks.len() as u64 {
     // Block already exists in the chain, skip it
@@ -174,12 +174,12 @@ Wait, that's not right either. Let me re-read the mining code more carefully.
 
 Looking at `mine_block_with_persistence`:
 
-```rust:265:294:rust/modal-miner/src/chain.rs
+```rust:265:294:rust/modality-miner/src/chain.rs
 pub async fn mine_block_with_persistence(
     &mut self,
     nominated_peer_id: String,
     miner_number: u64,
-) -> Result<(Block, Option<modal_common::hash_tax::MiningResult>), MiningError> {
+) -> Result<(Block, Option<modality_common::hash_tax::MiningResult>), MiningError> {
     let next_index = self.height() + 1;  // Line 270
     let next_difficulty = self.get_next_difficulty();
     let previous_hash = self.latest_block().header.hash.clone();  // Line 272
@@ -209,7 +209,7 @@ pub async fn mine_block_with_persistence(
 
 And `add_block_with_fork_choice`:
 
-```rust:341:369:rust/modal-miner/src/chain.rs
+```rust:341:369:rust/modality-miner/src/chain.rs
 pub async fn add_block_with_fork_choice(&mut self, block: Block) -> Result<(), MiningError> {
     // If we have fork choice enabled, use it
     if let Some(ref fork_choice) = self.fork_choice {
@@ -248,7 +248,7 @@ AH HA! I found it! Look at `add_block_with_fork_choice` line 351-355:
 
 Let me check `process_mined_block`:
 
-```rust:92:106:rust/modal-miner/src/fork_choice.rs
+```rust:92:106:rust/modality-miner/src/fork_choice.rs
 pub async fn process_mined_block(&self, block: Block) -> Result<(), MiningError> {
     // Convert Block to MinerBlock
     let miner_block = block_to_miner_block(&block)?;
@@ -327,7 +327,7 @@ Let me reconsider...
 
 Let me look at what happens when `mine_and_gossip_block` encounters an error in the index check:
 
-```rust:1418:1423:rust/modal-node/src/actions/miner.rs
+```rust:1418:1423:rust/modality-node/src/actions/miner.rs
 // Verify we're mining the correct next block
 let expected_next = chain.height() + 1;
 if index != expected_next {
@@ -338,7 +338,7 @@ if index != expected_next {
 
 If there's an index mismatch, it returns an error. The mining loop handles this:
 
-```rust:479:490:rust/modal-node/src/actions/miner.rs
+```rust:479:490:rust/modality-node/src/actions/miner.rs
 Err(e) => {
     log::error!("⚠️  Failed to mine block {}: {}", current_index, e);
     

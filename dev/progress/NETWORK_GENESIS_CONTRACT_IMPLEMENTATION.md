@@ -13,21 +13,21 @@ Successfully implemented network parameters within genesis contracts with full P
 
 ## Implementation Details
 
-### 1. Data Structures (modal-datastore)
+### 1. Data Structures (modality-datastore)
 
-**Created:** `rust/modal-datastore/src/network_params.rs`
+**Created:** `rust/modality-datastore/src/network_params.rs`
 - `NetworkParameters` struct holds consensus-critical network parameters loaded from genesis contract
 - Fields: name, description, initial_difficulty, target_block_time_secs, blocks_per_epoch, validators
 - **Note:** Bootstrappers are NOT included (they are operational/networking config, read from network config file)
 
-**Updated:** `rust/modal-datastore/src/network_datastore.rs`
+**Updated:** `rust/modality-datastore/src/network_datastore.rs`
 - Added `load_network_parameters_from_contract()` method
 - Reads consensus-critical `/network/*` paths from contract state
 - Parses parameters into NetworkParameters struct
 - Contract state stored with keys like: `/contracts/${contract_id}/network/${param}.${type}`
 - **Note:** Does not load bootstrappers from contract (intentionally operational-only config)
 
-**Updated:** `rust/modal-datastore/src/lib.rs`
+**Updated:** `rust/modality-datastore/src/lib.rs`
 - Exported new NetworkParameters type
 
 ### 2. Genesis Contract Generation (JS)
@@ -50,7 +50,7 @@ Successfully implemented network parameters within genesis contracts with full P
 
 ### 3. POST Action Processing (Rust Validator)
 
-**Updated:** `rust/modal-validator/src/contract_processor.rs`
+**Updated:** `rust/modality-validator/src/contract_processor.rs`
 - Added `StateChange::Posted` variant to represent POST state changes
 - Added `process_post()` method to handle POST actions during consensus
 - Stores contract state with key format: `/contracts/${contract_id}{path}`
@@ -85,9 +85,9 @@ async fn process_post(&self, contract_id: &str, action: &Value) -> Result<StateC
 - `test_post_with_complex_value()` - Tests storing complex JSON values
 - Both tests verify values are correctly stored and retrievable
 
-### 4. Node Initialization (modal-node)
+### 4. Node Initialization (modality-node)
 
-**Updated:** `rust/modal-node/src/node.rs`
+**Updated:** `rust/modality-node/src/node.rs`
 - Loads network parameters from genesis contract after loading network config
 - Checks for `genesis_contract_id` in network config
 - Calls `load_network_parameters_from_contract()` if present
@@ -97,7 +97,7 @@ async fn process_post(&self, contract_id: &str, action: &Value) -> Result<StateC
 
 ### 5. Validator Selection
 
-**Already Working:** `rust/modal-datastore/src/models/validator/validator_selection.rs`
+**Already Working:** `rust/modality-datastore/src/models/validator/validator_selection.rs`
 - `get_validator_set_for_epoch()` checks for static validators first
 - Static validators set from contract are used automatically
 - Falls back to dynamic selection if no static validators
@@ -162,7 +162,7 @@ async fn process_post(&self, contract_id: &str, action: &Value) -> Result<StateC
 
 ### Rust Unit Tests
 
-**Added:** `rust/modal-validator/src/contract_processor.rs::tests`
+**Added:** `rust/modality-validator/src/contract_processor.rs::tests`
 
 1. ✅ `test_post_action_processing()`
    - Creates contract with POST actions for network parameters
@@ -176,7 +176,7 @@ async fn process_post(&self, contract_id: &str, action: &Value) -> Result<StateC
 Run tests:
 ```bash
 cd rust
-cargo test --package modal-validator contract_processor::tests
+cargo test --package modality-validator contract_processor::tests
 ```
 
 ### Integration Test
@@ -224,19 +224,19 @@ cd examples/network/09-network-parameters
    - Values stored and retrievable from datastore
 
 4. ✅ Code compiles without errors
-   - Rust modal-validator builds successfully
-   - Rust modal-datastore builds successfully
-   - Rust modal-node builds successfully
+   - Rust modality-validator builds successfully
+   - Rust modality-datastore builds successfully
+   - Rust modality-node builds successfully
    - JS packages install and run
 
 ## Files Modified
 
 ### Rust
-- `rust/modal-datastore/src/network_params.rs` (NEW)
-- `rust/modal-datastore/src/network_datastore.rs`
-- `rust/modal-datastore/src/lib.rs`
-- `rust/modal-node/src/node.rs`
-- `rust/modal-validator/src/contract_processor.rs` (POST processing)
+- `rust/modality-datastore/src/network_params.rs` (NEW)
+- `rust/modality-datastore/src/network_datastore.rs`
+- `rust/modality-datastore/src/lib.rs`
+- `rust/modality-node/src/node.rs`
+- `rust/modality-validator/src/contract_processor.rs` (POST processing)
 
 ### JavaScript
 - `js/packages/cli/src/cmds/net/genesis.js`

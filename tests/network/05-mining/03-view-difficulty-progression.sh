@@ -20,8 +20,8 @@ echo ""
 
 # Use a temporary Rust program to read blocks directly
 cat > /tmp/show_difficulty.rs << 'EOF'
-use modal_datastore::{NetworkDatastore, Model};
-use modal_datastore::models::MinerBlock;
+use modality_datastore::{NetworkDatastore, Model};
+use modality_datastore::models::MinerBlock;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -71,9 +71,9 @@ echo "Compiling difficulty viewer..."
 cd ../../../rust
 cargo build --example show_difficulty 2>/dev/null || {
     # If example doesn't exist, create it
-    mkdir -p modal-datastore/examples
-    cp /tmp/show_difficulty.rs modal-datastore/examples/
-    cargo build --package modal-datastore --example show_difficulty
+    mkdir -p modality-datastore/examples
+    cp /tmp/show_difficulty.rs modality-datastore/examples/
+    cargo build --package modality-datastore --example show_difficulty
 }
 
 ./target/debug/examples/show_difficulty "$(pwd)/../examples/network/05-mining/tmp/storage/miner"

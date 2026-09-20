@@ -11,7 +11,7 @@ All phases have been implemented and tested.
 
 ### Phase 1: ValidatorBlock Creation and Persistence ✅
 
-Updated consensus loop in `modal-node/src/actions/validator/consensus.rs` to:
+Updated consensus loop in `modality-node/src/actions/validator/consensus.rs` to:
 
 1. Create a `ValidatorBlock` each round with proper fields (peer_id, round_id, prev_round_certs)
 2. Generate opening/closing signatures using node keypair
@@ -20,8 +20,8 @@ Updated consensus loop in `modal-node/src/actions/validator/consensus.rs` to:
 
 Key files:
 
-- `rust/modal-node/src/actions/validator/consensus.rs` - main consensus loop
-- `rust/modal-datastore/src/models/validator/block.rs` - ValidatorBlock creation
+- `rust/modality-node/src/actions/validator/consensus.rs` - main consensus loop
+- `rust/modality-datastore/src/models/validator/block.rs` - ValidatorBlock creation
 
 ### Phase 2: Gossip Broadcasting ✅
 
@@ -35,9 +35,9 @@ Integrated `NodeCommunication` for gossip broadcasting:
 
 Key files:
 
-- `rust/modal-node/src/consensus/node_communication.rs` - Communication implementation
-- `rust/modal-node/src/actions/validator/consensus.rs`
-- `rust/modal-node/src/actions/validator/mod.rs` - subscribed to validator gossip topics
+- `rust/modality-node/src/consensus/node_communication.rs` - Communication implementation
+- `rust/modality-node/src/actions/validator/consensus.rs`
+- `rust/modality-node/src/actions/validator/mod.rs` - subscribed to validator gossip topics
 
 ### Phase 3: Ack Collection and Certificate Formation ✅
 
@@ -51,8 +51,8 @@ Implemented ack/signature collection:
 
 Key files:
 
-- `rust/modal-node/src/actions/validator/ack_collector.rs` (new)
-- `rust/modal-datastore/src/models/validator/block.rs` - Ack struct
+- `rust/modality-node/src/actions/validator/ack_collector.rs` (new)
+- `rust/modality-datastore/src/models/validator/block.rs` - Ack struct
 
 ### Phase 4: Certified Block Processing ✅
 
@@ -66,8 +66,8 @@ Handle certified blocks:
 
 Key files:
 
-- `rust/modal-node/src/gossip/consensus/block/cert.rs`
-- `rust/modal-node/src/actions/validator/ack_collector.rs` - certificate validation
+- `rust/modality-node/src/gossip/consensus/block/cert.rs`
+- `rust/modality-node/src/actions/validator/ack_collector.rs` - certificate validation
 
 ### Phase 5: Round Advancement and Finalization ✅
 
@@ -81,8 +81,8 @@ Complete the consensus cycle:
 
 Key files:
 
-- `rust/modal-node/src/actions/validator/consensus.rs`
-- `rust/modal-node/src/status_server.rs` - already reads from stores
+- `rust/modality-node/src/actions/validator/consensus.rs`
+- `rust/modality-node/src/status_server.rs` - already reads from stores
 
 ## Testing Strategy
 
@@ -108,11 +108,11 @@ Key files:
 ## Files Modified/Created
 
 ### New Files
-- `rust/modal-node/src/actions/validator/ack_collector.rs` - Ack collection and certificate formation
+- `rust/modality-node/src/actions/validator/ack_collector.rs` - Ack collection and certificate formation
 
 ### Modified Files
-- `rust/modal-node/src/actions/validator/consensus.rs` - Full consensus loop implementation
-- `rust/modal-node/src/actions/validator/hybrid.rs` - Pass keypair, swarm, consensus_tx
-- `rust/modal-node/src/actions/validator/mod.rs` - Wire up components, subscribe to gossip topics
-- `rust/modal-node/src/node/mod.rs` - Add `get_consensus_tx()` getter
+- `rust/modality-node/src/actions/validator/consensus.rs` - Full consensus loop implementation
+- `rust/modality-node/src/actions/validator/hybrid.rs` - Pass keypair, swarm, consensus_tx
+- `rust/modality-node/src/actions/validator/mod.rs` - Wire up components, subscribe to gossip topics
+- `rust/modality-node/src/node/mod.rs` - Add `get_consensus_tx()` getter
 

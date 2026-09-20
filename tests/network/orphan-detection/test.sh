@@ -2,7 +2,7 @@
 set -e
 
 # Test script for orphan detection
-# Tests both the modal chain validate CLI command and the unit tests in modal-miner
+# Tests both the modal chain validate CLI command and the unit tests in modality-miner
 
 TEST_NAME="orphan-detection"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -18,9 +18,9 @@ echo "  Testing: $TEST_NAME"
 echo "=============================================="
 echo ""
 
-# Test 1: Run modal-miner unit tests
-echo "Test 1: Run modal-miner orphan detection unit tests"
-cd "$SCRIPT_DIR/../../../rust/modal-miner"
+# Test 1: Run modality-miner unit tests
+echo "Test 1: Run modality-miner orphan detection unit tests"
+cd "$SCRIPT_DIR/../../../rust/modality-miner"
 if cargo test --features persistence --lib orphan_detection > /dev/null 2>&1; then
     echo -e "${GREEN}✓${NC} Unit tests passed (5 tests)"
 else

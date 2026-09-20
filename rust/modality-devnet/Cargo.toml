@@ -1,5 +1,5 @@
 [package]
-name = "modal-devnet"
+name = "modality-devnet"
 version = "0.1.0"
 edition = "2021"
 description = "Network devnet for Modality"
@@ -14,8 +14,8 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 lazy_static = "1.4"
 regex = "1.5" 
-modal-common = { path = "../modal-common", version = "0.1.6" }
-modal-datastore = { path = "../modal-datastore", version = "0.1.0" }
+modality-common = { path = "../modality-common", version = "0.1.6" }
+modality-datastore = { path = "../modality-datastore", version = "0.1.0" }
 
 [dev-dependencies]
 tempfile = "3.5"

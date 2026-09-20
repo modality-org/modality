@@ -175,7 +175,7 @@ This is:
 ## Files to Modify
 
 To implement the fix:
-1. `rust/modal-node/src/actions/miner.rs` - Add pre-mining check in `mine_and_gossip_block()`
+1. `rust/modality-node/src/actions/miner.rs` - Add pre-mining check in `mine_and_gossip_block()`
 2. Re-run this test to verify fix works
 3. Run full test suite to ensure no regressions
 

@@ -7,7 +7,7 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 
 #[cfg(feature = "persistence")]
-use modal_datastore::DatastoreManager;
+use modality_datastore::DatastoreManager;
 
 /// Shoal consensus engine
 pub struct ShoalConsensus {
@@ -201,7 +201,7 @@ impl ShoalConsensus {
         // Persist committed certificates to datastore
         #[cfg(feature = "persistence")]
         if let Some(datastore) = &self.datastore {
-            use modal_datastore::models::DAGCertificate;
+            use modality_datastore::models::DAGCertificate;
             use crate::persistence::digest_to_hex;
             
             for digest in &newly_committed {

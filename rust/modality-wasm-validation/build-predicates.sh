@@ -20,14 +20,14 @@ if ! command -v wasm-pack &> /dev/null; then
     exit 1
 fi
 
-cd "$PROJECT_ROOT/rust/modal-wasm-validation"
+cd "$PROJECT_ROOT/rust/modality-wasm-validation"
 
 # Build the entire package for wasm32
-echo "Building modal-wasm-validation for wasm32-unknown-unknown..."
+echo "Building modality-wasm-validation for wasm32-unknown-unknown..."
 cargo build --target wasm32-unknown-unknown --release
 
 # The compiled WASM is in target/wasm32-unknown-unknown/release/
-WASM_FILE="$PROJECT_ROOT/rust/target/wasm32-unknown-unknown/release/modal_wasm_validation.wasm"
+WASM_FILE="$PROJECT_ROOT/rust/target/wasm32-unknown-unknown/release/modality_wasm_validation.wasm"
 
 if [ ! -f "$WASM_FILE" ]; then
     echo "Error: WASM file not found at $WASM_FILE"

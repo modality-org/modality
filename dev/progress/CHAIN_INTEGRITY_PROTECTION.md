@@ -19,7 +19,7 @@ The fork choice logic in `gossip/miner/block.rs` would orphan a losing block dur
 
 ### Layer 1: Startup Validation and Repair
 
-**Location**: `rust/modal-node/src/actions/chain_integrity.rs:run()`
+**Location**: `rust/modality-node/src/actions/chain_integrity.rs:run()`
 
 **When**: Runs once on node startup before mining begins
 
@@ -56,7 +56,7 @@ OR
 
 ### Layer 2: Cascade Orphaning on Fork Choice
 
-**Location**: `rust/modal-node/src/gossip/miner/block.rs` (fork choice logic)
+**Location**: `rust/modality-node/src/gossip/miner/block.rs` (fork choice logic)
 
 **When**: Runs during gossip message processing when a heavier block replaces an existing canonical block
 
@@ -98,9 +98,9 @@ if should_replace {
 ### Layer 3: Rolling Integrity Check
 
 **Location**: 
-- `rust/modal-node/src/actions/chain_integrity.rs:check_recent_blocks()`
-- Called from `rust/modal-node/src/actions/miner.rs` (after mining)
-- Called from `rust/modal-node/src/gossip/miner/block.rs` (after accepting gossiped block)
+- `rust/modality-node/src/actions/chain_integrity.rs:check_recent_blocks()`
+- Called from `rust/modality-node/src/actions/miner.rs` (after mining)
+- Called from `rust/modality-node/src/gossip/miner/block.rs` (after accepting gossiped block)
 
 **When**: Every 10 blocks (configurable)
 
@@ -186,18 +186,18 @@ Tested with live testnet data containing actual integrity issues:
 
 ## Files Modified
 
-1. `rust/modal-node/src/actions/chain_integrity.rs` (NEW)
+1. `rust/modality-node/src/actions/chain_integrity.rs` (NEW)
    - `run()` - Startup validation
    - `check_recent_blocks()` - Rolling validation
 
-2. `rust/modal-node/src/actions/mod.rs`
+2. `rust/modality-node/src/actions/mod.rs`
    - Added `pub mod chain_integrity;`
 
-3. `rust/modal-node/src/actions/miner.rs`
+3. `rust/modality-node/src/actions/miner.rs`
    - Added startup validation call
    - Added rolling integrity check after mining
 
-4. `rust/modal-node/src/gossip/miner/block.rs`
+4. `rust/modality-node/src/gossip/miner/block.rs`
    - Added cascade orphaning to fork choice
    - Added rolling integrity check after accepting blocks
 

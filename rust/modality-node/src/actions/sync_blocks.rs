@@ -2,7 +2,7 @@ use crate::reqres;
 use crate::node::Node;
 use anyhow::Result;
 use libp2p::multiaddr::Multiaddr;
-use modal_datastore::{DatastoreManager, models::MinerBlock};
+use modality_datastore::{DatastoreManager, models::MinerBlock};
 
 /// Sync blocks from a remote node with optional persistence
 pub async fn run(

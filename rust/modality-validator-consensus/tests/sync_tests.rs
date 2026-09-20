@@ -1,7 +1,7 @@
-use modal_validator_consensus::narwhal::{
+use modality_validator_consensus::narwhal::{
     AggregatedSignature, Certificate, Header, SyncClient, SyncRequest, SyncResponse,
 };
-use modal_validator_consensus::narwhal::dag::DAG;
+use modality_validator_consensus::narwhal::dag::DAG;
 use libp2p_identity::{ed25519, PeerId};
 use std::sync::Arc;
 use tokio::sync::RwLock;

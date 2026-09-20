@@ -655,7 +655,7 @@ See `examples/network/predicate-usage/create-custom-predicate.sh` for a complete
 
 - **GitHub**: https://github.com/modality-org/modality
 - **Examples**: `examples/network/predicate-usage/`
-- **Tests**: `rust/modal-wasm-validation/tests/`
+- **Tests**: `rust/modality-wasm-validation/tests/`
 - **Implementation Reports**:
   - `WASM_PREDICATE_FINAL.md` - Complete implementation summary
   - `MODEL_CHECKER_PREDICATE_ARCHITECTURE.md` - Architecture decisions

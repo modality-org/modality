@@ -5,8 +5,8 @@
 //! followed by binary search for O(log n) complexity.
 
 use anyhow::Result;
-use modal_datastore::models::MinerBlock;
-use modal_datastore::DatastoreManager;
+use modality_datastore::models::MinerBlock;
+use modality_datastore::DatastoreManager;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 

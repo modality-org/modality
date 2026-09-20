@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document explains how DAG synchronization is integrated with modal-node's libp2p request-response networking layer, enabling nodes to sync their Narwhal DAG state over the network.
+This document explains how DAG synchronization is integrated with modality-node's libp2p request-response networking layer, enabling nodes to sync their Narwhal DAG state over the network.
 
 ## Architecture
 
@@ -13,12 +13,12 @@ This document explains how DAG synchronization is integrated with modal-node's l
    - `SyncClient` for making requests
    - `DAG::handle_sync_request()` for handling requests
 
-2. **Network Layer** (`modal-node/src/reqres`)
+2. **Network Layer** (`modality-node/src/reqres`)
    - `/dag/sync` endpoint
    - Integration with libp2p request-response protocol
    - JSON serialization over the wire
 
-3. **Client API** (`modal-node/src/actions/dag_sync.rs`)
+3. **Client API** (`modality-node/src/actions/dag_sync.rs`)
    - High-level functions for syncing with peers
    - `sync_request()` - Make individual sync requests
    - `sync_with_peer()` - Full sync workflow
@@ -110,7 +110,7 @@ or for certificate requests:
 - Full test coverage for sync protocol
 
 ### 🔄 Integration Pending
-The DAG sync endpoint is registered and can receive requests, but the actual DAG access needs to be wired up when ShoalSequencer is integrated into modal-node. Currently returns:
+The DAG sync endpoint is registered and can receive requests, but the actual DAG access needs to be wired up when ShoalSequencer is integrated into modality-node. Currently returns:
 
 ```json
 {
@@ -121,7 +121,7 @@ The DAG sync endpoint is registered and can receive requests, but the actual DAG
 
 ### 📋 TODO for Full Integration
 
-When integrating ShoalSequencer into modal-node:
+When integrating ShoalSequencer into modality-node:
 
 1. **Add DAG reference to Node struct:**
    ```rust
@@ -179,7 +179,7 @@ When integrating ShoalSequencer into modal-node:
 ### Example 1: Query Peer's Highest Round
 
 ```rust
-use modal_node::actions::dag_sync;
+use modality_node::actions::dag_sync;
 use modal_sequencer_consensus::narwhal::SyncRequest;
 use libp2p::PeerId;
 
@@ -240,19 +240,19 @@ async fn sync_dag_with_peers(node: &mut Node) -> Result<()> {
 
 ```bash
 # Request peer's highest round
-modal-node request \
+modality-node request \
   /ip4/127.0.0.1/tcp/9000/p2p/12D3K... \
   /dag/sync \
   '{"GetHighestRound":null}'
 
 # Request certificates in a round
-modal-node request \
+modality-node request \
   /ip4/127.0.0.1/tcp/9000/p2p/12D3K... \
   /dag/sync \
   '{"GetCertificatesInRound":{"round":5}}'
 
 # Request certificate range
-modal-node request \
+modality-node request \
   /ip4/127.0.0.1/tcp/9000/p2p/12D3K... \
   /dag/sync \
   '{"GetCertificatesInRange":{"start_round":0,"end_round":10}}'
@@ -348,7 +348,7 @@ pub struct RateLimiter {
 ## Troubleshooting
 
 ### "DAG sync endpoint available but Shoal sequencer not yet integrated"
-**Cause:** The endpoint is registered but ShoalSequencer hasn't been integrated into modal-node yet.  
+**Cause:** The endpoint is registered but ShoalSequencer hasn't been integrated into modality-node yet.  
 **Solution:** This is expected. The endpoint will work once Shoal replaces the current consensus runner.
 
 ### Connection timeout
@@ -375,13 +375,13 @@ pub struct RateLimiter {
 ## Files
 
 **Created:**
-- `rust/modal-node/src/reqres/dag/mod.rs` - DAG sync module
-- `rust/modal-node/src/reqres/dag/sync.rs` - Sync request handler (87 lines)
-- `rust/modal-node/src/actions/dag_sync.rs` - Client-side API (87 lines)
+- `rust/modality-node/src/reqres/dag/mod.rs` - DAG sync module
+- `rust/modality-node/src/reqres/dag/sync.rs` - Sync request handler (87 lines)
+- `rust/modality-node/src/actions/dag_sync.rs` - Client-side API (87 lines)
 
 **Modified:**
-- `rust/modal-node/src/reqres/mod.rs` - Register `/dag/sync` endpoint
-- `rust/modal-node/src/actions/mod.rs` - Export dag_sync module
+- `rust/modality-node/src/reqres/mod.rs` - Register `/dag/sync` endpoint
+- `rust/modality-node/src/actions/mod.rs` - Export dag_sync module
 
 ## See Also
 

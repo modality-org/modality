@@ -3,8 +3,8 @@
 //! Demonstrates combining text, bool, and number predicates
 //! for a complete voting system validation.
 
-use modal_wasm_validation::predicates::text_common::{CorrelationInput, RuleContext};
-use modal_wasm_validation::predicates::{
+use modality_wasm_validation::predicates::text_common::{CorrelationInput, RuleContext};
+use modality_wasm_validation::predicates::{
     text_equals, text_not_empty,
     bool_is_true, bool_is_false,
     num_gte, num_positive,

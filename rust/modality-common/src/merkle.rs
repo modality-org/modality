@@ -28,7 +28,7 @@ fn hash_pair(left: &[u8], right: &[u8]) -> Vec<u8> {
 ///
 /// # Example
 /// ```
-/// use modal_common::merkle::compute_merkle_root;
+/// use modality_common::merkle::compute_merkle_root;
 ///
 /// let hashes = vec!["abc123", "def456", "789abc"];
 /// let root = compute_merkle_root(&hashes);

@@ -8,8 +8,8 @@ use std::path::PathBuf;
 use std::io::{BufRead, BufReader, Seek, SeekFrom};
 use std::fs::File;
 
-use modal_node::config_resolution::load_config_with_node_dir;
-use modal_node::pid::read_pid_file;
+use modality_node::config_resolution::load_config_with_node_dir;
+use modality_node::pid::read_pid_file;
 
 #[derive(Debug, Parser)]
 #[command(about = "Tail the logs of a running node")]

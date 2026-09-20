@@ -1,5 +1,5 @@
 [package]
-name = "modal-cli-node"
+name = "modality-cli-node"
 version = "0.1.0"
 edition = "2021"
 description = "Node management commands for Modal CLI"
@@ -8,11 +8,11 @@ repository = "https://github.com/modality-org/modality"
 homepage = "https://www.modality.org"
 
 [dependencies]
-modal-cli-common = { path = "../modal-cli-common", version = "0.1.0" }
-modal-common = { path = "../modal-common", version = "0.1.7" }
-modal-node = { path = "../modal-node", version = "0.1.7" }
-modal-datastore = { path = "../modal-datastore", version = "0.1.0" }
-modal-networks = { path = "../modal-networks", version = "0.1.0" }
+modality-cli-common = { path = "../modality-cli-common", version = "0.1.0" }
+modality-common = { path = "../modality-common", version = "0.1.7" }
+modality-node = { path = "../modality-node", version = "0.1.7" }
+modality-datastore = { path = "../modality-datastore", version = "0.1.0" }
+modality-networks = { path = "../modality-networks", version = "0.1.0" }
 anyhow = "1.0"
 clap = { version = "4.1.11", features = ["derive", "env"] }
 tokio = { version = "1.42.0", features = ["rt-multi-thread", "macros", "time", "fs", "process", "signal"] }

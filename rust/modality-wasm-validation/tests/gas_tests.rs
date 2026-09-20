@@ -1,4 +1,4 @@
-use modal_wasm_validation::validators::*;
+use modality_wasm_validation::validators::*;
 
 #[test]
 fn test_validation_gas_usage() {

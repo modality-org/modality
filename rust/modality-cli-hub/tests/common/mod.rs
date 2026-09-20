@@ -132,7 +132,7 @@ impl TestHub {
 
     /// Validate MODEL commit against rules
     fn validate_model(&self, _contract_id: &str, model_content: &str, commits: &[StoredCommit]) -> Result<(), String> {
-        use modal_cli_hub::model_validator::{ModelValidator, ReplayCommit};
+        use modality_cli_hub::model_validator::{ModelValidator, ReplayCommit};
 
         // Build replay commits
         let replay_commits: Vec<ReplayCommit> = commits.iter().enumerate()

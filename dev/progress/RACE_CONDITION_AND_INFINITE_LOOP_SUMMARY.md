@@ -39,7 +39,7 @@ Log Pattern: Infinite loop at blocks 32876/32877
 ## Root Cause Analysis
 
 ### Code Location
-- **File:** `rust/modal-node/src/actions/miner.rs`
+- **File:** `rust/modality-node/src/actions/miner.rs`
 - **Functions:** `mine_and_gossip_block` + main mining loop
 
 ### The Bug
@@ -202,12 +202,12 @@ if current_index <= tip {
 - `docs/progress/99_PERCENT_RACE_CONDITION.md` - 300ms delay rationale
 
 ### Code (for mining slowdown only, bug fix still needed)
-- `rust/modal-common/src/hash_tax.rs` - Added mining_delay_ms
-- `rust/modal-miner/src/miner.rs` - Propagated mining_delay_ms
-- `rust/modal-miner/src/chain.rs` - Propagated mining_delay_ms
-- `rust/modal-node/src/config.rs` - Added mining_delay_ms config
-- `rust/modal-node/src/node.rs` - Extracted mining_delay_ms from config
-- `rust/modal-node/src/actions/miner.rs` - Passed mining_delay_ms to mining functions
+- `rust/modality-common/src/hash_tax.rs` - Added mining_delay_ms
+- `rust/modality-miner/src/miner.rs` - Propagated mining_delay_ms
+- `rust/modality-miner/src/chain.rs` - Propagated mining_delay_ms
+- `rust/modality-node/src/config.rs` - Added mining_delay_ms config
+- `rust/modality-node/src/node.rs` - Extracted mining_delay_ms from config
+- `rust/modality-node/src/actions/miner.rs` - Passed mining_delay_ms to mining functions
 
 ## Recommendations
 

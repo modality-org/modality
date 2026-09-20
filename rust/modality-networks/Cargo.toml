@@ -1,5 +1,5 @@
 [package]
-name = "modal-networks"
+name = "modality-networks"
 version = "0.1.0"
 edition = "2021"
 
@@ -15,9 +15,9 @@ anyhow = "1.0"
 clap = { version = "4.4", features = ["derive"] }
 
 [lib]
-name = "modal_networks"
+name = "modality_networks"
 path = "src/lib.rs"
 
 [[bin]]
-name = "modal-networks"
+name = "modality-networks"
 path = "src/main.rs"

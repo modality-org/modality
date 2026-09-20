@@ -1,9 +1,9 @@
 use anyhow::{Result, Context};
 use clap::Parser;
 use std::path::PathBuf;
-use modal_node::config_resolution::load_config_with_node_dir;
-use modal_datastore::DatastoreManager;
-use modal_datastore::models::miner::MinerBlock;
+use modality_node::config_resolution::load_config_with_node_dir;
+use modality_datastore::DatastoreManager;
+use modality_datastore::models::miner::MinerBlock;
 
 #[derive(Debug, Parser)]
 #[command(about = "Inspect a node's state (running or offline)")]
@@ -133,7 +133,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
 /// Check if the node is currently running by verifying PID file and process
 fn check_node_running(node_dir: &PathBuf) -> bool {
     // Try to read PID file
-    let pid_result = modal_node::pid::read_pid_file(node_dir);
+    let pid_result = modality_node::pid::read_pid_file(node_dir);
     
     if let Ok(Some(pid)) = pid_result {
         // Verify the process is actually running
@@ -160,7 +160,7 @@ fn check_node_running(node_dir: &PathBuf) -> bool {
     false
 }
 
-fn inspect_identity(config: &modal_node::config::Config) -> Result<()> {
+fn inspect_identity(config: &modality_node::config::Config) -> Result<()> {
     println!("🆔  Node Identity");
     println!("==================");
     println!();
@@ -233,7 +233,7 @@ async fn inspect_blocks(datastore_manager: &DatastoreManager) -> Result<()> {
     Ok(())
 }
 
-async fn inspect_mining(datastore_manager: &DatastoreManager, config: &modal_node::config::Config) -> Result<()> {
+async fn inspect_mining(datastore_manager: &DatastoreManager, config: &modality_node::config::Config) -> Result<()> {
     println!("⛏️  Mining Status");
     println!("================");
     println!();

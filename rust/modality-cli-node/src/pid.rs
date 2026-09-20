@@ -2,7 +2,7 @@ use anyhow::{Result, Context, bail};
 use clap::Parser;
 use std::path::PathBuf;
 
-use modal_node::config_resolution::load_config_with_node_dir;
+use modality_node::config_resolution::load_config_with_node_dir;
 
 #[derive(Debug, Parser)]
 #[command(about = "Display the PID of a running node")]
@@ -45,7 +45,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
     }
     
     // Read PID from file
-    let pid = modal_node::pid::read_pid_file(&node_dir)?
+    let pid = modality_node::pid::read_pid_file(&node_dir)?
         .context("Failed to read PID from file")?;
     
     // Check if process is actually running

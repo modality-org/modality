@@ -36,8 +36,8 @@ pub async fn create_swarm_with_metadata(local_key: identity::Keypair, status_url
     // let stream_behaviour = libp2p_stream::Behaviour::new();
 
     // Create agent version string that includes status_url and role if provided
-    // Format: "modal-node/0.1.0;status_url=https://...;role=Miner"
-    let mut agent_parts = vec!["modal-node/0.1.0".to_string()];
+    // Format: "modality-node/0.1.0;status_url=https://...;role=Miner"
+    let mut agent_parts = vec!["modality-node/0.1.0".to_string()];
     if let Some(url) = status_url {
         agent_parts.push(format!("status_url={}", url));
     }

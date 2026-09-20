@@ -1,6 +1,6 @@
 use anyhow::{Context, Result};
 use clap::Parser;
-use modal_networks::networks;
+use modality_networks::networks;
 
 #[derive(Parser, Debug)]
 pub struct Opts {

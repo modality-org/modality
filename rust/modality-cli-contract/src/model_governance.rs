@@ -1,6 +1,6 @@
 use anyhow::Result;
-use modal_common::contract_store::{CommitFile, ContractStore};
-use modal_common::model_diagnostics::{
+use modality_common::contract_store::{CommitFile, ContractStore};
+use modality_common::model_diagnostics::{
     format_state_set, render_transition_diagnostics_for_states, FixedPointPolarity,
     FixedPointUnfoldingDiagnostic, FixedPointUnfoldingOutcome, FormulaFailureDiagnostic,
     TransitionDiagnosticInput,
@@ -1548,7 +1548,7 @@ fn format_sorted_set(items: &HashSet<String>) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use modal_common::contract_store::CommitFile;
+    use modality_common::contract_store::CommitFile;
     use tempfile::TempDir;
 
     #[test]

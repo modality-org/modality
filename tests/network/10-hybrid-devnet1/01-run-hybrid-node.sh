@@ -16,7 +16,7 @@ if [ ! -f "./tmp/node1/config.json" ]; then
   "passfile_path": "./node.passfile",
   "storage_path": "./storage",
   "listeners": ["/ip4/0.0.0.0/tcp/10111/ws"],
-  "network_config_path": "modal-networks://devnet1-hybrid",
+  "network_config_path": "modality-networks://devnet1-hybrid",
   "run_miner": true,
   "hybrid_consensus": true,
   "run_validator": true,

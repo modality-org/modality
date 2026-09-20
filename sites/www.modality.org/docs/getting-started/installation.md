@@ -68,28 +68,28 @@ The Modal CLI is split into domain crates for faster incremental builds. When wo
 cd modality/rust
 
 # Hub server work
-cargo build -p modal-cli-hub
+cargo build -p modality-cli-hub
 
 # Contract commands (lean default: no libp2p, wasmtime, or modality-lang)
-cargo build -p modal-cli-contract
+cargo build -p modality-cli-contract
 
 # Contract commands with all optional deps (P2P push/pull, model status, WASM upload)
-cargo build -p modal-cli-contract --features full
+cargo build -p modality-cli-contract --features full
 
 # Program commands with WASM validation
-cargo build -p modal-cli-program --features full
+cargo build -p modality-cli-program --features full
 
-# Network info only (very lean: modal-networks + clap)
-cargo build -p modal-cli-net
+# Network info only (very lean: modality-networks + clap)
+cargo build -p modality-cli-net
 
 # Node management
-cargo build -p modal-cli-node
+cargo build -p modality-cli-node
 
 # Predicate, program, chain, or network commands
-cargo build -p modal-cli-predicate
-cargo build -p modal-cli-program
-cargo build -p modal-cli-chain
-cargo build -p modal-cli-net
+cargo build -p modality-cli-predicate
+cargo build -p modality-cli-program
+cargo build -p modality-cli-chain
+cargo build -p modality-cli-net
 
 # Lean first-contract wrapper
 cargo build -p modal --no-default-features --features contract-onboarding
@@ -319,8 +319,8 @@ External crates.io-style packaging is tracked separately:
 `tests/cli/check-modal-package-readiness.sh` reports the current blocker until
 the workspace CLI crates that `modal` depends on are available from the
 registry. Its blocker output names the selected direct workspace dependencies
-(`modal-cli-contract`, `modal-common`, and `modality`) and the selected package
-closure (`modal-cli-common`, `modal-cli-contract`, `modal-common`, `modality`,
+(`modality-cli-contract`, `modality-common`, and `modality`) and the selected package
+closure (`modality-cli-common`, `modality-cli-contract`, `modality-common`, `modality`,
 and `modality-lang`) that must be covered by an external package or installer
 plan.
 

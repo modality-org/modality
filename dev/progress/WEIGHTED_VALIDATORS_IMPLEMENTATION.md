@@ -8,7 +8,7 @@ Implemented stake-weighted validator system where validators' voting power is pr
 
 ### 1. ValidatorSet Enhanced with Stakes
 
-**File:** `rust/modal-datastore/src/models/validator/validator_set.rs`
+**File:** `rust/modality-datastore/src/models/validator/validator_set.rs`
 
 **Added Field:**
 ```rust
@@ -27,7 +27,7 @@ pub validator_stakes: std::collections::HashMap<String, u64>
 
 ### 2. Validator Selection Counts Nominations
 
-**File:** `rust/modal-datastore/src/models/validator/validator_selection.rs`
+**File:** `rust/modality-datastore/src/models/validator/validator_selection.rs`
 
 **Modified Function:** `generate_validator_set_from_epoch_multi()`
 
@@ -46,7 +46,7 @@ Epoch 0 nomination counts: 1 unique validators, total 40 nominations
 
 ### 3. Hybrid Consensus Uses Weighted Validators
 
-**File:** `rust/modal-node/src/actions/validator/hybrid.rs`
+**File:** `rust/modality-node/src/actions/validator/hybrid.rs`
 
 **Changes:**
 - Retrieves validators with stakes using `get_active_validators_with_stakes()`
@@ -66,7 +66,7 @@ Epoch 0 nomination counts: 1 unique validators, total 40 nominations
 
 ### 4. Consensus Module Supports Weighted Creation
 
-**File:** `rust/modal-node/src/actions/validator/consensus.rs`
+**File:** `rust/modality-node/src/actions/validator/consensus.rs`
 
 **New Function:** `create_and_start_shoal_validator_weighted()`
 
@@ -77,7 +77,7 @@ Epoch 0 nomination counts: 1 unique validators, total 40 nominations
 
 ### 5. ShoalValidator Supports Weighted Committees
 
-**File:** `rust/modal-validator/src/shoal_validator.rs`
+**File:** `rust/modality-validator/src/shoal_validator.rs`
 
 **New Method:** `ShoalValidatorConfig::from_peer_ids_with_stakes()`
 
@@ -99,7 +99,7 @@ let config = ShoalValidatorConfig::from_peer_ids_with_stakes(
 
 ### 6. Committee with Stake-Weighted Quorum
 
-**File:** `rust/modal-validator-consensus/src/narwhal/types.rs`
+**File:** `rust/modality-validator-consensus/src/narwhal/types.rs`
 
 **New Methods:**
 - `total_stake()` - Sum all validator stakes
@@ -126,7 +126,7 @@ let threshold = (2 * total_stake / 3) + 1;
 
 ### Unit Tests Added
 
-**File:** `rust/modal-datastore/src/models/validator/weighted_validators_test.rs`
+**File:** `rust/modality-datastore/src/models/validator/weighted_validators_test.rs`
 
 **Test Coverage:**
 1. `test_validator_stakes_are_tracked` - Verifies stakes are stored and retrieved correctly
@@ -291,16 +291,16 @@ Potential improvements for future versions:
 ## Files Changed
 
 ### Rust Packages
-1. `rust/modal-datastore/src/models/validator/validator_set.rs` - Added stakes support
-2. `rust/modal-datastore/src/models/validator/validator_selection.rs` - Count nominations
-3. `rust/modal-datastore/src/models/validator/mod.rs` - Export test module
-4. `rust/modal-node/src/actions/validator/consensus.rs` - Weighted creation
-5. `rust/modal-node/src/actions/validator/hybrid.rs` - Use weighted validators
-6. `rust/modal-validator/src/shoal_validator.rs` - Stakes in config
-7. `rust/modal-validator-consensus/src/narwhal/types.rs` - Weighted quorum
+1. `rust/modality-datastore/src/models/validator/validator_set.rs` - Added stakes support
+2. `rust/modality-datastore/src/models/validator/validator_selection.rs` - Count nominations
+3. `rust/modality-datastore/src/models/validator/mod.rs` - Export test module
+4. `rust/modality-node/src/actions/validator/consensus.rs` - Weighted creation
+5. `rust/modality-node/src/actions/validator/hybrid.rs` - Use weighted validators
+6. `rust/modality-validator/src/shoal_validator.rs` - Stakes in config
+7. `rust/modality-validator-consensus/src/narwhal/types.rs` - Weighted quorum
 
 ### Tests
-8. `rust/modal-datastore/src/models/validator/weighted_validators_test.rs` - New tests
+8. `rust/modality-datastore/src/models/validator/weighted_validators_test.rs` - New tests
 
 ### Documentation
 9. `docs/progress/WEIGHTED_VALIDATORS_IMPLEMENTATION.md` - This document
@@ -312,7 +312,7 @@ To verify the implementation:
 ```bash
 # Run weighted validator tests
 cd rust
-cargo test --package modal-datastore weighted_validators_test
+cargo test --package modality-datastore weighted_validators_test
 
 # Build all packages
 cargo build --package modal

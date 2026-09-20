@@ -3,9 +3,9 @@
 //! Demonstrates hash predicates for atomic data exchange
 //! using commit-reveal patterns.
 
-use modal_wasm_validation::predicates::{PredicateInput, PredicateContext};
-use modal_wasm_validation::predicates::hash;
-use modal_wasm_validation::predicates::timestamp;
+use modality_wasm_validation::predicates::{PredicateInput, PredicateContext};
+use modality_wasm_validation::predicates::hash;
+use modality_wasm_validation::predicates::timestamp;
 
 fn eval_input(data: serde_json::Value) -> PredicateInput {
     PredicateInput {

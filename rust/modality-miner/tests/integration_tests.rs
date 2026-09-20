@@ -1,12 +1,12 @@
-use modal_miner::{
+use modality_miner::{
     Block, BlockData, Blockchain, ChainConfig, EpochManager, Miner, MinerConfig,
     BLOCKS_PER_EPOCH,
 };
 
 #[cfg(feature = "persistence")]
-use modal_datastore::DatastoreManager;
+use modality_datastore::DatastoreManager;
 #[cfg(feature = "persistence")]
-use modal_datastore::models::MinerBlock;
+use modality_datastore::models::MinerBlock;
 
 #[test]
 fn test_full_blockchain_lifecycle() {

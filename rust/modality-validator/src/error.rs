@@ -3,10 +3,10 @@ use thiserror::Error;
 #[derive(Debug, Error)]
 pub enum ValidatorError {
     #[error("Observer error: {0}")]
-    ObserverError(#[from] modal_observer::ValidationError),
+    ObserverError(#[from] modality_observer::ValidationError),
     
     #[error("Datastore error: {0}")]
-    DatastoreError(#[from] modal_datastore::Error),
+    DatastoreError(#[from] modality_datastore::Error),
     
     #[error("Validator initialization failed: {0}")]
     InitializationFailed(String),

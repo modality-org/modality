@@ -114,9 +114,9 @@ modal contract status --output json
 ### ✅ Step 7: Node-Side Sync Protocol
 
 **Files Created:**
-- `rust/modal-node/src/reqres/contract/push.rs` - Push handler
-- `rust/modal-node/src/reqres/contract/pull.rs` - Pull handler
-- `rust/modal-node/src/reqres/contract/list.rs` - List handler
+- `rust/modality-node/src/reqres/contract/push.rs` - Push handler
+- `rust/modality-node/src/reqres/contract/pull.rs` - Pull handler
+- `rust/modality-node/src/reqres/contract/list.rs` - List handler
 
 **Protocol Endpoints:**
 - `/contract/push` - Receive batch of commits
@@ -142,8 +142,8 @@ modal contract status --output json
 
 **Files Updated:**
 - `rust/modal/src/cmds/contract/mod.rs` - Exported new commands
-- `rust/modal-node/src/reqres/contract/mod.rs` - Exported handlers
-- `rust/modal-node/src/reqres/mod.rs` - Registered endpoints
+- `rust/modality-node/src/reqres/contract/mod.rs` - Exported handlers
+- `rust/modality-node/src/reqres/mod.rs` - Registered endpoints
 
 ## Local Contract Directory Structure
 
@@ -227,7 +227,7 @@ Tests:
 - `src/cmds/contract/status.rs` - New command
 - `src/cmds/contract/get.rs` - Preserved
 
-**Node Package (modal-node):**
+**Node Package (modality-node):**
 - `src/reqres/mod.rs` - Registered new endpoints
 - `src/reqres/contract/mod.rs` - Updated exports
 - `src/reqres/contract/push.rs` - New handler
@@ -244,9 +244,9 @@ Tests:
 ## Dependencies
 
 No new external dependencies required. Uses existing:
-- `modal-common::keypair` - For contract identity
-- `modal-node` - For network requests
-- `modal-datastore` - For node storage
+- `modality-common::keypair` - For contract identity
+- `modality-node` - For network requests
+- `modality-datastore` - For node storage
 - Standard library - For filesystem operations
 
 ## Build Status

@@ -158,7 +158,7 @@ pub fn unconfigured_error() -> anyhow::Error {
 }
 
 pub fn config_path() -> Result<PathBuf> {
-    modal_common::passfile::default_ai_config_path()
+    modality_common::passfile::default_ai_config_path()
 }
 
 pub fn load() -> Result<Option<AiConfig>> {

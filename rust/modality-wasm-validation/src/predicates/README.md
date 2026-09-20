@@ -40,7 +40,7 @@ Verifies cryptographic signatures on data.
 
 Checks if a numeric amount is within a specified range.
 The checked amount is explicit predicate-test input for this WASM module. The
-`modal-cli-contract` local model-governance path also derives
+`modality-cli-contract` local model-governance path also derives
 `amount_in_range(/path, "min", "max")` directly from accepted-state numbers.
 Bounds can be quoted numeric values or paths to accepted-state numeric values.
 
@@ -63,7 +63,7 @@ Bounds can be quoted numeric values or paths to accepted-state numeric values.
 
 Checks if a JSON object has a specific property. Supports dot notation for nested properties.
 The checked object is explicit predicate-test input for this WASM module. The
-`modal-cli-contract` local model-governance path also derives
+`modality-cli-contract` local model-governance path also derives
 `has_property(/path, "a.b")` directly from accepted-state JSON, following
 dot-separated object keys on previously committed state.
 It also derives `text_eq` from accepted-state strings when comparing a state
@@ -114,7 +114,7 @@ evidence.
 **Path**: `/_code/modal/post_to_path.wasm`
 
 Checks if a commit includes a POST action to a specific path.
-The `modal-cli-contract` local model-governance path also derives
+The `modality-cli-contract` local model-governance path also derives
 `post_to_path(/path)` directly from the pending commit body, matching `POST`
 actions to the path itself or descendants.
 
@@ -183,7 +183,7 @@ All predicates must:
 
 Example in Rust:
 ```rust
-use modal_wasm_validation::{PredicateInput, PredicateResult};
+use modality_wasm_validation::{PredicateInput, PredicateResult};
 
 pub fn evaluate(input: &PredicateInput) -> PredicateResult {
     // Your validation logic here

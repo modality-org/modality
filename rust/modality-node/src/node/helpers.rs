@@ -10,8 +10,8 @@ use tokio::sync::Mutex;
 use libp2p::{Multiaddr, PeerId};
 use libp2p::multiaddr::Protocol;
 
-use modal_datastore::DatastoreManager;
-use modal_datastore::models::MinerBlock;
+use modality_datastore::DatastoreManager;
+use modality_datastore::models::MinerBlock;
 
 use crate::config::Config;
 use crate::inspection::{InspectionData, InspectionLevel, NodeStatus, NetworkInfo, DatastoreInfo, MiningInfo};
@@ -67,10 +67,10 @@ pub async fn load_network_config(
     datastore_manager: &Arc<Mutex<DatastoreManager>>,
     network_config_path: PathBuf,
 ) -> Result<()> {
-    let network_config = if let Some(network_name) = network_config_path.to_string_lossy().strip_prefix("modal-networks://") {
-        log::info!("Loading network config from modal-networks: {}", network_name);
-        let network_info = modal_networks::networks::by_name(network_name)
-            .ok_or_else(|| anyhow::anyhow!("Network '{}' not found in modal-networks", network_name))?;
+    let network_config = if let Some(network_name) = network_config_path.to_string_lossy().strip_prefix("modality-networks://") {
+        log::info!("Loading network config from modality-networks: {}", network_name);
+        let network_info = modality_networks::networks::by_name(network_name)
+            .ok_or_else(|| anyhow::anyhow!("Network '{}' not found in modality-networks", network_name))?;
         
         let mut config_json = serde_json::json!({
             "name": network_info.name,

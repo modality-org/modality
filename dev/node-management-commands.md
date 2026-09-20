@@ -190,14 +190,14 @@ Running Modal Nodes:
 PID: 12345
 Directory: ./tmp/node1
 Peer ID: 12D3KooW9pte76rpnggcLYkFaawuTEs5DC5axHkg3cK3cewGxxHd
-Network: modal-networks://devnet3
+Network: modality-networks://devnet3
 Listening addresses:
   • /ip4/0.0.0.0/tcp/10101/ws/p2p/12D3KooW9pte76rpnggcLYkFaawuTEs5DC5axHkg3cK3cewGxxHd
 
 PID: 12346
 Directory: ./tmp/node2
 Peer ID: 12D3KooWTest456789012345678901234567890123456789012
-Network: modal-networks://devnet3
+Network: modality-networks://devnet3
 Listening addresses:
   • /ip4/0.0.0.0/tcp/10102/ws/p2p/12D3KooWTest456789012345678901234567890123456789012
 
@@ -303,7 +303,7 @@ Summary:
 **Network Filtering:**
 - Supports exact matches: `--network "devnet3"`
 - Supports wildcards: `--network "devnet*"` matches devnet1, devnet2, devnet3, etc.
-- Extracts network name from `modal-networks://` URLs
+- Extracts network name from `modality-networks://` URLs
 - Only matches nodes that have a `network_config_path` configured
 
 **Safety Features:**

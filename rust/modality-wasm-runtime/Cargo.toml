@@ -1,5 +1,5 @@
 [package]
-name = "modal-wasm-runtime"
+name = "modality-wasm-runtime"
 version = "0.1.0"
 edition = "2021"
 description = "WASM runtime for executing user-defined contract validation logic"

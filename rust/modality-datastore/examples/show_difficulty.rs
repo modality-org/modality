@@ -1,5 +1,5 @@
-use modal_datastore::{NetworkDatastore, Model};
-use modal_datastore::models::MinerBlock;
+use modality_datastore::{NetworkDatastore, Model};
+use modality_datastore::models::MinerBlock;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {

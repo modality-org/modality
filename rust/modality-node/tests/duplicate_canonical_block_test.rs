@@ -1,5 +1,5 @@
-use modal_datastore::{DatastoreManager, models::MinerBlock};
-use modal_datastore::models::miner::integrity::{detect_duplicate_canonical_blocks_multi, heal_duplicate_canonical_blocks_multi};
+use modality_datastore::{DatastoreManager, models::MinerBlock};
+use modality_datastore::models::miner::integrity::{detect_duplicate_canonical_blocks_multi, heal_duplicate_canonical_blocks_multi};
 use anyhow::Result;
 
 /// Test that we can detect and heal duplicate canonical blocks

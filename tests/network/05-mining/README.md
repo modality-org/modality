@@ -235,8 +235,8 @@ Make sure you've mined more than 40 blocks. Difficulty only adjusts after comple
 
 ## Related Documentation
 
-- [Mining Documentation](../../../rust/modal-miner/README.md)
-- [Epoch Manager](../../../rust/modal-miner/src/epoch.rs)
+- [Mining Documentation](../../../rust/modality-miner/README.md)
+- [Epoch Manager](../../../rust/modality-miner/src/epoch.rs)
 - [Miner Action](../../../rust/modality-network-node/src/actions/miner.rs)
 
 ## Notes

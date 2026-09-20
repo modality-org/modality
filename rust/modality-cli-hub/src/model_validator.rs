@@ -10,7 +10,7 @@
 //! - **Rule anchoring**: Each rule is anchored to the commit where it was added
 //! - **Replay**: New models must replay history to establish valid state mapping
 
-use modal_common::model_diagnostics::{
+use modality_common::model_diagnostics::{
     format_state_set, render_transition_diagnostics_for_states, ActionModalFailureDiagnostic,
     ActionModalKind, FixedPointPolarity, FixedPointUnfoldingDiagnostic, FixedPointUnfoldingOutcome,
     FormulaFailureDiagnostic, TransitionDiagnosticInput,

@@ -6,8 +6,8 @@
 /// 3. Verifying static validators are used
 
 use anyhow::Result;
-use modal_datastore::network_datastore::NetworkDatastore;
-use modal_datastore::models::validator::get_validator_set_for_epoch;
+use modality_datastore::network_datastore::NetworkDatastore;
+use modality_datastore::models::validator::get_validator_set_for_epoch;
 
 #[tokio::test]
 async fn test_static_validator_network_flow() -> Result<()> {

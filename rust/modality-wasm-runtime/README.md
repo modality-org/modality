@@ -1,4 +1,4 @@
-# modal-wasm-runtime
+# modality-wasm-runtime
 
 WASM runtime for executing user-defined contract validation logic with gas metering.
 
@@ -12,7 +12,7 @@ WASM runtime for executing user-defined contract validation logic with gas meter
 ## Usage
 
 ```rust
-use modal_wasm_runtime::{WasmExecutor, DEFAULT_GAS_LIMIT};
+use modality_wasm_runtime::{WasmExecutor, DEFAULT_GAS_LIMIT};
 
 // Create executor with gas limit
 let mut executor = WasmExecutor::new(DEFAULT_GAS_LIMIT);

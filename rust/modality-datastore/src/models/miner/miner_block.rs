@@ -51,7 +51,7 @@ impl MinerBlock {
         miner_number: u64,
     ) -> Self {
         // Calculate actualized difficulty from hash
-        let actualized_difficulty = modal_common::hash_tax::hash_to_actualized_difficulty(&hash)
+        let actualized_difficulty = modality_common::hash_tax::hash_to_actualized_difficulty(&hash)
             .unwrap_or(target_difficulty); // Fall back to target difficulty if calculation fails
         
         Self {
@@ -93,7 +93,7 @@ impl MinerBlock {
         competing_hash: Option<String>,
     ) -> Self {
         // Calculate actualized difficulty from hash
-        let actualized_difficulty = modal_common::hash_tax::hash_to_actualized_difficulty(&hash)
+        let actualized_difficulty = modality_common::hash_tax::hash_to_actualized_difficulty(&hash)
             .unwrap_or(target_difficulty); // Fall back to target difficulty if calculation fails
         
         Self {
@@ -304,7 +304,7 @@ impl MinerBlock {
         miner_number: u64,
     ) -> Self {
         // Calculate actualized difficulty from hash
-        let actualized_difficulty = modal_common::hash_tax::hash_to_actualized_difficulty(&hash)
+        let actualized_difficulty = modality_common::hash_tax::hash_to_actualized_difficulty(&hash)
             .unwrap_or(target_difficulty); // Fall back to target difficulty if calculation fails
         
         Self {

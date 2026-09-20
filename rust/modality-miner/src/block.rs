@@ -1,7 +1,7 @@
 use chrono::{DateTime, TimeZone, Utc};
 use serde::{Deserialize, Serialize};
 use sha2::{Sha256, Digest};
-use modal_common::hash_tax;
+use modality_common::hash_tax;
 
 /// Special peer ID used for the genesis block (no nomination)
 pub const GENESIS_PEER_ID: &str = "";

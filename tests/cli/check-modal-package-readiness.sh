@@ -73,7 +73,7 @@ if [[ "$status" -eq 0 ]]; then
   exit 0
 fi
 
-if grep -Eq 'no matching package named `modal-cli-|no matching package named `modality|no matching package named `modal-common' "$OUTPUT_FILE"; then
+if grep -Eq 'no matching package named `modality-cli-|no matching package named `modality|no matching package named `modality-common' "$OUTPUT_FILE"; then
   direct_deps="$(selected_direct_workspace_deps)"
   package_closure="$(selected_workspace_package_closure)"
   cat <<EOF

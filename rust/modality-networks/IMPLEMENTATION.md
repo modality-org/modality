@@ -1,4 +1,4 @@
-# modal-networks Package - Implementation Summary
+# modality-networks Package - Implementation Summary
 
 ## Created Files
 
@@ -63,7 +63,7 @@ All networks from bootstrap.modality.network have been migrated:
 ### Library Usage
 
 ```rust
-use modal_networks::networks;
+use modality_networks::networks;
 
 // Get all networks
 let all = networks::all();
@@ -79,16 +79,16 @@ let network = networks::by_name("devnet3");
 
 ```bash
 # List networks
-modal-networks list
+modality-networks list
 
 # Show network details
-modal-networks show testnet
+modality-networks show testnet
 
 # Update DNS (dry run)
-modal-networks update-dns --dry-run
+modality-networks update-dns --dry-run
 
 # Update specific network
-modal-networks update-dns --network testnet
+modality-networks update-dns --network testnet
 ```
 
 ### Shell Script Usage
@@ -109,7 +109,7 @@ The package has been added to the workspace in `rust/Cargo.toml`:
 ```toml
 members = [
   ...
-  "modal-networks"
+  "modality-networks"
 ]
 ```
 
@@ -134,7 +134,7 @@ To use DNS update functionality:
 
 1. Test actual DNS updates with AWS credentials
 2. Consider archiving bootstrap.modality.network repository
-3. Update documentation in other packages to reference modal-networks
+3. Update documentation in other packages to reference modality-networks
 4. Consider adding CI/CD integration for automated DNS updates
 5. Add tests for network validation and DNS operations
 

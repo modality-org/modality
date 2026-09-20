@@ -2,12 +2,12 @@
 
 ## Summary
 
-The miner now successfully inherits the observer's fork choice handling. The integration has been completed in the `modal-miner` crate and the `modality-network-node` crate's miner action.
+The miner now successfully inherits the observer's fork choice handling. The integration has been completed in the `modality-miner` crate and the `modality-network-node` crate's miner action.
 
 ## Changes Made
 
-### 1. `modal-miner` Crate
-✅ Added `modal-observer` as a dependency  
+### 1. `modality-miner` Crate
+✅ Added `modality-observer` as a dependency  
 ✅ Created `MinerForkChoice` wrapper around `ChainObserver`  
 ✅ Updated `Blockchain` to use fork choice with `Arc<Mutex<NetworkDatastore>>`  
 ✅ Added `process_gossiped_block()` and `mine_block_with_persistence()` methods  
@@ -47,7 +47,7 @@ The fork choice integration can be verified through:
 1. **Unit Tests** (already passing):
 ```bash
 cd rust
-cargo test -p modal-miner --features persistence
+cargo test -p modality-miner --features persistence
 cargo test -p modality-network-node --lib
 ```
 

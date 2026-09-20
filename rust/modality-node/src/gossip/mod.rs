@@ -4,8 +4,8 @@ use tokio::sync::mpsc;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
-use modal_datastore::DatastoreManager;
-use modal_validator_consensus::communication::Message as ConsensusMessage;
+use modality_datastore::DatastoreManager;
+use modality_validator_consensus::communication::Message as ConsensusMessage;
 
 use crate::node::Node;
 

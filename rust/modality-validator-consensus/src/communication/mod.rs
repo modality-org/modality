@@ -1,7 +1,7 @@
 use anyhow::Result;
 
-use modal_datastore::models::validator::block::ValidatorBlock;
-use modal_datastore::models::validator::block::Ack;
+use modality_datastore::models::validator::block::ValidatorBlock;
+use modality_datastore::models::validator::block::Ack;
 
 #[async_trait::async_trait]
 pub trait Communication: Send + Sync {

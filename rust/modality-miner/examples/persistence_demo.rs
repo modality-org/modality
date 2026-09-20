@@ -6,8 +6,8 @@
 /// - Load an existing blockchain from the datastore
 /// - Query persisted blocks
 
-use modal_miner::{Blockchain, ChainConfig, BlockchainPersistence};
-use modal_datastore::DatastoreManager;
+use modality_miner::{Blockchain, ChainConfig, BlockchainPersistence};
+use modality_datastore::DatastoreManager;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 

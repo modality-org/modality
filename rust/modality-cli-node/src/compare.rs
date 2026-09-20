@@ -1,11 +1,11 @@
 use anyhow::{Result, Context};
 use clap::Parser;
 use std::path::PathBuf;
-use modal_node::config_resolution::load_config_with_node_dir;
-use modal_node::node::Node;
-use modal_datastore::DatastoreManager;
-use modal_datastore::models::miner::MinerBlock;
-use modal_node::{PeerId, Multiaddr, Protocol};
+use modality_node::config_resolution::load_config_with_node_dir;
+use modality_node::node::Node;
+use modality_datastore::DatastoreManager;
+use modality_datastore::models::miner::MinerBlock;
+use modality_node::{PeerId, Multiaddr, Protocol};
 
 #[derive(Debug, Parser)]
 #[command(about = "Compare local chain with a remote peer's chain")]
@@ -173,7 +173,7 @@ struct ChainComparison {
 
 fn parse_peer_address(
     peer_str: &str,
-    config: &modal_node::config::Config,
+    config: &modality_node::config::Config,
 ) -> Result<(PeerId, Multiaddr)> {
     // Try parsing as multiaddr first
     if let Ok(addr) = peer_str.parse::<Multiaddr>() {

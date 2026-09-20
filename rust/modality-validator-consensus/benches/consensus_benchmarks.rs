@@ -9,15 +9,15 @@
 /// - Transaction ordering
 
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
-use modal_validator_consensus::narwhal::{
+use modality_validator_consensus::narwhal::{
     AggregatedSignature, Certificate, Committee, Header, Transaction, Validator, Worker,
 };
-use modal_validator_consensus::narwhal::certificate::CertificateBuilder;
-use modal_validator_consensus::narwhal::dag::DAG;
-use modal_validator_consensus::shoal::{PerformanceRecord, ReputationConfig};
-use modal_validator_consensus::shoal::reputation::ReputationManager;
-use modal_validator_consensus::shoal::consensus::ShoalConsensus;
-use modal_validator_consensus::shoal::ordering::OrderingEngine;
+use modality_validator_consensus::narwhal::certificate::CertificateBuilder;
+use modality_validator_consensus::narwhal::dag::DAG;
+use modality_validator_consensus::shoal::{PerformanceRecord, ReputationConfig};
+use modality_validator_consensus::shoal::reputation::ReputationManager;
+use modality_validator_consensus::shoal::consensus::ShoalConsensus;
+use modality_validator_consensus::shoal::ordering::OrderingEngine;
 use std::collections::BTreeSet;
 use std::net::SocketAddr;
 use std::sync::Arc;

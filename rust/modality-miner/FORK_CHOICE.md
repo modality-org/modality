@@ -1,6 +1,6 @@
 # Fork Choice Integration
 
-The miner now inherits the observer's sophisticated fork choice logic by depending on `modal-observer`. This enables proper handling of chain reorganizations and competing forks.
+The miner now inherits the observer's sophisticated fork choice logic by depending on `modality-observer`. This enables proper handling of chain reorganizations and competing forks.
 
 ## Overview
 
@@ -19,8 +19,8 @@ The integration adds the following capabilities to the miner:
 The `MinerForkChoice` struct wraps the `ChainObserver` and provides a miner-friendly API:
 
 ```rust
-use modal_miner::{MinerForkChoice, ForkConfig};
-use modal_datastore::NetworkDatastore;
+use modality_miner::{MinerForkChoice, ForkConfig};
+use modality_datastore::NetworkDatastore;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
@@ -65,7 +65,7 @@ When two chains have equal cumulative actualized difficulty, the longer chain wi
 Operators can specify required blocks at specific heights to enforce specific fork choices:
 
 ```rust
-use modal_miner::ForkConfig;
+use modality_miner::ForkConfig;
 
 let fork_config = ForkConfig::from_pairs(vec![
     (1000, "abc123...".to_string()),  // Block 1000 must have this hash
@@ -143,7 +143,7 @@ let chain = Blockchain::load_or_create(config, genesis_peer, datastore).await?;
 The fork choice integration includes comprehensive tests:
 
 ```bash
-cargo test -p modal-miner --features persistence
+cargo test -p modality-miner --features persistence
 ```
 
 Key test scenarios:
@@ -165,13 +165,13 @@ See `examples/persistence_demo.rs` for a complete example of using the miner wit
 
 ## Dependencies
 
-- `modal-observer ^0.1.0`: Provides the ChainObserver and fork choice logic
-- `modal-datastore ^0.1.0`: Required for persistence and fork tracking
+- `modality-observer ^0.1.0`: Provides the ChainObserver and fork choice logic
+- `modality-datastore ^0.1.0`: Required for persistence and fork tracking
 - `tokio`: Required for async/await support
 
 ## Further Reading
 
-- Observer fork choice implementation: `rust/modal-observer/src/chain_observer.rs`
-- Chain reorganization tests: `rust/modal-observer/tests/chain_observer_integration.rs`
-- Observer README: `rust/modal-observer/README.md`
+- Observer fork choice implementation: `rust/modality-observer/src/chain_observer.rs`
+- Chain reorganization tests: `rust/modality-observer/tests/chain_observer_integration.rs`
+- Observer README: `rust/modality-observer/README.md`
 

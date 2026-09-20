@@ -29,7 +29,7 @@ This makes key management more intuitive and self-documenting.
 
 ### Core Functionality
 
-**File:** `rust/modal-common/src/keypair.rs`
+**File:** `rust/modality-common/src/keypair.rs`
 
 Added three new methods to the `Keypair` struct:
 
@@ -104,7 +104,7 @@ modal id create-sub \
 
 ## Tests
 
-**File:** `rust/modal-common/src/keypair.rs` (tests module)
+**File:** `rust/modality-common/src/keypair.rs` (tests module)
 
 Added comprehensive test suite:
 
@@ -200,7 +200,7 @@ modal id create-sub --mnemonic "$MNEMONIC" --seed "testnet:validator:1"
 ### Programmatic Usage
 
 ```rust
-use modal_common::keypair::Keypair;
+use modality_common::keypair::Keypair;
 
 // From mnemonic
 let mnemonic = "word1 word2 ... word12";
@@ -256,7 +256,7 @@ let keypairs = master.derive_from_seeds(&roles)?;
 
 ## Files Modified
 
-1. `rust/modal-common/src/keypair.rs` - Core derivation methods + tests
+1. `rust/modality-common/src/keypair.rs` - Core derivation methods + tests
 2. `rust/modality/src/cmds/id/create_sub.rs` - New CLI command (renamed from derive_seed.rs)
 3. `rust/modality/src/cmds/id/mod.rs` - Module export
 4. `rust/modality/src/main.rs` - CLI command registration
@@ -264,7 +264,7 @@ let keypairs = master.derive_from_seeds(&roles)?;
 ## Testing Results
 
 ```bash
-$ cargo test --package modal-common keypair::tests
+$ cargo test --package modality-common keypair::tests
 
 running 8 tests
 test keypair::tests::test_derive_from_seed ... ok

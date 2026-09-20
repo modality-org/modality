@@ -8,10 +8,10 @@ name = "orphan-detection-test"
 path = "src/main.rs"
 
 [dependencies]
-modal-observer = { path = "../../../rust/modal-observer" }
-modal-datastore = { path = "../../../rust/modal-datastore" }
-modal-miner = { path = "../../../rust/modal-miner" }
-modal-common = { path = "../../../rust/modal-common" }
+modality-observer = { path = "../../../rust/modality-observer" }
+modality-datastore = { path = "../../../rust/modality-datastore" }
+modality-miner = { path = "../../../rust/modality-miner" }
+modality-common = { path = "../../../rust/modality-common" }
 tokio = { version = "1", features = ["full"] }
 anyhow = "1"
 chrono = "0.4"

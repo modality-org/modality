@@ -4209,16 +4209,16 @@ dependencies = [
  "clap",
  "ed25519-dalek 2.2.0",
  "hex",
- "modal-cli-ai",
- "modal-cli-chain",
- "modal-cli-contract",
- "modal-cli-hub",
- "modal-cli-net",
- "modal-cli-node",
- "modal-cli-predicate",
- "modal-cli-program",
- "modal-common",
  "modality",
+ "modality-cli-ai",
+ "modality-cli-chain",
+ "modality-cli-contract",
+ "modality-cli-hub",
+ "modality-cli-net",
+ "modality-cli-node",
+ "modality-cli-predicate",
+ "modality-cli-program",
+ "modality-common",
  "rand 0.8.7",
  "serde_json",
  "sha2 0.10.9",
@@ -4227,7 +4227,28 @@ dependencies = [
 ]
 
 [[package]]
-name = "modal-cli-ai"
+name = "modality"
+version = "0.1.7"
+dependencies = [
+ "anyhow",
+ "clap",
+ "libp2p",
+ "log",
+ "modality-common",
+ "modality-datastore",
+ "modality-lang",
+ "modality-node",
+ "modality-synthesizer",
+ "reqwest",
+ "rpassword",
+ "self-replace",
+ "serde",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
+name = "modality-cli-ai"
 version = "0.1.0"
 dependencies = [
  "anyhow",
@@ -4236,7 +4257,7 @@ dependencies = [
  "aws-sigv4",
  "aws-smithy-runtime-api",
  "clap",
- "modal-common",
+ "modality-common",
  "modality-lang",
  "percent-encoding",
  "reqwest",
@@ -4247,23 +4268,23 @@ dependencies = [
 ]
 
 [[package]]
-name = "modal-cli-chain"
+name = "modality-cli-chain"
 version = "0.1.0"
 dependencies = [
  "anyhow",
  "clap",
  "log",
- "modal-cli-common",
- "modal-datastore",
- "modal-miner",
- "modal-observer",
+ "modality-cli-common",
+ "modality-datastore",
+ "modality-miner",
+ "modality-observer",
  "serde",
  "serde_json",
  "tokio",
 ]
 
 [[package]]
-name = "modal-cli-common"
+name = "modality-cli-common"
 version = "0.1.0"
 dependencies = [
  "anyhow",
@@ -4272,7 +4293,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "modal-cli-contract"
+name = "modality-cli-contract"
 version = "0.1.0"
 dependencies = [
  "anyhow",
@@ -4280,12 +4301,12 @@ dependencies = [
  "clap",
  "colored",
  "hex",
- "modal-cli-ai",
- "modal-cli-common",
- "modal-common",
- "modal-node",
- "modal-wasm-runtime",
+ "modality-cli-ai",
+ "modality-cli-common",
+ "modality-common",
  "modality-lang",
+ "modality-node",
+ "modality-wasm-runtime",
  "reqwest",
  "rpassword",
  "serde",
@@ -4298,7 +4319,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "modal-cli-hub"
+name = "modality-cli-hub"
 version = "0.1.0"
 dependencies = [
  "anyhow",
@@ -4308,10 +4329,10 @@ dependencies = [
  "clap",
  "ed25519-dalek 2.2.0",
  "hex",
- "modal-cli-common",
- "modal-common",
- "modal-rpc",
+ "modality-cli-common",
+ "modality-common",
  "modality-lang",
+ "modality-rpc",
  "rand 0.8.7",
  "reqwest",
  "serde",
@@ -4327,17 +4348,17 @@ dependencies = [
 ]
 
 [[package]]
-name = "modal-cli-net"
+name = "modality-cli-net"
 version = "0.1.0"
 dependencies = [
  "anyhow",
  "clap",
- "modal-cli-common",
- "modal-networks",
+ "modality-cli-common",
+ "modality-networks",
 ]
 
 [[package]]
-name = "modal-cli-node"
+name = "modality-cli-node"
 version = "0.1.0"
 dependencies = [
  "anyhow",
@@ -4348,11 +4369,11 @@ dependencies = [
  "dirs",
  "hex",
  "log",
- "modal-cli-common",
- "modal-common",
- "modal-datastore",
- "modal-networks",
- "modal-node",
+ "modality-cli-common",
+ "modality-common",
+ "modality-datastore",
+ "modality-networks",
+ "modality-node",
  "nix 0.29.0",
  "rand 0.8.7",
  "serde",
@@ -4363,34 +4384,34 @@ dependencies = [
 ]
 
 [[package]]
-name = "modal-cli-predicate"
+name = "modality-cli-predicate"
 version = "0.1.0"
 dependencies = [
  "anyhow",
  "clap",
  "colored",
- "modal-cli-common",
+ "modality-cli-common",
  "serde",
  "serde_json",
 ]
 
 [[package]]
-name = "modal-cli-program"
+name = "modality-cli-program"
 version = "0.1.0"
 dependencies = [
  "anyhow",
  "base64 0.22.1",
  "clap",
  "colored",
- "modal-cli-common",
- "modal-common",
- "modal-wasm-runtime",
+ "modality-cli-common",
+ "modality-common",
+ "modality-wasm-runtime",
  "serde",
  "serde_json",
 ]
 
 [[package]]
-name = "modal-common"
+name = "modality-common"
 version = "0.1.7"
 dependencies = [
  "anyhow",
@@ -4427,7 +4448,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "modal-datastore"
+name = "modality-datastore"
 version = "0.1.0"
 dependencies = [
  "anyhow",
@@ -4437,8 +4458,8 @@ dependencies = [
  "chrono",
  "hex",
  "log",
- "modal-common",
- "modal-devnet",
+ "modality-common",
+ "modality-devnet",
  "regex",
  "rocksdb",
  "serde",
@@ -4453,239 +4474,19 @@ dependencies = [
 ]
 
 [[package]]
-name = "modal-devnet"
+name = "modality-devnet"
 version = "0.1.0"
 dependencies = [
  "anyhow",
  "lazy_static",
- "modal-common",
- "modal-datastore",
+ "modality-common",
+ "modality-datastore",
  "regex",
  "serde",
  "serde_json",
  "tempfile",
  "tokio",
  "tokio-test",
-]
-
-[[package]]
-name = "modal-miner"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "async-trait",
- "chrono",
- "ed25519-dalek 2.2.0",
- "env_logger 0.11.11",
- "hex",
- "log",
- "modal-common",
- "modal-datastore",
- "modal-observer",
- "serde",
- "serde_json",
- "sha2 0.10.9",
- "tempfile",
- "thiserror 1.0.69",
- "tokio",
-]
-
-[[package]]
-name = "modal-networks"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "aws-config",
- "aws-sdk-route53",
- "aws-smithy-types",
- "clap",
- "serde",
- "serde_json",
- "time 0.3.47",
- "tokio",
-]
-
-[[package]]
-name = "modal-node"
-version = "0.1.7"
-dependencies = [
- "anyhow",
- "async-trait",
- "base64 0.22.1",
- "clap",
- "ctrlc",
- "env_logger 0.10.2",
- "futures",
- "futures-timer",
- "libp2p",
- "libp2p-identity",
- "libp2p-noise 0.44.0",
- "libp2p-relay 0.17.2",
- "libp2p-request-response 0.26.3",
- "libp2p-tls 0.3.0",
- "libp2p-yamux 0.45.2",
- "log",
- "modal-common",
- "modal-datastore",
- "modal-miner",
- "modal-networks",
- "modal-observer",
- "modal-validator",
- "modal-validator-consensus",
- "rand 0.8.7",
- "reqwest",
- "self-replace",
- "serde",
- "serde_json",
- "sha2 0.10.9",
- "tempfile",
- "tokio",
- "tokio-util",
- "warp",
- "which",
- "zeroize",
-]
-
-[[package]]
-name = "modal-observer"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "chrono",
- "log",
- "modal-datastore",
- "serde",
- "serde_json",
- "thiserror 1.0.69",
- "tokio",
-]
-
-[[package]]
-name = "modal-rpc"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "axum",
- "futures-util",
- "serde",
- "serde_json",
- "thiserror 1.0.69",
- "tokio",
- "tokio-test",
- "tokio-tungstenite 0.21.0",
- "tower 0.4.13",
- "tower-http",
- "tracing",
- "tracing-subscriber",
- "uuid",
-]
-
-[[package]]
-name = "modal-validator"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "base64 0.22.1",
- "env_logger 0.11.11",
- "libp2p-identity",
- "log",
- "modal-datastore",
- "modal-observer",
- "modal-validator-consensus",
- "modal-wasm-runtime",
- "modal-wasm-validation",
- "modality-lang",
- "serde",
- "serde_json",
- "tempfile",
- "thiserror 1.0.69",
- "tokio",
- "wasmtime",
-]
-
-[[package]]
-name = "modal-validator-consensus"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "async-mutex",
- "async-trait",
- "base64 0.22.1",
- "bincode",
- "criterion",
- "futures",
- "hex",
- "libp2p-identity",
- "log",
- "modal-common",
- "modal-datastore",
- "modal-devnet",
- "regex",
- "serde",
- "serde_json",
- "sha2 0.10.9",
- "tempfile",
- "thiserror 1.0.69",
- "tokio",
- "tokio-test",
- "tokio-util",
- "uuid",
- "zip 0.6.6",
-]
-
-[[package]]
-name = "modal-wasm-runtime"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "log",
- "serde",
- "serde_json",
- "sha2 0.10.9",
- "tokio",
- "wasm-bindgen",
- "wasmtime",
- "wat",
-]
-
-[[package]]
-name = "modal-wasm-validation"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "base64 0.22.1",
- "ed25519-dalek 2.2.0",
- "getrandom 0.2.17",
- "hex",
- "rand 0.8.7",
- "serde",
- "serde-wasm-bindgen",
- "serde_json",
- "sha2 0.10.9",
- "tokio",
- "wasm-bindgen",
- "wasm-bindgen-test",
-]
-
-[[package]]
-name = "modality"
-version = "0.1.7"
-dependencies = [
- "anyhow",
- "clap",
- "libp2p",
- "log",
- "modal-common",
- "modal-datastore",
- "modal-node",
- "modality-lang",
- "modality-synthesizer",
- "reqwest",
- "rpassword",
- "self-replace",
- "serde",
- "serde_json",
- "tokio",
 ]
 
 [[package]]
@@ -4723,10 +4524,209 @@ dependencies = [
 ]
 
 [[package]]
+name = "modality-miner"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "chrono",
+ "ed25519-dalek 2.2.0",
+ "env_logger 0.11.11",
+ "hex",
+ "log",
+ "modality-common",
+ "modality-datastore",
+ "modality-observer",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "tempfile",
+ "thiserror 1.0.69",
+ "tokio",
+]
+
+[[package]]
+name = "modality-networks"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "aws-config",
+ "aws-sdk-route53",
+ "aws-smithy-types",
+ "clap",
+ "serde",
+ "serde_json",
+ "time 0.3.47",
+ "tokio",
+]
+
+[[package]]
+name = "modality-node"
+version = "0.1.7"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "base64 0.22.1",
+ "clap",
+ "ctrlc",
+ "env_logger 0.10.2",
+ "futures",
+ "futures-timer",
+ "libp2p",
+ "libp2p-identity",
+ "libp2p-noise 0.44.0",
+ "libp2p-relay 0.17.2",
+ "libp2p-request-response 0.26.3",
+ "libp2p-tls 0.3.0",
+ "libp2p-yamux 0.45.2",
+ "log",
+ "modality-common",
+ "modality-datastore",
+ "modality-miner",
+ "modality-networks",
+ "modality-observer",
+ "modality-validator",
+ "modality-validator-consensus",
+ "rand 0.8.7",
+ "reqwest",
+ "self-replace",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "tempfile",
+ "tokio",
+ "tokio-util",
+ "warp",
+ "which",
+ "zeroize",
+]
+
+[[package]]
+name = "modality-observer"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "log",
+ "modality-datastore",
+ "serde",
+ "serde_json",
+ "thiserror 1.0.69",
+ "tokio",
+]
+
+[[package]]
+name = "modality-rpc"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "axum",
+ "futures-util",
+ "serde",
+ "serde_json",
+ "thiserror 1.0.69",
+ "tokio",
+ "tokio-test",
+ "tokio-tungstenite 0.21.0",
+ "tower 0.4.13",
+ "tower-http",
+ "tracing",
+ "tracing-subscriber",
+ "uuid",
+]
+
+[[package]]
 name = "modality-synthesizer"
 version = "0.1.7"
 dependencies = [
  "modality-lang",
+]
+
+[[package]]
+name = "modality-validator"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "base64 0.22.1",
+ "env_logger 0.11.11",
+ "libp2p-identity",
+ "log",
+ "modality-datastore",
+ "modality-lang",
+ "modality-observer",
+ "modality-validator-consensus",
+ "modality-wasm-runtime",
+ "modality-wasm-validation",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 1.0.69",
+ "tokio",
+ "wasmtime",
+]
+
+[[package]]
+name = "modality-validator-consensus"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-mutex",
+ "async-trait",
+ "base64 0.22.1",
+ "bincode",
+ "criterion",
+ "futures",
+ "hex",
+ "libp2p-identity",
+ "log",
+ "modality-common",
+ "modality-datastore",
+ "modality-devnet",
+ "regex",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "tempfile",
+ "thiserror 1.0.69",
+ "tokio",
+ "tokio-test",
+ "tokio-util",
+ "uuid",
+ "zip 0.6.6",
+]
+
+[[package]]
+name = "modality-wasm-runtime"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "log",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "tokio",
+ "wasm-bindgen",
+ "wasmtime",
+ "wat",
+]
+
+[[package]]
+name = "modality-wasm-validation"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "base64 0.22.1",
+ "ed25519-dalek 2.2.0",
+ "getrandom 0.2.17",
+ "hex",
+ "rand 0.8.7",
+ "serde",
+ "serde-wasm-bindgen",
+ "serde_json",
+ "sha2 0.10.9",
+ "tokio",
+ "wasm-bindgen",
+ "wasm-bindgen-test",
 ]
 
 [[package]]

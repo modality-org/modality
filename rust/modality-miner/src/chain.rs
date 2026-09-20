@@ -35,7 +35,7 @@ pub struct Blockchain {
     block_index: HashMap<String, usize>, // hash -> index mapping
     
     #[cfg(feature = "persistence")]
-    datastore_manager: Option<std::sync::Arc<tokio::sync::Mutex<modal_datastore::DatastoreManager>>>,
+    datastore_manager: Option<std::sync::Arc<tokio::sync::Mutex<modality_datastore::DatastoreManager>>>,
     
     #[cfg(feature = "persistence")]
     fork_choice: Option<std::sync::Arc<crate::fork_choice::MinerForkChoice>>,
@@ -131,7 +131,7 @@ impl Blockchain {
     /// Create a new blockchain with persistence support using the default genesis
     pub fn new_with_datastore_manager_default_genesis(
         config: ChainConfig,
-        datastore_manager: std::sync::Arc<tokio::sync::Mutex<modal_datastore::DatastoreManager>>,
+        datastore_manager: std::sync::Arc<tokio::sync::Mutex<modality_datastore::DatastoreManager>>,
     ) -> Self {
         let epoch_manager = EpochManager::new(
             40,
@@ -167,7 +167,7 @@ impl Blockchain {
     pub fn new_with_datastore_manager(
         config: ChainConfig,
         genesis_peer_id: String,
-        datastore_manager: std::sync::Arc<tokio::sync::Mutex<modal_datastore::DatastoreManager>>,
+        datastore_manager: std::sync::Arc<tokio::sync::Mutex<modality_datastore::DatastoreManager>>,
     ) -> Self {
         let epoch_manager = EpochManager::new(
             40,
@@ -201,9 +201,9 @@ impl Blockchain {
     /// Load blockchain from datastore, or create default genesis if empty
     pub async fn load_or_create_default(
         config: ChainConfig,
-        datastore_manager: std::sync::Arc<tokio::sync::Mutex<modal_datastore::DatastoreManager>>,
+        datastore_manager: std::sync::Arc<tokio::sync::Mutex<modality_datastore::DatastoreManager>>,
     ) -> Result<Self, MiningError> {
-        Self::load_or_create_with_fork_config_default(config, datastore_manager, modal_observer::ForkConfig::new()).await
+        Self::load_or_create_with_fork_config_default(config, datastore_manager, modality_observer::ForkConfig::new()).await
     }
     
     #[cfg(feature = "persistence")]
@@ -212,17 +212,17 @@ impl Blockchain {
     pub async fn load_or_create(
         config: ChainConfig,
         genesis_peer_id: String,
-        datastore_manager: std::sync::Arc<tokio::sync::Mutex<modal_datastore::DatastoreManager>>,
+        datastore_manager: std::sync::Arc<tokio::sync::Mutex<modality_datastore::DatastoreManager>>,
     ) -> Result<Self, MiningError> {
-        Self::load_or_create_with_fork_config(config, genesis_peer_id, datastore_manager, modal_observer::ForkConfig::new()).await
+        Self::load_or_create_with_fork_config(config, genesis_peer_id, datastore_manager, modality_observer::ForkConfig::new()).await
     }
     
     #[cfg(feature = "persistence")]
     /// Load blockchain from datastore with fork configuration, or create default genesis if empty
     pub async fn load_or_create_with_fork_config_default(
         config: ChainConfig,
-        datastore_manager: std::sync::Arc<tokio::sync::Mutex<modal_datastore::DatastoreManager>>,
-        _fork_config: modal_observer::ForkConfig,
+        datastore_manager: std::sync::Arc<tokio::sync::Mutex<modality_datastore::DatastoreManager>>,
+        _fork_config: modality_observer::ForkConfig,
     ) -> Result<Self, MiningError> {
         use crate::persistence::BlockchainPersistence;
         
@@ -285,8 +285,8 @@ impl Blockchain {
     pub async fn load_or_create_with_fork_config(
         config: ChainConfig,
         genesis_peer_id: String,
-        datastore_manager: std::sync::Arc<tokio::sync::Mutex<modal_datastore::DatastoreManager>>,
-        _fork_config: modal_observer::ForkConfig,
+        datastore_manager: std::sync::Arc<tokio::sync::Mutex<modality_datastore::DatastoreManager>>,
+        _fork_config: modality_observer::ForkConfig,
     ) -> Result<Self, MiningError> {
         use crate::persistence::BlockchainPersistence;
         
@@ -342,7 +342,7 @@ impl Blockchain {
     /// Set the datastore manager for persistence
     pub fn with_datastore_manager(
         mut self,
-        datastore_manager: std::sync::Arc<tokio::sync::Mutex<modal_datastore::DatastoreManager>>,
+        datastore_manager: std::sync::Arc<tokio::sync::Mutex<modality_datastore::DatastoreManager>>,
     ) -> Self {
         self.datastore_manager = Some(datastore_manager);
         self
@@ -411,7 +411,7 @@ impl Blockchain {
         &mut self,
         nominated_peer_id: String,
         miner_number: u64,
-    ) -> Result<(Block, Option<modal_common::hash_tax::MiningResult>), MiningError> {
+    ) -> Result<(Block, Option<modality_common::hash_tax::MiningResult>), MiningError> {
         let next_index = self.height() + 1;
         let next_difficulty = self.get_next_difficulty();
         let previous_hash = self.latest_block().header.hash.clone();
@@ -527,7 +527,7 @@ impl Blockchain {
         if let Some(ref fork_choice) = self.fork_choice {
             // Convert Block to MinerBlock
             let epoch = self.epoch_manager.get_epoch(block.header.index);
-            let miner_block = modal_datastore::models::MinerBlock::new_canonical(
+            let miner_block = modality_datastore::models::MinerBlock::new_canonical(
                 block.header.hash.clone(),
                 block.header.index,
                 epoch,

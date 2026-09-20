@@ -20,7 +20,7 @@ This crate provides a common RPC interface that can be used by both:
 ### Implementing a Handler
 
 ```rust
-use modal_rpc::{RpcHandler, types::*};
+use modality_rpc::{RpcHandler, types::*};
 use async_trait::async_trait;
 
 struct MyHub {
@@ -56,7 +56,7 @@ impl RpcHandler for MyHub {
 ### Running the Server
 
 ```rust
-use modal_rpc::{RpcServer, RpcServerConfig};
+use modality_rpc::{RpcServer, RpcServerConfig};
 
 #[tokio::main]
 async fn main() {
@@ -75,7 +75,7 @@ async fn main() {
 ### Using the Client
 
 ```rust
-use modal_rpc::{RpcClient, RpcClientConfig};
+use modality_rpc::{RpcClient, RpcClientConfig};
 
 #[tokio::main]
 async fn main() {
@@ -216,7 +216,7 @@ ws.onmessage = (event) => {
 
 This crate is used by:
 - `services/contract-hub/` - Contract collaboration hub
-- `modal-node/` - Network node
+- `modality-node/` - Network node
 
 ## License
 

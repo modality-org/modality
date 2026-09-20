@@ -3,8 +3,8 @@
 //! Demonstrates how predicates and correlate work together
 //! to validate contract rules before runtime.
 
-use modal_wasm_validation::predicates::text_common::{CorrelationInput, RuleContext};
-use modal_wasm_validation::predicates::{
+use modality_wasm_validation::predicates::text_common::{CorrelationInput, RuleContext};
+use modality_wasm_validation::predicates::{
     text_equals, text_not_empty, text_starts_with, bool_is_true,
 };
 

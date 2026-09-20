@@ -33,7 +33,7 @@ Total Blocks: 61197 (Canonical: 32877, Orphaned: 28320)
 
 ## Root Cause
 
-### Code Location: `rust/modal-node/src/actions/miner.rs`
+### Code Location: `rust/modality-node/src/actions/miner.rs`
 
 **Function:** `mine_and_gossip_block` (lines 1377-1476)
 

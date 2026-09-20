@@ -8,10 +8,10 @@ Successfully implemented Shoal consensus integration for static validator networ
 
 ### 1. Code Changes
 
-**File: `rust/modal-node/Cargo.toml`**
-- Added `modal-validator` dependency
+**File: `rust/modality-node/Cargo.toml`**
+- Added `modality-validator` dependency
 
-**File: `rust/modal-node/src/actions/validator.rs`**
+**File: `rust/modality-node/src/actions/validator.rs`**
 - Added code to detect static validators after network sync (line 117-174)
 - Added `spawn_consensus_loop()` function to run consensus rounds (line 344-369)
 - Validators automatically start consensus if their peer ID is in the static validators list
@@ -92,8 +92,8 @@ To complete full BFT consensus operation:
 
 ## Files Modified
 
-1. `rust/modal-node/Cargo.toml` - Added modal-validator dependency
-2. `rust/modal-node/src/actions/validator.rs` - Added consensus integration
+1. `rust/modality-node/Cargo.toml` - Added modality-validator dependency
+2. `rust/modality-node/src/actions/validator.rs` - Added consensus integration
 3. `examples/network/03-run-devnet3/README.md` - Updated documentation
 4. `examples/network/02-run-devnet2/README.md` - Updated documentation
 

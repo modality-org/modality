@@ -2,32 +2,32 @@
 resolver = "2"
 
 members = [
-  'modal-validator-consensus'
-, 'modal-datastore'
-, 'modal-devnet'
-, 'modal-miner'
-, 'modal-node'
-, 'modal-observer'
-, 'modal-validator'
-, "modal-common"
+  'modality-validator-consensus'
+, 'modality-datastore'
+, 'modality-devnet'
+, 'modality-miner'
+, 'modality-node'
+, 'modality-observer'
+, 'modality-validator'
+, "modality-common"
 , "modality"
 , "modality-lang"
 , "modality-synthesizer"
 , "modality-lsp"
-, "modal-rpc"
+, "modality-rpc"
 , "modal"
-, "modal-networks"
-, "modal-wasm-runtime"
-, "modal-wasm-validation"
-,   "modal-cli-common"
-, "modal-cli-hub"
-, "modal-cli-node"
-, "modal-cli-contract"
-, "modal-cli-ai"
-, "modal-cli-predicate"
-, "modal-cli-program"
-, "modal-cli-chain"
-, "modal-cli-net"]
+, "modality-networks"
+, "modality-wasm-runtime"
+, "modality-wasm-validation"
+,   "modality-cli-common"
+, "modality-cli-hub"
+, "modality-cli-node"
+, "modality-cli-contract"
+, "modality-cli-ai"
+, "modality-cli-predicate"
+, "modality-cli-program"
+, "modality-cli-chain"
+, "modality-cli-net"]
 
 default-members = [
   "modality",

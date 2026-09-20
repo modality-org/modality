@@ -10,7 +10,7 @@ use crate::error::MiningError;
 #[cfg(feature = "persistence")]
 use async_trait::async_trait;
 #[cfg(feature = "persistence")]
-use modal_datastore::{DatastoreManager, models::MinerBlock};
+use modality_datastore::{DatastoreManager, models::MinerBlock};
 
 #[cfg(feature = "persistence")]
 /// Trait for blockchain persistence operations

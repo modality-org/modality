@@ -7,8 +7,8 @@ use anyhow::{Result, anyhow};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use modal_datastore::DatastoreManager;
-use modal_datastore::models::{
+use modality_datastore::DatastoreManager;
+use modality_datastore::models::{
     ModalityContract, ModalityRule, ModalityAction as ModalityActionRecord,
     ModalityCommitBody,
 };

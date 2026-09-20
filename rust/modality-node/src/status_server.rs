@@ -8,9 +8,9 @@ use std::path::PathBuf;
 use tokio::sync::Mutex;
 use warp::Filter;
 
-use modal_datastore::DatastoreManager;
-use modal_datastore::models::MinerBlock;
-use modal_datastore::models::validator::ValidatorBlock;
+use modality_datastore::DatastoreManager;
+use modality_datastore::models::MinerBlock;
+use modality_datastore::models::validator::ValidatorBlock;
 
 use crate::constants::{
     BLOCKS_PER_EPOCH, STATUS_PAGE_REFRESH_SECS, STATUS_RECENT_BLOCKS_COUNT,
@@ -194,7 +194,7 @@ pub async fn generate_status_html(
             let peer_id_str = peer_id.to_string();
             
             // Try to load PeerInfo from datastore
-            let peer_metadata = modal_datastore::models::PeerInfo::find_one(&mgr, &peer_id_str)
+            let peer_metadata = modality_datastore::models::PeerInfo::find_one(&mgr, &peer_id_str)
                 .await
                 .ok()
                 .flatten();
@@ -344,7 +344,7 @@ fn calculate_epoch_nominees(
                 }
                 
                 // Get shuffled indices using Fisher-Yates
-                let shuffled_indices = modal_common::shuffle::fisher_yates_shuffle(seed, epoch_blocks.len());
+                let shuffled_indices = modality_common::shuffle::fisher_yates_shuffle(seed, epoch_blocks.len());
                 
                 // Map shuffled indices to (shuffle_rank, block_hash, nominated_peer_id, block_index)
                 let shuffled_nominees: Vec<(usize, String, String, u64)> = shuffled_indices

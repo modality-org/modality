@@ -1,9 +1,9 @@
 #[cfg(test)]
 mod tests {
     use anyhow::Result;
-    use modal_datastore::models::block_header::{self, prelude::*};
-    use modal_datastore::models::block::prelude::*;
-    use modal_devnet::Devnet;
+    use modality_datastore::models::block_header::{self, prelude::*};
+    use modality_datastore::models::block::prelude::*;
+    use modality_devnet::Devnet;
 
     #[tokio::test]
     async fn test_from_json() -> Result<()> {
