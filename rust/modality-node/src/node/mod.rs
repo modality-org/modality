@@ -57,6 +57,7 @@ pub struct Node {
     pub miner_nominees: Option<Vec<String>>,
     pub hybrid_consensus: bool,
     pub run_validator: bool,
+    pub run_contract_validator: bool,
     pub network_name: String,
     pub role: String,
     pub ignored_peers: Arc<Mutex<HashMap<PeerId, IgnoredPeerInfo>>>,
@@ -106,10 +107,19 @@ impl Node {
 
         // Determine run_validator based on run_as or explicit flag
         let run_validator = if let Some(ref run_as) = config.run_as {
-            matches!(run_as.as_str(), "validator" | "Validator")
+            matches!(
+                run_as.as_str(),
+                "validator" | "Validator" | "sequencer" | "Sequencer"
+            )
         } else {
             config.run_validator.unwrap_or(false)
         };
+
+        let run_contract_validator = config.run_contract_validator.unwrap_or(false)
+            || matches!(
+                config.run_as.as_deref(),
+                Some("contract-validator" | "contract_validator")
+            );
 
         let network_name = config.get_network_name();
         let role = config.get_node_role();
@@ -156,6 +166,7 @@ impl Node {
             miner_nominees,
             hybrid_consensus,
             run_validator,
+            run_contract_validator,
             network_name,
             role,
             ignored_peers: Arc::new(Mutex::new(HashMap::new())),
@@ -596,14 +607,12 @@ impl Node {
                 log::info!("{:?}", event);
                 match event {
                     SwarmEvent::NewListenAddr { address, .. } => {
-                        let address_with_p2p = address
-                            .clone()
-                            .with(Protocol::P2p(peerid));
+                        let address_with_p2p = address.clone().with(Protocol::P2p(peerid));
                         log::info!("Listening on {address_with_p2p:?}")
                     }
                     SwarmEvent::ConnectionEstablished { .. } => {
                         log::info!("CONNECTION ESTABLISHED");
-                    },
+                    }
                     SwarmEvent::OutgoingConnectionError { peer_id, error, .. } => {
                         if let Some(peer_id) = peer_id {
                             log::error!("Failed to dial peer {:?}", peer_id);
@@ -614,41 +623,54 @@ impl Node {
                         request_response::Event::Message { message, .. },
                     )) => match message {
                         request_response::Message::Request {
-                            request,
-                            channel,
-                            ..
+                            request, channel, ..
                         } => {
                             log::info!("reqres request");
                             let res = {
                                 let mgr = datastore_manager.lock().await;
-                                match reqres::handle_request(request, &mgr, consensus_tx.clone()).await {
+                                match reqres::handle_request(request, &mgr, consensus_tx.clone())
+                                    .await
+                                {
                                     Ok(res) => res,
                                     Err(e) => {
                                         log::error!("reqres handler failed: {}", e);
                                         reqres::Response {
                                             ok: false,
                                             data: None,
-                                            errors: Some(serde_json::json!({"error": e.to_string()})),
+                                            errors: Some(
+                                                serde_json::json!({"error": e.to_string()}),
+                                            ),
                                         }
                                     }
                                 }
                             };
                             let mut swarm_lock = swarm.lock().await;
-                            if swarm_lock.behaviour_mut().reqres.send_response(channel, res).is_err() {
+                            if swarm_lock
+                                .behaviour_mut()
+                                .reqres
+                                .send_response(channel, res)
+                                .is_err()
+                            {
                                 log::error!("failed to send reqres response");
                             }
                         }
-                        request_response::Message::Response { request_id, response } => {
+                        request_response::Message::Response {
+                            request_id,
+                            response,
+                        } => {
                             log::debug!("reqres response received for request {:?}", request_id);
                             let mut txs = reqres_response_txs.lock().await;
                             if let Some(tx) = txs.remove(&request_id) {
                                 log::debug!("Forwarding response to caller");
                                 let _ = tx.send(response);
                             } else {
-                                log::warn!("Received response for unknown request {:?}", request_id);
+                                log::warn!(
+                                    "Received response for unknown request {:?}",
+                                    request_id
+                                );
                             }
                         }
-                    }
+                    },
                     SwarmEvent::Behaviour(swarm::NodeBehaviourEvent::Gossipsub(
                         gossipsub::Event::Message {
                             propagation_source: _peer_id,
@@ -657,34 +679,55 @@ impl Node {
                         },
                     )) => {
                         log::info!("Gossip received {:?}", message.topic.to_string());
-                        if let Err(e) = gossip::handle_event(message, datastore_manager.clone(), consensus_tx.clone(), sync_request_tx.clone(), mining_update_tx.clone(), bootstrappers.clone(), minimum_block_timestamp).await {
+                        if let Err(e) = gossip::handle_event(
+                            message,
+                            datastore_manager.clone(),
+                            consensus_tx.clone(),
+                            sync_request_tx.clone(),
+                            mining_update_tx.clone(),
+                            bootstrappers.clone(),
+                            minimum_block_timestamp,
+                        )
+                        .await
+                        {
                             log::error!("gossip handler failed: {}", e);
                         }
                     }
                     SwarmEvent::Behaviour(swarm::NodeBehaviourEvent::Identify(
-                        libp2p::identify::Event::Received { peer_id, info, .. }
+                        libp2p::identify::Event::Received { peer_id, info, .. },
                     )) => {
-                        log::debug!("Identify received from {:?}: agent_version={}", peer_id, info.agent_version);
+                        log::debug!(
+                            "Identify received from {:?}: agent_version={}",
+                            peer_id,
+                            info.agent_version
+                        );
 
                         // Extract status_url and role from agent version string
                         // Format: "modality-node/version;status_url=https://...;role=Miner"
                         let parts: Vec<&str> = info.agent_version.split(';').collect();
-                        let status_url = parts.iter()
+                        let status_url = parts
+                            .iter()
                             .find(|s| s.starts_with("status_url="))
                             .and_then(|s| s.strip_prefix("status_url="))
                             .map(|s| s.to_string());
-                        let role = parts.iter()
+                        let role = parts
+                            .iter()
                             .find(|s| s.starts_with("role="))
                             .and_then(|s| s.strip_prefix("role="))
                             .map(|s| s.to_string());
 
                         // Store peer info with status_url and role if either exists
                         if status_url.is_some() || role.is_some() {
-                            log::info!("Peer {} - status_url: {:?}, role: {:?}", peer_id, status_url, role);
+                            log::info!(
+                                "Peer {} - status_url: {:?}, role: {:?}",
+                                peer_id,
+                                status_url,
+                                role
+                            );
                             let peer_info = modality_datastore::models::PeerInfo::with_metadata(
                                 peer_id.to_string(),
                                 status_url,
-                                role
+                                role,
                             );
 
                             // Store in NodeState

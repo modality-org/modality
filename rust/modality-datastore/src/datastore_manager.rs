@@ -1,5 +1,5 @@
 //! DatastoreManager - manages all 6 RocksDB stores
-//! 
+//!
 //! The DatastoreManager is the central coordinator for the multi-datastore architecture.
 //! It handles opening/closing stores, provides access to individual stores, and
 //! coordinates operations that span multiple stores.
@@ -16,14 +16,13 @@
 //! └── node_state/       # Node-specific state
 //! ```
 
-use crate::Result;
 use crate::stores::{
-    Store,
-    MinerCanonStore, MinerForksStore, MinerActiveStore,
-    ValidatorFinalStore, ValidatorActiveStore, NodeStateStore,
+    MinerActiveStore, MinerCanonStore, MinerForksStore, NodeStateStore, Store,
+    ValidatorActiveStore, ValidatorFinalStore,
 };
-use std::path::{Path, PathBuf};
+use crate::Result;
 use std::fs;
+use std::path::{Path, PathBuf};
 
 /// Configuration for epoch-based block lifecycle
 #[derive(Debug, Clone)]
@@ -72,7 +71,7 @@ impl DatastoreManager {
     pub fn open(data_dir: &Path) -> Result<Self> {
         // Ensure data directory exists
         fs::create_dir_all(data_dir)?;
-        
+
         // Open each store
         let miner_canon = MinerCanonStore::open(&data_dir.join("miner_canon"))?;
         let miner_forks = MinerForksStore::open(&data_dir.join("miner_forks"))?;
@@ -80,7 +79,7 @@ impl DatastoreManager {
         let validator_final = ValidatorFinalStore::open(&data_dir.join("validator_final"))?;
         let validator_active = ValidatorActiveStore::open(&data_dir.join("validator_active"))?;
         let node_state = NodeStateStore::open(&data_dir.join("node_state"))?;
-        
+
         Ok(Self {
             data_dir: data_dir.to_path_buf(),
             miner_canon,
@@ -92,19 +91,19 @@ impl DatastoreManager {
             epoch_config: EpochConfig::default(),
         })
     }
-    
+
     /// Create an in-memory manager for testing
     pub fn create_in_memory() -> Result<Self> {
         let temp_dir = tempfile::tempdir()?;
         let data_dir = temp_dir.path().to_path_buf();
-        
+
         let miner_canon = MinerCanonStore::create_in_memory()?;
         let miner_forks = MinerForksStore::create_in_memory()?;
         let miner_active = MinerActiveStore::create_in_memory()?;
         let validator_final = ValidatorFinalStore::create_in_memory()?;
         let validator_active = ValidatorActiveStore::create_in_memory()?;
         let node_state = NodeStateStore::create_in_memory()?;
-        
+
         Ok(Self {
             data_dir,
             miner_canon,
@@ -116,104 +115,104 @@ impl DatastoreManager {
             epoch_config: EpochConfig::default(),
         })
     }
-    
+
     /// Get the data directory path
     pub fn data_dir(&self) -> &Path {
         &self.data_dir
     }
-    
+
     /// Get a reference to the MinerCanon store
     pub fn miner_canon(&self) -> &MinerCanonStore {
         &self.miner_canon
     }
-    
+
     /// Get a mutable reference to the MinerCanon store
     pub fn miner_canon_mut(&mut self) -> &mut MinerCanonStore {
         &mut self.miner_canon
     }
-    
+
     /// Get a reference to the MinerForks store
     pub fn miner_forks(&self) -> &MinerForksStore {
         &self.miner_forks
     }
-    
+
     /// Get a mutable reference to the MinerForks store
     pub fn miner_forks_mut(&mut self) -> &mut MinerForksStore {
         &mut self.miner_forks
     }
-    
+
     /// Get a reference to the MinerActive store
     pub fn miner_active(&self) -> &MinerActiveStore {
         &self.miner_active
     }
-    
+
     /// Get a mutable reference to the MinerActive store
     pub fn miner_active_mut(&mut self) -> &mut MinerActiveStore {
         &mut self.miner_active
     }
-    
+
     /// Get a reference to the ValidatorFinal store
     pub fn validator_final(&self) -> &ValidatorFinalStore {
         &self.validator_final
     }
-    
+
     /// Get a mutable reference to the ValidatorFinal store
     pub fn validator_final_mut(&mut self) -> &mut ValidatorFinalStore {
         &mut self.validator_final
     }
-    
+
     /// Get a reference to the ValidatorActive store
     pub fn validator_active(&self) -> &ValidatorActiveStore {
         &self.validator_active
     }
-    
+
     /// Get a mutable reference to the ValidatorActive store
     pub fn validator_active_mut(&mut self) -> &mut ValidatorActiveStore {
         &mut self.validator_active
     }
-    
+
     /// Get a reference to the NodeState store
     pub fn node_state(&self) -> &NodeStateStore {
         &self.node_state
     }
-    
+
     /// Get a mutable reference to the NodeState store
     pub fn node_state_mut(&mut self) -> &mut NodeStateStore {
         &mut self.node_state
     }
-    
+
     /// Get the epoch configuration
     pub fn epoch_config(&self) -> &EpochConfig {
         &self.epoch_config
     }
-    
+
     /// Set the epoch configuration
     pub fn set_epoch_config(&mut self, config: EpochConfig) {
         self.epoch_config = config;
     }
-    
+
     /// Set the blocks per epoch (typically from network params)
     pub fn set_blocks_per_epoch(&mut self, blocks_per_epoch: u64) {
         self.epoch_config.blocks_per_epoch = blocks_per_epoch;
     }
-    
+
     /// Calculate the epoch for a given block index
     pub fn block_index_to_epoch(&self, block_index: u64) -> u64 {
         block_index / self.epoch_config.blocks_per_epoch
     }
-    
+
     /// Check if a block at the given epoch should be promoted to canon/forks
     /// Returns true if current_epoch - block_epoch >= promotion_delay_epochs
     pub fn should_promote(&self, block_epoch: u64, current_epoch: u64) -> bool {
         current_epoch >= block_epoch + self.epoch_config.promotion_delay_epochs
     }
-    
+
     /// Check if a block at the given epoch should be purged from active store
     /// Returns true if current_epoch - block_epoch >= purge_delay_epochs
     pub fn should_purge(&self, block_epoch: u64, current_epoch: u64) -> bool {
         current_epoch >= block_epoch + self.epoch_config.purge_delay_epochs
     }
-    
+
     /// Flush all stores to disk
     pub fn flush_all(&self) -> Result<()> {
         self.miner_canon.flush()?;
@@ -224,21 +223,21 @@ impl DatastoreManager {
         self.node_state.flush()?;
         Ok(())
     }
-    
+
     // ============================================================
     // Compatibility methods (forward to appropriate store)
     // ============================================================
-    
+
     /// Get data by key from NodeState store
     pub async fn get_data_by_key(&self, key: &str) -> Result<Option<Vec<u8>>> {
         self.node_state.get(key)
     }
-    
+
     /// Set data by key in NodeState store
     pub async fn set_data_by_key(&self, key: &str, value: &[u8]) -> Result<()> {
         self.node_state.put(key, value)
     }
-    
+
     /// Get string value from NodeState store
     pub async fn get_string(&self, key: &str) -> Result<Option<String>> {
         match self.get_data_by_key(key).await? {
@@ -246,23 +245,23 @@ impl DatastoreManager {
             None => Ok(None),
         }
     }
-    
+
     /// Put data into NodeState store
     pub async fn put(&self, key: &str, value: &[u8]) -> Result<()> {
         self.node_state.put(key, value)
     }
-    
+
     /// Delete data from NodeState store
     pub async fn delete(&self, key: &str) -> Result<()> {
         self.node_state.delete(key)
     }
-    
+
     /// Load network config into NodeState store
     pub async fn load_network_config(&self, network_config: &serde_json::Value) -> Result<()> {
         // Store network config
         let config_json = serde_json::to_vec(network_config)?;
         self.node_state.put("network_config", &config_json)?;
-        
+
         // Extract and store static validators if present
         if let Some(validators) = network_config.get("validators").and_then(|v| v.as_array()) {
             let validator_list: Vec<String> = validators
@@ -273,29 +272,37 @@ impl DatastoreManager {
                 self.set_static_validators(&validator_list).await?;
             }
         }
-        
+
+        self.store_contract_validator_config(network_config)?;
+
         Ok(())
     }
-    
+
     /// Load network parameters from a genesis contract
-    pub async fn load_network_parameters_from_contract(&self, contract_id: &str) -> Result<crate::NetworkParameters> {
+    pub async fn load_network_parameters_from_contract(
+        &self,
+        contract_id: &str,
+    ) -> Result<crate::NetworkParameters> {
         // Try to load from ValidatorFinal store where contracts live
         let key = format!("contract/{}/network_params", contract_id);
         if let Some(data) = self.validator_final.get(&key)? {
             let params: crate::NetworkParameters = serde_json::from_slice(&data)?;
             return Ok(params);
         }
-        
+
         // Fallback to checking NodeState
         let key = format!("network_params/{}", contract_id);
         if let Some(data) = self.node_state.get(&key)? {
             let params: crate::NetworkParameters = serde_json::from_slice(&data)?;
             return Ok(params);
         }
-        
-        Err(crate::Error::KeyNotFound(format!("Network parameters for contract {}", contract_id)))
+
+        Err(crate::Error::KeyNotFound(format!(
+            "Network parameters for contract {}",
+            contract_id
+        )))
     }
-    
+
     /// Set static validators in NodeState store
     pub async fn set_static_validators(&self, validators: &[String]) -> Result<()> {
         let json = serde_json::to_vec(validators)?;
@@ -327,7 +334,118 @@ impl DatastoreManager {
         self.node_state
             .put("pending_sequencer_events", &serde_json::to_vec(events)?)
     }
-    
+
+    pub fn peek_sequencer_events(&self) -> Result<Vec<serde_json::Value>> {
+        self.load_sequencer_events()
+    }
+
+    fn store_contract_validator_config(&self, network_config: &serde_json::Value) -> Result<()> {
+        let cfg = serde_json::json!({
+            "contract_validators": network_config.get("contract_validators").cloned().unwrap_or(serde_json::json!([])),
+            "validator_min_stake": network_config.get("validator_min_stake").and_then(|v| v.as_u64()).unwrap_or(0),
+            "validation_fees": network_config.get("validation_fees").cloned().unwrap_or(serde_json::json!({"nominal": 0, "meter_coefficient": 0})),
+            "repost_requires_validator_cert": network_config
+                .get("repost_requires_validator_cert")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false),
+        });
+        self.node_state
+            .put("contract_validator_config", &serde_json::to_vec(&cfg)?)
+    }
+
+    pub fn contract_validator_config(&self) -> Result<serde_json::Value> {
+        match self.node_state.get("contract_validator_config")? {
+            Some(data) => Ok(serde_json::from_slice(&data).unwrap_or(serde_json::json!({}))),
+            None => Ok(serde_json::json!({})),
+        }
+    }
+
+    pub fn contract_validators(&self) -> Result<Vec<String>> {
+        let cfg = self.contract_validator_config()?;
+        Ok(cfg
+            .get("contract_validators")
+            .and_then(|v| v.as_array())
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                    .collect()
+            })
+            .unwrap_or_default())
+    }
+
+    pub fn validator_min_stake(&self) -> Result<u64> {
+        let cfg = self.contract_validator_config()?;
+        Ok(cfg
+            .get("validator_min_stake")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(0))
+    }
+
+    pub fn validation_fees(&self) -> Result<crate::ValidationFees> {
+        let cfg = self.contract_validator_config()?;
+        Ok(cfg
+            .get("validation_fees")
+            .and_then(|v| serde_json::from_value(v.clone()).ok())
+            .unwrap_or_default())
+    }
+
+    pub fn repost_requires_validator_cert(&self) -> Result<bool> {
+        let cfg = self.contract_validator_config()?;
+        Ok(cfg
+            .get("repost_requires_validator_cert")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false))
+    }
+
+    pub fn enqueue_prefix_cert_request(&self, request: serde_json::Value) -> Result<()> {
+        let mut reqs = self.load_prefix_cert_requests()?;
+        reqs.push(request);
+        self.store_prefix_cert_requests(&reqs)
+    }
+
+    pub fn drain_prefix_cert_requests(&self) -> Result<Vec<serde_json::Value>> {
+        let reqs = self.load_prefix_cert_requests()?;
+        self.store_prefix_cert_requests(&[])?;
+        Ok(reqs)
+    }
+
+    fn load_prefix_cert_requests(&self) -> Result<Vec<serde_json::Value>> {
+        match self.node_state.get("pending_prefix_cert_requests")? {
+            Some(data) => Ok(serde_json::from_slice(&data).unwrap_or_default()),
+            None => Ok(Vec::new()),
+        }
+    }
+
+    fn store_prefix_cert_requests(&self, reqs: &[serde_json::Value]) -> Result<()> {
+        self.node_state
+            .put("pending_prefix_cert_requests", &serde_json::to_vec(reqs)?)
+    }
+
+    pub fn save_prefix_cert(&self, cert: &serde_json::Value) -> Result<()> {
+        let contract = cert
+            .get("source_contract")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| crate::Error::Database("prefix_cert missing source_contract".into()))?;
+        let through = cert
+            .get("through_commit")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| crate::Error::Database("prefix_cert missing through_commit".into()))?;
+        let key = format!("prefix_cert/{}/{}", contract, through);
+        self.node_state.put(&key, &serde_json::to_vec(cert)?)
+    }
+
+    pub fn get_prefix_cert(
+        &self,
+        source_contract: &str,
+        through_commit: &str,
+    ) -> Result<Option<serde_json::Value>> {
+        let key = format!("prefix_cert/{}/{}", source_contract, through_commit);
+        match self.node_state.get(&key)? {
+            Some(data) => Ok(serde_json::from_slice(&data).ok()),
+            None => Ok(None),
+        }
+    }
+
     /// Get static validators from NodeState store
     pub async fn get_static_validators(&self) -> Result<Option<Vec<String>>> {
         if let Some(data) = self.node_state.get("static_validators")? {
@@ -337,7 +455,7 @@ impl DatastoreManager {
             Ok(None)
         }
     }
-    
+
     /// Get current round from NodeState
     pub async fn get_current_round(&self) -> Result<u64> {
         if let Some(data) = self.node_state.get("current_round")? {
@@ -347,12 +465,13 @@ impl DatastoreManager {
             Ok(0)
         }
     }
-    
+
     /// Set current round in NodeState
     pub async fn set_current_round(&self, round_id: u64) -> Result<()> {
-        self.node_state.put("current_round", round_id.to_string().as_bytes())
+        self.node_state
+            .put("current_round", round_id.to_string().as_bytes())
     }
-    
+
     /// Bump and return the next round
     pub async fn bump_current_round(&self) -> Result<u64> {
         let current = self.get_current_round().await?;
@@ -360,48 +479,47 @@ impl DatastoreManager {
         self.set_current_round(next).await?;
         Ok(next)
     }
-    
+
     /// Get timely certificates at a specific round
     /// Returns a map of peer_id -> cert for blocks that have certs and were timely
-    pub async fn get_timely_certs_at_round(&self, round_id: u64) -> Result<std::collections::HashMap<String, String>> {
+    pub async fn get_timely_certs_at_round(
+        &self,
+        round_id: u64,
+    ) -> Result<std::collections::HashMap<String, String>> {
         use crate::models::ValidatorBlock;
-        
+
         let blocks = ValidatorBlock::find_all_in_round_multi(self, round_id).await?;
-        
+
         Ok(blocks
             .into_iter()
             .filter(|block| block.seen_at_block_id.is_none())
             .filter(|block| block.cert.is_some())
-            .map(|block| {
-                (
-                    block.peer_id.clone(),
-                    block.cert.unwrap_or_default(),
-                )
-            })
+            .map(|block| (block.peer_id.clone(), block.cert.unwrap_or_default()))
             .collect())
     }
-    
+
     /// Clear all data from all stores
     /// WARNING: This will delete all data in all 6 stores!
     pub async fn clear_all(&self) -> Result<u64> {
         use crate::stores::Store;
         use rocksdb::IteratorMode;
-        
+
         let mut count = 0u64;
-        
+
         // Helper to clear a store by iterating all keys
         fn clear_db(db: &rocksdb::DB, count: &mut u64) -> Result<()> {
-            let keys: Vec<Vec<u8>> = db.iterator(IteratorMode::Start)
+            let keys: Vec<Vec<u8>> = db
+                .iterator(IteratorMode::Start)
                 .filter_map(|result| result.ok().map(|(key, _)| key.to_vec()))
                 .collect();
-            
+
             for key in keys {
                 db.delete(&key)?;
                 *count += 1;
             }
             Ok(())
         }
-        
+
         // Clear each store's underlying database
         clear_db(self.miner_active.db(), &mut count)?;
         clear_db(self.miner_canon.db(), &mut count)?;
@@ -409,7 +527,7 @@ impl DatastoreManager {
         clear_db(self.validator_active.db(), &mut count)?;
         clear_db(self.validator_final.db(), &mut count)?;
         clear_db(self.node_state.db(), &mut count)?;
-        
+
         // Flush all stores
         self.miner_active.flush()?;
         self.miner_canon.flush()?;
@@ -417,7 +535,7 @@ impl DatastoreManager {
         self.validator_active.flush()?;
         self.validator_final.flush()?;
         self.node_state.flush()?;
-        
+
         Ok(count)
     }
 }
@@ -425,78 +543,77 @@ impl DatastoreManager {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_create_in_memory() {
         let mgr = DatastoreManager::create_in_memory().unwrap();
         assert!(mgr.data_dir().exists() || true); // In-memory may use temp dir
     }
-    
+
     #[test]
     fn test_epoch_calculation() {
         let mut mgr = DatastoreManager::create_in_memory().unwrap();
         mgr.set_blocks_per_epoch(100);
-        
+
         assert_eq!(mgr.block_index_to_epoch(0), 0);
         assert_eq!(mgr.block_index_to_epoch(50), 0);
         assert_eq!(mgr.block_index_to_epoch(99), 0);
         assert_eq!(mgr.block_index_to_epoch(100), 1);
         assert_eq!(mgr.block_index_to_epoch(250), 2);
     }
-    
+
     #[test]
     fn test_promotion_logic() {
         let mgr = DatastoreManager::create_in_memory().unwrap();
-        
+
         // Block at epoch 5, current epoch 6 - should NOT promote (only 1 epoch old)
         assert!(!mgr.should_promote(5, 6));
-        
+
         // Block at epoch 5, current epoch 7 - SHOULD promote (2 epochs old)
         assert!(mgr.should_promote(5, 7));
-        
+
         // Block at epoch 5, current epoch 10 - SHOULD promote (5 epochs old)
         assert!(mgr.should_promote(5, 10));
     }
-    
+
     #[test]
     fn test_purge_logic() {
         let mgr = DatastoreManager::create_in_memory().unwrap();
-        
+
         // Block at epoch 5, current epoch 10 - should NOT purge (only 5 epochs old)
         assert!(!mgr.should_purge(5, 10));
-        
+
         // Block at epoch 5, current epoch 16 - should NOT purge (only 11 epochs old)
         assert!(!mgr.should_purge(5, 16));
-        
+
         // Block at epoch 5, current epoch 17 - SHOULD purge (12 epochs old)
         assert!(mgr.should_purge(5, 17));
     }
-    
+
     #[tokio::test]
     async fn test_round_persistence() {
         let mgr = DatastoreManager::create_in_memory().unwrap();
-        
+
         // Initial round should be 0
         let initial = mgr.get_current_round().await.unwrap();
         assert_eq!(initial, 0);
-        
+
         // Set round to 42
         mgr.set_current_round(42).await.unwrap();
         let round = mgr.get_current_round().await.unwrap();
         assert_eq!(round, 42);
-        
+
         // Bump round
         let bumped = mgr.bump_current_round().await.unwrap();
         assert_eq!(bumped, 43);
-        
+
         // Verify bumped value persists
         let current = mgr.get_current_round().await.unwrap();
         assert_eq!(current, 43);
-        
+
         // Set to a high value
         mgr.set_current_round(1000).await.unwrap();
         let high = mgr.get_current_round().await.unwrap();
         assert_eq!(high, 1000);
     }
 }
-

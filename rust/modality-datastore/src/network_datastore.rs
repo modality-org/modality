@@ -1,10 +1,10 @@
 use crate::{Error, Result};
-use rocksdb::{DB, IteratorMode, Options};
-use serde::{Deserialize};
+use anyhow;
+use rocksdb::{IteratorMode, Options, DB};
+use serde::Deserialize;
+use std::collections::HashMap;
 use std::path::Path;
 use std::path::PathBuf;
-use std::collections::HashMap;
-use anyhow;
 
 use crate::model::Model;
 use crate::models::validator::{ValidatorBlock, ValidatorBlockHeader};
@@ -19,25 +19,34 @@ pub struct NetworkDatastore {
 impl NetworkDatastore {
     pub fn new(path: &Path) -> Result<Self> {
         let db = DB::open_default(path)?;
-        Ok(Self { db, path: path.to_path_buf() })
+        Ok(Self {
+            db,
+            path: path.to_path_buf(),
+        })
     }
 
     pub fn create_in_directory(path: &Path) -> Result<Self> {
         let db = DB::open_default(path)?;
-        Ok(Self { db, path: path.to_path_buf() })
+        Ok(Self {
+            db,
+            path: path.to_path_buf(),
+        })
     }
 
     /// Open database in read-only mode (allows multiple readers, safe for running nodes)
     pub fn create_in_directory_readonly(path: &Path) -> Result<Self> {
         let opts = Options::default();
         let db = DB::open_for_read_only(&opts, path, false)?;
-        Ok(Self { db, path: path.to_path_buf() })
+        Ok(Self {
+            db,
+            path: path.to_path_buf(),
+        })
     }
 
     // "in-memory" database
     pub fn create_in_memory() -> Result<Self> {
         let mut opts = Options::default();
-        opts.create_if_missing(true); 
+        opts.create_if_missing(true);
         opts.set_allow_mmap_reads(false);
         opts.set_compression_type(rocksdb::DBCompressionType::None);
         opts.set_use_direct_io_for_flush_and_compaction(true);
@@ -45,18 +54,21 @@ impl NetworkDatastore {
         let temp_dir = tempfile::tempdir().unwrap();
         let temp_path = PathBuf::from(temp_dir.path());
         let db = DB::open(&opts, &*temp_path)?;
-        Ok(Self { db, path: temp_path })
+        Ok(Self {
+            db,
+            path: temp_path,
+        })
     }
 
     pub async fn clone_to_memory(&self) -> Result<NetworkDatastore> {
         let datastore = NetworkDatastore::create_in_memory()?;
-        let iterator = self.iterator("".into()); 
+        let iterator = self.iterator("".into());
         for result in iterator {
             let (key, value) = result?;
             datastore.db.put(&key, value)?;
-        } 
+        }
         Ok(datastore)
-     }
+    }
 
     pub async fn get_data_by_key(&self, key: &str) -> Result<Option<Vec<u8>>> {
         match self.db.get(key)? {
@@ -94,21 +106,27 @@ impl NetworkDatastore {
         Ok(())
     }
 
-    pub fn iterator_starting(&self, prefix: &str) -> impl Iterator<Item = Result<(Box<[u8]>, Box<[u8]>)>> + '_ {
-        self.db.iterator(IteratorMode::From(prefix.as_bytes(), rocksdb::Direction::Forward))
-            .map(|result| {
-                result.map_err(|e| Error::Database(e.to_string()))
-            })
+    pub fn iterator_starting(
+        &self,
+        prefix: &str,
+    ) -> impl Iterator<Item = Result<(Box<[u8]>, Box<[u8]>)>> + '_ {
+        self.db
+            .iterator(IteratorMode::From(
+                prefix.as_bytes(),
+                rocksdb::Direction::Forward,
+            ))
+            .map(|result| result.map_err(|e| Error::Database(e.to_string())))
     }
 
-    pub fn iterator(&self, prefix: &str) -> impl Iterator<Item = Result<(Box<[u8]>, Box<[u8]>)>> + '_ {
+    pub fn iterator(
+        &self,
+        prefix: &str,
+    ) -> impl Iterator<Item = Result<(Box<[u8]>, Box<[u8]>)>> + '_ {
         let mut readopts = rocksdb::ReadOptions::default();
         readopts.set_iterate_lower_bound(format!("{}/", prefix).as_bytes());
         readopts.set_iterate_upper_bound(format!("{}0", prefix).as_bytes());
         let iter = self.db.iterator_opt(IteratorMode::Start, readopts);
-        iter.map(|result| {
-            result.map_err(|e| Error::Database(e.to_string()))
-        })
+        iter.map(|result| result.map_err(|e| Error::Database(e.to_string())))
     }
 
     pub async fn find_max_string_key(&self, prefix: &str) -> Result<Option<String>> {
@@ -140,7 +158,9 @@ impl NetworkDatastore {
 
     pub async fn bump_current_round(&self) -> Result<u64> {
         let key = "/status/current_round";
-        let current_block = self.get_string(key).await?
+        let current_block = self
+            .get_string(key)
+            .await?
             .and_then(|s| s.parse::<u64>().ok())
             .unwrap_or(0);
         let new_block = current_block + 1;
@@ -164,9 +184,12 @@ impl NetworkDatastore {
         }
     }
 
-    pub async fn get_timely_cert_blocks_at_round(&self, round_id: u64) -> anyhow::Result<HashMap<String, ValidatorBlock>> {
+    pub async fn get_timely_cert_blocks_at_round(
+        &self,
+        round_id: u64,
+    ) -> anyhow::Result<HashMap<String, ValidatorBlock>> {
         let blocks = ValidatorBlock::find_all_in_round(self, round_id).await?;
-        
+
         Ok(blocks
             .into_iter()
             .filter(|block| block.seen_at_block_id.is_none())
@@ -174,42 +197,46 @@ impl NetworkDatastore {
             .collect())
     }
 
-    pub async fn get_timely_certs_at_round(&self, round_id: u64) -> anyhow::Result<HashMap<String, String>> {
+    pub async fn get_timely_certs_at_round(
+        &self,
+        round_id: u64,
+    ) -> anyhow::Result<HashMap<String, String>> {
         let blocks = ValidatorBlock::find_all_in_round(self, round_id).await?;
 
         Ok(blocks
             .into_iter()
             .filter(|block| block.seen_at_block_id.is_none())
             .filter(|block| block.cert.is_some())
-            .map(|block| {
-                (
-                    block.peer_id.clone(),
-                    block.cert.unwrap_or_default(),
-                )
-            })
+            .map(|block| (block.peer_id.clone(), block.cert.unwrap_or_default()))
             .collect())
     }
 
-    pub async fn get_timely_cert_sigs_at_round(&self, round_id: u64) -> anyhow::Result<Vec<String>> {
+    pub async fn get_timely_cert_sigs_at_round(
+        &self,
+        round_id: u64,
+    ) -> anyhow::Result<Vec<String>> {
         let blocks = ValidatorBlock::find_all_in_round(self, round_id).await?;
-    
+
         let cert_map: std::collections::HashMap<String, String> = blocks
             .into_iter()
             .filter(|block| block.seen_at_block_id.is_none())
             .filter(|block| block.cert.is_some())
             .map(|block| (block.peer_id, block.cert.unwrap_or_default()))
             .collect();
-        
+
         Ok(cert_map.into_values().collect())
     }
 
     /// Load network parameters from a genesis contract
-    /// 
+    ///
     /// Reads all `/network/*` paths from the contract state and parses them into NetworkParameters.
     /// Contract state is stored with keys like `/contracts/${contract_id}/network/${param_name}.${type}`
-    pub async fn load_network_parameters_from_contract(&self, contract_id: &str) -> Result<crate::NetworkParameters> {
+    pub async fn load_network_parameters_from_contract(
+        &self,
+        contract_id: &str,
+    ) -> Result<crate::NetworkParameters> {
         let prefix = format!("/contracts/{}/network", contract_id);
-        
+
         let mut name = String::new();
         let mut description = String::new();
         let mut initial_difficulty: Option<u128> = None;
@@ -218,13 +245,13 @@ impl NetworkDatastore {
         let mut validators = Vec::new();
         let mut miner_hash_func: Option<String> = None;
         let mut mining_hash_params: Option<serde_json::Value> = None;
-        
+
         // Iterate over all keys with the prefix
         for result in self.iterator(&prefix) {
             let (key, value) = result?;
             let key_str = String::from_utf8(key.to_vec())?;
             let value_str = String::from_utf8(value.to_vec())?;
-            
+
             // Parse the key to extract the parameter name
             // Format: /contracts/${contract_id}/network/${param}.${type}
             if let Some(param_path) = key_str.strip_prefix(&format!("{}/", prefix)) {
@@ -263,20 +290,27 @@ impl NetworkDatastore {
                 }
             }
         }
-        
+
         // Sort validators by their indices (they may come in any order from iterator)
         // Since we don't parse indices above, we'll just use the order from the iterator
         // In practice, the iterator should return them in lexicographic order
-        
+
         Ok(crate::NetworkParameters {
             name,
             description,
-            initial_difficulty: initial_difficulty.ok_or_else(|| Error::Database("Missing initial_difficulty".to_string()))?,
-            target_block_time_secs: target_block_time_secs.ok_or_else(|| Error::Database("Missing target_block_time_secs".to_string()))?,
-            blocks_per_epoch: blocks_per_epoch.ok_or_else(|| Error::Database("Missing blocks_per_epoch".to_string()))?,
+            initial_difficulty: initial_difficulty
+                .ok_or_else(|| Error::Database("Missing initial_difficulty".to_string()))?,
+            target_block_time_secs: target_block_time_secs
+                .ok_or_else(|| Error::Database("Missing target_block_time_secs".to_string()))?,
+            blocks_per_epoch: blocks_per_epoch
+                .ok_or_else(|| Error::Database("Missing blocks_per_epoch".to_string()))?,
             validators,
             miner_hash_func: miner_hash_func.unwrap_or_else(|| "randomx".to_string()),
             mining_hash_params,
+            contract_validators: Vec::new(),
+            validator_min_stake: 0,
+            validation_fees: crate::ValidationFees::default(),
+            repost_requires_validator_cert: false,
         })
     }
 
@@ -291,39 +325,41 @@ impl NetworkDatastore {
                 self.set_static_validators(&validator_peer_ids).await?;
             }
         }
-        
+
         // Load genesis blocks and process their events
         if let Some(rounds) = network_config.get("rounds").and_then(|v| v.as_object()) {
             for (round_id_str, round_data) in rounds {
                 let round_id = round_id_str.parse::<u64>()?;
-                
+
                 if let Some(round_obj) = round_data.as_object() {
                     // Collect all contract-commit events from this round for batch processing
                     let mut genesis_events: Vec<(String, String, serde_json::Value)> = Vec::new();
-                    
+
                     for block_data in round_obj.values() {
                         // Create and save ValidatorBlock
                         let block = ValidatorBlock::create_from_json(block_data.clone())?;
                         block.save(self).await?;
 
                         // Create and save ValidatorBlockHeader
-                        let block_header = ValidatorBlockHeader::create_from_json(block_data.clone())?;
+                        let block_header =
+                            ValidatorBlockHeader::create_from_json(block_data.clone())?;
                         block_header.save(self).await?;
-                        
+
                         // Extract contract-commit events for processing
                         if let Some(events) = block_data.get("events").and_then(|e| e.as_array()) {
                             for event in events {
-                                if let Some(event_type) = event.get("type").and_then(|t| t.as_str()) {
+                                if let Some(event_type) = event.get("type").and_then(|t| t.as_str())
+                                {
                                     if event_type == "contract-commit" {
                                         if let (Some(contract_id), Some(commit_id), Some(commit)) = (
                                             event.get("contract_id").and_then(|v| v.as_str()),
                                             event.get("commit_id").and_then(|v| v.as_str()),
-                                            event.get("commit")
+                                            event.get("commit"),
                                         ) {
                                             genesis_events.push((
                                                 contract_id.to_string(),
                                                 commit_id.to_string(),
-                                                commit.clone()
+                                                commit.clone(),
                                             ));
                                         }
                                     }
@@ -337,12 +373,21 @@ impl NetworkDatastore {
                     if current_round < round_id {
                         self.set_current_round(round_id).await?;
                     }
-                    
+
                     // Process all genesis contract events
                     if !genesis_events.is_empty() {
-                        log::info!("Processing {} genesis contract events from round {}", genesis_events.len(), round_id);
+                        log::info!(
+                            "Processing {} genesis contract events from round {}",
+                            genesis_events.len(),
+                            round_id
+                        );
                         for (contract_id, commit_id, commit_data) in genesis_events {
-                            self.process_genesis_contract_commit(&contract_id, &commit_id, &commit_data).await?;
+                            self.process_genesis_contract_commit(
+                                &contract_id,
+                                &commit_id,
+                                &commit_data,
+                            )
+                            .await?;
                         }
                     }
                 }
@@ -350,7 +395,7 @@ impl NetworkDatastore {
         }
         Ok(())
     }
-    
+
     /// Process a contract commit from genesis
     /// Similar to ContractProcessor::process_commit but simplified for genesis
     async fn process_genesis_contract_commit(
@@ -364,7 +409,7 @@ impl NetworkDatastore {
             .duration_since(std::time::UNIX_EPOCH)
             .map_err(|e| Error::Database(format!("Time error: {}", e)))?
             .as_secs();
-        
+
         let commit_data_str = serde_json::to_string(commit_data)?;
         let commit = crate::models::contract::Commit {
             contract_id: contract_id.to_string(),
@@ -374,26 +419,30 @@ impl NetworkDatastore {
             in_batch: None,
         };
         commit.save(self).await?;
-        
+
         // Process actions in the commit
-        let body = commit_data.get("body")
+        let body = commit_data
+            .get("body")
             .and_then(|v| v.as_array())
             .ok_or_else(|| Error::Database("Invalid commit structure".to_string()))?;
-        
+
         for action in body {
-            let method = action.get("method")
+            let method = action
+                .get("method")
                 .and_then(|v| v.as_str())
                 .ok_or_else(|| Error::Database("Action missing method".to_string()))?;
-            
+
             match method {
                 "post" => {
                     // Process POST action - store data in datastore
-                    let path = action.get("path")
+                    let path = action
+                        .get("path")
                         .and_then(|v| v.as_str())
                         .ok_or_else(|| Error::Database("POST action missing path".to_string()))?;
-                    let value = action.get("value")
+                    let value = action
+                        .get("value")
                         .ok_or_else(|| Error::Database("POST action missing value".to_string()))?;
-                    
+
                     // Convert value to string representation
                     let value_str = if value.is_string() {
                         value.as_str().unwrap().to_string()
@@ -404,7 +453,7 @@ impl NetworkDatastore {
                     } else {
                         serde_json::to_string(value)?
                     };
-                    
+
                     // Store in datastore with key format: /contracts/{contract_id}{path}
                     let key = format!("/contracts/{}{}", contract_id, path);
                     self.set_data_by_key(&key, value_str.as_bytes()).await?;
@@ -416,14 +465,15 @@ impl NetworkDatastore {
                 }
             }
         }
-        
+
         Ok(())
     }
 
     /// Set the static validators for this network
     pub async fn set_static_validators(&self, validators: &[String]) -> Result<()> {
         let json_value = serde_json::to_string(validators)?;
-        self.set_data_by_key("network:static_validators", json_value.as_bytes()).await
+        self.set_data_by_key("network:static_validators", json_value.as_bytes())
+            .await
     }
 
     /// Get the static validators for this network, if configured
@@ -433,7 +483,7 @@ impl NetworkDatastore {
                 let validators: Vec<String> = serde_json::from_slice(&data)?;
                 Ok(Some(validators))
             }
-            None => Ok(None)
+            None => Ok(None),
         }
     }
 
@@ -451,18 +501,18 @@ impl NetworkDatastore {
     pub async fn clear_all(&self) -> Result<u64> {
         let mut count = 0u64;
         // Collect all keys first to avoid iterator invalidation
-        let keys: Vec<Vec<u8>> = self.db.iterator(IteratorMode::Start)
-            .filter_map(|result| {
-                result.ok().map(|(key, _)| key.to_vec())
-            })
+        let keys: Vec<Vec<u8>> = self
+            .db
+            .iterator(IteratorMode::Start)
+            .filter_map(|result| result.ok().map(|(key, _)| key.to_vec()))
             .collect();
-        
+
         // Delete each key
         for key in keys {
             self.db.delete(&key)?;
             count += 1;
         }
-        
+
         Ok(count)
     }
 }

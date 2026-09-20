@@ -8,6 +8,7 @@ use modality_common::keypair::{Keypair, KeypairOrPublicKey};
 use modality_datastore::models::{Commit, ValidatorBlock};
 use modality_datastore::DatastoreManager;
 use modality_networks::CheckpointMode;
+use modality_validator::prefix_cert::{self, PREFIX_CERT_TYPE};
 use modality_validator::ContractProcessor;
 use modality_validator_consensus::communication::{Communication, Message as ConsensusMessage};
 use std::collections::HashMap;
@@ -285,8 +286,28 @@ async fn apply_certified_contract_events(
         .unwrap_or_else(|| format!("round-{}", block.round_id));
 
     let processor = ContractProcessor::new(datastore.clone());
+    let events = prefix_cert::canonical_event_order(&block.events);
 
-    for event in &block.events {
+    for event in &events {
+        if event.get("type").and_then(|v| v.as_str()) == Some(PREFIX_CERT_TYPE) {
+            let mgr = datastore.lock().await;
+            if let Err(e) = mgr.save_prefix_cert(event) {
+                log::warn!("Failed to persist prefix_cert: {}", e);
+            } else {
+                log::info!(
+                    "Stored prefix_cert for {} through {}",
+                    event
+                        .get("source_contract")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("?"),
+                    event
+                        .get("through_commit")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("?")
+                );
+            }
+            continue;
+        }
         let Some("contract_push") = event.get("type").and_then(|v| v.as_str()) else {
             continue;
         };
@@ -308,7 +329,9 @@ async fn apply_certified_contract_events(
             else {
                 continue;
             };
-            let body = commit_entry.get("body").or_else(|| commit_entry.get("data"));
+            let body = commit_entry
+                .get("body")
+                .or_else(|| commit_entry.get("data"));
             let commit_data = serde_json::json!({
                 "body": body,
                 "head": commit_entry.get("head"),
@@ -361,7 +384,11 @@ async fn apply_certified_contract_events(
                     log::warn!("Sequenced commit {} not found in store", commit_id);
                 }
                 Err(e) => {
-                    log::warn!("Failed to load commit {} for in_batch update: {}", commit_id, e);
+                    log::warn!(
+                        "Failed to load commit {} for in_batch update: {}",
+                        commit_id,
+                        e
+                    );
                 }
             }
         }
@@ -376,13 +403,16 @@ async fn on_certificate_formed(
     validator_peer_id: &str,
     checkpoint_tracker: &mut CheckpointTracker,
     blocks_per_epoch: u64,
+    apply_tx: &mpsc::UnboundedSender<ValidatorBlock>,
 ) {
     if let Err(e) = save_certified_block(certified_block, datastore).await {
         log::error!("Failed to save certified block: {}", e);
     }
 
     ingest_into_shoal(shoal_validator, certified_block).await;
-    apply_certified_contract_events(certified_block, datastore).await;
+    if apply_tx.send(certified_block.clone()).is_err() {
+        apply_certified_contract_events(certified_block, datastore).await;
+    }
 
     if checkpoint_tracker.on_round_certified(certified_block.round_id) {
         if let Some(selection_epoch) = checkpoint_tracker.get_selection_epoch() {
@@ -450,6 +480,14 @@ pub async fn spawn_consensus_loop_with_checkpoints(
         let mut checkpoint_tracker = CheckpointTracker::new(checkpoint_mode, blocks_per_epoch);
         checkpoint_tracker.on_epoch_change(validator_epoch);
 
+        let (apply_tx, mut apply_rx) = mpsc::unbounded_channel::<ValidatorBlock>();
+        let apply_datastore = datastore.clone();
+        tokio::spawn(async move {
+            while let Some(block) = apply_rx.recv().await {
+                apply_certified_contract_events(&block, &apply_datastore).await;
+            }
+        });
+
         {
             let mgr = datastore.lock().await;
             if let Err(e) = mgr.set_current_round(0).await {
@@ -513,6 +551,7 @@ pub async fn spawn_consensus_loop_with_checkpoints(
                                             &validator_peer_id,
                                             &mut checkpoint_tracker,
                                             blocks_per_epoch,
+                                            &apply_tx,
                                         ).await;
                                     }
                                 }
@@ -534,7 +573,9 @@ pub async fn spawn_consensus_loop_with_checkpoints(
                                             log::warn!("Failed to save certified block from {}: {}", from, e);
                                         }
                                         ingest_into_shoal(&shoal_validator, &block).await;
-                                        apply_certified_contract_events(&block, &datastore).await;
+                                        if apply_tx.send(block.clone()).is_err() {
+                                            apply_certified_contract_events(&block, &datastore).await;
+                                        }
                                     }
                                     Ok(false) => {
                                         log::warn!("Invalid certificate from {} for round {}",
@@ -568,13 +609,15 @@ pub async fn spawn_consensus_loop_with_checkpoints(
 
                     let events = {
                         let mgr = datastore.lock().await;
-                        match mgr.drain_sequencer_events().await {
+                        let raw = match mgr.drain_sequencer_events().await {
                             Ok(events) => events,
                             Err(e) => {
                                 log::warn!("Failed to drain sequencer events: {}", e);
                                 Vec::new()
                             }
-                        }
+                        };
+                        let named = mgr.contract_validators().unwrap_or_default();
+                        prefix_cert::filter_includable_events(raw, &named)
                     };
 
                     let block = match create_validator_block(
@@ -617,6 +660,7 @@ pub async fn spawn_consensus_loop_with_checkpoints(
                                     &validator_peer_id,
                                     &mut checkpoint_tracker,
                                     blocks_per_epoch,
+                                    &apply_tx,
                                 ).await;
                             }
                         }
@@ -651,4 +695,173 @@ pub async fn spawn_consensus_loop_with_checkpoints(
     });
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use modality_validator::prefix_cert::{build_prefix_from_store, PREFIX_CERT_TYPE};
+    use serde_json::json;
+
+    fn certified_block(events: Vec<serde_json::Value>, batch: &str) -> ValidatorBlock {
+        ValidatorBlock {
+            peer_id: "seq".into(),
+            round_id: 1,
+            prev_round_certs: HashMap::new(),
+            opening_sig: None,
+            events,
+            closing_sig: None,
+            hash: None,
+            acks: HashMap::new(),
+            late_acks: Vec::new(),
+            cert: Some(batch.into()),
+            is_section_leader: None,
+            section_ending_block_id: None,
+            section_starting_block_id: None,
+            section_block_number: None,
+            block_number: None,
+            seen_at_block_id: None,
+        }
+    }
+
+    fn dest_push(commit_id: &str) -> serde_json::Value {
+        json!({
+            "type": "contract_push",
+            "data": {
+                "contract_id": "dest",
+                "commits": [{
+                    "commit_id": commit_id,
+                    "body": [{
+                        "method": "repost",
+                        "path": "/reposts/src/hello.text",
+                        "value": "from source",
+                        "source_contract": "src",
+                        "source_path": "/hello.text",
+                        "source_commit": "src-commit"
+                    }],
+                    "head": {}
+                }]
+            }
+        })
+    }
+
+    async fn sequenced_source(ds: &Arc<Mutex<DatastoreManager>>, require_cert: bool) {
+        {
+            let mgr = ds.lock().await;
+            mgr.load_network_config(&json!({
+                "repost_requires_validator_cert": require_cert,
+                "contract_validators": ["peer1"]
+            }))
+            .await
+            .unwrap();
+        }
+        let processor = ContractProcessor::new(ds.clone());
+        processor
+            .process_commit(
+                "src",
+                "src-commit",
+                &json!({
+                    "body": [{
+                        "method": "post",
+                        "path": "/hello.text",
+                        "value": "from source"
+                    }],
+                    "head": {}
+                })
+                .to_string(),
+            )
+            .await
+            .unwrap();
+        let mgr = ds.lock().await;
+        let keys = [
+            ("contract_id".to_string(), "src".to_string()),
+            ("commit_id".to_string(), "src-commit".to_string()),
+        ]
+        .into_iter()
+        .collect();
+        let mut source = Commit::find_one_multi(&mgr, keys).await.unwrap().unwrap();
+        source.in_batch = Some("src-batch".into());
+        source.save_to_final(&mgr).await.unwrap();
+    }
+
+    async fn dest_in_batch(ds: &Arc<Mutex<DatastoreManager>>, commit_id: &str) -> Option<String> {
+        let mgr = ds.lock().await;
+        let keys = [
+            ("contract_id".to_string(), "dest".to_string()),
+            ("commit_id".to_string(), commit_id.to_string()),
+        ]
+        .into_iter()
+        .collect();
+        Commit::find_one_multi(&mgr, keys)
+            .await
+            .unwrap()
+            .and_then(|c| c.in_batch)
+    }
+
+    #[tokio::test]
+    async fn dest_repost_without_cert_sets_in_batch_when_flag_false() {
+        let ds = Arc::new(Mutex::new(DatastoreManager::create_in_memory().unwrap()));
+        sequenced_source(&ds, false).await;
+        apply_certified_contract_events(&certified_block(vec![dest_push("d1")], "batch-ok"), &ds)
+            .await;
+        assert_eq!(dest_in_batch(&ds, "d1").await.as_deref(), Some("batch-ok"));
+    }
+
+    #[tokio::test]
+    async fn dest_repost_without_cert_skips_in_batch_when_flag_true() {
+        let ds = Arc::new(Mutex::new(DatastoreManager::create_in_memory().unwrap()));
+        sequenced_source(&ds, true).await;
+        apply_certified_contract_events(
+            &certified_block(vec![dest_push("d-fail")], "batch-fail"),
+            &ds,
+        )
+        .await;
+        assert!(dest_in_batch(&ds, "d-fail").await.is_none());
+    }
+
+    #[tokio::test]
+    async fn dest_repost_succeeds_when_cert_is_later_in_same_batch() {
+        let ds = Arc::new(Mutex::new(DatastoreManager::create_in_memory().unwrap()));
+        sequenced_source(&ds, true).await;
+        let digest = {
+            let mgr = ds.lock().await;
+            build_prefix_from_store(&mgr, "src", "src-commit")
+                .await
+                .unwrap()
+                .1
+        };
+        let cert = json!({
+            "type": PREFIX_CERT_TYPE,
+            "source_contract": "src",
+            "through_commit": "src-commit",
+            "prefix_digest": digest,
+            "source_path": "/hello.text",
+            "value": "from source",
+            "validator_peer_id": "peer1",
+            "gas_used": 1,
+            "fee_quoted": 0
+        });
+        apply_certified_contract_events(
+            &certified_block(vec![dest_push("d-ok"), cert], "batch-cert"),
+            &ds,
+        )
+        .await;
+        assert_eq!(
+            dest_in_batch(&ds, "d-ok").await.as_deref(),
+            Some("batch-cert")
+        );
+    }
+
+    #[test]
+    fn sequencer_block_builder_accepts_opaque_prefix_cert() {
+        let kp = Keypair::generate().unwrap();
+        let events = vec![json!({
+            "type": PREFIX_CERT_TYPE,
+            "source_contract": "src",
+            "through_commit": "c1"
+        })];
+        let block = create_validator_block("seq", 1, HashMap::new(), &kp, events.clone()).unwrap();
+        assert_eq!(block.events, events);
+        assert_eq!(block.events[0]["type"], PREFIX_CERT_TYPE);
+    }
 }

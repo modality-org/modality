@@ -21,8 +21,8 @@ pub struct Opts {
     #[clap(long)]
     pub dir: Option<PathBuf>,
 
-    /// Node type to run: miner, hybrid, observer, validator, or server (default: determined by config)
-    #[clap(long, value_parser = ["miner", "hybrid", "observer", "validator", "server"])]
+    /// Node type to run: miner, hybrid, observer, sequencer, validator, contract-validator, or server (default: determined by config)
+    #[clap(long, value_parser = ["miner", "hybrid", "observer", "sequencer", "validator", "contract-validator", "server"])]
     pub node_type: Option<String>,
 }
 
@@ -95,7 +95,9 @@ pub async fn run(opts: &Opts) -> Result<()> {
         "miner" => "run-miner",
         "hybrid" => "run-hybrid",
         "observer" => "run-observer",
+        "sequencer" => "run-sequencer",
         "validator" => "run-validator",
+        "contract-validator" | "contract_validator" => "run-contract-validator",
         "server" => "run",
         _ => bail!("Unknown node type: {}", node_type),
     };

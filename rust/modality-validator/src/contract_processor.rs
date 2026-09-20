@@ -1,13 +1,13 @@
-use anyhow::Result;
-use std::sync::Arc;
-use tokio::sync::Mutex;
-use modality_datastore::DatastoreManager;
-use modality_datastore::models::{ContractAsset, AssetBalance, Commit, ReceivedSend, WasmModule};
-use serde_json::Value;
-use modality_wasm_runtime::{WasmExecutor, DEFAULT_GAS_LIMIT};
-use modality_wasm_validation::{PredicateContext, ProgramContext};
 use crate::predicate_executor::PredicateExecutor;
 use crate::program_executor::ProgramExecutor;
+use anyhow::Result;
+use modality_datastore::models::{AssetBalance, Commit, ContractAsset, ReceivedSend, WasmModule};
+use modality_datastore::DatastoreManager;
+use modality_wasm_runtime::{WasmExecutor, DEFAULT_GAS_LIMIT};
+use modality_wasm_validation::{PredicateContext, ProgramContext};
+use serde_json::Value;
+use std::sync::Arc;
+use tokio::sync::Mutex;
 
 /// Represents a state change from processing a commit action
 #[derive(Debug, Clone)]
@@ -65,15 +65,13 @@ pub struct ContractProcessor {
 
 impl ContractProcessor {
     pub fn new(datastore: Arc<Mutex<DatastoreManager>>) -> Self {
-        let predicate_executor = PredicateExecutor::new(
-            Arc::clone(&datastore),
-            DEFAULT_GAS_LIMIT
-        );
-        let program_executor = ProgramExecutor::new(
-            Arc::clone(&datastore),
-            DEFAULT_GAS_LIMIT
-        );
-        Self { datastore, predicate_executor, program_executor }
+        let predicate_executor = PredicateExecutor::new(Arc::clone(&datastore), DEFAULT_GAS_LIMIT);
+        let program_executor = ProgramExecutor::new(Arc::clone(&datastore), DEFAULT_GAS_LIMIT);
+        Self {
+            datastore,
+            predicate_executor,
+            program_executor,
+        }
     }
 
     /// REPOST may only snapshot a source commit that consensus has already sequenced.
@@ -105,7 +103,7 @@ impl ContractProcessor {
     }
 
     /// Process a commit during consensus ordering
-    /// 
+    ///
     /// This method:
     /// 1. Saves the commit to the datastore for future reference
     /// 2. Processes all actions in the commit
@@ -122,7 +120,7 @@ impl ContractProcessor {
             let timestamp = std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)?
                 .as_secs();
-            
+
             let commit = Commit {
                 contract_id: contract_id.to_string(),
                 commit_id: commit_id.to_string(),
@@ -134,30 +132,35 @@ impl ContractProcessor {
         }
 
         let commit: serde_json::Value = serde_json::from_str(commit_data)?;
-        let body = commit.get("body")
+        let body = commit
+            .get("body")
             .and_then(|v| v.as_array())
             .ok_or_else(|| anyhow::anyhow!("Invalid commit structure"))?;
 
         let mut state_changes = Vec::new();
 
         for action in body {
-            let method = action.get("method")
+            let method = action
+                .get("method")
                 .and_then(|v| v.as_str())
                 .ok_or_else(|| anyhow::anyhow!("Action missing method"))?;
 
             match method {
                 "create" => {
-                    let value = action.get("value")
+                    let value = action
+                        .get("value")
                         .ok_or_else(|| anyhow::anyhow!("Action missing value"))?;
                     state_changes.push(self.process_create(contract_id, commit_id, value).await?);
                 }
                 "send" => {
-                    let value = action.get("value")
+                    let value = action
+                        .get("value")
                         .ok_or_else(|| anyhow::anyhow!("Action missing value"))?;
                     state_changes.push(self.process_send(contract_id, commit_id, value).await?);
                 }
                 "recv" => {
-                    let value = action.get("value")
+                    let value = action
+                        .get("value")
                         .ok_or_else(|| anyhow::anyhow!("Action missing value"))?;
                     state_changes.push(self.process_recv(contract_id, commit_id, value).await?);
                 }
@@ -169,7 +172,8 @@ impl ContractProcessor {
                 }
                 "invoke" => {
                     // Process INVOKE action - execute program and process resulting actions
-                    let invoke_changes = self.process_invoke(contract_id, commit_id, action).await?;
+                    let invoke_changes =
+                        self.process_invoke(contract_id, commit_id, action).await?;
                     state_changes.extend(invoke_changes);
                 }
                 _ => {
@@ -187,15 +191,18 @@ impl ContractProcessor {
         commit_id: &str,
         value: &Value,
     ) -> Result<StateChange> {
-        let asset_id = value.get("asset_id")
+        let asset_id = value
+            .get("asset_id")
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow::anyhow!("CREATE missing asset_id"))?;
 
-        let quantity = value.get("quantity")
+        let quantity = value
+            .get("quantity")
             .and_then(|v| v.as_u64())
             .ok_or_else(|| anyhow::anyhow!("CREATE missing quantity"))?;
 
-        let divisibility = value.get("divisibility")
+        let divisibility = value
+            .get("divisibility")
             .and_then(|v| v.as_u64())
             .ok_or_else(|| anyhow::anyhow!("CREATE missing divisibility"))?;
 
@@ -206,8 +213,15 @@ impl ContractProcessor {
         keys.insert("contract_id".to_string(), contract_id.to_string());
         keys.insert("asset_id".to_string(), asset_id.to_string());
 
-        if ContractAsset::find_one_multi(&ds, keys.clone()).await?.is_some() {
-            anyhow::bail!("Asset {} already exists in contract {}", asset_id, contract_id);
+        if ContractAsset::find_one_multi(&ds, keys.clone())
+            .await?
+            .is_some()
+        {
+            anyhow::bail!(
+                "Asset {} already exists in contract {}",
+                asset_id,
+                contract_id
+            );
         }
 
         // Create the asset
@@ -245,12 +259,12 @@ impl ContractProcessor {
     }
 
     /// Process a SEND action during consensus
-    /// 
+    ///
     /// Validates:
     /// - Asset exists in the sending contract
     /// - Amount is divisible by asset divisibility
     /// - Sender has sufficient balance (balance >= amount)
-    /// 
+    ///
     /// If validation passes:
     /// - Deducts amount from sender's balance
     /// - Records the SEND (but doesn't transfer until RECV)
@@ -260,15 +274,18 @@ impl ContractProcessor {
         commit_id: &str,
         value: &Value,
     ) -> Result<StateChange> {
-        let asset_id = value.get("asset_id")
+        let asset_id = value
+            .get("asset_id")
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow::anyhow!("SEND missing asset_id"))?;
 
-        let to_contract = value.get("to_contract")
+        let to_contract = value
+            .get("to_contract")
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow::anyhow!("SEND missing to_contract"))?;
 
-        let amount = value.get("amount")
+        let amount = value
+            .get("amount")
             .and_then(|v| v.as_u64())
             .ok_or_else(|| anyhow::anyhow!("SEND missing amount"))?;
 
@@ -279,12 +296,19 @@ impl ContractProcessor {
         asset_keys.insert("contract_id".to_string(), contract_id.to_string());
         asset_keys.insert("asset_id".to_string(), asset_id.to_string());
 
-        let asset = ContractAsset::find_one_multi(&ds, asset_keys).await?
-            .ok_or_else(|| anyhow::anyhow!("Asset {} not found in contract {}", asset_id, contract_id))?;
+        let asset = ContractAsset::find_one_multi(&ds, asset_keys)
+            .await?
+            .ok_or_else(|| {
+                anyhow::anyhow!("Asset {} not found in contract {}", asset_id, contract_id)
+            })?;
 
         // Check if amount is valid (respects divisibility)
         if amount % asset.divisibility != 0 && asset.divisibility > 1 {
-            anyhow::bail!("Amount {} is not divisible by asset divisibility {}", amount, asset.divisibility);
+            anyhow::bail!(
+                "Amount {} is not divisible by asset divisibility {}",
+                amount,
+                asset.divisibility
+            );
         }
 
         // Get current balance
@@ -293,12 +317,23 @@ impl ContractProcessor {
         balance_keys.insert("asset_id".to_string(), asset_id.to_string());
         balance_keys.insert("owner_contract_id".to_string(), contract_id.to_string());
 
-        let mut balance = AssetBalance::find_one_multi(&ds, balance_keys).await?
-            .ok_or_else(|| anyhow::anyhow!("No balance found for asset {} in contract {}", asset_id, contract_id))?;
+        let mut balance = AssetBalance::find_one_multi(&ds, balance_keys)
+            .await?
+            .ok_or_else(|| {
+                anyhow::anyhow!(
+                    "No balance found for asset {} in contract {}",
+                    asset_id,
+                    contract_id
+                )
+            })?;
 
         // Verify sufficient balance
         if balance.balance < amount {
-            anyhow::bail!("Insufficient balance: have {}, need {}", balance.balance, amount);
+            anyhow::bail!(
+                "Insufficient balance: have {}, need {}",
+                balance.balance,
+                amount
+            );
         }
 
         // Deduct from sender
@@ -315,12 +350,12 @@ impl ContractProcessor {
     }
 
     /// Process a RECV action during consensus
-    /// 
+    ///
     /// Validates:
     /// - SEND commit exists and contains a valid SEND action
     /// - SEND has not already been received (prevents double-receive)
     /// - RECV is by the intended recipient (to_contract matches)
-    /// 
+    ///
     /// If validation passes:
     /// - Marks the SEND as received (in ReceivedSend table)
     /// - Credits the amount to receiver's balance
@@ -330,7 +365,8 @@ impl ContractProcessor {
         commit_id: &str,
         value: &Value,
     ) -> Result<StateChange> {
-        let send_commit_id = value.get("send_commit_id")
+        let send_commit_id = value
+            .get("send_commit_id")
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow::anyhow!("RECV missing send_commit_id"))?;
 
@@ -339,7 +375,7 @@ impl ContractProcessor {
         // Check if this SEND has already been received
         let mut received_keys = std::collections::HashMap::new();
         received_keys.insert("send_commit_id".to_string(), send_commit_id.to_string());
-        
+
         if let Some(existing) = ReceivedSend::find_one_multi(&ds, received_keys).await? {
             anyhow::bail!(
                 "SEND commit {} already received by contract {} in commit {}",
@@ -351,9 +387,10 @@ impl ContractProcessor {
 
         // Find the SEND commit
         let send_commit_data = self.find_commit_by_id(&ds, send_commit_id).await?;
-        
+
         let send_commit: serde_json::Value = serde_json::from_str(&send_commit_data.commit_data)?;
-        let send_body = send_commit.get("body")
+        let send_body = send_commit
+            .get("body")
             .and_then(|v| v.as_array())
             .ok_or_else(|| anyhow::anyhow!("Invalid SEND commit structure"))?;
 
@@ -369,17 +406,21 @@ impl ContractProcessor {
         let send_action = send_action
             .ok_or_else(|| anyhow::anyhow!("No SEND action found in commit {}", send_commit_id))?;
 
-        let send_value = send_action.get("value")
+        let send_value = send_action
+            .get("value")
             .ok_or_else(|| anyhow::anyhow!("SEND action missing value"))?;
 
         let from_contract = &send_commit_data.contract_id;
-        let asset_id = send_value.get("asset_id")
+        let asset_id = send_value
+            .get("asset_id")
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow::anyhow!("SEND action missing asset_id"))?;
-        let to_contract_in_send = send_value.get("to_contract")
+        let to_contract_in_send = send_value
+            .get("to_contract")
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow::anyhow!("SEND action missing to_contract"))?;
-        let amount = send_value.get("amount")
+        let amount = send_value
+            .get("amount")
             .and_then(|v| v.as_u64())
             .ok_or_else(|| anyhow::anyhow!("SEND action missing amount"))?;
 
@@ -438,7 +479,7 @@ impl ContractProcessor {
     }
 
     /// Evaluate a predicate and return the result as a proposition
-    /// 
+    ///
     /// This method:
     /// 1. Parses the predicate path and arguments
     /// 2. Executes the predicate via PredicateExecutor
@@ -463,37 +504,39 @@ impl ContractProcessor {
         };
 
         // Execute the predicate
-        let result = self.predicate_executor
+        let result = self
+            .predicate_executor
             .evaluate_predicate(contract_id, predicate_path, args, context)
             .await?;
 
         // Convert result to proposition string
-        Ok(PredicateExecutor::result_to_proposition(&predicate_name, &result))
+        Ok(PredicateExecutor::result_to_proposition(
+            &predicate_name,
+            &result,
+        ))
     }
 
     /// Process a POST action during consensus
-    /// 
+    ///
     /// Stores a value at a specific path within the contract's namespace.
     /// The value is stored in the datastore with key: /contracts/{contract_id}{path}
-    /// 
+    ///
     /// Special handling for .wasm extensions: uploads WASM modules to the datastore
-    async fn process_post(
-        &self,
-        contract_id: &str,
-        action: &Value,
-    ) -> Result<StateChange> {
-        let path = action.get("path")
+    async fn process_post(&self, contract_id: &str, action: &Value) -> Result<StateChange> {
+        let path = action
+            .get("path")
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow::anyhow!("POST action missing path"))?;
-        
-        let value = action.get("value")
+
+        let value = action
+            .get("value")
             .ok_or_else(|| anyhow::anyhow!("POST action missing value"))?;
-        
+
         // Check if this is a WASM upload (path ends with .wasm)
         if path.ends_with(".wasm") {
             return self.process_wasm_post(contract_id, path, value).await;
         }
-        
+
         // Convert value to string for storage
         let value_str = if value.is_string() {
             value.as_str().unwrap().to_string()
@@ -505,15 +548,15 @@ impl ContractProcessor {
             // For complex types, store as JSON string
             serde_json::to_string(value)?
         };
-        
+
         // Store in datastore with key: /contracts/{contract_id}{path}
         let key = format!("/contracts/{}{}", contract_id, path);
-        
+
         let ds = self.datastore.lock().await;
         ds.set_data_by_key(&key, value_str.as_bytes()).await?;
-        
+
         log::debug!("Stored POST: {} = {}", key, value_str);
-        
+
         Ok(StateChange::Posted {
             contract_id: contract_id.to_string(),
             path: path.to_string(),
@@ -526,19 +569,56 @@ impl ContractProcessor {
     /// Snapshot: dest path gets `value` if it matches the source contract's
     /// current value at `source_path`. Historical pin is recorded on the
     /// commit; the node KV store only has latest source state.
-    async fn process_repost(
-        &self,
-        contract_id: &str,
-        action: &Value,
-    ) -> Result<StateChange> {
+    async fn process_repost(&self, contract_id: &str, action: &Value) -> Result<StateChange> {
         let spec = modality_common::contract_store::parse_repost_json(action)?;
 
         let ds = self.datastore.lock().await;
         Self::assert_repost_source_sequenced(&ds, &spec).await?;
-        let source_key = format!(
-            "/contracts/{}{}",
-            spec.source_contract, spec.source_path
-        );
+        if ds.repost_requires_validator_cert().unwrap_or(false) {
+            let cert_json = ds
+                .get_prefix_cert(&spec.source_contract, &spec.source_commit)?
+                .ok_or_else(|| {
+                    anyhow::anyhow!(
+                        "REPOST rejected: missing prefix_cert for source commit '{}' on '{}'",
+                        spec.source_commit,
+                        spec.source_contract
+                    )
+                })?;
+            let cert: crate::prefix_cert::PrefixCert = serde_json::from_value(cert_json.clone())?;
+            let named = ds.contract_validators()?;
+            if !crate::prefix_cert::signer_is_named(&cert, &named) {
+                anyhow::bail!(
+                    "REPOST rejected: prefix_cert signer {} is not a named contract validator",
+                    cert.validator_peer_id
+                );
+            }
+            if !crate::prefix_cert::cert_matches_repost(
+                &cert_json,
+                &spec.source_contract,
+                &spec.source_commit,
+                Some(&spec.source_path),
+                Some(&spec.value),
+            ) {
+                anyhow::bail!(
+                    "REPOST rejected: prefix_cert does not match source {} @ {}",
+                    spec.source_contract,
+                    spec.source_commit
+                );
+            }
+            let (_, digest, _) = crate::prefix_cert::build_prefix_from_store(
+                &ds,
+                &spec.source_contract,
+                &spec.source_commit,
+            )
+            .await?;
+            if cert.prefix_digest != digest {
+                anyhow::bail!(
+                    "REPOST rejected: prefix_cert digest does not match source prefix through {}",
+                    spec.source_commit
+                );
+            }
+        }
+        let source_key = format!("/contracts/{}{}", spec.source_contract, spec.source_path);
         let source_value_opt = ds.get_string(&source_key).await?;
         let source_value = source_value_opt.ok_or_else(|| {
             anyhow::anyhow!(
@@ -587,7 +667,7 @@ impl ContractProcessor {
     }
 
     /// Process a WASM POST action (path ends with .wasm)
-    /// 
+    ///
     /// The value should be an object with:
     /// - wasm_bytes: base64-encoded WASM binary
     /// - gas_limit: optional gas limit (defaults to DEFAULT_GAS_LIMIT)
@@ -598,42 +678,46 @@ impl ContractProcessor {
         value: &Value,
     ) -> Result<StateChange> {
         // Extract module name from path (e.g., "/validators/primary.wasm" -> "primary")
-        let module_name = path.trim_end_matches(".wasm")
+        let module_name = path
+            .trim_end_matches(".wasm")
             .split('/')
             .next_back()
             .ok_or_else(|| anyhow::anyhow!("Invalid WASM path: {}", path))?;
-        
+
         // Get WASM bytes (expect base64-encoded string or object with wasm_bytes field)
         let (wasm_base64, gas_limit) = if value.is_string() {
             // Simple string value is the base64-encoded WASM
             (value.as_str().unwrap(), DEFAULT_GAS_LIMIT)
         } else if value.is_object() {
             // Object with wasm_bytes and optional gas_limit
-            let wasm_base64 = value.get("wasm_bytes")
+            let wasm_base64 = value
+                .get("wasm_bytes")
                 .and_then(|v| v.as_str())
                 .ok_or_else(|| anyhow::anyhow!("WASM POST missing wasm_bytes in value object"))?;
-            let gas_limit = value.get("gas_limit")
+            let gas_limit = value
+                .get("gas_limit")
                 .and_then(|v| v.as_u64())
                 .unwrap_or(DEFAULT_GAS_LIMIT);
             (wasm_base64, gas_limit)
         } else {
             anyhow::bail!("WASM POST value must be base64 string or object with wasm_bytes");
         };
-        
+
         // Decode base64
-        use base64::{Engine as _, engine::general_purpose};
-        let wasm_bytes = general_purpose::STANDARD.decode(wasm_base64)
+        use base64::{engine::general_purpose, Engine as _};
+        let wasm_bytes = general_purpose::STANDARD
+            .decode(wasm_base64)
             .map_err(|e| anyhow::anyhow!("Invalid base64 WASM bytes: {}", e))?;
-        
+
         // Validate WASM module format
         WasmExecutor::validate_module(&wasm_bytes)
             .map_err(|e| anyhow::anyhow!("Invalid WASM module: {}", e))?;
-        
+
         // Create timestamp
         let created_at = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)?
             .as_secs();
-        
+
         // Store WASM module in datastore
         let wasm_module = WasmModule::new(
             contract_id.to_string(),
@@ -642,12 +726,12 @@ impl ContractProcessor {
             gas_limit,
             created_at,
         );
-        
+
         let sha256_hash = wasm_module.sha256_hash.clone();
-        
+
         let ds = self.datastore.lock().await;
         wasm_module.save_to_final(&ds).await?;
-        
+
         log::info!(
             "Uploaded WASM module '{}' for contract {} via POST {}, hash: {}, gas_limit: {}",
             module_name,
@@ -656,7 +740,7 @@ impl ContractProcessor {
             &sha256_hash[..16],
             gas_limit
         );
-        
+
         Ok(StateChange::WasmUploaded {
             contract_id: contract_id.to_string(),
             module_name: module_name.to_string(),
@@ -669,27 +753,29 @@ impl ContractProcessor {
         // Since we don't know the contract_id, we need to search all contracts
         // This is inefficient - in production we'd want to index commits by ID
         use modality_datastore::stores::Store;
-        
+
         // Iterate through all commit keys in ValidatorFinal
         let iter = ds.validator_final().iterator("/commits");
-        
+
         for result in iter {
             match result {
                 Ok((key, _value)) => {
                     let key_str = String::from_utf8_lossy(&key);
-                    
+
                     // Filter for commit keys: /commits/${contract_id}/${commit_id}
                     let parts: Vec<&str> = key_str.split('/').collect();
                     if parts.len() >= 4 {
                         let found_contract_id = parts[2];
                         let found_commit_id = parts[3];
-                        
+
                         if found_commit_id == commit_id {
                             // Found it! Fetch using multi-store method
                             let keys: std::collections::HashMap<String, String> = [
                                 ("contract_id".to_string(), found_contract_id.to_string()),
                                 ("commit_id".to_string(), commit_id.to_string()),
-                            ].into_iter().collect();
+                            ]
+                            .into_iter()
+                            .collect();
                             if let Some(commit) = Commit::find_one_multi(ds, keys).await? {
                                 return Ok(commit);
                             }
@@ -706,7 +792,7 @@ impl ContractProcessor {
     }
 
     /// Process an INVOKE action - execute program and process resulting actions
-    /// 
+    ///
     /// This method:
     /// 1. Extracts program path and args from the invoke action
     /// 2. Executes the program using ProgramExecutor
@@ -718,19 +804,23 @@ impl ContractProcessor {
         commit_id: &str,
         action: &Value,
     ) -> Result<Vec<StateChange>> {
-        let path = action.get("path")
+        let path = action
+            .get("path")
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow::anyhow!("INVOKE action missing path"))?;
 
-        let value = action.get("value")
+        let value = action
+            .get("value")
             .ok_or_else(|| anyhow::anyhow!("INVOKE action missing value"))?;
 
-        let args = value.get("args")
+        let args = value
+            .get("args")
             .ok_or_else(|| anyhow::anyhow!("INVOKE value missing 'args'"))?
             .clone();
 
         // Extract program name from path
-        let program_name = path.trim_end_matches(".wasm")
+        let program_name = path
+            .trim_end_matches(".wasm")
             .split('/')
             .next_back()
             .ok_or_else(|| anyhow::anyhow!("Invalid program path: {}", path))?;
@@ -753,7 +843,8 @@ impl ContractProcessor {
         };
 
         // Execute the program
-        let result = self.program_executor
+        let result = self
+            .program_executor
             .execute_program(contract_id, path, args, context)
             .await?;
 
@@ -783,30 +874,34 @@ impl ContractProcessor {
             match program_action.method.as_str() {
                 "create" => {
                     state_changes.push(
-                        self.process_create(contract_id, commit_id, &program_action.value).await?
+                        self.process_create(contract_id, commit_id, &program_action.value)
+                            .await?,
                     );
                 }
                 "send" => {
                     state_changes.push(
-                        self.process_send(contract_id, commit_id, &program_action.value).await?
+                        self.process_send(contract_id, commit_id, &program_action.value)
+                            .await?,
                     );
                 }
                 "recv" => {
                     state_changes.push(
-                        self.process_recv(contract_id, commit_id, &program_action.value).await?
+                        self.process_recv(contract_id, commit_id, &program_action.value)
+                            .await?,
                     );
                 }
                 "post" => {
-                    state_changes.push(
-                        self.process_post(contract_id, &action_value).await?
-                    );
+                    state_changes.push(self.process_post(contract_id, &action_value).await?);
                 }
                 "rule" => {
                     // Rule actions don't produce state changes
                     log::debug!("Program produced rule action (no state change)");
                 }
                 _ => {
-                    log::warn!("Program produced unknown action method: {}", program_action.method);
+                    log::warn!(
+                        "Program produced unknown action method: {}",
+                        program_action.method
+                    );
                 }
             }
         }
@@ -830,12 +925,10 @@ mod tests {
     #[tokio::test]
     async fn test_post_action_processing() {
         // Create in-memory datastore
-        let datastore = Arc::new(Mutex::new(
-            DatastoreManager::create_in_memory().unwrap()
-        ));
-        
+        let datastore = Arc::new(Mutex::new(DatastoreManager::create_in_memory().unwrap()));
+
         let processor = ContractProcessor::new(datastore.clone());
-        
+
         // Create a commit with POST actions
         let commit_data = serde_json::json!({
             "body": [
@@ -857,18 +950,20 @@ mod tests {
             ],
             "head": {}
         });
-        
+
         let commit_data_str = serde_json::to_string(&commit_data).unwrap();
         let contract_id = "test_contract_123";
         let commit_id = "test_commit_456";
-        
+
         // Process the commit
-        let result = processor.process_commit(contract_id, commit_id, &commit_data_str).await;
+        let result = processor
+            .process_commit(contract_id, commit_id, &commit_data_str)
+            .await;
         assert!(result.is_ok(), "Failed to process commit: {:?}", result);
-        
+
         let state_changes = result.unwrap();
         assert_eq!(state_changes.len(), 3, "Should have 3 state changes");
-        
+
         // Verify all state changes are Posted
         for change in &state_changes {
             match change {
@@ -878,31 +973,41 @@ mod tests {
                 _ => panic!("Expected Posted state change"),
             }
         }
-        
+
         // Verify values are stored in datastore
         let ds = datastore.lock().await;
-        
-        let name = ds.get_string(&format!("/contracts/{}/network/name.text", contract_id))
-            .await.unwrap();
+
+        let name = ds
+            .get_string(&format!("/contracts/{}/network/name.text", contract_id))
+            .await
+            .unwrap();
         assert_eq!(name, Some("testnet".to_string()));
-        
-        let difficulty = ds.get_string(&format!("/contracts/{}/network/difficulty.number", contract_id))
-            .await.unwrap();
+
+        let difficulty = ds
+            .get_string(&format!(
+                "/contracts/{}/network/difficulty.number",
+                contract_id
+            ))
+            .await
+            .unwrap();
         assert_eq!(difficulty, Some("100".to_string()));
-        
-        let validator = ds.get_string(&format!("/contracts/{}/network/validators/0.text", contract_id))
-            .await.unwrap();
+
+        let validator = ds
+            .get_string(&format!(
+                "/contracts/{}/network/validators/0.text",
+                contract_id
+            ))
+            .await
+            .unwrap();
         assert_eq!(validator, Some("12D3KooWTest123".to_string()));
     }
-    
+
     #[tokio::test]
     async fn test_post_with_complex_value() {
-        let datastore = Arc::new(Mutex::new(
-            DatastoreManager::create_in_memory().unwrap()
-        ));
-        
+        let datastore = Arc::new(Mutex::new(DatastoreManager::create_in_memory().unwrap()));
+
         let processor = ContractProcessor::new(datastore.clone());
-        
+
         // Test with complex JSON value
         let commit_data = serde_json::json!({
             "body": [
@@ -917,38 +1022,40 @@ mod tests {
             ],
             "head": {}
         });
-        
+
         let commit_data_str = serde_json::to_string(&commit_data).unwrap();
-        let result = processor.process_commit("contract1", "commit1", &commit_data_str).await;
-        
+        let result = processor
+            .process_commit("contract1", "commit1", &commit_data_str)
+            .await;
+
         assert!(result.is_ok());
-        
+
         // Verify JSON value is stored as string
         let ds = datastore.lock().await;
-        let value = ds.get_string("/contracts/contract1/config/metadata.json")
-            .await.unwrap();
-        
+        let value = ds
+            .get_string("/contracts/contract1/config/metadata.json")
+            .await
+            .unwrap();
+
         assert!(value.is_some());
         let value_str = value.unwrap();
         assert!(value_str.contains("version"));
         assert!(value_str.contains("1.0"));
     }
-    
+
     #[tokio::test]
     async fn test_wasm_post_simple_string() {
-        let datastore = Arc::new(Mutex::new(
-            DatastoreManager::create_in_memory().unwrap()
-        ));
-        
+        let datastore = Arc::new(Mutex::new(DatastoreManager::create_in_memory().unwrap()));
+
         let processor = ContractProcessor::new(datastore.clone());
-        
+
         // Create a minimal WASM module
         let minimal_wasm = vec![
             0x00, 0x61, 0x73, 0x6d, // Magic number
             0x01, 0x00, 0x00, 0x00, // Version
         ];
         let wasm_base64 = base64::encode(&minimal_wasm);
-        
+
         // Test WASM upload via POST with .wasm extension (simple string value)
         let commit_data = serde_json::json!({
             "body": [
@@ -960,18 +1067,29 @@ mod tests {
             ],
             "head": {}
         });
-        
+
         let commit_data_str = serde_json::to_string(&commit_data).unwrap();
-        let result = processor.process_commit("contract1", "commit1", &commit_data_str).await;
-        
-        assert!(result.is_ok(), "Failed to process WASM POST: {:?}", result.err());
-        
+        let result = processor
+            .process_commit("contract1", "commit1", &commit_data_str)
+            .await;
+
+        assert!(
+            result.is_ok(),
+            "Failed to process WASM POST: {:?}",
+            result.err()
+        );
+
         let state_changes = result.unwrap();
         assert_eq!(state_changes.len(), 1);
-        
+
         // Verify it's a WASM uploaded state change
         match &state_changes[0] {
-            StateChange::WasmUploaded { contract_id, module_name, sha256_hash, gas_limit } => {
+            StateChange::WasmUploaded {
+                contract_id,
+                module_name,
+                sha256_hash,
+                gas_limit,
+            } => {
                 assert_eq!(contract_id, "contract1");
                 assert_eq!(module_name, "primary");
                 assert!(!sha256_hash.is_empty());
@@ -979,32 +1097,33 @@ mod tests {
             }
             _ => panic!("Expected WasmUploaded state change"),
         }
-        
+
         // Verify WASM module is stored in datastore
         let ds = datastore.lock().await;
         let mut keys = std::collections::HashMap::new();
         keys.insert("contract_id".to_string(), "contract1".to_string());
         keys.insert("module_name".to_string(), "primary".to_string());
-        
-        let stored_module = WasmModule::find_by_contract_and_path_multi(&ds, "contract1", "/_code/primary.wasm").await.unwrap();
+
+        let stored_module =
+            WasmModule::find_by_contract_and_path_multi(&ds, "contract1", "/_code/primary.wasm")
+                .await
+                .unwrap();
         assert!(stored_module.is_some());
-        
+
         let module = stored_module.unwrap();
         assert_eq!(module.wasm_bytes, minimal_wasm);
         assert!(module.verify_hash());
     }
-    
+
     #[tokio::test]
     async fn test_wasm_post_with_object() {
-        let datastore = Arc::new(Mutex::new(
-            DatastoreManager::create_in_memory().unwrap()
-        ));
-        
+        let datastore = Arc::new(Mutex::new(DatastoreManager::create_in_memory().unwrap()));
+
         let processor = ContractProcessor::new(datastore.clone());
-        
+
         let minimal_wasm = vec![0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00];
         let wasm_base64 = base64::encode(&minimal_wasm);
-        
+
         // Test WASM upload via POST with object value including gas_limit
         let commit_data = serde_json::json!({
             "body": [
@@ -1019,15 +1138,21 @@ mod tests {
             ],
             "head": {}
         });
-        
+
         let commit_data_str = serde_json::to_string(&commit_data).unwrap();
-        let result = processor.process_commit("contract1", "commit1", &commit_data_str).await;
-        
+        let result = processor
+            .process_commit("contract1", "commit1", &commit_data_str)
+            .await;
+
         assert!(result.is_ok());
-        
+
         let state_changes = result.unwrap();
         match &state_changes[0] {
-            StateChange::WasmUploaded { module_name, gas_limit, .. } => {
+            StateChange::WasmUploaded {
+                module_name,
+                gas_limit,
+                ..
+            } => {
                 assert_eq!(module_name, "logic");
                 assert_eq!(*gas_limit, 5_000_000);
             }
@@ -1037,9 +1162,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_repost_rejected_if_source_commit_missing() {
-        let datastore = Arc::new(Mutex::new(
-            DatastoreManager::create_in_memory().unwrap()
-        ));
+        let datastore = Arc::new(Mutex::new(DatastoreManager::create_in_memory().unwrap()));
         let processor = ContractProcessor::new(datastore);
 
         let commit_data = serde_json::json!({
@@ -1066,9 +1189,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_repost_rejected_if_source_commit_not_sequenced() {
-        let datastore = Arc::new(Mutex::new(
-            DatastoreManager::create_in_memory().unwrap()
-        ));
+        let datastore = Arc::new(Mutex::new(DatastoreManager::create_in_memory().unwrap()));
         {
             let ds = datastore.lock().await;
             Commit {
@@ -1108,9 +1229,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_repost_accepted_when_source_is_sequenced() {
-        let datastore = Arc::new(Mutex::new(
-            DatastoreManager::create_in_memory().unwrap()
-        ));
+        let datastore = Arc::new(Mutex::new(DatastoreManager::create_in_memory().unwrap()));
         let processor = ContractProcessor::new(datastore.clone());
 
         let source_post = serde_json::json!({
@@ -1161,5 +1280,89 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(copied, Some("from source".to_string()));
+    }
+
+    #[tokio::test]
+    async fn test_repost_requires_prefix_cert_when_flag_set() {
+        let datastore = Arc::new(Mutex::new(DatastoreManager::create_in_memory().unwrap()));
+        {
+            let ds = datastore.lock().await;
+            ds.load_network_config(&serde_json::json!({
+                "repost_requires_validator_cert": true,
+                "contract_validators": ["peer1"]
+            }))
+            .await
+            .unwrap();
+        }
+        let processor = ContractProcessor::new(datastore.clone());
+        let source_post = serde_json::json!({
+            "body": [{
+                "method": "post",
+                "path": "/hello.text",
+                "value": "from source"
+            }],
+            "head": {}
+        });
+        processor
+            .process_commit("src", "src-commit", &source_post.to_string())
+            .await
+            .unwrap();
+        {
+            let ds = datastore.lock().await;
+            let keys = [
+                ("contract_id".to_string(), "src".to_string()),
+                ("commit_id".to_string(), "src-commit".to_string()),
+            ]
+            .into_iter()
+            .collect();
+            let mut source = Commit::find_one_multi(&ds, keys).await.unwrap().unwrap();
+            source.in_batch = Some("cert-1".to_string());
+            source.save_to_final(&ds).await.unwrap();
+        }
+
+        let dest_repost = serde_json::json!({
+            "body": [{
+                "method": "repost",
+                "path": "/reposts/src/hello.text",
+                "value": "from source",
+                "source_contract": "src",
+                "source_path": "/hello.text",
+                "source_commit": "src-commit"
+            }],
+            "head": {}
+        });
+        let err = processor
+            .process_commit("dest", "dest-commit", &dest_repost.to_string())
+            .await
+            .expect_err("missing prefix_cert must fail");
+        assert!(
+            err.to_string().contains("missing prefix_cert"),
+            "unexpected error: {err}"
+        );
+
+        {
+            let ds = datastore.lock().await;
+            let digest = crate::prefix_cert::build_prefix_from_store(&ds, "src", "src-commit")
+                .await
+                .unwrap()
+                .1;
+            ds.save_prefix_cert(&serde_json::json!({
+                "type": "prefix_cert",
+                "source_contract": "src",
+                "through_commit": "src-commit",
+                "prefix_digest": digest,
+                "source_path": "/hello.text",
+                "value": "from source",
+                "validator_peer_id": "peer1",
+                "gas_used": 1,
+                "fee_quoted": 0
+            }))
+            .unwrap();
+        }
+        let changes = processor
+            .process_commit("dest", "dest-commit-2", &dest_repost.to_string())
+            .await
+            .unwrap();
+        assert_eq!(changes.len(), 1);
     }
 }

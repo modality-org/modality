@@ -1,21 +1,20 @@
 mod error;
 
-pub mod network_params;
 pub mod model;
+pub mod network_params;
 pub use model::Model;
 pub mod models;
 
 // Multi-datastore architecture
-pub mod stores;
 pub mod datastore_manager;
+pub mod stores;
 
-pub use error::Error;
-pub use network_params::NetworkParameters;
 pub use datastore_manager::DatastoreManager;
+pub use error::Error;
+pub use network_params::{NetworkParameters, ValidationFees};
 pub use stores::{
-    Store,
-    MinerCanonStore, MinerForksStore, MinerActiveStore,
-    ValidatorFinalStore, ValidatorActiveStore, NodeStateStore,
+    MinerActiveStore, MinerCanonStore, MinerForksStore, NodeStateStore, Store,
+    ValidatorActiveStore, ValidatorFinalStore,
 };
 
 pub type Result<T> = std::result::Result<T, Error>;

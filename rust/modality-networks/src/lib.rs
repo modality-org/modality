@@ -26,32 +26,65 @@ pub struct ManualCheckpoint {
     pub description: Option<String>,
 }
 
+/// Requester-funded validation meter (numbers are per-network; not a mint).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct ValidationFees {
+    #[serde(default)]
+    pub nominal: u64,
+    #[serde(default)]
+    pub meter_coefficient: u64,
+}
+
+impl ValidationFees {
+    pub fn quote(&self, gas_used: u64) -> u64 {
+        self.nominal
+            .saturating_add(self.meter_coefficient.saturating_mul(gas_used))
+    }
+}
+
 /// Represents information about a Modality network
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NetworkInfo {
     /// Name of the network (e.g., "testnet", "mainnet")
     pub name: String,
-    
+
     /// Description of the network
     pub description: String,
-    
+
     /// List of bootstrapper multiaddresses
     pub bootstrappers: Vec<String>,
-    
+
     /// Optional static set of validators (peer IDs)
     /// If present, this network uses a static validator set.
     /// If absent, validators are selected dynamically from mining epochs.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub validators: Option<Vec<String>>,
-    
+
     /// Checkpoint mode for this network
     /// Defaults to None if not specified
     #[serde(skip_serializing_if = "Option::is_none")]
     pub checkpoint_mode: Option<CheckpointMode>,
-    
+
     /// Manual checkpoints (only used when checkpoint_mode is Manual)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub checkpoints: Option<Vec<ManualCheckpoint>>,
+
+    /// Bootstrap named **contract validators** (peer IDs). Distinct from
+    /// `validators` (the sequencer committee). Empty / omitted = none.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub contract_validators: Option<Vec<String>>,
+
+    /// Minimum locked MOD to validate. Testnet/dev default is 0.
+    #[serde(default)]
+    pub validator_min_stake: u64,
+
+    /// Nominal + metered validation fee schedule. Default zeros (no debit).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub validation_fees: Option<ValidationFees>,
+
+    /// When true, dest REPOST apply requires a sequenced prefix_cert.
+    #[serde(default)]
+    pub repost_requires_validator_cert: bool,
 }
 
 impl NetworkInfo {
@@ -59,15 +92,17 @@ impl NetworkInfo {
     pub fn get_checkpoint_mode(&self) -> CheckpointMode {
         self.checkpoint_mode.clone().unwrap_or_default()
     }
-    
+
     /// Check if checkpoints are enabled
     pub fn checkpoints_enabled(&self) -> bool {
         self.get_checkpoint_mode() != CheckpointMode::None
     }
-    
+
     /// Get manual checkpoints sorted by block index
     pub fn get_manual_checkpoints(&self) -> Vec<&ManualCheckpoint> {
-        let mut checkpoints: Vec<_> = self.checkpoints.as_ref()
+        let mut checkpoints: Vec<_> = self
+            .checkpoints
+            .as_ref()
             .map(|c| c.iter().collect())
             .unwrap_or_default();
         checkpoints.sort_by_key(|c| c.block_index);
@@ -78,47 +113,47 @@ impl NetworkInfo {
 /// All available networks
 pub mod networks {
     use super::NetworkInfo;
-    
+
     pub fn devnet1() -> NetworkInfo {
         serde_json::from_str(include_str!("../networks/devnet1/info.json"))
             .expect("Failed to parse devnet1 info")
     }
-    
+
     pub fn devnet2() -> NetworkInfo {
         serde_json::from_str(include_str!("../networks/devnet2/info.json"))
             .expect("Failed to parse devnet2 info")
     }
-    
+
     pub fn devnet3() -> NetworkInfo {
         serde_json::from_str(include_str!("../networks/devnet3/info.json"))
             .expect("Failed to parse devnet3 info")
     }
-    
+
     pub fn devnet5() -> NetworkInfo {
         serde_json::from_str(include_str!("../networks/devnet5/info.json"))
             .expect("Failed to parse devnet5 info")
     }
-    
+
     pub fn devnet1_hybrid() -> NetworkInfo {
         serde_json::from_str(include_str!("../networks/devnet1-hybrid/info.json"))
             .expect("Failed to parse devnet1-hybrid info")
     }
-    
+
     pub fn devnet3_hybrid() -> NetworkInfo {
         serde_json::from_str(include_str!("../networks/devnet3-hybrid/info.json"))
             .expect("Failed to parse devnet3-hybrid info")
     }
-    
+
     pub fn testnet() -> NetworkInfo {
         serde_json::from_str(include_str!("../networks/testnet/info.json"))
             .expect("Failed to parse testnet info")
     }
-    
+
     pub fn mainnet() -> NetworkInfo {
         serde_json::from_str(include_str!("../networks/mainnet/info.json"))
             .expect("Failed to parse mainnet info")
     }
-    
+
     /// Get all networks
     pub fn all() -> Vec<NetworkInfo> {
         vec![
@@ -132,7 +167,7 @@ pub mod networks {
             mainnet(),
         ]
     }
-    
+
     /// Get a network by name
     pub fn by_name(name: &str) -> Option<NetworkInfo> {
         match name {
@@ -157,7 +192,7 @@ pub mod templates {
         pub passfile: &'static str,
         pub config: &'static str,
     }
-    
+
     /// Get a node template by path (e.g., "devnet1/node1")
     pub fn get(path: &str) -> Option<NodeTemplate> {
         match path {
@@ -188,7 +223,7 @@ pub mod templates {
             _ => None,
         }
     }
-    
+
     /// List all available templates
     pub fn list() -> Vec<&'static str> {
         vec![
@@ -212,19 +247,31 @@ mod tests {
     fn test_devnet_networks_have_validators() {
         // Test that devnet networks have validators configured
         let devnet1 = networks::devnet1();
-        assert!(devnet1.validators.is_some(), "devnet1 should have validators");
+        assert!(
+            devnet1.validators.is_some(),
+            "devnet1 should have validators"
+        );
         assert_eq!(devnet1.validators.as_ref().unwrap().len(), 1);
 
         let devnet2 = networks::devnet2();
-        assert!(devnet2.validators.is_some(), "devnet2 should have validators");
+        assert!(
+            devnet2.validators.is_some(),
+            "devnet2 should have validators"
+        );
         assert_eq!(devnet2.validators.as_ref().unwrap().len(), 2);
 
         let devnet3 = networks::devnet3();
-        assert!(devnet3.validators.is_some(), "devnet3 should have validators");
+        assert!(
+            devnet3.validators.is_some(),
+            "devnet3 should have validators"
+        );
         assert_eq!(devnet3.validators.as_ref().unwrap().len(), 3);
 
         let devnet5 = networks::devnet5();
-        assert!(devnet5.validators.is_some(), "devnet5 should have validators");
+        assert!(
+            devnet5.validators.is_some(),
+            "devnet5 should have validators"
+        );
         assert_eq!(devnet5.validators.as_ref().unwrap().len(), 5);
     }
 
@@ -232,10 +279,16 @@ mod tests {
     fn test_testnet_mainnet_no_static_validators() {
         // Test that testnet and mainnet use dynamic validator selection
         let testnet = networks::testnet();
-        assert!(testnet.validators.is_none(), "testnet should not have static validators");
+        assert!(
+            testnet.validators.is_none(),
+            "testnet should not have static validators"
+        );
 
         let mainnet = networks::mainnet();
-        assert!(mainnet.validators.is_none(), "mainnet should not have static validators");
+        assert!(
+            mainnet.validators.is_none(),
+            "mainnet should not have static validators"
+        );
     }
 
     #[test]
@@ -244,7 +297,10 @@ mod tests {
         let devnet3 = networks::devnet3();
         for peer_id in devnet3.validators.unwrap() {
             assert!(!peer_id.is_empty(), "Peer ID should not be empty");
-            assert!(peer_id.starts_with("12D3"), "Peer ID should be valid libp2p format");
+            assert!(
+                peer_id.starts_with("12D3"),
+                "Peer ID should be valid libp2p format"
+            );
         }
     }
 
@@ -258,6 +314,10 @@ mod tests {
             validators: None,
             checkpoint_mode: None,
             checkpoints: None,
+            contract_validators: None,
+            validator_min_stake: 0,
+            validation_fees: None,
+            repost_requires_validator_cert: false,
         };
         assert_eq!(network.get_checkpoint_mode(), CheckpointMode::None);
         assert!(!network.checkpoints_enabled());
@@ -272,6 +332,10 @@ mod tests {
             validators: None,
             checkpoint_mode: Some(CheckpointMode::Consensus),
             checkpoints: None,
+            contract_validators: None,
+            validator_min_stake: 0,
+            validation_fees: None,
+            repost_requires_validator_cert: false,
         };
         assert_eq!(network.get_checkpoint_mode(), CheckpointMode::Consensus);
         assert!(network.checkpoints_enabled());
@@ -285,6 +349,10 @@ mod tests {
             bootstrappers: vec![],
             validators: None,
             checkpoint_mode: Some(CheckpointMode::Manual),
+            contract_validators: None,
+            validator_min_stake: 0,
+            validation_fees: None,
+            repost_requires_validator_cert: false,
             checkpoints: Some(vec![
                 ManualCheckpoint {
                     block_index: 100,
@@ -298,7 +366,7 @@ mod tests {
                 },
             ]),
         };
-        
+
         let checkpoints = network.get_manual_checkpoints();
         assert_eq!(checkpoints.len(), 2);
         // Should be sorted by block_index
@@ -315,10 +383,10 @@ mod tests {
             "bootstrappers": [],
             "checkpoint_mode": "consensus"
         });
-        
+
         let network: NetworkInfo = serde_json::from_value(json).unwrap();
         assert_eq!(network.get_checkpoint_mode(), CheckpointMode::Consensus);
-        
+
         // Test manual mode
         let json = serde_json::json!({
             "name": "test",
@@ -329,10 +397,43 @@ mod tests {
                 { "block_index": 100 }
             ]
         });
-        
+
         let network: NetworkInfo = serde_json::from_value(json).unwrap();
         assert_eq!(network.get_checkpoint_mode(), CheckpointMode::Manual);
         assert_eq!(network.checkpoints.unwrap().len(), 1);
     }
-}
 
+    #[test]
+    fn test_contract_validator_fields_default_when_omitted() {
+        let json = serde_json::json!({
+            "name": "test",
+            "description": "test",
+            "bootstrappers": []
+        });
+        let network: NetworkInfo = serde_json::from_value(json).unwrap();
+        assert!(network.contract_validators.is_none());
+        assert_eq!(network.validator_min_stake, 0);
+        assert!(network.validation_fees.is_none());
+        assert!(!network.repost_requires_validator_cert);
+    }
+
+    #[test]
+    fn test_contract_validator_fields_round_trip() {
+        let json = serde_json::json!({
+            "name": "test",
+            "description": "test",
+            "bootstrappers": [],
+            "contract_validators": ["12D3KooWtestpeer"],
+            "validator_min_stake": 0,
+            "validation_fees": { "nominal": 1, "meter_coefficient": 2 },
+            "repost_requires_validator_cert": true
+        });
+        let network: NetworkInfo = serde_json::from_value(json).unwrap();
+        assert_eq!(
+            network.contract_validators.as_ref().unwrap().as_slice(),
+            ["12D3KooWtestpeer"]
+        );
+        assert_eq!(network.validation_fees.as_ref().unwrap().quote(3), 7);
+        assert!(network.repost_requires_validator_cert);
+    }
+}

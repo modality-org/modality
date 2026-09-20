@@ -1,5 +1,6 @@
 // pub mod ping;
 pub mod chain_integrity;
+pub mod contract_validator;
 pub mod dag_sync;
 pub mod miner;
 pub mod noop;

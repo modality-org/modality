@@ -6,7 +6,7 @@ use clap::Parser;
 use super::runner::{run_validator, CommonNodeOpts};
 
 #[derive(Debug, Parser)]
-#[command(about = "Run a validator node (observes mining, does not mine)")]
+#[command(about = "Run a sequencer node (orders events; does not mine). Alias of run-sequencer.")]
 pub struct Opts {
     #[command(flatten)]
     pub common: CommonNodeOpts,

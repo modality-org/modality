@@ -95,6 +95,19 @@ pub async fn load_network_config(
             config_json["validators"] = serde_json::json!(validators);
         }
 
+        if let Some(contract_validators) = network_info.contract_validators {
+            config_json["contract_validators"] = serde_json::json!(contract_validators);
+        }
+        config_json["validator_min_stake"] = serde_json::json!(network_info.validator_min_stake);
+        if let Some(fees) = network_info.validation_fees {
+            config_json["validation_fees"] = serde_json::json!({
+                "nominal": fees.nominal,
+                "meter_coefficient": fees.meter_coefficient,
+            });
+        }
+        config_json["repost_requires_validator_cert"] =
+            serde_json::json!(network_info.repost_requires_validator_cert);
+
         config_json["rounds"] = serde_json::json!({});
 
         log::debug!(

@@ -19,8 +19,8 @@ modal node --dir ./tmp/node1
 ```
 
 With no subcommand, `modal node` opens a **terminal UI** to pick an action: run
-from config, hybrid, miner, validator, observer, create, start, stop, info, or
-logs. Arrow keys move, `Enter` runs the highlighted action, and `q`, Esc, or
+from config, hybrid, miner, sequencer, validator (sequencing alias),
+contract validator, observer, create, start, stop, info, or logs. Arrow keys move, `Enter` runs the highlighted action, and `q`, Esc, or
 Ctrl-C quits the picker. Requires a TTY. Background scripts should keep using an
 explicit subcommand such as `run-hybrid`.
 
@@ -93,7 +93,7 @@ directory.
 |--------|-------------|
 | `--config <CONFIG>` | Path to `config.json` |
 | `--dir <DIR>` | Node directory containing `config.json` |
-| `--node-type <TYPE>` | `miner`, `hybrid`, `observer`, `validator`, or `server`; otherwise resolved from config |
+| `--node-type <TYPE>` | `miner`, `hybrid`, `observer`, `sequencer`, `validator`, `contract-validator`, or `server`; otherwise resolved from config |
 
 ### Stop, Restart, Kill, and PID
 
@@ -120,10 +120,18 @@ same values as `start`.
 modal node run [OPTIONS]
 modal node run-miner [OPTIONS]
 modal node run-hybrid [OPTIONS]
+modal node run-sequencer [OPTIONS]
 modal node run-validator [OPTIONS]
+modal node run-contract-validator [OPTIONS]
 modal node run-observer [OPTIONS]
 modal node run-noop [OPTIONS]
 ```
+
+`run-sequencer` is the preferred sequencing command. `run-validator` is an
+alias of `run-sequencer` (Shoal ordering). `run-contract-validator` is a
+separate third role: it issues prefix certificates and does not mine or
+sequence. A single process may still run miner + sequencer + contract-validator
+together (hybrid/dev).
 
 All foreground run commands accept:
 
@@ -144,9 +152,23 @@ The top-level quick-run aliases use the same options:
 ```bash
 modal run miner --dir ./my-node
 modal run hybrid --dir ./my-node
+modal run sequencer --dir ./my-node
 modal run validator --dir ./my-node
+modal run contract-validator --dir ./my-node
 modal run observer --dir ./my-node
 ```
+
+Network `info.json` may include, besides the sequencer committee `validators`:
+
+| Field | Default | Meaning |
+|-------|---------|---------|
+| `contract_validators` | omitted / empty | Peer IDs allowed to sign prefix certificates |
+| `validator_min_stake` | `0` | Minimum stake to validate; `0` on testnet/dev |
+| `validation_fees` | `{ "nominal": 0, "meter_coefficient": 0 }` | Quoted as `nominal + meter_coefficient * gas_used` (recorded, not transferred) |
+| `repost_requires_validator_cert` | `false` | When `true`, dest REPOST apply requires a sequenced `prefix_cert` |
+
+Omitted fields keep existing networks unchanged. Request a certificate with
+`/contract/prefix_cert` (`source_contract`, `through_commit`).
 
 ## Information
 

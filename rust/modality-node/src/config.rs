@@ -31,7 +31,9 @@ pub struct Config {
     pub run_miner: Option<bool>,
     pub miner_nominees: Option<Vec<String>>,
     pub hybrid_consensus: Option<bool>, // Enable hybrid consensus mode (validators selected from epoch N-2 mining nominations)
-    pub run_validator: Option<bool>,    // Run as validator (hybrid mode: wait for epoch >= 2)
+    pub run_validator: Option<bool>,    // Run as sequencer (hybrid: wait for epoch >= 2)
+    /// Run the contract-validator worker (prefix certs). Distinct from `run_validator`.
+    pub run_contract_validator: Option<bool>,
     pub status_port: Option<u16>,
     pub status_html_dir: Option<PathBuf>,
     pub status_url: Option<String>, // Public URL for this node's status page (e.g., "https://node1.testnet.modal.money")
@@ -48,7 +50,7 @@ pub struct Config {
     pub fork_recovery_min_peers: Option<usize>, // Minimum number of peers that must report a heavier chain before pausing mining (default: 1)
     pub fork_recovery_epoch_threshold: Option<u64>, // Pause mining if peers report chains this many epochs ahead (default: 2)
 
-    pub run_as: Option<String>, // Node role: "miner", "observer", "validator", "noop" (default: determined by run_miner)
+    pub run_as: Option<String>, // Node role: "miner", "observer", "validator"/"sequencer", "contract-validator", "noop"
 }
 
 impl Config {
@@ -298,13 +300,20 @@ impl Config {
             return "Noop".to_string();
         }
 
+        if self.run_contract_validator.unwrap_or(false)
+            && !self.run_miner.unwrap_or(false)
+            && !self.run_validator.unwrap_or(false)
+        {
+            return "contract-validator".to_string();
+        }
+
         let run_miner = self.run_miner.unwrap_or(true);
         let run_validator = self.run_validator.unwrap_or(false);
 
         match (run_miner, run_validator) {
             (true, true) => "Miner+Validator".to_string(),
             (true, false) => "Miner".to_string(),
-            (false, true) => "Validator".to_string(),
+            (false, true) => "Sequencer".to_string(),
             (false, false) => "Observer".to_string(),
         }
     }

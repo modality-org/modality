@@ -1,7 +1,7 @@
 //! Shared node runner functionality.
 //!
 //! This module provides common patterns for running different types of nodes
-//! (miner, observer, validator, noop) with consistent setup, logging, and cleanup.
+//! (miner, observer, sequencer, contract-validator, noop) with consistent setup, logging, and cleanup.
 
 use anyhow::Result;
 use clap::Args;
@@ -64,8 +64,12 @@ pub enum NodeRole {
     Hybrid,
     /// Observer node that watches the chain but doesn't mine
     Observer,
-    /// Validator node that validates blocks
+    /// Sequencer node (Shoal ordering). Preferred name for the sequencing role.
+    Sequencer,
+    /// Legacy name for the sequencing role (`run-validator`).
     Validator,
+    /// Stake-gated contract-prefix certificates (third node role).
+    ContractValidator,
     /// Noop node that only handles autoupgrade
     Noop,
     /// Server mode - determined by config
@@ -79,7 +83,9 @@ impl NodeRole {
             NodeRole::Miner => "mining node",
             NodeRole::Hybrid => "hybrid mining+sequencing node",
             NodeRole::Observer => "observer node",
-            NodeRole::Validator => "validator node",
+            NodeRole::Sequencer => "sequencer node",
+            NodeRole::Validator => "sequencer node",
+            NodeRole::ContractValidator => "contract-validator node",
             NodeRole::Noop => "noop node",
             NodeRole::Server => "server node",
         }
@@ -132,10 +138,12 @@ pub fn role_from_config(config: &Config) -> Result<NodeRole> {
         Some("miner") => Ok(NodeRole::Miner),
         Some("hybrid") => Ok(NodeRole::Hybrid),
         Some("observer") => Ok(NodeRole::Observer),
+        Some("sequencer") => Ok(NodeRole::Sequencer),
         Some("validator") => Ok(NodeRole::Validator),
+        Some("contract-validator") | Some("contract_validator") => Ok(NodeRole::ContractValidator),
         Some("noop") => Ok(NodeRole::Noop),
         Some(unknown) => anyhow::bail!(
-            "Unknown run_as value in config: '{}'. Valid values: miner, hybrid, observer, validator, noop",
+            "Unknown run_as value in config: '{}'. Valid values: miner, hybrid, observer, sequencer, validator, contract-validator, noop",
             unknown
         ),
         None => {
@@ -156,7 +164,11 @@ async fn run_role(node: &mut Node, role: NodeRole, config: &Config) -> Result<()
             actions::miner::run(node).await
         }
         NodeRole::Observer => actions::observer::run(node).await,
-        NodeRole::Validator => actions::validator::run(node).await,
+        NodeRole::Sequencer | NodeRole::Validator => actions::validator::run(node).await,
+        NodeRole::ContractValidator => {
+            node.run_contract_validator = true;
+            actions::contract_validator::run(node).await
+        }
         NodeRole::Noop => actions::noop::run(node).await,
         NodeRole::Server => {
             if config.run_miner.unwrap_or(false) {
@@ -275,9 +287,19 @@ pub async fn run_observer(opts: &CommonNodeOpts) -> Result<()> {
     run_node(opts, NodeRole::Observer, true).await
 }
 
-/// Run a validator node with the given options.
+/// Run a sequencer node with the given options.
+pub async fn run_sequencer(opts: &CommonNodeOpts) -> Result<()> {
+    run_node(opts, NodeRole::Sequencer, true).await
+}
+
+/// Run a sequencer node (`run-validator` alias).
 pub async fn run_validator(opts: &CommonNodeOpts) -> Result<()> {
     run_node(opts, NodeRole::Validator, true).await
+}
+
+/// Run a contract-validator node with the given options.
+pub async fn run_contract_validator(opts: &CommonNodeOpts) -> Result<()> {
+    run_node(opts, NodeRole::ContractValidator, true).await
 }
 
 /// Run a noop node with the given options.

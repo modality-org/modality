@@ -136,9 +136,21 @@ fn build_menu(
             config_exists,
         ),
         item(
+            PickedAction::Run(NodeRole::Sequencer),
+            "Run sequencer",
+            "order events; do not mine",
+            config_exists,
+        ),
+        item(
             PickedAction::Run(NodeRole::Validator),
             "Run validator",
-            "sequence only; do not mine",
+            "sequence only (alias of run-sequencer)",
+            config_exists,
+        ),
+        item(
+            PickedAction::Run(NodeRole::ContractValidator),
+            "Run contract validator",
+            "prefix certificates; do not mine or sequence",
             config_exists,
         ),
         item(
@@ -365,9 +377,13 @@ mod tests {
         let dir = tmp.path().to_path_buf();
         let menu = build_menu(&dir, None, None).unwrap();
         assert!(!menu.items[0].enabled);
-        assert!(menu.items[5].enabled);
-        assert_eq!(menu.items[5].action, PickedAction::Create);
-        assert_eq!(menu.selected, 5);
+        let create_idx = menu
+            .items
+            .iter()
+            .position(|item| item.action == PickedAction::Create)
+            .unwrap();
+        assert!(menu.items[create_idx].enabled);
+        assert_eq!(menu.selected, create_idx);
         assert!(!menu.session_running);
     }
 
