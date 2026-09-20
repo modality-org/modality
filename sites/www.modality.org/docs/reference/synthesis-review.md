@@ -33,7 +33,8 @@ committing the result:
 - Does the Review Checklist summarize whether source facts were preserved, how
   many source facts were preserved, how many malformed source facts were flagged,
   whether external assumptions were preserved, and how many external assumptions
-  were preserved?
+  were preserved, plus how many commit-evidence, external-world, and reviewer
+  assumptions were flagged?
 - Does the Source Assumptions section preserve any reviewer-supplied
   `External assumption:` lines as out-of-proof evidence boundaries, with source
   line numbers and assumption-boundary labels for traceability?
@@ -60,9 +61,12 @@ the bundle should include the rule source, extracted facts such as `+POST` and
 `+signed_by(/users/reviewer.id)`, a Review Checklist with `Verifier result:
 passed`, `Source facts preserved: yes`, `Malformed source facts flagged: 1`,
 `Source facts preserved count: 2`, `External assumptions preserved: yes`, and
-`External assumptions preserved count: 1`, plus the witness model that the
-verifier accepted. Treat that witness as something to inspect, not as proof
-that the original human intent was complete.
+`External assumptions preserved count: 1`, plus assumption label counts such as
+`Commit evidence assumptions flagged: 1`,
+`External-world assumptions flagged: 0`, and
+`Reviewer assumptions flagged: 0`, plus the witness model that the verifier
+accepted. Treat that witness as something to inspect, not as proof that the
+original human intent was complete.
 
 When the rule came from reviewer-authored text, pass that text with
 `--source-file` or `--source-text` instead of relying on the rule file alone.
@@ -106,7 +110,7 @@ If `--verify` rejects the synthesized candidate, the CLI should say that no sati
   their source line numbers and assumption-boundary labels.
 - A Review Checklist with `Verifier result: failed`, source-fact preservation,
   source-fact count, malformed-source-fact count, external-assumption
-  preservation, and external-assumption count.
+  preservation, external-assumption count, and assumption label counts.
 - The verifier error.
 - The candidate witness model that failed verification.
 - Assumptions and known gaps, including the bounded explicit-state μ-calculus search.

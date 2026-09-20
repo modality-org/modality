@@ -2477,6 +2477,24 @@ fn write_review_checklist(
     let source_assumptions = review_source
         .map(|source| extract_source_assumptions_with_lines(&source.content))
         .unwrap_or_default();
+    let commit_evidence_assumption_count = source_assumptions
+        .iter()
+        .filter(|assumption| {
+            external_assumption_shape_label(&assumption.value) == "commit evidence boundary"
+        })
+        .count();
+    let external_world_assumption_count = source_assumptions
+        .iter()
+        .filter(|assumption| {
+            external_assumption_shape_label(&assumption.value) == "external-world boundary"
+        })
+        .count();
+    let reviewer_assumption_count = source_assumptions
+        .iter()
+        .filter(|assumption| {
+            external_assumption_shape_label(&assumption.value) == "reviewer assumption"
+        })
+        .count();
     output.push_str(&format!(
         "- Source facts preserved: {}\n",
         if source_facts.is_empty() { "no" } else { "yes" }
@@ -2500,6 +2518,18 @@ fn write_review_checklist(
     output.push_str(&format!(
         "- External assumptions preserved count: {}\n",
         source_assumptions.len()
+    ));
+    output.push_str(&format!(
+        "- Commit evidence assumptions flagged: {}\n",
+        commit_evidence_assumption_count
+    ));
+    output.push_str(&format!(
+        "- External-world assumptions flagged: {}\n",
+        external_world_assumption_count
+    ));
+    output.push_str(&format!(
+        "- Reviewer assumptions flagged: {}\n",
+        reviewer_assumption_count
     ));
 
     output.push_str(&format!(
@@ -2986,6 +3016,9 @@ rule post_requires_reviewer {
         assert!(bundle.contains("- Malformed source facts flagged: 1"));
         assert!(bundle.contains("- External assumptions preserved: yes"));
         assert!(bundle.contains("- External assumptions preserved count: 1"));
+        assert!(bundle.contains("- Commit evidence assumptions flagged: 1"));
+        assert!(bundle.contains("- External-world assumptions flagged: 0"));
+        assert!(bundle.contains("- Reviewer assumptions flagged: 0"));
         assert!(bundle.contains("- Verifier result: passed"));
         assert!(bundle.contains("## Witness Model"));
         assert!(bundle.contains("model Contract"));
@@ -3044,6 +3077,9 @@ rule impossible_contract {
         assert!(bundle.contains("- Malformed source facts flagged: 0"));
         assert!(bundle.contains("- External assumptions preserved: no"));
         assert!(bundle.contains("- External assumptions preserved count: 0"));
+        assert!(bundle.contains("- Commit evidence assumptions flagged: 0"));
+        assert!(bundle.contains("- External-world assumptions flagged: 0"));
+        assert!(bundle.contains("- Reviewer assumptions flagged: 0"));
         assert!(
             bundle.contains("bounded μ-calculus search"),
             "bundle was:\n{bundle}"
