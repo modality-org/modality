@@ -91,10 +91,11 @@ If no provider is configured, the command fails with a hint to run
 `modal ai set`.
 
 With `--provider cursor-agent`, `suggest-rule` runs the Cursor CLI in the
-contract directory (`--dir` or the current directory) and adds `docs/language`
-so the agent can read those cookbooks. The default is `--print`: a one-shot
-formula on stdout. Pass `--interactive` for an Ask-mode session so the agent
-can read `state/`, `rules/`, and `model/`.
+contract directory (`--dir` or the current directory) and adds
+`docs/language` plus `packages/modality-skill` so the agent can read those
+files. The default is `--print`: a one-shot formula on stdout. Pass
+`--interactive` for an Ask-mode session so the agent can read `state/`,
+`rules/`, and `model/`.
 
 ```bash
 modal ai suggest-rule "after this commit either alice or bob must sign"
