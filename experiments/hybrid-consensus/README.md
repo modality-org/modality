@@ -68,9 +68,11 @@ Checked claims:
 
 ## What this does not claim
 
-- The live `modality-node` matches this spec (it does not: epoch
-  signals are in-process; `run-miner` does not start the sequencer
-  monitor; Shoal is not wired)
+- That the live `modality-node` is a full refinement of this spec.
+  Epoch is derived from canonical height; `run-hybrid` / `run-miner`
+  start the sequencer monitor; the Shoal loop is live. Remaining:
+  in-process epoch *notification*, no spec-trace replay tests, no TLC
+  liveness (`~>`)
 - A proof of Shoal/Bullshark
 - Unbounded liveness (no weak-fairness check that rounds progress)
 - Commit-time Modality verification (that is `modality-lang`)
