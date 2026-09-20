@@ -229,7 +229,10 @@ fn draw_stats(frame: &mut Frame, area: Rect, status: Option<&NodeStatus>) {
         kv("Blocks mined here", &s.blocks_mined_by_node.to_string()),
         kv(
             "Sequencing",
-            &format!("round {}  ·  {} canonical", s.current_round, s.total_miner_blocks),
+            &format!(
+                "round {}  ·  {} canonical",
+                s.current_round, s.total_miner_blocks
+            ),
         ),
     ];
     if let Some(url) = &s.status_url {
@@ -377,8 +380,7 @@ mod tests {
             "quit hint missing from dashboard:\n{text}"
         );
         assert!(
-            !text.to_lowercase().contains("overview")
-                || !text.contains("Tab  ←"),
+            !text.to_lowercase().contains("overview") || !text.contains("Tab  ←"),
             "tab navigation should not be the main UI:\n{text}"
         );
         assert!(text.contains("hello log"));

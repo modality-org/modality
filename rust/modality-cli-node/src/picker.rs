@@ -186,9 +186,7 @@ fn draw_list(frame: &mut Frame, area: Rect, menu: &ActionMenu, state: &mut ListS
 
     let list = List::new(items)
         .block(Block::default().borders(Borders::ALL).title(" actions "))
-        .highlight_style(
-            Style::default().add_modifier(Modifier::REVERSED | Modifier::BOLD),
-        )
+        .highlight_style(Style::default().add_modifier(Modifier::REVERSED | Modifier::BOLD))
         .highlight_symbol(" › ");
     frame.render_stateful_widget(list, area, state);
 }
