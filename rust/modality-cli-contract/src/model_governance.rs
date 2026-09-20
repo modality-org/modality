@@ -1211,6 +1211,10 @@ impl CommitFacts {
                 (Some(path), Some(property_path)) => self.has_state_property(path, property_path),
                 _ => false,
             },
+            "state_exists" => args
+                .first()
+                .map(|path| self.state.contains_key(&normalize_path(path)))
+                .unwrap_or(false),
             "text_eq" => match (args.first(), args.get(1)) {
                 (Some(path), Some(expected)) => self.state_text_eq(path, expected),
                 _ => false,
@@ -1286,6 +1290,12 @@ impl CommitFacts {
                 return format!(
                     "missing {formatted} (accepted state at {path} does not contain property {property_path})"
                 );
+            }
+        }
+
+        if property.name == "state_exists" {
+            if let Some(path) = predicate_args(property).first() {
+                return format!("missing {formatted} (accepted state does not contain {path})");
             }
         }
 
@@ -2570,6 +2580,51 @@ model BoolFalse {
         );
         assert!(
             err.contains("accepted state boolean at /flags/cancelled.bool is not false"),
+            "{err}"
+        );
+    }
+
+    #[test]
+    fn enforces_state_exists_against_accepted_state() {
+        let model = parse_content_lalrpop(
+            r#"
+model StateExists {
+  initial active
+  active --> active: +POST +state_exists(/ready.flag)
+}
+            "#,
+        )
+        .unwrap();
+        let mut current_states = HashSet::new();
+        current_states.insert("active".to_string());
+        let mut state = HashMap::new();
+        state.insert("ready.flag".to_string(), serde_json::json!(true));
+
+        let mut commit = CommitFile::new();
+        commit.add_action(
+            "post".to_string(),
+            Some("/notes/next.text".to_string()),
+            Value::String("ok".to_string()),
+        );
+        let facts = CommitFacts::from_commit(&commit, &state);
+
+        assert!(
+            has_valid_transition(&model, &current_states, &facts),
+            "accepted-state path existence should satisfy state_exists"
+        );
+
+        let mut pending_only = CommitFile::new();
+        pending_only.add_action(
+            "post".to_string(),
+            Some("/ready.flag".to_string()),
+            serde_json::json!(true),
+        );
+        let pending_only_facts = CommitFacts::from_commit(&pending_only, &HashMap::new());
+        let err = explain_no_valid_transition(&model, &current_states, &pending_only_facts);
+
+        assert!(err.contains("missing +state_exists(/ready.flag)"), "{err}");
+        assert!(
+            err.contains("accepted state does not contain /ready.flag"),
             "{err}"
         );
     }

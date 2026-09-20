@@ -8,9 +8,9 @@ title: Predicates
 This page names the language vocabulary. The currently verified local
 first-contract path is narrower: method labels, `signed_by`, `any_signed`,
 `all_signed`, `threshold`, `modifies`, `post_to_path`, `has_property`,
-`text_eq`, `amount_in_range`, `num_eq`, `num_gt`, `num_gte`, `num_lt`,
-`num_lte`, `bool_true`, and `bool_false` are enforced from replayable commit
-artifacts. See the
+`state_exists`, `text_eq`, `amount_in_range`, `num_eq`, `num_gt`, `num_gte`,
+`num_lt`, `num_lte`, `bool_true`, and `bool_false` are enforced from
+replayable commit artifacts. See the
 [standard predicate evidence matrix](../reference/standard-predicates.md) for
 the exact source of each fact.
 
@@ -73,7 +73,13 @@ first-contract path, not proof that external facts were checked.
 // Boolean
 +bool_true(/path/flag.bool)
 +bool_false(/path/flag.bool)
+
+// Accepted-state path existence
++state_exists(/path/ready.flag)
 ```
+
+The local validator derives `state_exists` from accepted-state path existence
+only; a path written by the same pending commit is not evidence for that commit.
 
 The local validator derives `bool_true` and `bool_false` from accepted-state
 booleans only; a boolean written by the same pending commit is not evidence for

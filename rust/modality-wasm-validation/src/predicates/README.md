@@ -66,6 +66,7 @@ The checked object is explicit predicate-test input for this WASM module. The
 `modality-cli-contract` local model-governance path also derives
 `has_property(/path, "a.b")` directly from accepted-state JSON, following
 dot-separated object keys on previously committed state.
+It also derives `state_exists(/path)` from accepted-state path existence.
 It also derives `text_eq` from accepted-state strings when comparing a state
 path to a literal string or to another accepted-state path.
 It also derives `amount_in_range` from accepted-state numbers when comparing a
