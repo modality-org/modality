@@ -5,21 +5,24 @@ export const METHODS = [
   "post",
   "rule",
   "invoke",
+  "repost",
   // "define",
-  // "repost",
   // "create",
   // "send",
   // "receive",
 ];
 
 export default class CommitAction {
-  constructor({ method, path, value }) {
+  constructor({ method, path, value, source_contract, source_path, source_commit }) {
     if (!METHODS.includes(method)) {
       throw new Error(`unknown method: ${method}`);
     }
     this.method = method;
     this.path = path;
     this.value = value;
+    this.source_contract = source_contract;
+    this.source_path = source_path;
+    this.source_commit = source_commit;
     return this;
   }
 
@@ -55,7 +58,6 @@ export default class CommitAction {
       }
       return true;
     } else if (this.method === "invoke") {
-      // Validate invoke action
       if (!this.path) {
         throw new Error("INVOKE action requires a path to the program");
       }
@@ -66,16 +68,34 @@ export default class CommitAction {
         throw new Error("INVOKE action value must be an object with 'args' field");
       }
       return true;
+    } else if (this.method === "repost") {
+      if (!Route.isValidPath(this.path)) {
+        throw new Error(`Invalid dest path ${this.path}`);
+      }
+      if (!this.source_contract) {
+        throw new Error("REPOST requires source_contract");
+      }
+      if (!this.source_path || !Route.isValidPath(this.source_path)) {
+        throw new Error(`REPOST requires a valid source_path, got ${this.source_path}`);
+      }
+      if (!this.source_commit) {
+        throw new Error("REPOST requires source_commit");
+      }
+      return true;
     }
     throw new Error(`unknown method: ${this.method}`);
   }
 
   toJSON() {
-    return {
+    const json = {
       method: this.method,
       path: this.path,
       value: this.value,
     };
+    if (this.source_contract) json.source_contract = this.source_contract;
+    if (this.source_path) json.source_path = this.source_path;
+    if (this.source_commit) json.source_commit = this.source_commit;
+    return json;
   }
 
   hasAttachment() {

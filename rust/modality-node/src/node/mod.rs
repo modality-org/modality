@@ -11,6 +11,7 @@ use libp2p::gossipsub::IdentTopic;
 use libp2p::request_response::OutboundRequestId;
 use std::collections::HashMap;
 use std::path::PathBuf;
+use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
@@ -196,6 +197,36 @@ impl Node {
         self.consensus_rx.take()
     }
 
+    /// Live handles for the node TUI / status snapshot.
+    pub fn status_source(&self) -> crate::status_snapshot::NodeStatusSource {
+        crate::status_snapshot::NodeStatusSource {
+            peerid: self.peerid,
+            role: self.role.clone(),
+            network_name: self.network_name.clone(),
+            listeners: self.listeners.clone(),
+            status_port: self.status_port,
+            hybrid_consensus: self.hybrid_consensus,
+            datastore: self.datastore_manager.clone(),
+            swarm: self.swarm.clone(),
+            mining_metrics: self.mining_metrics.clone(),
+            shutdown_tx: self.shutdown_tx.clone(),
+            mining_shutdown: self.mining_shutdown.clone(),
+        }
+    }
+
+    /// Signal mining loops and `wait_for_shutdown` to exit.
+    pub fn request_shutdown(&self) {
+        self.status_source().request_shutdown();
+    }
+
+    /// True after `request_shutdown` or the TUI quit key.
+    pub fn is_shutdown_requested(&self) -> bool {
+        self.mining_shutdown
+            .as_ref()
+            .map(|f| f.load(Ordering::Relaxed))
+            .unwrap_or(false)
+    }
+
     /// Set up the node - run bootup tasks and configure swarm
     pub async fn setup(&mut self, config: &Config) -> Result<()> {
         self.run_bootup_tasks(config).await?;
@@ -222,12 +253,22 @@ impl Node {
 
     /// Wait for peer connections
     pub async fn wait_for_connections(&mut self) -> Result<()> {
+        let mut shutdown_rx = self.shutdown_tx.subscribe();
         let count = self.swarm.lock().await.connected_peers().count();
         loop {
+            if self.is_shutdown_requested() {
+                return Ok(());
+            }
             log::info!("connecting to peers...");
             log::info!("{}", count);
             let count = self.swarm.lock().await.connected_peers().count();
-            tokio::time::sleep(Duration::from_secs(CONNECTION_WAIT_INTERVAL_SECS)).await;
+            tokio::select! {
+                _ = tokio::time::sleep(Duration::from_secs(CONNECTION_WAIT_INTERVAL_SECS)) => {}
+                _ = shutdown_rx.recv() => return Ok(()),
+            }
+            if self.is_shutdown_requested() {
+                return Ok(());
+            }
             for bootstrapper in self.bootstrappers.clone() {
                 log::info!("{}", bootstrapper);
                 if let Some(peer_id) = extract_peer_id(bootstrapper.clone()) {
@@ -399,14 +440,25 @@ impl Node {
             modality_common::hash_tax::set_mining_shutdown(true);
             
             if let Some(ref flag) = mining_shutdown {
-                flag.store(true, std::sync::atomic::Ordering::Relaxed);
+                flag.store(true, Ordering::Relaxed);
             }
             
             let _ = shutdown_tx.send(());
         });
     
         let mut shutdown_rx = self.shutdown_tx.subscribe();
-        shutdown_rx.recv().await?;
+        loop {
+            if self.is_shutdown_requested() {
+                break;
+            }
+            tokio::select! {
+                result = shutdown_rx.recv() => {
+                    let _ = result;
+                    break;
+                }
+                _ = tokio::time::sleep(Duration::from_millis(100)) => {}
+            }
+        }
         log::info!("Shutdown signal received in wait_for_shutdown");
     
         if let Some(handle) = self.autoupgrade_task.take() {

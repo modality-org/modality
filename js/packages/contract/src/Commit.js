@@ -15,8 +15,15 @@ export default class Commit {
     return clone;
   }
 
-  act({ method, path, value }) {
-    const ca = new CommitAction({ method, path, value });
+  act({ method, path, value, source_contract, source_path, source_commit }) {
+    const ca = new CommitAction({
+      method,
+      path,
+      value,
+      source_contract,
+      source_path,
+      source_commit,
+    });
     ca.validateOrThrow();
     if (this.getRoutePaths().includes(path)) {
       throw new Error(`cannot post to same path ${path} within one commit`);
@@ -30,6 +37,17 @@ export default class Commit {
 
   addPost(path, value) {
     this.act({ method: "post", path, value });
+  }
+
+  addRepost(path, value, { source_contract, source_path, source_commit }) {
+    this.act({
+      method: "repost",
+      path,
+      value,
+      source_contract,
+      source_path,
+      source_commit,
+    });
   }
 
   addRule(value) {

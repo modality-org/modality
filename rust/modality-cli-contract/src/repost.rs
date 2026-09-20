@@ -1,34 +1,34 @@
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use clap::Parser;
 use std::path::PathBuf;
 
-use modality_common::contract_store::ContractStore;
+use modality_common::contract_store::{
+    default_repost_dest, ContractStore, RepostProvenance,
+};
+use modality_common::hub_client::HubClient;
 
 #[derive(Debug, Parser)]
-#[command(about = "Repost latest state value from another contract")]
+#[command(about = "Copy a value from another contract so this contract can refer to it")]
 pub struct Opts {
-    /// Source reference: <contract_id>.contract/<path>
-    /// e.g. 46beb186cdf5...contract/README.md
+    /// Source contract ID
     #[clap(index = 1)]
-    source: String,
+    source_contract: String,
 
-    /// Contract directory (defaults to current directory)
+    /// Source path (e.g. /parties/alice.id)
+    #[clap(index = 2)]
+    source_path: String,
+
+    /// Dest path in this contract (default: /reposts/<source_id><source_path>)
+    #[clap(index = 3)]
+    dest_path: Option<String>,
+
+    /// Local directory of the source contract (skips hub fetch)
+    #[clap(long)]
+    from_dir: Option<PathBuf>,
+
+    /// Dest contract directory (defaults to current directory)
     #[clap(long)]
     dir: Option<PathBuf>,
-}
-
-/// Parse "abc123.contract/some/path" into (contract_id, path)
-fn parse_source(source: &str) -> Result<(String, String)> {
-    let idx = source.find(".contract/")
-        .ok_or_else(|| anyhow::anyhow!(
-            "Invalid source format. Expected: <contract_id>.contract/<path>\nExample: 46beb186cdf5.contract/README.md"
-        ))?;
-    let contract_id = &source[..idx];
-    let path = &source[idx + ".contract".len()..]; // includes leading /
-    if contract_id.is_empty() || path.len() <= 1 {
-        anyhow::bail!("Invalid source: contract ID and path must be non-empty");
-    }
-    Ok((contract_id.to_string(), path.to_string()))
 }
 
 pub async fn run(opts: &Opts) -> Result<()> {
@@ -37,63 +37,105 @@ pub async fn run(opts: &Opts) -> Result<()> {
         .clone()
         .unwrap_or_else(|| std::env::current_dir().unwrap());
     let store = ContractStore::open(&dir)?;
-    let config = store.load_config()?;
 
-    let (source_contract_id, source_path) = parse_source(&opts.source)?;
-
-    // Get the remote URL to determine the hub base
-    let remote = config.get_remote("origin").ok_or_else(|| {
-        anyhow::anyhow!("No 'origin' remote configured. Need hub URL to fetch from.")
-    })?;
-
-    // Extract hub base from remote URL (e.g. https://api.modalhub.com/contracts/abc -> https://api.modalhub.com)
-    let hub_base = if let Some(idx) = remote.url.find("/contracts/") {
-        &remote.url[..idx]
-    } else {
-        &remote.url
+    let source_path = normalize_abs_path(&opts.source_path, "source path")?;
+    let dest_path = match &opts.dest_path {
+        Some(path) => normalize_abs_path(path, "dest path")?,
+        None => default_repost_dest(&opts.source_contract, &source_path),
     };
 
-    // Fetch source contract state
-    println!(
-        "Fetching /{} from contract {}...",
-        source_path.trim_start_matches('/'),
-        &source_contract_id[..12.min(source_contract_id.len())]
-    );
+    let (value, source_commit) = if let Some(from_dir) = &opts.from_dir {
+        fetch_from_local(from_dir, &opts.source_contract, &source_path)?
+    } else {
+        fetch_from_hub(&store, &opts.source_contract, &source_path).await?
+    };
 
-    let client = reqwest::Client::new();
-    let state_url = format!("{}/contracts/{}/state", hub_base, source_contract_id);
-    let resp = client.get(&state_url).send().await?;
+    store.write_working_path(&dest_path, &value)?;
+    store.record_pending_repost(
+        &dest_path,
+        RepostProvenance {
+            source_contract: opts.source_contract.clone(),
+            source_path: source_path.clone(),
+            source_commit: source_commit.clone(),
+        },
+    )?;
 
-    if !resp.status().is_success() {
-        anyhow::bail!("Failed to fetch contract state: HTTP {}", resp.status());
-    }
-
-    let state_data: serde_json::Value = resp.json().await?;
-    let state = state_data.get("state").unwrap_or(&state_data);
-
-    let value = state
-        .get(&source_path)
-        .or_else(|| state.get(source_path.trim_start_matches('/')))
-        .ok_or_else(|| {
-            anyhow::anyhow!(
-                "Path '{}' not found in contract {}",
-                source_path,
-                source_contract_id
-            )
-        })?;
-
-    // Write to state/<contract_id>.contract/<path>
-    let dest_path = format!("/{}.contract{}", source_contract_id, source_path);
-    store.init_state_dir()?;
-    store.write_state(&dest_path, value)?;
-
-    println!("✅ Reposted to state{}", dest_path);
-    println!("   Source: {}", opts.source);
-    println!("   Value:  {}", truncate_display(value, 80));
+    println!("✅ Staged REPOST at {dest_path}");
+    println!("   Source: {}{} @ {source_commit}", opts.source_contract, source_path);
+    println!("   Value:  {}", truncate_display(&value, 80));
     println!();
     println!("Run 'modal commit --all' to commit this repost.");
 
     Ok(())
+}
+
+fn fetch_from_local(
+    from_dir: &PathBuf,
+    source_contract: &str,
+    source_path: &str,
+) -> Result<(serde_json::Value, String)> {
+    let source = ContractStore::open(from_dir)?;
+    let config = source.load_config()?;
+    if config.contract_id != source_contract {
+        anyhow::bail!(
+            "Source directory contract ID {} does not match {}",
+            config.contract_id,
+            source_contract
+        );
+    }
+    let source_commit = source
+        .get_head()?
+        .ok_or_else(|| anyhow!("Source contract has no HEAD"))?;
+    let state = source.build_state_from_commits()?;
+    let value = state
+        .get(source_path)
+        .cloned()
+        .ok_or_else(|| {
+            anyhow!("Path '{source_path}' not found in source contract {source_contract}")
+        })?;
+    Ok((value, source_commit))
+}
+
+async fn fetch_from_hub(
+    dest: &ContractStore,
+    source_contract: &str,
+    source_path: &str,
+) -> Result<(serde_json::Value, String)> {
+    let config = dest.load_config()?;
+    let remote = config.get_remote("origin").ok_or_else(|| {
+        anyhow!(
+            "No 'origin' remote configured. Pass --from-dir <source-contract> \
+             or set a hub origin to fetch from."
+        )
+    })?;
+    let client = HubClient::unauthenticated(&remote.url);
+    let contract = client.get_contract(source_contract).await?;
+    let source_commit = contract
+        .get("head")
+        .and_then(|h| h.as_str())
+        .ok_or_else(|| anyhow!("Hub response for {source_contract} has no head"))?
+        .to_string();
+    let paths = contract
+        .pointer("/state/paths")
+        .or_else(|| contract.get("paths"))
+        .ok_or_else(|| anyhow!("Hub response for {source_contract} has no state paths"))?;
+    let normalized = source_path.trim_start_matches('/');
+    let value = paths
+        .get(normalized)
+        .or_else(|| paths.get(source_path))
+        .cloned()
+        .ok_or_else(|| {
+            anyhow!("Path '{source_path}' not found in contract {source_contract}")
+        })?;
+    Ok((value, source_commit))
+}
+
+fn normalize_abs_path(path: &str, label: &str) -> Result<String> {
+    let path = path.trim();
+    if !path.starts_with('/') {
+        anyhow::bail!("{label} must start with '/', got: {path}");
+    }
+    Ok(path.to_string())
 }
 
 fn truncate_display(v: &serde_json::Value, max: usize) -> String {

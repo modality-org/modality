@@ -4,7 +4,7 @@ Modality contracts are append-only logs of commits. Each commit contains one or 
 
 ## POST
 
-The most common method - writes data to a path in the contract state.
+The most common method — writes data to a path in **this** contract's state.
 
 ```json
 {
@@ -13,6 +13,9 @@ The most common method - writes data to a path in the contract state.
   "value": "12D3KooWAbCdEfGhIjKlMnOpQrStUvWxYz..."
 }
 ```
+
+After the commit is accepted, formulas on this contract can name that path
+(`signed_by(/users/alice.id)`, `text_eq`, `state_exists`, …).
 
 ### Path Types
 
@@ -67,70 +70,55 @@ Rules must have paths ending in `.modality`.
 
 ## REPOST
 
-Copies data from another contract into a local namespace. This enables cross-contract data sharing while maintaining clear provenance.
+Copies a **snapshot** of another contract's value into this contract so later
+rules can name it like any other path. It is not a live pointer: later updates
+on the source do not change this contract until you REPOST again.
 
 ```json
 {
   "method": "repost",
-  "path": "$abc123def:/announcements/latest.text",
-  "value": "Hello from the other contract!"
+  "path": "/reposts/abc123def456/announcements/latest.text",
+  "value": "Hello from the other contract!",
+  "source_contract": "abc123def456",
+  "source_path": "/announcements/latest.text",
+  "source_commit": "a1b2c3..."
 }
 ```
 
-### Path Format
+- `path` — dest path in **this** contract (a normal `/...` path). Default dest
+  is `/reposts/<source_id><source_path>`. Choose a path like
+  `/parties/alice.id` when the imported value should *be* that identity.
+- `value` — bytes copied from the source.
+- `source_contract`, `source_path`, `source_commit` — provenance. The hub
+  checks that the source contract at `source_commit` has `value` at
+  `source_path`.
 
-REPOST paths use a special namespace format:
+After accept, dest is ordinary accepted state. Example: REPOST Alice's key to
+`/parties/alice.id`, then `signed_by(/parties/alice.id)` works. Method label
+is `+REPOST` (not `+POST`). `modifies(dest)` matches. `post_to_path` stays
+POST-only. Models that only allow `+POST` must also allow `+REPOST` (or an
+unlabeled write loop) before import commits will pass.
 
-```
-$<source_contract_id>:/<remote_path>
-```
+### Working tree
 
-- `$` - Indicates this is reposted (external) data
-- `<source_contract_id>` - The contract ID where the data originated
-- `:` - Separator
-- `/<remote_path>` - The original path in the source contract
-
-### Local Storage
-
-Reposted data is stored locally in the `reposts/` directory:
-
-```
-reposts/
-  <contract_id>/
-    <path>/
-      file.ext
-```
+Default dest files live under `reposts/<source_id>/...`. Custom dests live
+under `state/` like POST. `modal commit --all` emits `method: "repost"` for
+paths staged by `modal repost`.
 
 ### CLI Usage
 
 ```bash
-# Repost data from another contract
-modal contract repost \
-  --from-contract abc123def456 \
-  --from-path /announcements/latest.text \
-  --value "The announcement content"
+# Default dest /reposts/<source_id>/announcements/latest.text
+modal repost abc123def456 /announcements/latest.text
 
-# With custom destination path
-modal contract repost \
-  --from-contract abc123def456 \
-  --from-path /data/config.json \
-  --to-path '$abc123def456:/imported/config.json' \
-  --value '{"setting": "value"}'
+# Custom dest so formulas can say signed_by(/parties/alice.id)
+modal repost abc123def456 /parties/alice.id /parties/alice.id
 
-# Signed repost
-modal contract repost \
-  --from-contract abc123def456 \
-  --from-path /messages/hello.text \
-  --value "Hello!" \
-  --sign alice.passfile
+# Source is a local contract directory (no hub)
+modal repost abc123def456 /notes/hello.text --from-dir ../source-contract
+
+modal commit --all
 ```
-
-### Use Cases
-
-1. **Cross-contract references**: Include data from one contract in another's state
-2. **Data mirroring**: Keep a local copy of important external data
-3. **Audit trails**: Track the provenance of imported data
-4. **Agent coordination**: Share information between contracts managed by different agents
 
 ## CREATE
 

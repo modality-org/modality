@@ -127,4 +127,92 @@ mod tests {
 
         Ok(())
     }
+
+    #[tokio::test]
+    async fn repost_from_local_dir_commits_as_repost() -> anyhow::Result<()> {
+        let temp_dir = TempDir::new()?;
+        let source_dir = temp_dir.path().join("source");
+        let dest_dir = temp_dir.path().join("dest");
+        let source_dir_arg = source_dir.to_string_lossy().to_string();
+        let dest_dir_arg = dest_dir.to_string_lossy().to_string();
+
+        crate::create::run(&crate::create::Opts::parse_from([
+            "create",
+            "--dir",
+            source_dir_arg.as_str(),
+            "--output",
+            "json",
+        ]))
+        .await?;
+        crate::create::run(&crate::create::Opts::parse_from([
+            "create",
+            "--dir",
+            dest_dir_arg.as_str(),
+            "--output",
+            "json",
+        ]))
+        .await?;
+
+        let source_store = ContractStore::open(&source_dir)?;
+        let source_id = source_store.load_config()?.contract_id;
+
+        crate::set::run(&crate::set::Opts::parse_from([
+            "set",
+            "/notes/hello.text",
+            "hello from source",
+            "--dir",
+            source_dir_arg.as_str(),
+        ]))
+        .await?;
+        crate::commit::run(&crate::commit::Opts::parse_from([
+            "commit",
+            "--all",
+            "--dir",
+            source_dir_arg.as_str(),
+            "--output",
+            "json",
+        ]))
+        .await?;
+
+        crate::repost::run(&crate::repost::Opts::parse_from([
+            "repost",
+            source_id.as_str(),
+            "/notes/hello.text",
+            "--from-dir",
+            source_dir_arg.as_str(),
+            "--dir",
+            dest_dir_arg.as_str(),
+        ]))
+        .await?;
+
+        crate::commit::run(&crate::commit::Opts::parse_from([
+            "commit",
+            "--all",
+            "--dir",
+            dest_dir_arg.as_str(),
+            "--output",
+            "json",
+        ]))
+        .await?;
+
+        let dest_store = ContractStore::open(&dest_dir)?;
+        let head = dest_store.get_head()?.expect("dest should have HEAD");
+        let commit = dest_store.load_commit(&head)?;
+        let repost = commit
+            .body
+            .iter()
+            .find(|action| action.method == "repost")
+            .expect("commit --all should emit method repost");
+        let expected_dest = format!("/reposts/{source_id}/notes/hello.text");
+        assert_eq!(repost.path.as_deref(), Some(expected_dest.as_str()));
+        assert_eq!(repost.source_contract.as_deref(), Some(source_id.as_str()));
+        assert_eq!(repost.source_path.as_deref(), Some("/notes/hello.text"));
+        assert!(repost.source_commit.is_some());
+        assert_eq!(
+            dest_store.build_state_from_commits()?.get(&expected_dest),
+            Some(&Value::String("hello from source".to_string()))
+        );
+
+        Ok(())
+    }
 }

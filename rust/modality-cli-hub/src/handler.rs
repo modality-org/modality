@@ -243,93 +243,62 @@ impl HubHandler {
         Value::Object(state)
     }
 
-    /// Validate a REPOST commit against source contract
+    /// Validate a REPOST commit against the pinned source commit
     async fn validate_repost(&self, commit_body: &Value) -> Result<(), RpcError> {
         let actions = commit_body.as_array()
             .ok_or_else(|| RpcError::InvalidParams("Commit body must be an array".to_string()))?;
+        let contracts = self.contracts.read().await;
 
         for action in actions {
             let method = action.get("method")
                 .and_then(|m| m.as_str())
                 .unwrap_or("")
                 .to_lowercase();
-
             if method != "repost" {
                 continue;
             }
 
-            let path = action.get("path")
-                .and_then(|p| p.as_str())
-                .ok_or_else(|| RpcError::InvalidParams("REPOST missing path".to_string()))?;
+            let spec = modality_common::contract_store::parse_repost_json(action)
+                .map_err(|e| RpcError::InvalidParams(e.to_string()))?;
 
-            let value = action.get("value")
-                .ok_or_else(|| RpcError::InvalidParams("REPOST missing value".to_string()))?;
-
-            // Parse repost path: $source_contract_id:/remote/path
-            let (source_contract_id, remote_path) = self.parse_repost_path(path)?;
-
-            // Get source contract
-            let contracts = self.contracts.read().await;
-            let source = contracts.get(&source_contract_id)
+            let source = contracts.get(&spec.source_contract)
                 .ok_or_else(|| RpcError::Custom {
                     code: -32010,
-                    message: format!("REPOST rejected: source contract '{}' not found", source_contract_id),
+                    message: format!("REPOST rejected: source contract '{}' not found", spec.source_contract),
                 })?;
 
-            // Build source state
-            let source_state = self.build_state(&source.commits);
-
-            // Get value at remote path
-            let normalized_path = remote_path.trim_start_matches('/');
+            let through = source.commits.iter().position(|c| c.hash == spec.source_commit)
+                .ok_or_else(|| RpcError::Custom {
+                    code: -32013,
+                    message: format!(
+                        "REPOST rejected: source_commit '{}' is not on the source chain",
+                        spec.source_commit
+                    ),
+                })?;
+            let source_state = self.build_state(&source.commits[..=through]);
+            let normalized_path = spec.source_path.trim_start_matches('/');
             let source_value = source_state.get(normalized_path)
-                .or_else(|| source_state.get(&remote_path))
+                .or_else(|| source_state.get(&spec.source_path))
                 .ok_or_else(|| RpcError::Custom {
                     code: -32011,
                     message: format!(
                         "REPOST rejected: path '{}' not found in source contract '{}'",
-                        remote_path, source_contract_id
+                        spec.source_path, spec.source_contract
                     ),
                 })?;
 
-            // Compare values
-            if source_value != value {
+            if !modality_common::contract_store::json_values_equal(source_value, &spec.value) {
                 return Err(RpcError::Custom {
                     code: -32012,
                     message: format!(
-                        "REPOST rejected: value does not match source contract's latest at '{}'",
-                        remote_path
+                        "REPOST rejected: value does not match source contract's value at '{}'",
+                        spec.source_path
                     ),
                 });
             }
         }
 
         Ok(())
-    }
-
-    fn parse_repost_path(&self, path: &str) -> Result<(String, String), RpcError> {
-        if !path.starts_with('$') {
-            return Err(RpcError::InvalidParams(
-                format!("REPOST path must start with '$', got: {}", path)
-            ));
-        }
-
-        let colon_pos = path.find(":/")
-            .ok_or_else(|| RpcError::InvalidParams(
-                format!("REPOST path must contain ':/', got: {}", path)
-            ))?;
-
-        let contract_id = &path[1..colon_pos];
-        let remote_path = &path[colon_pos + 1..];
-
-        if contract_id.is_empty() {
-            return Err(RpcError::InvalidParams("REPOST path has empty contract_id".to_string()));
-        }
-
-        if remote_path.is_empty() || !remote_path.starts_with('/') {
-            return Err(RpcError::InvalidParams("REPOST remote path must start with '/'".to_string()));
-        }
-
-        Ok((contract_id.to_string(), remote_path.to_string()))
     }
 
     fn compute_commit_hash(&self, body: &Value, head: &Value) -> String {

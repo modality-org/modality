@@ -21,8 +21,8 @@ pub struct Opts {
     #[clap(long)]
     pub dir: Option<PathBuf>,
 
-    /// Node type to run: miner, observer, validator, or server (default: determined by config)
-    #[clap(long, value_parser = ["miner", "observer", "validator", "server"])]
+    /// Node type to run: miner, hybrid, observer, validator, or server (default: determined by config)
+    #[clap(long, value_parser = ["miner", "hybrid", "observer", "validator", "server"])]
     pub node_type: Option<String>,
 }
 
@@ -87,6 +87,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
     // Build the command based on node type
     let run_command = match node_type.as_str() {
         "miner" => "run-miner",
+        "hybrid" => "run-hybrid",
         "observer" => "run-observer",
         "validator" => "run-validator",
         "server" => "run",
@@ -104,6 +105,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
     // Always pass the resolved directory
     args.push("--dir".to_string());
     args.push(node_dir.to_string_lossy().to_string());
+    args.push("--no-tui".to_string());
 
     println!("Starting {} in background...", node_type);
 

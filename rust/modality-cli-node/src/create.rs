@@ -116,6 +116,40 @@ pub struct Opts {
     pub from_template: Option<String>,
 }
 
+impl Opts {
+    /// Defaults matching `node create --dir <dir>` with no extra flags.
+    pub fn for_dir(dir: PathBuf) -> Self {
+        Self {
+            dir: Some(dir),
+            node_id: None,
+            data_dir: "./data".to_string(),
+            bootstrappers: None,
+            use_mnemonic: false,
+            mnemonic_words: 12,
+            mnemonic_phrase: None,
+            account: 0,
+            change: 0,
+            index: 0,
+            passphrase: None,
+            no_store_mnemonic: false,
+            logs_enabled: None,
+            log_level: "info".to_string(),
+            bootup_enabled: None,
+            bootup_minimum_genesis_timestamp: None,
+            bootup_prune_old_genesis_blocks: None,
+            network: None,
+            testnet: false,
+            enable_autoupgrade: false,
+            autoupgrade_base_url: None,
+            autoupgrade_branch: None,
+            autoupgrade_check_interval_secs: None,
+            from_config: None,
+            from_passfile: None,
+            from_template: None,
+        }
+    }
+}
+
 pub async fn run(opts: &Opts) -> Result<()> {
     // Handle --from-template by loading passfile and config from modality-networks
     let (template_passfile_content, template_config_content, template_network) = if let Some(template) = &opts.from_template {

@@ -17,7 +17,7 @@ local validator path.
 
 | Fact | Evidence source | Current-state rule |
 |------|-----------------|--------------------|
-| `+POST`, `+MODEL`, and other method labels | Pending commit body methods | Checked on the pending commit |
+| `+POST`, `+REPOST`, `+MODEL`, and other method labels | Pending commit body methods | Checked on the pending commit |
 | `signed_by(/path.id)` | Pending commit signatures plus the public key string at `/path.id` in accepted state | Reads previously committed state, not values written by the same commit |
 | `any_signed(/path)` | Pending commit signatures plus every accepted-state `*.id` file at `/path` or descendants | At least one listed identity must sign |
 | `all_signed(/path)` | Pending commit signatures plus every accepted-state `*.id` file at `/path` or descendants | The path must contain at least one identity, and every listed identity must sign |
@@ -42,7 +42,7 @@ currently enforced by the local first-contract validator.
 
 | Predicate family | Local first-contract validator | Notes |
 |------------------|--------------------------------|-------|
-| Method labels such as `+POST` and `+MODEL` | Enforced | Derived from pending commit body methods |
+| Method labels such as `+POST`, `+REPOST`, and `+MODEL` | Enforced | Derived from pending commit body methods |
 | `signed_by`, `any_signed`, `all_signed`, `threshold`, `modifies`, `post_to_path`, `has_property`, `state_exists`, `text_eq`, `amount_in_range`, `num_eq`, `num_gt`, `num_gte`, `num_lt`, `num_lte`, `bool_true`, `bool_false` | Enforced | Derived from pending signatures, accepted state, pending methods, pending paths, accepted-state path existence, accepted-state JSON, accepted-state text, accepted-state numbers, and accepted-state booleans |
 | `timestamp_valid` | Unit-tested extension module only | Implemented in `modality-wasm-validation`; not yet replay evidence for the local first-contract validator |
 | `before`, `after`, other state-value predicates, hash predicates, `oracle_attests`, and `wasm` | Not first-contract-local yet | Intended extension vocabulary; treat as external or future predicate checks unless a validator path explicitly documents support |

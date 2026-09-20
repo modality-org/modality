@@ -69,6 +69,10 @@ pub async fn run(node: &mut Node) -> Result<()> {
     
     // Wait for connections to peers
     node.wait_for_connections().await?;
+    if node.is_shutdown_requested() {
+        node.wait_for_shutdown().await?;
+        return Ok(());
+    }
     
     // Sync from peers on startup if bootstrappers are configured
     if !node.bootstrappers.is_empty() {

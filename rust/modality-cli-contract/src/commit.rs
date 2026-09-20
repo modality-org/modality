@@ -97,6 +97,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
         CommitFile::new()
     };
     commit.head.message = opts.message.clone();
+    let mut committed_repost_dests: Vec<String> = Vec::new();
 
     // Handle --all flag: commit all changes from state + rules directories
     if opts.all {
@@ -104,11 +105,15 @@ pub async fn run(opts: &Opts) -> Result<()> {
         let state_files = store.list_state_files()?;
         let rules_files = store.list_rules_files()?;
         let accepted_model = accepted_model_content(&store)?;
+        let pending_reposts = store.load_pending_reposts()?;
 
         let mut changes = 0;
 
-        // Add/modify state files
+        // Add/modify state files (skip dests staged as REPOST)
         for path in &state_files {
+            if pending_reposts.contains_key(path) {
+                continue;
+            }
             if let Some(current_value) = store.read_state(path)? {
                 let is_new = !committed.contains_key(path);
                 let is_modified = committed
@@ -121,6 +126,43 @@ pub async fn run(opts: &Opts) -> Result<()> {
                     changes += 1;
                 }
             }
+        }
+
+        for path in store.list_repost_files()? {
+            if pending_reposts.contains_key(&path) {
+                continue;
+            }
+            if let Some(current_value) = store.read_working_path(&path)? {
+                if committed.get(&path) != Some(&current_value) {
+                    anyhow::bail!(
+                        "Changed repost {path} has no provenance. Run `modal repost` to refresh it."
+                    );
+                }
+            }
+        }
+
+        for (dest_path, provenance) in &pending_reposts {
+            let current_value = store
+                .read_working_path(dest_path)?
+                .ok_or_else(|| {
+                    anyhow::anyhow!("Staged REPOST dest {dest_path} is missing from the working tree")
+                })?;
+            let is_new = !committed.contains_key(dest_path);
+            let is_modified = committed
+                .get(dest_path)
+                .map(|v| v != &current_value)
+                .unwrap_or(false);
+            if is_new || is_modified {
+                commit.add_repost(
+                    dest_path.clone(),
+                    current_value,
+                    provenance.source_contract.clone(),
+                    provenance.source_path.clone(),
+                    provenance.source_commit.clone(),
+                );
+                changes += 1;
+            }
+            committed_repost_dests.push(dest_path.clone());
         }
 
         // Add/modify rule files
@@ -153,6 +195,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
         }
 
         if changes == 0 {
+            store.clear_pending_reposts(&committed_repost_dests)?;
             println!("Nothing to commit (working directories match committed state).");
             return Ok(());
         }
@@ -267,6 +310,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
 
     // Update HEAD
     store.set_head(&commit_id)?;
+    store.clear_pending_reposts(&committed_repost_dests)?;
 
     // Output
     if opts.output == "json" {

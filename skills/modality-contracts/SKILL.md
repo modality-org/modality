@@ -85,6 +85,7 @@ Without a satisfying model → rejected. Prevents deadlock from unsatisfiable ru
 | Method | Purpose |
 |--------|---------|
 | `POST` | Write data to a state path |
+| `REPOST` | Snapshot another contract's value into a dest path (then formulas can name it) |
 | `DELETE` | Remove a state path |
 | `MODEL` | Set/replace the governing model |
 | `RULE` | Add a permanent rule (needs witness) |

@@ -15,6 +15,15 @@ pub struct CommitAction {
     pub method: String,
     pub path: Option<String>,
     pub value: Value,
+    /// Source contract ID for REPOST. Omitted for other methods.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_contract: Option<String>,
+    /// Source path on that contract for REPOST.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_path: Option<String>,
+    /// Source commit that contained `value` at `source_path`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_commit: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -77,6 +86,28 @@ impl CommitFile {
             method,
             path,
             value,
+            source_contract: None,
+            source_path: None,
+            source_commit: None,
+        });
+    }
+
+    /// Snapshot a value from another contract into `dest_path`.
+    pub fn add_repost(
+        &mut self,
+        dest_path: String,
+        value: Value,
+        source_contract: String,
+        source_path: String,
+        source_commit: String,
+    ) {
+        self.body.push(CommitAction {
+            method: "repost".to_string(),
+            path: Some(dest_path),
+            value,
+            source_contract: Some(source_contract),
+            source_path: Some(source_path),
+            source_commit: Some(source_commit),
         });
     }
 
@@ -262,58 +293,22 @@ impl CommitAction {
     }
 
     fn validate_repost(&self) -> Result<()> {
-        // REPOST copies data from another contract into a local namespace
-        // Path format: $contract_id:/path/to/data.ext
-        // Example: $abc123def456:/announcements/latest.text
-        let path = self
-            .path
-            .as_ref()
-            .ok_or_else(|| anyhow::anyhow!("REPOST action requires a path"))?;
-
-        // Must start with $ to indicate external contract namespace
-        if !path.starts_with('$') {
+        let spec = parse_repost_action(self)?;
+        if !has_known_extension(&spec.dest_path) {
             anyhow::bail!(
-                "REPOST path must start with '$' to indicate source contract namespace, got: {}",
-                path
-            );
-        }
-
-        // Must contain :/ separator between contract_id and path
-        let colon_pos = path.find(":/").ok_or_else(|| {
-            anyhow::anyhow!(
-                "REPOST path must be in format $contract_id:/path, got: {}",
-                path
-            )
-        })?;
-
-        // Extract and validate contract_id (between $ and :)
-        let contract_id = &path[1..colon_pos];
-        if contract_id.is_empty() {
-            anyhow::bail!("REPOST path has empty contract_id");
-        }
-
-        // Extract and validate the remote path (after :)
-        let remote_path = &path[colon_pos + 1..];
-        if remote_path.is_empty() || !remote_path.starts_with('/') {
-            anyhow::bail!(
-                "REPOST remote path must start with '/', got: {}",
-                remote_path
-            );
-        }
-
-        // Validate the remote path has a known extension
-        let has_known_ext = KNOWN_EXTENSIONS
-            .iter()
-            .any(|ext| remote_path.ends_with(ext));
-        if !has_known_ext {
-            anyhow::bail!(
-                "REPOST remote path '{}' must end with a known extension: {}",
-                remote_path,
+                "REPOST dest path '{}' must end with a known extension: {}",
+                spec.dest_path,
                 KNOWN_EXTENSIONS.join(", ")
             );
         }
-
-        Ok(())
+        if !has_known_extension(&spec.source_path) {
+            anyhow::bail!(
+                "REPOST source path '{}' must end with a known extension: {}",
+                spec.source_path,
+                KNOWN_EXTENSIONS.join(", ")
+            );
+        }
+        self.validate_value_for_type()
     }
 
     fn validate_create(&self) -> Result<()> {
@@ -442,6 +437,146 @@ impl Default for CommitFile {
     fn default() -> Self {
         Self::new()
     }
+}
+
+pub(crate) fn has_known_extension(path: &str) -> bool {
+    KNOWN_EXTENSIONS.iter().any(|ext| path.ends_with(ext))
+}
+
+/// Snapshot REPOST: dest path in this contract plus provenance of the source.
+#[derive(Debug, Clone)]
+pub struct RepostAction {
+    pub dest_path: String,
+    pub value: Value,
+    pub source_contract: String,
+    pub source_path: String,
+    pub source_commit: String,
+}
+
+/// Parse a REPOST commit action (struct form).
+pub fn parse_repost_action(action: &CommitAction) -> Result<RepostAction> {
+    parse_repost_fields(
+        action.path.as_deref(),
+        action.value.clone(),
+        action.source_contract.as_deref(),
+        action.source_path.as_deref(),
+        action.source_commit.as_deref(),
+    )
+}
+
+/// Parse a REPOST action from JSON (hub / network body).
+pub fn parse_repost_json(action: &Value) -> Result<RepostAction> {
+    let path = action.get("path").and_then(|v| v.as_str());
+    let value = action
+        .get("value")
+        .cloned()
+        .ok_or_else(|| anyhow::anyhow!("REPOST action missing value"))?;
+    let source_contract = action.get("source_contract").and_then(|v| v.as_str());
+    let source_path = action.get("source_path").and_then(|v| v.as_str());
+    let source_commit = action.get("source_commit").and_then(|v| v.as_str());
+    parse_repost_fields(path, value, source_contract, source_path, source_commit)
+}
+
+fn parse_repost_fields(
+    path: Option<&str>,
+    value: Value,
+    source_contract: Option<&str>,
+    source_path: Option<&str>,
+    source_commit: Option<&str>,
+) -> Result<RepostAction> {
+    let path = path.ok_or_else(|| anyhow::anyhow!("REPOST action requires a dest path"))?;
+
+    let (source_contract, source_path, dest_path) =
+        if source_contract.is_none() && path.starts_with('$') {
+            let (src, src_path) = parse_legacy_dollar_repost_path(path)?;
+            let dest = default_repost_dest(src, src_path);
+            (src.to_string(), src_path.to_string(), dest)
+        } else {
+            let dest = normalize_abs_path(path, "REPOST dest path")?;
+            let src = source_contract
+                .map(str::trim)
+                .filter(|s| !s.is_empty())
+                .ok_or_else(|| anyhow::anyhow!("REPOST requires source_contract"))?;
+            let src_path = source_path.ok_or_else(|| anyhow::anyhow!("REPOST requires source_path"))?;
+            let src_path = normalize_abs_path(src_path, "REPOST source path")?;
+            (src.to_string(), src_path, dest)
+        };
+
+    let source_commit = source_commit
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .ok_or_else(|| anyhow::anyhow!("REPOST requires source_commit"))?
+        .to_string();
+
+    Ok(RepostAction {
+        dest_path,
+        value,
+        source_contract,
+        source_path,
+        source_commit,
+    })
+}
+
+/// Default dest path: `/reposts/<source_id><source_path>`.
+pub fn default_repost_dest(source_contract: &str, source_path: &str) -> String {
+    let path = source_path.trim();
+    let path = if path.starts_with('/') {
+        path.to_string()
+    } else {
+        format!("/{path}")
+    };
+    format!("/reposts/{}{path}", source_contract.trim())
+}
+
+pub fn is_repost_working_path(path: &str) -> bool {
+    path.starts_with("/reposts/")
+}
+
+/// Compare posted/reposted JSON values, treating stringified scalars as equal.
+pub fn json_values_equal(left: &Value, right: &Value) -> bool {
+    if left == right {
+        return true;
+    }
+    value_as_compare_string(left) == value_as_compare_string(right)
+}
+
+fn value_as_compare_string(value: &Value) -> String {
+    match value {
+        Value::String(s) => s.clone(),
+        Value::Bool(b) => b.to_string(),
+        Value::Number(n) => n.to_string(),
+        other => other.to_string(),
+    }
+}
+
+fn normalize_abs_path(path: &str, label: &str) -> Result<String> {
+    let path = path.trim();
+    if !path.starts_with('/') {
+        anyhow::bail!("{label} must start with '/', got: {path}");
+    }
+    if path == "/" {
+        anyhow::bail!("{label} must not be '/'");
+    }
+    Ok(path.to_string())
+}
+
+/// Legacy `$source_id:/remote/path` used only as a parse shim.
+pub fn parse_legacy_dollar_repost_path(path: &str) -> Result<(&str, &str)> {
+    if !path.starts_with('$') {
+        anyhow::bail!("Legacy REPOST path must start with '$', got: {}", path);
+    }
+    let colon_pos = path
+        .find(":/")
+        .ok_or_else(|| anyhow::anyhow!("Legacy REPOST path must contain ':/', got: {}", path))?;
+    let contract_id = &path[1..colon_pos];
+    let remote_path = &path[colon_pos + 1..];
+    if contract_id.is_empty() {
+        anyhow::bail!("Legacy REPOST path has empty contract_id");
+    }
+    if remote_path.is_empty() || !remote_path.starts_with('/') {
+        anyhow::bail!("Legacy REPOST remote path must start with '/'");
+    }
+    Ok((contract_id, remote_path))
 }
 
 /// Validate date string is in YYYY-MM-DD format

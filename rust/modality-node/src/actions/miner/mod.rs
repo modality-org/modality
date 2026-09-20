@@ -46,8 +46,13 @@ pub async fn run(node: &mut Node) -> Result<()> {
     // Validate and repair chain integrity before starting mining
     validate_chain_before_mining(node).await;
     
-    // Set up channels and shared state
-    let shutdown = Arc::new(AtomicBool::new(false));
+    // Set up channels and shared state. Reuse a flag attached before run()
+    // (the TUI creates one so `q` can stop mining).
+    let shutdown = node
+        .mining_shutdown
+        .clone()
+        .unwrap_or_else(|| Arc::new(AtomicBool::new(false)));
+    node.mining_shutdown = Some(shutdown.clone());
     let (mining_update_tx, mining_update_rx) = tokio::sync::mpsc::unbounded_channel::<u64>();
     node.mining_update_tx = Some(mining_update_tx.clone());
     
@@ -139,6 +144,11 @@ pub async fn run(node: &mut Node) -> Result<()> {
     if !node.bootstrappers.is_empty() {
         log::info!("Waiting for peer connections...");
         node.wait_for_connections().await?;
+        if node.is_shutdown_requested() {
+            node.wait_for_shutdown().await?;
+            log::info!("🛑 Miner shutdown complete");
+            return Ok(());
+        }
         
         log::info!("Announcing our chain to connected peers...");
         if let Err(e) = sync_helpers::announce_chain_tip(node).await {
@@ -154,9 +164,6 @@ pub async fn run(node: &mut Node) -> Result<()> {
     }
     
     log::info!("Starting miner...");
-    
-    // Store shutdown flag
-    node.mining_shutdown = Some(shutdown.clone());
     
     // Start auto-healing task
     background_tasks::start_auto_healing_task(

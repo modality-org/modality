@@ -88,6 +88,8 @@ pub struct GetContractResponse {
     pub commit_count: u64,
     pub created_at: u64,
     pub updated_at: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub head: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -431,6 +433,7 @@ impl HubCore {
             commit_count: contract.commits.len() as u64,
             created_at: contract.created_at,
             updated_at: contract.commits.last().map(|c| c.timestamp).unwrap_or(0),
+            head: contract.head.clone(),
         })
     }
 
@@ -1314,25 +1317,29 @@ impl HubCore {
     ) -> Result<(), HubError> {
         let contracts = self.contracts.read().await;
 
-        if let Some(contract) = contracts.get(contract_id) {
-            // Validate MODEL commits against existing rules
-            if let Some(actions) = body.as_array() {
-                for action in actions {
-                    let method = action
-                        .get("method")
-                        .and_then(|m| m.as_str())
-                        .unwrap_or("")
-                        .to_lowercase();
+        if let Some(actions) = body.as_array() {
+            for action in actions {
+                let method = action
+                    .get("method")
+                    .and_then(|m| m.as_str())
+                    .unwrap_or("")
+                    .to_lowercase();
 
-                    if method.as_str() == "model" {
+                if method == "repost" {
+                    self.validate_repost_action(action, &contracts)?;
+                }
+
+                if method == "model" {
+                    if let Some(contract) = contracts.get(contract_id) {
                         let model_content =
                             action.get("value").and_then(|v| v.as_str()).unwrap_or("");
                         self.validate_model(contract_id, model_content, &contract.commits)?;
                     }
                 }
             }
+        }
 
-            // Validate signature predicates if rules exist
+        if let Some(contract) = contracts.get(contract_id) {
             if !contract.rules.is_empty() {
                 self.validate_signature_predicates(
                     contract_id,
@@ -1342,6 +1349,54 @@ impl HubCore {
                     &contract.commits,
                 )?;
             }
+        }
+
+        Ok(())
+    }
+
+    fn validate_repost_action(
+        &self,
+        action: &Value,
+        contracts: &HashMap<String, ContractData>,
+    ) -> Result<(), HubError> {
+        use modality_common::contract_store::{json_values_equal, parse_repost_json};
+
+        let spec = parse_repost_json(action).map_err(|e| HubError::InvalidRequest(e.to_string()))?;
+        let source = contracts.get(&spec.source_contract).ok_or_else(|| {
+            HubError::ValidationFailed(format!(
+                "REPOST rejected: source contract '{}' not found",
+                spec.source_contract
+            ))
+        })?;
+
+        let through = source
+            .commits
+            .iter()
+            .position(|c| c.hash == spec.source_commit)
+            .ok_or_else(|| {
+                HubError::ValidationFailed(format!(
+                    "REPOST rejected: source_commit '{}' is not on the source chain",
+                    spec.source_commit
+                ))
+            })?;
+        let prefix = &source.commits[..=through];
+        let source_state = self.build_state(prefix);
+        let normalized = spec.source_path.trim_start_matches('/');
+        let source_value = source_state
+            .get(normalized)
+            .or_else(|| source_state.get(&spec.source_path))
+            .ok_or_else(|| {
+                HubError::ValidationFailed(format!(
+                    "REPOST rejected: path '{}' not found in source contract '{}'",
+                    spec.source_path, spec.source_contract
+                ))
+            })?;
+
+        if !json_values_equal(source_value, &spec.value) {
+            return Err(HubError::ValidationFailed(format!(
+                "REPOST rejected: value does not match source contract '{}' at '{}' (commit {})",
+                spec.source_contract, spec.source_path, spec.source_commit
+            )));
         }
 
         Ok(())
@@ -2083,5 +2138,151 @@ export default rule {
 
         // Check prompt was included
         assert!(resp.prompt.is_some());
+    }
+
+    async fn push_action(
+        core: &HubCore,
+        contract_id: &str,
+        action: Value,
+    ) -> Result<PushCommitsResponse, HubError> {
+        let parent = core.get_contract(contract_id).await.unwrap().head;
+        let body = json!([action]);
+        let head = json!({ "parent": parent });
+        core.push_commits(
+            contract_id,
+            vec![PushCommitItem {
+                hash: None,
+                parent,
+                body: Some(body),
+                head: Some(head),
+                timestamp: None,
+            }],
+        )
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_repost_happy_path_and_prefix() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let core = HubCore::new(temp_dir.path().to_path_buf());
+
+        let source = core
+            .create_contract(CreateContractRequest {
+                template: None,
+                params: None,
+                model: None,
+                rules: None,
+            })
+            .await
+            .unwrap();
+        let dest = core
+            .create_contract(CreateContractRequest {
+                template: None,
+                params: None,
+                model: None,
+                rules: None,
+            })
+            .await
+            .unwrap();
+
+        push_action(
+            &core,
+            &source.contract_id,
+            json!({
+                "method": "post",
+                "path": "/notes/hello.text",
+                "value": "hi"
+            }),
+        )
+        .await
+        .unwrap();
+        let source_head = core.get_contract(&source.contract_id).await.unwrap().head.unwrap();
+
+        push_action(
+            &core,
+            &dest.contract_id,
+            json!({
+                "method": "repost",
+                "path": format!("/reposts/{}/notes/hello.text", source.contract_id),
+                "value": "hi",
+                "source_contract": source.contract_id,
+                "source_path": "/notes/hello.text",
+                "source_commit": source_head
+            }),
+        )
+        .await
+        .unwrap();
+
+        let dest_state = core.get_state(&dest.contract_id).await.unwrap();
+        let dest_key = format!("reposts/{}/notes/hello.text", source.contract_id);
+        assert_eq!(dest_state.paths.get(&dest_key), Some(&json!("hi")));
+    }
+
+    #[tokio::test]
+    async fn test_repost_rejects_mismatch_and_missing_source() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let core = HubCore::new(temp_dir.path().to_path_buf());
+
+        let source = core
+            .create_contract(CreateContractRequest {
+                template: None,
+                params: None,
+                model: None,
+                rules: None,
+            })
+            .await
+            .unwrap();
+        let dest = core
+            .create_contract(CreateContractRequest {
+                template: None,
+                params: None,
+                model: None,
+                rules: None,
+            })
+            .await
+            .unwrap();
+
+        push_action(
+            &core,
+            &source.contract_id,
+            json!({
+                "method": "post",
+                "path": "/notes/hello.text",
+                "value": "hi"
+            }),
+        )
+        .await
+        .unwrap();
+        let source_head = core.get_contract(&source.contract_id).await.unwrap().head.unwrap();
+
+        let mismatch = push_action(
+            &core,
+            &dest.contract_id,
+            json!({
+                "method": "repost",
+                "path": "/imported/hello.text",
+                "value": "nope",
+                "source_contract": source.contract_id,
+                "source_path": "/notes/hello.text",
+                "source_commit": source_head
+            }),
+        )
+        .await;
+        assert!(mismatch.is_err(), "mismatched value should fail");
+
+        let missing = push_action(
+            &core,
+            &dest.contract_id,
+            json!({
+                "method": "repost",
+                "path": "/imported/hello.text",
+                "value": "hi",
+                "source_contract": "does-not-exist",
+                "source_path": "/notes/hello.text",
+                "source_commit": "nope"
+            }),
+        )
+        .await;
+        assert!(missing.is_err(), "missing source should fail");
     }
 }

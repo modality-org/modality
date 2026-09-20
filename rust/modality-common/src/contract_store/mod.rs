@@ -7,9 +7,15 @@ pub mod refs;
 mod tests;
 
 use anyhow::Result;
+use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
-pub use commit_file::{CommitFile, RuleForThisCommit};
+pub use commit_file::{
+    default_repost_dest, is_repost_working_path, json_values_equal, parse_legacy_dollar_repost_path,
+    parse_repost_action, parse_repost_json, CommitAction, CommitFile, RepostAction,
+    RuleForThisCommit,
+};
 pub use config::ContractConfig;
 pub use one_step_rule::{
     evaluate_formula, parse_formula, parse_signatures, validate_rule_for_this_commit,
@@ -17,29 +23,12 @@ pub use one_step_rule::{
 };
 pub use refs::Refs;
 
-/// Parse a repost path in format $contract_id:/remote/path
-/// Returns (contract_id, remote_path)
-pub fn parse_repost_path(path: &str) -> Result<(&str, &str)> {
-    if !path.starts_with('$') {
-        anyhow::bail!("Repost path must start with '$', got: {}", path);
-    }
-
-    let colon_pos = path
-        .find(":/")
-        .ok_or_else(|| anyhow::anyhow!("Repost path must contain ':/', got: {}", path))?;
-
-    let contract_id = &path[1..colon_pos];
-    let remote_path = &path[colon_pos + 1..];
-
-    if contract_id.is_empty() {
-        anyhow::bail!("Repost path has empty contract_id");
-    }
-
-    if remote_path.is_empty() || !remote_path.starts_with('/') {
-        anyhow::bail!("Repost remote path must start with '/'");
-    }
-
-    Ok((contract_id, remote_path))
+/// Provenance for a dest path staged by `modal repost` and not yet committed.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct RepostProvenance {
+    pub source_contract: String,
+    pub source_path: String,
+    pub source_commit: String,
 }
 
 pub struct ContractStore {
@@ -360,7 +349,7 @@ impl ContractStore {
                 if let Some(path) = &action.path {
                     match action.method.as_str() {
                         "post" | "genesis" | "rule" | "repost" => {
-                            // repost stores data in $contract_id:/path namespace
+                            // REPOST dest is a normal `/...` path (default `/reposts/<src><srcpath>`).
                             state.insert(path.clone(), action.value.clone());
                         }
                         // Add other methods as needed
@@ -383,11 +372,8 @@ impl ContractStore {
         for (path, value) in state {
             if path.starts_with("/rules/") {
                 self.write_rule(&path, &value)?;
-            } else if path.starts_with('$') {
-                // Reposted data from external contract: $contract_id:/path
-                self.write_repost(&path, &value)?;
             } else {
-                self.write_state(&path, &value)?;
+                self.write_working_path(&path, &value)?;
             }
         }
 
@@ -408,27 +394,44 @@ impl ContractStore {
         Ok(())
     }
 
-    /// Write reposted data from an external contract
-    /// Path format: $contract_id:/remote/path.ext
-    /// Stored at: reposts/{contract_id}/remote/path.ext
+    /// Write dest-path working data. `/reposts/...` lives under `reposts/`;
+    /// any other path is ordinary `state/`.
+    pub fn write_working_path(&self, path: &str, value: &serde_json::Value) -> Result<()> {
+        if is_repost_working_path(path) {
+            self.write_repost(path, value)
+        } else if path.starts_with('$') {
+            let (source_id, source_path) = parse_legacy_dollar_repost_path(path)?;
+            self.write_repost(&default_repost_dest(source_id, source_path), value)
+        } else {
+            self.write_state(path, value)
+        }
+    }
+
+    /// Read dest-path working data.
+    pub fn read_working_path(&self, path: &str) -> Result<Option<serde_json::Value>> {
+        if is_repost_working_path(path) {
+            self.read_repost(path)
+        } else if path.starts_with('$') {
+            let (source_id, source_path) = parse_legacy_dollar_repost_path(path)?;
+            self.read_repost(&default_repost_dest(source_id, source_path))
+        } else {
+            self.read_state(path)
+        }
+    }
+
+    /// Write reposted dest `/reposts/<source_id>/...` to `reposts/<source_id>/...`.
     pub fn write_repost(&self, path: &str, value: &serde_json::Value) -> Result<()> {
         self.init_reposts_dir()?;
 
-        // Parse $contract_id:/remote/path
-        let (contract_id, remote_path) = parse_repost_path(path)?;
+        let relative = path
+            .strip_prefix("/reposts/")
+            .ok_or_else(|| anyhow::anyhow!("REPOST working path must start with /reposts/, got: {path}"))?;
+        let file_path = self.reposts_dir().join(relative);
 
-        // Build local file path: reposts/{contract_id}{remote_path}
-        let file_path = self
-            .reposts_dir()
-            .join(contract_id)
-            .join(remote_path.trim_start_matches('/'));
-
-        // Create parent directories if needed
         if let Some(parent) = file_path.parent() {
             std::fs::create_dir_all(parent)?;
         }
 
-        // Write the value
         let content = match value {
             serde_json::Value::String(s) => s.clone(),
             serde_json::Value::Bool(b) => b.to_string(),
@@ -440,30 +443,25 @@ impl ContractStore {
         Ok(())
     }
 
-    /// Read reposted data from an external contract
+    /// Read dest `/reposts/<source_id>/...` from the working tree.
     #[allow(clippy::unnecessary_lazy_evaluations)]
     pub fn read_repost(&self, path: &str) -> Result<Option<serde_json::Value>> {
-        let (contract_id, remote_path) = parse_repost_path(path)?;
-
-        let file_path = self
-            .reposts_dir()
-            .join(contract_id)
-            .join(remote_path.trim_start_matches('/'));
+        let relative = path
+            .strip_prefix("/reposts/")
+            .ok_or_else(|| anyhow::anyhow!("REPOST working path must start with /reposts/, got: {path}"))?;
+        let file_path = self.reposts_dir().join(relative);
 
         if !file_path.exists() {
             return Ok(None);
         }
 
         let content = std::fs::read_to_string(&file_path)?;
-
-        // Try to parse as JSON, fallback to string
         let value =
             serde_json::from_str(&content).unwrap_or_else(|_| serde_json::Value::String(content));
-
         Ok(Some(value))
     }
 
-    /// List all reposted files
+    /// List dest paths currently in `reposts/` (`/reposts/<source_id>/...`).
     pub fn list_repost_files(&self) -> Result<Vec<String>> {
         let reposts_dir = self.reposts_dir();
         if !reposts_dir.exists() {
@@ -471,39 +469,53 @@ impl ContractStore {
         }
 
         let mut files = Vec::new();
-
-        // Iterate over contract_id directories
-        for entry in std::fs::read_dir(&reposts_dir)? {
-            let entry = entry?;
-            let contract_id = entry.file_name().to_string_lossy().to_string();
-            let contract_dir = entry.path();
-
-            if contract_dir.is_dir() {
-                self.collect_repost_files(&contract_dir, &contract_id, &mut files)?;
-            }
-        }
-
+        self.collect_files(&reposts_dir, &reposts_dir, "/reposts", &mut files)?;
         Ok(files)
     }
 
-    fn collect_repost_files(
-        &self,
-        dir: &Path,
-        contract_id: &str,
-        files: &mut Vec<String>,
-    ) -> Result<()> {
-        for entry in std::fs::read_dir(dir)? {
-            let entry = entry?;
-            let path = entry.path();
+    fn pending_reposts_path(&self) -> PathBuf {
+        self.contract_dir().join("pending-reposts.json")
+    }
 
-            if path.is_dir() {
-                self.collect_repost_files(&path, contract_id, files)?;
-            } else if path.is_file() {
-                let relative = path.strip_prefix(self.reposts_dir().join(contract_id))?;
-                files.push(format!("${}:/{}", contract_id, relative.display()));
-            }
+    pub fn load_pending_reposts(&self) -> Result<BTreeMap<String, RepostProvenance>> {
+        let path = self.pending_reposts_path();
+        if !path.exists() {
+            return Ok(BTreeMap::new());
         }
+        let content = std::fs::read_to_string(&path)?;
+        if content.trim().is_empty() {
+            return Ok(BTreeMap::new());
+        }
+        Ok(serde_json::from_str(&content)?)
+    }
+
+    pub fn save_pending_reposts(
+        &self,
+        pending: &BTreeMap<String, RepostProvenance>,
+    ) -> Result<()> {
+        let path = self.pending_reposts_path();
+        if pending.is_empty() {
+            if path.exists() {
+                std::fs::remove_file(&path)?;
+            }
+            return Ok(());
+        }
+        std::fs::write(path, serde_json::to_string_pretty(pending)?)?;
         Ok(())
+    }
+
+    pub fn record_pending_repost(&self, dest_path: &str, provenance: RepostProvenance) -> Result<()> {
+        let mut pending = self.load_pending_reposts()?;
+        pending.insert(dest_path.to_string(), provenance);
+        self.save_pending_reposts(&pending)
+    }
+
+    pub fn clear_pending_reposts(&self, dest_paths: &[String]) -> Result<()> {
+        let mut pending = self.load_pending_reposts()?;
+        for path in dest_paths {
+            pending.remove(path);
+        }
+        self.save_pending_reposts(&pending)
     }
 
     /// Validate a commit against all accumulated contract rules

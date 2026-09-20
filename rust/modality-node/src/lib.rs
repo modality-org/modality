@@ -10,6 +10,7 @@ pub mod bootup;
 pub mod swarm;
 pub mod node;
 pub mod status_server;
+pub mod status_snapshot;
 pub mod mining_metrics;
 pub mod inspection;
 pub mod pid;

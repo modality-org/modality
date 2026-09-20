@@ -155,6 +155,9 @@ Shortcuts for running different node types:
 # Run a miner
 modal run miner --dir ./my-node
 
+# Run a hybrid miner+sequencer
+modal run hybrid --dir ./my-node
+
 # Run a validator
 modal run validator --dir ./my-node
 

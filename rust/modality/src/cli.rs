@@ -50,10 +50,13 @@ enum Commands {
     },
 
     #[cfg(feature = "full")]
-    #[command(about = "Node related commands")]
+    #[command(about = "Node related commands. With no subcommand, opens an action picker TUI.")]
+    #[command(args_conflicts_with_subcommands = true)]
     Node {
+        #[command(flatten)]
+        opts: modality_cli_node::launcher::Opts,
         #[command(subcommand)]
-        command: NodeCommands,
+        command: Option<NodeCommands>,
     },
 
     #[cfg(all(feature = "node", not(feature = "full")))]
@@ -357,7 +360,7 @@ enum ContractCommands {
     #[command(about = "Unpack a .contract file into a directory")]
     Unpack(modality_cli_contract::unpack::Opts),
 
-    #[command(about = "Copy data from another contract into a local namespace")]
+    #[command(about = "Copy a value from another contract so this contract can refer to it")]
     Repost(modality_cli_contract::repost::Opts),
 
     #[command(name = "add-rule", about = "Add a rule to the contract")]
@@ -573,7 +576,9 @@ pub async fn run() -> Result<()> {
             InspectNodeCommands::Inspect(opts) => crate::cmds::inspect::run(opts).await?,
         },
         #[cfg(feature = "full")]
-        Commands::Node { command } => match command {
+        Commands::Node { opts, command } => match command {
+            None => modality_cli_node::launcher::run(opts).await?,
+            Some(command) => match command {
             NodeCommands::Address(opts) => modality_cli_node::address::run(opts).await?,
             NodeCommands::Create(opts) => modality_cli_node::create::run(opts).await?,
             NodeCommands::Info(opts) => modality_cli_node::info::run(opts).await?,
@@ -597,6 +602,7 @@ pub async fn run() -> Result<()> {
             NodeCommands::Clear(opts) => modality_cli_node::clear::run(opts).await?,
             NodeCommands::ClearStorage(opts) => modality_cli_node::clear_storage::run(opts).await?,
             NodeCommands::Stats(opts) => modality_cli_node::stats::run(opts).await?,
+            },
         },
         #[cfg(feature = "full")]
         Commands::Local { command } => match command {

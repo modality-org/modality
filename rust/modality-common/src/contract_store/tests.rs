@@ -1,4 +1,7 @@
-use crate::contract_store::{parse_repost_path, CommitFile, ContractStore};
+use crate::contract_store::{
+    default_repost_dest, json_values_equal, parse_legacy_dollar_repost_path, parse_repost_json,
+    CommitFile, ContractStore,
+};
 use serde_json::json;
 
 #[test]
@@ -306,117 +309,97 @@ fn test_native_token_creation() {
 // REPOST Tests
 // =============================================================================
 
+fn sample_repost_commit(dest: &str) -> CommitFile {
+    let mut commit = CommitFile::new();
+    commit.add_repost(
+        dest.to_string(),
+        json!("Hello from another contract!"),
+        "abc123def456".to_string(),
+        "/announcements/latest.text".to_string(),
+        "sourcecommit1".to_string(),
+    );
+    commit
+}
+
 #[test]
 fn test_repost_action_validation() {
+    assert!(sample_repost_commit("/reposts/abc123def456/announcements/latest.text")
+        .validate()
+        .is_ok());
+}
+
+#[test]
+fn test_repost_custom_dest_path() {
     let mut commit = CommitFile::new();
-
-    // Valid REPOST action - copy data from external contract
-    commit.add_action(
-        "repost".to_string(),
-        Some("$abc123def456:/announcements/latest.text".to_string()),
-        json!("Hello from another contract!"),
+    commit.add_repost(
+        "/parties/alice.id".to_string(),
+        json!("12D3KooWAbCdEfGhIjKlMnOpQrStUvWxYzAAAAAAAAA"),
+        "sourcecontract".to_string(),
+        "/parties/alice.id".to_string(),
+        "srccommit".to_string(),
     );
-
     assert!(commit.validate().is_ok());
 }
 
 #[test]
 fn test_repost_action_with_json_data() {
     let mut commit = CommitFile::new();
-
-    // REPOST with JSON data
-    commit.add_action(
-        "repost".to_string(),
-        Some("$contract789:/data/config.json".to_string()),
+    commit.add_repost(
+        "/reposts/contract789/data/config.json".to_string(),
         json!({ "setting": "value", "count": 42 }),
+        "contract789".to_string(),
+        "/data/config.json".to_string(),
+        "srccommit".to_string(),
     );
-
     assert!(commit.validate().is_ok());
 }
 
 #[test]
-fn test_repost_action_fails_without_dollar_prefix() {
+fn test_repost_action_fails_without_source_fields() {
     let mut commit = CommitFile::new();
-
-    // Invalid - path doesn't start with $
     commit.add_action(
         "repost".to_string(),
-        Some("contract123:/path.text".to_string()),
+        Some("/reposts/abc/path.text".to_string()),
         json!("data"),
     );
-
     assert!(commit.validate().is_err());
 }
 
 #[test]
-fn test_repost_action_fails_without_colon_slash() {
+fn test_repost_action_fails_without_leading_slash_dest() {
     let mut commit = CommitFile::new();
-
-    // Invalid - no :/ separator
-    commit.add_action(
-        "repost".to_string(),
-        Some("$contract123/path.text".to_string()),
+    commit.add_repost(
+        "reposts/abc/path.text".to_string(),
         json!("data"),
+        "abc".to_string(),
+        "/path.text".to_string(),
+        "srccommit".to_string(),
     );
-
-    assert!(commit.validate().is_err());
-}
-
-#[test]
-fn test_repost_action_fails_with_empty_contract_id() {
-    let mut commit = CommitFile::new();
-
-    // Invalid - empty contract_id
-    commit.add_action(
-        "repost".to_string(),
-        Some("$:/path.text".to_string()),
-        json!("data"),
-    );
-
-    assert!(commit.validate().is_err());
-}
-
-#[test]
-fn test_repost_action_fails_without_leading_slash_in_path() {
-    let mut commit = CommitFile::new();
-
-    // Invalid - remote path doesn't start with /
-    commit.add_action(
-        "repost".to_string(),
-        Some("$contract123:path.text".to_string()),
-        json!("data"),
-    );
-
     assert!(commit.validate().is_err());
 }
 
 #[test]
 fn test_repost_action_fails_without_known_extension() {
     let mut commit = CommitFile::new();
-
-    // Invalid - unknown extension
-    commit.add_action(
-        "repost".to_string(),
-        Some("$contract123:/path/data.xyz".to_string()),
+    commit.add_repost(
+        "/reposts/abc/path.xyz".to_string(),
         json!("data"),
+        "abc".to_string(),
+        "/path.xyz".to_string(),
+        "srccommit".to_string(),
     );
-
     assert!(commit.validate().is_err());
 }
 
 #[test]
 fn test_repost_action_fails_without_path() {
     let mut commit = CommitFile::new();
-
-    // Invalid - no path
     commit.add_action("repost".to_string(), None, json!("data"));
-
     assert!(commit.validate().is_err());
 }
 
 #[test]
 fn test_repost_path_all_valid_extensions() {
-    // Test all known extensions work with REPOST
     let extensions = vec![
         ".bool",
         ".text",
@@ -431,53 +414,84 @@ fn test_repost_path_all_valid_extensions() {
 
     for ext in extensions {
         let mut commit = CommitFile::new();
-        commit.add_action(
-            "repost".to_string(),
-            Some(format!("$abc123:/data/file{}", ext)),
-            json!("data"),
+        let dest = format!("/reposts/abc123/data/file{ext}");
+        let value = if ext == ".bool" {
+            json!(true)
+        } else if ext == ".id" {
+            json!("12D3KooWAbCdEfGhIjKlMnOpQrStUvWxYzAAAAAAAAA")
+        } else if ext == ".date" {
+            json!("2024-01-15")
+        } else if ext == ".datetime" {
+            json!("2024-01-15T10:30:00Z")
+        } else {
+            json!("data")
+        };
+        commit.add_repost(
+            dest,
+            value,
+            "abc123".to_string(),
+            format!("/data/file{ext}"),
+            "srccommit".to_string(),
         );
         assert!(
             commit.validate().is_ok(),
-            "Extension {} should be valid",
-            ext
+            "Extension {ext} should be valid: {:?}",
+            commit.validate().err()
         );
     }
 }
 
-// =============================================================================
-// parse_repost_path Tests
-// =============================================================================
+#[test]
+fn test_legacy_dollar_repost_still_parses() {
+    let action = json!({
+        "method": "repost",
+        "path": "$abc123:/data/file.text",
+        "value": "hello",
+        "source_commit": "srccommit"
+    });
+    let spec = parse_repost_json(&action).unwrap();
+    assert_eq!(spec.source_contract, "abc123");
+    assert_eq!(spec.source_path, "/data/file.text");
+    assert_eq!(
+        spec.dest_path,
+        "/reposts/abc123/data/file.text"
+    );
+}
 
 #[test]
-fn test_parse_repost_path_valid() {
-    let (contract_id, remote_path) = parse_repost_path("$abc123:/data/file.text").unwrap();
+fn test_default_repost_dest() {
+    assert_eq!(
+        default_repost_dest("abc123", "/data/file.text"),
+        "/reposts/abc123/data/file.text"
+    );
+}
+
+#[test]
+fn test_json_values_equal_stringified() {
+    assert!(json_values_equal(&json!("42"), &json!(42)));
+    assert!(json_values_equal(&json!("hello"), &json!("hello")));
+}
+
+#[test]
+fn test_parse_legacy_dollar_path() {
+    let (contract_id, remote_path) =
+        parse_legacy_dollar_repost_path("$abc123:/data/file.text").unwrap();
     assert_eq!(contract_id, "abc123");
     assert_eq!(remote_path, "/data/file.text");
+    assert!(parse_legacy_dollar_repost_path("abc123:/data/file.text").is_err());
 }
 
 #[test]
-fn test_parse_repost_path_with_nested_path() {
-    let (contract_id, remote_path) = parse_repost_path("$xyz:/deep/nested/path/file.json").unwrap();
-    assert_eq!(contract_id, "xyz");
-    assert_eq!(remote_path, "/deep/nested/path/file.json");
-}
-
-#[test]
-fn test_parse_repost_path_fails_without_dollar() {
-    assert!(parse_repost_path("abc123:/data/file.text").is_err());
-}
-
-#[test]
-fn test_parse_repost_path_fails_without_colon_slash() {
-    assert!(parse_repost_path("$abc123/data/file.text").is_err());
-}
-
-#[test]
-fn test_parse_repost_path_fails_with_empty_contract_id() {
-    assert!(parse_repost_path("$:/data/file.text").is_err());
-}
-
-#[test]
-fn test_parse_repost_path_fails_with_empty_remote_path() {
-    assert!(parse_repost_path("$abc123:").is_err());
+fn test_working_tree_roundtrip_repost() {
+    let dir = tempfile::tempdir().unwrap();
+    let store = ContractStore::init(dir.path(), "destcontract".to_string()).unwrap();
+    let dest = "/reposts/abc123/notes/hello.text";
+    store
+        .write_working_path(dest, &json!("hello world"))
+        .unwrap();
+    assert_eq!(
+        store.read_working_path(dest).unwrap(),
+        Some(json!("hello world"))
+    );
+    assert_eq!(store.list_repost_files().unwrap(), vec![dest.to_string()]);
 }

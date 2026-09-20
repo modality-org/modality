@@ -48,7 +48,7 @@ or an inline domain action.
 | `--dir <DIR>` | Contract directory (defaults to current directory) |
 | `--output <FORMAT>` | Output format: `text` or `json` |
 | `--sign <PASSFILE>` | Sign with a passfile path or identity name; repeat to attach multiple signatures |
-| `--all`, `-a` | Commit all changed `state/`, `rules/`, and `model/default.modality` files |
+| `--all`, `-a` | Commit all changed `state/`, `rules/`, `reposts/`, and `model/default.modality` files. Staged REPOST dests emit `method: repost`. |
 | `--message`, `-m <MSG>` | Commit message |
 | `--action <JSON>` | Commit an inline JSON domain action or read it from a `.json` file path |
 | `--asset-id <ASSET_ID>` | Asset ID for `CREATE` commits |
@@ -161,6 +161,34 @@ modal c set /config/name.text "My Contract"
 
 # Set boolean
 modal c set /flags/active.bool true
+```
+
+## Repost
+
+```bash
+modal c repost <SOURCE_CONTRACT> <SOURCE_PATH> [DEST_PATH]
+```
+
+Snapshot a value from another contract into this one so formulas can name the dest path.
+
+**Arguments:**
+| Arg | Description |
+|-----|-------------|
+| `SOURCE_CONTRACT` | Source contract ID |
+| `SOURCE_PATH` | Path on the source (e.g. `/parties/alice.id`) |
+| `DEST_PATH` | Optional dest in this contract. Default: `/reposts/<source_id><source_path>` |
+
+**Options:**
+| Option | Description |
+|--------|-------------|
+| `--from-dir <DIR>` | Read the source from a local contract directory instead of the hub |
+| `--dir <DIR>` | Dest contract directory (defaults to current directory) |
+
+```bash
+modal c repost abc123 /notes/hello.text
+modal c repost abc123 /parties/alice.id /parties/alice.id
+modal c repost abc123 /notes/hello.text --from-dir ../source-contract
+modal commit --all
 ```
 
 ## Add Rule

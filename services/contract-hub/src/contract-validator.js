@@ -993,87 +993,91 @@ export class ContractValidator {
 }
 
 /**
- * Parse a REPOST path in format $contract_id:/path
- * Returns { contractId, remotePath } or null if invalid
+ * Parse a REPOST action. Dest is a normal `/...` path; provenance is
+ * source_contract, source_path, source_commit. Legacy `$id:/path` dests
+ * still parse as source identity with dest `/reposts/<id><path>`.
  */
-export function parseRepostPath(path) {
-  if (!path || !path.startsWith('$')) return null;
-  
-  const colonPos = path.indexOf(':/');
-  if (colonPos === -1) return null;
-  
-  const contractId = path.substring(1, colonPos);
-  const remotePath = path.substring(colonPos + 1);
-  
-  if (!contractId || !remotePath || !remotePath.startsWith('/')) {
-    return null;
+export function parseRepostAction(action) {
+  const path = action?.path;
+  const value = action?.value;
+  if (!path) return null;
+
+  let sourceContract = action.source_contract;
+  let sourcePath = action.source_path;
+  let destPath = path;
+
+  if (!sourceContract && typeof path === 'string' && path.startsWith('$')) {
+    const colonPos = path.indexOf(':/');
+    if (colonPos === -1) return null;
+    sourceContract = path.substring(1, colonPos);
+    sourcePath = path.substring(colonPos + 1);
+    destPath = `/reposts/${sourceContract}${sourcePath}`;
   }
-  
-  return { contractId, remotePath };
+
+  const sourceCommit = action.source_commit;
+  if (!sourceContract || !sourcePath || !sourceCommit) return null;
+  if (!destPath.startsWith('/') || !sourcePath.startsWith('/')) return null;
+
+  return { destPath, sourceContract, sourcePath, sourceCommit, value };
 }
 
 /**
- * Validate a REPOST commit against the source contract's latest state
- * Hub/network responsibility: only allow reposting latest values
+ * Validate a REPOST commit against the pinned source commit's state.
  */
 export async function validateRepost(store, commit) {
-  const data = commit.data || commit.body?.[0];
-  if (!data) {
+  const actions = Array.isArray(commit.body)
+    ? commit.body
+    : [commit.data || commit.body?.[0]].filter(Boolean);
+  if (actions.length === 0) {
     return { ok: false, error: 'Missing commit data' };
   }
-  
-  const method = (data.method || '').toLowerCase();
-  if (method !== 'repost') {
-    return { ok: true }; // Not a repost, skip
+
+  for (const action of actions) {
+    const method = (action.method || '').toLowerCase();
+    if (method !== 'repost') continue;
+
+    const parsed = parseRepostAction(action);
+    if (!parsed) {
+      return {
+        ok: false,
+        error: 'Invalid REPOST: need dest path, source_contract, source_path, source_commit'
+      };
+    }
+
+    const sourceCommits = store.pullCommits(parsed.sourceContract);
+    if (!sourceCommits || sourceCommits.length === 0) {
+      return {
+        ok: false,
+        error: `Source contract '${parsed.sourceContract}' not found or has no commits`
+      };
+    }
+
+    const through = sourceCommits.findIndex(
+      (c) => c.hash === parsed.sourceCommit || c.id === parsed.sourceCommit
+    );
+    const prefix = through === -1 ? sourceCommits : sourceCommits.slice(0, through + 1);
+    const sourceState = buildContractState(prefix);
+    const normalizedPath = parsed.sourcePath.startsWith('/')
+      ? parsed.sourcePath.substring(1)
+      : parsed.sourcePath;
+    const sourceValue = sourceState[normalizedPath] ?? sourceState[parsed.sourcePath];
+
+    if (sourceValue === undefined) {
+      return {
+        ok: false,
+        error: `Path '${parsed.sourcePath}' not found in source contract '${parsed.sourceContract}'`
+      };
+    }
+
+    if (JSON.stringify(sourceValue) !== JSON.stringify(parsed.value)
+      && String(sourceValue) !== String(parsed.value)) {
+      return {
+        ok: false,
+        error: `REPOST value does not match source contract at '${parsed.sourcePath}'`
+      };
+    }
   }
-  
-  const path = data.path;
-  const value = data.value;
-  
-  // Parse the repost path
-  const parsed = parseRepostPath(path);
-  if (!parsed) {
-    return { 
-      ok: false, 
-      error: `Invalid REPOST path format: ${path}. Expected $contract_id:/path` 
-    };
-  }
-  
-  const { contractId: sourceContractId, remotePath } = parsed;
-  
-  // Fetch the source contract's current state
-  const sourceCommits = store.pullCommits(sourceContractId);
-  if (!sourceCommits || sourceCommits.length === 0) {
-    return {
-      ok: false,
-      error: `Source contract '${sourceContractId}' not found or has no commits`
-    };
-  }
-  
-  // Build source contract state
-  const sourceState = buildContractState(sourceCommits);
-  
-  // Get the value at the remote path
-  const normalizedPath = remotePath.startsWith('/') ? remotePath.substring(1) : remotePath;
-  const sourceValue = sourceState[normalizedPath] ?? sourceState[remotePath];
-  
-  if (sourceValue === undefined) {
-    return {
-      ok: false,
-      error: `Path '${remotePath}' not found in source contract '${sourceContractId}'`
-    };
-  }
-  
-  // Compare values (deep equality for objects)
-  const valuesMatch = JSON.stringify(sourceValue) === JSON.stringify(value);
-  
-  if (!valuesMatch) {
-    return {
-      ok: false,
-      error: `REPOST value does not match source contract's latest value at '${remotePath}'`
-    };
-  }
-  
+
   return { ok: true };
 }
 

@@ -11,15 +11,15 @@ use modality_datastore::models::miner::MinerBlock;
 pub struct Opts {
     /// Path to node configuration file
     #[clap(long)]
-    config: Option<PathBuf>,
+    pub config: Option<PathBuf>,
 
     /// Node directory containing config.json (defaults to current directory)
     #[clap(long)]
-    dir: Option<PathBuf>,
+    pub dir: Option<PathBuf>,
 
     /// Show detailed information
     #[clap(long, short)]
-    verbose: bool,
+    pub verbose: bool,
 }
 
 pub async fn run(opts: &Opts) -> Result<()> {

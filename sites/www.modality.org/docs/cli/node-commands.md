@@ -75,7 +75,7 @@ directory.
 |--------|-------------|
 | `--config <CONFIG>` | Path to `config.json` |
 | `--dir <DIR>` | Node directory containing `config.json` |
-| `--node-type <TYPE>` | `miner`, `observer`, `validator`, or `server`; otherwise resolved from config |
+| `--node-type <TYPE>` | `miner`, `hybrid`, `observer`, `validator`, or `server`; otherwise resolved from config |
 
 ### Stop, Restart, Kill, and PID
 
@@ -101,6 +101,7 @@ same values as `start`.
 ```bash
 modal node run [OPTIONS]
 modal node run-miner [OPTIONS]
+modal node run-hybrid [OPTIONS]
 modal node run-validator [OPTIONS]
 modal node run-observer [OPTIONS]
 modal node run-noop [OPTIONS]
@@ -112,6 +113,10 @@ All foreground run commands accept:
 |--------|-------------|
 | `--config <CONFIG>` | Path to `config.json` |
 | `--dir <DIR>` | Node directory containing `config.json` |
+| `--no-tui` | Print logs to stdout instead of the terminal UI |
+| `--tui` | Force the terminal UI even when stdout is not a TTY |
+
+Foreground `run*` commands open a **terminal UI** by default when stdout is a TTY (Overview / Mining / Sequencing / Logs). Press `q` to quit. Background `node start` always uses `--no-tui`. Set `MODALITY_NO_TUI=1` to disable the UI without a flag.
 
 `modal node run` additionally accepts `--enable-consensus`, which is deprecated;
 prefer config-driven node roles.
@@ -120,6 +125,7 @@ The top-level quick-run aliases use the same options:
 
 ```bash
 modal run miner --dir ./my-node
+modal run hybrid --dir ./my-node
 modal run validator --dir ./my-node
 modal run observer --dir ./my-node
 ```

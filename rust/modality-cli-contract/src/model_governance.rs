@@ -1963,6 +1963,63 @@ export default rule {
     }
 
     #[test]
+    fn signed_by_reads_reposted_identity_in_accepted_state() -> Result<()> {
+        let temp_dir = TempDir::new()?;
+        let store = ContractStore::init(temp_dir.path(), "contract_id".to_string())?;
+
+        let model = r#"
+model FirstContract {
+  initial q0
+  q0 --> q1: +REPOST
+  q1 --> q1: +POST +signed_by(/parties/alice.id)
+}
+        "#;
+
+        let mut bootstrap = CommitFile::new();
+        bootstrap.add_repost(
+            "/parties/alice.id".to_string(),
+            Value::String("alice_key".to_string()),
+            "source_contract".to_string(),
+            "/parties/alice.id".to_string(),
+            "source_commit".to_string(),
+        );
+        bootstrap.add_action(
+            "model".to_string(),
+            Some("/model/default.modality".to_string()),
+            Value::String(model.to_string()),
+        );
+        store.save_commit("bootstrap", &bootstrap)?;
+        store.set_head("bootstrap")?;
+
+        let mut signed_post = CommitFile::with_parent("bootstrap".to_string());
+        signed_post.add_action(
+            "post".to_string(),
+            Some("/notes/signed.text".to_string()),
+            Value::String("signed".to_string()),
+        );
+        signed_post.head.signatures = Some(serde_json::json!({
+            "alice_key": "sig"
+        }));
+        validate_pending_commit(model, &store, &signed_post)?;
+
+        let mut unsigned_post = CommitFile::with_parent("bootstrap".to_string());
+        unsigned_post.add_action(
+            "post".to_string(),
+            Some("/notes/unsigned.text".to_string()),
+            Value::String("unsigned".to_string()),
+        );
+        let err = validate_pending_commit(model, &store, &unsigned_post)
+            .expect_err("unsigned commit should fail after imported identity");
+        assert!(
+            err.to_string()
+                .contains("missing +signed_by(/parties/alice.id)"),
+            "{err}"
+        );
+
+        Ok(())
+    }
+
+    #[test]
     fn lets_bob_replace_first_contract_witness_with_signed_alice_or_bob_moves() -> Result<()> {
         let temp_dir = TempDir::new()?;
         let store = ContractStore::init(temp_dir.path(), "contract_id".to_string())?;

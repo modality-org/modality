@@ -67,7 +67,8 @@ modal pull http://hub.example.com/contracts/my-contract
 # Show uncommitted changes (shortcut for modal contract diff)
 modal diff
 
-# Repost state from another contract
+# Repost a snapshot from another contract (then modal commit --all)
+modal repost source-contract-id /source/path
 modal repost source-contract-id /source/path /local/path
 
 # Add a rule to the current contract

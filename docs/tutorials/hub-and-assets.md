@@ -33,7 +33,7 @@ The hub validates:
 - **CREATE**: Asset doesn't already exist, valid quantity/divisibility
 - **SEND**: Asset exists, sender has sufficient balance, amount respects divisibility
 - **RECV**: Matching SEND exists, recipient matches, not already received
-- **REPOST**: Value matches source contract's latest state
+- **REPOST**: Value matches the source contract at the pinned `source_commit`
 
 ## Creating Contracts
 

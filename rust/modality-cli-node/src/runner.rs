@@ -5,16 +5,21 @@
 
 use anyhow::Result;
 use clap::Args;
+use std::io::IsTerminal;
 use std::path::PathBuf;
+use std::sync::atomic::AtomicBool;
+use std::sync::Arc;
 
 use modality_node::actions;
 use modality_node::config::Config;
 use modality_node::config_resolution::load_config_with_node_dir;
-use modality_node::logging;
+use modality_node::logging::{self, LogRing};
 use modality_node::node::Node;
 use modality_node::pid::PidGuard;
 
 use modality_cli_common::resolve_node_dir;
+
+use super::tui;
 
 /// Common options shared by all node run commands.
 #[derive(Debug, Clone, Args)]
@@ -26,6 +31,14 @@ pub struct CommonNodeOpts {
     /// Node directory containing config.json (defaults to current directory)
     #[clap(long)]
     pub dir: Option<PathBuf>,
+
+    /// Print logs to stdout instead of the terminal UI
+    #[clap(long)]
+    pub no_tui: bool,
+
+    /// Force the terminal UI even when stdout is not a TTY
+    #[clap(long, conflicts_with = "no_tui")]
+    pub tui: bool,
 }
 
 impl CommonNodeOpts {
@@ -73,70 +86,96 @@ impl NodeRole {
     }
 }
 
+fn should_use_tui(opts: &CommonNodeOpts) -> bool {
+    if opts.no_tui {
+        return false;
+    }
+    if std::env::var_os("MODALITY_NO_TUI").is_some() {
+        return false;
+    }
+    if opts.tui {
+        return true;
+    }
+    std::io::stdout().is_terminal()
+}
+
 /// Run a node with the specified role.
-///
-/// This function handles all the common setup:
-/// - Directory resolution
-/// - Configuration loading
-/// - Logging initialization
-/// - PID file management (with automatic cleanup)
-/// - Node creation and setup
-/// - Running the appropriate action based on role
-///
-/// # Arguments
-/// * `opts` - Common node options (config path, directory)
-/// * `role` - The type of node to run
-/// * `manage_pid` - Whether to create and manage a PID file
 pub async fn run_node(opts: &CommonNodeOpts, role: NodeRole, manage_pid: bool) -> Result<()> {
     let dir = opts.resolve_dir()?;
     let config = load_config_with_node_dir(opts.config.clone(), dir.clone())?;
+    let use_tui = should_use_tui(opts);
+    let log_ring = LogRing::new();
 
-    // Initialize logging
-    logging::init_logging(
-        config.logs_path.clone(),
-        config.logs_enabled,
-        config.log_level.clone(),
-    )?;
+    if use_tui {
+        logging::init_logging_for_tui(
+            config.logs_path.clone(),
+            config.logs_enabled,
+            config.log_level.clone(),
+            log_ring.clone(),
+        )?;
+    } else {
+        logging::init_logging(
+            config.logs_path.clone(),
+            config.logs_enabled,
+            config.log_level.clone(),
+        )?;
+    }
 
-    log::info!("Starting {} with config loaded from node directory or config file", role.description());
+    log::info!(
+        "Starting {} with config loaded from node directory or config file",
+        role.description()
+    );
 
-    // Create PID guard for automatic cleanup
     let _pid_guard = if manage_pid {
-        let pid_dir = dir.clone().unwrap_or_else(|| {
-            std::env::current_dir().expect("Failed to get current directory")
-        });
+        let pid_dir = dir
+            .clone()
+            .unwrap_or_else(|| std::env::current_dir().expect("Failed to get current directory"));
         Some(PidGuard::new(&pid_dir)?)
     } else {
         None
     };
 
-    // Create and setup node
     let mut node = Node::from_config(config.clone()).await?;
     node.setup(&config).await?;
 
-    // Run the appropriate action
-    match role {
-        NodeRole::Miner => actions::miner::run(&mut node).await?,
+    if node.mining_shutdown.is_none() {
+        node.mining_shutdown = Some(Arc::new(AtomicBool::new(false)));
+    }
+
+    let tui_task = if use_tui {
+        let source = node.status_source();
+        Some(tokio::spawn(async move { tui::run(source, log_ring).await }))
+    } else {
+        None
+    };
+
+    let run_result = match role {
+        NodeRole::Miner => actions::miner::run(&mut node).await,
         NodeRole::Hybrid => {
             node.hybrid_consensus = true;
-            actions::miner::run(&mut node).await?;
+            actions::miner::run(&mut node).await
         }
-        NodeRole::Observer => actions::observer::run(&mut node).await?,
-        NodeRole::Validator => actions::validator::run(&mut node).await?,
-        NodeRole::Noop => actions::noop::run(&mut node).await?,
+        NodeRole::Observer => actions::observer::run(&mut node).await,
+        NodeRole::Validator => actions::validator::run(&mut node).await,
+        NodeRole::Noop => actions::noop::run(&mut node).await,
         NodeRole::Server => {
             if config.run_miner.unwrap_or(false) {
                 log::info!("Running node in miner mode");
-                actions::miner::run(&mut node).await?;
+                actions::miner::run(&mut node).await
             } else {
                 log::info!("Running node in server mode");
-                actions::server::run(&mut node).await?;
+                actions::server::run(&mut node).await
             }
         }
+    };
+
+    if let Some(task) = tui_task {
+        node.request_shutdown();
+        task.abort();
+        let _ = task.await;
     }
 
-    // PID file is automatically cleaned up when _pid_guard is dropped
-    Ok(())
+    run_result
 }
 
 /// Run a miner node with the given options.
@@ -161,7 +200,6 @@ pub async fn run_validator(opts: &CommonNodeOpts) -> Result<()> {
 
 /// Run a noop node with the given options.
 pub async fn run_noop(opts: &CommonNodeOpts) -> Result<()> {
-    // Noop doesn't need PID management typically
     run_node(opts, NodeRole::Noop, false).await
 }
 
@@ -169,17 +207,18 @@ pub async fn run_noop(opts: &CommonNodeOpts) -> Result<()> {
 pub async fn run_server(opts: &CommonNodeOpts) -> Result<()> {
     let dir = opts.resolve_dir()?;
     let config = load_config_with_node_dir(opts.config.clone(), dir.clone())?;
-    
-    // Determine role from config.run_as, falling back to run_miner logic
+
     let role = match config.run_as.as_deref() {
         Some("miner") => NodeRole::Miner,
         Some("hybrid") => NodeRole::Hybrid,
         Some("observer") => NodeRole::Observer,
         Some("validator") => NodeRole::Validator,
         Some("noop") => NodeRole::Noop,
-        Some(unknown) => anyhow::bail!("Unknown run_as value in config: '{}'. Valid values: miner, hybrid, observer, validator, noop", unknown),
+        Some(unknown) => anyhow::bail!(
+            "Unknown run_as value in config: '{}'. Valid values: miner, hybrid, observer, validator, noop",
+            unknown
+        ),
         None => {
-            // Fall back to legacy run_miner behavior
             if config.run_miner.unwrap_or(false) {
                 NodeRole::Miner
             } else {
@@ -187,7 +226,33 @@ pub async fn run_server(opts: &CommonNodeOpts) -> Result<()> {
             }
         }
     };
-    
+
     run_node(opts, role, true).await
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn tui_off_when_no_tui_flag() {
+        let opts = CommonNodeOpts {
+            config: None,
+            dir: None,
+            no_tui: true,
+            tui: false,
+        };
+        assert!(!should_use_tui(&opts));
+    }
+
+    #[test]
+    fn tui_forced_when_tui_flag() {
+        let opts = CommonNodeOpts {
+            config: None,
+            dir: None,
+            no_tui: false,
+            tui: true,
+        };
+        assert!(should_use_tui(&opts));
+    }
+}
