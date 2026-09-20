@@ -1,8 +1,20 @@
-use modality_validator::ContractProcessor;
 use modality_datastore::DatastoreManager;
-use modality_datastore::models::{ContractAsset, AssetBalance, ReceivedSend};
+use modality_datastore::models::{AssetBalance, Commit, ContractAsset, ReceivedSend};
+use modality_validator::ContractProcessor;
 use std::sync::Arc;
 use tokio::sync::Mutex;
+
+async fn mark_sequenced(ds: &DatastoreManager, contract_id: &str, commit_id: &str) {
+    let keys = [
+        ("contract_id".to_string(), contract_id.to_string()),
+        ("commit_id".to_string(), commit_id.to_string()),
+    ]
+    .into_iter()
+    .collect();
+    let mut commit = Commit::find_one_multi(ds, keys).await.unwrap().unwrap();
+    commit.in_batch = Some("test-batch".to_string());
+    commit.save_to_final(ds).await.unwrap();
+}
 
 /// Test that SEND validation rejects when balance is insufficient
 #[tokio::test]
@@ -49,11 +61,20 @@ async fn test_send_insufficient_balance() {
         "head": {}
     }"#;
 
-    let result = processor.process_commit(contract_id, "commit1", commit_data).await;
-    
-    assert!(result.is_err(), "Should reject SEND with insufficient balance");
+    let result = processor
+        .process_commit(contract_id, "commit1", commit_data)
+        .await;
+
+    assert!(
+        result.is_err(),
+        "Should reject SEND with insufficient balance"
+    );
     let error = result.unwrap_err().to_string();
-    assert!(error.contains("Insufficient balance"), "Error should mention insufficient balance: {}", error);
+    assert!(
+        error.contains("Insufficient balance"),
+        "Error should mention insufficient balance: {}",
+        error
+    );
 }
 
 /// Test that SEND validation passes when balance is sufficient
@@ -100,8 +121,10 @@ async fn test_send_sufficient_balance() {
         "head": {}
     }"#;
 
-    let result = processor.process_commit(contract_id, "commit1", commit_data).await;
-    
+    let result = processor
+        .process_commit(contract_id, "commit1", commit_data)
+        .await;
+
     assert!(result.is_ok(), "Should accept SEND with sufficient balance");
 
     // Verify balance was deducted
@@ -110,8 +133,11 @@ async fn test_send_sufficient_balance() {
     keys.insert("contract_id".to_string(), contract_id.to_string());
     keys.insert("asset_id".to_string(), asset_id.to_string());
     keys.insert("owner_contract_id".to_string(), contract_id.to_string());
-    
-    let balance = AssetBalance::find_one_multi(&ds, keys).await.unwrap().unwrap();
+
+    let balance = AssetBalance::find_one_multi(&ds, keys)
+        .await
+        .unwrap()
+        .unwrap();
     assert_eq!(balance.balance, 600, "Balance should be deducted to 600");
 }
 
@@ -129,7 +155,7 @@ async fn test_recv_wrong_recipient() {
     // Setup: Create asset and balance
     {
         let ds = datastore.lock().await;
-        
+
         let asset = ContractAsset {
             contract_id: sender_id.to_string(),
             asset_id: "token".to_string(),
@@ -150,7 +176,8 @@ async fn test_recv_wrong_recipient() {
     }
 
     // Process the SEND commit first
-    let send_commit_data = format!(r#"{{
+    let send_commit_data = format!(
+        r#"{{
         "body": [{{
             "method": "send",
             "value": {{
@@ -160,13 +187,23 @@ async fn test_recv_wrong_recipient() {
             }}
         }}],
         "head": {{}}
-    }}"#, intended_recipient);
+    }}"#,
+        intended_recipient
+    );
 
     // This will create the commit in the datastore
-    processor.process_commit(sender_id, send_commit_id, &send_commit_data).await.unwrap();
+    processor
+        .process_commit(sender_id, send_commit_id, &send_commit_data)
+        .await
+        .unwrap();
+    {
+        let ds = datastore.lock().await;
+        mark_sequenced(&ds, sender_id, send_commit_id).await;
+    }
 
     // Charlie (wrong recipient) tries to receive
-    let recv_commit_data = format!(r#"{{
+    let recv_commit_data = format!(
+        r#"{{
         "body": [{{
             "method": "recv",
             "value": {{
@@ -174,13 +211,21 @@ async fn test_recv_wrong_recipient() {
             }}
         }}],
         "head": {{}}
-    }}"#, send_commit_id);
+    }}"#,
+        send_commit_id
+    );
 
-    let result = processor.process_commit(wrong_recipient, "recv_commit_1", &recv_commit_data).await;
-    
+    let result = processor
+        .process_commit(wrong_recipient, "recv_commit_1", &recv_commit_data)
+        .await;
+
     assert!(result.is_err(), "Should reject RECV by wrong recipient");
     let error = result.unwrap_err().to_string();
-    assert!(error.contains("not the intended recipient"), "Error should mention wrong recipient: {}", error);
+    assert!(
+        error.contains("not the intended recipient"),
+        "Error should mention wrong recipient: {}",
+        error
+    );
 }
 
 /// Test that RECV validation rejects double-receive
@@ -196,7 +241,7 @@ async fn test_recv_double_receive() {
     // Setup: Create asset and balance
     {
         let ds = datastore.lock().await;
-        
+
         let asset = ContractAsset {
             contract_id: sender_id.to_string(),
             asset_id: "token".to_string(),
@@ -217,7 +262,8 @@ async fn test_recv_double_receive() {
     }
 
     // Process the SEND commit first
-    let send_commit_data = format!(r#"{{
+    let send_commit_data = format!(
+        r#"{{
         "body": [{{
             "method": "send",
             "value": {{
@@ -227,11 +273,21 @@ async fn test_recv_double_receive() {
             }}
         }}],
         "head": {{}}
-    }}"#, recipient_id);
+    }}"#,
+        recipient_id
+    );
 
-    processor.process_commit(sender_id, send_commit_id, &send_commit_data).await.unwrap();
+    processor
+        .process_commit(sender_id, send_commit_id, &send_commit_data)
+        .await
+        .unwrap();
+    {
+        let ds = datastore.lock().await;
+        mark_sequenced(&ds, sender_id, send_commit_id).await;
+    }
 
-    let recv_commit_data = format!(r#"{{
+    let recv_commit_data = format!(
+        r#"{{
         "body": [{{
             "method": "recv",
             "value": {{
@@ -239,17 +295,27 @@ async fn test_recv_double_receive() {
             }}
         }}],
         "head": {{}}
-    }}"#, send_commit_id);
+    }}"#,
+        send_commit_id
+    );
 
     // First RECV should succeed
-    let result1 = processor.process_commit(recipient_id, "recv_commit_1", &recv_commit_data).await;
+    let result1 = processor
+        .process_commit(recipient_id, "recv_commit_1", &recv_commit_data)
+        .await;
     assert!(result1.is_ok(), "First RECV should succeed");
 
     // Second RECV should fail
-    let result2 = processor.process_commit(recipient_id, "recv_commit_2", &recv_commit_data).await;
+    let result2 = processor
+        .process_commit(recipient_id, "recv_commit_2", &recv_commit_data)
+        .await;
     assert!(result2.is_err(), "Second RECV should be rejected");
     let error = result2.unwrap_err().to_string();
-    assert!(error.contains("already received"), "Error should mention already received: {}", error);
+    assert!(
+        error.contains("already received"),
+        "Error should mention already received: {}",
+        error
+    );
 }
 
 /// Test that RECV validation accepts valid receive
@@ -265,7 +331,7 @@ async fn test_recv_valid() {
     // Setup
     {
         let ds = datastore.lock().await;
-        
+
         let asset = ContractAsset {
             contract_id: sender_id.to_string(),
             asset_id: "token".to_string(),
@@ -286,7 +352,8 @@ async fn test_recv_valid() {
     }
 
     // Process the SEND commit first
-    let send_commit_data = format!(r#"{{
+    let send_commit_data = format!(
+        r#"{{
         "body": [{{
             "method": "send",
             "value": {{
@@ -296,11 +363,21 @@ async fn test_recv_valid() {
             }}
         }}],
         "head": {{}}
-    }}"#, recipient_id);
+    }}"#,
+        recipient_id
+    );
 
-    processor.process_commit(sender_id, send_commit_id, &send_commit_data).await.unwrap();
+    processor
+        .process_commit(sender_id, send_commit_id, &send_commit_data)
+        .await
+        .unwrap();
+    {
+        let ds = datastore.lock().await;
+        mark_sequenced(&ds, sender_id, send_commit_id).await;
+    }
 
-    let recv_commit_data = format!(r#"{{
+    let recv_commit_data = format!(
+        r#"{{
         "body": [{{
             "method": "recv",
             "value": {{
@@ -308,9 +385,13 @@ async fn test_recv_valid() {
             }}
         }}],
         "head": {{}}
-    }}"#, send_commit_id);
+    }}"#,
+        send_commit_id
+    );
 
-    let result = processor.process_commit(recipient_id, "recv_commit_1", &recv_commit_data).await;
+    let result = processor
+        .process_commit(recipient_id, "recv_commit_1", &recv_commit_data)
+        .await;
     assert!(result.is_ok(), "Valid RECV should succeed");
 
     // Verify recipient received the balance
@@ -319,9 +400,15 @@ async fn test_recv_valid() {
     keys.insert("contract_id".to_string(), sender_id.to_string());
     keys.insert("asset_id".to_string(), "token".to_string());
     keys.insert("owner_contract_id".to_string(), recipient_id.to_string());
-    
-    let balance = AssetBalance::find_one_multi(&ds, keys).await.unwrap().unwrap();
-    assert_eq!(balance.balance, 250, "Recipient should have received 250 tokens");
+
+    let balance = AssetBalance::find_one_multi(&ds, keys)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        balance.balance, 250,
+        "Recipient should have received 250 tokens"
+    );
 
     // Verify ReceivedSend was recorded
     let mut recv_keys = std::collections::HashMap::new();
@@ -330,4 +417,3 @@ async fn test_recv_valid() {
     assert!(received_send.is_some(), "ReceivedSend should be recorded");
     assert_eq!(received_send.unwrap().recv_contract_id, recipient_id);
 }
-

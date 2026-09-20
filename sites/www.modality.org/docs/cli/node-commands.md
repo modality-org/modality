@@ -165,12 +165,12 @@ Network `info.json` may include, besides the sequencer committee `validators`:
 | `contract_validators` | omitted / empty | Peer IDs allowed to sign prefix certificates |
 | `validator_min_stake` | `0` | Minimum stake to validate; `0` on testnet/dev |
 | `validation_fees` | `{ "nominal": 0, "meter_coefficient": 0 }` | Quoted as `nominal + meter_coefficient * gas_used` (recorded, not transferred) |
-| `repost_requires_validator_cert` | `false` | When `true`, dest REPOST apply needs a validator supermajority (`⌈2n/3⌉` named `prefix_cert` signatures on the same digest), not one signature |
+| `repost_requires_validator_cert` | `false` | When `true`, dest REPOST and dest RECV apply need a validator supermajority (`⌈2n/3⌉` named `prefix_cert` signatures on the same digest through the source commit), not one signature |
 
 Omitted fields keep existing networks unchanged. Local `devnet1` names the
 single node as a contract validator and sets
-`repost_requires_validator_cert` so dest REPOST waits for that node's prefix
-cert. Request a certificate with `/contract/prefix_cert`
+`repost_requires_validator_cert` so dest REPOST and dest RECV wait for that
+node's prefix cert. Request a certificate with `/contract/prefix_cert`
 (`source_contract`, `through_commit`).
 
 ## Information

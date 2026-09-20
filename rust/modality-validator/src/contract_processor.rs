@@ -74,6 +74,14 @@ impl ContractProcessor {
         }
     }
 
+    fn commit_is_sequenced(commit: &Commit) -> bool {
+        commit
+            .in_batch
+            .as_deref()
+            .map(|batch| !batch.is_empty())
+            .unwrap_or(false)
+    }
+
     /// REPOST may only snapshot a source commit that consensus has already sequenced.
     pub async fn assert_repost_source_sequenced(
         ds: &DatastoreManager,
@@ -92,14 +100,60 @@ impl ContractProcessor {
                 spec.source_contract
             )
         })?;
-        match source_commit.in_batch.as_deref() {
-            Some(batch) if !batch.is_empty() => Ok(()),
-            _ => anyhow::bail!(
+        if Self::commit_is_sequenced(&source_commit) {
+            Ok(())
+        } else {
+            anyhow::bail!(
                 "REPOST rejected: source commit '{}' on '{}' has not been sequenced",
                 spec.source_commit,
                 spec.source_contract
-            ),
+            )
         }
+    }
+
+    /// Dest apply that requires certs consumes a QC on the source prefix through C.
+    pub async fn assert_source_prefix_qc(
+        ds: &DatastoreManager,
+        source_contract: &str,
+        through_commit: &str,
+        source_path: Option<&str>,
+        value: Option<&Value>,
+        action: &str,
+    ) -> Result<()> {
+        if !ds.repost_requires_validator_cert().unwrap_or(false) {
+            return Ok(());
+        }
+        let named = ds.contract_validators()?;
+        let n = named.len();
+        let threshold = crate::prefix_cert::qc_threshold(
+            n,
+            ds.validator_qc_numerator().unwrap_or(2),
+            ds.validator_qc_denominator().unwrap_or(3),
+        );
+        let (_, digest, _) =
+            crate::prefix_cert::build_prefix_from_store(ds, source_contract, through_commit)
+                .await?;
+        let certs = ds.list_prefix_certs(source_contract, through_commit)?;
+        let have = crate::prefix_cert::matching_qc_signers(
+            &certs,
+            &named,
+            &digest,
+            source_contract,
+            through_commit,
+            source_path,
+            value,
+        );
+        if n == 0 || have < threshold {
+            anyhow::bail!(
+                "{} rejected: missing prefix_cert QC for source commit '{}' on '{}' (have {}, need {})",
+                action,
+                through_commit,
+                source_contract,
+                have,
+                if n == 0 { 1 } else { threshold }
+            );
+        }
+        Ok(())
     }
 
     /// Process a commit during consensus ordering
@@ -352,7 +406,8 @@ impl ContractProcessor {
     /// Process a RECV action during consensus
     ///
     /// Validates:
-    /// - SEND commit exists and contains a valid SEND action
+    /// - SEND commit exists, contains a SEND action, and is sequenced
+    /// - When dest apply requires certs, a prefix QC through that SEND commit
     /// - SEND has not already been received (prevents double-receive)
     /// - RECV is by the intended recipient (to_contract matches)
     ///
@@ -386,7 +441,23 @@ impl ContractProcessor {
         }
 
         // Find the SEND commit
-        let send_commit_data = self.find_commit_by_id(&ds, send_commit_id).await?;
+        let send_commit_data = Self::find_commit_by_id(&ds, send_commit_id).await?;
+        if !Self::commit_is_sequenced(&send_commit_data) {
+            anyhow::bail!(
+                "RECV rejected: SEND commit '{}' on '{}' has not been sequenced",
+                send_commit_id,
+                send_commit_data.contract_id
+            );
+        }
+        Self::assert_source_prefix_qc(
+            &ds,
+            &send_commit_data.contract_id,
+            send_commit_id,
+            None,
+            None,
+            "RECV",
+        )
+        .await?;
 
         let send_commit: serde_json::Value = serde_json::from_str(&send_commit_data.commit_data)?;
         let send_body = send_commit
@@ -574,40 +645,15 @@ impl ContractProcessor {
 
         let ds = self.datastore.lock().await;
         Self::assert_repost_source_sequenced(&ds, &spec).await?;
-        if ds.repost_requires_validator_cert().unwrap_or(false) {
-            let named = ds.contract_validators()?;
-            let n = named.len();
-            let threshold = crate::prefix_cert::qc_threshold(
-                n,
-                ds.validator_qc_numerator().unwrap_or(2),
-                ds.validator_qc_denominator().unwrap_or(3),
-            );
-            let (_, digest, _) = crate::prefix_cert::build_prefix_from_store(
-                &ds,
-                &spec.source_contract,
-                &spec.source_commit,
-            )
-            .await?;
-            let certs = ds.list_prefix_certs(&spec.source_contract, &spec.source_commit)?;
-            let have = crate::prefix_cert::matching_qc_signers(
-                &certs,
-                &named,
-                &digest,
-                &spec.source_contract,
-                &spec.source_commit,
-                Some(&spec.source_path),
-                Some(&spec.value),
-            );
-            if n == 0 || have < threshold {
-                anyhow::bail!(
-                    "REPOST rejected: missing prefix_cert QC for source commit '{}' on '{}' (have {}, need {})",
-                    spec.source_commit,
-                    spec.source_contract,
-                    have,
-                    if n == 0 { 1 } else { threshold }
-                );
-            }
-        }
+        Self::assert_source_prefix_qc(
+            &ds,
+            &spec.source_contract,
+            &spec.source_commit,
+            Some(&spec.source_path),
+            Some(&spec.value),
+            "REPOST",
+        )
+        .await?;
         let source_key = format!("/contracts/{}{}", spec.source_contract, spec.source_path);
         let source_value_opt = ds.get_string(&source_key).await?;
         let source_value = source_value_opt.ok_or_else(|| {
@@ -739,7 +785,7 @@ impl ContractProcessor {
         })
     }
 
-    async fn find_commit_by_id(&self, ds: &DatastoreManager, commit_id: &str) -> Result<Commit> {
+    pub async fn find_commit_by_id(ds: &DatastoreManager, commit_id: &str) -> Result<Commit> {
         // Since we don't know the contract_id, we need to search all contracts
         // This is inefficient - in production we'd want to index commits by ID
         use modality_datastore::stores::Store;
@@ -1494,5 +1540,169 @@ mod tests {
             .await
             .expect_err("conflicting digests must not form a QC");
         assert!(err.to_string().contains("missing prefix_cert"));
+    }
+
+    async fn setup_mod_send(
+        datastore: &Arc<Mutex<DatastoreManager>>,
+        require_cert: bool,
+        named: &[&str],
+    ) -> ContractProcessor {
+        {
+            let ds = datastore.lock().await;
+            ds.load_network_config(&serde_json::json!({
+                "repost_requires_validator_cert": require_cert,
+                "contract_validators": named
+            }))
+            .await
+            .unwrap();
+        }
+        let processor = ContractProcessor::new(datastore.clone());
+        processor
+            .process_commit(
+                "alice",
+                "create-mod",
+                &serde_json::json!({
+                    "body": [{
+                        "method": "create",
+                        "value": {
+                            "asset_id": "MOD",
+                            "quantity": 1000,
+                            "divisibility": 1
+                        }
+                    }],
+                    "head": {}
+                })
+                .to_string(),
+            )
+            .await
+            .unwrap();
+        processor
+            .process_commit(
+                "alice",
+                "send-mod",
+                &serde_json::json!({
+                    "body": [{
+                        "method": "send",
+                        "value": {
+                            "asset_id": "MOD",
+                            "to_contract": "bob",
+                            "amount": 100
+                        }
+                    }],
+                    "head": {}
+                })
+                .to_string(),
+            )
+            .await
+            .unwrap();
+        {
+            let ds = datastore.lock().await;
+            let keys = [
+                ("contract_id".to_string(), "alice".to_string()),
+                ("commit_id".to_string(), "send-mod".to_string()),
+            ]
+            .into_iter()
+            .collect();
+            let mut send = Commit::find_one_multi(&ds, keys).await.unwrap().unwrap();
+            send.in_batch = Some("send-batch".to_string());
+            send.save_to_final(&ds).await.unwrap();
+        }
+        processor
+    }
+
+    fn recv_mod_json() -> serde_json::Value {
+        serde_json::json!({
+            "body": [{
+                "method": "recv",
+                "value": { "send_commit_id": "send-mod" }
+            }],
+            "head": {}
+        })
+    }
+
+    #[tokio::test]
+    async fn test_recv_rejected_if_send_not_sequenced() {
+        let datastore = Arc::new(Mutex::new(DatastoreManager::create_in_memory().unwrap()));
+        let processor = ContractProcessor::new(datastore.clone());
+        processor
+            .process_commit(
+                "alice",
+                "create-mod",
+                &serde_json::json!({
+                    "body": [{
+                        "method": "create",
+                        "value": { "asset_id": "MOD", "quantity": 100, "divisibility": 1 }
+                    }],
+                    "head": {}
+                })
+                .to_string(),
+            )
+            .await
+            .unwrap();
+        processor
+            .process_commit(
+                "alice",
+                "send-mod",
+                &serde_json::json!({
+                    "body": [{
+                        "method": "send",
+                        "value": { "asset_id": "MOD", "to_contract": "bob", "amount": 10 }
+                    }],
+                    "head": {}
+                })
+                .to_string(),
+            )
+            .await
+            .unwrap();
+        let err = processor
+            .process_commit("bob", "recv-mod", &recv_mod_json().to_string())
+            .await
+            .expect_err("unsequenced SEND must fail RECV");
+        assert!(err.to_string().contains("has not been sequenced"));
+    }
+
+    #[tokio::test]
+    async fn test_recv_requires_prefix_cert_when_flag_set() {
+        let datastore = Arc::new(Mutex::new(DatastoreManager::create_in_memory().unwrap()));
+        let processor = setup_mod_send(&datastore, true, &["peer1"]).await;
+        let err = processor
+            .process_commit("bob", "recv-missing", &recv_mod_json().to_string())
+            .await
+            .expect_err("missing prefix_cert QC must fail RECV");
+        assert!(err.to_string().contains("missing prefix_cert"));
+
+        {
+            let ds = datastore.lock().await;
+            let digest = crate::prefix_cert::build_prefix_from_store(&ds, "alice", "send-mod")
+                .await
+                .unwrap()
+                .1;
+            ds.save_prefix_cert(&serde_json::json!({
+                "type": "prefix_cert",
+                "source_contract": "alice",
+                "through_commit": "send-mod",
+                "prefix_digest": digest,
+                "validator_peer_id": "peer1",
+                "gas_used": 1,
+                "fee_quoted": 0
+            }))
+            .unwrap();
+        }
+        let changes = processor
+            .process_commit("bob", "recv-ok", &recv_mod_json().to_string())
+            .await
+            .unwrap();
+        assert_eq!(changes.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_recv_without_cert_when_flag_false() {
+        let datastore = Arc::new(Mutex::new(DatastoreManager::create_in_memory().unwrap()));
+        let processor = setup_mod_send(&datastore, false, &["peer1"]).await;
+        let changes = processor
+            .process_commit("bob", "recv-ok", &recv_mod_json().to_string())
+            .await
+            .unwrap();
+        assert_eq!(changes.len(), 1);
     }
 }

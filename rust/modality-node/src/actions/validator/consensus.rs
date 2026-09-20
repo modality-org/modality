@@ -807,9 +807,17 @@ mod tests {
     }
 
     async fn dest_in_batch(ds: &Arc<Mutex<DatastoreManager>>, commit_id: &str) -> Option<String> {
+        in_batch_of(ds, "dest", commit_id).await
+    }
+
+    async fn in_batch_of(
+        ds: &Arc<Mutex<DatastoreManager>>,
+        contract_id: &str,
+        commit_id: &str,
+    ) -> Option<String> {
         let mgr = ds.lock().await;
         let keys = [
-            ("contract_id".to_string(), "dest".to_string()),
+            ("contract_id".to_string(), contract_id.to_string()),
             ("commit_id".to_string(), commit_id.to_string()),
         ]
         .into_iter()
@@ -818,6 +826,76 @@ mod tests {
             .await
             .unwrap()
             .and_then(|c| c.in_batch)
+    }
+
+    fn dest_recv_push(commit_id: &str) -> serde_json::Value {
+        json!({
+            "type": "contract_push",
+            "data": {
+                "contract_id": "bob",
+                "commits": [{
+                    "commit_id": commit_id,
+                    "body": [{
+                        "method": "recv",
+                        "value": { "send_commit_id": "send-mod" }
+                    }],
+                    "head": {}
+                }]
+            }
+        })
+    }
+
+    async fn sequenced_mod_send(ds: &Arc<Mutex<DatastoreManager>>, require_cert: bool) {
+        {
+            let mgr = ds.lock().await;
+            mgr.load_network_config(&json!({
+                "repost_requires_validator_cert": require_cert,
+                "contract_validators": ["peer1"]
+            }))
+            .await
+            .unwrap();
+        }
+        let processor = ContractProcessor::new(ds.clone());
+        processor
+            .process_commit(
+                "alice",
+                "create-mod",
+                &json!({
+                    "body": [{
+                        "method": "create",
+                        "value": { "asset_id": "MOD", "quantity": 1000, "divisibility": 1 }
+                    }],
+                    "head": {}
+                })
+                .to_string(),
+            )
+            .await
+            .unwrap();
+        processor
+            .process_commit(
+                "alice",
+                "send-mod",
+                &json!({
+                    "body": [{
+                        "method": "send",
+                        "value": { "asset_id": "MOD", "to_contract": "bob", "amount": 100 }
+                    }],
+                    "head": {}
+                })
+                .to_string(),
+            )
+            .await
+            .unwrap();
+        let mgr = ds.lock().await;
+        let keys = [
+            ("contract_id".to_string(), "alice".to_string()),
+            ("commit_id".to_string(), "send-mod".to_string()),
+        ]
+        .into_iter()
+        .collect();
+        let mut send = Commit::find_one_multi(&mgr, keys).await.unwrap().unwrap();
+        send.in_batch = Some("send-batch".into());
+        send.save_to_final(&mgr).await.unwrap();
     }
 
     #[tokio::test]
@@ -949,6 +1027,64 @@ mod tests {
         )
         .await;
         assert!(dest_in_batch(&ds, "d-split").await.is_none());
+    }
+
+    #[tokio::test]
+    async fn dest_recv_without_cert_sets_in_batch_when_flag_false() {
+        let ds = Arc::new(Mutex::new(DatastoreManager::create_in_memory().unwrap()));
+        sequenced_mod_send(&ds, false).await;
+        apply_certified_contract_events(
+            &certified_block(vec![dest_recv_push("recv-ok")], "batch-recv"),
+            &ds,
+        )
+        .await;
+        assert_eq!(
+            in_batch_of(&ds, "bob", "recv-ok").await.as_deref(),
+            Some("batch-recv")
+        );
+    }
+
+    #[tokio::test]
+    async fn dest_recv_without_cert_skips_in_batch_when_flag_true() {
+        let ds = Arc::new(Mutex::new(DatastoreManager::create_in_memory().unwrap()));
+        sequenced_mod_send(&ds, true).await;
+        apply_certified_contract_events(
+            &certified_block(vec![dest_recv_push("recv-fail")], "batch-fail"),
+            &ds,
+        )
+        .await;
+        assert!(in_batch_of(&ds, "bob", "recv-fail").await.is_none());
+    }
+
+    #[tokio::test]
+    async fn dest_recv_succeeds_when_send_prefix_cert_in_same_batch() {
+        let ds = Arc::new(Mutex::new(DatastoreManager::create_in_memory().unwrap()));
+        sequenced_mod_send(&ds, true).await;
+        let digest = {
+            let mgr = ds.lock().await;
+            build_prefix_from_store(&mgr, "alice", "send-mod")
+                .await
+                .unwrap()
+                .1
+        };
+        let cert = json!({
+            "type": PREFIX_CERT_TYPE,
+            "source_contract": "alice",
+            "through_commit": "send-mod",
+            "prefix_digest": digest,
+            "validator_peer_id": "peer1",
+            "gas_used": 1,
+            "fee_quoted": 0
+        });
+        apply_certified_contract_events(
+            &certified_block(vec![dest_recv_push("recv-qc"), cert], "batch-qc"),
+            &ds,
+        )
+        .await;
+        assert_eq!(
+            in_batch_of(&ds, "bob", "recv-qc").await.as_deref(),
+            Some("batch-qc")
+        );
     }
 
     #[test]

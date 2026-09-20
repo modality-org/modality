@@ -68,7 +68,7 @@ async fn tick(
     };
     {
         let mgr = datastore.lock().await;
-        requests.extend(repost_requests_from_pending(&mgr)?);
+        requests.extend(prefix_cert_requests_from_pending(&mgr).await?);
     }
     for req in requests {
         match issue_cert(datastore, keypair, peer_id, &req).await {
@@ -83,7 +83,9 @@ async fn tick(
     Ok(())
 }
 
-fn repost_requests_from_pending(mgr: &DatastoreManager) -> Result<Vec<serde_json::Value>> {
+async fn prefix_cert_requests_from_pending(
+    mgr: &DatastoreManager,
+) -> Result<Vec<serde_json::Value>> {
     let mut out = Vec::new();
     for event in mgr.peek_sequencer_events()? {
         if event.get("type").and_then(|v| v.as_str()) != Some("contract_push") {
@@ -106,16 +108,35 @@ fn repost_requests_from_pending(mgr: &DatastoreManager) -> Result<Vec<serde_json
                     .and_then(|v| v.as_str())
                     .unwrap_or("")
                     .to_lowercase();
-                if method != "repost" {
-                    continue;
-                }
-                if let Ok(spec) = parse_repost_json(action) {
-                    out.push(serde_json::json!({
-                        "source_contract": spec.source_contract,
-                        "through_commit": spec.source_commit,
-                        "source_path": spec.source_path,
-                        "value": spec.value,
-                    }));
+                if method == "repost" {
+                    if let Ok(spec) = parse_repost_json(action) {
+                        out.push(serde_json::json!({
+                            "source_contract": spec.source_contract,
+                            "through_commit": spec.source_commit,
+                            "source_path": spec.source_path,
+                            "value": spec.value,
+                        }));
+                    }
+                } else if method == "recv" {
+                    let Some(send_commit_id) = action
+                        .get("value")
+                        .and_then(|v| v.get("send_commit_id"))
+                        .and_then(|v| v.as_str())
+                        .or_else(|| action.get("send_commit_id").and_then(|v| v.as_str()))
+                    else {
+                        continue;
+                    };
+                    if let Ok(send) = modality_validator::ContractProcessor::find_commit_by_id(
+                        mgr,
+                        send_commit_id,
+                    )
+                    .await
+                    {
+                        out.push(serde_json::json!({
+                            "source_contract": send.contract_id,
+                            "through_commit": send_commit_id,
+                        }));
+                    }
                 }
             }
         }

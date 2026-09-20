@@ -152,7 +152,9 @@ Sends assets to another contract.
 
 ## RECV
 
-Receives assets from a SEND in another contract.
+Receives assets from a SEND in another contract. The SEND commit must
+already be sequenced. When the network requires validator certs, dest
+apply also needs a prefix-cert supermajority through that SEND commit.
 
 ```json
 {

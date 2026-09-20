@@ -32,7 +32,7 @@ modal hub start --port 3000 --data-dir ./hub-data
 The hub validates:
 - **CREATE**: Asset doesn't already exist, valid quantity/divisibility
 - **SEND**: Asset exists, sender has sufficient balance, amount respects divisibility
-- **RECV**: Matching SEND exists, recipient matches, not already received
+- **RECV**: Matching sequenced SEND exists, recipient matches, not already received. When `repost_requires_validator_cert` is on, dest also needs a validator supermajority on the source prefix through that SEND commit
 - **REPOST**: Value matches the source contract at the pinned `source_commit`
 
 ## Creating Contracts
