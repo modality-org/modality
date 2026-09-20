@@ -2175,6 +2175,8 @@ fn format_failed_rule_review_bundle(
     }
     output.push('\n');
 
+    write_formula_lint_section(&mut output, parsed_input);
+
     output.push_str("## Verifier Result\n\n");
     output.push_str("- Status: failed (`--verify`)\n");
     output.push_str("- Outcome: no satisfying witness was found by bounded μ-calculus search.\n");
@@ -2354,22 +2356,7 @@ fn format_synthesis_review_bundle(
     }
     output.push('\n');
 
-    output.push_str("## Formula Lint\n\n");
-    if parsed_input.lints.is_empty() {
-        output.push_str("- Status: clean\n\n");
-    } else {
-        output.push_str("- Status: warnings found\n");
-        for lint in &parsed_input.lints {
-            output.push_str(&format!(
-                "- {} [{}]: {}\n",
-                lint.label, lint.code, lint.message
-            ));
-            if let Some(suggestion) = &lint.suggestion {
-                output.push_str(&format!("  - Suggestion: {}\n", suggestion));
-            }
-        }
-        output.push('\n');
-    }
+    write_formula_lint_section(&mut output, parsed_input);
 
     output.push_str("## Verifier Result\n\n");
     output.push_str("- Status: passed (`--verify`)\n");
@@ -2391,6 +2378,25 @@ fn format_synthesis_review_bundle(
     output.push_str("- Passing synthesis proves the witness model satisfies the extracted formulas; it does not prove the extracted formulas capture the original intent.\n");
 
     output
+}
+
+fn write_formula_lint_section(output: &mut String, parsed_input: &ParsedFormulaInputs) {
+    output.push_str("## Formula Lint\n\n");
+    if parsed_input.lints.is_empty() {
+        output.push_str("- Status: clean\n\n");
+    } else {
+        output.push_str("- Status: warnings found\n");
+        for lint in &parsed_input.lints {
+            output.push_str(&format!(
+                "- {} [{}]: {}\n",
+                lint.label, lint.code, lint.message
+            ));
+            if let Some(suggestion) = &lint.suggestion {
+                output.push_str(&format!("  - Suggestion: {}\n", suggestion));
+            }
+        }
+        output.push('\n');
+    }
 }
 
 fn write_source_clause_trace(
@@ -3167,6 +3173,8 @@ rule impossible_contract {
             .to_string()
             .contains("No satisfying witness found by bounded"));
         assert!(bundle.contains("Verifier result: failed"), "{bundle}");
+        assert!(bundle.contains("## Formula Lint"), "{bundle}");
+        assert!(bundle.contains("- Status: clean"), "{bundle}");
         assert!(bundle.contains("## Source Facts"), "{bundle}");
         assert!(
             bundle.contains("No structured `Source fact:` lines found in the original source."),
@@ -3195,6 +3203,50 @@ rule impossible_contract {
             bundle.contains("bounded explicit-state μ-calculus search"),
             "bundle was:\n{bundle}"
         );
+    }
+
+    #[tokio::test]
+    async fn failed_rule_review_bundle_includes_formula_lint_warnings() {
+        let rule_path = std::env::temp_dir().join(format!(
+            "modality-synthesize-unsat-linted-rule-{}.modality",
+            std::process::id()
+        ));
+        let bundle_path = std::env::temp_dir().join(format!(
+            "modality-synthesize-unsat-linted-bundle-{}.md",
+            std::process::id()
+        ));
+        std::fs::write(
+            &rule_path,
+            r#"
+rule impossible_contract {
+  formula {
+    false
+  }
+  formula {
+    always(<+POST> true implies <+POST +signed_by(/users/reviewer.id)> true)
+  }
+}
+"#,
+        )
+        .unwrap();
+
+        let mut opts = default_test_opts();
+        opts.rule = Some(rule_path.clone());
+        opts.verify = true;
+        opts.review_bundle = Some(bundle_path.clone());
+
+        let err = run(&opts).await.unwrap_err();
+        let bundle = std::fs::read_to_string(&bundle_path).unwrap();
+        std::fs::remove_file(&rule_path).ok();
+        std::fs::remove_file(&bundle_path).ok();
+
+        assert!(err
+            .to_string()
+            .contains("No satisfying witness found by bounded"));
+        assert!(bundle.contains("## Formula Lint"), "{bundle}");
+        assert!(bundle.contains("- Status: warnings found"), "{bundle}");
+        assert!(bundle.contains("modality/implication-sugar"), "{bundle}");
+        assert!(bundle.contains("- Status: failed (`--verify`)"), "{bundle}");
     }
 
     #[tokio::test]
