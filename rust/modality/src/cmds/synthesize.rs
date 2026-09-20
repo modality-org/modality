@@ -2531,7 +2531,7 @@ fn source_fact_shape_label(fact: &str) -> &'static str {
         .map(char::len_utf8)
         .sum::<usize>();
     if name_len == 0 {
-        return "reviewer text";
+        return "review warning: malformed source fact";
     }
 
     let name = &rest[..name_len];
@@ -2541,12 +2541,12 @@ fn source_fact_shape_label(fact: &str) -> &'static str {
     }
 
     if !after_name.starts_with('(') || !after_name.ends_with(')') {
-        return "reviewer text";
+        return "review warning: malformed source fact";
     }
 
     let args = after_name[1..after_name.len() - 1].trim();
     if args.is_empty() || !has_balanced_source_fact_args(args) {
-        return "reviewer text";
+        return "review warning: malformed source fact";
     }
 
     if name == "sets" || name == "posts_to" || name == "post_to" {
@@ -2754,6 +2754,14 @@ mod tests {
             source_fact_shape_label("reviewer note: preserve this boundary"),
             "reviewer text"
         );
+        assert_eq!(
+            source_fact_shape_label("+sets(/posts/{post_id}/body"),
+            "review warning: malformed source fact"
+        );
+        assert_eq!(
+            source_fact_shape_label("+"),
+            "review warning: malformed source fact"
+        );
     }
 
     #[test]
@@ -2857,7 +2865,7 @@ rule post_requires_reviewer {
         .unwrap();
         std::fs::write(
             &source_path,
-            "F1: Every accepted post move must have reviewer signature evidence attached.\nSource fact: +sets(/posts/{post_id}/body)\nExternal assumption: signature verification and path identity evidence come from commit data.\n",
+            "F1: Every accepted post move must have reviewer signature evidence attached.\nSource fact: +sets(/posts/{post_id}/body)\nSource fact: +sets(/posts/{post_id}/body\nExternal assumption: signature verification and path identity evidence come from commit data.\n",
         )
         .unwrap();
 
@@ -2884,9 +2892,12 @@ rule post_requires_reviewer {
         assert!(bundle.contains("`+signed_by(/users/reviewer.id)`"));
         assert!(bundle.contains("## Source Facts"));
         assert!(bundle.contains("Line 2 [path-write template]: `+sets(/posts/{post_id}/body)`"));
+        assert!(bundle.contains(
+            "Line 3 [review warning: malformed source fact]: `+sets(/posts/{post_id}/body`"
+        ));
         assert!(bundle.contains("## Source Assumptions"));
         assert!(bundle.contains(
-            "Line 3: signature verification and path identity evidence come from commit data."
+            "Line 4: signature verification and path identity evidence come from commit data."
         ));
         assert!(bundle.contains("- Verifier result: passed"));
         assert!(bundle.contains("## Witness Model"));

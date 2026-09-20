@@ -25,6 +25,9 @@ committing the result:
   lines such as concrete `+sets(...)` path-write expectations without treating
   them as automatically inferred facts, with source line numbers and shape labels
   such as `path-write template` for traceability?
+- Does it flag malformed signed `Source fact:` shapes with
+  `review warning: malformed source fact` instead of silently treating them as
+  ordinary reviewer text?
 - Does the Review Checklist say source capture, clause trace, parser-backed
   formulas, verifier result, assumptions, and known gaps are present?
 - Does the Source Assumptions section preserve any reviewer-supplied
@@ -69,6 +72,12 @@ summary. They are preserved with source line numbers and source-fact shape
 labels such as `path-write template` for review, but synthesis does not infer
 or prove them.
 
+Malformed signed source facts, such as an unbalanced
+`Source fact: +sets(/posts/{post_id}/body`, should remain in the same section
+with a `review warning: malformed source fact` label. That warning means the
+line was preserved for audit, but reviewers should not treat it as structured
+path-write or predicate evidence until the source text is fixed.
+
 Structured lines such as `External assumption: signature verification and path identity evidence come from commit data.` should appear in the Source Assumptions section. Treat those lines as explicit review boundaries: synthesis preserves them, but does not prove them.
 
 ## No-Witness Bundle
@@ -78,7 +87,7 @@ If `--verify` rejects the synthesized candidate, the CLI should say that no sati
 - The rule file and parser-backed extracted facts.
 - Any `Source fact:` lines supplied with the original source, or an explicit
   note that none were supplied. Supplied facts should include their source line
-  numbers and source-fact shape labels.
+  numbers and source-fact shape labels, including malformed-source warnings.
 - Any `External assumption:` lines supplied with the original source, or an
   explicit note that none were supplied. Supplied assumptions should include
   their source line numbers.

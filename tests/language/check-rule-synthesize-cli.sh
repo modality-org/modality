@@ -45,6 +45,7 @@ EOF
 cat >"$SOURCE" <<'EOF'
 F1: Every accepted post move must have reviewer signature evidence attached.
 Source fact: +sets(/posts/{post_id}/body)
+Source fact: +sets(/posts/{post_id}/body
 External assumption: signature verification and path identity evidence come from commit data.
 EOF
 
@@ -101,9 +102,10 @@ required_review_patterns=(
   "## Source Facts"
   "These reviewer-supplied facts are preserved with source line numbers and source-fact shape labels for contract review; they are not inferred by synthesis."
   'Line 2 [path-write template]: `+sets(/posts/{post_id}/body)`'
+  'Line 3 [review warning: malformed source fact]: `+sets(/posts/{post_id}/body`'
   "## Source Assumptions"
   "These reviewer-supplied assumptions are preserved with source line numbers for contract review; they are not proven by synthesis."
-  "Line 3: signature verification and path identity evidence come from commit data."
+  "Line 4: signature verification and path identity evidence come from commit data."
   "## Review Checklist"
   "Original source captured: yes"
   "Source-clause trace present: yes"
