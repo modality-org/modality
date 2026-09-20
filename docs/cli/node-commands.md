@@ -165,7 +165,7 @@ Network `info.json` may include, besides the sequencer committee `validators`:
 | `contract_validators` | omitted / empty | Peer IDs allowed to sign prefix certificates |
 | `validator_min_stake` | `0` | Minimum stake to validate; `0` on testnet/dev |
 | `validation_fees` | `{ "nominal": 0, "meter_coefficient": 0 }` | Quoted as `nominal + meter_coefficient * gas_used` (recorded, not transferred) |
-| `repost_requires_validator_cert` | `false` | When `true`, dest REPOST apply requires a sequenced `prefix_cert` |
+| `repost_requires_validator_cert` | `false` | When `true`, dest REPOST apply needs a validator supermajority (`⌈2n/3⌉` named `prefix_cert` signatures on the same digest), not one signature |
 
 Omitted fields keep existing networks unchanged. Request a certificate with
 `/contract/prefix_cert` (`source_contract`, `through_commit`).

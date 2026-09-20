@@ -1,6 +1,6 @@
 use crate::{Error, Result};
 use anyhow;
-use rocksdb::{IteratorMode, Options, DB};
+use rocksdb::{DB, IteratorMode, Options};
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::path::Path;
@@ -311,6 +311,8 @@ impl NetworkDatastore {
             validator_min_stake: 0,
             validation_fees: crate::ValidationFees::default(),
             repost_requires_validator_cert: false,
+            validator_qc_numerator: 2,
+            validator_qc_denominator: 3,
         })
     }
 

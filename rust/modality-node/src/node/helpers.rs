@@ -10,8 +10,8 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
-use modality_datastore::models::MinerBlock;
 use modality_datastore::DatastoreManager;
+use modality_datastore::models::MinerBlock;
 
 use crate::config::Config;
 use crate::inspection::{
@@ -107,6 +107,10 @@ pub async fn load_network_config(
         }
         config_json["repost_requires_validator_cert"] =
             serde_json::json!(network_info.repost_requires_validator_cert);
+        config_json["validator_qc_numerator"] =
+            serde_json::json!(network_info.validator_qc_numerator);
+        config_json["validator_qc_denominator"] =
+            serde_json::json!(network_info.validator_qc_denominator);
 
         config_json["rounds"] = serde_json::json!({});
 

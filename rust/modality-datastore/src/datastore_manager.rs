@@ -16,11 +16,11 @@
 //! └── node_state/       # Node-specific state
 //! ```
 
+use crate::Result;
 use crate::stores::{
     MinerActiveStore, MinerCanonStore, MinerForksStore, NodeStateStore, Store,
     ValidatorActiveStore, ValidatorFinalStore,
 };
-use crate::Result;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -63,6 +63,14 @@ impl std::fmt::Debug for DatastoreManager {
             .field("data_dir", &self.data_dir)
             .field("epoch_config", &self.epoch_config)
             .finish_non_exhaustive()
+    }
+}
+
+fn decode_prefix_certs(data: &[u8]) -> Vec<serde_json::Value> {
+    match serde_json::from_slice::<serde_json::Value>(data) {
+        Ok(serde_json::Value::Array(arr)) => arr,
+        Ok(v) if v.is_object() => vec![v],
+        _ => Vec::new(),
     }
 }
 
@@ -348,6 +356,14 @@ impl DatastoreManager {
                 .get("repost_requires_validator_cert")
                 .and_then(|v| v.as_bool())
                 .unwrap_or(false),
+            "validator_qc_numerator": network_config
+                .get("validator_qc_numerator")
+                .and_then(|v| v.as_u64())
+                .unwrap_or(2),
+            "validator_qc_denominator": network_config
+                .get("validator_qc_denominator")
+                .and_then(|v| v.as_u64())
+                .unwrap_or(3),
         });
         self.node_state
             .put("contract_validator_config", &serde_json::to_vec(&cfg)?)
@@ -397,6 +413,22 @@ impl DatastoreManager {
             .unwrap_or(false))
     }
 
+    pub fn validator_qc_numerator(&self) -> Result<u64> {
+        let cfg = self.contract_validator_config()?;
+        Ok(cfg
+            .get("validator_qc_numerator")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(2))
+    }
+
+    pub fn validator_qc_denominator(&self) -> Result<u64> {
+        let cfg = self.contract_validator_config()?;
+        Ok(cfg
+            .get("validator_qc_denominator")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(3))
+    }
+
     pub fn enqueue_prefix_cert_request(&self, request: serde_json::Value) -> Result<()> {
         let mut reqs = self.load_prefix_cert_requests()?;
         reqs.push(request);
@@ -430,8 +462,32 @@ impl DatastoreManager {
             .get("through_commit")
             .and_then(|v| v.as_str())
             .ok_or_else(|| crate::Error::Database("prefix_cert missing through_commit".into()))?;
-        let key = format!("prefix_cert/{}/{}", contract, through);
-        self.node_state.put(&key, &serde_json::to_vec(cert)?)
+        let mut list = self.list_prefix_certs(contract, through)?;
+        if let Some(signer) = cert.get("validator_peer_id").and_then(|v| v.as_str()) {
+            list.retain(|c| c.get("validator_peer_id").and_then(|v| v.as_str()) != Some(signer));
+        }
+        list.push(cert.clone());
+        let key = format!("prefix_certs/{}/{}", contract, through);
+        self.node_state.put(&key, &serde_json::to_vec(&list)?)?;
+        let old_key = format!("prefix_cert/{}/{}", contract, through);
+        let _ = self.node_state.delete(&old_key);
+        Ok(())
+    }
+
+    pub fn list_prefix_certs(
+        &self,
+        source_contract: &str,
+        through_commit: &str,
+    ) -> Result<Vec<serde_json::Value>> {
+        let new_key = format!("prefix_certs/{}/{}", source_contract, through_commit);
+        if let Some(data) = self.node_state.get(&new_key)? {
+            return Ok(decode_prefix_certs(&data));
+        }
+        let old_key = format!("prefix_cert/{}/{}", source_contract, through_commit);
+        match self.node_state.get(&old_key)? {
+            Some(data) => Ok(decode_prefix_certs(&data)),
+            None => Ok(Vec::new()),
+        }
     }
 
     pub fn get_prefix_cert(
@@ -439,11 +495,22 @@ impl DatastoreManager {
         source_contract: &str,
         through_commit: &str,
     ) -> Result<Option<serde_json::Value>> {
-        let key = format!("prefix_cert/{}/{}", source_contract, through_commit);
-        match self.node_state.get(&key)? {
-            Some(data) => Ok(serde_json::from_slice(&data).ok()),
-            None => Ok(None),
-        }
+        Ok(self
+            .list_prefix_certs(source_contract, through_commit)?
+            .into_iter()
+            .next())
+    }
+
+    pub fn has_prefix_cert_from(
+        &self,
+        source_contract: &str,
+        through_commit: &str,
+        peer_id: &str,
+    ) -> Result<bool> {
+        Ok(self
+            .list_prefix_certs(source_contract, through_commit)?
+            .iter()
+            .any(|c| c.get("validator_peer_id").and_then(|v| v.as_str()) == Some(peer_id)))
     }
 
     /// Get static validators from NodeState store
@@ -615,5 +682,40 @@ mod tests {
         mgr.set_current_round(1000).await.unwrap();
         let high = mgr.get_current_round().await.unwrap();
         assert_eq!(high, 1000);
+    }
+
+    #[test]
+    fn save_prefix_cert_keeps_distinct_signers() {
+        let mgr = DatastoreManager::create_in_memory().unwrap();
+        let a = serde_json::json!({
+            "source_contract": "src",
+            "through_commit": "c1",
+            "validator_peer_id": "peer1",
+            "prefix_digest": "aa"
+        });
+        let b = serde_json::json!({
+            "source_contract": "src",
+            "through_commit": "c1",
+            "validator_peer_id": "peer2",
+            "prefix_digest": "aa"
+        });
+        let a2 = serde_json::json!({
+            "source_contract": "src",
+            "through_commit": "c1",
+            "validator_peer_id": "peer1",
+            "prefix_digest": "bb"
+        });
+        mgr.save_prefix_cert(&a).unwrap();
+        mgr.save_prefix_cert(&b).unwrap();
+        mgr.save_prefix_cert(&a2).unwrap();
+        let list = mgr.list_prefix_certs("src", "c1").unwrap();
+        assert_eq!(list.len(), 2);
+        assert!(mgr.has_prefix_cert_from("src", "c1", "peer1").unwrap());
+        assert!(mgr.has_prefix_cert_from("src", "c1", "peer2").unwrap());
+        let peer1 = list
+            .iter()
+            .find(|c| c["validator_peer_id"] == "peer1")
+            .unwrap();
+        assert_eq!(peer1["prefix_digest"], "bb");
     }
 }

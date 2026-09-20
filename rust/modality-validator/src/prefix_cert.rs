@@ -1,7 +1,7 @@
 use anyhow::Result;
 use modality_common::keypair::{Keypair, KeypairOrPublicKey};
-use modality_datastore::models::Commit;
 use modality_datastore::DatastoreManager;
+use modality_datastore::models::Commit;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
@@ -207,6 +207,52 @@ pub fn cert_matches_repost(
     true
 }
 
+/// ⌈n * numerator / denominator⌉, capped at n. `n = 0` cannot form a QC.
+pub fn qc_threshold(n: usize, numerator: u64, denominator: u64) -> usize {
+    if n == 0 {
+        return 0;
+    }
+    let d = denominator.max(1);
+    let num = if numerator == 0 { 2 } else { numerator };
+    let t = (n as u64).saturating_mul(num).div_ceil(d) as usize;
+    t.min(n)
+}
+
+/// Distinct named signers whose cert matches dest's pin and the rebuilt digest.
+pub fn matching_qc_signers(
+    certs: &[serde_json::Value],
+    contract_validators: &[String],
+    expected_digest: &str,
+    source_contract: &str,
+    source_commit: &str,
+    source_path: Option<&str>,
+    value: Option<&serde_json::Value>,
+) -> usize {
+    let mut seen = std::collections::HashSet::new();
+    for cert_json in certs {
+        let Ok(cert) = serde_json::from_value::<PrefixCert>(cert_json.clone()) else {
+            continue;
+        };
+        if cert.prefix_digest != expected_digest {
+            continue;
+        }
+        if !signer_is_named(&cert, contract_validators) {
+            continue;
+        }
+        if !cert_matches_repost(
+            cert_json,
+            source_contract,
+            source_commit,
+            source_path,
+            value,
+        ) {
+            continue;
+        }
+        seen.insert(cert.validator_peer_id);
+    }
+    seen.len()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -324,5 +370,61 @@ mod tests {
         ]);
         assert_eq!(ordered[0]["type"], "prefix_cert");
         assert_eq!(ordered[1]["type"], "contract_push");
+    }
+
+    #[test]
+    fn qc_threshold_two_thirds() {
+        assert_eq!(qc_threshold(0, 2, 3), 0);
+        assert_eq!(qc_threshold(1, 2, 3), 1);
+        assert_eq!(qc_threshold(3, 2, 3), 2);
+        assert_eq!(qc_threshold(4, 2, 3), 3);
+    }
+
+    #[test]
+    fn matching_qc_signers_ignore_conflicting_digests() {
+        let named = vec!["p1".into(), "p2".into(), "p3".into()];
+        let good = serde_json::json!({
+            "type": PREFIX_CERT_TYPE,
+            "source_contract": "src",
+            "through_commit": "c1",
+            "prefix_digest": "aa",
+            "validator_peer_id": "p1",
+            "gas_used": 1,
+            "fee_quoted": 0
+        });
+        let conflict = serde_json::json!({
+            "type": PREFIX_CERT_TYPE,
+            "source_contract": "src",
+            "through_commit": "c1",
+            "prefix_digest": "bb",
+            "validator_peer_id": "p2",
+            "gas_used": 1,
+            "fee_quoted": 0
+        });
+        let also_good = serde_json::json!({
+            "type": PREFIX_CERT_TYPE,
+            "source_contract": "src",
+            "through_commit": "c1",
+            "prefix_digest": "aa",
+            "validator_peer_id": "p2",
+            "gas_used": 1,
+            "fee_quoted": 0
+        });
+        assert_eq!(
+            matching_qc_signers(
+                &[good.clone(), conflict],
+                &named,
+                "aa",
+                "src",
+                "c1",
+                None,
+                None
+            ),
+            1
+        );
+        assert_eq!(
+            matching_qc_signers(&[good, also_good], &named, "aa", "src", "c1", None, None),
+            2
+        );
     }
 }

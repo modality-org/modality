@@ -7,7 +7,7 @@ use modality_common::contract_store::parse_repost_json;
 use modality_common::keypair::Keypair;
 use modality_datastore::DatastoreManager;
 use modality_validator::prefix_cert::{
-    build_prefix_from_store, sign_cert, PrefixCert, PREFIX_CERT_TYPE,
+    PREFIX_CERT_TYPE, PrefixCert, build_prefix_from_store, sign_cert,
 };
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -152,16 +152,14 @@ pub async fn issue_cert(
                 min_stake
             );
         }
-        if mgr
-            .get_prefix_cert(source_contract, through_commit)?
-            .is_some()
-        {
+        if mgr.has_prefix_cert_from(source_contract, through_commit, peer_id)? {
             return Ok(None);
         }
         for event in mgr.peek_sequencer_events()? {
             if event.get("type").and_then(|v| v.as_str()) == Some(PREFIX_CERT_TYPE)
                 && event.get("source_contract").and_then(|v| v.as_str()) == Some(source_contract)
                 && event.get("through_commit").and_then(|v| v.as_str()) == Some(through_commit)
+                && event.get("validator_peer_id").and_then(|v| v.as_str()) == Some(peer_id)
             {
                 return Ok(None);
             }
@@ -279,5 +277,68 @@ mod tests {
             .await
             .unwrap_err();
         assert!(err.to_string().contains("source_contract"));
+    }
+
+    #[tokio::test]
+    async fn second_named_peer_can_issue_after_first_cert_stored() {
+        let kp1 = Keypair::generate().unwrap();
+        let kp2 = Keypair::generate().unwrap();
+        let peer1 = peer_id_of(&kp1);
+        let peer2 = peer_id_of(&kp2);
+        let mgr = DatastoreManager::create_in_memory().unwrap();
+        mgr.load_network_config(&serde_json::json!({
+            "contract_validators": [peer1, peer2],
+        }))
+        .await
+        .unwrap();
+        let commit = Commit {
+            contract_id: "src".into(),
+            commit_id: "c1".into(),
+            commit_data: serde_json::json!({"body": [], "head": {}}).to_string(),
+            timestamp: 1,
+            in_batch: Some("b".into()),
+        };
+        Commit::save_to_final(&commit, &mgr).await.unwrap();
+        let ds = Arc::new(Mutex::new(mgr));
+        let first = issue_cert(
+            &ds,
+            &kp1,
+            &peer1,
+            &serde_json::json!({
+                "source_contract": "src",
+                "through_commit": "c1"
+            }),
+        )
+        .await
+        .unwrap()
+        .unwrap();
+        {
+            let mgr = ds.lock().await;
+            mgr.save_prefix_cert(&first).unwrap();
+        }
+        let second = issue_cert(
+            &ds,
+            &kp2,
+            &peer2,
+            &serde_json::json!({
+                "source_contract": "src",
+                "through_commit": "c1"
+            }),
+        )
+        .await
+        .unwrap();
+        assert!(second.is_some(), "second named signer must still certify");
+        let skip_first = issue_cert(
+            &ds,
+            &kp1,
+            &peer1,
+            &serde_json::json!({
+                "source_contract": "src",
+                "through_commit": "c1"
+            }),
+        )
+        .await
+        .unwrap();
+        assert!(skip_first.is_none(), "same peer should not recertify");
     }
 }

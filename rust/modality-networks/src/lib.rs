@@ -82,9 +82,25 @@ pub struct NetworkInfo {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub validation_fees: Option<ValidationFees>,
 
-    /// When true, dest REPOST apply requires a sequenced prefix_cert.
+    /// When true, dest REPOST apply requires a sequenced prefix_cert QC.
     #[serde(default)]
     pub repost_requires_validator_cert: bool,
+
+    /// QC threshold numerator. Default 2 (with denominator 3 → ⌈2n/3⌉).
+    #[serde(default = "default_qc_numerator")]
+    pub validator_qc_numerator: u64,
+
+    /// QC threshold denominator. Default 3.
+    #[serde(default = "default_qc_denominator")]
+    pub validator_qc_denominator: u64,
+}
+
+fn default_qc_numerator() -> u64 {
+    2
+}
+
+fn default_qc_denominator() -> u64 {
+    3
 }
 
 impl NetworkInfo {
@@ -318,6 +334,8 @@ mod tests {
             validator_min_stake: 0,
             validation_fees: None,
             repost_requires_validator_cert: false,
+            validator_qc_numerator: 2,
+            validator_qc_denominator: 3,
         };
         assert_eq!(network.get_checkpoint_mode(), CheckpointMode::None);
         assert!(!network.checkpoints_enabled());
@@ -336,6 +354,8 @@ mod tests {
             validator_min_stake: 0,
             validation_fees: None,
             repost_requires_validator_cert: false,
+            validator_qc_numerator: 2,
+            validator_qc_denominator: 3,
         };
         assert_eq!(network.get_checkpoint_mode(), CheckpointMode::Consensus);
         assert!(network.checkpoints_enabled());
@@ -353,6 +373,8 @@ mod tests {
             validator_min_stake: 0,
             validation_fees: None,
             repost_requires_validator_cert: false,
+            validator_qc_numerator: 2,
+            validator_qc_denominator: 3,
             checkpoints: Some(vec![
                 ManualCheckpoint {
                     block_index: 100,
@@ -415,6 +437,8 @@ mod tests {
         assert_eq!(network.validator_min_stake, 0);
         assert!(network.validation_fees.is_none());
         assert!(!network.repost_requires_validator_cert);
+        assert_eq!(network.validator_qc_numerator, 2);
+        assert_eq!(network.validator_qc_denominator, 3);
     }
 
     #[test]
@@ -435,5 +459,7 @@ mod tests {
         );
         assert_eq!(network.validation_fees.as_ref().unwrap().quote(3), 7);
         assert!(network.repost_requires_validator_cert);
+        assert_eq!(network.validator_qc_numerator, 2);
+        assert_eq!(network.validator_qc_denominator, 3);
     }
 }

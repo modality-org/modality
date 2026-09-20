@@ -5,24 +5,24 @@
 
 use anyhow::Result;
 use modality_common::keypair::{Keypair, KeypairOrPublicKey};
-use modality_datastore::models::{Commit, ValidatorBlock};
 use modality_datastore::DatastoreManager;
+use modality_datastore::models::{Commit, ValidatorBlock};
 use modality_networks::CheckpointMode;
-use modality_validator::prefix_cert::{self, PREFIX_CERT_TYPE};
 use modality_validator::ContractProcessor;
+use modality_validator::prefix_cert::{self, PREFIX_CERT_TYPE};
 use modality_validator_consensus::communication::{Communication, Message as ConsensusMessage};
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Arc;
-use tokio::sync::{mpsc, Mutex};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use tokio::sync::{Mutex, mpsc};
 
 use crate::consensus::node_communication::NodeCommunication;
 use crate::swarm::NodeSwarm;
 
 use super::ack_collector::{
-    run_finalization_task, save_certified_block, validate_certificate, AckCollector,
+    AckCollector, run_finalization_task, save_certified_block, validate_certificate,
 };
-use super::checkpoint::{create_checkpoint_for_epoch, CheckpointTracker};
+use super::checkpoint::{CheckpointTracker, create_checkpoint_for_epoch};
 
 /// Shared flags so the hybrid coordinator can start a single live loop and
 /// later mark this node as in/out of the N−2 committee without respawning.
@@ -700,7 +700,7 @@ pub async fn spawn_consensus_loop_with_checkpoints(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use modality_validator::prefix_cert::{build_prefix_from_store, PREFIX_CERT_TYPE};
+    use modality_validator::prefix_cert::{PREFIX_CERT_TYPE, build_prefix_from_store};
     use serde_json::json;
 
     fn certified_block(events: Vec<serde_json::Value>, batch: &str) -> ValidatorBlock {
@@ -745,12 +745,34 @@ mod tests {
         })
     }
 
+    fn prefix_cert_event(peer: &str, digest: &str) -> serde_json::Value {
+        json!({
+            "type": PREFIX_CERT_TYPE,
+            "source_contract": "src",
+            "through_commit": "src-commit",
+            "prefix_digest": digest,
+            "source_path": "/hello.text",
+            "value": "from source",
+            "validator_peer_id": peer,
+            "gas_used": 1,
+            "fee_quoted": 0
+        })
+    }
+
     async fn sequenced_source(ds: &Arc<Mutex<DatastoreManager>>, require_cert: bool) {
+        sequenced_source_named(ds, require_cert, &["peer1"]).await;
+    }
+
+    async fn sequenced_source_named(
+        ds: &Arc<Mutex<DatastoreManager>>,
+        require_cert: bool,
+        named: &[&str],
+    ) {
         {
             let mgr = ds.lock().await;
             mgr.load_network_config(&json!({
                 "repost_requires_validator_cert": require_cert,
-                "contract_validators": ["peer1"]
+                "contract_validators": named
             }))
             .await
             .unwrap();
@@ -850,6 +872,83 @@ mod tests {
             dest_in_batch(&ds, "d-ok").await.as_deref(),
             Some("batch-cert")
         );
+    }
+
+    #[tokio::test]
+    async fn dest_repost_n3_one_cert_leaves_in_batch_unset() {
+        let ds = Arc::new(Mutex::new(DatastoreManager::create_in_memory().unwrap()));
+        sequenced_source_named(&ds, true, &["peer1", "peer2", "peer3"]).await;
+        let digest = {
+            let mgr = ds.lock().await;
+            build_prefix_from_store(&mgr, "src", "src-commit")
+                .await
+                .unwrap()
+                .1
+        };
+        apply_certified_contract_events(
+            &certified_block(
+                vec![dest_push("d-one"), prefix_cert_event("peer1", &digest)],
+                "batch-one",
+            ),
+            &ds,
+        )
+        .await;
+        assert!(dest_in_batch(&ds, "d-one").await.is_none());
+    }
+
+    #[tokio::test]
+    async fn dest_repost_n3_two_matching_certs_in_same_batch_sets_in_batch() {
+        let ds = Arc::new(Mutex::new(DatastoreManager::create_in_memory().unwrap()));
+        sequenced_source_named(&ds, true, &["peer1", "peer2", "peer3"]).await;
+        let digest = {
+            let mgr = ds.lock().await;
+            build_prefix_from_store(&mgr, "src", "src-commit")
+                .await
+                .unwrap()
+                .1
+        };
+        apply_certified_contract_events(
+            &certified_block(
+                vec![
+                    dest_push("d-qc"),
+                    prefix_cert_event("peer1", &digest),
+                    prefix_cert_event("peer2", &digest),
+                ],
+                "batch-qc",
+            ),
+            &ds,
+        )
+        .await;
+        assert_eq!(
+            dest_in_batch(&ds, "d-qc").await.as_deref(),
+            Some("batch-qc")
+        );
+    }
+
+    #[tokio::test]
+    async fn dest_repost_n3_conflicting_digests_do_not_form_qc() {
+        let ds = Arc::new(Mutex::new(DatastoreManager::create_in_memory().unwrap()));
+        sequenced_source_named(&ds, true, &["peer1", "peer2", "peer3"]).await;
+        let digest = {
+            let mgr = ds.lock().await;
+            build_prefix_from_store(&mgr, "src", "src-commit")
+                .await
+                .unwrap()
+                .1
+        };
+        apply_certified_contract_events(
+            &certified_block(
+                vec![
+                    dest_push("d-split"),
+                    prefix_cert_event("peer1", &digest),
+                    prefix_cert_event("peer2", "deadbeef"),
+                ],
+                "batch-split",
+            ),
+            &ds,
+        )
+        .await;
+        assert!(dest_in_batch(&ds, "d-split").await.is_none());
     }
 
     #[test]

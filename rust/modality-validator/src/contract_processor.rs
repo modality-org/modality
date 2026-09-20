@@ -1,9 +1,9 @@
 use crate::predicate_executor::PredicateExecutor;
 use crate::program_executor::ProgramExecutor;
 use anyhow::Result;
-use modality_datastore::models::{AssetBalance, Commit, ContractAsset, ReceivedSend, WasmModule};
 use modality_datastore::DatastoreManager;
-use modality_wasm_runtime::{WasmExecutor, DEFAULT_GAS_LIMIT};
+use modality_datastore::models::{AssetBalance, Commit, ContractAsset, ReceivedSend, WasmModule};
+use modality_wasm_runtime::{DEFAULT_GAS_LIMIT, WasmExecutor};
 use modality_wasm_validation::{PredicateContext, ProgramContext};
 use serde_json::Value;
 use std::sync::Arc;
@@ -575,46 +575,36 @@ impl ContractProcessor {
         let ds = self.datastore.lock().await;
         Self::assert_repost_source_sequenced(&ds, &spec).await?;
         if ds.repost_requires_validator_cert().unwrap_or(false) {
-            let cert_json = ds
-                .get_prefix_cert(&spec.source_contract, &spec.source_commit)?
-                .ok_or_else(|| {
-                    anyhow::anyhow!(
-                        "REPOST rejected: missing prefix_cert for source commit '{}' on '{}'",
-                        spec.source_commit,
-                        spec.source_contract
-                    )
-                })?;
-            let cert: crate::prefix_cert::PrefixCert = serde_json::from_value(cert_json.clone())?;
             let named = ds.contract_validators()?;
-            if !crate::prefix_cert::signer_is_named(&cert, &named) {
-                anyhow::bail!(
-                    "REPOST rejected: prefix_cert signer {} is not a named contract validator",
-                    cert.validator_peer_id
-                );
-            }
-            if !crate::prefix_cert::cert_matches_repost(
-                &cert_json,
-                &spec.source_contract,
-                &spec.source_commit,
-                Some(&spec.source_path),
-                Some(&spec.value),
-            ) {
-                anyhow::bail!(
-                    "REPOST rejected: prefix_cert does not match source {} @ {}",
-                    spec.source_contract,
-                    spec.source_commit
-                );
-            }
+            let n = named.len();
+            let threshold = crate::prefix_cert::qc_threshold(
+                n,
+                ds.validator_qc_numerator().unwrap_or(2),
+                ds.validator_qc_denominator().unwrap_or(3),
+            );
             let (_, digest, _) = crate::prefix_cert::build_prefix_from_store(
                 &ds,
                 &spec.source_contract,
                 &spec.source_commit,
             )
             .await?;
-            if cert.prefix_digest != digest {
+            let certs = ds.list_prefix_certs(&spec.source_contract, &spec.source_commit)?;
+            let have = crate::prefix_cert::matching_qc_signers(
+                &certs,
+                &named,
+                &digest,
+                &spec.source_contract,
+                &spec.source_commit,
+                Some(&spec.source_path),
+                Some(&spec.value),
+            );
+            if n == 0 || have < threshold {
                 anyhow::bail!(
-                    "REPOST rejected: prefix_cert digest does not match source prefix through {}",
-                    spec.source_commit
+                    "REPOST rejected: missing prefix_cert QC for source commit '{}' on '{}' (have {}, need {})",
+                    spec.source_commit,
+                    spec.source_contract,
+                    have,
+                    if n == 0 { 1 } else { threshold }
                 );
             }
         }
@@ -704,7 +694,7 @@ impl ContractProcessor {
         };
 
         // Decode base64
-        use base64::{engine::general_purpose, Engine as _};
+        use base64::{Engine as _, engine::general_purpose};
         let wasm_bytes = general_purpose::STANDARD
             .decode(wasm_base64)
             .map_err(|e| anyhow::anyhow!("Invalid base64 WASM bytes: {}", e))?;
@@ -1364,5 +1354,145 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(changes.len(), 1);
+    }
+
+    fn prefix_cert_json(peer: &str, digest: &str) -> serde_json::Value {
+        serde_json::json!({
+            "type": "prefix_cert",
+            "source_contract": "src",
+            "through_commit": "src-commit",
+            "prefix_digest": digest,
+            "source_path": "/hello.text",
+            "value": "from source",
+            "validator_peer_id": peer,
+            "gas_used": 1,
+            "fee_quoted": 0
+        })
+    }
+
+    async fn sequenced_source_named(
+        datastore: &Arc<Mutex<DatastoreManager>>,
+        named: &[&str],
+    ) -> ContractProcessor {
+        {
+            let ds = datastore.lock().await;
+            ds.load_network_config(&serde_json::json!({
+                "repost_requires_validator_cert": true,
+                "contract_validators": named
+            }))
+            .await
+            .unwrap();
+        }
+        let processor = ContractProcessor::new(datastore.clone());
+        processor
+            .process_commit(
+                "src",
+                "src-commit",
+                &serde_json::json!({
+                    "body": [{
+                        "method": "post",
+                        "path": "/hello.text",
+                        "value": "from source"
+                    }],
+                    "head": {}
+                })
+                .to_string(),
+            )
+            .await
+            .unwrap();
+        {
+            let ds = datastore.lock().await;
+            let keys = [
+                ("contract_id".to_string(), "src".to_string()),
+                ("commit_id".to_string(), "src-commit".to_string()),
+            ]
+            .into_iter()
+            .collect();
+            let mut source = Commit::find_one_multi(&ds, keys).await.unwrap().unwrap();
+            source.in_batch = Some("cert-1".to_string());
+            source.save_to_final(&ds).await.unwrap();
+        }
+        processor
+    }
+
+    #[tokio::test]
+    async fn test_repost_requires_two_of_three_named_certs() {
+        let datastore = Arc::new(Mutex::new(DatastoreManager::create_in_memory().unwrap()));
+        let processor = sequenced_source_named(&datastore, &["peer1", "peer2", "peer3"]).await;
+        let dest_repost = serde_json::json!({
+            "body": [{
+                "method": "repost",
+                "path": "/reposts/src/hello.text",
+                "value": "from source",
+                "source_contract": "src",
+                "source_path": "/hello.text",
+                "source_commit": "src-commit"
+            }],
+            "head": {}
+        });
+        let digest = {
+            let ds = datastore.lock().await;
+            crate::prefix_cert::build_prefix_from_store(&ds, "src", "src-commit")
+                .await
+                .unwrap()
+                .1
+        };
+        {
+            let ds = datastore.lock().await;
+            ds.save_prefix_cert(&prefix_cert_json("peer1", &digest))
+                .unwrap();
+        }
+        let err = processor
+            .process_commit("dest", "dest-one-cert", &dest_repost.to_string())
+            .await
+            .expect_err("one of three certs must fail QC");
+        assert!(err.to_string().contains("missing prefix_cert"));
+
+        {
+            let ds = datastore.lock().await;
+            ds.save_prefix_cert(&prefix_cert_json("peer2", &digest))
+                .unwrap();
+        }
+        let changes = processor
+            .process_commit("dest", "dest-two-certs", &dest_repost.to_string())
+            .await
+            .unwrap();
+        assert_eq!(changes.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_repost_conflicting_digests_do_not_form_qc() {
+        let datastore = Arc::new(Mutex::new(DatastoreManager::create_in_memory().unwrap()));
+        let processor = sequenced_source_named(&datastore, &["peer1", "peer2", "peer3"]).await;
+        let dest_repost = serde_json::json!({
+            "body": [{
+                "method": "repost",
+                "path": "/reposts/src/hello.text",
+                "value": "from source",
+                "source_contract": "src",
+                "source_path": "/hello.text",
+                "source_commit": "src-commit"
+            }],
+            "head": {}
+        });
+        let digest = {
+            let ds = datastore.lock().await;
+            crate::prefix_cert::build_prefix_from_store(&ds, "src", "src-commit")
+                .await
+                .unwrap()
+                .1
+        };
+        {
+            let ds = datastore.lock().await;
+            ds.save_prefix_cert(&prefix_cert_json("peer1", &digest))
+                .unwrap();
+            ds.save_prefix_cert(&prefix_cert_json("peer2", "deadbeef"))
+                .unwrap();
+        }
+        let err = processor
+            .process_commit("dest", "dest-conflict", &dest_repost.to_string())
+            .await
+            .expect_err("conflicting digests must not form a QC");
+        assert!(err.to_string().contains("missing prefix_cert"));
     }
 }
