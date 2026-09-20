@@ -1,11 +1,11 @@
 use anyhow::Result;
-use serde::{Serialize, Deserialize};
-use std::collections::HashMap;
 use async_trait::async_trait;
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 use crate::DatastoreManager;
-use crate::stores::Store;
 use crate::model::Model;
+use crate::stores::Store;
 
 /// A contract represents a stateful entity with a unique ID
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -26,7 +26,7 @@ impl Model for Contract {
             "contract_id" => self.contract_id = value.as_str().unwrap_or_default().to_string(),
             "genesis" => self.genesis = value.as_str().unwrap_or_default().to_string(),
             "created_at" => self.created_at = value.as_u64().unwrap_or_default(),
-            _ => {},
+            _ => {}
         }
     }
 
@@ -41,35 +41,38 @@ impl Contract {
     pub async fn find_all_multi(datastore: &DatastoreManager) -> Result<Vec<Self>> {
         let prefix = "/contracts/";
         let mut contracts = Vec::new();
-        
+
         let store = datastore.validator_final();
         let iterator = store.iterator(prefix);
         for result in iterator {
             let (key, _) = result?;
             let key_str = String::from_utf8(key.to_vec())?;
-            
+
             // Parse key to extract contract_id
             let parts: Vec<&str> = key_str.split('/').collect();
             if parts.len() >= 3 {
                 if let Some(contract_id) = parts.get(2) {
-                    let keys = [
-                        ("contract_id".to_string(), contract_id.to_string()),
-                    ].into_iter().collect();
-                    
+                    let keys = [("contract_id".to_string(), contract_id.to_string())]
+                        .into_iter()
+                        .collect();
+
                     if let Some(contract) = Self::find_one_from_store(store, keys).await? {
                         contracts.push(contract);
                     }
                 }
             }
         }
-        
+
         Ok(contracts)
     }
 
-    pub async fn find_by_id_multi(datastore: &DatastoreManager, contract_id: &str) -> Result<Option<Self>> {
-        let keys = [
-            ("contract_id".to_string(), contract_id.to_string()),
-        ].into_iter().collect();
+    pub async fn find_by_id_multi(
+        datastore: &DatastoreManager,
+        contract_id: &str,
+    ) -> Result<Option<Self>> {
+        let keys = [("contract_id".to_string(), contract_id.to_string())]
+            .into_iter()
+            .collect();
         Self::find_one_from_store(datastore.validator_final(), keys).await
     }
 
@@ -92,7 +95,13 @@ pub struct Commit {
 #[async_trait]
 impl Model for Commit {
     const ID_PATH: &'static str = "/commits/${contract_id}/${commit_id}";
-    const FIELDS: &'static [&'static str] = &["contract_id", "commit_id", "commit_data", "timestamp", "in_batch"];
+    const FIELDS: &'static [&'static str] = &[
+        "contract_id",
+        "commit_id",
+        "commit_data",
+        "timestamp",
+        "in_batch",
+    ];
     const FIELD_DEFAULTS: &'static [(&'static str, serde_json::Value)] = &[];
 
     fn set_field(&mut self, field: &str, value: serde_json::Value) {
@@ -102,7 +111,7 @@ impl Model for Commit {
             "commit_data" => self.commit_data = value.as_str().unwrap_or_default().to_string(),
             "timestamp" => self.timestamp = value.as_u64().unwrap_or_default(),
             "in_batch" => self.in_batch = value.as_str().map(|s| s.to_string()),
-            _ => {},
+            _ => {}
         }
     }
 
@@ -121,13 +130,13 @@ impl Commit {
     ) -> Result<Vec<Self>> {
         let prefix = format!("/commits/{}", contract_id);
         let mut commits = Vec::new();
-        
+
         let store = datastore.validator_final();
         let iterator = store.iterator(&prefix);
         for result in iterator {
             let (key, _) = result?;
             let key_str = String::from_utf8(key.to_vec())?;
-            
+
             // Parse key to extract contract_id and commit_id
             let parts: Vec<&str> = key_str.split('/').collect();
             if parts.len() >= 4 {
@@ -135,19 +144,24 @@ impl Commit {
                     let keys = [
                         ("contract_id".to_string(), cid.to_string()),
                         ("commit_id".to_string(), cmid.to_string()),
-                    ].into_iter().collect();
-                    
+                    ]
+                    .into_iter()
+                    .collect();
+
                     if let Some(commit) = Self::find_one_from_store(store, keys).await? {
                         commits.push(commit);
                     }
                 }
             }
         }
-        
+
         Ok(commits)
     }
 
-    pub async fn find_one_multi(datastore: &DatastoreManager, keys: HashMap<String, String>) -> Result<Option<Self>> {
+    pub async fn find_one_multi(
+        datastore: &DatastoreManager,
+        keys: HashMap<String, String>,
+    ) -> Result<Option<Self>> {
         Self::find_one_from_store(datastore.validator_final(), keys).await
     }
 
@@ -214,7 +228,7 @@ impl Model for ContractAsset {
         "quantity",
         "divisibility",
         "created_at",
-        "creator_commit_id"
+        "creator_commit_id",
     ];
     const FIELD_DEFAULTS: &'static [(&'static str, serde_json::Value)] = &[];
 
@@ -225,8 +239,10 @@ impl Model for ContractAsset {
             "quantity" => self.quantity = value.as_u64().unwrap_or_default(),
             "divisibility" => self.divisibility = value.as_u64().unwrap_or_default(),
             "created_at" => self.created_at = value.as_u64().unwrap_or_default(),
-            "creator_commit_id" => self.creator_commit_id = value.as_str().unwrap_or_default().to_string(),
-            _ => {},
+            "creator_commit_id" => {
+                self.creator_commit_id = value.as_str().unwrap_or_default().to_string()
+            }
+            _ => {}
         }
     }
 
@@ -245,13 +261,13 @@ impl ContractAsset {
     ) -> Result<Vec<Self>> {
         let prefix = format!("/assets/{}/", contract_id);
         let mut assets = Vec::new();
-        
+
         let store = datastore.validator_final();
         let iterator = store.iterator(&prefix);
         for result in iterator {
             let (key, _) = result?;
             let key_str = String::from_utf8(key.to_vec())?;
-            
+
             // Parse key to extract contract_id and asset_id
             let parts: Vec<&str> = key_str.split('/').collect();
             if parts.len() >= 4 {
@@ -259,19 +275,24 @@ impl ContractAsset {
                     let keys = [
                         ("contract_id".to_string(), cid.to_string()),
                         ("asset_id".to_string(), aid.to_string()),
-                    ].into_iter().collect();
-                    
+                    ]
+                    .into_iter()
+                    .collect();
+
                     if let Some(asset) = Self::find_one_from_store(store, keys).await? {
                         assets.push(asset);
                     }
                 }
             }
         }
-        
+
         Ok(assets)
     }
 
-    pub async fn find_one_multi(datastore: &DatastoreManager, keys: HashMap<String, String>) -> Result<Option<Self>> {
+    pub async fn find_one_multi(
+        datastore: &DatastoreManager,
+        keys: HashMap<String, String>,
+    ) -> Result<Option<Self>> {
         Self::find_one_from_store(datastore.validator_final(), keys).await
     }
 
@@ -293,21 +314,19 @@ pub struct AssetBalance {
 #[async_trait]
 impl Model for AssetBalance {
     const ID_PATH: &'static str = "/balances/${contract_id}/${asset_id}/${owner_contract_id}";
-    const FIELDS: &'static [&'static str] = &[
-        "contract_id",
-        "asset_id",
-        "owner_contract_id",
-        "balance"
-    ];
+    const FIELDS: &'static [&'static str] =
+        &["contract_id", "asset_id", "owner_contract_id", "balance"];
     const FIELD_DEFAULTS: &'static [(&'static str, serde_json::Value)] = &[];
 
     fn set_field(&mut self, field: &str, value: serde_json::Value) {
         match field {
             "contract_id" => self.contract_id = value.as_str().unwrap_or_default().to_string(),
             "asset_id" => self.asset_id = value.as_str().unwrap_or_default().to_string(),
-            "owner_contract_id" => self.owner_contract_id = value.as_str().unwrap_or_default().to_string(),
+            "owner_contract_id" => {
+                self.owner_contract_id = value.as_str().unwrap_or_default().to_string()
+            }
             "balance" => self.balance = value.as_u64().unwrap_or_default(),
-            _ => {},
+            _ => {}
         }
     }
 
@@ -315,7 +334,10 @@ impl Model for AssetBalance {
         let mut keys = HashMap::new();
         keys.insert("contract_id".to_string(), self.contract_id.clone());
         keys.insert("asset_id".to_string(), self.asset_id.clone());
-        keys.insert("owner_contract_id".to_string(), self.owner_contract_id.clone());
+        keys.insert(
+            "owner_contract_id".to_string(),
+            self.owner_contract_id.clone(),
+        );
         keys
     }
 }
@@ -327,24 +349,28 @@ impl AssetBalance {
     ) -> Result<Vec<Self>> {
         let prefix = "/balances/";
         let mut balances = Vec::new();
-        
+
         let store = datastore.validator_final();
         let iterator = store.iterator(prefix);
         for result in iterator {
             let (key, _) = result?;
             let key_str = String::from_utf8(key.to_vec())?;
-            
+
             // Parse key to extract all IDs
             let parts: Vec<&str> = key_str.split('/').collect();
             if parts.len() >= 5 {
-                if let (Some(cid), Some(aid), Some(oid)) = (parts.get(2), parts.get(3), parts.get(4)) {
+                if let (Some(cid), Some(aid), Some(oid)) =
+                    (parts.get(2), parts.get(3), parts.get(4))
+                {
                     if *oid == owner_contract_id {
                         let keys = [
                             ("contract_id".to_string(), cid.to_string()),
                             ("asset_id".to_string(), aid.to_string()),
                             ("owner_contract_id".to_string(), oid.to_string()),
-                        ].into_iter().collect();
-                        
+                        ]
+                        .into_iter()
+                        .collect();
+
                         if let Some(balance) = Self::find_one_from_store(store, keys).await? {
                             balances.push(balance);
                         }
@@ -352,7 +378,7 @@ impl AssetBalance {
                 }
             }
         }
-        
+
         Ok(balances)
     }
 
@@ -363,34 +389,41 @@ impl AssetBalance {
     ) -> Result<Vec<Self>> {
         let prefix = format!("/balances/{}/{}/", contract_id, asset_id);
         let mut balances = Vec::new();
-        
+
         let store = datastore.validator_final();
         let iterator = store.iterator(&prefix);
         for result in iterator {
             let (key, _) = result?;
             let key_str = String::from_utf8(key.to_vec())?;
-            
+
             // Parse key to extract all IDs
             let parts: Vec<&str> = key_str.split('/').collect();
             if parts.len() >= 5 {
-                if let (Some(cid), Some(aid), Some(oid)) = (parts.get(2), parts.get(3), parts.get(4)) {
+                if let (Some(cid), Some(aid), Some(oid)) =
+                    (parts.get(2), parts.get(3), parts.get(4))
+                {
                     let keys = [
                         ("contract_id".to_string(), cid.to_string()),
                         ("asset_id".to_string(), aid.to_string()),
                         ("owner_contract_id".to_string(), oid.to_string()),
-                    ].into_iter().collect();
-                    
+                    ]
+                    .into_iter()
+                    .collect();
+
                     if let Some(balance) = Self::find_one_from_store(store, keys).await? {
                         balances.push(balance);
                     }
                 }
             }
         }
-        
+
         Ok(balances)
     }
 
-    pub async fn find_one_multi(datastore: &DatastoreManager, keys: HashMap<String, String>) -> Result<Option<Self>> {
+    pub async fn find_one_multi(
+        datastore: &DatastoreManager,
+        keys: HashMap<String, String>,
+    ) -> Result<Option<Self>> {
         Self::find_one_from_store(datastore.validator_final(), keys).await
     }
 
@@ -416,17 +449,23 @@ impl Model for ReceivedSend {
         "send_commit_id",
         "recv_contract_id",
         "recv_commit_id",
-        "received_at"
+        "received_at",
     ];
     const FIELD_DEFAULTS: &'static [(&'static str, serde_json::Value)] = &[];
 
     fn set_field(&mut self, field: &str, value: serde_json::Value) {
         match field {
-            "send_commit_id" => self.send_commit_id = value.as_str().unwrap_or_default().to_string(),
-            "recv_contract_id" => self.recv_contract_id = value.as_str().unwrap_or_default().to_string(),
-            "recv_commit_id" => self.recv_commit_id = value.as_str().unwrap_or_default().to_string(),
+            "send_commit_id" => {
+                self.send_commit_id = value.as_str().unwrap_or_default().to_string()
+            }
+            "recv_contract_id" => {
+                self.recv_contract_id = value.as_str().unwrap_or_default().to_string()
+            }
+            "recv_commit_id" => {
+                self.recv_commit_id = value.as_str().unwrap_or_default().to_string()
+            }
             "received_at" => self.received_at = value.as_u64().unwrap_or_default(),
-            _ => {},
+            _ => {}
         }
     }
 
@@ -438,7 +477,10 @@ impl Model for ReceivedSend {
 }
 
 impl ReceivedSend {
-    pub async fn find_one_multi(datastore: &DatastoreManager, keys: HashMap<String, String>) -> Result<Option<Self>> {
+    pub async fn find_one_multi(
+        datastore: &DatastoreManager,
+        keys: HashMap<String, String>,
+    ) -> Result<Option<Self>> {
         Self::find_one_from_store(datastore.validator_final(), keys).await
     }
 

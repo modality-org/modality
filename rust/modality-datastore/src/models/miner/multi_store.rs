@@ -314,6 +314,8 @@ impl MinerBlock {
             "is_canonical": self.is_canonical
         });
         mgr.miner_active().put(&height_key, serde_json::to_string(&height_entry)?.as_bytes())?;
+
+        mgr.apply_native_mod_for_miner_block(self)?;
         
         Ok(())
     }

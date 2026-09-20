@@ -313,6 +313,7 @@ impl NetworkDatastore {
             repost_requires_validator_cert: false,
             validator_qc_numerator: crate::VALIDATOR_QC_NUMERATOR,
             validator_qc_denominator: crate::VALIDATOR_QC_DENOMINATOR,
+            emission: crate::EmissionConfig::default(),
         })
     }
 

@@ -74,6 +74,14 @@ fn legacy_prefix_cert_key(contract: &str, through: &str) -> String {
     format!("prefix_cert/{}/{}", contract, through)
 }
 
+fn native_mod_balance_key(account: &str) -> String {
+    format!("native_mod/balance/{}", account)
+}
+
+fn native_mod_paid_key(block_hash: &str) -> String {
+    format!("native_mod/paid/{}", block_hash)
+}
+
 fn decode_prefix_certs(data: &[u8]) -> Vec<serde_json::Value> {
     match serde_json::from_slice::<serde_json::Value>(data) {
         Ok(serde_json::Value::Array(arr)) => arr,
@@ -290,6 +298,7 @@ impl DatastoreManager {
         }
 
         self.store_contract_validator_config(network_config)?;
+        self.apply_native_mod_genesis()?;
 
         Ok(())
     }
@@ -519,6 +528,127 @@ impl DatastoreManager {
             .any(|c| c.get("validator_peer_id").and_then(|v| v.as_str()) == Some(peer_id)))
     }
 
+    pub fn emission_config(&self) -> Result<crate::EmissionConfig> {
+        match self.node_state.get("network_config")? {
+            Some(data) => {
+                let cfg: serde_json::Value = serde_json::from_slice(&data).unwrap_or_default();
+                Ok(cfg
+                    .get("emission")
+                    .and_then(|v| serde_json::from_value(v.clone()).ok())
+                    .unwrap_or_default())
+            }
+            None => Ok(crate::EmissionConfig::default()),
+        }
+    }
+
+    pub fn native_mod_balance(&self, account: &str) -> Result<u64> {
+        if account.is_empty() {
+            return Ok(0);
+        }
+        match self.node_state.get(&native_mod_balance_key(account))? {
+            Some(data) => Ok(serde_json::from_slice(&data).unwrap_or(0)),
+            None => Ok(0),
+        }
+    }
+
+    pub fn native_mod_emitted_total(&self) -> Result<u64> {
+        match self.node_state.get("native_mod/emitted_total")? {
+            Some(data) => Ok(serde_json::from_slice(&data).unwrap_or(0)),
+            None => Ok(0),
+        }
+    }
+
+    pub fn apply_native_mod_genesis(&self) -> Result<()> {
+        if self.node_state.get("native_mod/genesis_applied")?.is_some() {
+            return Ok(());
+        }
+        let emission = self.emission_config()?;
+        for alloc in &emission.genesis_allocations {
+            self.credit_native_mod(&alloc.account, alloc.amount)?;
+        }
+        self.node_state.put("native_mod/genesis_applied", b"1")?;
+        Ok(())
+    }
+
+    pub fn apply_native_mod_for_miner_block(
+        &self,
+        block: &crate::models::MinerBlock,
+    ) -> Result<()> {
+        if block.is_orphaned || !block.is_canonical {
+            return self.revert_native_mod_for_miner_block(&block.hash);
+        }
+        let paid_key = native_mod_paid_key(&block.hash);
+        if self.node_state.get(&paid_key)?.is_some() {
+            return Ok(());
+        }
+        let emission = self.emission_config()?;
+        let subsidy = emission.subsidy_at_index(block.index);
+        let credited = self.credit_native_mod(&block.nominated_peer_id, subsidy)?;
+        if credited > 0 {
+            let record = serde_json::json!({
+                "account": block.nominated_peer_id,
+                "amount": credited,
+            });
+            self.node_state
+                .put(&paid_key, &serde_json::to_vec(&record)?)?;
+        }
+        Ok(())
+    }
+
+    fn revert_native_mod_for_miner_block(&self, block_hash: &str) -> Result<()> {
+        let paid_key = native_mod_paid_key(block_hash);
+        let Some(data) = self.node_state.get(&paid_key)? else {
+            return Ok(());
+        };
+        let record: serde_json::Value = serde_json::from_slice(&data).unwrap_or_default();
+        let account = record.get("account").and_then(|v| v.as_str()).unwrap_or("");
+        let amount = record.get("amount").and_then(|v| v.as_u64()).unwrap_or(0);
+        self.debit_native_mod(account, amount)?;
+        let _ = self.node_state.delete(&paid_key);
+        Ok(())
+    }
+
+    fn credit_native_mod(&self, account: &str, amount: u64) -> Result<u64> {
+        if account.is_empty() || amount == 0 {
+            return Ok(0);
+        }
+        let emission = self.emission_config()?;
+        let minted = self.native_mod_emitted_total()?;
+        let remaining = if emission.cap == 0 {
+            amount
+        } else {
+            emission.cap.saturating_sub(minted).min(amount)
+        };
+        if remaining == 0 {
+            return Ok(0);
+        }
+        let balance = self.native_mod_balance(account)?.saturating_add(remaining);
+        self.node_state.put(
+            &native_mod_balance_key(account),
+            &serde_json::to_vec(&balance)?,
+        )?;
+        self.node_state.put(
+            "native_mod/emitted_total",
+            &serde_json::to_vec(&minted.saturating_add(remaining))?,
+        )?;
+        Ok(remaining)
+    }
+
+    fn debit_native_mod(&self, account: &str, amount: u64) -> Result<()> {
+        if account.is_empty() || amount == 0 {
+            return Ok(());
+        }
+        let balance = self.native_mod_balance(account)?.saturating_sub(amount);
+        self.node_state.put(
+            &native_mod_balance_key(account),
+            &serde_json::to_vec(&balance)?,
+        )?;
+        let minted = self.native_mod_emitted_total()?.saturating_sub(amount);
+        self.node_state
+            .put("native_mod/emitted_total", &serde_json::to_vec(&minted)?)?;
+        Ok(())
+    }
+
     /// Get static validators from NodeState store
     pub async fn get_static_validators(&self) -> Result<Option<Vec<String>>> {
         if let Some(data) = self.node_state.get("static_validators")? {
@@ -723,5 +853,74 @@ mod tests {
             .find(|c| c["validator_peer_id"] == "peer1")
             .unwrap();
         assert_eq!(peer1["prefix_digest"], "bb");
+    }
+
+    #[tokio::test]
+    async fn native_mod_credits_nominee_from_config() {
+        let mgr = DatastoreManager::create_in_memory().unwrap();
+        mgr.load_network_config(&serde_json::json!({
+            "name": "local",
+            "emission": {
+                "block_subsidy": 50,
+                "cap": 120,
+                "genesis_allocations": [{ "account": "alice", "amount": 30 }]
+            }
+        }))
+        .await
+        .unwrap();
+        assert_eq!(mgr.native_mod_balance("alice").unwrap(), 30);
+        assert_eq!(mgr.native_mod_emitted_total().unwrap(), 30);
+
+        let block = crate::models::MinerBlock::new_canonical(
+            "h1".into(),
+            1,
+            0,
+            1,
+            "0".into(),
+            "d".into(),
+            0,
+            1,
+            "bob".into(),
+            0,
+        );
+        mgr.apply_native_mod_for_miner_block(&block).unwrap();
+        assert_eq!(mgr.native_mod_balance("bob").unwrap(), 50);
+        assert_eq!(mgr.native_mod_emitted_total().unwrap(), 80);
+        mgr.apply_native_mod_for_miner_block(&block).unwrap();
+        assert_eq!(mgr.native_mod_emitted_total().unwrap(), 80);
+
+        let block2 = crate::models::MinerBlock::new_canonical(
+            "h2".into(),
+            2,
+            0,
+            1,
+            "h1".into(),
+            "d".into(),
+            0,
+            1,
+            "bob".into(),
+            0,
+        );
+        mgr.apply_native_mod_for_miner_block(&block2).unwrap();
+        assert_eq!(mgr.native_mod_balance("bob").unwrap(), 90);
+        assert_eq!(mgr.native_mod_emitted_total().unwrap(), 120);
+
+        let mut orphan = block.clone();
+        orphan.mark_as_orphaned("test".into(), None);
+        mgr.apply_native_mod_for_miner_block(&orphan).unwrap();
+        assert_eq!(mgr.native_mod_balance("bob").unwrap(), 40);
+        assert_eq!(mgr.native_mod_emitted_total().unwrap(), 70);
+
+        mgr.load_network_config(&serde_json::json!({
+            "name": "local",
+            "emission": {
+                "block_subsidy": 50,
+                "cap": 120,
+                "genesis_allocations": [{ "account": "alice", "amount": 30 }]
+            }
+        }))
+        .await
+        .unwrap();
+        assert_eq!(mgr.native_mod_balance("alice").unwrap(), 30);
     }
 }

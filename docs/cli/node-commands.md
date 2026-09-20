@@ -166,12 +166,15 @@ Network `info.json` may include, besides the sequencer committee `validators`:
 | `validator_min_stake` | `0` | Minimum stake to validate; `0` on testnet/dev |
 | `validation_fees` | `{ "nominal": 0, "meter_coefficient": 0 }` | Quoted as `nominal + meter_coefficient * gas_used` (recorded, not transferred) |
 | `repost_requires_validator_cert` | `false` | When `true`, dest REPOST and dest RECV apply need a validator supermajority (`⌈2n/3⌉` named `prefix_cert` signatures on the same digest through the source commit), not one signature |
+| `emission` | omitted (no mint) | Native MOD mint for this network. `block_subsidy` is credited to the peer nominated in each canonical miner block after index 0. Optional `halving_interval_blocks` (0 = never), `cap` (0 = none), and `genesis_allocations` (`[{ "account": "<peer id>", "amount": n }]`) applied once on first config load. Distinct from contract-asset CREATE/SEND/RECV |
 
 Omitted fields keep existing networks unchanged. Local `devnet1` names the
 single node as a contract validator and sets
 `repost_requires_validator_cert` so dest REPOST and dest RECV wait for that
 node's prefix cert. Request a certificate with `/contract/prefix_cert`
-(`source_contract`, `through_commit`).
+(`source_contract`, `through_commit`). Local devnets also set
+`emission.block_subsidy` so mining mints native MOD. Copy `emission` into your
+own `info.json` (or network config file) to choose a different schedule.
 
 ## Information
 

@@ -8,6 +8,9 @@
   "validators": [
     "12D3KooW9pte76rpnggcLYkFaawuTEs5DC5axHkg3cK3cewGxxHd",
     "12D3KooW9pypLnRn67EFjiWgEiDdqo8YizaPn8yKe5cNJd3PGnMB"
-  ]
+  ],
+  "emission": {
+    "block_subsidy": 50
+  }
 }
 

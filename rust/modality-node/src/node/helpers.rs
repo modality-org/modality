@@ -115,6 +115,9 @@ pub async fn load_network_config(
             serde_json::json!(network_info.validator_qc_numerator);
         config_json["validator_qc_denominator"] =
             serde_json::json!(network_info.validator_qc_denominator);
+        if let Some(emission) = network_info.emission {
+            config_json["emission"] = serde_json::to_value(emission)?;
+        }
 
         config_json["rounds"] = serde_json::json!({});
 

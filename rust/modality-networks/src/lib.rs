@@ -42,6 +42,25 @@ impl ValidationFees {
     }
 }
 
+/// Per-network native MOD emission. Omitted or all zeros means no mint.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct EmissionConfig {
+    #[serde(default)]
+    pub block_subsidy: u64,
+    #[serde(default)]
+    pub halving_interval_blocks: u64,
+    #[serde(default)]
+    pub cap: u64,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub genesis_allocations: Vec<GenesisAllocation>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct GenesisAllocation {
+    pub account: String,
+    pub amount: u64,
+}
+
 /// Represents information about a Modality network
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NetworkInfo {
@@ -93,6 +112,10 @@ pub struct NetworkInfo {
     /// QC threshold denominator. Default 3.
     #[serde(default = "default_qc_denominator")]
     pub validator_qc_denominator: u64,
+
+    /// Native MOD mint schedule for this network. Omitted = no emission.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub emission: Option<EmissionConfig>,
 }
 
 const DEFAULT_QC_NUMERATOR: u64 = 2;
@@ -276,6 +299,7 @@ mod tests {
             ["12D3KooW9pte76rpnggcLYkFaawuTEs5DC5axHkg3cK3cewGxxHd"]
         );
         assert!(devnet1.repost_requires_validator_cert);
+        assert_eq!(devnet1.emission.as_ref().unwrap().block_subsidy, 50);
 
         let devnet2 = networks::devnet2();
         assert!(
@@ -344,6 +368,7 @@ mod tests {
             repost_requires_validator_cert: false,
             validator_qc_numerator: DEFAULT_QC_NUMERATOR,
             validator_qc_denominator: DEFAULT_QC_DENOMINATOR,
+            emission: None,
         };
         assert_eq!(network.get_checkpoint_mode(), CheckpointMode::None);
         assert!(!network.checkpoints_enabled());
@@ -364,6 +389,7 @@ mod tests {
             repost_requires_validator_cert: false,
             validator_qc_numerator: DEFAULT_QC_NUMERATOR,
             validator_qc_denominator: DEFAULT_QC_DENOMINATOR,
+            emission: None,
         };
         assert_eq!(network.get_checkpoint_mode(), CheckpointMode::Consensus);
         assert!(network.checkpoints_enabled());
@@ -383,6 +409,7 @@ mod tests {
             repost_requires_validator_cert: false,
             validator_qc_numerator: DEFAULT_QC_NUMERATOR,
             validator_qc_denominator: DEFAULT_QC_DENOMINATOR,
+            emission: None,
             checkpoints: Some(vec![
                 ManualCheckpoint {
                     block_index: 100,
@@ -447,6 +474,7 @@ mod tests {
         assert!(!network.repost_requires_validator_cert);
         assert_eq!(network.validator_qc_numerator, 2);
         assert_eq!(network.validator_qc_denominator, 3);
+        assert!(network.emission.is_none());
     }
 
     #[test]
@@ -458,7 +486,8 @@ mod tests {
             "contract_validators": ["12D3KooWtestpeer"],
             "validator_min_stake": 0,
             "validation_fees": { "nominal": 1, "meter_coefficient": 2 },
-            "repost_requires_validator_cert": true
+            "repost_requires_validator_cert": true,
+            "emission": { "block_subsidy": 50 }
         });
         let network: NetworkInfo = serde_json::from_value(json).unwrap();
         assert_eq!(
@@ -469,5 +498,6 @@ mod tests {
         assert!(network.repost_requires_validator_cert);
         assert_eq!(network.validator_qc_numerator, 2);
         assert_eq!(network.validator_qc_denominator, 3);
+        assert_eq!(network.emission.as_ref().unwrap().block_subsidy, 50);
     }
 }

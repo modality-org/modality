@@ -35,6 +35,8 @@ The hub validates:
 - **RECV**: Matching sequenced SEND exists, recipient matches, not already received. When `repost_requires_validator_cert` is on, dest also needs a validator supermajority on the source prefix through that SEND commit
 - **REPOST**: Value matches the source contract at the pinned `source_commit`
 
+Native MOD minted from miner-block emission is a per-network `emission` schedule in `info.json`, not a contract-asset CREATE. See node commands.
+
 ## Creating Contracts
 
 Create two contracts that will exchange assets:

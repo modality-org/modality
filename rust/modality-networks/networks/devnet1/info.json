@@ -10,6 +10,9 @@
   "contract_validators": [
     "12D3KooW9pte76rpnggcLYkFaawuTEs5DC5axHkg3cK3cewGxxHd"
   ],
-  "repost_requires_validator_cert": true
+  "repost_requires_validator_cert": true,
+  "emission": {
+    "block_subsidy": 50
+  }
 }
 
