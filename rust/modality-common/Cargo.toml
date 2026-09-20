@@ -18,7 +18,7 @@ sha2 = "0.10.8"
 randomx-rs = "1.4.1"
 hex = "0.4"
 tokio = { version = "1.42.0", features = ["full"] }
-libp2p-identity = { version = "0.2.9", features = ["ed25519", "peerid", "rand"] }
+libp2p-identity = { version = "0.2.12", features = ["ed25519", "peerid", "rand"] }
 multiaddr = "0.18.2"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"

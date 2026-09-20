@@ -20,7 +20,7 @@ modality-wasm-runtime = { path = "../modality-wasm-runtime", version = "0.1.0" }
 modality-wasm-validation = { path = "../modality-wasm-validation", version = "0.1.0" }
 modality-lang = { path = "../modality-lang", version = "0.1.7" }
 wasmtime = "26.0"
-libp2p-identity = { version = "0.2", features = ["serde"] }
+libp2p-identity = { version = "0.2.12", features = ["serde"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 base64 = "0.22"
