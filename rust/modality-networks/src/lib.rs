@@ -268,6 +268,11 @@ mod tests {
             "devnet1 should have validators"
         );
         assert_eq!(devnet1.validators.as_ref().unwrap().len(), 1);
+        assert_eq!(
+            devnet1.contract_validators.as_ref().unwrap().as_slice(),
+            ["12D3KooW9pte76rpnggcLYkFaawuTEs5DC5axHkg3cK3cewGxxHd"]
+        );
+        assert!(devnet1.repost_requires_validator_cert);
 
         let devnet2 = networks::devnet2();
         assert!(

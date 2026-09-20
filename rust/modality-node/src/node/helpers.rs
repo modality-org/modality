@@ -96,6 +96,10 @@ pub async fn load_network_config(
         }
 
         if let Some(contract_validators) = network_info.contract_validators {
+            log::info!(
+                "Found {} contract validators in network config",
+                contract_validators.len()
+            );
             config_json["contract_validators"] = serde_json::json!(contract_validators);
         }
         config_json["validator_min_stake"] = serde_json::json!(network_info.validator_min_stake);
