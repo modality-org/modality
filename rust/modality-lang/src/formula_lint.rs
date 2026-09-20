@@ -245,8 +245,8 @@ fn find_word_from(haystack: &str, needle: &str, start: usize) -> Option<usize> {
         let pos = search_from + offset;
         let before = haystack[..pos].chars().next_back();
         let after = haystack[pos + needle.len()..].chars().next();
-        let before_ok = before.map_or(true, |c| !is_ident_char(c));
-        let after_ok = after.map_or(true, |c| !is_ident_char(c));
+        let before_ok = before.is_none_or(|c| !is_ident_char(c));
+        let after_ok = after.is_none_or(|c| !is_ident_char(c));
         if before_ok && after_ok {
             return Some(pos);
         }
