@@ -86,4 +86,3 @@ pub const NETWORK_HASHRATE_SAMPLE_SIZE: usize = 10;
 
 /// Byzantine fault tolerance threshold (2/3 + 1) for finalized rounds
 pub const BFT_THRESHOLD_PERCENTAGE: f32 = 66.67;
-

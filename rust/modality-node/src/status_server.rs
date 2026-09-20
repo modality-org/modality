@@ -3,26 +3,25 @@
 //! This module provides a web-based status page for monitoring node health,
 //! blockchain state, and mining statistics.
 
-use std::sync::Arc;
 use std::path::PathBuf;
+use std::sync::Arc;
 use tokio::sync::Mutex;
 use warp::Filter;
 
-use modality_datastore::DatastoreManager;
-use modality_datastore::models::MinerBlock;
 use modality_datastore::models::validator::ValidatorBlock;
+use modality_datastore::models::MinerBlock;
+use modality_datastore::DatastoreManager;
 
 use crate::constants::{
-    BLOCKS_PER_EPOCH, STATUS_PAGE_REFRESH_SECS, STATUS_RECENT_BLOCKS_COUNT,
-    STATUS_FIRST_BLOCKS_COUNT, STATUS_EPOCHS_TO_SHOW, NETWORK_HASHRATE_SAMPLE_SIZE,
-    STATUS_FINALIZED_ROUNDS_TO_SHOW, BFT_THRESHOLD_PERCENTAGE,
+    BFT_THRESHOLD_PERCENTAGE, BLOCKS_PER_EPOCH, NETWORK_HASHRATE_SAMPLE_SIZE,
+    STATUS_EPOCHS_TO_SHOW, STATUS_FINALIZED_ROUNDS_TO_SHOW, STATUS_FIRST_BLOCKS_COUNT,
+    STATUS_PAGE_REFRESH_SECS, STATUS_RECENT_BLOCKS_COUNT,
 };
 use crate::templates::{
-    render_block_row, render_listener_item,
-    render_block_0_info, render_block_0_not_found, render_empty_blocks_message,
-    render_empty_peers_message, render_epoch_nominees_section, render_nominee_row,
-    render_finalized_rounds_section, render_finalized_round_row, render_empty_finalized_rounds,
-    render_status_page, StatusPageVars,
+    render_block_0_info, render_block_0_not_found, render_block_row, render_empty_blocks_message,
+    render_empty_finalized_rounds, render_empty_peers_message, render_epoch_nominees_section,
+    render_finalized_round_row, render_finalized_rounds_section, render_listener_item,
+    render_nominee_row, render_status_page, StatusPageVars,
 };
 
 /// Start HTTP status server on the specified port
@@ -62,7 +61,10 @@ pub async fn start_status_server(
 
 fn with_mining_metrics(
     mining_metrics: crate::mining_metrics::SharedMiningMetrics,
-) -> impl Filter<Extract = (crate::mining_metrics::SharedMiningMetrics,), Error = std::convert::Infallible> + Clone {
+) -> impl Filter<
+    Extract = (crate::mining_metrics::SharedMiningMetrics,),
+    Error = std::convert::Infallible,
+> + Clone {
     warp::any().map(move || mining_metrics.clone())
 }
 
@@ -93,8 +95,8 @@ fn with_datastore(
 
 fn with_swarm(
     swarm: Arc<Mutex<crate::swarm::NodeSwarm>>,
-) -> impl Filter<Extract = (Arc<Mutex<crate::swarm::NodeSwarm>>,), Error = std::convert::Infallible> + Clone
-{
+) -> impl Filter<Extract = (Arc<Mutex<crate::swarm::NodeSwarm>>,), Error = std::convert::Infallible>
+       + Clone {
     warp::any().map(move || swarm.clone())
 }
 
@@ -120,67 +122,72 @@ pub async fn generate_status_html(
         swarm_lock.connected_peers().cloned().collect::<Vec<_>>()
     };
     let connected_peers = peer_info.len();
-    
+
     // Get node status information
     let mgr = datastore_manager.lock().await;
     let current_round = mgr.get_current_round().await.unwrap_or(0);
     let latest_round = 0; // TODO: Implement find_max_int_key in DatastoreManager
-    
+
     // Get miner blocks information
-    let miner_blocks = MinerBlock::find_all_canonical_multi(&mgr).await.unwrap_or_default();
+    let miner_blocks = MinerBlock::find_all_canonical_multi(&mgr)
+        .await
+        .unwrap_or_default();
     let total_miner_blocks = miner_blocks.len();
-    
+
     // Get latest block for current difficulty
     let latest_block = miner_blocks.iter().max_by_key(|b| b.index);
     let current_difficulty = latest_block
         .map(|b| b.target_difficulty.clone())
         .unwrap_or_else(|| "0".to_string());
     let current_epoch = latest_block.map(|b| b.epoch).unwrap_or(0);
-    
+
     // Calculate cumulative difficulty
     let cumulative_difficulty: u128 = miner_blocks
         .iter()
         .filter_map(|block| block.target_difficulty.parse::<u128>().ok())
         .sum();
-    
+
     // Count blocks mined by this node
     let peerid_str = peerid.to_string();
     let blocks_mined_by_node = miner_blocks
         .iter()
         .filter(|block| block.nominated_peer_id == peerid_str)
         .count();
-    
+
     // Calculate network hashrate from recent blocks
     let network_hashrate = calculate_network_hashrate(&miner_blocks);
-    
+
     // Get miner hashrate (average over all mining activity)
     let miner_hashrate = {
         let metrics = mining_metrics.read().await;
         metrics.average_hashrate()
     };
-    
+
     // Get Block 0 (genesis block)
-    let block_0 = MinerBlock::find_canonical_by_index_simple(&mgr, 0).await.ok().flatten();
-    
+    let block_0 = MinerBlock::find_canonical_by_index_simple(&mgr, 0)
+        .await
+        .ok()
+        .flatten();
+
     // Get last N blocks (sorted by index descending)
     let mut recent_blocks = miner_blocks.clone();
     recent_blocks.sort_by_key(|block| std::cmp::Reverse(block.index));
     recent_blocks.truncate(STATUS_RECENT_BLOCKS_COUNT);
-    
+
     // Get first N blocks (sorted by index ascending)
     let mut first_blocks = miner_blocks.clone();
     first_blocks.sort_by_key(|block| block.index);
     first_blocks.truncate(STATUS_FIRST_BLOCKS_COUNT);
-    
+
     // Create a map of block index to block for quick parent lookup
     let block_map: std::collections::HashMap<u64, &MinerBlock> = miner_blocks
         .iter()
         .map(|block| (block.index, block))
         .collect();
-    
+
     // Calculate epoch nominees with shuffle order for previous epochs
     let epoch_nominees_data = calculate_epoch_nominees(&miner_blocks, current_epoch);
-    
+
     // Calculate finalized rounds data
     let finalized_rounds_data = calculate_finalized_rounds(&mgr, current_round).await;
 
@@ -192,31 +199,33 @@ pub async fn generate_status_html(
         let mut peer_rows = Vec::new();
         for peer_id in &peer_info {
             let peer_id_str = peer_id.to_string();
-            
+
             // Try to load PeerInfo from datastore
             let peer_metadata = modality_datastore::models::PeerInfo::find_one(&mgr, &peer_id_str)
                 .await
                 .ok()
                 .flatten();
-            
-            let status_url = peer_metadata.as_ref().and_then(|info| info.status_url.clone());
+
+            let status_url = peer_metadata
+                .as_ref()
+                .and_then(|info| info.status_url.clone());
             let role = peer_metadata.as_ref().and_then(|info| info.role.clone());
-            
+
             peer_rows.push(crate::templates::render_peer_row_with_metadata(
                 &peer_id_str,
                 status_url.as_deref(),
-                role.as_deref()
+                role.as_deref(),
             ));
         }
         peer_rows.join("\n                    ")
     };
-    
+
     drop(mgr);
 
     // Build blocks table HTML for recent blocks
     let blocks_html = build_blocks_html(&recent_blocks, &block_map);
     let first_blocks_html = build_blocks_html(&first_blocks, &block_map);
-    
+
     // Build Block 0 HTML
     let block_0_html = match block_0 {
         Some(ref block) => render_block_0_info(
@@ -284,7 +293,7 @@ fn build_blocks_html(
     if blocks.is_empty() {
         return render_empty_blocks_message();
     }
-    
+
     blocks
         .iter()
         .map(|block| {
@@ -295,7 +304,7 @@ fn build_blocks_html(
             } else {
                 "N/A".to_string()
             };
-            
+
             render_block_row(
                 block.index,
                 block.epoch,
@@ -315,51 +324,57 @@ fn calculate_epoch_nominees(
     current_epoch: u64,
 ) -> Vec<(u64, Vec<(usize, String, String, u64)>)> {
     let mut epoch_nominees_data = Vec::new();
-    
+
     if current_epoch == 0 {
         return epoch_nominees_data;
     }
-    
+
     let epochs_to_show = std::cmp::min(STATUS_EPOCHS_TO_SHOW, current_epoch);
-    
-        for epoch_offset in 1..=epochs_to_show {
-            let epoch = current_epoch - epoch_offset;
-            let epoch_start = epoch * BLOCKS_PER_EPOCH;
-            let epoch_end = epoch_start + BLOCKS_PER_EPOCH;
-            
-            // Get all blocks from this epoch
-            let epoch_blocks: Vec<&MinerBlock> = miner_blocks
-                .iter()
-                .filter(|b| b.index >= epoch_start && b.index < epoch_end)
-                .collect();
-            
-            // Only process complete epochs
-            if epoch_blocks.len() == BLOCKS_PER_EPOCH as usize {
-                // Calculate XOR seed from all nonces
-                let mut seed = 0u64;
-                for block in &epoch_blocks {
-                    if let Ok(nonce) = block.nonce.parse::<u128>() {
-                        seed ^= nonce as u64;
-                    }
+
+    for epoch_offset in 1..=epochs_to_show {
+        let epoch = current_epoch - epoch_offset;
+        let epoch_start = epoch * BLOCKS_PER_EPOCH;
+        let epoch_end = epoch_start + BLOCKS_PER_EPOCH;
+
+        // Get all blocks from this epoch
+        let epoch_blocks: Vec<&MinerBlock> = miner_blocks
+            .iter()
+            .filter(|b| b.index >= epoch_start && b.index < epoch_end)
+            .collect();
+
+        // Only process complete epochs
+        if epoch_blocks.len() == BLOCKS_PER_EPOCH as usize {
+            // Calculate XOR seed from all nonces
+            let mut seed = 0u64;
+            for block in &epoch_blocks {
+                if let Ok(nonce) = block.nonce.parse::<u128>() {
+                    seed ^= nonce as u64;
                 }
-                
-                // Get shuffled indices using Fisher-Yates
-                let shuffled_indices = modality_common::shuffle::fisher_yates_shuffle(seed, epoch_blocks.len());
-                
-                // Map shuffled indices to (shuffle_rank, block_hash, nominated_peer_id, block_index)
-                let shuffled_nominees: Vec<(usize, String, String, u64)> = shuffled_indices
-                    .into_iter()
-                    .enumerate()
-                    .map(|(rank, original_idx)| {
-                        let block = epoch_blocks[original_idx];
-                        (rank, block.hash.clone(), block.nominated_peer_id.clone(), block.index)
-                    })
-                    .collect();
-                
-                epoch_nominees_data.push((epoch, shuffled_nominees));
             }
+
+            // Get shuffled indices using Fisher-Yates
+            let shuffled_indices =
+                modality_common::shuffle::fisher_yates_shuffle(seed, epoch_blocks.len());
+
+            // Map shuffled indices to (shuffle_rank, block_hash, nominated_peer_id, block_index)
+            let shuffled_nominees: Vec<(usize, String, String, u64)> = shuffled_indices
+                .into_iter()
+                .enumerate()
+                .map(|(rank, original_idx)| {
+                    let block = epoch_blocks[original_idx];
+                    (
+                        rank,
+                        block.hash.clone(),
+                        block.nominated_peer_id.clone(),
+                        block.index,
+                    )
+                })
+                .collect();
+
+            epoch_nominees_data.push((epoch, shuffled_nominees));
         }
-    
+    }
+
     epoch_nominees_data
 }
 
@@ -370,22 +385,22 @@ fn build_epoch_nominees_html(
     if epoch_nominees_data.is_empty() {
         return String::new();
     }
-    
-        epoch_nominees_data
-            .iter()
-            .map(|(epoch, nominees)| {
-                let nominees_html = nominees
-                    .iter()
-                    .map(|(rank, block_hash, peer_id, block_idx)| {
+
+    epoch_nominees_data
+        .iter()
+        .map(|(epoch, nominees)| {
+            let nominees_html = nominees
+                .iter()
+                .map(|(rank, block_hash, peer_id, block_idx)| {
                     render_nominee_row(*rank + 1, *block_idx, block_hash, peer_id)
-                    })
-                    .collect::<Vec<_>>()
-                    .join("\n                    ");
+                })
+                .collect::<Vec<_>>()
+                .join("\n                    ");
 
             render_epoch_nominees_section(*epoch, &nominees_html)
-            })
-            .collect::<Vec<_>>()
-            .join("\n")
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
 }
 
 /// Round finalization data structure
@@ -401,32 +416,32 @@ async fn calculate_finalized_rounds(
     current_round: u64,
 ) -> Vec<RoundFinalizationData> {
     let mut finalized_rounds = Vec::new();
-    
+
     // Only show the last N rounds (configurable)
     let rounds_to_show = STATUS_FINALIZED_ROUNDS_TO_SHOW;
     let start_round = current_round.saturating_sub(rounds_to_show);
-    
+
     for round_id in (start_round..current_round).rev() {
         // Get all blocks in this round
         let all_blocks = match ValidatorBlock::find_all_in_round_multi(mgr, round_id).await {
             Ok(blocks) => blocks,
             Err(_) => continue,
         };
-        
+
         if all_blocks.is_empty() {
             continue;
         }
-        
+
         // Count certified blocks (blocks with certificates)
         let certified_count = all_blocks.iter().filter(|b| b.cert.is_some()).count();
-        
+
         finalized_rounds.push(RoundFinalizationData {
             round_id,
             certified_count,
             total_count: all_blocks.len(),
         });
     }
-    
+
     finalized_rounds
 }
 
@@ -435,7 +450,7 @@ fn build_finalized_rounds_html(finalized_rounds_data: &[RoundFinalizationData]) 
     if finalized_rounds_data.is_empty() {
         return render_finalized_rounds_section(&render_empty_finalized_rounds());
     }
-    
+
     let rounds_html = finalized_rounds_data
         .iter()
         .map(|round_data| {
@@ -444,7 +459,7 @@ fn build_finalized_rounds_html(finalized_rounds_data: &[RoundFinalizationData]) 
             } else {
                 0.0
             };
-            
+
             let status = if completion_pct >= BFT_THRESHOLD_PERCENTAGE {
                 "Finalized"
             } else if completion_pct > 0.0 {
@@ -452,7 +467,7 @@ fn build_finalized_rounds_html(finalized_rounds_data: &[RoundFinalizationData]) 
             } else {
                 "In Progress"
             };
-            
+
             render_finalized_round_row(
                 round_data.round_id,
                 round_data.certified_count,
@@ -463,7 +478,7 @@ fn build_finalized_rounds_html(finalized_rounds_data: &[RoundFinalizationData]) 
         })
         .collect::<Vec<_>>()
         .join("\n                    ");
-    
+
     render_finalized_rounds_section(&rounds_html)
 }
 
@@ -476,9 +491,17 @@ async fn status_handler(
     network_name: String,
     role: String,
 ) -> Result<impl warp::Reply, warp::Rejection> {
-    let html = generate_status_html(peerid, datastore_manager, swarm, listeners, mining_metrics, network_name, role)
-        .await
-        .map_err(|_| warp::reject::not_found())?;
+    let html = generate_status_html(
+        peerid,
+        datastore_manager,
+        swarm,
+        listeners,
+        mining_metrics,
+        network_name,
+        role,
+    )
+    .await
+    .map_err(|_| warp::reject::not_found())?;
     Ok(warp::reply::html(html))
 }
 
@@ -488,7 +511,7 @@ fn calculate_network_hashrate(miner_blocks: &[MinerBlock]) -> f64 {
     if miner_blocks.len() < 2 {
         return 0.0;
     }
-    
+
     // Use last N blocks for more stable estimate
     let recent_count = std::cmp::min(NETWORK_HASHRATE_SAMPLE_SIZE, miner_blocks.len());
     let recent_blocks: Vec<_> = {
@@ -496,36 +519,36 @@ fn calculate_network_hashrate(miner_blocks: &[MinerBlock]) -> f64 {
         sorted.sort_by_key(|b| b.index);
         sorted.into_iter().rev().take(recent_count).collect()
     };
-    
+
     if recent_blocks.len() < 2 {
         return 0.0;
     }
-    
+
     // Calculate average time between blocks
     let oldest_block = recent_blocks.last().unwrap();
     let newest_block = recent_blocks.first().unwrap();
     let time_span = (newest_block.timestamp - oldest_block.timestamp) as f64;
     let num_intervals = (newest_block.index - oldest_block.index) as f64;
-    
+
     if time_span <= 0.0 || num_intervals <= 0.0 {
         return 0.0;
     }
-    
+
     let avg_block_time = time_span / num_intervals;
-    
+
     // Calculate average difficulty across recent blocks
     let total_difficulty: u128 = recent_blocks
         .iter()
         .filter_map(|b| b.target_difficulty.parse::<u128>().ok())
         .sum();
     let avg_difficulty = total_difficulty as f64 / recent_blocks.len() as f64;
-    
+
     // The difficulty system uses: target = (0xffff << (0x1d * 8)) / difficulty
     // For 256-bit hashes (RandomX, SHA256): expected_hashes = difficulty × 2^256 / max_target
     // With max_target = 0xffff << 232 ≈ 2^248, this gives: expected_hashes ≈ difficulty × 256
     // This scaling factor is the same for all 256-bit hash algorithms
     const DIFFICULTY_SCALE_FACTOR: f64 = 256.0;
-    
+
     // Network hashrate = expected_hashes_per_block / block_time
     if avg_block_time > 0.0 {
         (avg_difficulty * DIFFICULTY_SCALE_FACTOR) / avg_block_time
@@ -539,7 +562,7 @@ fn format_hashrate(hashrate: f64) -> String {
     if hashrate == 0.0 {
         return "0".to_string();
     }
-    
+
     if hashrate < 1_000.0 {
         format!("{:.2}", hashrate)
     } else if hashrate < 1_000_000.0 {
@@ -569,8 +592,9 @@ pub async fn start_status_html_writer(
     std::fs::create_dir_all(&dir)?;
 
     let handle = tokio::spawn(async move {
-        let mut interval = tokio::time::interval(std::time::Duration::from_secs(STATUS_PAGE_REFRESH_SECS));
-        
+        let mut interval =
+            tokio::time::interval(std::time::Duration::from_secs(STATUS_PAGE_REFRESH_SECS));
+
         loop {
             tokio::select! {
                 _ = interval.tick() => {

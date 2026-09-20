@@ -1,8 +1,8 @@
-use anyhow::Result;
+use crate::inspection::{DatastoreInfo, InspectionData, InspectionLevel, NodeStatus};
 use crate::reqres::Response;
-use crate::inspection::{InspectionLevel, InspectionData, NodeStatus, DatastoreInfo};
-use modality_datastore::DatastoreManager;
+use anyhow::Result;
 use modality_datastore::models::MinerBlock;
+use modality_datastore::DatastoreManager;
 use serde_json;
 
 /// Handler for inspection requests
@@ -12,7 +12,9 @@ pub async fn handler(
 ) -> Result<Response> {
     let level = if let Some(ref data) = data {
         if let Some(level_str) = data.get("level").and_then(|v| v.as_str()) {
-            level_str.parse::<InspectionLevel>().unwrap_or(InspectionLevel::Basic)
+            level_str
+                .parse::<InspectionLevel>()
+                .unwrap_or(InspectionLevel::Basic)
         } else {
             InspectionLevel::Basic
         }
@@ -35,29 +37,29 @@ pub async fn get_datastore_inspection(
     level: InspectionLevel,
 ) -> Result<InspectionData> {
     let mut data = InspectionData::new_basic("unknown".to_string(), NodeStatus::Running);
-    
+
     if InspectionData::should_include_datastore(level) {
         let blocks = MinerBlock::find_all_canonical_multi(datastore_manager).await?;
-        
+
         let block_range = if !blocks.is_empty() {
             Some((blocks.first().unwrap().index, blocks.last().unwrap().index))
         } else {
             None
         };
-        
+
         let chain_tip_height = blocks.last().map(|b| b.index);
         let chain_tip_hash = blocks.last().map(|b| b.hash.clone());
-        
+
         let mut epochs_set = std::collections::HashSet::new();
         for block in &blocks {
             epochs_set.insert(block.epoch);
         }
-        
+
         let mut miners_set = std::collections::HashSet::new();
         for block in &blocks {
             miners_set.insert(&block.nominated_peer_id);
         }
-        
+
         data.datastore = Some(DatastoreInfo {
             total_blocks: blocks.len(),
             block_range,
@@ -67,7 +69,7 @@ pub async fn get_datastore_inspection(
             unique_miners: Some(miners_set.len()),
         });
     }
-    
+
     Ok(data)
 }
 
@@ -85,9 +87,7 @@ pub fn is_authorized(
                 true
             }
         }
-        Some(whitelist) if whitelist.is_empty() => {
-            requesting_peer_id.is_none()
-        }
+        Some(whitelist) if whitelist.is_empty() => requesting_peer_id.is_none(),
         Some(whitelist) => {
             if let Some(requester) = requesting_peer_id {
                 whitelist.contains(&requester.to_string()) || requester == node_peer_id
@@ -114,8 +114,16 @@ mod tests {
     fn test_authorization_empty_whitelist() {
         let node_peer = "12D3KooWNode";
         let whitelist = vec![];
-        assert!(!is_authorized(Some("12D3KooWNode"), node_peer, Some(&whitelist)));
-        assert!(!is_authorized(Some("12D3KooWOther"), node_peer, Some(&whitelist)));
+        assert!(!is_authorized(
+            Some("12D3KooWNode"),
+            node_peer,
+            Some(&whitelist)
+        ));
+        assert!(!is_authorized(
+            Some("12D3KooWOther"),
+            node_peer,
+            Some(&whitelist)
+        ));
         assert!(is_authorized(None, node_peer, Some(&whitelist)));
     }
 
@@ -126,9 +134,21 @@ mod tests {
             "12D3KooWAllowed1".to_string(),
             "12D3KooWAllowed2".to_string(),
         ];
-        assert!(is_authorized(Some("12D3KooWNode"), node_peer, Some(&whitelist)));
-        assert!(is_authorized(Some("12D3KooWAllowed1"), node_peer, Some(&whitelist)));
-        assert!(!is_authorized(Some("12D3KooWOther"), node_peer, Some(&whitelist)));
+        assert!(is_authorized(
+            Some("12D3KooWNode"),
+            node_peer,
+            Some(&whitelist)
+        ));
+        assert!(is_authorized(
+            Some("12D3KooWAllowed1"),
+            node_peer,
+            Some(&whitelist)
+        ));
+        assert!(!is_authorized(
+            Some("12D3KooWOther"),
+            node_peer,
+            Some(&whitelist)
+        ));
         assert!(is_authorized(None, node_peer, Some(&whitelist)));
     }
 }

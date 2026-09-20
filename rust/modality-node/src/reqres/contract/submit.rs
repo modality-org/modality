@@ -1,11 +1,11 @@
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use sha2::{Digest, Sha256};
 use tokio::sync::mpsc;
-use sha2::{Sha256, Digest};
 
-use modality_datastore::DatastoreManager;
 use modality_datastore::models::Commit;
+use modality_datastore::DatastoreManager;
 
 use crate::reqres::Response;
 use modality_validator_consensus::communication::Message as ConsensusMessage;
@@ -38,7 +38,7 @@ pub async fn handler(
     let mut hasher = Sha256::new();
     hasher.update(commit_json.as_bytes());
     let commit_id = format!("{:x}", hasher.finalize());
-    
+
     let timestamp = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)?
         .as_secs();
@@ -75,7 +75,7 @@ mod tests {
     async fn test_submit_commit() {
         let mgr = DatastoreManager::create_in_memory().unwrap();
         let (_tx, _rx) = mpsc::channel::<ConsensusMessage>(100);
-        
+
         let data = serde_json::json!({
             "contract_id": "test-contract",
             "commit_data": {
@@ -83,7 +83,7 @@ mod tests {
                 "head": {"version": 1}
             }
         });
-        
+
         let response = handler(Some(data), &mgr, _tx).await.unwrap();
         assert!(response.ok);
     }

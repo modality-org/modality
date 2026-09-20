@@ -13,7 +13,7 @@ pub enum InspectionLevel {
 
 impl std::str::FromStr for InspectionLevel {
     type Err = String;
-    
+
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
             "basic" => Ok(InspectionLevel::Basic),
@@ -43,15 +43,15 @@ impl std::fmt::Display for InspectionLevel {
 pub struct InspectionData {
     pub peer_id: String,
     pub status: NodeStatus,
-    
+
     // Network information
     #[serde(skip_serializing_if = "Option::is_none")]
     pub network: Option<NetworkInfo>,
-    
+
     // Datastore information
     #[serde(skip_serializing_if = "Option::is_none")]
     pub datastore: Option<DatastoreInfo>,
-    
+
     // Mining information
     #[serde(skip_serializing_if = "Option::is_none")]
     pub mining: Option<MiningInfo>,
@@ -113,23 +113,25 @@ impl InspectionData {
             mining: None,
         }
     }
-    
+
     /// Determine which fields should be populated based on level
     pub fn should_include_network(level: InspectionLevel) -> bool {
         matches!(level, InspectionLevel::Full | InspectionLevel::Network)
     }
-    
+
     pub fn should_include_datastore(level: InspectionLevel) -> bool {
-        matches!(level, InspectionLevel::Basic | InspectionLevel::Full | InspectionLevel::Datastore)
+        matches!(
+            level,
+            InspectionLevel::Basic | InspectionLevel::Full | InspectionLevel::Datastore
+        )
     }
-    
+
     pub fn should_include_mining(level: InspectionLevel) -> bool {
         matches!(level, InspectionLevel::Full | InspectionLevel::Mining)
     }
-    
+
     /// Should include detailed peer list (not just count)
     pub fn should_include_detailed_peers(level: InspectionLevel) -> bool {
         matches!(level, InspectionLevel::Full | InspectionLevel::Network)
     }
 }
-

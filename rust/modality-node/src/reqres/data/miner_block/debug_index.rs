@@ -1,13 +1,16 @@
-use anyhow::Result;
-use modality_datastore::DatastoreManager;
-use modality_datastore::models::MinerBlock;
 use crate::reqres::Response;
+use anyhow::Result;
+use modality_datastore::models::MinerBlock;
+use modality_datastore::DatastoreManager;
 
 /// Handler for POST /data/miner_block/debug_index
 /// Returns ALL blocks at a specific index (canonical, orphaned, and pending)
-pub async fn handler(data: Option<serde_json::Value>, datastore_manager: &DatastoreManager) -> Result<Response> {
+pub async fn handler(
+    data: Option<serde_json::Value>,
+    datastore_manager: &DatastoreManager,
+) -> Result<Response> {
     let data = data.unwrap_or_default();
-    
+
     let index = match data.get("index").and_then(|v| v.as_u64()) {
         Some(idx) => idx,
         None => {
@@ -18,17 +21,17 @@ pub async fn handler(data: Option<serde_json::Value>, datastore_manager: &Datast
             });
         }
     };
-    
+
     // Get all blocks at this index from multi-store
     let all_at_index = MinerBlock::find_by_index_multi(datastore_manager, index).await?;
-    
+
     // Get canonical block specifically
     let canonical = MinerBlock::find_canonical_by_index_simple(datastore_manager, index).await?;
-    
+
     // If we have a next block, get its prev_hash to verify chain linkage
     let next_blocks = MinerBlock::find_by_index_multi(datastore_manager, index + 1).await?;
     let canonical_next = next_blocks.iter().find(|b| b.is_canonical);
-    
+
     // Build diagnostic info
     let mut block_info: Vec<serde_json::Value> = Vec::new();
     for block in &all_at_index {
@@ -40,22 +43,24 @@ pub async fn handler(data: Option<serde_json::Value>, datastore_manager: &Datast
             "orphan_reason": block.orphan_reason,
         }));
     }
-    
+
     let mut result = serde_json::json!({
         "index": index,
         "total_blocks_at_index": all_at_index.len(),
         "blocks": block_info,
     });
-    
+
     if let Some(canonical_block) = canonical {
         result["canonical_hash"] = serde_json::json!(canonical_block.hash);
     }
-    
+
     if let Some(next_canonical) = canonical_next {
         result["next_block_index"] = serde_json::json!(next_canonical.index);
         result["next_block_prev_hash"] = serde_json::json!(next_canonical.previous_hash);
-        
-        let matching_block = all_at_index.iter().find(|b| b.hash == next_canonical.previous_hash);
+
+        let matching_block = all_at_index
+            .iter()
+            .find(|b| b.hash == next_canonical.previous_hash);
         if let Some(matching) = matching_block {
             result["matching_block_for_next"] = serde_json::json!({
                 "hash": matching.hash,
@@ -63,15 +68,16 @@ pub async fn handler(data: Option<serde_json::Value>, datastore_manager: &Datast
                 "is_orphaned": matching.is_orphaned,
             });
         } else {
-            result["chain_integrity_issue"] = serde_json::json!(
-                format!("No block at index {} has hash matching next block's prev_hash {}", 
-                    index, &next_canonical.previous_hash[..20])
-            );
+            result["chain_integrity_issue"] = serde_json::json!(format!(
+                "No block at index {} has hash matching next block's prev_hash {}",
+                index,
+                &next_canonical.previous_hash[..20]
+            ));
         }
     }
-    
+
     log::info!("Debug index {}: {} blocks found", index, all_at_index.len());
-    
+
     Ok(Response {
         ok: true,
         data: Some(result),

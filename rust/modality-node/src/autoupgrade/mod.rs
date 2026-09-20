@@ -29,16 +29,22 @@ pub struct AutoupgradeConfig {
 impl AutoupgradeConfig {
     pub fn from_node_config(config: &Config) -> Option<Self> {
         let enabled = config.autoupgrade_enabled.unwrap_or(false);
-        
+
         if !enabled {
             return None;
         }
 
-        let base_url = config.autoupgrade_base_url.clone()
+        let base_url = config
+            .autoupgrade_base_url
+            .clone()
             .unwrap_or_else(|| DEFAULT_BASE_URL.to_string());
-        let branch = config.autoupgrade_branch.clone()
+        let branch = config
+            .autoupgrade_branch
+            .clone()
             .unwrap_or_else(|| DEFAULT_BRANCH.to_string());
-        let check_interval_secs = config.autoupgrade_check_interval_secs.unwrap_or(DEFAULT_CHECK_INTERVAL_SECS);
+        let check_interval_secs = config
+            .autoupgrade_check_interval_secs
+            .unwrap_or(DEFAULT_CHECK_INTERVAL_SECS);
 
         Some(Self {
             enabled,
@@ -65,7 +71,7 @@ pub async fn start_autoupgrade_task(
     let last_known_version = binary_checker::get_current_version(&config.base_url, &config.branch)
         .await
         .context("Failed to get initial version")?;
-    
+
     log::info!("Current version of 'modality': {}", last_known_version);
 
     let mut interval = tokio::time::interval(config.check_interval);
@@ -79,7 +85,7 @@ pub async fn start_autoupgrade_task(
             }
             _ = interval.tick() => {
                 log::debug!("Checking for updates at {}/{}", config.base_url, config.branch);
-                
+
                 match check_and_upgrade(&config, &last_known_version).await {
                     Ok(Some(new_version)) => {
                         log::info!("Upgrade initiated to version: {}", new_version);
@@ -123,7 +129,7 @@ async fn check_and_upgrade(
     );
 
     log::info!("Starting upgrade process...");
-    
+
     // Download the new binary
     let new_binary_path = installer::download_from_binary_server(&config.base_url, &config.branch)
         .await
@@ -139,4 +145,3 @@ async fn check_and_upgrade(
     // If we reach here, the restart didn't work
     Ok(Some(latest_version))
 }
-

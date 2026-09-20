@@ -3,8 +3,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tokio::sync::mpsc;
 
-use modality_datastore::DatastoreManager;
 use modality_datastore::models::Commit;
+use modality_datastore::DatastoreManager;
 
 use crate::reqres::Response;
 use modality_validator_consensus::communication::Message as ConsensusMessage;

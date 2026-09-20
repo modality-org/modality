@@ -8,7 +8,7 @@ pub async fn handler(data: Option<serde_json::Value>) -> Result<Response> {
     let response = Response {
         ok: true,
         data: Some(data.unwrap()),
-        errors: None
+        errors: None,
     };
     Ok(response)
 }

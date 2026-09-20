@@ -12,6 +12,5 @@ pub mod reorg;
 
 // Re-export commonly used items
 pub use fork_choice::{compare_chains, ChainComparison, ForkChoiceResult};
-pub use metrics::{ChainMetrics, calculate_chain_metrics};
-pub use reorg::{orphan_blocks_after, cascade_orphan};
-
+pub use metrics::{calculate_chain_metrics, ChainMetrics};
+pub use reorg::{cascade_orphan, orphan_blocks_after};

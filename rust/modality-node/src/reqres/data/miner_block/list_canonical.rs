@@ -1,31 +1,27 @@
-use anyhow::Result;
-use modality_datastore::DatastoreManager;
-use modality_datastore::models::MinerBlock;
 use crate::reqres::Response;
+use anyhow::Result;
+use modality_datastore::models::MinerBlock;
+use modality_datastore::DatastoreManager;
 
 /// Handler for GET /data/miner_block/canonical
 /// Returns all canonical miner blocks sorted by index
 pub async fn handler(
-    _data: Option<serde_json::Value>, 
+    _data: Option<serde_json::Value>,
     datastore_manager: &DatastoreManager,
 ) -> Result<Response> {
     match MinerBlock::find_all_canonical_multi(datastore_manager).await {
-        Ok(blocks) => {
-            Ok(Response {
-                ok: true,
-                data: Some(serde_json::json!({
-                    "blocks": blocks,
-                    "count": blocks.len(),
-                })),
-                errors: None,
-            })
-        }
-        Err(e) => {
-            Ok(Response {
-                ok: false,
-                data: None,
-                errors: Some(serde_json::json!({"error": e.to_string()})),
-            })
-        }
+        Ok(blocks) => Ok(Response {
+            ok: true,
+            data: Some(serde_json::json!({
+                "blocks": blocks,
+                "count": blocks.len(),
+            })),
+            errors: None,
+        }),
+        Err(e) => Ok(Response {
+            ok: false,
+            data: None,
+            errors: Some(serde_json::json!({"error": e.to_string()})),
+        }),
     }
 }

@@ -1,7 +1,7 @@
 use anyhow::Result;
 
-use crate::node::Node;
 use crate::gossip;
+use crate::node::Node;
 
 pub async fn run(node: &mut Node) -> Result<()> {
     gossip::add_validator_event_listeners(node).await?;

@@ -24,37 +24,52 @@ pub fn start_chain_monitor(
     node_type: &'static str,
 ) {
     let mut current_tip = starting_index;
-    
+
     tokio::spawn(async move {
         log::info!("{} chain monitor task started", node_type);
-        
+
         loop {
             // Check for chain tip updates from gossip
             while let Ok(new_tip_index) = mining_update_rx.try_recv() {
                 if new_tip_index > current_tip {
-                    log::info!("📊 Chain tip observed: {} -> {}", current_tip, new_tip_index);
+                    log::info!(
+                        "📊 Chain tip observed: {} -> {}",
+                        current_tip,
+                        new_tip_index
+                    );
                     current_tip = new_tip_index;
                 } else if new_tip_index < current_tip {
-                    log::warn!("📊 Chain reorg observed: {} -> {}", current_tip, new_tip_index);
+                    log::warn!(
+                        "📊 Chain reorg observed: {} -> {}",
+                        current_tip,
+                        new_tip_index
+                    );
                     current_tip = new_tip_index;
                 }
             }
-            
+
             // Periodically verify our view of the chain
-            tokio::time::sleep(tokio::time::Duration::from_secs(CHAIN_VERIFICATION_INTERVAL_SECS)).await;
-            
+            tokio::time::sleep(tokio::time::Duration::from_secs(
+                CHAIN_VERIFICATION_INTERVAL_SECS,
+            ))
+            .await;
+
             let latest_tip_index = {
                 let ds = datastore.lock().await;
                 match MinerBlock::find_all_canonical_multi(&ds).await {
                     Ok(blocks) if !blocks.is_empty() => {
                         blocks.iter().map(|b| b.index).max().unwrap_or(0)
                     }
-                    _ => 0
+                    _ => 0,
                 }
             };
-            
+
             if latest_tip_index != current_tip {
-                log::info!("📊 Chain tip verification: {} -> {}", current_tip, latest_tip_index);
+                log::info!(
+                    "📊 Chain tip verification: {} -> {}",
+                    current_tip,
+                    latest_tip_index
+                );
                 current_tip = latest_tip_index;
             }
         }
@@ -65,10 +80,7 @@ pub fn start_chain_monitor(
 pub async fn get_chain_tip_index(datastore: &Arc<Mutex<DatastoreManager>>) -> u64 {
     let ds = datastore.lock().await;
     match MinerBlock::find_all_canonical_multi(&ds).await {
-        Ok(blocks) if !blocks.is_empty() => {
-            blocks.iter().map(|b| b.index).max().unwrap_or(0)
-        }
-        _ => 0
+        Ok(blocks) if !blocks.is_empty() => blocks.iter().map(|b| b.index).max().unwrap_or(0),
+        _ => 0,
     }
 }
-

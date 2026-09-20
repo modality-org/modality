@@ -301,6 +301,32 @@ impl DatastoreManager {
         let json = serde_json::to_vec(validators)?;
         self.node_state.put("static_validators", &json)
     }
+
+    /// Queue a sequencer event to be included in the next validator round.
+    pub async fn enqueue_sequencer_event(&self, event: serde_json::Value) -> Result<()> {
+        let mut events = self.load_sequencer_events()?;
+        events.push(event);
+        self.store_sequencer_events(&events)
+    }
+
+    /// Take all pending sequencer events for the next validator block.
+    pub async fn drain_sequencer_events(&self) -> Result<Vec<serde_json::Value>> {
+        let events = self.load_sequencer_events()?;
+        self.store_sequencer_events(&[])?;
+        Ok(events)
+    }
+
+    fn load_sequencer_events(&self) -> Result<Vec<serde_json::Value>> {
+        match self.node_state.get("pending_sequencer_events")? {
+            Some(data) => Ok(serde_json::from_slice(&data).unwrap_or_default()),
+            None => Ok(Vec::new()),
+        }
+    }
+
+    fn store_sequencer_events(&self, events: &[serde_json::Value]) -> Result<()> {
+        self.node_state
+            .put("pending_sequencer_events", &serde_json::to_vec(events)?)
+    }
     
     /// Get static validators from NodeState store
     pub async fn get_static_validators(&self) -> Result<Option<Vec<String>>> {

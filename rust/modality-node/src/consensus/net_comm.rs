@@ -3,13 +3,13 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 // use std::sync::Mutex;
 
-use modality_validator_consensus::communication::Communication;
-use modality_datastore::models::validator::block::ValidatorBlock;
 use modality_datastore::models::validator::block::Ack;
+use modality_datastore::models::validator::block::ValidatorBlock;
+use modality_validator_consensus::communication::Communication;
 
-use crate::node::Node;
-use crate::gossip::consensus::block::draft::TOPIC as BLOCK_DRAFT_TOPIC;
 use crate::gossip::consensus::block::cert::TOPIC as BLOCK_CERT_TOPIC;
+use crate::gossip::consensus::block::draft::TOPIC as BLOCK_DRAFT_TOPIC;
+use crate::node::Node;
 
 pub struct NetComm {
     node: Arc<Mutex<Node>>,
@@ -26,9 +26,17 @@ impl NetComm {
 
 #[async_trait::async_trait]
 impl Communication for NetComm {
-    async fn broadcast_draft_block(&mut self, _from: &str, block_data: &ValidatorBlock) -> Result<()> {
+    async fn broadcast_draft_block(
+        &mut self,
+        _from: &str,
+        block_data: &ValidatorBlock,
+    ) -> Result<()> {
         let mut node = self.node.lock().await;
-        node.publish_gossip(BLOCK_DRAFT_TOPIC.to_string(), block_data.to_draft_json_string()).await?;
+        node.publish_gossip(
+            BLOCK_DRAFT_TOPIC.to_string(),
+            block_data.to_draft_json_string(),
+        )
+        .await?;
         Ok(())
     }
 
@@ -48,14 +56,28 @@ impl Communication for NetComm {
         Ok(())
     }
 
-    async fn broadcast_certified_block(&mut self, _from: &str, block_data: &ValidatorBlock) -> Result<()> {
+    async fn broadcast_certified_block(
+        &mut self,
+        _from: &str,
+        block_data: &ValidatorBlock,
+    ) -> Result<()> {
         let mut node = self.node.lock().await;
-        node.publish_gossip(BLOCK_CERT_TOPIC.to_string(), block_data.to_draft_json_string()).await?;
+        node.publish_gossip(
+            BLOCK_CERT_TOPIC.to_string(),
+            block_data.to_draft_json_string(),
+        )
+        .await?;
         Ok(())
     }
 
     #[allow(unused)]
-    async fn fetch_scribe_round_certified_block(&mut self, from: &str, to: &str, peer_id: &str, round_id: u64) -> Result<Option<ValidatorBlock>> {
+    async fn fetch_scribe_round_certified_block(
+        &mut self,
+        from: &str,
+        to: &str,
+        peer_id: &str,
+        round_id: u64,
+    ) -> Result<Option<ValidatorBlock>> {
         // if (to === this.node.peerid) {
         //     return null;
         //   }

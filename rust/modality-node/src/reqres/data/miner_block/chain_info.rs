@@ -1,16 +1,17 @@
-use anyhow::Result;
-use modality_datastore::DatastoreManager;
-use modality_datastore::models::MinerBlock;
 use crate::reqres::Response;
+use anyhow::Result;
+use modality_datastore::models::MinerBlock;
+use modality_datastore::DatastoreManager;
 
 /// Handler for GET /data/miner_block/chain_info
 pub async fn handler(
-    data: Option<serde_json::Value>, 
+    data: Option<serde_json::Value>,
     datastore_manager: &DatastoreManager,
 ) -> Result<Response> {
     let data = data.unwrap_or_default();
-    
-    let local_hashes = data.get("local_block_hashes")
+
+    let local_hashes = data
+        .get("local_block_hashes")
         .and_then(|v| v.as_array())
         .map(|arr| {
             arr.iter()
@@ -18,14 +19,14 @@ pub async fn handler(
                 .collect::<Vec<String>>()
         })
         .unwrap_or_default();
-    
-    let include_blocks = data.get("include_blocks")
+
+    let include_blocks = data
+        .get("include_blocks")
         .and_then(|v| v.as_bool())
         .unwrap_or(false);
-    
-    let from_index = data.get("from_index")
-        .and_then(|v| v.as_u64());
-    
+
+    let from_index = data.get("from_index").and_then(|v| v.as_u64());
+
     match MinerBlock::find_all_canonical_multi(datastore_manager).await {
         Ok(all_blocks) => {
             if all_blocks.is_empty() {
@@ -43,49 +44,55 @@ pub async fn handler(
                     errors: None,
                 });
             }
-            
-            let cumulative_difficulty = match MinerBlock::calculate_cumulative_difficulty(&all_blocks) {
+
+            let cumulative_difficulty = match MinerBlock::calculate_cumulative_difficulty(
+                &all_blocks,
+            ) {
                 Ok(diff) => diff,
                 Err(e) => {
                     return Ok(Response {
                         ok: false,
                         data: None,
-                        errors: Some(serde_json::json!({"error": format!("Failed to calculate cumulative difficulty: {}", e)})),
+                        errors: Some(
+                            serde_json::json!({"error": format!("Failed to calculate cumulative difficulty: {}", e)}),
+                        ),
                     });
                 }
             };
-            
+
             let chain_length = all_blocks.len() as u64;
-            
-            let (tip_hash, tip_epoch) = all_blocks.iter()
+
+            let (tip_hash, tip_epoch) = all_blocks
+                .iter()
                 .max_by_key(|b| b.index)
                 .map(|b| (b.hash.clone(), b.epoch))
                 .unwrap_or(("".to_string(), 0));
-            
+
             let common_ancestor_index = if !local_hashes.is_empty() {
-                all_blocks.iter()
+                all_blocks
+                    .iter()
                     .filter(|block| local_hashes.contains(&block.hash))
                     .map(|block| block.index)
                     .max()
             } else {
                 None
             };
-            
+
             let blocks_data = if include_blocks {
                 let start_index = from_index
                     .or(common_ancestor_index.map(|idx| idx + 1))
                     .unwrap_or(0);
-                
+
                 let filtered_blocks: Vec<_> = all_blocks
                     .into_iter()
                     .filter(|b| b.index >= start_index)
                     .collect();
-                
+
                 Some(serde_json::to_value(filtered_blocks)?)
             } else {
                 None
             };
-            
+
             Ok(Response {
                 ok: true,
                 data: Some(serde_json::json!({
@@ -100,12 +107,10 @@ pub async fn handler(
                 errors: None,
             })
         }
-        Err(e) => {
-            Ok(Response {
-                ok: false,
-                data: None,
-                errors: Some(serde_json::json!({"error": e.to_string()})),
-            })
-        }
+        Err(e) => Ok(Response {
+            ok: false,
+            data: None,
+            errors: Some(serde_json::json!({"error": e.to_string()})),
+        }),
     }
 }

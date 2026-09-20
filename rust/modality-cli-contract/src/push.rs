@@ -95,8 +95,10 @@ pub async fn run(opts: &Opts) -> Result<()> {
     for commit_id in &unpushed {
         let commit = store.load_commit(commit_id)?;
         commits_data.push(json!({
+            "commit_id": commit_id,
             "hash": commit_id,
             "parent": commit.head.parent,
+            "body": commit.body,
             "data": commit.body,
             "head": commit.head,
         }));

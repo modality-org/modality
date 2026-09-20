@@ -87,14 +87,6 @@ impl LogRing {
             .map(|g| g.iter().cloned().collect())
             .unwrap_or_default()
     }
-
-    /// Distinct topics currently in the ring, sorted.
-    pub fn topics(&self) -> Vec<String> {
-        let mut topics: Vec<String> = self.snapshot().into_iter().map(|e| e.topic).collect();
-        topics.sort();
-        topics.dedup();
-        topics
-    }
 }
 
 impl Default for LogRing {
@@ -267,8 +259,6 @@ fn init_logging_with_sink(
     let writer = FanoutWriter {
         file,
         write_stdout: sink.write_stdout,
-        // Structured entries go to the ring from the format callback.
-        ring: None,
     };
     builder.target(env_logger::Target::Pipe(Box::new(writer)));
     if builder.try_init().is_err() {
@@ -293,7 +283,6 @@ fn init_logging_with_sink(
 struct FanoutWriter {
     file: Option<std::fs::File>,
     write_stdout: bool,
-    ring: Option<LogRing>,
 }
 
 impl Write for FanoutWriter {
@@ -304,9 +293,6 @@ impl Write for FanoutWriter {
         if self.write_stdout {
             io::stdout().write_all(buf)?;
         }
-        if let Some(ref mut ring) = self.ring {
-            ring.write_all(buf)?;
-        }
         Ok(buf.len())
     }
 
@@ -316,9 +302,6 @@ impl Write for FanoutWriter {
         }
         if self.write_stdout {
             io::stdout().flush()?;
-        }
-        if let Some(ref mut ring) = self.ring {
-            ring.flush()?;
         }
         Ok(())
     }

@@ -5,9 +5,10 @@
 
 use anyhow::Result;
 use modality_common::keypair::{Keypair, KeypairOrPublicKey};
-use modality_datastore::models::ValidatorBlock;
+use modality_datastore::models::{Commit, ValidatorBlock};
 use modality_datastore::DatastoreManager;
 use modality_networks::CheckpointMode;
+use modality_validator::ContractProcessor;
 use modality_validator_consensus::communication::{Communication, Message as ConsensusMessage};
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
@@ -18,7 +19,7 @@ use crate::consensus::node_communication::NodeCommunication;
 use crate::swarm::NodeSwarm;
 
 use super::ack_collector::{
-    save_certified_block, validate_certificate, AckCollector, run_finalization_task,
+    run_finalization_task, save_certified_block, validate_certificate, AckCollector,
 };
 use super::checkpoint::{create_checkpoint_for_epoch, CheckpointTracker};
 
@@ -147,7 +148,9 @@ pub async fn create_and_start_shoal_validator_weighted_with_epoch(
 ) -> Result<()> {
     let datastore_for_loop = datastore.clone();
     let committee_size = validators.len();
-    control.committee_size.store(committee_size, Ordering::SeqCst);
+    control
+        .committee_size
+        .store(committee_size, Ordering::SeqCst);
     control.participate.store(true, Ordering::SeqCst);
 
     let blocks_per_epoch = {
@@ -185,13 +188,19 @@ pub async fn create_and_start_shoal_validator_weighted_with_epoch(
                             )
                             .await
                         }
-                        Err(e) => Err(anyhow::anyhow!("Failed to initialize ShoalValidator: {}", e)),
+                        Err(e) => Err(anyhow::anyhow!(
+                            "Failed to initialize ShoalValidator: {}",
+                            e
+                        )),
                     }
                 }
                 Err(e) => Err(anyhow::anyhow!("Failed to create ShoalValidator: {}", e)),
             }
         }
-        Err(e) => Err(anyhow::anyhow!("Failed to create ShoalValidatorConfig: {}", e)),
+        Err(e) => Err(anyhow::anyhow!(
+            "Failed to create ShoalValidatorConfig: {}",
+            e
+        )),
     }
 }
 
@@ -223,13 +232,14 @@ fn create_validator_block(
     round_id: u64,
     prev_round_certs: HashMap<String, String>,
     keypair: &Keypair,
+    events: Vec<serde_json::Value>,
 ) -> Result<ValidatorBlock> {
     let mut block = ValidatorBlock {
         peer_id: peer_id.to_string(),
         round_id,
         prev_round_certs,
         opening_sig: None,
-        events: Vec::new(),
+        events,
         closing_sig: None,
         hash: None,
         acks: HashMap::new(),
@@ -260,6 +270,154 @@ async fn ingest_into_shoal(
     }
 }
 
+async fn apply_certified_contract_events(
+    block: &ValidatorBlock,
+    datastore: &Arc<Mutex<DatastoreManager>>,
+) {
+    if block.events.is_empty() {
+        return;
+    }
+
+    let batch_id = block
+        .cert
+        .clone()
+        .or_else(|| block.hash.clone())
+        .unwrap_or_else(|| format!("round-{}", block.round_id));
+
+    let processor = ContractProcessor::new(datastore.clone());
+
+    for event in &block.events {
+        let Some("contract_push") = event.get("type").and_then(|v| v.as_str()) else {
+            continue;
+        };
+        let Some(data) = event.get("data") else {
+            continue;
+        };
+        let Some(contract_id) = data.get("contract_id").and_then(|v| v.as_str()) else {
+            continue;
+        };
+        let Some(commits) = data.get("commits").and_then(|v| v.as_array()) else {
+            continue;
+        };
+
+        for commit_entry in commits {
+            let Some(commit_id) = commit_entry
+                .get("commit_id")
+                .or_else(|| commit_entry.get("hash"))
+                .and_then(|v| v.as_str())
+            else {
+                continue;
+            };
+            let body = commit_entry.get("body").or_else(|| commit_entry.get("data"));
+            let commit_data = serde_json::json!({
+                "body": body,
+                "head": commit_entry.get("head"),
+            });
+
+            match processor
+                .process_commit(contract_id, commit_id, &commit_data.to_string())
+                .await
+            {
+                Ok(changes) => {
+                    log::info!(
+                        "Sequenced commit {} for contract {}: {} state changes",
+                        commit_id,
+                        contract_id,
+                        changes.len()
+                    );
+                }
+                Err(e) => {
+                    log::warn!(
+                        "Failed to process sequenced commit {} for contract {}: {}",
+                        commit_id,
+                        contract_id,
+                        e
+                    );
+                }
+            }
+
+            let mgr = datastore.lock().await;
+            let keys = [
+                ("contract_id".to_string(), contract_id.to_string()),
+                ("commit_id".to_string(), commit_id.to_string()),
+            ]
+            .into_iter()
+            .collect();
+            match Commit::find_one_multi(&mgr, keys).await {
+                Ok(Some(mut commit)) => {
+                    commit.in_batch = Some(batch_id.clone());
+                    if let Err(e) = commit.save_to_final(&mgr).await {
+                        log::warn!("Failed to set in_batch on commit {}: {}", commit_id, e);
+                    } else {
+                        log::info!(
+                            "Commit {} sequenced in batch {}",
+                            commit_id,
+                            &batch_id[..16.min(batch_id.len())]
+                        );
+                    }
+                }
+                Ok(None) => {
+                    log::warn!("Sequenced commit {} not found in store", commit_id);
+                }
+                Err(e) => {
+                    log::warn!("Failed to load commit {} for in_batch update: {}", commit_id, e);
+                }
+            }
+        }
+    }
+}
+
+async fn on_certificate_formed(
+    certified_block: &ValidatorBlock,
+    shoal_validator: &modality_validator::ShoalValidator,
+    datastore: &Arc<Mutex<DatastoreManager>>,
+    communication: &mut NodeCommunication,
+    validator_peer_id: &str,
+    checkpoint_tracker: &mut CheckpointTracker,
+    blocks_per_epoch: u64,
+) {
+    if let Err(e) = save_certified_block(certified_block, datastore).await {
+        log::error!("Failed to save certified block: {}", e);
+    }
+
+    ingest_into_shoal(shoal_validator, certified_block).await;
+    apply_certified_contract_events(certified_block, datastore).await;
+
+    if checkpoint_tracker.on_round_certified(certified_block.round_id) {
+        if let Some(selection_epoch) = checkpoint_tracker.get_selection_epoch() {
+            log::info!("🏁 Creating checkpoint for epoch {}", selection_epoch);
+            match create_checkpoint_for_epoch(
+                datastore,
+                selection_epoch,
+                checkpoint_tracker.current_validator_epoch,
+                certified_block.round_id,
+                blocks_per_epoch,
+            )
+            .await
+            {
+                Ok(checkpoint) => {
+                    log::info!(
+                        "✅ Checkpoint created: epoch {}, {} blocks, merkle root {}",
+                        checkpoint.epoch,
+                        checkpoint.block_count,
+                        &checkpoint.merkle_root[..16.min(checkpoint.merkle_root.len())]
+                    );
+                }
+                Err(e) => {
+                    log::error!("Failed to create checkpoint: {}", e);
+                }
+            }
+        }
+    }
+
+    if let Err(e) = communication
+        .broadcast_certified_block(validator_peer_id, certified_block)
+        .await
+    {
+        log::warn!("Failed to broadcast certified block: {}", e);
+    }
+}
+
 /// Spawn a background task to run the Shoal consensus loop with checkpoint support.
 pub async fn spawn_consensus_loop_with_checkpoints(
     shoal_validator: modality_validator::ShoalValidator,
@@ -285,11 +443,8 @@ pub async fn spawn_consensus_loop_with_checkpoints(
             consensus_tx: consensus_tx.clone(),
         };
 
-        let mut ack_collector = AckCollector::new(
-            validator_peer_id.clone(),
-            keypair.clone(),
-            committee_size,
-        );
+        let mut ack_collector =
+            AckCollector::new(validator_peer_id.clone(), keypair.clone(), committee_size);
 
         let mut checkpoint_tracker = CheckpointTracker::new(checkpoint_mode, blocks_per_epoch);
         checkpoint_tracker.on_epoch_change(validator_epoch);
@@ -305,10 +460,7 @@ pub async fn spawn_consensus_loop_with_checkpoints(
         round_interval.tick().await;
 
         loop {
-            ack_collector.committee_size = control
-                .committee_size
-                .load(Ordering::Relaxed)
-                .max(1);
+            ack_collector.committee_size = control.committee_size.load(Ordering::Relaxed).max(1);
 
             tokio::select! {
                 Some(msg) = msg_rx.recv() => {
@@ -352,44 +504,15 @@ pub async fn spawn_consensus_loop_with_checkpoints(
                                 Ok(true) => {
                                     if let Some(certified_block) = ack_collector.form_certificate(ack.round_id) {
                                         log::info!("🎉 Certificate formed for round {}", ack.round_id);
-
-                                        if let Err(e) = save_certified_block(&certified_block, &datastore).await {
-                                            log::error!("Failed to save certified block: {}", e);
-                                        }
-
-                                        ingest_into_shoal(&shoal_validator, &certified_block).await;
-
-                                        if checkpoint_tracker.on_round_certified(ack.round_id) {
-                                            if let Some(selection_epoch) = checkpoint_tracker.get_selection_epoch() {
-                                                log::info!("🏁 Creating checkpoint for epoch {}", selection_epoch);
-                                                match create_checkpoint_for_epoch(
-                                                    &datastore,
-                                                    selection_epoch,
-                                                    checkpoint_tracker.current_validator_epoch,
-                                                    ack.round_id,
-                                                    blocks_per_epoch,
-                                                ).await {
-                                                    Ok(checkpoint) => {
-                                                        log::info!(
-                                                            "✅ Checkpoint created: epoch {}, {} blocks, merkle root {}",
-                                                            checkpoint.epoch,
-                                                            checkpoint.block_count,
-                                                            &checkpoint.merkle_root[..16.min(checkpoint.merkle_root.len())]
-                                                        );
-                                                    }
-                                                    Err(e) => {
-                                                        log::error!("Failed to create checkpoint: {}", e);
-                                                    }
-                                                }
-                                            }
-                                        }
-
-                                        if let Err(e) = communication.broadcast_certified_block(
-                                            &validator_peer_id,
+                                        on_certificate_formed(
                                             &certified_block,
-                                        ).await {
-                                            log::warn!("Failed to broadcast certified block: {}", e);
-                                        }
+                                            &shoal_validator,
+                                            &datastore,
+                                            &mut communication,
+                                            &validator_peer_id,
+                                            &mut checkpoint_tracker,
+                                            blocks_per_epoch,
+                                        ).await;
                                     }
                                 }
                                 Ok(false) => {}
@@ -410,6 +533,7 @@ pub async fn spawn_consensus_loop_with_checkpoints(
                                             log::warn!("Failed to save certified block from {}: {}", from, e);
                                         }
                                         ingest_into_shoal(&shoal_validator, &block).await;
+                                        apply_certified_contract_events(&block, &datastore).await;
                                     }
                                     Ok(false) => {
                                         log::warn!("Invalid certificate from {} for round {}",
@@ -441,11 +565,23 @@ pub async fn spawn_consensus_loop_with_checkpoints(
                         get_prev_round_certs(&mgr, round).await
                     };
 
+                    let events = {
+                        let mgr = datastore.lock().await;
+                        match mgr.drain_sequencer_events().await {
+                            Ok(events) => events,
+                            Err(e) => {
+                                log::warn!("Failed to drain sequencer events: {}", e);
+                                Vec::new()
+                            }
+                        }
+                    };
+
                     let block = match create_validator_block(
                         &validator_peer_id,
                         round,
                         prev_round_certs.clone(),
                         &keypair,
+                        events,
                     ) {
                         Ok(b) => b,
                         Err(e) => {
@@ -466,6 +602,27 @@ pub async fn spawn_consensus_loop_with_checkpoints(
 
                     if let Err(e) = communication.broadcast_draft_block(&validator_peer_id, &block).await {
                         log::warn!("Failed to broadcast draft block for round {}: {}", round, e);
+                    }
+
+                    match ack_collector.try_self_ack(round) {
+                        Ok(true) => {
+                            if let Some(certified_block) = ack_collector.form_certificate(round) {
+                                log::info!("🎉 Certificate formed for round {} (self-ack)", round);
+                                on_certificate_formed(
+                                    &certified_block,
+                                    &shoal_validator,
+                                    &datastore,
+                                    &mut communication,
+                                    &validator_peer_id,
+                                    &mut checkpoint_tracker,
+                                    blocks_per_epoch,
+                                ).await;
+                            }
+                        }
+                        Ok(false) => {}
+                        Err(e) => {
+                            log::warn!("Self-ack failed for round {}: {}", round, e);
+                        }
                     }
 
                     {

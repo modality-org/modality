@@ -17,16 +17,16 @@ use tokio::sync::Mutex;
 pub struct CheckpointTracker {
     /// Current validator set epoch (the epoch the validators operate in)
     pub current_validator_epoch: u64,
-    
+
     /// Number of certified rounds completed in the current validator epoch
     pub certified_rounds_in_epoch: u64,
-    
+
     /// Checkpoint mode from network configuration
     pub checkpoint_mode: CheckpointMode,
-    
+
     /// Blocks per epoch (for epoch calculations)
     pub blocks_per_epoch: u64,
-    
+
     /// Whether checkpoint has been created for current validator epoch
     pub checkpoint_created: bool,
 }
@@ -42,12 +42,12 @@ impl CheckpointTracker {
             checkpoint_created: false,
         }
     }
-    
+
     /// Create a tracker from network info
     pub fn from_network_info(network_info: &NetworkInfo, blocks_per_epoch: u64) -> Self {
         Self::new(network_info.get_checkpoint_mode(), blocks_per_epoch)
     }
-    
+
     /// Called when the validator set epoch changes
     pub fn on_epoch_change(&mut self, new_validator_epoch: u64) {
         if new_validator_epoch != self.current_validator_epoch {
@@ -61,20 +61,20 @@ impl CheckpointTracker {
             self.checkpoint_created = false;
         }
     }
-    
+
     /// Called when a round is certified by the validator set
     /// Returns true if a checkpoint should be created
     pub fn on_round_certified(&mut self, _round: u64) -> bool {
         if self.checkpoint_mode != CheckpointMode::Consensus {
             return false;
         }
-        
+
         if self.checkpoint_created {
             return false;
         }
-        
+
         self.certified_rounds_in_epoch += 1;
-        
+
         // Create checkpoint on the second certified round
         if self.certified_rounds_in_epoch == 2 {
             log::info!(
@@ -84,10 +84,10 @@ impl CheckpointTracker {
             self.checkpoint_created = true;
             return true;
         }
-        
+
         false
     }
-    
+
     /// Get the selection epoch for the current validator set
     /// In hybrid consensus, validators for epoch N are selected from epoch N-2
     pub fn get_selection_epoch(&self) -> Option<u64> {
@@ -108,29 +108,29 @@ pub async fn create_checkpoint_for_epoch(
     _blocks_per_epoch: u64,
 ) -> Result<MinerCheckpoint> {
     let mgr = datastore.lock().await;
-    
+
     // Get all canonical blocks from the selection epoch
     let all_blocks = MinerBlock::find_all_canonical_multi(&mgr).await?;
     let epoch_blocks: Vec<_> = all_blocks
         .into_iter()
         .filter(|b| b.epoch == selection_epoch)
         .collect();
-    
+
     if epoch_blocks.is_empty() {
         anyhow::bail!("No canonical blocks found for epoch {}", selection_epoch);
     }
-    
+
     // Sort by index to get the last block
     let mut sorted_blocks = epoch_blocks.clone();
     sorted_blocks.sort_by_key(|b| b.index);
-    
+
     let last_block = sorted_blocks.last().unwrap();
     let block_count = sorted_blocks.len() as u64;
-    
+
     // Compute merkle root of all block hashes
     let block_hashes: Vec<String> = sorted_blocks.iter().map(|b| b.hash.clone()).collect();
     let merkle_root = modality_common::merkle::compute_merkle_root_owned(&block_hashes);
-    
+
     // Create the checkpoint
     let checkpoint = MinerCheckpoint::new_consensus(
         selection_epoch,
@@ -141,10 +141,10 @@ pub async fn create_checkpoint_for_epoch(
         block_count,
         validator_round,
     );
-    
+
     // Save the checkpoint
     checkpoint.save_to_canon(&mgr).await?;
-    
+
     log::info!(
         "🏁 Created checkpoint for epoch {} (validator epoch {}): {} blocks, last block index {}, merkle root {}",
         selection_epoch,
@@ -153,7 +153,7 @@ pub async fn create_checkpoint_for_epoch(
         last_block.index,
         &checkpoint.merkle_root[..16.min(checkpoint.merkle_root.len())]
     );
-    
+
     Ok(checkpoint)
 }
 
@@ -166,25 +166,28 @@ pub async fn load_manual_checkpoints(
     if network_info.get_checkpoint_mode() != CheckpointMode::Manual {
         return Ok(0);
     }
-    
+
     let manual_checkpoints = network_info.get_manual_checkpoints();
     if manual_checkpoints.is_empty() {
         log::warn!("Manual checkpoint mode enabled but no checkpoints configured");
         return Ok(0);
     }
-    
+
     let mgr = datastore.lock().await;
     let mut loaded = 0;
-    
+
     for manual in manual_checkpoints {
         let epoch = manual.block_index / blocks_per_epoch;
-        
+
         // Check if checkpoint already exists
-        if MinerCheckpoint::find_by_epoch_multi(&mgr, epoch).await?.is_some() {
+        if MinerCheckpoint::find_by_epoch_multi(&mgr, epoch)
+            .await?
+            .is_some()
+        {
             log::debug!("Checkpoint for epoch {} already exists, skipping", epoch);
             continue;
         }
-        
+
         // Try to find the block to get its hash
         let block_hash = if let Some(ref hash) = manual.block_hash {
             hash.clone()
@@ -201,7 +204,7 @@ pub async fn load_manual_checkpoints(
                 }
             }
         };
-        
+
         // For manual checkpoints, we may not have all blocks to compute a proper merkle root
         // Use the block hash as a simple merkle root
         let checkpoint = MinerCheckpoint::new_manual(
@@ -209,20 +212,20 @@ pub async fn load_manual_checkpoints(
             manual.block_index,
             block_hash.clone(),
             block_hash, // Use block hash as merkle root
-            1, // Single block
+            1,          // Single block
             manual.description.clone(),
         );
-        
+
         checkpoint.save_to_canon(&mgr).await?;
         loaded += 1;
-        
+
         log::info!(
             "📌 Loaded manual checkpoint for block index {} (epoch {})",
             manual.block_index,
             epoch
         );
     }
-    
+
     Ok(loaded)
 }
 
@@ -235,7 +238,7 @@ pub async fn ensure_checkpoints_initialized(
     let checkpoint_mode = network_info
         .map(|n| n.get_checkpoint_mode())
         .unwrap_or(CheckpointMode::None);
-    
+
     match checkpoint_mode {
         CheckpointMode::None => {
             log::info!("Checkpoints disabled for this network");
@@ -250,7 +253,7 @@ pub async fn ensure_checkpoints_initialized(
             log::info!("Consensus checkpoints enabled - checkpoints will be created automatically");
         }
     }
-    
+
     Ok(())
 }
 
@@ -270,13 +273,13 @@ mod tests {
     fn test_checkpoint_tracker_consensus_mode() {
         let mut tracker = CheckpointTracker::new(CheckpointMode::Consensus, 100);
         tracker.on_epoch_change(5);
-        
+
         // First certified round
         assert!(!tracker.on_round_certified(1));
-        
+
         // Second certified round - should trigger checkpoint
         assert!(tracker.on_round_certified(2));
-        
+
         // Third round - checkpoint already created
         assert!(!tracker.on_round_certified(3));
     }
@@ -284,12 +287,12 @@ mod tests {
     #[test]
     fn test_checkpoint_tracker_epoch_change() {
         let mut tracker = CheckpointTracker::new(CheckpointMode::Consensus, 100);
-        
+
         // First epoch
         tracker.on_epoch_change(5);
         assert!(!tracker.on_round_certified(1));
         assert!(tracker.on_round_certified(2));
-        
+
         // New epoch resets counter
         tracker.on_epoch_change(6);
         assert!(!tracker.on_round_certified(1));
@@ -299,18 +302,17 @@ mod tests {
     #[test]
     fn test_get_selection_epoch() {
         let mut tracker = CheckpointTracker::new(CheckpointMode::Consensus, 100);
-        
+
         tracker.on_epoch_change(0);
         assert_eq!(tracker.get_selection_epoch(), None);
-        
+
         tracker.on_epoch_change(1);
         assert_eq!(tracker.get_selection_epoch(), None);
-        
+
         tracker.on_epoch_change(2);
         assert_eq!(tracker.get_selection_epoch(), Some(0));
-        
+
         tracker.on_epoch_change(5);
         assert_eq!(tracker.get_selection_epoch(), Some(3));
     }
 }
-

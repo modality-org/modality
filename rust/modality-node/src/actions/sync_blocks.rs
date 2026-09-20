@@ -1,8 +1,8 @@
-use crate::reqres;
 use crate::node::Node;
+use crate::reqres;
 use anyhow::Result;
 use libp2p::multiaddr::Multiaddr;
-use modality_datastore::{DatastoreManager, models::MinerBlock};
+use modality_datastore::{models::MinerBlock, DatastoreManager};
 
 /// Sync blocks from a remote node with optional persistence
 pub async fn run(
@@ -21,8 +21,10 @@ pub async fn run(
     node.connect_to_peer_multiaddr(ma.clone()).await?;
 
     // Send request
-    let response = node.send_request(target_peer_id, path.clone(), data.clone()).await?;
-    
+    let response = node
+        .send_request(target_peer_id, path.clone(), data.clone())
+        .await?;
+
     if !response.ok {
         node.disconnect_from_peer_id(target_peer_id).await?;
         return Ok(SyncResult {

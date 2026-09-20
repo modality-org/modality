@@ -417,10 +417,7 @@ fn draw_logs(frame: &mut Frame, area: Rect, logs: &[LogEntry], filter: &LogFilte
             Style::default().fg(MUTED),
         ))]
     } else {
-        filtered[start..]
-            .iter()
-            .map(|e| log_line(e))
-            .collect()
+        filtered[start..].iter().map(|e| log_line(e)).collect()
     };
     let title = format!(
         " logs  {}/{}  type:{}  topic:{}  ·  l type  t topic  0 reset ",
@@ -537,8 +534,14 @@ mod tests {
     fn dashboard_puts_quit_on_the_screen() {
         let backend = TestBackend::new(100, 28);
         let mut terminal = Terminal::new(backend).unwrap();
+        let logs = vec![LogEntry::new(
+            Level::Info,
+            "modality_node::actions::miner",
+            "hello log",
+        )];
+        let filter = LogFilter::default();
         terminal
-            .draw(|frame| draw(frame, None, &["hello log".into()], false))
+            .draw(|frame| draw(frame, None, &logs, &filter, false))
             .unwrap();
         let buffer = terminal.backend().buffer();
         let mut text = String::new();
@@ -557,9 +560,18 @@ mod tests {
             "tab navigation should not be the main UI:\n{text}"
         );
         assert!(text.contains("hello log"));
+        assert!(
+            text.contains("type:all") && text.contains("topic:all"),
+            "log filter labels missing:\n{text}"
+        );
+        assert!(
+            text.contains("l type") && text.contains("t topic"),
+            "log filter keys missing:\n{text}"
+        );
+        assert!(text.contains("miner"), "log topic missing:\n{text}");
 
         terminal
-            .draw(|frame| draw(frame, None, &["hello log".into()], true))
+            .draw(|frame| draw(frame, None, &logs, &filter, true))
             .unwrap();
         let buffer = terminal.backend().buffer();
         let mut stop_text = String::new();
@@ -586,5 +598,40 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn log_filter_hides_noisy_info_and_other_topics() {
+        let entries = vec![
+            LogEntry::new(Level::Info, "modality_node::node", "Listening on /ip4/…"),
+            LogEntry::new(
+                Level::Warn,
+                "modality_node::actions::miner",
+                "hashrate dropped",
+            ),
+            LogEntry::new(Level::Error, "modality_node::gossip::miner", "peer lost"),
+        ];
+        let mut filter = LogFilter::default();
+        assert_eq!(entries.iter().filter(|e| filter.matches(e)).count(), 3);
+
+        filter.cycle_level(); // error+
+        assert_eq!(filter.level_label(), "error+");
+        let shown: Vec<_> = entries
+            .iter()
+            .filter(|e| filter.matches(e))
+            .map(|e| e.message.as_str())
+            .collect();
+        assert_eq!(shown, vec!["peer lost"]);
+
+        filter.reset();
+        filter.cycle_topic(&entries);
+        // topics sort: gossip, miner, node
+        assert_eq!(filter.topic_label(), "gossip");
+        let shown: Vec<_> = entries
+            .iter()
+            .filter(|e| filter.matches(e))
+            .map(|e| e.topic.as_str())
+            .collect();
+        assert_eq!(shown, vec!["gossip"]);
     }
 }

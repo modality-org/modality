@@ -16,26 +16,24 @@ pub fn render_block_row(
     time_delta: &str,
 ) -> String {
     let truncated_hash = if hash.len() > 16 {
-        format!("{}...{}", &hash[..8], &hash[hash.len()-8..])
+        format!("{}...{}", &hash[..8], &hash[hash.len() - 8..])
     } else {
         hash.to_string()
     };
-    
+
     let truncated_peer = if nominated_peer_id.len() > 20 {
-        format!("{}...{}", &nominated_peer_id[..10], &nominated_peer_id[nominated_peer_id.len()-10..])
+        format!(
+            "{}...{}",
+            &nominated_peer_id[..10],
+            &nominated_peer_id[nominated_peer_id.len() - 10..]
+        )
     } else {
         nominated_peer_id.to_string()
     };
-    
+
     format!(
         r#"<tr><td>{}</td><td>{}</td><td><code>{}</code></td><td>{}</td><td class="timestamp" data-timestamp="{}" onclick="toggleTimestamp(this)" style="cursor: pointer;" title="Click to toggle local time">{}</td><td>{}</td></tr>"#,
-        index,
-        epoch,
-        truncated_hash,
-        truncated_peer,
-        timestamp,
-        timestamp,
-        time_delta
+        index, epoch, truncated_hash, truncated_peer, timestamp, timestamp, time_delta
     )
 }
 
@@ -57,15 +55,22 @@ pub fn render_peer_row_with_url(peer_id: &str, status_url: Option<&str>) -> Stri
 }
 
 /// Template for a peer row with status URL and role
-pub fn render_peer_row_with_metadata(peer_id: &str, status_url: Option<&str>, role: Option<&str>) -> String {
+pub fn render_peer_row_with_metadata(
+    peer_id: &str,
+    status_url: Option<&str>,
+    role: Option<&str>,
+) -> String {
     let status_cell = if let Some(url) = status_url {
-        format!(r#"<a href="{}" target="_blank" style="color: #4ade80; text-decoration: none;">🔗 Status</a>"#, url)
+        format!(
+            r#"<a href="{}" target="_blank" style="color: #4ade80; text-decoration: none;">🔗 Status</a>"#,
+            url
+        )
     } else {
         "-".to_string()
     };
-    
+
     let role_cell = role.unwrap_or("-");
-    
+
     format!(
         r#"<tr><td><code>{}</code></td><td>{}</td><td>{}</td></tr>"#,
         peer_id, role_cell, status_cell
@@ -129,7 +134,8 @@ pub fn render_block_0_info(
 pub fn render_block_0_not_found() -> String {
     r#"<div class="status-item">
             <span class="label" style="color: #666;">Block 0 not found</span>
-        </div>"#.to_string()
+        </div>"#
+        .to_string()
 }
 
 /// Template for empty blocks table
@@ -171,22 +177,23 @@ pub fn render_epoch_nominees_section(epoch: u64, nominees_html: &str) -> String 
 /// Template for a nominee row
 pub fn render_nominee_row(rank: usize, block_idx: u64, block_hash: &str, peer_id: &str) -> String {
     let truncated_hash = if block_hash.len() > 16 {
-        format!("{}...{}", &block_hash[..8], &block_hash[block_hash.len()-8..])
+        format!(
+            "{}...{}",
+            &block_hash[..8],
+            &block_hash[block_hash.len() - 8..]
+        )
     } else {
         block_hash.to_string()
     };
     let truncated_peer = if peer_id.len() > 20 {
-        format!("{}...{}", &peer_id[..10], &peer_id[peer_id.len()-10..])
+        format!("{}...{}", &peer_id[..10], &peer_id[peer_id.len() - 10..])
     } else {
         peer_id.to_string()
     };
-    
+
     format!(
         "<tr><td>{}</td><td>{}</td><td><code>{}</code></td><td>{}</td></tr>",
-        rank,
-        block_idx,
-        truncated_hash,
-        truncated_peer
+        rank, block_idx, truncated_hash, truncated_peer
     )
 }
 
@@ -230,15 +237,10 @@ pub fn render_finalized_round_row(
         "Partial" => "#fbbf24",
         _ => "#888",
     };
-    
+
     format!(
         r#"<tr><td>{}</td><td>{}</td><td>{}</td><td>{:.1}%</td><td style="color: {};">{}</td></tr>"#,
-        round_id,
-        certified_count,
-        total_count,
-        completion_pct,
-        status_color,
-        status
+        round_id, certified_count, total_count, completion_pct, status_color, status
     )
 }
 
@@ -253,7 +255,10 @@ pub fn render_status_page(vars: StatusPageVars) -> String {
         .replace("{refresh_interval}", &vars.refresh_interval.to_string())
         .replace("{connected_peers}", &vars.connected_peers.to_string())
         .replace("{total_miner_blocks}", &vars.total_miner_blocks.to_string())
-        .replace("{cumulative_difficulty}", &vars.cumulative_difficulty.to_string())
+        .replace(
+            "{cumulative_difficulty}",
+            &vars.cumulative_difficulty.to_string(),
+        )
         .replace("{peerid}", &vars.peerid)
         .replace("{network_name}", &vars.network_name)
         .replace("{role}", &vars.role)
@@ -262,11 +267,17 @@ pub fn render_status_page(vars: StatusPageVars) -> String {
         .replace("{latest_round}", &vars.latest_round.to_string())
         .replace("{block_0_html}", &vars.block_0_html)
         .replace("{peers_html}", &vars.peers_html)
-        .replace("{blocks_mined_by_node}", &vars.blocks_mined_by_node.to_string())
+        .replace(
+            "{blocks_mined_by_node}",
+            &vars.blocks_mined_by_node.to_string(),
+        )
         .replace("{current_difficulty}", &vars.current_difficulty)
         .replace("{miner_hashrate}", &vars.miner_hashrate)
         .replace("{network_hashrate}", &vars.network_hashrate)
-        .replace("{recent_blocks_count}", &vars.recent_blocks_count.to_string())
+        .replace(
+            "{recent_blocks_count}",
+            &vars.recent_blocks_count.to_string(),
+        )
         .replace("{blocks_html}", &vars.blocks_html)
         .replace("{first_blocks_count}", &vars.first_blocks_count.to_string())
         .replace("{first_blocks_html}", &vars.first_blocks_html)
@@ -341,25 +352,50 @@ mod tests {
         };
 
         let html = render_status_page(vars);
-        
+
         // Check that CSS has single braces (valid CSS)
-        assert!(html.contains("body {"), "CSS should have single opening brace for body");
-        assert!(html.contains("color: #e0e0e0;"), "CSS properties should be present");
-        assert!(html.contains(".status-card {"), "CSS class selectors should have single braces");
-        
+        assert!(
+            html.contains("body {"),
+            "CSS should have single opening brace for body"
+        );
+        assert!(
+            html.contains("color: #e0e0e0;"),
+            "CSS properties should be present"
+        );
+        assert!(
+            html.contains(".status-card {"),
+            "CSS class selectors should have single braces"
+        );
+
         // Check that double braces in CSS were converted
         // We should not find {{ or }} in the style section
         let style_start = html.find("<style>").expect("Should have style tag");
-        let style_end = html.find("</style>").expect("Should have closing style tag");
+        let style_end = html
+            .find("</style>")
+            .expect("Should have closing style tag");
         let style_content = &html[style_start..style_end];
-        
-        assert!(!style_content.contains("{{"), "CSS should NOT have double opening braces");
-        assert!(!style_content.contains("}}"), "CSS should NOT have double closing braces");
-        
+
+        assert!(
+            !style_content.contains("{{"),
+            "CSS should NOT have double opening braces"
+        );
+        assert!(
+            !style_content.contains("}}"),
+            "CSS should NOT have double closing braces"
+        );
+
         // Check that placeholders were replaced
-        assert!(html.contains("TestNet"), "Network name placeholder should be replaced");
-        assert!(html.contains("12D3KooWBGR3m1JmVFm2aZYR7TZXicjA7HSVSWi2fama5cPpgQiX"), "Peer ID placeholder should be replaced");
-        assert!(html.contains("170"), "Block count placeholder should be replaced");
+        assert!(
+            html.contains("TestNet"),
+            "Network name placeholder should be replaced"
+        );
+        assert!(
+            html.contains("12D3KooWBGR3m1JmVFm2aZYR7TZXicjA7HSVSWi2fama5cPpgQiX"),
+            "Peer ID placeholder should be replaced"
+        );
+        assert!(
+            html.contains("170"),
+            "Block count placeholder should be replaced"
+        );
     }
 }
-

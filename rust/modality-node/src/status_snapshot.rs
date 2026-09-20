@@ -194,10 +194,7 @@ pub async fn collect_node_status(source: &NodeStatusSource) -> anyhow::Result<No
     })
 }
 
-async fn collect_finalized_rounds(
-    mgr: &DatastoreManager,
-    current_round: u64,
-) -> Vec<RoundStatus> {
+async fn collect_finalized_rounds(mgr: &DatastoreManager, current_round: u64) -> Vec<RoundStatus> {
     let mut rounds = Vec::new();
     let start_round = current_round.saturating_sub(STATUS_FINALIZED_ROUNDS_TO_SHOW);
     for round_id in (start_round..current_round).rev() {

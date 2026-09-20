@@ -34,15 +34,15 @@ pub async fn orphan_blocks_after(
     reason: &str,
 ) -> Result<OrphanResult> {
     let all_blocks = MinerBlock::find_all_canonical_multi(mgr).await?;
-    
+
     let mut orphaned_count = 0;
     let mut orphaned_hashes = Vec::new();
-    
+
     for block in &all_blocks {
         if block.index > after_index && block.is_canonical && !block.is_orphaned {
             let mut orphaned = block.clone();
             orphaned.mark_as_orphaned(reason.to_string(), None);
-            
+
             if let Err(e) = orphaned.save_to_active(mgr).await {
                 log::error!(
                     "Failed to orphan block {} at index {}: {}",
@@ -51,13 +51,17 @@ pub async fn orphan_blocks_after(
                     e
                 );
             } else {
-                log::info!("   Orphaned block {} at index {}", &block.hash[..16], block.index);
+                log::info!(
+                    "   Orphaned block {} at index {}",
+                    &block.hash[..16],
+                    block.index
+                );
                 orphaned_hashes.push(block.hash.clone());
                 orphaned_count += 1;
             }
         }
     }
-    
+
     Ok(OrphanResult {
         orphaned_count,
         orphaned_hashes,
@@ -85,21 +89,21 @@ pub async fn cascade_orphan(
     reason_prefix: &str,
 ) -> Result<usize> {
     let all_canonical = MinerBlock::find_all_canonical_multi(mgr).await?;
-    
+
     // Find blocks that might need cascade orphaning
     let mut blocks_to_check: Vec<_> = all_canonical
         .iter()
         .filter(|b| b.index > orphaned_block_index && b.is_canonical && !b.is_orphaned)
         .collect();
-    
+
     blocks_to_check.sort_by_key(|b| b.index);
-    
+
     // Track which hashes have been orphaned
     let mut orphaned_hashes = HashSet::new();
     orphaned_hashes.insert(orphaned_block_hash.to_string());
-    
+
     let mut cascade_count = 0;
-    
+
     for block in blocks_to_check {
         // If this block's parent was orphaned, orphan this block too
         if orphaned_hashes.contains(&block.previous_hash) {
@@ -108,7 +112,7 @@ pub async fn cascade_orphan(
                 &block.hash[..16],
                 block.index
             );
-            
+
             let mut cascade_orphaned = block.clone();
             cascade_orphaned.mark_as_orphaned(
                 format!(
@@ -120,12 +124,12 @@ pub async fn cascade_orphan(
                 None,
             );
             cascade_orphaned.save_to_active(mgr).await?;
-            
+
             orphaned_hashes.insert(block.hash.clone());
             cascade_count += 1;
         }
     }
-    
+
     if cascade_count > 0 {
         log::warn!(
             "⚠️  Cascade orphaned {} blocks built on orphaned block {}",
@@ -133,7 +137,7 @@ pub async fn cascade_orphan(
             orphaned_block_index
         );
     }
-    
+
     Ok(cascade_count)
 }
 
@@ -155,23 +159,22 @@ pub async fn orphan_block_with_cascade(
 ) -> Result<usize> {
     let block_hash = block.hash.clone();
     let block_index = block.index;
-    
+
     // Orphan the primary block
     let mut orphaned = block.clone();
     orphaned.mark_as_orphaned(reason.to_string(), competing_hash);
     orphaned.save_to_active(mgr).await?;
-    
-    log::info!("Orphaned block {} at index {}", &block_hash[..16], block_index);
-    
+
+    log::info!(
+        "Orphaned block {} at index {}",
+        &block_hash[..16],
+        block_index
+    );
+
     // Cascade to dependent blocks
-    let cascade_count = cascade_orphan(
-        mgr,
-        &block_hash,
-        block_index,
-        "Cascade from fork choice",
-    )
-    .await?;
-    
+    let cascade_count =
+        cascade_orphan(mgr, &block_hash, block_index, "Cascade from fork choice").await?;
+
     Ok(1 + cascade_count)
 }
 
@@ -190,13 +193,13 @@ pub fn find_common_ancestor_by_hash(
     // Sort blocks by index descending to find highest common ancestor first
     let mut sorted_blocks: Vec<_> = local_blocks.iter().collect();
     sorted_blocks.sort_by_key(|block| std::cmp::Reverse(block.index));
-    
+
     for block in sorted_blocks {
         if remote_hashes.contains(&block.hash) {
             return Some(block.index);
         }
     }
-    
+
     None
 }
 
@@ -211,7 +214,7 @@ pub fn validate_block_chain(blocks: &[MinerBlock]) -> Result<()> {
     if blocks.is_empty() {
         return Ok(());
     }
-    
+
     for i in 1..blocks.len() {
         // Check consecutive indices
         if blocks[i].index != blocks[i - 1].index + 1 {
@@ -221,7 +224,7 @@ pub fn validate_block_chain(blocks: &[MinerBlock]) -> Result<()> {
                 blocks[i].index
             );
         }
-        
+
         // Check hash linkage
         if blocks[i].previous_hash != blocks[i - 1].hash {
             anyhow::bail!(
@@ -231,7 +234,7 @@ pub fn validate_block_chain(blocks: &[MinerBlock]) -> Result<()> {
             );
         }
     }
-    
+
     Ok(())
 }
 
@@ -261,7 +264,7 @@ mod tests {
             make_test_block(1, "hash_0"),
             make_test_block(2, "hash_1"),
         ];
-        
+
         assert!(validate_block_chain(&blocks).is_ok());
     }
 
@@ -271,7 +274,7 @@ mod tests {
             make_test_block(0, "genesis"),
             make_test_block(2, "hash_1"), // Gap - missing index 1
         ];
-        
+
         assert!(validate_block_chain(&blocks).is_err());
     }
 
@@ -281,7 +284,7 @@ mod tests {
             make_test_block(0, "genesis"),
             make_test_block(1, "wrong_hash"), // Bad link
         ];
-        
+
         assert!(validate_block_chain(&blocks).is_err());
     }
 }

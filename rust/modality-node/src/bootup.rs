@@ -1,6 +1,6 @@
 use anyhow::Result;
 use log::{info, warn};
-use modality_datastore::{DatastoreManager, models::miner::MinerBlock};
+use modality_datastore::{models::miner::MinerBlock, DatastoreManager};
 
 /// Configuration for bootup tasks
 #[derive(Debug, Clone)]
@@ -30,9 +30,7 @@ pub struct BootupRunner {
 
 impl BootupRunner {
     pub fn new(config: BootupConfig) -> Self {
-        Self {
-            config,
-        }
+        Self { config }
     }
 
     /// Run all configured bootup tasks
@@ -64,7 +62,10 @@ impl BootupRunner {
         for block in &all_blocks {
             // Check block integrity
             if !self.is_block_valid(block) {
-                warn!("Found invalid block: {} (index: {})", block.hash, block.index);
+                warn!(
+                    "Found invalid block: {} (index: {})",
+                    block.hash, block.index
+                );
                 integrity_issues += 1;
             }
         }

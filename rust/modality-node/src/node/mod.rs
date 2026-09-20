@@ -23,21 +23,21 @@ use libp2p::request_response;
 use libp2p::swarm::SwarmEvent;
 use libp2p::{Multiaddr, PeerId};
 
-use modality_validator_consensus::communication::Message as ConsensusMessage;
-use modality_datastore::DatastoreManager;
 use modality_common::multiaddr_list::resolve_dns_multiaddrs;
+use modality_datastore::DatastoreManager;
+use modality_validator_consensus::communication::Message as ConsensusMessage;
 
 use crate::config::Config;
 use crate::consensus::net_comm::NetComm;
+use crate::constants::{
+    CONNECTION_WAIT_INTERVAL_SECS, NETWORKING_TICK_INTERVAL_SECS, PEER_IGNORE_INITIAL_SECS,
+    PEER_IGNORE_MAX_EXPONENT, SHUTDOWN_WAIT_MS,
+};
 use crate::gossip;
 use crate::reqres;
 use crate::swarm;
-use crate::constants::{
-    NETWORKING_TICK_INTERVAL_SECS, SHUTDOWN_WAIT_MS, CONNECTION_WAIT_INTERVAL_SECS,
-    PEER_IGNORE_INITIAL_SECS, PEER_IGNORE_MAX_EXPONENT,
-};
 
-pub use helpers::{extract_peer_id, exclude_multiaddresses_with_peerid};
+pub use helpers::{exclude_multiaddresses_with_peerid, extract_peer_id};
 
 /// Information about an ignored peer
 #[derive(Clone, Debug)]
@@ -63,7 +63,8 @@ pub struct Node {
     pub sync_request_tx: Option<mpsc::UnboundedSender<(PeerId, String)>>,
     pub mining_update_tx: Option<mpsc::UnboundedSender<u64>>,
     pub epoch_transition_tx: tokio::sync::broadcast::Sender<u64>,
-    pub reqres_response_txs: Arc<Mutex<HashMap<OutboundRequestId, tokio::sync::oneshot::Sender<reqres::Response>>>>,
+    pub reqres_response_txs:
+        Arc<Mutex<HashMap<OutboundRequestId, tokio::sync::oneshot::Sender<reqres::Response>>>>,
     pub minimum_block_timestamp: Option<i64>,
     pub fork_config: modality_observer::ForkConfig,
     pub initial_difficulty: Option<u128>,
@@ -99,17 +100,17 @@ impl Node {
         let peerid = node_keypair.public().to_peer_id();
         let autoupgrade_config = crate::autoupgrade::AutoupgradeConfig::from_node_config(&config);
         let miner_nominees = config.miner_nominees.clone();
-        
+
         // Hybrid consensus should be ON by default for all nodes
         let hybrid_consensus = config.hybrid_consensus.unwrap_or(true);
-        
+
         // Determine run_validator based on run_as or explicit flag
         let run_validator = if let Some(ref run_as) = config.run_as {
             matches!(run_as.as_str(), "validator" | "Validator")
         } else {
             config.run_validator.unwrap_or(false)
         };
-        
+
         let network_name = config.get_network_name();
         let role = config.get_node_role();
         let status_port = config.status_port;
@@ -125,21 +126,26 @@ impl Node {
         let resolved_bootstrappers =
             resolve_dns_multiaddrs(config.bootstrappers.clone().unwrap_or_default()).await?;
         let bootstrappers = exclude_multiaddresses_with_peerid(resolved_bootstrappers, peerid);
-        let swarm = swarm::create_swarm_with_metadata(node_keypair.clone(), status_url.clone(), Some(role.clone())).await?;
-        
+        let swarm = swarm::create_swarm_with_metadata(
+            node_keypair.clone(),
+            status_url.clone(),
+            Some(role.clone()),
+        )
+        .await?;
+
         // Initialize the DatastoreManager
         let datastore_manager = helpers::initialize_datastore(&config).await?;
-        
+
         // Load network config if provided
         if let Some(network_config_path) = config.network_config_path {
             helpers::load_network_config(&datastore_manager, network_config_path).await?;
         }
-        
+
         let (shutdown_tx, _) = tokio::sync::broadcast::channel(1);
         let (consensus_tx, consensus_rx) = mpsc::channel(100);
         let (sync_trigger_tx, _sync_trigger_rx) = tokio::sync::broadcast::channel(100);
         let (epoch_transition_tx, _) = tokio::sync::broadcast::channel(10);
-        
+
         let node = Self {
             peerid,
             node_keypair,
@@ -253,15 +259,29 @@ impl Node {
 
     /// Wait for peer connections
     pub async fn wait_for_connections(&mut self) -> Result<()> {
+        let remote_bootstrappers: Vec<Multiaddr> = self
+            .bootstrappers
+            .iter()
+            .cloned()
+            .filter(|addr| extract_peer_id(addr.clone()).is_some_and(|peer| peer != self.peerid))
+            .collect();
+
+        if remote_bootstrappers.is_empty() {
+            log::info!("No remote bootstrappers — starting without waiting for peers");
+            return Ok(());
+        }
+
         let mut shutdown_rx = self.shutdown_tx.subscribe();
-        let count = self.swarm.lock().await.connected_peers().count();
         loop {
             if self.is_shutdown_requested() {
                 return Ok(());
             }
+            let count = self.swarm.lock().await.connected_peers().count();
             log::info!("connecting to peers...");
             log::info!("{}", count);
-            let count = self.swarm.lock().await.connected_peers().count();
+            if count > 0 {
+                break;
+            }
             tokio::select! {
                 _ = tokio::time::sleep(Duration::from_secs(CONNECTION_WAIT_INTERVAL_SECS)) => {}
                 _ = shutdown_rx.recv() => return Ok(()),
@@ -269,7 +289,7 @@ impl Node {
             if self.is_shutdown_requested() {
                 return Ok(());
             }
-            for bootstrapper in self.bootstrappers.clone() {
+            for bootstrapper in remote_bootstrappers.clone() {
                 log::info!("{}", bootstrapper);
                 if let Some(peer_id) = extract_peer_id(bootstrapper.clone()) {
                     {
@@ -282,9 +302,6 @@ impl Node {
                         swarm.dial(bootstrapper.clone())?;
                     }
                 }
-            }
-            if count > 0 {
-                break;
             }
         }
         Ok(())
@@ -307,7 +324,7 @@ impl Node {
         } else {
             Some(serde_json::from_str(&data)?)
         };
-        
+
         let request = reqres::Request {
             path: path.clone().to_string(),
             data: data_value,
@@ -411,7 +428,10 @@ impl Node {
     }
 
     /// Get inspection data about this node
-    pub async fn get_inspection_data(&self, level: crate::inspection::InspectionLevel) -> Result<crate::inspection::InspectionData> {
+    pub async fn get_inspection_data(
+        &self,
+        level: crate::inspection::InspectionLevel,
+    ) -> Result<crate::inspection::InspectionData> {
         helpers::get_inspection_data(self, level).await
     }
 
@@ -432,20 +452,22 @@ impl Node {
     pub async fn wait_for_shutdown(&mut self) -> Result<()> {
         let shutdown_tx = self.shutdown_tx.clone();
         let mining_shutdown = self.mining_shutdown.clone();
-    
+
         tokio::spawn(async move {
-            tokio::signal::ctrl_c().await.expect("Failed to listen for Ctrl+C");
+            tokio::signal::ctrl_c()
+                .await
+                .expect("Failed to listen for Ctrl+C");
             log::info!("Received Ctrl-C, initiating shutdown...");
-            
+
             modality_common::hash_tax::set_mining_shutdown(true);
-            
+
             if let Some(ref flag) = mining_shutdown {
                 flag.store(true, Ordering::Relaxed);
             }
-            
+
             let _ = shutdown_tx.send(());
         });
-    
+
         let mut shutdown_rx = self.shutdown_tx.subscribe();
         loop {
             if self.is_shutdown_requested() {
@@ -460,13 +482,13 @@ impl Node {
             }
         }
         log::info!("Shutdown signal received in wait_for_shutdown");
-    
+
         if let Some(handle) = self.autoupgrade_task.take() {
             log::info!("Awaiting autoupgrade task shutdown...");
             handle.await??;
             log::info!("Autoupgrade task shutdown complete");
         }
-    
+
         if let Some(handle) = self.networking_task.take() {
             log::info!("Awaiting networking task shutdown...");
             handle.await??;
@@ -478,7 +500,7 @@ impl Node {
             handle.await.ok();
             log::info!("Status HTML writer task shutdown complete");
         }
-    
+
         self.shutdown().await?;
         log::info!("Node shutdown complete");
         Ok(())
@@ -507,7 +529,10 @@ impl Node {
     /// Start the status HTML writer
     pub async fn start_status_html_writer(&mut self) -> Result<()> {
         if let Some(ref dir) = self.status_html_dir {
-            log::info!("Starting status HTML writer to directory: {}", dir.display());
+            log::info!(
+                "Starting status HTML writer to directory: {}",
+                dir.display()
+            );
             let handle = crate::status_server::start_status_html_writer(
                 dir.clone(),
                 self.peerid,
@@ -615,7 +640,7 @@ impl Node {
                                 libp2p::identify::Event::Received { peer_id, info, .. }
                             )) => {
                                 log::debug!("Identify received from {:?}: agent_version={}", peer_id, info.agent_version);
-                                
+
                                 // Extract status_url and role from agent version string
                                 // Format: "modality-node/version;status_url=https://...;role=Miner"
                                 let parts: Vec<&str> = info.agent_version.split(';').collect();
@@ -627,7 +652,7 @@ impl Node {
                                     .find(|s| s.starts_with("role="))
                                     .and_then(|s| s.strip_prefix("role="))
                                     .map(|s| s.to_string());
-                                
+
                                 // Store peer info with status_url and role if either exists
                                 if status_url.is_some() || role.is_some() {
                                     log::info!("Peer {} - status_url: {:?}, role: {:?}", peer_id, status_url, role);
@@ -636,7 +661,7 @@ impl Node {
                                         status_url,
                                         role
                                     );
-                                    
+
                                     // Store in NodeState
                                     let mgr = datastore_manager.lock().await;
                                     if let Err(e) = peer_info.save_to(mgr.node_state()).await {
@@ -663,7 +688,7 @@ impl Node {
 
         Ok(())
     }
-    
+
     /// Start the autoupgrade task
     pub async fn start_autoupgrade(&mut self) -> Result<()> {
         let Some(config) = self.autoupgrade_config.clone() else {
@@ -677,7 +702,7 @@ impl Node {
         }
 
         let shutdown_rx = self.shutdown_tx.subscribe();
-        
+
         self.autoupgrade_task = Some(tokio::spawn(async move {
             crate::autoupgrade::start_autoupgrade_task(config, shutdown_rx).await
         }));
@@ -689,22 +714,22 @@ impl Node {
     /// Run bootup tasks if configured
     async fn run_bootup_tasks(&self, config: &Config) -> Result<()> {
         let bootup_config = config.get_bootup_config()?;
-        
+
         if !bootup_config.enabled {
             log::debug!("Bootup tasks disabled, skipping");
             return Ok(());
         }
 
         log::info!("Running bootup tasks...");
-        
+
         let bootup_runner = crate::bootup::BootupRunner::new(bootup_config);
         let mgr = self.datastore_manager.lock().await;
         bootup_runner.run(&mgr).await?;
-        
+
         log::info!("Bootup tasks completed successfully");
         Ok(())
     }
-    
+
     /// Check if a peer is currently ignored
     pub async fn is_peer_ignored(&self, peer_id: &PeerId) -> bool {
         let ignored_peers = self.ignored_peers.lock().await;
@@ -714,32 +739,39 @@ impl Node {
             false
         }
     }
-    
+
     /// Add a peer to the ignore list with exponential backoff
     pub async fn ignore_peer(&self, peer_id: PeerId, reason: &str) {
         let mut ignored_peers = self.ignored_peers.lock().await;
-        
+
         let (new_count, duration_secs) = if let Some(existing) = ignored_peers.get(&peer_id) {
             let new_count = existing.ignore_count + 1;
-            let duration_secs = PEER_IGNORE_INITIAL_SECS * (1 << new_count.min(PEER_IGNORE_MAX_EXPONENT));
+            let duration_secs =
+                PEER_IGNORE_INITIAL_SECS * (1 << new_count.min(PEER_IGNORE_MAX_EXPONENT));
             (new_count, duration_secs)
         } else {
             (0, PEER_IGNORE_INITIAL_SECS)
         };
-        
+
         let ignore_until = Instant::now() + Duration::from_secs(duration_secs);
-        
-        ignored_peers.insert(peer_id, IgnoredPeerInfo {
-            ignore_until,
-            ignore_count: new_count,
-        });
-        
+
+        ignored_peers.insert(
+            peer_id,
+            IgnoredPeerInfo {
+                ignore_until,
+                ignore_count: new_count,
+            },
+        );
+
         log::warn!(
             "Ignoring peer {} for {} seconds (count: {}, reason: {})",
-            peer_id, duration_secs, new_count + 1, reason
+            peer_id,
+            duration_secs,
+            new_count + 1,
+            reason
         );
     }
-    
+
     /// Clean up expired entries from the ignore list
     pub async fn cleanup_expired_ignores(&self) {
         let mut ignored_peers = self.ignored_peers.lock().await;
@@ -747,4 +779,3 @@ impl Node {
         ignored_peers.retain(|_, info| now < info.ignore_until);
     }
 }
-

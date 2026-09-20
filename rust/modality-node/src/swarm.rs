@@ -1,12 +1,12 @@
 use anyhow::Result;
 
+use libp2p::gossipsub;
+use libp2p::kad;
 use libp2p::ping;
 use libp2p::request_response;
 use libp2p::swarm;
 use libp2p::{identify, identity};
 use libp2p::{swarm::NetworkBehaviour, swarm::Swarm, SwarmBuilder};
-use libp2p::kad;
-use libp2p::gossipsub;
 use std::time::Duration;
 
 use crate::reqres;
@@ -28,11 +28,18 @@ pub async fn create_swarm(local_key: identity::Keypair) -> Result<NodeSwarm> {
     create_swarm_with_metadata(local_key, None, None).await
 }
 
-pub async fn create_swarm_with_status_url(local_key: identity::Keypair, status_url: Option<String>) -> Result<NodeSwarm> {
+pub async fn create_swarm_with_status_url(
+    local_key: identity::Keypair,
+    status_url: Option<String>,
+) -> Result<NodeSwarm> {
     create_swarm_with_metadata(local_key, status_url, None).await
 }
 
-pub async fn create_swarm_with_metadata(local_key: identity::Keypair, status_url: Option<String>, role: Option<String>) -> Result<NodeSwarm> {
+pub async fn create_swarm_with_metadata(
+    local_key: identity::Keypair,
+    status_url: Option<String>,
+    role: Option<String>,
+) -> Result<NodeSwarm> {
     // let stream_behaviour = libp2p_stream::Behaviour::new();
 
     // Create agent version string that includes status_url and role if provided
@@ -49,22 +56,20 @@ pub async fn create_swarm_with_metadata(local_key: identity::Keypair, status_url
     let identify_behaviour = identify::Behaviour::new(
         identify::Config::new("/ipfs/id/1.0.0".into(), local_key.public())
             .with_interval(std::time::Duration::from_secs(60)) // do this so we can get timeouts for dropped WebRTC connections
-            .with_agent_version(agent_version)
+            .with_agent_version(agent_version),
     );
     let ping_behaviour = ping::Behaviour::new(ping::Config::new());
 
     let reqres_behaviour = reqres::Behaviour::new(
-        [(swarm::StreamProtocol::new(reqres::PROTOCOL), request_response::ProtocolSupport::Full)],
-        request_response::Config::default()
-            .with_request_timeout(Duration::from_secs(60)) // Longer timeout for large transfers
+        [(
+            swarm::StreamProtocol::new(reqres::PROTOCOL),
+            request_response::ProtocolSupport::Full,
+        )],
+        request_response::Config::default().with_request_timeout(Duration::from_secs(60)), // Longer timeout for large transfers
     );
-
 
     let peer_id = local_key.clone().public().to_peer_id();
-    let kademlia_behaviour = kad::Behaviour::new(
-        peer_id,
-        kad::store::MemoryStore::new(peer_id),
-    );
+    let kademlia_behaviour = kad::Behaviour::new(peer_id, kad::store::MemoryStore::new(peer_id));
 
     let gossipsub_config = gossipsub::ConfigBuilder::default()
         .heartbeat_interval(Duration::from_secs(10))
@@ -73,8 +78,9 @@ pub async fn create_swarm_with_metadata(local_key: identity::Keypair, status_url
         .build()?;
     let gossipsub_behaviour = gossipsub::Behaviour::new(
         gossipsub::MessageAuthenticity::Signed(local_key.clone()),
-        gossipsub_config
-    ).unwrap();
+        gossipsub_config,
+    )
+    .unwrap();
 
     let behaviour = NodeBehaviour {
         // stream: stream_behaviour,
@@ -106,9 +112,7 @@ pub async fn create_swarm_with_behaviours(
         .await?;
     let swarm = swarm
         .with_behaviour(|_key| behaviour)?
-        .with_swarm_config(|cfg| {
-            cfg.with_idle_connection_timeout(Duration::from_secs(60))
-        });
+        .with_swarm_config(|cfg| cfg.with_idle_connection_timeout(Duration::from_secs(60)));
     let swarm = swarm.build();
     Ok(swarm)
 }

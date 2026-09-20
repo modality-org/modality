@@ -1,11 +1,11 @@
 use anyhow::{Context, Result};
+use libp2p::identity::Keypair;
 use libp2p::Multiaddr;
-use std::path::{Path,PathBuf};
-use std::fs;
 use serde::{Deserialize, Serialize};
 use serde_json;
-use libp2p::identity::Keypair;
 use std::collections::HashMap;
+use std::fs;
+use std::path::{Path, PathBuf};
 
 #[derive(Debug, Deserialize, Serialize, Default, Clone)]
 pub struct Config {
@@ -31,11 +31,11 @@ pub struct Config {
     pub run_miner: Option<bool>,
     pub miner_nominees: Option<Vec<String>>,
     pub hybrid_consensus: Option<bool>, // Enable hybrid consensus mode (validators selected from epoch N-2 mining nominations)
-    pub run_validator: Option<bool>, // Run as validator (hybrid mode: wait for epoch >= 2)
+    pub run_validator: Option<bool>,    // Run as validator (hybrid mode: wait for epoch >= 2)
     pub status_port: Option<u16>,
     pub status_html_dir: Option<PathBuf>,
     pub status_url: Option<String>, // Public URL for this node's status page (e.g., "https://node1.testnet.modal.money")
-    pub fork_name: Option<String>, // Predefined fork configuration (e.g., "testnet/pepi")
+    pub fork_name: Option<String>,  // Predefined fork configuration (e.g., "testnet/pepi")
     pub minimum_block_timestamp: Option<i64>, // Reject blocks mined before this Unix timestamp (overrides fork_name)
     pub forced_blocks: Option<HashMap<u64, String>>, // Map of block_height -> required_block_hash for forced fork specification (overrides fork_name)
     pub initial_difficulty: Option<u128>, // Initial mining difficulty (testnet: 1, other networks: 10 if not specified)
@@ -43,29 +43,28 @@ pub struct Config {
     pub miner_hash_params: Option<serde_json::Value>,
     pub mining_delay_ms: Option<u64>, // Artificial delay between mining attempts (for testing race conditions) // Hash algorithm parameters (e.g., RandomX key and flags)
     pub inspect_whitelist: Option<Vec<String>>, // Peer IDs allowed to inspect this node via reqres. None = only self, empty vec = reject all, populated = allow those peers
-    
+
     // Auto-healing / fork recovery settings
     pub fork_recovery_min_peers: Option<usize>, // Minimum number of peers that must report a heavier chain before pausing mining (default: 1)
     pub fork_recovery_epoch_threshold: Option<u64>, // Pause mining if peers report chains this many epochs ahead (default: 2)
-    
+
     pub run_as: Option<String>, // Node role: "miner", "observer", "validator", "noop" (default: determined by run_miner)
 }
 
 impl Config {
     pub fn from_filepath(path: &Path) -> Result<Config> {
-        let file = fs::File::open(path)
-            .context("Failed to open config file")?;
-        let mut config: Config = serde_json::from_reader(file)
-            .context("Failed to parse config file")?;
-    
+        let file = fs::File::open(path).context("Failed to open config file")?;
+        let mut config: Config =
+            serde_json::from_reader(file).context("Failed to parse config file")?;
+
         let config_dir = path.parent().unwrap();
-    
+
         if let Some(passfile_path_buf) = config.passfile_path {
             let passfile_path = passfile_path_buf.as_path();
             let abs_passfile_path = to_absolute_path(config_dir, passfile_path)?;
             config.passfile_path = Some(abs_passfile_path);
         }
-    
+
         if let Some(storage_path_buf) = config.storage_path {
             let storage_path = storage_path_buf.as_path();
             let abs_storage_path = to_absolute_path(config_dir, storage_path)?;
@@ -87,7 +86,10 @@ impl Config {
         if let Some(network_config_path_buf) = config.network_config_path {
             let network_config_path = network_config_path_buf.as_path();
             // Don't convert modality-networks:// URIs to absolute paths
-            if network_config_path.to_string_lossy().starts_with("modality-networks://") {
+            if network_config_path
+                .to_string_lossy()
+                .starts_with("modality-networks://")
+            {
                 // Keep the URI as-is
                 config.network_config_path = Some(network_config_path_buf);
             } else {
@@ -102,11 +104,11 @@ impl Config {
             let abs_status_html_dir = to_absolute_path(config_dir, status_html_dir)?;
             config.status_html_dir = Some(abs_status_html_dir);
         }
-    
+
         Ok(config)
     }
 
-    pub async fn get_libp2p_keypair(&self) -> Result<Keypair>{
+    pub async fn get_libp2p_keypair(&self) -> Result<Keypair> {
         // If no passfile is configured, generate a random keypair (useful for temporary clients)
         let passfile_path = match &self.passfile_path {
             Some(path) => path,
@@ -115,11 +117,12 @@ impl Config {
                 return Ok(libp2p::identity::Keypair::generate_ed25519());
             }
         };
-        
+
         let passfile = modality_common::passfile::Passfile::load_file(passfile_path.clone(), true)
             .await
-            .with_context(|| format!(
-                "Failed to load passfile from: {}\n\
+            .with_context(|| {
+                format!(
+                    "Failed to load passfile from: {}\n\
                 \n\
                 💡 Possible causes:\n\
                    1. The passfile doesn't exist at this path\n\
@@ -130,15 +133,22 @@ impl Config {
                    - If using a node directory, ensure node.modal_passfile exists\n\
                    - If the node is new, run 'modal node create --dir <dir>' first\n\
                    - Check that config.json has the correct 'passfile_path'",
-                passfile_path.display()
-            ))?;
-        
-        let node_keypair = modality_common::libp2p_identity_keypair::libp2p_identity_from_private_key(passfile.keypair.private_key().as_str()).await?;
+                    passfile_path.display()
+                )
+            })?;
+
+        let node_keypair =
+            modality_common::libp2p_identity_keypair::libp2p_identity_from_private_key(
+                passfile.keypair.private_key().as_str(),
+            )
+            .await?;
         Ok(node_keypair)
     }
 
     /// Get hardcoded fork configuration by name
-    fn get_named_fork_config(fork_name: &str) -> Option<(Option<i64>, Option<HashMap<u64, String>>)> {
+    fn get_named_fork_config(
+        fork_name: &str,
+    ) -> Option<(Option<i64>, Option<HashMap<u64, String>>)> {
         match fork_name {
             "testnet/pepi" => {
                 // Unix timestamp for 2025-10-28 00:00:00 UTC
@@ -154,49 +164,58 @@ impl Config {
     /// User-provided settings override fork_name defaults
     pub fn get_fork_config(&self) -> modality_observer::ForkConfig {
         let mut fork_config = modality_observer::ForkConfig::new();
-        
+
         // First, apply named fork configuration if specified
         if let Some(ref fork_name) = self.fork_name {
             if let Some((timestamp, forced_blocks)) = Self::get_named_fork_config(fork_name) {
                 log::info!("Applying fork configuration: {}", fork_name);
-                
+
                 if let Some(ts) = timestamp {
                     fork_config.minimum_block_timestamp = Some(ts);
                     log::info!("  - minimum_block_timestamp: {}", ts);
                 }
-                
+
                 if let Some(blocks) = forced_blocks {
                     fork_config.forced_blocks = blocks;
-                    log::info!("  - forced_blocks: {} entries", fork_config.forced_blocks.len());
+                    log::info!(
+                        "  - forced_blocks: {} entries",
+                        fork_config.forced_blocks.len()
+                    );
                 }
             } else {
                 log::warn!("Unknown fork_name '{}', ignoring", fork_name);
             }
         }
-        
+
         // Then, override with user-provided forced blocks if specified
         if let Some(ref forced_blocks) = self.forced_blocks {
-            log::info!("Overriding forced_blocks with user configuration ({} entries)", forced_blocks.len());
+            log::info!(
+                "Overriding forced_blocks with user configuration ({} entries)",
+                forced_blocks.len()
+            );
             fork_config.forced_blocks = forced_blocks.clone();
         }
-        
+
         // Finally, override with user-provided minimum block timestamp if specified
         if let Some(timestamp) = self.minimum_block_timestamp {
-            log::info!("Overriding minimum_block_timestamp with user configuration: {}", timestamp);
+            log::info!(
+                "Overriding minimum_block_timestamp with user configuration: {}",
+                timestamp
+            );
             fork_config.minimum_block_timestamp = Some(timestamp);
         }
-        
+
         // Apply fork recovery settings
         fork_config.fork_recovery_min_peers = self.fork_recovery_min_peers;
         fork_config.fork_recovery_epoch_threshold = self.fork_recovery_epoch_threshold;
-        
+
         fork_config
     }
 
     /// Get bootup configuration
     pub fn get_bootup_config(&self) -> Result<crate::bootup::BootupConfig> {
         let mut config = crate::bootup::BootupConfig::default();
-        
+
         if let Some(enabled) = self.bootup_enabled {
             config.enabled = enabled;
         }
@@ -218,7 +237,10 @@ impl Config {
     pub fn get_initial_difficulty(&self) -> Option<u128> {
         // If explicitly set, use that value
         if let Some(difficulty) = self.initial_difficulty {
-            log::info!("Using explicitly configured initial_difficulty = {}", difficulty);
+            log::info!(
+                "Using explicitly configured initial_difficulty = {}",
+                difficulty
+            );
             return Some(difficulty);
         }
 
@@ -229,7 +251,7 @@ impl Config {
                 "12D3KooWEA6dRWvK1vutRDxKfdPZZr7ycHvQNWrDGZZQbiE6YibZ",
                 "12D3KooWDGLGJhoUfkjG4P5MBaoRFVLMLRu4bEHQb9yy1XtHsH5h",
             ];
-            
+
             for bootstrapper in bootstrappers {
                 let bootstrapper_str = bootstrapper.to_string();
                 for testnet_peer_id in &testnet_bootstrappers {
@@ -245,12 +267,15 @@ impl Config {
         log::info!("Using default initial_difficulty = 10");
         Some(10)
     }
-    
+
     /// Get network name from network_config_path or return "Unknown"
     pub fn get_network_name(&self) -> String {
         if let Some(ref network_config_path) = self.network_config_path {
             // Try to extract network name from path
-            if let Some(network_name) = network_config_path.to_string_lossy().strip_prefix("modality-networks://") {
+            if let Some(network_name) = network_config_path
+                .to_string_lossy()
+                .strip_prefix("modality-networks://")
+            {
                 return network_name.to_string();
             }
             // Try to get filename without extension
@@ -260,22 +285,22 @@ impl Config {
         }
         "Unknown".to_string()
     }
-    
+
     /// Get node role based on run_as, run_miner, run_validator, and noop_mode
     pub fn get_node_role(&self) -> String {
         // Use explicit run_as if provided
         if let Some(ref run_as) = self.run_as {
             return run_as.clone();
         }
-        
+
         // Otherwise infer from flags
         if self.noop_mode.unwrap_or(false) {
             return "Noop".to_string();
         }
-        
+
         let run_miner = self.run_miner.unwrap_or(true);
         let run_validator = self.run_validator.unwrap_or(false);
-        
+
         match (run_miner, run_validator) {
             (true, true) => "Miner+Validator".to_string(),
             (true, false) => "Miner".to_string(),
@@ -288,7 +313,7 @@ impl Config {
 pub fn to_absolute_path<P: AsRef<Path>>(base_dir: P, relative_path: P) -> Result<PathBuf> {
     let base_dir = base_dir.as_ref().canonicalize()?;
     let path = relative_path.as_ref();
-    
+
     if path.is_absolute() {
         Ok(path.to_path_buf())
     } else {

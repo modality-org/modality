@@ -52,10 +52,10 @@ pub fn calculate_chain_metrics(blocks: &[MinerBlock]) -> ChainMetrics {
         .sum();
 
     let tip_block = blocks.iter().max_by_key(|b| b.index);
-    
+
     let mut epochs_set = std::collections::HashSet::new();
     let mut miners_set = std::collections::HashSet::new();
-    
+
     for block in blocks {
         epochs_set.insert(block.epoch);
         miners_set.insert(&block.nominated_peer_id);
@@ -207,7 +207,7 @@ mod tests {
         ];
 
         let metrics = calculate_chain_metrics(&blocks);
-        
+
         assert_eq!(metrics.block_count, 3);
         assert_eq!(metrics.cumulative_difficulty, 450);
         assert_eq!(metrics.chain_tip_index, Some(2));
@@ -216,10 +216,9 @@ mod tests {
     #[test]
     fn test_empty_chain_metrics() {
         let metrics = calculate_chain_metrics(&[]);
-        
+
         assert_eq!(metrics.block_count, 0);
         assert_eq!(metrics.cumulative_difficulty, 0);
         assert_eq!(metrics.chain_tip_index, None);
     }
 }
-

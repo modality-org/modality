@@ -28,14 +28,14 @@ impl MiningMetrics {
             blocks_mined: 0,
         }
     }
-    
+
     /// Record that a block was mined with the given number of hash attempts and duration
     pub fn record_block_mined(&mut self, hash_attempts: u64, mining_duration_secs: f64) {
         self.total_hashes += hash_attempts;
         self.blocks_mined += 1;
-        
+
         let now = Instant::now();
-        
+
         // Calculate hashrate based on the actual time it took to mine this block
         // This gives an accurate instantaneous hashrate for this mining attempt
         if mining_duration_secs > 0.0 {
@@ -43,7 +43,7 @@ impl MiningMetrics {
             self.last_update = now;
         }
     }
-    
+
     /// Get the overall average hashrate since mining started
     pub fn average_hashrate(&self) -> f64 {
         let elapsed = self.start_time.elapsed().as_secs_f64();
@@ -53,7 +53,7 @@ impl MiningMetrics {
             0.0
         }
     }
-    
+
     /// Get the current hashrate (from recent mining activity)
     pub fn current_hashrate(&self) -> f64 {
         // If last update was recent (within 60 seconds), return current hashrate
@@ -79,4 +79,3 @@ pub type SharedMiningMetrics = Arc<RwLock<MiningMetrics>>;
 pub fn create_shared_metrics() -> SharedMiningMetrics {
     Arc::new(RwLock::new(MiningMetrics::new()))
 }
-

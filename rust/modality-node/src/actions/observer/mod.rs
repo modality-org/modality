@@ -18,17 +18,19 @@
 //! └── Validator - extends with consensus participation
 //! ```
 
-pub mod sync;
-pub mod chain_monitor;
 pub mod chain_maintenance;
+pub mod chain_monitor;
+pub mod sync;
 
 // Re-export commonly used functions
-pub use sync::{
-    sync_from_peers, handle_sync_from_peer, start_sync_request_handler,
-    request_chain_info_impl, find_common_ancestor_efficient,
+pub use chain_maintenance::{
+    start_promotion_task, sync_missing_blocks, validate_and_cleanup_chain,
 };
-pub use chain_monitor::{start_chain_monitor, get_chain_tip_index};
-pub use chain_maintenance::{start_promotion_task, validate_and_cleanup_chain, sync_missing_blocks};
+pub use chain_monitor::{get_chain_tip_index, start_chain_monitor};
+pub use sync::{
+    find_common_ancestor_efficient, handle_sync_from_peer, request_chain_info_impl,
+    start_sync_request_handler, sync_from_peers,
+};
 
 use anyhow::Result;
 
@@ -45,17 +47,17 @@ use crate::node::Node;
 /// - Do NOT mine blocks or participate in consensus
 pub async fn run(node: &mut Node) -> Result<()> {
     log::info!("Starting observer node");
-    
+
     // Create a channel to receive mining chain updates
     let (mining_update_tx, mining_update_rx) = tokio::sync::mpsc::unbounded_channel::<u64>();
-    
+
     // Store the mining update channel in node so gossip handlers can use it
     node.mining_update_tx = Some(mining_update_tx.clone());
-    
+
     // Set up sync request handling
     let (sync_request_tx, sync_request_rx) = tokio::sync::mpsc::unbounded_channel();
     node.sync_request_tx = Some(sync_request_tx);
-    
+
     // Start sync request handler task
     start_sync_request_handler(
         sync_request_rx,
@@ -65,28 +67,28 @@ pub async fn run(node: &mut Node) -> Result<()> {
         node.reqres_response_txs.clone(),
         mining_update_tx,
     );
-    
+
     // Subscribe to mining block gossip
     gossip::add_miner_event_listeners(node).await?;
     log::info!("Subscribed to mining block gossip");
-    
+
     // Start status server
     node.start_status_server().await?;
     node.start_status_html_writer().await?;
-    
+
     // Start networking
     node.start_networking().await?;
-    
+
     // Start autoupgrade if configured
     node.start_autoupgrade().await?;
-    
+
     // Wait for connections to peers
     node.wait_for_connections().await?;
     if node.is_shutdown_requested() {
         node.wait_for_shutdown().await?;
         return Ok(());
     }
-    
+
     // Sync from peers on startup if bootstrappers are configured
     if !node.bootstrappers.is_empty() {
         log::info!("Syncing blockchain state from peers...");
@@ -95,7 +97,7 @@ pub async fn run(node: &mut Node) -> Result<()> {
             Err(e) => log::warn!("Initial sync failed (will continue via gossip): {}", e),
         }
     }
-    
+
     // Get the starting chain tip
     let starting_index = get_chain_tip_index(&node.datastore_manager).await;
     if starting_index > 0 {
@@ -103,7 +105,7 @@ pub async fn run(node: &mut Node) -> Result<()> {
     } else {
         log::info!("Starting chain observer with empty chain");
     }
-    
+
     // Start chain monitor task
     start_chain_monitor(
         mining_update_rx,
@@ -111,11 +113,11 @@ pub async fn run(node: &mut Node) -> Result<()> {
         starting_index,
         "Observer",
     );
-    
+
     log::info!("Observer node running - observing mining chain");
-    
+
     // Wait for shutdown signal
     node.wait_for_shutdown().await?;
-    
+
     Ok(())
 }

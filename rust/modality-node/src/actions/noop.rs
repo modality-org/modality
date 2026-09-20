@@ -19,8 +19,8 @@ pub async fn run(node: &mut Node) -> Result<()> {
     loop {
         tokio::select! {
             _ = status_interval.tick() => {
-                log::info!("Noop node running - autoupgrade active: {}", 
-                    node.autoupgrade_config.is_some() && 
+                log::info!("Noop node running - autoupgrade active: {}",
+                    node.autoupgrade_config.is_some() &&
                     node.autoupgrade_config.as_ref().unwrap().enabled
                 );
             }

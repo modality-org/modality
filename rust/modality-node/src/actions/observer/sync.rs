@@ -18,7 +18,7 @@ use tokio::sync::Mutex;
 
 use crate::chain::fork_choice::{compare_chains, ForkChoiceResult};
 use crate::chain::metrics::calculate_cumulative_difficulty;
-use crate::node::{Node, IgnoredPeerInfo};
+use crate::node::{IgnoredPeerInfo, Node};
 use crate::reqres;
 
 /// Request chain info from a peer and perform sync if their chain has higher cumulative difficulty.
@@ -34,7 +34,14 @@ pub async fn request_chain_info_impl(
     swarm: Arc<Mutex<crate::swarm::NodeSwarm>>,
     datastore: Arc<Mutex<DatastoreManager>>,
     ignored_peers: Arc<Mutex<std::collections::HashMap<libp2p::PeerId, IgnoredPeerInfo>>>,
-    reqres_response_txs: Arc<Mutex<std::collections::HashMap<libp2p::request_response::OutboundRequestId, tokio::sync::oneshot::Sender<reqres::Response>>>>,
+    reqres_response_txs: Arc<
+        Mutex<
+            std::collections::HashMap<
+                libp2p::request_response::OutboundRequestId,
+                tokio::sync::oneshot::Sender<reqres::Response>,
+            >,
+        >,
+    >,
 ) -> Result<()> {
     // Check if peer is ignored
     {
@@ -46,13 +53,17 @@ pub async fn request_chain_info_impl(
             }
         }
     }
-    
-    log::info!("🔄 Syncing with peer {} using efficient find_ancestor", peer_id);
-    
+
+    log::info!(
+        "🔄 Syncing with peer {} using efficient find_ancestor",
+        peer_id
+    );
+
     // Find common ancestor
-    let (common_ancestor, peer_chain_length, peer_cumulative_difficulty) = 
-        find_common_ancestor_efficient(&swarm, peer_addr.clone(), &datastore, &reqres_response_txs).await?;
-    
+    let (common_ancestor, peer_chain_length, peer_cumulative_difficulty) =
+        find_common_ancestor_efficient(&swarm, peer_addr.clone(), &datastore, &reqres_response_txs)
+            .await?;
+
     // Determine blocks to request
     let from_index = match common_ancestor {
         Some(ancestor_index) => {
@@ -64,7 +75,7 @@ pub async fn request_chain_info_impl(
             0
         }
     };
-    
+
     // Get local chain info
     let (local_cumulative_difficulty, local_chain_length) = {
         let ds = datastore.lock().await;
@@ -72,7 +83,7 @@ pub async fn request_chain_info_impl(
         let local_difficulty = calculate_cumulative_difficulty(&blocks);
         (local_difficulty, blocks.len() as u64)
     };
-    
+
     // Compare chains
     let comparison = compare_chains(
         local_cumulative_difficulty,
@@ -80,22 +91,24 @@ pub async fn request_chain_info_impl(
         peer_cumulative_difficulty,
         peer_chain_length,
     );
-    
+
     log::info!(
         "Chain comparison: Local (length: {}, difficulty: {}) vs Peer (length: {}, difficulty: {})",
-        local_chain_length, local_cumulative_difficulty,
-        peer_chain_length, peer_cumulative_difficulty
+        local_chain_length,
+        local_cumulative_difficulty,
+        peer_chain_length,
+        peer_cumulative_difficulty
     );
-    
+
     if comparison.result != ForkChoiceResult::AdoptRemote {
         log::info!("Keeping local chain: {}", comparison.reason);
         let ds = datastore.lock().await;
         let _ = MinerBlock::delete_all_pending_multi(&ds).await;
         return Ok(());
     }
-    
+
     log::info!("✅ Peer chain has higher cumulative difficulty - adopting it");
-    
+
     // Request blocks from peer
     let all_blocks = request_blocks_from_peer(
         &swarm,
@@ -103,21 +116,23 @@ pub async fn request_chain_info_impl(
         from_index,
         peer_chain_length,
         &reqres_response_txs,
-    ).await?;
-    
+    )
+    .await?;
+
     if all_blocks.is_empty() {
         log::info!("No blocks received from peer");
         return Ok(());
     }
-    
+
     // Validate and adopt blocks
     adopt_peer_blocks(
         &datastore,
         all_blocks,
         peer_cumulative_difficulty,
         local_cumulative_difficulty,
-    ).await?;
-    
+    )
+    .await?;
+
     Ok(())
 }
 
@@ -126,7 +141,14 @@ pub async fn find_common_ancestor_efficient(
     swarm: &Arc<Mutex<crate::swarm::NodeSwarm>>,
     peer_addr: String,
     datastore: &Arc<Mutex<DatastoreManager>>,
-    reqres_response_txs: &Arc<Mutex<std::collections::HashMap<libp2p::request_response::OutboundRequestId, tokio::sync::oneshot::Sender<reqres::Response>>>>,
+    reqres_response_txs: &Arc<
+        Mutex<
+            std::collections::HashMap<
+                libp2p::request_response::OutboundRequestId,
+                tokio::sync::oneshot::Sender<reqres::Response>,
+            >,
+        >,
+    >,
 ) -> Result<(Option<u64>, u64, u128)> {
     // Delegate to the sync module implementation
     let result = crate::sync::common_ancestor::find_common_ancestor_efficient(
@@ -134,9 +156,14 @@ pub async fn find_common_ancestor_efficient(
         peer_addr,
         datastore,
         reqres_response_txs,
-    ).await?;
-    
-    Ok((result.ancestor_index, result.remote_chain_length, result.remote_cumulative_difficulty))
+    )
+    .await?;
+
+    Ok((
+        result.ancestor_index,
+        result.remote_chain_length,
+        result.remote_cumulative_difficulty,
+    ))
 }
 
 /// Request blocks from a peer
@@ -145,12 +172,22 @@ async fn request_blocks_from_peer(
     peer_addr: &str,
     from_index: u64,
     to_index: u64,
-    reqres_response_txs: &Arc<Mutex<std::collections::HashMap<libp2p::request_response::OutboundRequestId, tokio::sync::oneshot::Sender<reqres::Response>>>>,
+    reqres_response_txs: &Arc<
+        Mutex<
+            std::collections::HashMap<
+                libp2p::request_response::OutboundRequestId,
+                tokio::sync::oneshot::Sender<reqres::Response>,
+            >,
+        >,
+    >,
 ) -> Result<Vec<MinerBlock>> {
     use crate::sync::block_range::request_all_blocks_in_range;
-    
-    log::info!("📥 Requesting blocks from index {} onwards from peer", from_index);
-    
+
+    log::info!(
+        "📥 Requesting blocks from index {} onwards from peer",
+        from_index
+    );
+
     request_all_blocks_in_range(swarm, peer_addr, from_index, to_index, reqres_response_txs).await
 }
 
@@ -163,47 +200,60 @@ async fn adopt_peer_blocks(
 ) -> Result<()> {
     // Sort blocks
     all_blocks.sort_by_key(|b| b.index);
-    
+
     // Validate chain
     use crate::chain::reorg::validate_block_chain;
     validate_block_chain(&all_blocks)?;
-    
+
     log::info!("✓ Peer chain validation passed");
-    
+
     // Orphan local blocks after ancestor and adopt peer blocks
-    let ancestor_index = all_blocks.first().map(|b| b.index.saturating_sub(1)).unwrap_or(0);
-    
+    let ancestor_index = all_blocks
+        .first()
+        .map(|b| b.index.saturating_sub(1))
+        .unwrap_or(0);
+
     {
         let ds = datastore.lock().await;
-        
+
         // Orphan local blocks after ancestor
         let local_blocks = MinerBlock::find_all_canonical_multi(&ds).await?;
-        
+
         for local in &local_blocks {
             if local.index > ancestor_index {
-                let competing_hash = all_blocks.iter()
+                let competing_hash = all_blocks
+                    .iter()
                     .find(|b| b.index == local.index)
                     .map(|b| b.hash.clone());
-                
-                log::info!("Orphaning local block {} at index {}", &local.hash[..16], local.index);
+
+                log::info!(
+                    "Orphaning local block {} at index {}",
+                    &local.hash[..16],
+                    local.index
+                );
                 let mut orphaned = local.clone();
                 orphaned.mark_as_orphaned(
-                    format!("Replaced by peer chain with higher cumulative difficulty ({} vs {})",
-                        peer_cumulative_difficulty, local_cumulative_difficulty),
-                    competing_hash
+                    format!(
+                        "Replaced by peer chain with higher cumulative difficulty ({} vs {})",
+                        peer_cumulative_difficulty, local_cumulative_difficulty
+                    ),
+                    competing_hash,
                 );
                 orphaned.save_to_active(&ds).await?;
             }
         }
-        
+
         // Save peer blocks
         for block in &all_blocks {
             block.save_to_active(&ds).await?;
         }
     }
-    
-    log::info!("🎉 Successfully adopted peer's chain with {} blocks!", all_blocks.len());
-    
+
+    log::info!(
+        "🎉 Successfully adopted peer's chain with {} blocks!",
+        all_blocks.len()
+    );
+
     Ok(())
 }
 
@@ -221,29 +271,28 @@ pub async fn sync_from_peers(node: &Node) -> Result<()> {
         };
         (length, difficulty)
     };
-    
+
     log::info!(
         "Local chain state: {} blocks, cumulative difficulty: {}",
         local_chain_length,
         local_cumulative_difficulty
     );
-    
+
     // Try to sync from bootstrappers
     for bootstrapper in &node.bootstrappers {
         let addr_str = bootstrapper.to_string();
         log::info!("Attempting to sync from bootstrapper: {}", addr_str);
-        
+
         // Extract peer ID from multiaddr
         use libp2p::multiaddr::Protocol;
-        let peer_id = bootstrapper.iter()
-            .find_map(|proto| {
-                if let Protocol::P2p(id) = proto {
-                    Some(id)
-                } else {
-                    None
-                }
-            });
-        
+        let peer_id = bootstrapper.iter().find_map(|proto| {
+            if let Protocol::P2p(id) = proto {
+                Some(id)
+            } else {
+                None
+            }
+        });
+
         if let Some(peer_id) = peer_id {
             match request_chain_info_impl(
                 peer_id,
@@ -252,7 +301,9 @@ pub async fn sync_from_peers(node: &Node) -> Result<()> {
                 node.datastore_manager.clone(),
                 node.ignored_peers.clone(),
                 node.reqres_response_txs.clone(),
-            ).await {
+            )
+            .await
+            {
                 Ok(()) => {
                     log::info!("Successfully synced from bootstrapper");
                     return Ok(());
@@ -264,7 +315,7 @@ pub async fn sync_from_peers(node: &Node) -> Result<()> {
             }
         }
     }
-    
+
     // If we get here, we couldn't sync from any bootstrapper
     // That's okay - we'll catch up via gossip
     log::info!("Could not sync from bootstrappers, will rely on gossip");
@@ -277,13 +328,21 @@ pub async fn handle_sync_from_peer(
     datastore: Arc<Mutex<DatastoreManager>>,
     swarm: Arc<Mutex<crate::swarm::NodeSwarm>>,
     ignored_peers: Arc<Mutex<std::collections::HashMap<libp2p::PeerId, IgnoredPeerInfo>>>,
-    reqres_txs: Arc<Mutex<std::collections::HashMap<libp2p::request_response::OutboundRequestId, tokio::sync::oneshot::Sender<reqres::Response>>>>,
+    reqres_txs: Arc<
+        Mutex<
+            std::collections::HashMap<
+                libp2p::request_response::OutboundRequestId,
+                tokio::sync::oneshot::Sender<reqres::Response>,
+            >,
+        >,
+    >,
 ) -> Result<Option<u64>> {
     use libp2p::multiaddr::{Multiaddr, Protocol};
-    
+
     // Parse the peer address to extract peer ID
     let ma: Multiaddr = peer_addr.parse()?;
-    let peer_id = ma.iter()
+    let peer_id = ma
+        .iter()
         .find_map(|proto| {
             if let Protocol::P2p(id) = proto {
                 Some(id)
@@ -292,7 +351,7 @@ pub async fn handle_sync_from_peer(
             }
         })
         .ok_or_else(|| anyhow::anyhow!("No peer ID found in address"))?;
-    
+
     match request_chain_info_impl(
         peer_id,
         peer_addr,
@@ -300,7 +359,9 @@ pub async fn handle_sync_from_peer(
         datastore.clone(),
         ignored_peers,
         reqres_txs,
-    ).await {
+    )
+    .await
+    {
         Ok(()) => {
             // Get the new chain tip
             let ds = datastore.lock().await;
@@ -320,25 +381,39 @@ pub fn start_sync_request_handler(
     datastore: Arc<Mutex<DatastoreManager>>,
     swarm: Arc<Mutex<crate::swarm::NodeSwarm>>,
     ignored_peers: Arc<Mutex<std::collections::HashMap<libp2p::PeerId, IgnoredPeerInfo>>>,
-    reqres_txs: Arc<Mutex<std::collections::HashMap<libp2p::request_response::OutboundRequestId, tokio::sync::oneshot::Sender<reqres::Response>>>>,
+    reqres_txs: Arc<
+        Mutex<
+            std::collections::HashMap<
+                libp2p::request_response::OutboundRequestId,
+                tokio::sync::oneshot::Sender<reqres::Response>,
+            >,
+        >,
+    >,
     mining_update_tx: tokio::sync::mpsc::UnboundedSender<u64>,
 ) {
     let syncing_peers = Arc::new(Mutex::new(HashSet::<libp2p::PeerId>::new()));
-    
+
     tokio::spawn(async move {
         while let Some((peer_id, peer_addr)) = sync_request_rx.recv().await {
             // Check if we're already syncing with this peer
             {
                 let mut syncing = syncing_peers.lock().await;
                 if syncing.contains(&peer_id) {
-                    log::debug!("Already syncing with peer {}, skipping duplicate request", peer_id);
+                    log::debug!(
+                        "Already syncing with peer {}, skipping duplicate request",
+                        peer_id
+                    );
                     continue;
                 }
                 syncing.insert(peer_id);
             }
-            
-            log::info!("Processing sync request for peer {} at {}", peer_id, peer_addr);
-            
+
+            log::info!(
+                "Processing sync request for peer {} at {}",
+                peer_id,
+                peer_addr
+            );
+
             // Spawn a task to handle this sync request
             let datastore_clone = datastore.clone();
             let swarm_clone = swarm.clone();
@@ -346,7 +421,7 @@ pub fn start_sync_request_handler(
             let reqres_txs_clone = reqres_txs.clone();
             let syncing_peers_clone = syncing_peers.clone();
             let mining_update_tx_clone = mining_update_tx.clone();
-            
+
             tokio::spawn(async move {
                 match handle_sync_from_peer(
                     peer_addr,
@@ -354,7 +429,9 @@ pub fn start_sync_request_handler(
                     swarm_clone,
                     ignored_peers_clone,
                     reqres_txs_clone,
-                ).await {
+                )
+                .await
+                {
                     Ok(new_tip) => {
                         if let Some(tip) = new_tip {
                             log::info!("Sync completed successfully, new tip: {}", tip);
@@ -365,7 +442,7 @@ pub fn start_sync_request_handler(
                         log::warn!("Sync from peer {} failed: {}", peer_id, e);
                     }
                 }
-                
+
                 // Remove peer from syncing set
                 let mut syncing = syncing_peers_clone.lock().await;
                 syncing.remove(&peer_id);

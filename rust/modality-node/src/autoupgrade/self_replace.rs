@@ -8,8 +8,7 @@ pub async fn replace_and_restart(new_binary_path: PathBuf) -> Result<()> {
     log::info!("Replacing current binary and restarting...");
 
     // Get current executable path
-    let current_exe = env::current_exe()
-        .context("Failed to get current executable path")?;
+    let current_exe = env::current_exe().context("Failed to get current executable path")?;
 
     log::info!("Current executable: {}", current_exe.display());
     log::info!("New executable: {}", new_binary_path.display());
@@ -20,8 +19,7 @@ pub async fn replace_and_restart(new_binary_path: PathBuf) -> Result<()> {
 
     // Use self_replace to replace the binary
     // This will copy the new binary to the current binary's location
-    self_replace::self_replace(&new_binary_path)
-        .context("Failed to replace binary")?;
+    self_replace::self_replace(&new_binary_path).context("Failed to replace binary")?;
 
     log::info!("Binary replaced successfully, restarting process...");
 
@@ -30,9 +28,7 @@ pub async fn replace_and_restart(new_binary_path: PathBuf) -> Result<()> {
     #[cfg(unix)]
     {
         use std::os::unix::process::CommandExt;
-        let err = Command::new(&current_exe)
-            .args(&args)
-            .exec();
+        let err = Command::new(&current_exe).args(&args).exec();
         // exec() only returns if there's an error
         Err(anyhow::anyhow!("Failed to exec new process: {}", err))
     }
@@ -45,7 +41,7 @@ pub async fn replace_and_restart(new_binary_path: PathBuf) -> Result<()> {
             .args(&args)
             .spawn()
             .context("Failed to spawn new process")?;
-        
+
         log::info!("New process spawned, exiting current process");
         std::process::exit(0);
     }
@@ -67,4 +63,3 @@ mod tests {
         assert!(!args.is_empty(), "Should have at least the program name");
     }
 }
-

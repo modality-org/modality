@@ -1,14 +1,14 @@
 use anyhow::Result;
 use std::str::FromStr;
 use std::sync::Arc;
-use tokio::sync::Mutex;
 use tokio::sync::mpsc;
+use tokio::sync::Mutex;
 
 use libp2p_identity::PeerId;
 
-use modality_validator_consensus::communication::Communication;
 use modality_datastore::models::validator::block::Ack;
 use modality_datastore::models::validator::block::ValidatorBlock;
+use modality_validator_consensus::communication::Communication;
 use modality_validator_consensus::communication::Message as ConsensusMessage;
 
 use crate::gossip::consensus::block::cert::TOPIC as BLOCK_CERT_TOPIC;
@@ -21,12 +21,16 @@ pub struct NodeCommunication {
 
 #[async_trait::async_trait]
 impl Communication for NodeCommunication {
-    async fn broadcast_draft_block(&mut self, from_peer: &str, block: &ValidatorBlock) -> Result<()> {
+    async fn broadcast_draft_block(
+        &mut self,
+        from_peer: &str,
+        block: &ValidatorBlock,
+    ) -> Result<()> {
         let msg = ConsensusMessage::DraftValidatorBlock {
             from: from_peer.to_string(),
             to: String::new(),
             block: block.clone(),
-          };
+        };
         self.consensus_tx.send(msg).await?;
         {
             let mut swarm = self.swarm.lock().await;
@@ -38,12 +42,16 @@ impl Communication for NodeCommunication {
         Ok(())
     }
 
-    async fn broadcast_certified_block(&mut self, from_peer: &str, block: &ValidatorBlock) -> Result<()> {
+    async fn broadcast_certified_block(
+        &mut self,
+        from_peer: &str,
+        block: &ValidatorBlock,
+    ) -> Result<()> {
         let msg = ConsensusMessage::CertifiedValidatorBlock {
             from: from_peer.to_string(),
             to: String::new(),
             block: block.clone(),
-          };
+        };
         self.consensus_tx.send(msg).await?;
         {
             let mut swarm = self.swarm.lock().await;
@@ -66,7 +74,7 @@ impl Communication for NodeCommunication {
                 from: from_peer.to_string(),
                 to: String::new(),
                 ack: ack.clone(),
-              };
+            };
             self.consensus_tx.send(msg).await?;
         } else {
             let mut swarm = self.swarm.lock().await;

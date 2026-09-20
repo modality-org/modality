@@ -134,7 +134,7 @@ pub fn should_replace_block(new_block: &MinerBlock, existing_block: &MinerBlock)
         );
         return true;
     }
-    
+
     if new_difficulty < existing_difficulty {
         return false;
     }
@@ -196,36 +196,76 @@ pub struct BlockForkChoiceResult {
 ///
 /// # Returns
 /// Detailed fork choice result with reasoning
-pub fn compare_blocks(new_block: &MinerBlock, existing_block: &MinerBlock) -> BlockForkChoiceResult {
+pub fn compare_blocks(
+    new_block: &MinerBlock,
+    existing_block: &MinerBlock,
+) -> BlockForkChoiceResult {
     let new_difficulty = new_block.get_actualized_difficulty_u128().unwrap_or(0);
     let existing_difficulty = existing_block.get_actualized_difficulty_u128().unwrap_or(0);
-    
+
     let (should_replace, reason) = if new_difficulty > existing_difficulty {
-        (true, format!("Higher actualized difficulty ({} > {})", new_difficulty, existing_difficulty))
+        (
+            true,
+            format!(
+                "Higher actualized difficulty ({} > {})",
+                new_difficulty, existing_difficulty
+            ),
+        )
     } else if new_difficulty < existing_difficulty {
-        (false, format!("Lower actualized difficulty ({} < {})", new_difficulty, existing_difficulty))
+        (
+            false,
+            format!(
+                "Lower actualized difficulty ({} < {})",
+                new_difficulty, existing_difficulty
+            ),
+        )
     } else {
         // Equal difficulty - check timestamps then hash
         match (&new_block.seen_at, &existing_block.seen_at) {
-            (Some(new_seen), Some(existing_seen)) if new_seen < existing_seen => {
-                (true, format!("Equal difficulty, seen earlier ({} < {})", new_seen, existing_seen))
-            }
-            (Some(new_seen), Some(existing_seen)) if new_seen > existing_seen => {
-                (false, format!("Equal difficulty, seen later ({} > {})", new_seen, existing_seen))
-            }
+            (Some(new_seen), Some(existing_seen)) if new_seen < existing_seen => (
+                true,
+                format!(
+                    "Equal difficulty, seen earlier ({} < {})",
+                    new_seen, existing_seen
+                ),
+            ),
+            (Some(new_seen), Some(existing_seen)) if new_seen > existing_seen => (
+                false,
+                format!(
+                    "Equal difficulty, seen later ({} > {})",
+                    new_seen, existing_seen
+                ),
+            ),
             (Some(_), None) => (true, "Equal difficulty, has timestamp vs none".to_string()),
-            (None, Some(_)) => (false, "Equal difficulty, no timestamp vs has one".to_string()),
+            (None, Some(_)) => (
+                false,
+                "Equal difficulty, no timestamp vs has one".to_string(),
+            ),
             _ => {
                 // Same timestamps or both none - use hash
                 if new_block.hash < existing_block.hash {
-                    (true, format!("Equal difficulty, lower hash ({} < {})", &new_block.hash[..16], &existing_block.hash[..16]))
+                    (
+                        true,
+                        format!(
+                            "Equal difficulty, lower hash ({} < {})",
+                            &new_block.hash[..16],
+                            &existing_block.hash[..16]
+                        ),
+                    )
                 } else {
-                    (false, format!("Equal difficulty, higher/equal hash ({} >= {})", &new_block.hash[..16], &existing_block.hash[..16]))
+                    (
+                        false,
+                        format!(
+                            "Equal difficulty, higher/equal hash ({} >= {})",
+                            &new_block.hash[..16],
+                            &existing_block.hash[..16]
+                        ),
+                    )
                 }
             }
         }
     };
-    
+
     BlockForkChoiceResult {
         should_replace,
         new_difficulty,
@@ -242,7 +282,7 @@ mod tests {
     fn test_compare_chains_difficulty_wins() {
         let result = compare_chains(100, 10, 200, 5);
         assert_eq!(result.result, ForkChoiceResult::AdoptRemote);
-        
+
         let result = compare_chains(200, 5, 100, 10);
         assert_eq!(result.result, ForkChoiceResult::KeepLocal);
     }
@@ -251,7 +291,7 @@ mod tests {
     fn test_compare_chains_length_tiebreaker() {
         let result = compare_chains(100, 10, 100, 15);
         assert_eq!(result.result, ForkChoiceResult::AdoptRemote);
-        
+
         let result = compare_chains(100, 15, 100, 10);
         assert_eq!(result.result, ForkChoiceResult::KeepLocal);
     }
@@ -262,4 +302,3 @@ mod tests {
         assert_eq!(result.result, ForkChoiceResult::Equal);
     }
 }
-

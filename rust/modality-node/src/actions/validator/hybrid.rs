@@ -191,7 +191,11 @@ async fn check_and_start_validator(
                 None
             }
             Err(e) => {
-                log::error!("Failed to get validator set for epoch {}: {}", current_epoch, e);
+                log::error!(
+                    "Failed to get validator set for epoch {}: {}",
+                    current_epoch,
+                    e
+                );
                 None
             }
         }
@@ -203,7 +207,10 @@ async fn check_and_start_validator(
     };
 
     let validators_with_stakes = validator_set.get_active_validators_with_stakes();
-    let validators: Vec<String> = validators_with_stakes.iter().map(|(p, _)| p.clone()).collect();
+    let validators: Vec<String> = validators_with_stakes
+        .iter()
+        .map(|(p, _)| p.clone())
+        .collect();
     let stakes: Vec<u64> = validators_with_stakes.iter().map(|(_, s)| *s).collect();
 
     control

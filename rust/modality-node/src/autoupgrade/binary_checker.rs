@@ -25,22 +25,25 @@ pub struct BinaryInfo {
 /// Fetch the manifest from the package server
 pub async fn fetch_manifest(base_url: &str, branch: &str) -> Result<Manifest> {
     let manifest_url = format!("{}/{}/latest/manifest.json", base_url, branch);
-    
+
     log::debug!("Fetching manifest from: {}", manifest_url);
-    
+
     let response = reqwest::get(&manifest_url)
         .await
         .context("Failed to fetch manifest")?;
-    
+
     if !response.status().is_success() {
-        return Err(anyhow!("Failed to fetch manifest: HTTP {}", response.status()));
+        return Err(anyhow!(
+            "Failed to fetch manifest: HTTP {}",
+            response.status()
+        ));
     }
-    
+
     let manifest: Manifest = response
         .json()
         .await
         .context("Failed to parse manifest JSON")?;
-    
+
     Ok(manifest)
 }
 
@@ -59,9 +62,9 @@ mod tests {
     async fn test_fetch_manifest() {
         let base_url = "http://get.modal.money";
         let branch = "testnet";
-        
+
         let manifest = fetch_manifest(base_url, branch).await.unwrap();
-        
+
         assert!(!manifest.version.is_empty());
         assert!(!manifest.packages.binaries.is_empty());
     }
@@ -71,10 +74,9 @@ mod tests {
     async fn test_get_current_version() {
         let base_url = "http://get.modal.money";
         let branch = "testnet";
-        
+
         let version = get_current_version(base_url, branch).await.unwrap();
-        
+
         assert!(!version.is_empty());
     }
 }
-

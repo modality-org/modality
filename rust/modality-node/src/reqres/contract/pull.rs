@@ -3,8 +3,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tokio::sync::mpsc;
 
-use modality_datastore::DatastoreManager;
 use modality_datastore::models::Commit;
+use modality_datastore::DatastoreManager;
 
 use crate::reqres::Response;
 use modality_validator_consensus::communication::Message as ConsensusMessage;
@@ -53,7 +53,8 @@ pub async fn handler(
             continue;
         }
 
-        let commit_data: serde_json::Value = serde_json::from_str(&commit.commit_data).unwrap_or_default();
+        let commit_data: serde_json::Value =
+            serde_json::from_str(&commit.commit_data).unwrap_or_default();
         commits_to_return.push(CommitInfo {
             commit_id: commit.commit_id,
             body: commit_data.get("body").cloned().unwrap_or_default(),

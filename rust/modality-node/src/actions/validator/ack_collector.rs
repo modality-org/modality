@@ -60,6 +60,17 @@ impl AckCollector {
         self.our_pending_blocks.insert(round, block);
     }
 
+    /// Count our own vote toward the certificate. Required for a committee of one.
+    pub fn try_self_ack(&mut self, round: u64) -> Result<bool> {
+        let ack = {
+            let Some(block) = self.our_pending_blocks.get(&round) else {
+                return Ok(false);
+            };
+            block.generate_ack(&self.keypair)?
+        };
+        self.handle_incoming_ack(&ack)
+    }
+
     /// Handle an incoming draft block from another validator
     /// Returns an Ack if the block is valid and we should ack it
     pub fn handle_incoming_block(&mut self, block: &ValidatorBlock) -> Result<Option<Ack>> {
@@ -90,7 +101,7 @@ impl AckCollector {
 
         // Generate and return an ack
         let ack = block.generate_ack(&self.keypair)?;
-        
+
         // Mark as acked
         self.already_acked.insert(key, true);
 
@@ -179,13 +190,13 @@ impl AckCollector {
     pub fn cleanup_round(&mut self, round: u64) {
         // Remove old pending acks
         self.pending_acks.retain(|(r, _), _| *r > round);
-        
+
         // Remove old incoming blocks
         self.incoming_blocks.retain(|(r, _), _| *r > round);
-        
+
         // Remove old already-acked markers
         self.already_acked.retain(|(r, _), _| *r > round);
-        
+
         // Remove old pending blocks (keep a few rounds for late acks)
         if round > 5 {
             self.our_pending_blocks.retain(|r, _| *r > round - 5);
@@ -197,14 +208,15 @@ impl AckCollector {
 fn validate_ack(ack: &Ack) -> Result<bool> {
     // Create a keypair from the acker's public key for verification
     let acker_keypair = Keypair::from_public_key(&ack.acker, "ed25519")?;
-    
+
     // Reconstruct the facts that were signed
     let facts = serde_json::json!({
         "peer_id": ack.peer_id,
         "round_id": ack.round_id,
         "closing_sig": ack.closing_sig,
+        "acker": ack.acker,
     });
-    
+
     // Verify the signature
     acker_keypair.verify_json(&ack.acker_sig, &facts)
 }
@@ -216,11 +228,11 @@ pub fn validate_certificate(block: &ValidatorBlock, committee_size: usize) -> Re
         Some(c) => c,
         None => return Ok(false),
     };
-    
+
     // Calculate threshold
     let f = (committee_size - 1) / 3;
     let threshold = 2 * f + 1;
-    
+
     // Validate that we have enough acks
     if block.acks.len() < threshold {
         log::warn!(
@@ -230,18 +242,20 @@ pub fn validate_certificate(block: &ValidatorBlock, committee_size: usize) -> Re
         );
         return Ok(false);
     }
-    
+
     // Validate the block's own signatures
     if !block.validate_sigs()? {
         log::warn!("Certificate validation failed: invalid block signatures");
         return Ok(false);
     }
-    
+
     // Validate each ack signature
     let mut valid_acks = 0;
-    let closing_sig = block.closing_sig.as_ref()
+    let closing_sig = block
+        .closing_sig
+        .as_ref()
         .ok_or_else(|| anyhow::anyhow!("Block missing closing signature"))?;
-        
+
     for (acker, acker_sig) in &block.acks {
         let ack = Ack {
             peer_id: block.peer_id.clone(),
@@ -250,14 +264,18 @@ pub fn validate_certificate(block: &ValidatorBlock, committee_size: usize) -> Re
             acker: acker.clone(),
             acker_sig: acker_sig.clone(),
         };
-        
+
         match validate_ack(&ack) {
             Ok(true) => valid_acks += 1,
             Ok(false) => log::warn!("Invalid ack from {}", &acker[..16.min(acker.len())]),
-            Err(e) => log::warn!("Error validating ack from {}: {}", &acker[..16.min(acker.len())], e),
+            Err(e) => log::warn!(
+                "Error validating ack from {}: {}",
+                &acker[..16.min(acker.len())],
+                e
+            ),
         }
     }
-    
+
     // Check that we have enough valid acks
     if valid_acks < threshold {
         log::warn!(
@@ -267,7 +285,7 @@ pub fn validate_certificate(block: &ValidatorBlock, committee_size: usize) -> Re
         );
         return Ok(false);
     }
-    
+
     // Verify the certificate structure matches the acks
     // The cert should be a JSON array of signatures
     if let Ok(cert_sigs) = serde_json::from_str::<Vec<String>>(cert) {
@@ -276,7 +294,7 @@ pub fn validate_certificate(block: &ValidatorBlock, committee_size: usize) -> Re
             return Ok(false);
         }
     }
-    
+
     Ok(true)
 }
 
@@ -286,10 +304,10 @@ pub async fn save_certified_block(
     datastore: &Arc<Mutex<DatastoreManager>>,
 ) -> Result<()> {
     let mgr = datastore.lock().await;
-    
+
     // First save to active store
     block.save_to_active(&mgr).await?;
-    
+
     // If it has a certificate, promote to final
     if block.cert.is_some() {
         block.promote_to_final(&mgr).await?;
@@ -299,17 +317,14 @@ pub async fn save_certified_block(
             &block.peer_id[..16.min(block.peer_id.len())]
         );
     }
-    
+
     Ok(())
 }
 
 /// Run periodic finalization task to move certified blocks to final store
-pub async fn run_finalization_task(
-    datastore: &Arc<Mutex<DatastoreManager>>,
-    current_round: u64,
-) {
+pub async fn run_finalization_task(datastore: &Arc<Mutex<DatastoreManager>>, current_round: u64) {
     let mgr = datastore.lock().await;
-    
+
     // Keep blocks in active for 10 rounds before deleting
     match ValidatorBlock::run_finalization(&mgr, current_round, 10).await {
         Ok((finalized, deleted)) => {
@@ -426,9 +441,24 @@ mod tests {
         // Create a block from ourselves
         let block = create_test_block(&peer_id, 1, &keypair);
 
-        // Should not generate an ack for our own block
+        // Should not generate an ack for our own block via the incoming-block path
         let result = collector.handle_incoming_block(&block).unwrap();
         assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_self_ack_forms_certificate_for_committee_of_one() {
+        let keypair = create_test_keypair();
+        let peer_id = keypair.as_public_address();
+        let mut collector = AckCollector::new(peer_id.clone(), keypair.clone(), 1);
+
+        let block = create_test_block(&peer_id, 1, &keypair);
+        collector.register_our_block(block);
+
+        assert!(collector.try_self_ack(1).unwrap());
+        let certified = collector.form_certificate(1).expect("certificate");
+        assert!(certified.cert.is_some());
+        assert_eq!(certified.acks.len(), 1);
     }
 
     #[test]
@@ -454,4 +484,3 @@ mod tests {
         assert!(collector.already_acked.is_empty());
     }
 }
-

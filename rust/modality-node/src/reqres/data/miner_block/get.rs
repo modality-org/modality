@@ -1,39 +1,33 @@
-use anyhow::Result;
-use modality_datastore::DatastoreManager;
-use modality_datastore::models::MinerBlock;
 use crate::reqres::Response;
+use anyhow::Result;
+use modality_datastore::models::MinerBlock;
+use modality_datastore::DatastoreManager;
 
 /// Handler for GET /data/miner_block/get
 /// Get a specific miner block by hash
 pub async fn handler(
-    data: Option<serde_json::Value>, 
+    data: Option<serde_json::Value>,
     datastore_manager: &DatastoreManager,
 ) -> Result<Response> {
     let data = data.unwrap_or_default();
-    
+
     if let Some(hash) = data.get("hash").and_then(|v| v.as_str()) {
         match MinerBlock::find_by_hash_multi(datastore_manager, hash).await {
-            Ok(Some(block)) => {
-                Ok(Response {
-                    ok: true,
-                    data: Some(serde_json::to_value(block)?),
-                    errors: None,
-                })
-            }
-            Ok(None) => {
-                Ok(Response {
-                    ok: false,
-                    data: None,
-                    errors: Some(serde_json::json!({"error": "Block not found"})),
-                })
-            }
-            Err(e) => {
-                Ok(Response {
-                    ok: false,
-                    data: None,
-                    errors: Some(serde_json::json!({"error": e.to_string()})),
-                })
-            }
+            Ok(Some(block)) => Ok(Response {
+                ok: true,
+                data: Some(serde_json::to_value(block)?),
+                errors: None,
+            }),
+            Ok(None) => Ok(Response {
+                ok: false,
+                data: None,
+                errors: Some(serde_json::json!({"error": "Block not found"})),
+            }),
+            Err(e) => Ok(Response {
+                ok: false,
+                data: None,
+                errors: Some(serde_json::json!({"error": e.to_string()})),
+            }),
         }
     } else {
         Ok(Response {
