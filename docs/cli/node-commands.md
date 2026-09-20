@@ -134,7 +134,7 @@ All foreground run commands accept:
 | `--no-tui` | Print logs to stdout instead of the terminal UI |
 | `--tui` | Force the terminal UI even when stdout is not a TTY |
 
-Foreground `run*` commands open a **terminal UI** by default when stdout is a TTY. Status, recent blocks, and logs are on one screen. Press `q`, Esc, or Ctrl-C to quit (this stops that standalone process). From the picker, the same keys leave the dashboard without stopping the node. On the dashboard, `l` cycles log type (`all`, `error+`, `warn+`, `info+`, `debug+`, `trace+`), `t` cycles log topic (module groups such as `miner`, `gossip`, `net`), and `0` shows every line again. Background `node start` always uses `--no-tui`. Set `MODALITY_NO_TUI=1` to disable the UI without a flag.
+Foreground `run*` commands open a **terminal UI** by default when stdout is a TTY. Status, recent blocks, and logs are on one screen. Press `q`, Esc, or Ctrl-C to quit (this stops that standalone process). From the picker, the same keys leave the dashboard without stopping the node. Log type and topic show as chips with counts: arrow keys (or `h` `j` `k` `l`) move the highlight, space turns that chip on or off, Enter leaves only that chip on, and `0` shows every line again. Background `node start` always uses `--no-tui`. Set `MODALITY_NO_TUI=1` to disable the UI without a flag.
 
 `modal node run` additionally accepts `--enable-consensus`, which is deprecated;
 prefer config-driven node roles.

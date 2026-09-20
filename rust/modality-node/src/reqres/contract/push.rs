@@ -5,6 +5,7 @@ use tokio::sync::mpsc;
 
 use modality_datastore::models::{Commit, Contract};
 use modality_datastore::DatastoreManager;
+use modality_validator::ContractProcessor;
 
 use crate::reqres::Response;
 use modality_validator_consensus::communication::Message as ConsensusMessage;
@@ -41,6 +42,14 @@ pub async fn handler(
     } else {
         anyhow::bail!("Missing request data");
     };
+
+    if let Err(e) = reject_unsequenced_reposts(datastore_manager, &req).await {
+        return Ok(Response {
+            ok: false,
+            data: None,
+            errors: Some(json!({"error": e.to_string()})),
+        });
+    }
 
     let mut saved_count = 0;
     let timestamp = std::time::SystemTime::now()
@@ -120,6 +129,30 @@ pub async fn handler(
     })
 }
 
+async fn reject_unsequenced_reposts(
+    datastore_manager: &DatastoreManager,
+    req: &PushRequest,
+) -> anyhow::Result<()> {
+    for commit_data in &req.commits {
+        let Some(actions) = commit_data.body.as_array() else {
+            continue;
+        };
+        for action in actions {
+            let method = action
+                .get("method")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_lowercase();
+            if method != "repost" {
+                continue;
+            }
+            let spec = modality_common::contract_store::parse_repost_json(action)?;
+            ContractProcessor::assert_repost_source_sequenced(datastore_manager, &spec).await?;
+        }
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -147,5 +180,36 @@ mod tests {
         let events = mgr.drain_sequencer_events().await.unwrap();
         assert_eq!(events.len(), 1);
         assert_eq!(events[0]["type"], "contract_push");
+    }
+
+    #[tokio::test]
+    async fn test_push_rejects_repost_of_unsequenced_source() {
+        let mgr = DatastoreManager::create_in_memory().unwrap();
+        let (_tx, _rx) = mpsc::channel::<ConsensusMessage>(100);
+
+        let data = json!({
+            "contract_id": "dest",
+            "commits": [{
+                "commit_id": "dest-commit",
+                "body": [{
+                    "method": "repost",
+                    "path": "/reposts/src/hello.text",
+                    "value": "secret",
+                    "source_contract": "src",
+                    "source_path": "/hello.text",
+                    "source_commit": "src-commit"
+                }],
+                "head": {}
+            }]
+        });
+
+        let response = handler(Some(data), &mgr, _tx).await.unwrap();
+        assert!(!response.ok);
+        let err = response.errors.unwrap().to_string();
+        assert!(
+            err.contains("was not found") || err.contains("has not been sequenced"),
+            "unexpected error: {err}"
+        );
+        assert!(mgr.drain_sequencer_events().await.unwrap().is_empty());
     }
 }

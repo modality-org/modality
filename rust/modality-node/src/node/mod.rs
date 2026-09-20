@@ -385,11 +385,8 @@ impl Node {
                     }
                 }
                 SwarmEvent::OutgoingConnectionError { peer_id, error, .. } => {
-                    if let Some(peer_id) = peer_id {
-                        log::error!("Failed to dial peer {:?}", peer_id);
-                        log::error!("Error: {:?}", error);
-                        anyhow::bail!("Failed to dial peer");
-                    }
+                    log::error!("Failed to dial peer {:?}: {:?}", peer_id, error);
+                    anyhow::bail!("Failed to dial peer {:?}: {}", peer_id, error);
                 }
                 event => {
                     log::debug!("Other Event {:?}", event)
@@ -569,121 +566,142 @@ impl Node {
 
         self.networking_task = Some(tokio::spawn(async move {
             loop {
-                let mut swarm_lock = swarm.lock().await;
-                tokio::select! {
-                    _ = shutdown_rx.recv() => {
-                        log::info!("Networking task shutting down");
-                        let ids: Vec<_> = swarm_lock.connected_peers().cloned().collect();
-                        for peer_id in ids {
-                            swarm_lock.disconnect_peer_id(peer_id)
-                                .map_err(|_| anyhow::anyhow!("Failed to disconnect from peer {}", peer_id))?;
+                let event = {
+                    let mut swarm_lock = swarm.lock().await;
+                    tokio::select! {
+                        _ = shutdown_rx.recv() => {
+                            log::info!("Networking task shutting down");
+                            let ids: Vec<_> = swarm_lock.connected_peers().cloned().collect();
+                            for peer_id in ids {
+                                swarm_lock.disconnect_peer_id(peer_id)
+                                    .map_err(|_| anyhow::anyhow!("Failed to disconnect from peer {}", peer_id))?;
+                            }
+                            drop(swarm_lock);
+                            tokio::time::sleep(Duration::from_millis(SHUTDOWN_WAIT_MS)).await;
+                            None
                         }
-                        tokio::time::sleep(Duration::from_millis(SHUTDOWN_WAIT_MS)).await;
-                        break;
+                        event = swarm_lock.select_next_some() => Some(event),
+                        _ = &mut tick => {
+                            log::debug!("tick");
+                            tick = futures_timer::Delay::new(tick_interval);
+                            continue;
+                        }
                     }
-                    event = swarm_lock.select_next_some() => {
-                        log::info!("{:?}", event);
-                        match event {
-                            SwarmEvent::NewListenAddr { address, .. } => {
-                                let address_with_p2p = address
-                                    .clone()
-                                    .with(Protocol::P2p(peerid));
-                                log::info!("Listening on {address_with_p2p:?}")
-                            }
-                            SwarmEvent::ConnectionEstablished { .. } => {
-                                log::info!("CONNECTION ESTABLISHED");
-                            },
-                            SwarmEvent::OutgoingConnectionError { peer_id, error, .. } => {
-                                if let Some(peer_id) = peer_id {
-                                    log::error!("Failed to dial peer {:?}", peer_id);
-                                    log::error!("Error: {:?}", error);
-                                }
-                            }
-                            SwarmEvent::Behaviour(swarm::NodeBehaviourEvent::Reqres(
-                                request_response::Event::Message { message, .. },
-                            )) => match message {
-                                request_response::Message::Request {
-                                    request,
-                                    channel,
-                                    ..
-                                } => {
-                                    log::info!("reqres request");
-                                    let res = {
-                                        let mgr = datastore_manager.lock().await;
-                                        reqres::handle_request(request, &mgr, consensus_tx.clone()).await?
-                                    };
-                                    swarm_lock.behaviour_mut().reqres.send_response(channel, res)
-                                        .expect("failed to respond")
-                                }
-                                request_response::Message::Response { request_id, response } => {
-                                    log::debug!("reqres response received for request {:?}", request_id);
-                                    let mut txs = reqres_response_txs.lock().await;
-                                    if let Some(tx) = txs.remove(&request_id) {
-                                        log::debug!("Forwarding response to caller");
-                                        let _ = tx.send(response);
-                                    } else {
-                                        log::warn!("Received response for unknown request {:?}", request_id);
+                };
+
+                let Some(event) = event else {
+                    return Ok(());
+                };
+
+                log::info!("{:?}", event);
+                match event {
+                    SwarmEvent::NewListenAddr { address, .. } => {
+                        let address_with_p2p = address
+                            .clone()
+                            .with(Protocol::P2p(peerid));
+                        log::info!("Listening on {address_with_p2p:?}")
+                    }
+                    SwarmEvent::ConnectionEstablished { .. } => {
+                        log::info!("CONNECTION ESTABLISHED");
+                    },
+                    SwarmEvent::OutgoingConnectionError { peer_id, error, .. } => {
+                        if let Some(peer_id) = peer_id {
+                            log::error!("Failed to dial peer {:?}", peer_id);
+                            log::error!("Error: {:?}", error);
+                        }
+                    }
+                    SwarmEvent::Behaviour(swarm::NodeBehaviourEvent::Reqres(
+                        request_response::Event::Message { message, .. },
+                    )) => match message {
+                        request_response::Message::Request {
+                            request,
+                            channel,
+                            ..
+                        } => {
+                            log::info!("reqres request");
+                            let res = {
+                                let mgr = datastore_manager.lock().await;
+                                match reqres::handle_request(request, &mgr, consensus_tx.clone()).await {
+                                    Ok(res) => res,
+                                    Err(e) => {
+                                        log::error!("reqres handler failed: {}", e);
+                                        reqres::Response {
+                                            ok: false,
+                                            data: None,
+                                            errors: Some(serde_json::json!({"error": e.to_string()})),
+                                        }
                                     }
                                 }
+                            };
+                            let mut swarm_lock = swarm.lock().await;
+                            if swarm_lock.behaviour_mut().reqres.send_response(channel, res).is_err() {
+                                log::error!("failed to send reqres response");
                             }
-                            SwarmEvent::Behaviour(swarm::NodeBehaviourEvent::Gossipsub(
-                                gossipsub::Event::Message {
-                                    propagation_source: _peer_id,
-                                    message_id: _message_id,
-                                    message,
-                                },
-                            )) => {
-                                log::info!("Gossip received {:?}", message.topic.to_string());
-                                gossip::handle_event(message, datastore_manager.clone(), consensus_tx.clone(), sync_request_tx.clone(), mining_update_tx.clone(), bootstrappers.clone(), minimum_block_timestamp).await?;
-                            }
-                            SwarmEvent::Behaviour(swarm::NodeBehaviourEvent::Identify(
-                                libp2p::identify::Event::Received { peer_id, info, .. }
-                            )) => {
-                                log::debug!("Identify received from {:?}: agent_version={}", peer_id, info.agent_version);
-
-                                // Extract status_url and role from agent version string
-                                // Format: "modality-node/version;status_url=https://...;role=Miner"
-                                let parts: Vec<&str> = info.agent_version.split(';').collect();
-                                let status_url = parts.iter()
-                                    .find(|s| s.starts_with("status_url="))
-                                    .and_then(|s| s.strip_prefix("status_url="))
-                                    .map(|s| s.to_string());
-                                let role = parts.iter()
-                                    .find(|s| s.starts_with("role="))
-                                    .and_then(|s| s.strip_prefix("role="))
-                                    .map(|s| s.to_string());
-
-                                // Store peer info with status_url and role if either exists
-                                if status_url.is_some() || role.is_some() {
-                                    log::info!("Peer {} - status_url: {:?}, role: {:?}", peer_id, status_url, role);
-                                    let peer_info = modality_datastore::models::PeerInfo::with_metadata(
-                                        peer_id.to_string(),
-                                        status_url,
-                                        role
-                                    );
-
-                                    // Store in NodeState
-                                    let mgr = datastore_manager.lock().await;
-                                    if let Err(e) = peer_info.save_to(mgr.node_state()).await {
-                                        log::warn!("Failed to store peer info: {}", e);
-                                    }
-                                }
-                            }
-                            SwarmEvent::Behaviour(event) => {
-                                log::info!("SwarmEvent::Behaviour event {:?}", event);
-                            }
-                            event => {
-                                log::info!("Other Node Event {:?}", event)
+                        }
+                        request_response::Message::Response { request_id, response } => {
+                            log::debug!("reqres response received for request {:?}", request_id);
+                            let mut txs = reqres_response_txs.lock().await;
+                            if let Some(tx) = txs.remove(&request_id) {
+                                log::debug!("Forwarding response to caller");
+                                let _ = tx.send(response);
+                            } else {
+                                log::warn!("Received response for unknown request {:?}", request_id);
                             }
                         }
                     }
-                    _ = &mut tick => {
-                        log::debug!("tick");
-                        tick = futures_timer::Delay::new(tick_interval);
+                    SwarmEvent::Behaviour(swarm::NodeBehaviourEvent::Gossipsub(
+                        gossipsub::Event::Message {
+                            propagation_source: _peer_id,
+                            message_id: _message_id,
+                            message,
+                        },
+                    )) => {
+                        log::info!("Gossip received {:?}", message.topic.to_string());
+                        if let Err(e) = gossip::handle_event(message, datastore_manager.clone(), consensus_tx.clone(), sync_request_tx.clone(), mining_update_tx.clone(), bootstrappers.clone(), minimum_block_timestamp).await {
+                            log::error!("gossip handler failed: {}", e);
+                        }
+                    }
+                    SwarmEvent::Behaviour(swarm::NodeBehaviourEvent::Identify(
+                        libp2p::identify::Event::Received { peer_id, info, .. }
+                    )) => {
+                        log::debug!("Identify received from {:?}: agent_version={}", peer_id, info.agent_version);
+
+                        // Extract status_url and role from agent version string
+                        // Format: "modality-node/version;status_url=https://...;role=Miner"
+                        let parts: Vec<&str> = info.agent_version.split(';').collect();
+                        let status_url = parts.iter()
+                            .find(|s| s.starts_with("status_url="))
+                            .and_then(|s| s.strip_prefix("status_url="))
+                            .map(|s| s.to_string());
+                        let role = parts.iter()
+                            .find(|s| s.starts_with("role="))
+                            .and_then(|s| s.strip_prefix("role="))
+                            .map(|s| s.to_string());
+
+                        // Store peer info with status_url and role if either exists
+                        if status_url.is_some() || role.is_some() {
+                            log::info!("Peer {} - status_url: {:?}, role: {:?}", peer_id, status_url, role);
+                            let peer_info = modality_datastore::models::PeerInfo::with_metadata(
+                                peer_id.to_string(),
+                                status_url,
+                                role
+                            );
+
+                            // Store in NodeState
+                            let mgr = datastore_manager.lock().await;
+                            if let Err(e) = peer_info.save_to(mgr.node_state()).await {
+                                log::warn!("Failed to store peer info: {}", e);
+                            }
+                        }
+                    }
+                    SwarmEvent::Behaviour(event) => {
+                        log::info!("SwarmEvent::Behaviour event {:?}", event);
+                    }
+                    event => {
+                        log::info!("Other Node Event {:?}", event)
                     }
                 }
             }
-            Ok(())
         }));
 
         Ok(())

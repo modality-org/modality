@@ -104,7 +104,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
         #[cfg(feature = "p2p")]
         {
             // P2P node pull
-            let node_config = if let Some(node_dir) = &opts.node_dir {
+            let mut node_config = if let Some(node_dir) = &opts.node_dir {
                 let config_path = node_dir.join("config.json");
                 if config_path.exists() {
                     let config_json = std::fs::read_to_string(&config_path)?;
@@ -112,6 +112,8 @@ pub async fn run(opts: &Opts) -> Result<()> {
                         serde_json::from_str(&config_json)?;
                     config.storage_path = None;
                     config.logs_path = None;
+                    config.data_dir = None;
+                    config.bootstrappers = Some(vec![]);
                     let passfile_path = node_dir.join("node.modal_passfile");
                     if passfile_path.exists() {
                         config.passfile_path = Some(passfile_path);
@@ -124,7 +126,19 @@ pub async fn run(opts: &Opts) -> Result<()> {
                 modality_node::config::Config::default()
             };
 
-            let mut node = Node::from_config(node_config).await?;
+            if node_config
+                .listeners
+                .as_ref()
+                .map(|l| l.is_empty())
+                .unwrap_or(true)
+            {
+                node_config.listeners = Some(vec!["/ip4/127.0.0.1/tcp/0/ws".parse()?]);
+            }
+            node_config.bootstrappers = Some(vec![]);
+
+            let _ = modality_node::logging::init_logging(None, Some(false), None);
+            let mut node = Node::from_config(node_config.clone()).await?;
+            node.setup(&node_config).await?;
 
             let request_data = json!({
                 "contract_id": config.contract_id,

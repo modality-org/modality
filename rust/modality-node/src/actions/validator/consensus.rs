@@ -333,6 +333,7 @@ async fn apply_certified_contract_events(
                         contract_id,
                         e
                     );
+                    continue;
                 }
             }
 

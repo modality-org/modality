@@ -16,6 +16,7 @@ use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Cell, Gauge, Paragraph, Row, Table, Wrap};
 use ratatui::{Frame, Terminal};
+use std::collections::HashSet;
 use std::io::stdout;
 use std::time::Duration;
 
@@ -29,74 +30,159 @@ pub(crate) const MUTED: Color = Color::DarkGray;
 const WARN: Color = Color::Yellow;
 const ERROR: Color = Color::Red;
 
+const TYPE_CHIPS: [Level; 5] = [
+    Level::Error,
+    Level::Warn,
+    Level::Info,
+    Level::Debug,
+    Level::Trace,
+];
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ChipRow {
+    Type,
+    Topic,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct ChipCursor {
+    row: ChipRow,
+    type_index: usize,
+    topic_index: usize,
+}
+
+impl Default for ChipCursor {
+    fn default() -> Self {
+        Self {
+            row: ChipRow::Type,
+            type_index: 2, // INFO, the usual noise
+            topic_index: 0,
+        }
+    }
+}
+
+impl ChipCursor {
+    fn index(&self) -> usize {
+        match self.row {
+            ChipRow::Type => self.type_index,
+            ChipRow::Topic => self.topic_index,
+        }
+    }
+
+    fn clamp(&mut self, topic_count: usize) {
+        self.type_index = self.type_index.min(TYPE_CHIPS.len() - 1);
+        if topic_count == 0 {
+            self.row = ChipRow::Type;
+            self.topic_index = 0;
+        } else {
+            self.topic_index = self.topic_index.min(topic_count - 1);
+        }
+    }
+
+    fn left(&mut self) {
+        match self.row {
+            ChipRow::Type => self.type_index = self.type_index.saturating_sub(1),
+            ChipRow::Topic => self.topic_index = self.topic_index.saturating_sub(1),
+        }
+    }
+
+    fn right(&mut self, len: usize) {
+        if len == 0 {
+            return;
+        }
+        match self.row {
+            ChipRow::Type => {
+                if self.type_index + 1 < len {
+                    self.type_index += 1;
+                }
+            }
+            ChipRow::Topic => {
+                if self.topic_index + 1 < len {
+                    self.topic_index += 1;
+                }
+            }
+        }
+    }
+
+    fn up(&mut self) {
+        self.row = ChipRow::Type;
+    }
+
+    fn down(&mut self, topic_count: usize) {
+        if topic_count > 0 {
+            self.row = ChipRow::Topic;
+        }
+    }
+}
+
+/// Inclusive filters: everything is on until the user turns a chip off.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 struct LogFilter {
-    /// Inclusive maximum verbosity. `None` shows every type in the ring.
-    max_level: Option<Level>,
-    topic: Option<String>,
+    disabled_levels: HashSet<Level>,
+    disabled_topics: HashSet<String>,
 }
 
 impl LogFilter {
     fn matches(&self, entry: &LogEntry) -> bool {
-        if let Some(max) = self.max_level {
-            if entry.level > max {
-                return false;
-            }
+        if self.disabled_levels.contains(&entry.level) {
+            return false;
         }
-        if let Some(ref topic) = self.topic {
-            if entry.topic != *topic {
-                return false;
-            }
+        if self.disabled_topics.contains(&entry.topic) {
+            return false;
         }
         true
     }
 
-    fn level_label(&self) -> &'static str {
-        match self.max_level {
-            None => "all",
-            Some(Level::Error) => "error+",
-            Some(Level::Warn) => "warn+",
-            Some(Level::Info) => "info+",
-            Some(Level::Debug) => "debug+",
-            Some(Level::Trace) => "trace+",
+    fn level_on(&self, level: Level) -> bool {
+        !self.disabled_levels.contains(&level)
+    }
+
+    fn topic_on(&self, topic: &str) -> bool {
+        !self.disabled_topics.contains(topic)
+    }
+
+    fn toggle_level(&mut self, level: Level) {
+        if !self.disabled_levels.remove(&level) {
+            self.disabled_levels.insert(level);
+        }
+        if self.disabled_levels.len() == TYPE_CHIPS.len() {
+            self.disabled_levels.remove(&level);
         }
     }
 
-    fn topic_label(&self) -> &str {
-        self.topic.as_deref().unwrap_or("all")
-    }
-
-    fn cycle_level(&mut self) {
-        self.max_level = match self.max_level {
-            None => Some(Level::Error),
-            Some(Level::Error) => Some(Level::Warn),
-            Some(Level::Warn) => Some(Level::Info),
-            Some(Level::Info) => Some(Level::Debug),
-            Some(Level::Debug) => Some(Level::Trace),
-            Some(Level::Trace) => None,
-        };
-    }
-
-    fn cycle_topic(&mut self, entries: &[LogEntry]) {
-        let mut topics: Vec<String> = entries.iter().map(|e| e.topic.clone()).collect();
-        topics.sort();
-        topics.dedup();
-        if topics.is_empty() {
-            self.topic = None;
-            return;
+    fn toggle_topic(&mut self, topic: &str) {
+        if !self.disabled_topics.remove(topic) {
+            self.disabled_topics.insert(topic.to_string());
         }
-        self.topic = match &self.topic {
-            None => Some(topics[0].clone()),
-            Some(current) => match topics.iter().position(|t| t == current) {
-                Some(i) if i + 1 < topics.len() => Some(topics[i + 1].clone()),
-                _ => None,
-            },
-        };
+    }
+
+    fn only_level(&mut self, level: Level) {
+        self.disabled_levels = TYPE_CHIPS.iter().copied().filter(|l| *l != level).collect();
+    }
+
+    fn only_topic(&mut self, topic: &str, all_topics: &[String]) {
+        self.disabled_topics = all_topics
+            .iter()
+            .filter(|t| t.as_str() != topic)
+            .cloned()
+            .collect();
     }
 
     fn reset(&mut self) {
-        *self = Self::default();
+        self.disabled_levels.clear();
+        self.disabled_topics.clear();
     }
+
+    fn hiding(&self) -> bool {
+        !self.disabled_levels.is_empty() || !self.disabled_topics.is_empty()
+    }
+}
+
+fn topic_names(logs: &[LogEntry]) -> Vec<String> {
+    let mut topics: Vec<String> = logs.iter().map(|e| e.topic.clone()).collect();
+    topics.sort();
+    topics.dedup();
+    topics
 }
 
 pub(crate) struct TerminalGuard;
@@ -146,6 +232,7 @@ pub async fn run(source: NodeStatusSource, logs: LogRing, stop_node_on_leave: bo
 
     let mut keys = KeyPump::new();
     let mut filter = LogFilter::default();
+    let mut cursor = ChipCursor::default();
     let mut snapshot = None;
     let mut snap_task = {
         let src = source.clone();
@@ -157,12 +244,15 @@ pub async fn run(source: NodeStatusSource, logs: LogRing, stop_node_on_leave: bo
 
     loop {
         let log_lines = logs.snapshot();
+        let topics = topic_names(&log_lines);
+        cursor.clamp(topics.len());
         terminal.draw(|frame| {
             draw(
                 frame,
                 snapshot.as_ref(),
                 &log_lines,
                 &filter,
+                cursor,
                 stop_node_on_leave,
             )
         })?;
@@ -178,9 +268,37 @@ pub async fn run(source: NodeStatusSource, logs: LogRing, stop_node_on_leave: bo
                     continue;
                 }
                 match key.code {
-                    KeyCode::Char('l' | 'L') => filter.cycle_level(),
-                    KeyCode::Char('t' | 'T') => filter.cycle_topic(&log_lines),
-                    KeyCode::Char('0') => filter.reset(),
+                    KeyCode::Left | KeyCode::Char('h') => cursor.left(),
+                    KeyCode::Right | KeyCode::Char('l') => {
+                        let len = match cursor.row {
+                            ChipRow::Type => TYPE_CHIPS.len(),
+                            ChipRow::Topic => topics.len(),
+                        };
+                        cursor.right(len);
+                    }
+                    KeyCode::Up | KeyCode::Char('k') => cursor.up(),
+                    KeyCode::Down | KeyCode::Char('j') => cursor.down(topics.len()),
+                    KeyCode::Char(' ') => match cursor.row {
+                        ChipRow::Type => {
+                            filter.toggle_level(TYPE_CHIPS[cursor.index().min(TYPE_CHIPS.len() - 1)]);
+                        }
+                        ChipRow::Topic => {
+                            if let Some(topic) = topics.get(cursor.index()) {
+                                filter.toggle_topic(topic);
+                            }
+                        }
+                    },
+                    KeyCode::Enter => match cursor.row {
+                        ChipRow::Type => {
+                            filter.only_level(TYPE_CHIPS[cursor.index().min(TYPE_CHIPS.len() - 1)]);
+                        }
+                        ChipRow::Topic => {
+                            if let Some(topic) = topics.get(cursor.index()) {
+                                filter.only_topic(topic, &topics);
+                            }
+                        }
+                    },
+                    KeyCode::Char('0' | 'a' | 'A') => filter.reset(),
                     _ => {}
                 }
             }
@@ -213,6 +331,7 @@ fn draw(
     status: Option<&NodeStatus>,
     logs: &[LogEntry],
     filter: &LogFilter,
+    cursor: ChipCursor,
     stop_node_on_leave: bool,
 ) {
     let chunks = Layout::default()
@@ -220,10 +339,10 @@ fn draw(
         .constraints([
             Constraint::Length(3),
             Constraint::Length(3),
-            Constraint::Length(8),
-            Constraint::Length(8),
-            Constraint::Min(5),
-            Constraint::Length(1),
+            Constraint::Length(6),
+            Constraint::Length(6),
+            Constraint::Min(8),
+            Constraint::Length(2),
         ])
         .split(frame.area());
 
@@ -231,7 +350,7 @@ fn draw(
     draw_epoch(frame, chunks[1], status);
     draw_stats(frame, chunks[2], status);
     draw_blocks(frame, chunks[3], status);
-    draw_logs(frame, chunks[4], logs, filter);
+    draw_logs(frame, chunks[4], logs, filter, cursor);
     draw_footer(frame, chunks[5], stop_node_on_leave);
 }
 
@@ -394,35 +513,168 @@ fn draw_blocks(frame: &mut Frame, area: Rect, status: Option<&NodeStatus>) {
     frame.render_widget(table, area);
 }
 
-fn draw_logs(frame: &mut Frame, area: Rect, logs: &[LogEntry], filter: &LogFilter) {
+fn draw_logs(
+    frame: &mut Frame,
+    area: Rect,
+    logs: &[LogEntry],
+    filter: &LogFilter,
+    cursor: ChipCursor,
+) {
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .title(log_title(logs, filter));
+    let inner = block.inner(area);
+    frame.render_widget(block, area);
+
+    let rows = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(1),
+            Constraint::Length(1),
+            Constraint::Min(1),
+        ])
+        .split(inner);
+
+    let topics = topic_names(logs);
+    frame.render_widget(type_chip_line(logs, filter, cursor, rows[0].width), rows[0]);
+    frame.render_widget(
+        topic_chip_line(logs, filter, cursor, &topics, rows[1].width),
+        rows[1],
+    );
+
     let filtered: Vec<&LogEntry> = logs.iter().filter(|e| filter.matches(e)).collect();
-    let height = area.height.saturating_sub(2) as usize;
+    let height = rows[2].height as usize;
     let start = filtered.len().saturating_sub(height);
     let lines: Vec<Line> = if filtered.is_empty() {
         vec![Line::from(Span::styled(
             if logs.is_empty() {
                 "waiting for log lines…"
             } else {
-                "no lines for this type/topic   ·   l / t to cycle   0 to reset"
+                "nothing matches  ·  space toggles  ·  enter isolates  ·  0 shows all"
             },
             Style::default().fg(MUTED),
         ))]
     } else {
         filtered[start..].iter().map(|e| log_line(e)).collect()
     };
-    let title = format!(
-        " logs  {}/{}  type:{}  topic:{}  ·  l type  t topic  0 reset ",
-        filtered.len(),
-        logs.len(),
-        filter.level_label(),
-        filter.topic_label(),
-    );
-    frame.render_widget(
-        Paragraph::new(lines)
-            .wrap(Wrap { trim: false })
-            .block(Block::default().borders(Borders::ALL).title(title)),
-        area,
-    );
+    frame.render_widget(Paragraph::new(lines).wrap(Wrap { trim: false }), rows[2]);
+}
+
+fn log_title(logs: &[LogEntry], filter: &LogFilter) -> String {
+    let shown = logs.iter().filter(|e| filter.matches(e)).count();
+    if !filter.hiding() {
+        format!(" logs  {shown} ")
+    } else {
+        format!(" logs  {shown} of {}  ·  0 show all ", logs.len())
+    }
+}
+
+struct ChipView {
+    label: String,
+    count: usize,
+    on: bool,
+    color: Color,
+}
+
+fn type_chip_line(
+    logs: &[LogEntry],
+    filter: &LogFilter,
+    cursor: ChipCursor,
+    width: u16,
+) -> Paragraph<'static> {
+    let chips: Vec<ChipView> = TYPE_CHIPS
+        .iter()
+        .map(|level| ChipView {
+            label: level.to_string().to_ascii_lowercase(),
+            count: logs.iter().filter(|e| e.level == *level).count(),
+            on: filter.level_on(*level),
+            color: level_color(*level),
+        })
+        .collect();
+    let selected = (cursor.row == ChipRow::Type).then_some(cursor.index());
+    Paragraph::new(chip_row("type", &chips, selected, width))
+}
+
+fn topic_chip_line(
+    logs: &[LogEntry],
+    filter: &LogFilter,
+    cursor: ChipCursor,
+    topics: &[String],
+    width: u16,
+) -> Paragraph<'static> {
+    if topics.is_empty() {
+        return Paragraph::new(Line::from(vec![
+            Span::styled("topic ", Style::default().fg(MUTED)),
+            Span::styled("waiting…", Style::default().fg(MUTED)),
+        ]));
+    }
+    let chips: Vec<ChipView> = topics
+        .iter()
+        .map(|topic| ChipView {
+            label: topic.clone(),
+            count: logs.iter().filter(|e| e.topic == *topic).count(),
+            on: filter.topic_on(topic),
+            color: ACCENT,
+        })
+        .collect();
+    let selected = (cursor.row == ChipRow::Topic).then_some(cursor.index());
+    Paragraph::new(chip_row("topic", &chips, selected, width))
+}
+
+fn chip_row(prefix: &str, chips: &[ChipView], cursor: Option<usize>, width: u16) -> Line<'static> {
+    let mut items: Vec<(String, Style)> = Vec::with_capacity(chips.len() + 1);
+    items.push((format!("{prefix:<5} "), Style::default().fg(MUTED)));
+    for (i, chip) in chips.iter().enumerate() {
+        let text = if chip.count > 0 {
+            format!(" {} {} ", chip.label, chip.count)
+        } else {
+            format!(" {} ", chip.label)
+        };
+        let mut style = if chip.on {
+            Style::default().fg(chip.color).add_modifier(Modifier::BOLD)
+        } else {
+            Style::default()
+                .fg(MUTED)
+                .add_modifier(Modifier::CROSSED_OUT)
+        };
+        if cursor == Some(i) {
+            style = style.add_modifier(Modifier::REVERSED | Modifier::BOLD);
+        }
+        items.push((text, style));
+    }
+
+    let prefix_len = items[0].0.chars().count();
+    let budget = (width as usize).saturating_sub(prefix_len);
+    let widths: Vec<usize> = items[1..].iter().map(|(t, _)| t.chars().count()).collect();
+    let cursor_i = cursor.unwrap_or(0).min(widths.len().saturating_sub(1));
+    let mut start = 0;
+    if !widths.is_empty() {
+        let mut used: usize = widths[start..=cursor_i].iter().sum();
+        while start < cursor_i && used > budget {
+            used = used.saturating_sub(widths[start]);
+            start += 1;
+        }
+    }
+
+    let mut spans = vec![Span::styled(items[0].0.clone(), items[0].1)];
+    if start > 0 {
+        spans.push(Span::styled("‹", Style::default().fg(MUTED)));
+    }
+    let mut used = 0usize;
+    let extra = if start > 0 { 1 } else { 0 };
+    for (i, (text, style)) in items[1..].iter().enumerate() {
+        if i < start {
+            continue;
+        }
+        let w = text.chars().count();
+        if i > start && used + extra + w > budget {
+            spans.push(Span::styled("›", Style::default().fg(MUTED)));
+            break;
+        }
+        spans.push(Span::styled(text.clone(), *style));
+        used += w;
+    }
+    Line::from(spans)
 }
 
 fn log_line(entry: &LogEntry) -> Line<'static> {
@@ -468,20 +720,34 @@ fn key_hint(label: &'static str) -> Span<'static> {
 }
 
 fn draw_footer(frame: &mut Frame, area: Rect, stop_node_on_leave: bool) {
-    let action = if stop_node_on_leave {
-        "  stop the node"
+    let leave = if stop_node_on_leave {
+        "stop the node"
     } else {
-        "  back to menu  ·  node keeps running"
+        "back to menu · node keeps running"
     };
-    let line = Line::from(vec![
-        key_hint(" q "),
-        Span::styled(" or ", Style::default().fg(MUTED)),
-        key_hint(" Esc "),
-        Span::styled(" or ", Style::default().fg(MUTED)),
-        key_hint(" Ctrl-C "),
-        Span::styled(action, Style::default().fg(MUTED)),
-    ]);
-    frame.render_widget(Paragraph::new(line), area);
+    let lines = vec![
+        Line::from(vec![
+            key_hint(" ←→ "),
+            Span::styled("chip  ", Style::default().fg(MUTED)),
+            key_hint(" ↑↓ "),
+            Span::styled("row  ", Style::default().fg(MUTED)),
+            key_hint(" space "),
+            Span::styled("on/off  ", Style::default().fg(MUTED)),
+            key_hint(" enter "),
+            Span::styled("only this  ", Style::default().fg(MUTED)),
+            key_hint(" 0 "),
+            Span::styled("show all", Style::default().fg(MUTED)),
+        ]),
+        Line::from(vec![
+            key_hint(" q "),
+            Span::styled(" or ", Style::default().fg(MUTED)),
+            key_hint(" Esc "),
+            Span::styled(" or ", Style::default().fg(MUTED)),
+            key_hint(" Ctrl-C "),
+            Span::styled(format!("  {leave}"), Style::default().fg(MUTED)),
+        ]),
+    ];
+    frame.render_widget(Paragraph::new(lines), area);
 }
 
 fn kv(key: &str, value: impl std::fmt::Display) -> Line<'static> {
@@ -531,8 +797,9 @@ mod tests {
             "hello log",
         )];
         let filter = LogFilter::default();
+        let cursor = ChipCursor::default();
         terminal
-            .draw(|frame| draw(frame, None, &logs, &filter, false))
+            .draw(|frame| draw(frame, None, &logs, &filter, cursor, false))
             .unwrap();
         let buffer = terminal.backend().buffer();
         let mut text = String::new();
@@ -551,18 +818,20 @@ mod tests {
             "tab navigation should not be the main UI:\n{text}"
         );
         assert!(text.contains("hello log"));
+        assert!(text.contains("type"), "type chips missing:\n{text}");
+        assert!(text.contains("topic"), "topic chips missing:\n{text}");
+        assert!(text.contains("info"), "info type chip missing:\n{text}");
+        assert!(text.contains("miner"), "log topic chip missing:\n{text}");
+        assert!(text.contains("space"), "toggle hint missing:\n{text}");
+        assert!(text.contains("only this"), "isolate hint missing:\n{text}");
+        assert!(text.contains("show all"), "reset hint missing:\n{text}");
         assert!(
-            text.contains("type:all") && text.contains("topic:all"),
-            "log filter labels missing:\n{text}"
+            !text.contains("l type") && !text.contains("t topic"),
+            "old cycle hints still on screen:\n{text}"
         );
-        assert!(
-            text.contains("l type") && text.contains("t topic"),
-            "log filter keys missing:\n{text}"
-        );
-        assert!(text.contains("miner"), "log topic missing:\n{text}");
 
         terminal
-            .draw(|frame| draw(frame, None, &logs, &filter, true))
+            .draw(|frame| draw(frame, None, &logs, &filter, cursor, true))
             .unwrap();
         let buffer = terminal.backend().buffer();
         let mut stop_text = String::new();
@@ -592,7 +861,7 @@ mod tests {
     }
 
     #[test]
-    fn log_filter_hides_noisy_info_and_other_topics() {
+    fn log_filter_toggles_type_and_topic_chips() {
         let entries = vec![
             LogEntry::new(Level::Info, "modality_node::node", "Listening on /ip4/…"),
             LogEntry::new(
@@ -605,24 +874,55 @@ mod tests {
         let mut filter = LogFilter::default();
         assert_eq!(entries.iter().filter(|e| filter.matches(e)).count(), 3);
 
-        filter.cycle_level(); // error+
-        assert_eq!(filter.level_label(), "error+");
+        filter.toggle_level(Level::Info);
         let shown: Vec<_> = entries
             .iter()
             .filter(|e| filter.matches(e))
             .map(|e| e.message.as_str())
             .collect();
-        assert_eq!(shown, vec!["peer lost"]);
+        assert_eq!(shown, vec!["hashrate dropped", "peer lost"]);
 
         filter.reset();
-        filter.cycle_topic(&entries);
-        // topics sort: gossip, miner, node
-        assert_eq!(filter.topic_label(), "gossip");
+        filter.toggle_topic("node");
+        filter.toggle_topic("gossip");
         let shown: Vec<_> = entries
             .iter()
             .filter(|e| filter.matches(e))
             .map(|e| e.topic.as_str())
             .collect();
-        assert_eq!(shown, vec!["gossip"]);
+        assert_eq!(shown, vec!["miner"]);
+
+        filter.reset();
+        filter.only_level(Level::Error);
+        let shown: Vec<_> = entries
+            .iter()
+            .filter(|e| filter.matches(e))
+            .map(|e| e.level)
+            .collect();
+        assert_eq!(shown, vec![Level::Error]);
+
+        let names = topic_names(&entries);
+        filter.reset();
+        filter.only_topic("miner", &names);
+        let shown: Vec<_> = entries
+            .iter()
+            .filter(|e| filter.matches(e))
+            .map(|e| e.topic.as_str())
+            .collect();
+        assert_eq!(shown, vec!["miner"]);
+    }
+
+    #[test]
+    fn chip_cursor_moves_between_rows() {
+        let mut cursor = ChipCursor::default();
+        assert_eq!(cursor.row, ChipRow::Type);
+        cursor.down(3);
+        assert_eq!(cursor.row, ChipRow::Topic);
+        assert_eq!(cursor.index(), 0);
+        cursor.right(3);
+        assert_eq!(cursor.index(), 1);
+        cursor.up();
+        assert_eq!(cursor.row, ChipRow::Type);
+        assert_eq!(cursor.index(), 2);
     }
 }

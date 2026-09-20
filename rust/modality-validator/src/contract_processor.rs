@@ -76,6 +76,34 @@ impl ContractProcessor {
         Self { datastore, predicate_executor, program_executor }
     }
 
+    /// REPOST may only snapshot a source commit that consensus has already sequenced.
+    pub async fn assert_repost_source_sequenced(
+        ds: &DatastoreManager,
+        spec: &modality_common::contract_store::RepostAction,
+    ) -> Result<()> {
+        let keys = [
+            ("contract_id".to_string(), spec.source_contract.clone()),
+            ("commit_id".to_string(), spec.source_commit.clone()),
+        ]
+        .into_iter()
+        .collect();
+        let source_commit = Commit::find_one_multi(ds, keys).await?.ok_or_else(|| {
+            anyhow::anyhow!(
+                "REPOST rejected: source commit '{}' was not found on contract '{}'",
+                spec.source_commit,
+                spec.source_contract
+            )
+        })?;
+        match source_commit.in_batch.as_deref() {
+            Some(batch) if !batch.is_empty() => Ok(()),
+            _ => anyhow::bail!(
+                "REPOST rejected: source commit '{}' on '{}' has not been sequenced",
+                spec.source_commit,
+                spec.source_contract
+            ),
+        }
+    }
+
     /// Process a commit during consensus ordering
     /// 
     /// This method:
@@ -506,6 +534,7 @@ impl ContractProcessor {
         let spec = modality_common::contract_store::parse_repost_json(action)?;
 
         let ds = self.datastore.lock().await;
+        Self::assert_repost_source_sequenced(&ds, &spec).await?;
         let source_key = format!(
             "/contracts/{}{}",
             spec.source_contract, spec.source_path
@@ -1004,5 +1033,133 @@ mod tests {
             }
             _ => panic!("Expected WasmUploaded state change"),
         }
+    }
+
+    #[tokio::test]
+    async fn test_repost_rejected_if_source_commit_missing() {
+        let datastore = Arc::new(Mutex::new(
+            DatastoreManager::create_in_memory().unwrap()
+        ));
+        let processor = ContractProcessor::new(datastore);
+
+        let commit_data = serde_json::json!({
+            "body": [{
+                "method": "repost",
+                "path": "/reposts/src/hello.text",
+                "value": "secret",
+                "source_contract": "src",
+                "source_path": "/hello.text",
+                "source_commit": "unsequenced-commit"
+            }],
+            "head": {}
+        });
+
+        let err = processor
+            .process_commit("dest", "dest-commit", &commit_data.to_string())
+            .await
+            .expect_err("unsequenced source must be rejected");
+        assert!(
+            err.to_string().contains("was not found"),
+            "unexpected error: {err}"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_repost_rejected_if_source_commit_not_sequenced() {
+        let datastore = Arc::new(Mutex::new(
+            DatastoreManager::create_in_memory().unwrap()
+        ));
+        {
+            let ds = datastore.lock().await;
+            Commit {
+                contract_id: "src".to_string(),
+                commit_id: "src-commit".to_string(),
+                commit_data: "{}".to_string(),
+                timestamp: 1,
+                in_batch: None,
+            }
+            .save_to_final(&ds)
+            .await
+            .unwrap();
+        }
+        let processor = ContractProcessor::new(datastore);
+
+        let commit_data = serde_json::json!({
+            "body": [{
+                "method": "repost",
+                "path": "/reposts/src/hello.text",
+                "value": "secret",
+                "source_contract": "src",
+                "source_path": "/hello.text",
+                "source_commit": "src-commit"
+            }],
+            "head": {}
+        });
+
+        let err = processor
+            .process_commit("dest", "dest-commit", &commit_data.to_string())
+            .await
+            .expect_err("unsequenced source must be rejected");
+        assert!(
+            err.to_string().contains("has not been sequenced"),
+            "unexpected error: {err}"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_repost_accepted_when_source_is_sequenced() {
+        let datastore = Arc::new(Mutex::new(
+            DatastoreManager::create_in_memory().unwrap()
+        ));
+        let processor = ContractProcessor::new(datastore.clone());
+
+        let source_post = serde_json::json!({
+            "body": [{
+                "method": "post",
+                "path": "/hello.text",
+                "value": "from source"
+            }],
+            "head": {}
+        });
+        processor
+            .process_commit("src", "src-commit", &source_post.to_string())
+            .await
+            .unwrap();
+        {
+            let ds = datastore.lock().await;
+            let keys = [
+                ("contract_id".to_string(), "src".to_string()),
+                ("commit_id".to_string(), "src-commit".to_string()),
+            ]
+            .into_iter()
+            .collect();
+            let mut source = Commit::find_one_multi(&ds, keys).await.unwrap().unwrap();
+            source.in_batch = Some("cert-1".to_string());
+            source.save_to_final(&ds).await.unwrap();
+        }
+
+        let dest_repost = serde_json::json!({
+            "body": [{
+                "method": "repost",
+                "path": "/reposts/src/hello.text",
+                "value": "from source",
+                "source_contract": "src",
+                "source_path": "/hello.text",
+                "source_commit": "src-commit"
+            }],
+            "head": {}
+        });
+        let changes = processor
+            .process_commit("dest", "dest-commit", &dest_repost.to_string())
+            .await
+            .unwrap();
+        assert_eq!(changes.len(), 1);
+
+        let ds = datastore.lock().await;
+        let copied = ds
+            .get_string("/contracts/dest/reposts/src/hello.text")
+            .await
+            .unwrap();
+        assert_eq!(copied, Some("from source".to_string()));
     }
 }
