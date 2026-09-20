@@ -8,12 +8,14 @@ title: Predicates
 This page names the language vocabulary. The currently verified local
 first-contract path is narrower: method labels, `signed_by`, `any_signed`,
 `all_signed`, `threshold`, `modifies`, `post_to_path`, `has_property`,
-`text_eq`, `amount_in_range`, `bool_true`, and `bool_false` are enforced from replayable commit artifacts. See the
+`text_eq`, `amount_in_range`, `num_eq`, `num_gt`, `num_gte`, `num_lt`,
+`num_lte`, `bool_true`, and `bool_false` are enforced from replayable commit
+artifacts. See the
 [standard predicate evidence matrix](../reference/standard-predicates.md) for
 the exact source of each fact.
 
 Do not treat the future vocabulary below as runtime evidence until a validator
-path documents its artifact format and tests. Oracle, time, most comparison,
+path documents its artifact format and tests. Oracle, time, text-contains,
 hash, and most WASM predicates are extension vocabulary in the local
 first-contract path, not proof that external facts were checked.
 
@@ -76,6 +78,11 @@ first-contract path, not proof that external facts were checked.
 The local validator derives `bool_true` and `bool_false` from accepted-state
 booleans only; a boolean written by the same pending commit is not evidence for
 that commit.
+
+The local validator also derives `num_eq`, `num_gt`, `num_gte`, `num_lt`, and
+`num_lte` from accepted-state numbers only. The right-hand side can be a
+literal number or another accepted-state number path; a number written by the
+same pending commit is not evidence for that commit.
 
 ## Hash Predicates
 

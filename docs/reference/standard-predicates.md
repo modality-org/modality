@@ -27,6 +27,7 @@ local validator path.
 | `has_property(/path, "a.b")` | Accepted-state JSON at `/path` | Reads previously committed JSON and follows dot-separated object keys |
 | `text_eq(/path, "value")` or `text_eq(/left, /right)` | Accepted-state text | Compares previously committed string values or a committed string to a literal |
 | `amount_in_range(/path, "min", "max")` | Accepted-state number | Compares a previously committed number to inclusive quoted numeric or accepted-state numeric bounds |
+| `num_eq`, `num_gt`, `num_gte`, `num_lt`, `num_lte` | Accepted-state number | Compares a previously committed number to a literal or accepted-state numeric bound |
 | `bool_true(/path)` and `bool_false(/path)` | Accepted-state boolean | Checks a previously committed boolean value |
 
 Other reference predicates below describe the intended standard vocabulary.
@@ -41,7 +42,7 @@ currently enforced by the local first-contract validator.
 | Predicate family | Local first-contract validator | Notes |
 |------------------|--------------------------------|-------|
 | Method labels such as `+POST` and `+MODEL` | Enforced | Derived from pending commit body methods |
-| `signed_by`, `any_signed`, `all_signed`, `threshold`, `modifies`, `post_to_path`, `has_property`, `text_eq`, `amount_in_range`, `bool_true`, `bool_false` | Enforced | Derived from pending signatures, accepted state, pending methods, pending paths, accepted-state JSON, accepted-state text, accepted-state numbers, and accepted-state booleans |
+| `signed_by`, `any_signed`, `all_signed`, `threshold`, `modifies`, `post_to_path`, `has_property`, `text_eq`, `amount_in_range`, `num_eq`, `num_gt`, `num_gte`, `num_lt`, `num_lte`, `bool_true`, `bool_false` | Enforced | Derived from pending signatures, accepted state, pending methods, pending paths, accepted-state JSON, accepted-state text, accepted-state numbers, and accepted-state booleans |
 | `timestamp_valid` | Unit-tested extension module only | Implemented in `modal-wasm-validation`; not yet replay evidence for the local first-contract validator |
 | `before`, `after`, other state predicates, hash predicates, `oracle_attests`, and `wasm` | Not first-contract-local yet | Intended extension vocabulary; treat as external or future predicate checks unless a validator path explicitly documents support |
 
@@ -51,9 +52,10 @@ For first-contract checkpoint review, the local validator evidence surface now
 covers method labels, pending signatures, accepted-state identity paths,
 segment-aware pending write paths, accepted-state JSON properties,
 accepted-state text comparisons, accepted-state numeric ranges, and
-accepted-state boolean checks. That is enough to review local log conformance
-for the current onboarding access-control and state-guard examples without
-depending on clocks, oracles, hash preimages, or custom WASM execution.
+accepted-state numeric comparisons plus accepted-state boolean checks. That is
+enough to review local log conformance for the current onboarding
+access-control and state-guard examples without depending on clocks, oracles,
+hash preimages, or custom WASM execution.
 
 Keep deadline, oracle, hash, and broader WASM predicates out of first-contract
 claims until the validator path documents the replay artifact format, trust
@@ -220,10 +222,10 @@ text_eq(/actual/status.text, /expected/status.text)
 ```
 
 The `modal-wasm-validation` crate also has unit-tested state-inspection modules.
-The `has_property`, `text_eq`, `amount_in_range`, `bool_true`, and `bool_false`
-bindings above are
-first-contract-local replay evidence today. They read only accepted state; they
-do not see JSON, text, numbers, or booleans written by the same pending commit.
+The `has_property`, `text_eq`, `amount_in_range`, numeric comparison,
+`bool_true`, and `bool_false` bindings above are first-contract-local replay
+evidence today. They read only accepted state; they do not see JSON, text,
+numbers, or booleans written by the same pending commit.
 Treat other state predicate inputs as explicit JSON predicate-test data until a
 contract-log validator path documents how the JSON is derived from replayed
 commits and accepted state.
@@ -249,10 +251,13 @@ text_eq(/status.text, "approved")
 
 ### num_eq / num_gt / num_gte / num_lt / num_lte
 
-Intended predicates for numeric comparisons.
+Checks accepted-state numeric values. The first argument must be a path to a
+previously committed number. The second argument can be a numeric literal or a
+path to another previously committed number. Numeric comparisons do not see
+numbers written by the same pending commit.
 
 ```modality
-num_gte(/balance.num, 100)
+num_gte(/balance.num, "100")
 num_lt(/deposit.num, /limit.num)
 ```
 
@@ -333,10 +338,10 @@ WASM predicates are intended custom predicate modules. They are not part of the
 current local first-contract validator evidence matrix unless the predicate is
 explicitly listed above. The local validator now derives `post_to_path(/path)`
 from the pending commit body directly, `has_property(/path, "a.b")` from
-accepted-state JSON directly, `text_eq` from accepted-state strings, and
-`bool_true`/`bool_false` from accepted-state booleans; other WASM-style
-predicate-test inputs remain explicit JSON until a validator path documents
-their replay binding.
+accepted-state JSON directly, `text_eq` from accepted-state strings, numeric
+comparisons from accepted-state numbers, and `bool_true`/`bool_false` from
+accepted-state booleans; other WASM-style predicate-test inputs remain
+explicit JSON until a validator path documents their replay binding.
 
 ```bash
 modal predicate create --name my_predicate --output ./predicates/

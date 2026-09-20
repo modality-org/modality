@@ -70,6 +70,9 @@ It also derives `text_eq` from accepted-state strings when comparing a state
 path to a literal string or to another accepted-state path.
 It also derives `amount_in_range` from accepted-state numbers when comparing a
 state path to inclusive literal or accepted-state numeric bounds.
+It also derives `num_eq`, `num_gt`, `num_gte`, `num_lt`, and `num_lte` from
+accepted-state numbers when comparing a state path to a literal number or to
+another accepted-state number path.
 It also derives `bool_true` and `bool_false` from accepted-state booleans.
 
 **Input**:

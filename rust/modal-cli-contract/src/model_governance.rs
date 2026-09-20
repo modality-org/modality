@@ -1219,6 +1219,26 @@ impl CommitFacts {
                 (Some(path), Some(min), Some(max)) => self.amount_in_range(path, min, max),
                 _ => false,
             },
+            "num_eq" => match (args.first(), args.get(1)) {
+                (Some(left), Some(right)) => self.number_compare(left, right, |a, b| a == b),
+                _ => false,
+            },
+            "num_gt" => match (args.first(), args.get(1)) {
+                (Some(left), Some(right)) => self.number_compare(left, right, |a, b| a > b),
+                _ => false,
+            },
+            "num_gte" => match (args.first(), args.get(1)) {
+                (Some(left), Some(right)) => self.number_compare(left, right, |a, b| a >= b),
+                _ => false,
+            },
+            "num_lt" => match (args.first(), args.get(1)) {
+                (Some(left), Some(right)) => self.number_compare(left, right, |a, b| a < b),
+                _ => false,
+            },
+            "num_lte" => match (args.first(), args.get(1)) {
+                (Some(left), Some(right)) => self.number_compare(left, right, |a, b| a <= b),
+                _ => false,
+            },
             "bool_true" => args
                 .first()
                 .map(|path| self.state_bool(path) == Some(true))
@@ -1283,6 +1303,18 @@ impl CommitFacts {
             if let (Some(path), Some(min), Some(max)) = (args.first(), args.get(1), args.get(2)) {
                 return format!(
                     "missing {formatted} (accepted state number at {path} is not in inclusive range [{min}, {max}])"
+                );
+            }
+        }
+
+        if matches!(
+            property.name.as_str(),
+            "num_eq" | "num_gt" | "num_gte" | "num_lt" | "num_lte"
+        ) {
+            let args = predicate_args(property);
+            if let (Some(left), Some(right)) = (args.first(), args.get(1)) {
+                return format!(
+                    "missing {formatted} (accepted state number at {left} does not satisfy {right})"
                 );
             }
         }
@@ -1420,6 +1452,17 @@ impl CommitFacts {
         };
 
         min <= max && amount >= min && amount <= max
+    }
+
+    fn number_compare(&self, left: &str, right: &str, compare: impl Fn(f64, f64) -> bool) -> bool {
+        let Some(left) = self.state_number(left) else {
+            return false;
+        };
+        let Some(right) = self.number_arg(right) else {
+            return false;
+        };
+
+        compare(left, right)
     }
 
     fn number_arg(&self, arg: &str) -> Option<f64> {
@@ -2380,6 +2423,78 @@ model AmountInRangePaths {
         assert!(
             has_valid_transition(&bounded_model, &current_states, &facts),
             "accepted-state numbers should satisfy path-bound amount_in_range"
+        );
+    }
+
+    #[test]
+    fn enforces_number_comparisons_against_accepted_state_numbers() {
+        let model = parse_content_lalrpop(
+            r#"
+model NumberComparisons {
+  initial active
+  active --> active: +POST +num_eq(/invoice/paid.num, /invoice/total.num) +num_gte(/invoice/paid.num, "50") +num_lt(/invoice/paid.num, "100")
+}
+            "#,
+        )
+        .unwrap();
+        let mut current_states = HashSet::new();
+        current_states.insert("active".to_string());
+        let mut state = HashMap::new();
+        state.insert("invoice/paid.num".to_string(), serde_json::json!(75));
+        state.insert("invoice/total.num".to_string(), serde_json::json!(75));
+
+        let mut commit = CommitFile::new();
+        commit.add_action(
+            "post".to_string(),
+            Some("/notes/next.text".to_string()),
+            Value::String("ok".to_string()),
+        );
+        let facts = CommitFacts::from_commit(&commit, &state);
+
+        assert!(
+            has_valid_transition(&model, &current_states, &facts),
+            "accepted-state numbers should satisfy numeric comparisons"
+        );
+
+        let mut pending_only = CommitFile::new();
+        pending_only.add_action(
+            "post".to_string(),
+            Some("/invoice/paid.num".to_string()),
+            serde_json::json!(75),
+        );
+        pending_only.add_action(
+            "post".to_string(),
+            Some("/invoice/total.num".to_string()),
+            serde_json::json!(75),
+        );
+        let pending_only_facts = CommitFacts::from_commit(&pending_only, &HashMap::new());
+        let err = explain_no_valid_transition(&model, &current_states, &pending_only_facts);
+
+        assert!(
+            err.contains("missing +num_eq(/invoice/paid.num, /invoice/total.num)"),
+            "{err}"
+        );
+        assert!(
+            err.contains(
+                "accepted state number at /invoice/paid.num does not satisfy /invoice/total.num"
+            ),
+            "{err}"
+        );
+
+        let gt_model = parse_content_lalrpop(
+            r#"
+model NumberGreaterThan {
+  initial active
+  active --> active: +POST +num_gt(/invoice/paid.num, "80")
+}
+            "#,
+        )
+        .unwrap();
+        let err = explain_no_valid_transition(&gt_model, &current_states, &facts);
+
+        assert!(
+            err.contains("missing +num_gt(/invoice/paid.num, 80)"),
+            "{err}"
         );
     }
 

@@ -19,9 +19,23 @@ pub fn rank_candidate_transitions(candidates: &mut [CandidateTransitionExplanati
         left.failures
             .len()
             .cmp(&right.failures.len())
+            .then_with(|| {
+                failure_kind_rank(&left.failures).cmp(&failure_kind_rank(&right.failures))
+            })
             .then_with(|| left.transition_key.cmp(&right.transition_key))
             .then_with(|| left.summary.cmp(&right.summary))
     });
+}
+
+fn failure_kind_rank(failures: &[String]) -> usize {
+    if failures
+        .iter()
+        .any(|failure| failure.starts_with("missing "))
+    {
+        1
+    } else {
+        0
+    }
 }
 
 fn rank_and_dedup_candidate_transitions(candidates: &mut Vec<CandidateTransitionExplanation>) {
@@ -533,6 +547,35 @@ mod tests {
             vec![
                 "candidate from current state q1: q1 -> q2 [+POST +signed_by(/a.id)]; failed predicates: missing +POST",
                 "candidate from current state q1: q1 -> q2 [+POST +signed_by(/b.id)]; failed predicates: missing +POST"
+            ]
+        );
+    }
+
+    #[test]
+    fn ranks_forbidden_predicate_tie_ahead_of_missing_evidence_tie() {
+        let mut candidates = vec![
+            CandidateTransitionExplanation {
+                failures: vec!["missing +all_signed(/members)".to_string()],
+                summary: "missing evidence candidate".to_string(),
+                transition_key: "q1:q1->q2".to_string(),
+            },
+            CandidateTransitionExplanation {
+                failures: vec!["forbidden -modifies(/members) matched".to_string()],
+                summary: "forbidden predicate candidate".to_string(),
+                transition_key: "q1:q1->q2".to_string(),
+            },
+        ];
+
+        rank_candidate_transitions(&mut candidates);
+
+        assert_eq!(
+            candidates
+                .iter()
+                .map(|candidate| candidate.summary.as_str())
+                .collect::<Vec<_>>(),
+            vec![
+                "forbidden predicate candidate",
+                "missing evidence candidate"
             ]
         );
     }
