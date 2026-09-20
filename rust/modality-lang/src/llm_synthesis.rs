@@ -10439,6 +10439,37 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
     }
 
     #[test]
+    fn test_common_pattern_formulas_are_lint_clean() {
+        for line in SYSTEM_PROMPT.lines() {
+            if !line.starts_with("| \"") {
+                continue;
+            }
+
+            let mut remaining = line;
+            while let Some(start) = remaining.find('`') {
+                let after_start = &remaining[start + 1..];
+                let Some(end) = after_start.find('`') else {
+                    break;
+                };
+                let formula_src = &after_start[..end];
+                remaining = &after_start[end + 1..];
+
+                let wrapped = format!("formula prompt_example {{\n{formula_src}\n}}");
+                let formulas =
+                    crate::parse_all_formulas_content_lalrpop(&wrapped).unwrap_or_else(|err| {
+                        panic!("prompt formula did not parse: {formula_src}: {err:?}")
+                    });
+                let diagnostics =
+                    crate::lint_formula(&formulas[0], &crate::FormulaLintOptions::default());
+                assert!(
+                    diagnostics.is_empty(),
+                    "prompt formula should be lint-clean: {formula_src}: {diagnostics:?}"
+                );
+            }
+        }
+    }
+
+    #[test]
     fn test_prompt_includes_committed_action_authorization_pattern() {
         let prompt = generate_prompt("Committed release requires buyer signature");
 
