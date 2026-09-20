@@ -721,6 +721,49 @@ mod tests {
         );
     }
 
+    #[cfg(feature = "full")]
+    #[test]
+    fn node_without_subcommand_parses_dir_for_action_picker() {
+        use clap::Parser;
+        let cli = Cli::try_parse_from(["modality", "node", "--dir", "./tmp/node1"]).unwrap();
+        match cli.command {
+            Commands::Node { opts, command } => {
+                assert!(command.is_none());
+                assert_eq!(
+                    opts.dir.as_deref(),
+                    Some(std::path::Path::new("./tmp/node1"))
+                );
+            }
+            _ => panic!("expected `node` with no subcommand"),
+        }
+    }
+
+    #[cfg(feature = "full")]
+    #[test]
+    fn node_run_hybrid_still_takes_dir_on_subcommand() {
+        use clap::Parser;
+        let cli = Cli::try_parse_from([
+            "modality",
+            "node",
+            "run-hybrid",
+            "--dir",
+            "./tmp/node1",
+        ])
+        .unwrap();
+        match cli.command {
+            Commands::Node {
+                command: Some(NodeCommands::RunHybrid(opts)),
+                ..
+            } => {
+                assert_eq!(
+                    opts.common.dir.as_deref(),
+                    Some(std::path::Path::new("./tmp/node1"))
+                );
+            }
+            _ => panic!("expected `node run-hybrid`"),
+        }
+    }
+
     #[cfg(all(
         feature = "cli-contract",
         feature = "identity",

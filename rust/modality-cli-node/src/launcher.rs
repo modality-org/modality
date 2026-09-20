@@ -145,7 +145,16 @@ fn build_menu(dir: &PathBuf, config: Option<&PathBuf>) -> Result<ActionMenu> {
         ),
     ];
 
-    let selected = if config_exists { 0 } else { 5 };
+    let selected = items
+        .iter()
+        .position(|item| {
+            if config_exists {
+                item.action == PickedAction::RunFromConfig
+            } else {
+                item.action == PickedAction::Create
+            }
+        })
+        .unwrap_or(0);
 
     Ok(ActionMenu {
         dir_display: dir.display().to_string(),
@@ -218,11 +227,12 @@ mod tests {
 
     #[test]
     fn menu_without_config_selects_create() {
-        let dir = PathBuf::from("/tmp/modality-missing-node-dir-for-test");
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = tmp.path().to_path_buf();
         let menu = build_menu(&dir, None).unwrap();
-        assert_eq!(menu.selected, 5);
         assert!(!menu.items[0].enabled);
         assert!(menu.items[5].enabled);
         assert_eq!(menu.items[5].action, PickedAction::Create);
+        assert_eq!(menu.selected, 5);
     }
 }

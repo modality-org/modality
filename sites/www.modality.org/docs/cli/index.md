@@ -41,7 +41,7 @@ as `modality model lint`, `modality model synthesize`,
 | `modal hub` | — | Contract hub server and collaboration; full wrapper only |
 | `modal predicate` | — | Predicate listing and testing; full wrapper only |
 | `modal program` | — | Program management; full wrapper only |
-| `modal node` | — | Network node operations; full wrapper only |
+| `modal node` | — | Network node operations; full wrapper only. With no subcommand, opens an action-picker TUI |
 | `modal net` | `modal network` | Network information; full wrapper only |
 | `modal local` | — | Local development utilities; full wrapper only |
 | `modal run` | — | Quick node runners; full wrapper only |

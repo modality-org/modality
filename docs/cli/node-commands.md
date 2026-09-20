@@ -12,6 +12,18 @@ Most node commands resolve configuration from `--config <CONFIG>` or from
 `--dir <DIR>/config.json`. If neither flag is supplied, commands that operate on
 one node default to the current directory.
 
+## Interactive picker
+
+```bash
+modal node --dir ./tmp/node1
+```
+
+With no subcommand, `modal node` opens a **terminal UI** to pick an action: run
+from config, hybrid, miner, validator, observer, create, start, stop, info, or
+logs. Arrow keys move, `Enter` runs the highlighted action, `q` quits. Requires
+a TTY. Background scripts should keep using an explicit subcommand such as
+`run-hybrid`.
+
 ## Create
 
 ```bash

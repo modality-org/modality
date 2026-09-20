@@ -8,6 +8,7 @@ required_patterns=(
   "# Node Commands (\`modal node\`)"
   "full Rust wrapper"
   "not in the lean first-contract onboarding wrapper"
+  "modal node --dir ./tmp/node1"
   "modal node create [OPTIONS]"
   "\`--dir <DIR>\` | Node directory to create"
   "\`--node-id <NODE_ID>\` | Existing peer ID to record"
