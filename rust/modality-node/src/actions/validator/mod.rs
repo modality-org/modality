@@ -80,7 +80,7 @@ pub async fn run(node: &mut Node) -> Result<()> {
     }
     
     // Check and start consensus based on configuration
-    start_consensus_if_configured(node).await;
+    start_sequencing(node).await;
     
     // Get the starting chain tip
     let starting_index = get_chain_tip_index(&node.datastore_manager).await;
@@ -106,9 +106,11 @@ pub async fn run(node: &mut Node) -> Result<()> {
     Ok(())
 }
 
-/// Check and start consensus based on node configuration.
-async fn start_consensus_if_configured(node: &Node) {
-    // Convert libp2p keypair to modality_common Keypair for signing
+/// Start sequencing (static Shoal or hybrid N−2) if this node is configured for it.
+///
+/// Miners and validators both call this so a hybrid miner can mine and sequence
+/// in one process. The gossip receiver is taken here and handed to the live loop.
+pub async fn start_sequencing(node: &mut Node) {
     let keypair = match Keypair::from_libp2p_keypair(node.node_keypair.clone()) {
         Ok(kp) => kp,
         Err(e) => {
@@ -116,12 +118,10 @@ async fn start_consensus_if_configured(node: &Node) {
             return;
         }
     };
-    
-    // Get swarm and consensus channel for communication
+
     let swarm = node.swarm.clone();
     let consensus_tx = node.get_consensus_tx();
-    
-    // Check if this node is part of static validators and start consensus if so
+
     let static_validators = {
         let ds = node.datastore_manager.lock().await;
         ds.get_static_validators().await.ok().flatten()
@@ -130,7 +130,16 @@ async fn start_consensus_if_configured(node: &Node) {
     if let Some(validators) = static_validators {
         let node_peer_id_str = node.peerid.to_string();
         if validators.contains(&node_peer_id_str) {
+            let Some(consensus_rx) = node.take_consensus_rx() else {
+                log::error!("Consensus receiver already taken; cannot start static consensus");
+                return;
+            };
             log::info!("🏛️  This node is a static validator - starting Shoal consensus");
+            let _epoch_rx = node.epoch_transition_tx.subscribe();
+            hybrid::start_epoch_watch_from_chain(
+                node.datastore_manager.clone(),
+                node.epoch_transition_tx.clone(),
+            );
             consensus::start_static_validator_consensus(
                 &node_peer_id_str,
                 &validators,
@@ -138,28 +147,35 @@ async fn start_consensus_if_configured(node: &Node) {
                 keypair,
                 swarm,
                 consensus_tx,
-            ).await;
+                consensus_rx,
+            )
+            .await;
         } else {
             log::info!("This node is not in the static validators list");
         }
+    } else if node.hybrid_consensus {
+        let Some(consensus_rx) = node.take_consensus_rx() else {
+            log::error!("Consensus receiver already taken; cannot start hybrid consensus");
+            return;
+        };
+        log::info!(
+            "🔄 Hybrid consensus enabled — sequencers selected from epoch N-2 mining nominations"
+        );
+        let epoch_rx = node.epoch_transition_tx.subscribe();
+        hybrid::start_epoch_watch_from_chain(
+            node.datastore_manager.clone(),
+            node.epoch_transition_tx.clone(),
+        );
+        hybrid::start_hybrid_consensus_monitor(
+            node.datastore_manager.clone(),
+            node.peerid.to_string(),
+            epoch_rx,
+            keypair,
+            swarm,
+            consensus_tx,
+            consensus_rx,
+        );
     } else {
-        log::info!("No static validators configured");
-        
-        // Check if hybrid consensus is enabled
-        if node.hybrid_consensus && node.run_validator {
-            log::info!("🔄 Hybrid consensus mode enabled - validators selected from epoch N-2 mining nominations");
-            hybrid::start_hybrid_consensus_monitor(
-                node.datastore_manager.clone(),
-                node.peerid.to_string(),
-                node.epoch_transition_tx.subscribe(),
-                keypair,
-                swarm,
-                consensus_tx,
-            );
-        } else if node.hybrid_consensus {
-            log::info!("Hybrid consensus mode enabled but run_validator is false - running as miner only");
-        } else {
-            log::info!("Consensus not enabled (no static validators and hybrid consensus is off)");
-        }
+        log::info!("Consensus not enabled (no static validators and hybrid consensus is off)");
     }
 }

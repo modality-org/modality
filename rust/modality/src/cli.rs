@@ -267,6 +267,9 @@ enum NodeCommands {
     #[command(about = "Run a mining node")]
     RunMiner(modality_cli_node::run_miner::Opts),
 
+    #[command(about = "Run a hybrid node (mines and sequences under N-2 lookback)")]
+    RunHybrid(modality_cli_node::run_hybrid::Opts),
+
     #[command(about = "Run a validator node (observes mining, does not mine)")]
     RunValidator(modality_cli_node::run_validator::Opts),
 
@@ -382,6 +385,9 @@ enum HubCommands {
 enum RunCommands {
     #[command(about = "Run a mining node")]
     Miner(modality_cli_node::run_miner::Opts),
+
+    #[command(about = "Run a hybrid node (mines and sequences under N-2 lookback)")]
+    Hybrid(modality_cli_node::run_hybrid::Opts),
 
     #[command(about = "Run a validator node (observes mining, does not mine)")]
     Validator(modality_cli_node::run_validator::Opts),
@@ -582,6 +588,7 @@ pub async fn run() -> Result<()> {
             NodeCommands::Logs(opts) => modality_cli_node::logs::run(opts).await?,
             NodeCommands::Run(opts) => modality_cli_node::run::run(opts).await?,
             NodeCommands::RunMiner(opts) => modality_cli_node::run_miner::run(opts).await?,
+            NodeCommands::RunHybrid(opts) => modality_cli_node::run_hybrid::run(opts).await?,
             NodeCommands::RunValidator(opts) => modality_cli_node::run_validator::run(opts).await?,
             NodeCommands::RunObserver(opts) => modality_cli_node::run_observer::run(opts).await?,
             NodeCommands::RunNoop(opts) => modality_cli_node::run_noop::run(opts).await?,
@@ -646,6 +653,7 @@ pub async fn run() -> Result<()> {
         #[cfg(feature = "full")]
         Commands::Run { command } => match command {
             RunCommands::Miner(opts) => modality_cli_node::run_miner::run(opts).await?,
+            RunCommands::Hybrid(opts) => modality_cli_node::run_hybrid::run(opts).await?,
             RunCommands::Validator(opts) => modality_cli_node::run_validator::run(opts).await?,
             RunCommands::Observer(opts) => modality_cli_node::run_observer::run(opts).await?,
         },

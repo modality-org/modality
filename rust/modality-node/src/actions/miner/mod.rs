@@ -73,12 +73,17 @@ pub async fn run(node: &mut Node) -> Result<()> {
     
     // Subscribe to miner gossip
     gossip::add_miner_event_listeners(node).await?;
+    gossip::add_validator_event_listeners(node).await?;
+    log::info!("Subscribed to miner and sequencer gossip");
     
     // Start services
     node.start_status_server().await?;
     node.start_status_html_writer().await?;
     node.start_networking().await?;
     node.start_autoupgrade().await?;
+
+    // Mine and sequence in one process when hybrid (default) or static sequencers apply.
+    crate::actions::validator::start_sequencing(node).await;
     
     // Start block promotion/purge background task
     background_tasks::start_promotion_task(

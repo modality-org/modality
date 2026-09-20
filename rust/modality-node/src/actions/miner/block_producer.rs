@@ -11,7 +11,7 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 
 use crate::gossip;
-use crate::constants::{BLOCKS_PER_EPOCH, ROLLING_INTEGRITY_CHECK_INTERVAL, ROLLING_INTEGRITY_WINDOW};
+use crate::constants::{ROLLING_INTEGRITY_CHECK_INTERVAL, ROLLING_INTEGRITY_WINDOW};
 use super::mining_loop::MiningOutcome;
 
 /// Mine a block and gossip it to peers.
@@ -120,10 +120,14 @@ pub async fn mine_and_gossip_block(
     }
 
     // Convert to MinerBlock
+    let blocks_per_epoch = {
+        let ds = datastore.lock().await;
+        ds.epoch_config().blocks_per_epoch.max(1)
+    };
     let miner_block = MinerBlock::new_canonical(
         mined_block.header.hash.clone(),
         index,
-        index / BLOCKS_PER_EPOCH,
+        index / blocks_per_epoch,
         mined_block.header.timestamp.timestamp(),
         mined_block.header.previous_hash.clone(),
         mined_block.header.data_hash.clone(),
@@ -145,7 +149,7 @@ pub async fn mine_and_gossip_block(
     }
     
     // Log epoch changes
-    if miner_block.index > 0 && miner_block.index.is_multiple_of(BLOCKS_PER_EPOCH) {
+    if miner_block.index > 0 && miner_block.index.is_multiple_of(blocks_per_epoch) {
         log::info!("🎯 EPOCH {} STARTED - New target difficulty: {}", miner_block.epoch, miner_block.target_difficulty);
         
         if let Some(tx) = epoch_transition_tx {

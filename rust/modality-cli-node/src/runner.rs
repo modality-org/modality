@@ -47,6 +47,8 @@ impl CommonNodeOpts {
 pub enum NodeRole {
     /// Mining node that participates in block production
     Miner,
+    /// Hybrid node that mines and sequences when nominated
+    Hybrid,
     /// Observer node that watches the chain but doesn't mine
     Observer,
     /// Validator node that validates blocks
@@ -62,6 +64,7 @@ impl NodeRole {
     pub fn description(&self) -> &'static str {
         match self {
             NodeRole::Miner => "mining node",
+            NodeRole::Hybrid => "hybrid mining+sequencing node",
             NodeRole::Observer => "observer node",
             NodeRole::Validator => "validator node",
             NodeRole::Noop => "noop node",
@@ -114,6 +117,10 @@ pub async fn run_node(opts: &CommonNodeOpts, role: NodeRole, manage_pid: bool) -
     // Run the appropriate action
     match role {
         NodeRole::Miner => actions::miner::run(&mut node).await?,
+        NodeRole::Hybrid => {
+            node.hybrid_consensus = true;
+            actions::miner::run(&mut node).await?;
+        }
         NodeRole::Observer => actions::observer::run(&mut node).await?,
         NodeRole::Validator => actions::validator::run(&mut node).await?,
         NodeRole::Noop => actions::noop::run(&mut node).await?,
@@ -135,6 +142,11 @@ pub async fn run_node(opts: &CommonNodeOpts, role: NodeRole, manage_pid: bool) -
 /// Run a miner node with the given options.
 pub async fn run_miner(opts: &CommonNodeOpts) -> Result<()> {
     run_node(opts, NodeRole::Miner, true).await
+}
+
+/// Run a hybrid node (mine + sequence when nominated).
+pub async fn run_hybrid(opts: &CommonNodeOpts) -> Result<()> {
+    run_node(opts, NodeRole::Hybrid, true).await
 }
 
 /// Run an observer node with the given options.
@@ -161,10 +173,11 @@ pub async fn run_server(opts: &CommonNodeOpts) -> Result<()> {
     // Determine role from config.run_as, falling back to run_miner logic
     let role = match config.run_as.as_deref() {
         Some("miner") => NodeRole::Miner,
+        Some("hybrid") => NodeRole::Hybrid,
         Some("observer") => NodeRole::Observer,
         Some("validator") => NodeRole::Validator,
         Some("noop") => NodeRole::Noop,
-        Some(unknown) => anyhow::bail!("Unknown run_as value in config: '{}'. Valid values: miner, observer, validator, noop", unknown),
+        Some(unknown) => anyhow::bail!("Unknown run_as value in config: '{}'. Valid values: miner, hybrid, observer, validator, noop", unknown),
         None => {
             // Fall back to legacy run_miner behavior
             if config.run_miner.unwrap_or(false) {

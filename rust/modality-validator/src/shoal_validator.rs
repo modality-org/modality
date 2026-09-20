@@ -1,7 +1,7 @@
 use crate::error::{Result, ValidatorError};
 use modality_datastore::DatastoreManager;
 use modality_validator_consensus::narwhal::{
-    Certificate, Committee, Primary, PublicKey, Transaction, Validator, Worker,
+    create_vote, Certificate, Committee, Primary, PublicKey, Transaction, Validator, Worker,
     SyncClient, SyncRequest, SyncResponse,
 };
 use modality_validator_consensus::narwhal::dag::DAG;
@@ -195,6 +195,9 @@ pub struct ShoalValidator {
     
     /// Sync client for DAG synchronization
     sync_client: SyncClient,
+
+    /// Libp2p keypair used to sign Narwhal votes for this validator
+    signing_keypair: Option<libp2p_identity::Keypair>,
 }
 
 impl ShoalValidator {
@@ -262,7 +265,14 @@ impl ShoalValidator {
             consensus,
             ordering,
             sync_client,
+            signing_keypair: None,
         })
+    }
+
+    /// Attach the validator's signing keypair used for Narwhal votes.
+    pub fn with_signing_keypair(mut self, keypair: libp2p_identity::Keypair) -> Self {
+        self.signing_keypair = Some(keypair);
+        self
     }
     
     /// Initialize the validator by loading existing state
@@ -287,51 +297,106 @@ impl ShoalValidator {
         }
     }
     
-    /// Propose a new batch (called periodically by consensus loop)
+    /// Propose a new batch (called periodically by consensus loop).
+    ///
+    /// Adds this validator's signed vote only. Returns `None` until a quorum of
+    /// votes can be assembled (other votes arrive via `process_certificate`).
     pub async fn propose_batch(&self) -> Result<Option<Certificate>> {
-        // Form batch from first worker
+        self.propose_batch_inner(false).await
+    }
+
+    /// Test helper: sign votes for every committee member using the deterministic
+    /// keys from `ShoalValidatorConfig::new_test`.
+    #[cfg(test)]
+    pub async fn propose_batch_with_test_quorum(&self) -> Result<Option<Certificate>> {
+        self.propose_batch_inner(true).await
+    }
+
+    async fn propose_batch_inner(&self, simulate_committee_votes: bool) -> Result<Option<Certificate>> {
         let batch_opt = if let Some(worker) = self.workers.first() {
             let mut worker = worker.lock().await;
             worker.form_batch().await
         } else {
             None
         };
-        
-        if let Some((batch, batch_digest)) = batch_opt {
-            log::info!("formed batch with {} transactions", batch.transactions.len());
-            
-            // Create header
-            let mut primary = self.primary.lock().await;
-            let header = primary.propose(batch_digest).await?;
-            
-            log::info!("proposed header for round {}", header.round);
-            
-            // In a real implementation, we would broadcast header and collect votes
-            // For now, simulate immediate certificate formation for testing
-            let mut builder = primary.create_certificate_builder(header);
-            
-            // Simulate votes from all validators (for testing)
-            for validator in &self.config.committee.validator_order {
-                builder.add_vote(*validator, vec![])?;
+
+        let Some((batch, batch_digest)) = batch_opt else {
+            return Ok(None);
+        };
+
+        log::info!("formed batch with {} transactions", batch.transactions.len());
+
+        let mut primary = self.primary.lock().await;
+        let header = primary.propose(batch_digest).await?;
+
+        log::info!("proposed header for round {}", header.round);
+
+        let Some(ref signing_keypair) = self.signing_keypair else {
+            log::warn!("no signing keypair configured; cannot vote on proposed header");
+            return Ok(None);
+        };
+
+        let mut builder = primary.create_certificate_builder(header.clone());
+        let vote = create_vote(&header, signing_keypair)
+            .map_err(|e| ValidatorError::InitializationFailed(e.to_string()))?;
+        builder
+            .add_vote(vote.voter, vote.signature)
+            .map_err(|e| ValidatorError::InitializationFailed(e.to_string()))?;
+
+        #[cfg(test)]
+        if simulate_committee_votes {
+            for (i, validator) in self.config.committee.validator_order.iter().enumerate() {
+                if *validator == self.config.validator_key {
+                    continue;
+                }
+                let kp = test_committee_keypair(i);
+                let vote = create_vote(&header, &kp)
+                    .map_err(|e| ValidatorError::InitializationFailed(e.to_string()))?;
+                builder
+                    .add_vote(vote.voter, vote.signature)
+                    .map_err(|e| ValidatorError::InitializationFailed(e.to_string()))?;
             }
-            
-            let cert = builder.build()?;
-            
-            // Process certificate through consensus
-            let _digest = cert.digest();
-            primary.process_certificate(cert.clone()).await?;
-            
-            let mut consensus = self.consensus.lock().await;
-            let committed = consensus.process_certificate(cert.clone()).await?;
-            
-            if !committed.is_empty() {
-                log::info!("committed {} certificates", committed.len());
-            }
-            
-            Ok(Some(cert))
-        } else {
-            Ok(None)
         }
+        #[cfg(not(test))]
+        let _ = simulate_committee_votes;
+
+        let cert = match builder.build() {
+            Ok(cert) => cert,
+            Err(_) => return Ok(None),
+        };
+
+        primary.process_certificate(cert.clone()).await?;
+
+        let mut consensus = self.consensus.lock().await;
+        let committed = consensus.process_certificate(cert.clone()).await?;
+
+        if !committed.is_empty() {
+            log::info!("committed {} certificates", committed.len());
+        }
+
+        Ok(Some(cert))
+    }
+
+    /// Feed certified sequencer-block events into Narwhal workers and advance rounds.
+    pub async fn ingest_certified_events(
+        &self,
+        round: u64,
+        events: &[serde_json::Value],
+    ) -> Result<()> {
+        for event in events {
+            let tx = Transaction {
+                data: serde_json::to_vec(event).unwrap_or_default(),
+                timestamp: std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_secs(),
+            };
+            self.submit_transaction(tx).await?;
+        }
+        while self.get_current_round().await < round {
+            self.advance_round().await;
+        }
+        Ok(())
     }
     
     /// Process a certificate received from another validator
@@ -558,6 +623,15 @@ impl ShoalValidator {
 }
 
 #[cfg(test)]
+fn test_committee_keypair(index: usize) -> libp2p_identity::Keypair {
+    use libp2p_identity::ed25519;
+    let mut secret_bytes = [0u8; 32];
+    secret_bytes[0] = index as u8 + 1;
+    let secret = ed25519::SecretKey::try_from_bytes(secret_bytes).expect("valid secret key");
+    libp2p_identity::Keypair::from(ed25519::Keypair::from(secret))
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
     use tempfile::TempDir;
@@ -569,7 +643,8 @@ mod tests {
         let datastore_manager = Arc::new(Mutex::new(datastore_manager));
         
         let config = ShoalValidatorConfig::new_test(4, validator_index);
-        let validator = ShoalValidator::new(datastore_manager, config).await.unwrap();
+        let validator = ShoalValidator::new(datastore_manager, config).await.unwrap()
+            .with_signing_keypair(test_committee_keypair(validator_index));
         
         (validator, temp_dir)
     }
@@ -649,8 +724,8 @@ mod tests {
             validator.submit_transaction(tx).await.unwrap();
         }
         
-        // Propose batch (should form certificate and commit for genesis)
-        let cert = validator.propose_batch().await.unwrap();
+        // Propose batch with a simulated committee quorum (unit test only)
+        let cert = validator.propose_batch_with_test_quorum().await.unwrap();
         assert!(cert.is_some());
         
         let cert = cert.unwrap();
@@ -672,6 +747,18 @@ mod tests {
         
         validator.advance_round().await;
         assert_eq!(validator.get_current_round().await, 2);
+    }
+
+    #[tokio::test]
+    async fn test_ingest_certified_events_advances_round() {
+        let (validator, _temp) = create_test_validator(0).await;
+        validator.initialize().await.unwrap();
+        validator
+            .ingest_certified_events(3, &[serde_json::json!({"type": "contract_push"})])
+            .await
+            .unwrap();
+        assert_eq!(validator.get_current_round().await, 3);
+        assert_eq!(validator.pending_transaction_count().await, 1);
     }
 }
 

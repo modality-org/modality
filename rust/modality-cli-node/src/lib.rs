@@ -33,6 +33,7 @@ pub mod ping;
 pub mod restart;
 pub mod run;
 pub mod run_miner;
+pub mod run_hybrid;
 pub mod run_noop;
 pub mod run_observer;
 pub mod run_validator;

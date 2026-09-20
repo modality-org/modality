@@ -80,7 +80,6 @@ pub struct Node {
     pub status_html_dir: Option<PathBuf>,
     pub status_url: Option<String>,
     consensus_tx: mpsc::Sender<ConsensusMessage>,
-    #[allow(dead_code)]
     consensus_rx: Option<mpsc::Receiver<ConsensusMessage>>,
     shutdown_tx: tokio::sync::broadcast::Sender<()>,
     pub sync_trigger_tx: tokio::sync::broadcast::Sender<u64>,
@@ -189,6 +188,12 @@ impl Node {
     /// Get the consensus message channel sender
     pub fn get_consensus_tx(&self) -> mpsc::Sender<ConsensusMessage> {
         self.consensus_tx.clone()
+    }
+
+    /// Take the consensus message receiver (once). Gossip and req/res handlers
+    /// send on `get_consensus_tx()`; the live Shoal loop must own this receiver.
+    pub fn take_consensus_rx(&mut self) -> Option<mpsc::Receiver<ConsensusMessage>> {
+        self.consensus_rx.take()
     }
 
     /// Set up the node - run bootup tasks and configure swarm

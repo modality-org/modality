@@ -26,7 +26,7 @@ async-mutex = "1.4"
 log = "0.4"
 sha2 = "0.10"
 hex = "0.4"
-libp2p-identity = { version = "0.2.12", features = ["serde"] }
+libp2p-identity = { version = "0.2.12", features = ["serde", "ed25519", "peerid"] }
 base64 = "0.22"
 
 [dev-dependencies]
