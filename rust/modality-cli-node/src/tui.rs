@@ -5,9 +5,11 @@
 //! Tab is ignored (IDE terminals often steal it for pane focus).
 
 use anyhow::Result;
+use crossterm::event::{KeyCode, KeyEventKind};
 use crossterm::execute;
 use crossterm::terminal::{disable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen};
-use modality_node::logging::LogRing;
+use log::Level;
+use modality_node::logging::{LogEntry, LogRing};
 use modality_node::status_snapshot::{NodeStatus, NodeStatusSource};
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
@@ -24,6 +26,87 @@ use super::keys::{is_quit_key, subscribe_interrupt, KeyPump};
 pub(crate) const ACCENT: Color = Color::Cyan;
 pub(crate) const GREEN: Color = Color::Green;
 pub(crate) const MUTED: Color = Color::DarkGray;
+const WARN: Color = Color::Yellow;
+const ERROR: Color = Color::Red;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct LogFilter {
+    /// Inclusive maximum verbosity. `None` shows every type in the ring.
+    max_level: Option<Level>,
+    topic: Option<String>,
+}
+
+impl Default for LogFilter {
+    fn default() -> Self {
+        Self {
+            max_level: None,
+            topic: None,
+        }
+    }
+}
+
+impl LogFilter {
+    fn matches(&self, entry: &LogEntry) -> bool {
+        if let Some(max) = self.max_level {
+            if entry.level > max {
+                return false;
+            }
+        }
+        if let Some(ref topic) = self.topic {
+            if entry.topic != *topic {
+                return false;
+            }
+        }
+        true
+    }
+
+    fn level_label(&self) -> &'static str {
+        match self.max_level {
+            None => "all",
+            Some(Level::Error) => "error+",
+            Some(Level::Warn) => "warn+",
+            Some(Level::Info) => "info+",
+            Some(Level::Debug) => "debug+",
+            Some(Level::Trace) => "trace+",
+        }
+    }
+
+    fn topic_label(&self) -> &str {
+        self.topic.as_deref().unwrap_or("all")
+    }
+
+    fn cycle_level(&mut self) {
+        self.max_level = match self.max_level {
+            None => Some(Level::Error),
+            Some(Level::Error) => Some(Level::Warn),
+            Some(Level::Warn) => Some(Level::Info),
+            Some(Level::Info) => Some(Level::Debug),
+            Some(Level::Debug) => Some(Level::Trace),
+            Some(Level::Trace) => None,
+        };
+    }
+
+    fn cycle_topic(&mut self, entries: &[LogEntry]) {
+        let mut topics: Vec<String> = entries.iter().map(|e| e.topic.clone()).collect();
+        topics.sort();
+        topics.dedup();
+        if topics.is_empty() {
+            self.topic = None;
+            return;
+        }
+        self.topic = match &self.topic {
+            None => Some(topics[0].clone()),
+            Some(current) => match topics.iter().position(|t| t == current) {
+                Some(i) if i + 1 < topics.len() => Some(topics[i + 1].clone()),
+                _ => None,
+            },
+        };
+    }
+
+    fn reset(&mut self) {
+        *self = Self::default();
+    }
+}
 
 pub(crate) struct TerminalGuard;
 
@@ -71,6 +154,7 @@ pub async fn run(source: NodeStatusSource, logs: LogRing, stop_node_on_leave: bo
     terminal.clear()?;
 
     let mut keys = KeyPump::new();
+    let mut filter = LogFilter::default();
     let mut snapshot = None;
     let mut snap_task = {
         let src = source.clone();
@@ -82,7 +166,15 @@ pub async fn run(source: NodeStatusSource, logs: LogRing, stop_node_on_leave: bo
 
     loop {
         let log_lines = logs.snapshot();
-        terminal.draw(|frame| draw(frame, snapshot.as_ref(), &log_lines, stop_node_on_leave))?;
+        terminal.draw(|frame| {
+            draw(
+                frame,
+                snapshot.as_ref(),
+                &log_lines,
+                &filter,
+                stop_node_on_leave,
+            )
+        })?;
 
         tokio::select! {
             biased;
@@ -90,6 +182,15 @@ pub async fn run(source: NodeStatusSource, logs: LogRing, stop_node_on_leave: bo
                 let Some(key) = key else { break; };
                 if is_quit_key(&key) {
                     break;
+                }
+                if key.kind != KeyEventKind::Press {
+                    continue;
+                }
+                match key.code {
+                    KeyCode::Char('l' | 'L') => filter.cycle_level(),
+                    KeyCode::Char('t' | 'T') => filter.cycle_topic(&log_lines),
+                    KeyCode::Char('0') => filter.reset(),
+                    _ => {}
                 }
             }
             _ = interrupt.recv() => break,
@@ -116,7 +217,13 @@ pub async fn run(source: NodeStatusSource, logs: LogRing, stop_node_on_leave: bo
     Ok(())
 }
 
-fn draw(frame: &mut Frame, status: Option<&NodeStatus>, logs: &[String], stop_node_on_leave: bool) {
+fn draw(
+    frame: &mut Frame,
+    status: Option<&NodeStatus>,
+    logs: &[LogEntry],
+    filter: &LogFilter,
+    stop_node_on_leave: bool,
+) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
@@ -133,7 +240,7 @@ fn draw(frame: &mut Frame, status: Option<&NodeStatus>, logs: &[String], stop_no
     draw_epoch(frame, chunks[1], status);
     draw_stats(frame, chunks[2], status);
     draw_blocks(frame, chunks[3], status);
-    draw_logs(frame, chunks[4], logs);
+    draw_logs(frame, chunks[4], logs, filter);
     draw_footer(frame, chunks[5], stop_node_on_leave);
 }
 
@@ -296,19 +403,71 @@ fn draw_blocks(frame: &mut Frame, area: Rect, status: Option<&NodeStatus>) {
     frame.render_widget(table, area);
 }
 
-fn draw_logs(frame: &mut Frame, area: Rect, logs: &[String]) {
+fn draw_logs(frame: &mut Frame, area: Rect, logs: &[LogEntry], filter: &LogFilter) {
+    let filtered: Vec<&LogEntry> = logs.iter().filter(|e| filter.matches(e)).collect();
     let height = area.height.saturating_sub(2) as usize;
-    let start = logs.len().saturating_sub(height);
-    let lines: Vec<Line> = logs[start..]
-        .iter()
-        .map(|l| Line::from(l.as_str()))
-        .collect();
+    let start = filtered.len().saturating_sub(height);
+    let lines: Vec<Line> = if filtered.is_empty() {
+        vec![Line::from(Span::styled(
+            if logs.is_empty() {
+                "waiting for log lines…"
+            } else {
+                "no lines for this type/topic   ·   l / t to cycle   0 to reset"
+            },
+            Style::default().fg(MUTED),
+        ))]
+    } else {
+        filtered[start..]
+            .iter()
+            .map(|e| log_line(e))
+            .collect()
+    };
+    let title = format!(
+        " logs  {}/{}  type:{}  topic:{}  ·  l type  t topic  0 reset ",
+        filtered.len(),
+        logs.len(),
+        filter.level_label(),
+        filter.topic_label(),
+    );
     frame.render_widget(
         Paragraph::new(lines)
             .wrap(Wrap { trim: false })
-            .block(Block::default().borders(Borders::ALL).title(" logs ")),
+            .block(Block::default().borders(Borders::ALL).title(title)),
         area,
     );
+}
+
+fn log_line(entry: &LogEntry) -> Line<'static> {
+    Line::from(vec![
+        Span::styled(
+            format!("{:<5}", entry.level),
+            Style::default().fg(level_color(entry.level)),
+        ),
+        Span::raw(" "),
+        Span::styled(
+            format!("{:<10}", truncate_topic(&entry.topic, 10)),
+            Style::default().fg(ACCENT),
+        ),
+        Span::raw(" "),
+        Span::raw(entry.message.clone()),
+    ])
+}
+
+fn level_color(level: Level) -> Color {
+    match level {
+        Level::Error => ERROR,
+        Level::Warn => WARN,
+        Level::Info => GREEN,
+        Level::Debug | Level::Trace => MUTED,
+    }
+}
+
+fn truncate_topic(topic: &str, width: usize) -> String {
+    if topic.len() <= width {
+        topic.to_string()
+    } else {
+        format!("{}…", &topic[..width.saturating_sub(1)])
+    }
 }
 
 fn key_hint(label: &'static str) -> Span<'static> {

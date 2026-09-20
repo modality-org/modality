@@ -1,6 +1,6 @@
 use anyhow::Result;
 use env_logger::WriteStyle;
-use log::LevelFilter;
+use log::{Level, LevelFilter, Record};
 use std::collections::VecDeque;
 use std::fs::OpenOptions;
 use std::io::{self, Write};
@@ -9,10 +9,55 @@ use std::sync::{Arc, Mutex};
 
 const LOG_RING_CAPACITY: usize = 256;
 
+/// One log line for the node TUI, with type (level) and topic.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LogEntry {
+    pub level: Level,
+    pub target: String,
+    pub topic: String,
+    pub message: String,
+}
+
+impl LogEntry {
+    pub fn new(level: Level, target: impl Into<String>, message: impl Into<String>) -> Self {
+        let target = target.into();
+        let topic = topic_of(&target);
+        Self {
+            level,
+            target,
+            topic,
+            message: message.into(),
+        }
+    }
+
+    pub fn from_record(record: &Record<'_>) -> Self {
+        Self::new(record.level(), record.target(), record.args().to_string())
+    }
+}
+
+/// Short topic used in the TUI filter, derived from the rustc log target.
+pub fn topic_of(target: &str) -> String {
+    if target.starts_with("libp2p")
+        || target.starts_with("quinn")
+        || target.starts_with("rustls")
+        || target.starts_with("yamux")
+        || target.starts_with("multistream")
+        || target.starts_with("netlink")
+    {
+        return "net".to_string();
+    }
+    let rest = match target.split_once("::") {
+        Some((head, tail)) if head.starts_with("modality") => tail,
+        _ => target,
+    };
+    let rest = rest.strip_prefix("actions::").unwrap_or(rest);
+    rest.split("::").next().unwrap_or(rest).to_string()
+}
+
 /// In-memory log lines for the node TUI.
 #[derive(Clone)]
 pub struct LogRing {
-    lines: Arc<Mutex<VecDeque<String>>>,
+    lines: Arc<Mutex<VecDeque<LogEntry>>>,
     pending: Arc<Mutex<String>>,
     cap: usize,
 }
@@ -26,11 +71,29 @@ impl LogRing {
         }
     }
 
-    pub fn snapshot(&self) -> Vec<String> {
+    pub fn push(&self, entry: LogEntry) {
+        let Ok(mut lines) = self.lines.lock() else {
+            return;
+        };
+        if lines.len() >= self.cap {
+            lines.pop_front();
+        }
+        lines.push_back(entry);
+    }
+
+    pub fn snapshot(&self) -> Vec<LogEntry> {
         self.lines
             .lock()
             .map(|g| g.iter().cloned().collect())
             .unwrap_or_default()
+    }
+
+    /// Distinct topics currently in the ring, sorted.
+    pub fn topics(&self) -> Vec<String> {
+        let mut topics: Vec<String> = self.snapshot().into_iter().map(|e| e.topic).collect();
+        topics.sort();
+        topics.dedup();
+        topics
     }
 }
 
@@ -48,10 +111,6 @@ impl Write for LogRing {
             .lock()
             .map_err(|_| io::Error::new(io::ErrorKind::Other, "log ring pending lock poisoned"))?;
         pending.push_str(&chunk);
-        let mut lines = self
-            .lines
-            .lock()
-            .map_err(|_| io::Error::new(io::ErrorKind::Other, "log ring lock poisoned"))?;
         while let Some(idx) = pending.find('\n') {
             let mut line: String = pending.drain(..=idx).collect();
             if line.ends_with('\n') {
@@ -63,16 +122,46 @@ impl Write for LogRing {
             if line.is_empty() {
                 continue;
             }
-            if lines.len() >= self.cap {
-                lines.pop_front();
-            }
-            lines.push_back(line);
+            self.push(parse_formatted_line(&line));
         }
         Ok(buf.len())
     }
 
     fn flush(&mut self) -> io::Result<()> {
         Ok(())
+    }
+}
+
+fn parse_formatted_line(line: &str) -> LogEntry {
+    let Some(rest) = line.strip_prefix('[') else {
+        return LogEntry::new(Level::Info, "log", line);
+    };
+    let Some(end) = rest.find(']') else {
+        return LogEntry::new(Level::Info, "log", line);
+    };
+    let header = &rest[..end];
+    let message = rest[end + 1..].trim_start();
+    let mut parts = header.split_whitespace();
+    let first = parts.next();
+    let second = parts.next();
+    let third = parts.next();
+    match (first, second, third) {
+        (Some(_ts), Some(level), Some(target)) => {
+            LogEntry::new(parse_level(level), target, message)
+        }
+        (Some(level), Some(target), None) => LogEntry::new(parse_level(level), target, message),
+        _ => LogEntry::new(Level::Info, "log", line),
+    }
+}
+
+fn parse_level(level: &str) -> Level {
+    match level.to_ascii_uppercase().as_str() {
+        "ERROR" => Level::Error,
+        "WARN" | "WARNING" => Level::Warn,
+        "INFO" => Level::Info,
+        "DEBUG" => Level::Debug,
+        "TRACE" => Level::Trace,
+        _ => Level::Info,
     }
 }
 
@@ -143,6 +232,21 @@ fn init_logging_with_sink(
         builder.write_style(WriteStyle::Never);
     }
 
+    if let Some(ring) = sink.ring.clone() {
+        builder.format(move |buf, record| {
+            writeln!(
+                buf,
+                "[{} {:<5} {}] {}",
+                buf.timestamp(),
+                record.level(),
+                record.target(),
+                record.args()
+            )?;
+            ring.push(LogEntry::from_record(record));
+            Ok(())
+        });
+    }
+
     let file = if save_logs {
         if let Some(logs_dir) = logs_path.clone() {
             std::fs::create_dir_all(&logs_dir)?;
@@ -163,7 +267,8 @@ fn init_logging_with_sink(
     let writer = FanoutWriter {
         file,
         write_stdout: sink.write_stdout,
-        ring: sink.ring,
+        // Structured entries go to the ring from the format callback.
+        ring: None,
     };
     builder.target(env_logger::Target::Pipe(Box::new(writer)));
     if builder.try_init().is_err() {
@@ -228,6 +333,31 @@ mod tests {
         let mut ring = LogRing::new();
         ring.write_all(b"hello\nworld\n").unwrap();
         let lines = ring.snapshot();
-        assert_eq!(lines, vec!["hello".to_string(), "world".to_string()]);
+        assert_eq!(
+            lines.iter().map(|e| e.message.as_str()).collect::<Vec<_>>(),
+            vec!["hello", "world"]
+        );
+    }
+
+    #[test]
+    fn topic_of_groups_module_paths() {
+        assert_eq!(
+            topic_of("modality_node::actions::miner::block_producer"),
+            "miner"
+        );
+        assert_eq!(topic_of("modality_node::bootup"), "bootup");
+        assert_eq!(topic_of("modality_node::gossip::miner::block"), "gossip");
+        assert_eq!(topic_of("libp2p_swarm::behaviour"), "net");
+        assert_eq!(topic_of("quinn_proto::connection"), "net");
+    }
+
+    #[test]
+    fn parse_env_logger_line() {
+        let e = parse_formatted_line(
+            "[2026-09-20T21:13:40Z INFO  modality_node::actions::miner] Chain ready",
+        );
+        assert_eq!(e.level, Level::Info);
+        assert_eq!(e.topic, "miner");
+        assert_eq!(e.message, "Chain ready");
     }
 }
