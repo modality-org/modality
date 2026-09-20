@@ -15,11 +15,20 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
+fn test_peer_id(seed: u8) -> libp2p_identity::PeerId {
+    use libp2p_identity::ed25519;
+    let mut secret_bytes = [0u8; 32];
+    secret_bytes[0] = seed;
+    let secret = ed25519::SecretKey::try_from_bytes(secret_bytes).expect("valid secret key");
+    let keypair = ed25519::Keypair::from(secret);
+    libp2p_identity::PeerId::from_public_key(&keypair.public().into())
+}
+
 /// Helper to create a test committee with N validators
 fn create_committee(n: usize) -> Committee {
     let validators: Vec<Validator> = (0..n)
         .map(|i| Validator {
-            public_key: vec![i as u8],
+            public_key: test_peer_id(i as u8),
             stake: 1,
             network_address: format!("127.0.0.1:800{}", i)
                 .parse::<SocketAddr>()
@@ -31,7 +40,7 @@ fn create_committee(n: usize) -> Committee {
 
 /// Helper to create a test certificate
 fn create_test_cert(
-    author: Vec<u8>,
+    author: libp2p_identity::PeerId,
     round: u64,
     parents: Vec<[u8; 32]>,
     committee: &Committee,
@@ -69,7 +78,7 @@ async fn test_multi_validator_genesis() {
     // All 4 validators propose genesis certificates
     let mut genesis_certs = Vec::new();
     for i in 0..4 {
-        let cert = create_test_cert(vec![i], 0, vec![], &committee);
+        let cert = create_test_cert(test_peer_id(i as u8), 0, vec![], &committee);
         genesis_certs.push(cert);
     }
     
@@ -103,7 +112,7 @@ async fn test_multi_validator_round_progression() {
     // Round 0: All validators propose genesis
     let mut round0_digests = Vec::new();
     for i in 0..4 {
-        let cert = create_test_cert(vec![i], 0, vec![], &committee);
+        let cert = create_test_cert(test_peer_id(i as u8), 0, vec![], &committee);
         let digest = cert.digest();
         round0_digests.push(digest);
         consensus.process_certificate(cert).await.unwrap();
@@ -124,7 +133,7 @@ async fn test_multi_validator_round_progression() {
     
     // Round 1: All validators reference all genesis certificates
     for i in 0..4 {
-        let cert = create_test_cert(vec![i], 1, round0_digests.clone(), &committee);
+        let cert = create_test_cert(test_peer_id(i as u8), 1, round0_digests.clone(), &committee);
         consensus.process_certificate(cert).await.unwrap();
     }
     
@@ -145,20 +154,20 @@ async fn test_quorum_requirement() {
     // Round 0: Create genesis certificates
     let mut round0_digests = Vec::new();
     for i in 0..4 {
-        let cert = create_test_cert(vec![i], 0, vec![], &committee);
+        let cert = create_test_cert(test_peer_id(i as u8), 0, vec![], &committee);
         let digest = cert.digest();
         round0_digests.push(digest);
         dag.write().await.insert(cert).unwrap();
     }
     
     // Test using Primary which validates quorum requirements
-    let primary = Primary::new(vec![0], committee.clone(), dag.clone());
+    let primary = Primary::new(test_peer_id(0), committee.clone(), dag.clone());
     
     // Create batch with only 2 parents (insufficient)
     let insufficient_parents = vec![round0_digests[0], round0_digests[1]];
     
     // Manually create a certificate with insufficient parents
-    let cert = create_test_cert(vec![0], 1, insufficient_parents, &committee);
+    let cert = create_test_cert(test_peer_id(0), 1, insufficient_parents, &committee);
     
     // DAG insert will check if parents exist, but won't check quorum
     // That's the Primary's job during propose()
@@ -168,7 +177,7 @@ async fn test_quorum_requirement() {
     
     // Create round 1 certificate with sufficient parents (3+)
     let sufficient_parents = vec![round0_digests[0], round0_digests[1], round0_digests[2]];
-    let cert = create_test_cert(vec![1], 1, sufficient_parents.clone(), &committee);
+    let cert = create_test_cert(test_peer_id(1), 1, sufficient_parents.clone(), &committee);
     
     // Should succeed with quorum
     let result = dag.write().await.insert(cert);
@@ -184,11 +193,11 @@ async fn test_equivocation_detection() {
     let dag = Arc::new(RwLock::new(DAG::new()));
     
     // Validator 0 proposes first certificate in round 0
-    let cert1 = create_test_cert(vec![0], 0, vec![], &committee);
+    let cert1 = create_test_cert(test_peer_id(0), 0, vec![], &committee);
     dag.write().await.insert(cert1).unwrap();
     
     // Validator 0 tries to propose DIFFERENT certificate in same round (equivocation)
-    let mut cert2 = create_test_cert(vec![0], 0, vec![], &committee);
+    let mut cert2 = create_test_cert(test_peer_id(0), 0, vec![], &committee);
     cert2.header.batch_digest = [1u8; 32]; // Different batch
     
     // Should detect equivocation and reject
@@ -204,15 +213,15 @@ async fn test_dag_path_validation() {
     let dag = Arc::new(RwLock::new(DAG::new()));
     
     // Build chain: cert0 -> cert1 -> cert2
-    let cert0 = create_test_cert(vec![0], 0, vec![], &committee);
+    let cert0 = create_test_cert(test_peer_id(0), 0, vec![], &committee);
     let digest0 = cert0.digest();
     dag.write().await.insert(cert0).unwrap();
     
-    let cert1 = create_test_cert(vec![1], 1, vec![digest0], &committee);
+    let cert1 = create_test_cert(test_peer_id(1), 1, vec![digest0], &committee);
     let digest1 = cert1.digest();
     dag.write().await.insert(cert1).unwrap();
     
-    let cert2 = create_test_cert(vec![2], 2, vec![digest1], &committee);
+    let cert2 = create_test_cert(test_peer_id(2), 2, vec![digest1], &committee);
     let digest2 = cert2.digest();
     dag.write().await.insert(cert2).unwrap();
     
@@ -245,7 +254,7 @@ async fn test_leader_reputation_adaptation() {
     use modality_validator_consensus::shoal::PerformanceRecord;
     for round in 0..5 {
         reputation.record_performance(PerformanceRecord {
-            validator: vec![0],
+            validator: test_peer_id(0),
             round,
             latency_ms: 2000, // Very slow
             success: true,
@@ -254,7 +263,7 @@ async fn test_leader_reputation_adaptation() {
         
         // Fast performance for validator 1
         reputation.record_performance(PerformanceRecord {
-            validator: vec![1],
+            validator: test_peer_id(1),
             round,
             latency_ms: 100, // Very fast
             success: true,
@@ -266,8 +275,8 @@ async fn test_leader_reputation_adaptation() {
     reputation.update_scores();
     
     // Validator 1 should have better reputation than validator 0
-    let score0 = reputation.get_score(&vec![0]);
-    let score1 = reputation.get_score(&vec![1]);
+    let score0 = reputation.get_score(&test_peer_id(0));
+    let score1 = reputation.get_score(&test_peer_id(1));
     
     assert!(score1 > score0, "fast validator should have better reputation");
     assert!(score0 < 1.0, "slow validator reputation should decrease");
@@ -281,7 +290,7 @@ async fn test_byzantine_validator_isolation() {
     
     // Round 0: 3 honest validators + 1 Byzantine
     let honest_certs: Vec<_> = (0..3)
-        .map(|i| create_test_cert(vec![i], 0, vec![], &committee))
+        .map(|i| create_test_cert(test_peer_id(i as u8), 0, vec![], &committee))
         .collect();
     
     // Insert honest certificates
@@ -290,8 +299,8 @@ async fn test_byzantine_validator_isolation() {
     }
     
     // Byzantine validator (3) creates TWO different certificates (equivocation)
-    let byzantine_cert1 = create_test_cert(vec![3], 0, vec![], &committee);
-    let mut byzantine_cert2 = create_test_cert(vec![3], 0, vec![], &committee);
+    let byzantine_cert1 = create_test_cert(test_peer_id(3), 0, vec![], &committee);
+    let mut byzantine_cert2 = create_test_cert(test_peer_id(3), 0, vec![], &committee);
     byzantine_cert2.header.batch_digest = [1u8; 32]; // Different batch
     
     // First Byzantine certificate succeeds
@@ -316,7 +325,7 @@ async fn test_commit_with_byzantine_minority() {
     
     // Round 0: 3 honest validators propose, 1 Byzantine withholds
     for i in 0..3 {
-        let cert = create_test_cert(vec![i], 0, vec![], &committee);
+        let cert = create_test_cert(test_peer_id(i as u8), 0, vec![], &committee);
         consensus.process_certificate(cert).await.unwrap();
     }
     
@@ -342,7 +351,7 @@ async fn test_concurrent_certificate_processing() {
     
     // Create genesis certificates
     let certs: Vec<_> = (0..4)
-        .map(|i| create_test_cert(vec![i], 0, vec![], &committee))
+        .map(|i| create_test_cert(test_peer_id(i as u8), 0, vec![], &committee))
         .collect();
     
     // Process certificates concurrently
@@ -385,7 +394,7 @@ async fn test_performance_degradation_recovery() {
     // Phase 1: Validator 0 performs poorly
     for round in 0..3 {
         reputation.record_performance(PerformanceRecord {
-            validator: vec![0],
+            validator: test_peer_id(0),
             round,
             latency_ms: 3000, // Very slow
             success: true,
@@ -393,12 +402,12 @@ async fn test_performance_degradation_recovery() {
         });
     }
     reputation.update_scores();
-    let poor_score = reputation.get_score(&vec![0]);
+    let poor_score = reputation.get_score(&test_peer_id(0));
     
     // Phase 2: Validator 0 improves performance
     for round in 3..8 {
         reputation.record_performance(PerformanceRecord {
-            validator: vec![0],
+            validator: test_peer_id(0),
             round,
             latency_ms: 200, // Fast now
             success: true,
@@ -406,7 +415,7 @@ async fn test_performance_degradation_recovery() {
         });
     }
     reputation.update_scores();
-    let improved_score = reputation.get_score(&vec![0]);
+    let improved_score = reputation.get_score(&test_peer_id(0));
     
     // Reputation should improve
     assert!(improved_score > poor_score, "reputation should recover after improved performance");
@@ -452,7 +461,7 @@ async fn test_message_queue_communication() {
     
     // Each validator proposes a genesis certificate
     for (i, (_dag, consensus)) in consensus_instances.iter().enumerate() {
-        let cert = create_test_cert(vec![i as u8], 0, vec![], &committee);
+        let cert = create_test_cert(test_peer_id(i as u8), 0, vec![], &committee);
         
         // Process locally first
         let mut cons = consensus.lock().await;
@@ -520,7 +529,7 @@ async fn test_message_queue_round_progression() {
     println!("\n=== Round 0: Genesis ===");
     let mut round0_digests = Vec::new();
     for (i, (_dag, consensus)) in consensus_instances.iter().enumerate() {
-        let cert = create_test_cert(vec![i as u8], 0, vec![], &committee);
+        let cert = create_test_cert(test_peer_id(i as u8), 0, vec![], &committee);
         let digest = cert.digest();
         round0_digests.push(digest);
         
@@ -548,7 +557,7 @@ async fn test_message_queue_round_progression() {
     println!("\n=== Round 1: With Parents ===");
     for (i, (_dag, consensus)) in consensus_instances.iter().enumerate() {
         let cert = create_test_cert(
-            vec![i as u8],
+            test_peer_id(i as u8),
             1,
             round0_digests.clone(), // Reference all round 0 certificates
             &committee,

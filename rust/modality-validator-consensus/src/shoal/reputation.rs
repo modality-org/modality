@@ -176,13 +176,13 @@ mod tests {
         });
 
         // Scores not updated yet
-        assert_eq!(manager.get_score(&vec![1]), 1.0);
+        assert_eq!(manager.get_score(&test_peer_id(1)), 1.0);
         
         // Update scores
         manager.update_scores();
         
         // Score should still be good (fast and successful)
-        let score = manager.get_score(&vec![1]);
+        let score = manager.get_score(&test_peer_id(1));
         assert!(score >= 0.9); // High score for good performance
     }
 
@@ -207,7 +207,7 @@ mod tests {
 
         manager.update_scores();
         
-        let score = manager.get_score(&vec![1]);
+        let score = manager.get_score(&test_peer_id(1));
         assert!(score < 1.0); // Should decrease from perfect 1.0
     }
 

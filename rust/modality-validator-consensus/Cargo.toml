@@ -37,6 +37,10 @@ zip = "0.6"
 modality-devnet = { path = "../modality-devnet" }
 criterion = { version = "0.5", features = ["async_tokio"] }
 
+[[test]]
+name = "persistence_tests"
+required-features = ["persistence"]
+
 [[bench]]
 name = "consensus_benchmarks"
 harness = false

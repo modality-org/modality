@@ -144,8 +144,16 @@ impl OrderingEngine {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::narwhal::PublicKey;
     use crate::narwhal::{AggregatedSignature, Certificate, Header};
+
+    fn test_peer_id(seed: u8) -> libp2p_identity::PeerId {
+        use libp2p_identity::ed25519;
+        let mut secret_bytes = [0u8; 32];
+        secret_bytes[0] = seed;
+        let secret = ed25519::SecretKey::try_from_bytes(secret_bytes).expect("valid secret key");
+        let keypair = ed25519::Keypair::from(secret);
+        libp2p_identity::PeerId::from_public_key(&keypair.public().into())
+    }
 
     fn make_test_cert(author: crate::narwhal::PublicKey,
         round: u64,
@@ -171,7 +179,7 @@ mod tests {
         let dag = Arc::new(RwLock::new(DAG::new()));
         let engine = OrderingEngine::new(dag.clone());
 
-        let cert = make_test_cert(vec![1], 0, vec![]);
+        let cert = make_test_cert(test_peer_id(1), 0, vec![]);
         let digest = cert.digest();
         
         dag.write().await.insert(cert).unwrap();
@@ -190,15 +198,15 @@ mod tests {
         let engine = OrderingEngine::new(dag.clone());
 
         // Build chain: cert0 -> cert1 -> cert2
-        let cert0 = make_test_cert(vec![1], 0, vec![]);
+        let cert0 = make_test_cert(test_peer_id(1), 0, vec![]);
         let digest0 = cert0.digest();
         dag.write().await.insert(cert0).unwrap();
 
-        let cert1 = make_test_cert(vec![2], 1, vec![digest0]);
+        let cert1 = make_test_cert(test_peer_id(2), 1, vec![digest0]);
         let digest1 = cert1.digest();
         dag.write().await.insert(cert1).unwrap();
 
-        let cert2 = make_test_cert(vec![3], 2, vec![digest1]);
+        let cert2 = make_test_cert(test_peer_id(3), 2, vec![digest1]);
         let digest2 = cert2.digest();
         dag.write().await.insert(cert2).unwrap();
 
@@ -221,15 +229,15 @@ mod tests {
         let engine = OrderingEngine::new(dag.clone());
 
         // Create 3 certificates in round 0 (no causal relationship)
-        let cert1 = make_test_cert(vec![1], 0, vec![]);
+        let cert1 = make_test_cert(test_peer_id(1), 0, vec![]);
         let digest1 = cert1.digest();
         dag.write().await.insert(cert1).unwrap();
 
-        let cert2 = make_test_cert(vec![2], 0, vec![]);
+        let cert2 = make_test_cert(test_peer_id(2), 0, vec![]);
         let digest2 = cert2.digest();
         dag.write().await.insert(cert2).unwrap();
 
-        let cert3 = make_test_cert(vec![3], 0, vec![]);
+        let cert3 = make_test_cert(test_peer_id(3), 0, vec![]);
         let digest3 = cert3.digest();
         dag.write().await.insert(cert3).unwrap();
 
@@ -258,19 +266,19 @@ mod tests {
         //    \     /
         //     cert3
 
-        let cert0 = make_test_cert(vec![1], 0, vec![]);
+        let cert0 = make_test_cert(test_peer_id(1), 0, vec![]);
         let digest0 = cert0.digest();
         dag.write().await.insert(cert0).unwrap();
 
-        let cert1 = make_test_cert(vec![2], 1, vec![digest0]);
+        let cert1 = make_test_cert(test_peer_id(2), 1, vec![digest0]);
         let digest1 = cert1.digest();
         dag.write().await.insert(cert1).unwrap();
 
-        let cert2 = make_test_cert(vec![3], 1, vec![digest0]);
+        let cert2 = make_test_cert(test_peer_id(3), 1, vec![digest0]);
         let digest2 = cert2.digest();
         dag.write().await.insert(cert2).unwrap();
 
-        let cert3 = make_test_cert(vec![4], 2, vec![digest1, digest2]);
+        let cert3 = make_test_cert(test_peer_id(4), 2, vec![digest1, digest2]);
         let digest3 = cert3.digest();
         dag.write().await.insert(cert3).unwrap();
 

@@ -242,19 +242,23 @@ mod tests {
         let dag = Arc::new(RwLock::new(DAG::new()));
         let client = SyncClient::new(dag);
         
-        let cert1 = make_test_cert(1, 0, vec![]);
+        let cert1 = Arc::new(make_test_cert(1, 0, vec![]));
         let digest1 = cert1.digest();
-        
+
         // Mock request function
-        let request_fn = |req: SyncRequest| async move {
-            match req {
-                SyncRequest::GetCertificates { .. } => {
-                    Ok(SyncResponse::Certificates {
-                        certificates: vec![cert1.clone()],
-                        has_more: false,
-                    })
+        let request_fn = {
+            let cert1 = Arc::clone(&cert1);
+            move |req: SyncRequest| {
+                let cert1 = Arc::clone(&cert1);
+                async move {
+                    match req {
+                        SyncRequest::GetCertificates { .. } => Ok(SyncResponse::Certificates {
+                            certificates: vec![(*cert1).clone()],
+                            has_more: false,
+                        }),
+                        _ => Ok(SyncResponse::Empty),
+                    }
                 }
-                _ => Ok(SyncResponse::Empty),
             }
         };
         
@@ -267,21 +271,25 @@ mod tests {
         let dag = Arc::new(RwLock::new(DAG::new()));
         let client = SyncClient::new(dag.clone());
         
-        let cert0 = make_test_cert(1, 0, vec![]);
+        let cert0 = Arc::new(make_test_cert(1, 0, vec![]));
         let digest0 = cert0.digest();
-        
+
         let cert1 = make_test_cert(2, 1, vec![digest0]);
-        
+
         // Mock request function that returns parent
-        let request_fn = |req: SyncRequest| async move {
-            match req {
-                SyncRequest::GetCertificates { .. } => {
-                    Ok(SyncResponse::Certificates {
-                        certificates: vec![cert0.clone()],
-                        has_more: false,
-                    })
+        let request_fn = {
+            let cert0 = Arc::clone(&cert0);
+            move |req: SyncRequest| {
+                let cert0 = Arc::clone(&cert0);
+                async move {
+                    match req {
+                        SyncRequest::GetCertificates { .. } => Ok(SyncResponse::Certificates {
+                            certificates: vec![(*cert0).clone()],
+                            has_more: false,
+                        }),
+                        _ => Ok(SyncResponse::Empty),
+                    }
                 }
-                _ => Ok(SyncResponse::Empty),
             }
         };
         

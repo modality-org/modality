@@ -154,7 +154,7 @@ mod tests {
         let header = primary.propose(batch_digest).await.unwrap();
 
         assert_eq!(header.round, 0);
-        assert_eq!(header.author, vec![1]);
+        assert_eq!(header.author, test_peer_id(1));
         assert!(header.parents.is_empty());
     }
 
@@ -168,7 +168,7 @@ mod tests {
         for i in 1..=4 {
             let cert = Certificate {
                 header: Header {
-                    author: vec![i],
+                    author: test_peer_id(i as u8),
                     round: 0,
                     batch_digest: [0u8; 32],
                     parents: vec![],

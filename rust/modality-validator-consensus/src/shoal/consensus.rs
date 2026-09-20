@@ -326,7 +326,7 @@ mod tests {
         let reputation = ReputationManager::new(committee.clone(), ReputationConfig::default());
         let mut consensus = ShoalConsensus::new(dag, reputation, committee);
 
-        let cert = make_test_cert(vec![1], 0, vec![]);
+        let cert = make_test_cert(test_peer_id(1), 0, vec![]);
         let committed = consensus.process_certificate(cert).await.unwrap();
 
         // Genesis should commit immediately
@@ -356,7 +356,7 @@ mod tests {
 
         // Add genesis certificates and process them
         for i in 1..=4 {
-            let cert = make_test_cert(vec![i], 0, vec![]);
+            let cert = make_test_cert(test_peer_id(i as u8), 0, vec![]);
             consensus.process_certificate(cert).await.unwrap();
         }
 

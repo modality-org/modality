@@ -260,7 +260,7 @@ mod tests {
             window_size: 3,
             ..Default::default()
         };
-        let mut state = ReputationState::new(vec![vec![1]], config);
+        let mut state = ReputationState::new(vec![test_peer_id(1)], config);
         
         // Add records
         for i in 0..5 {

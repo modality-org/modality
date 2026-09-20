@@ -541,7 +541,7 @@ mod tests {
         
         assert!(dag.get_author_cert(&author, 0).is_some());
         assert!(dag.get_author_cert(&author, 1).is_none());
-        assert!(dag.get_author_cert(&vec![2], 0).is_none());
+        assert!(dag.get_author_cert(&test_peer_id(2), 0).is_none());
     }
 }
 

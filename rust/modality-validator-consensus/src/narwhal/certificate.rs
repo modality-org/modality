@@ -140,7 +140,7 @@ mod tests {
     fn make_test_committee(size: usize) -> Committee {
         let validators: Vec<Validator> = (0..size)
             .map(|i| Validator {
-                public_key: vec![i as u8],
+                public_key: test_peer_id(i as u8),
                 stake: 1,
                 network_address: format!("127.0.0.1:800{}", i).parse::<SocketAddr>().unwrap(),
             })
@@ -165,7 +165,7 @@ mod tests {
         let mut builder = CertificateBuilder::new(header, committee);
 
         // Add valid vote
-        assert!(builder.add_vote(vec![0], vec![1, 2, 3]).is_ok());
+        assert!(builder.add_vote(test_peer_id(0), vec![1, 2, 3]).is_ok());
         assert_eq!(builder.vote_count(), 1);
     }
 
@@ -175,10 +175,10 @@ mod tests {
         let header = make_test_header();
         let mut builder = CertificateBuilder::new(header, committee);
 
-        builder.add_vote(vec![0], vec![1, 2, 3]).unwrap();
+        builder.add_vote(test_peer_id(0), vec![1, 2, 3]).unwrap();
         
         // Duplicate vote should fail
-        assert!(builder.add_vote(vec![0], vec![4, 5, 6]).is_err());
+        assert!(builder.add_vote(test_peer_id(0), vec![4, 5, 6]).is_err());
     }
 
     #[test]
@@ -188,7 +188,7 @@ mod tests {
         let mut builder = CertificateBuilder::new(header, committee);
 
         // Vote from non-committee member
-        assert!(builder.add_vote(vec![99], vec![1, 2, 3]).is_err());
+        assert!(builder.add_vote(test_peer_id(99), vec![1, 2, 3]).is_err());
     }
 
     #[test]
@@ -199,13 +199,13 @@ mod tests {
 
         assert!(!builder.has_quorum());
 
-        builder.add_vote(vec![0], vec![]).unwrap();
+        builder.add_vote(test_peer_id(0), vec![]).unwrap();
         assert!(!builder.has_quorum());
 
-        builder.add_vote(vec![1], vec![]).unwrap();
+        builder.add_vote(test_peer_id(1), vec![]).unwrap();
         assert!(!builder.has_quorum());
 
-        builder.add_vote(vec![2], vec![]).unwrap();
+        builder.add_vote(test_peer_id(2), vec![]).unwrap();
         assert!(builder.has_quorum());
     }
 
@@ -216,9 +216,9 @@ mod tests {
         let mut builder = CertificateBuilder::new(header.clone(), committee);
 
         // Add 3 votes (quorum)
-        builder.add_vote(vec![0], vec![]).unwrap();
-        builder.add_vote(vec![1], vec![]).unwrap();
-        builder.add_vote(vec![2], vec![]).unwrap();
+        builder.add_vote(test_peer_id(0), vec![]).unwrap();
+        builder.add_vote(test_peer_id(1), vec![]).unwrap();
+        builder.add_vote(test_peer_id(2), vec![]).unwrap();
 
         let cert = builder.build().unwrap();
         assert_eq!(cert.header.round, header.round);
@@ -232,8 +232,8 @@ mod tests {
         let mut builder = CertificateBuilder::new(header, committee);
 
         // Add only 2 votes (insufficient)
-        builder.add_vote(vec![0], vec![]).unwrap();
-        builder.add_vote(vec![1], vec![]).unwrap();
+        builder.add_vote(test_peer_id(0), vec![]).unwrap();
+        builder.add_vote(test_peer_id(1), vec![]).unwrap();
 
         assert!(builder.build().is_err());
     }
@@ -244,9 +244,9 @@ mod tests {
         let header = make_test_header();
         let mut builder = CertificateBuilder::new(header, committee.clone());
 
-        builder.add_vote(vec![0], vec![]).unwrap();
-        builder.add_vote(vec![1], vec![]).unwrap();
-        builder.add_vote(vec![2], vec![]).unwrap();
+        builder.add_vote(test_peer_id(0), vec![]).unwrap();
+        builder.add_vote(test_peer_id(1), vec![]).unwrap();
+        builder.add_vote(test_peer_id(2), vec![]).unwrap();
 
         let cert = builder.build().unwrap();
         assert!(verify_certificate(&cert, &committee).is_ok());
