@@ -31,7 +31,7 @@ All commands used in the example scripts are available in the `modal` CLI:
 
 ### 02-run-devnet2/ ✅
 **Commands Used:**
-- `modality-js net run-node` (JavaScript CLI - separate)
+- `modality-js net run-node` (JavaScript CLI, as needed)
 - `modal node run`
 
 **Status:** Ready to use
@@ -178,7 +178,7 @@ Configs are typically at:
 1. **Port conflicts**: Make sure ports aren't already in use
 2. **Storage paths**: Scripts create storage in `./tmp/storage/`
 3. **Concurrent mining**: The divergent chain test (05-mining/05-test-divergent-chains.sh) tests fork resolution
-4. **JavaScript CLI**: `02-run-devnet2/01-run-node1.sh` uses `modality-js` which is separate from `modal`
+4. **JavaScript CLI**: `02-run-devnet2/01-run-node1.sh` uses `modality-js` when a JS-hosted node is needed; `modal` is the canonical CLI.
 
 ## 🚀 Next Steps
 

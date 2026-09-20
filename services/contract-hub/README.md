@@ -1,5 +1,16 @@
 # Contract Hub
 
+Canonical hub for the `modal` CLI:
+
+```bash
+modal hub start --host 127.0.0.1 --port 8080 --rpc-port 0
+```
+
+See `docs/cli/hub-commands.md`. This JavaScript service remains for hosts that
+need a Node HTTP hub with two-tier ed25519 authentication.
+
+---
+
 Centralized HTTP service for push/pull of Modality contracts with two-tier ed25519 authentication.
 
 ## Two-Tier Key Architecture

@@ -1,16 +1,17 @@
 ## Developer README
 
-This guide covers local setup, building, testing, and common developer workflows for Modality across Rust and JavaScript workspaces.
+This guide covers local setup, building, testing, and common developer
+workflows. **Rust is canonical.** JavaScript (`modality-js`) is provided as
+needed for WASM, SDKs, browsers, and other JS hosts.
 
 ### Prerequisites
 
-- Node.js ≥ 18.1 (recommend using `fnm`, `nvm`, or `asdf`)
-- pnpm 9.x (repo pins `pnpm@9.3.0`)
 - Rust (stable toolchain; install via `rustup`)
-- macOS or Linux (Windows via WSL)
 - CMake (required for native crates like `randomx-rs`)
+- macOS or Linux (Windows via WSL)
 - Xcode Command Line Tools on macOS (`xcode-select --install`)
-- GNU coreutils on macOS (for `timeout` command in network example tests)
+- GNU coreutils on macOS (for `timeout` in network example tests)
+- Node.js ≥ 18.1 and pnpm 9.x when working on JS packages, WASM bindings, the TypeScript SDK, or the docs site (repo pins `pnpm@9.3.0`)
 
 Recommended:
 
@@ -25,8 +26,10 @@ corepack prepare pnpm@9.3.0 --activate
 
 ### Repository Layout (high level)
 
-- `rust/` Rust workspace: core language, CLI, node, validator, etc.
-- `js/` JavaScript monorepo: network, node, datastore, viewer, CLI, etc.
+- `rust/` Canonical workspace: `modality-lang`, `modal` CLI (`modality-cli-*`), node, validator, hub
+- `js/` `modality-js` — as-needed JavaScript packages, WASM wrappers, browser/Node clients
+- `packages/modality-sdk/` `@modality-org/sdk` (TypeScript client)
+- `common/modality-vscode/` VS Code LSP client for `modality-lsp`
 - `examples/` runnable examples (language, network, mining)
 - `fixtures/` sample configs and passfiles
 - `docs/` reference and design docs (source of truth for the public docs site)
@@ -38,13 +41,18 @@ corepack prepare pnpm@9.3.0 --activate
 ## Quick Start (all-in-one)
 
 ```bash
-# Rust (build + test)
+# Rust (canonical — build + test)
 cd rust
-cargo build --release
+cargo build -p modal
 cargo test
+```
 
-# JavaScript (install deps + build + test)
-cd ../js
+The full CLI binary is `modal` (`cargo build -p modal`). The `modality` crate
+is the language CLI library used by onboarding features.
+
+```bash
+# JavaScript (as needed)
+cd js
 pnpm i -r
 pnpm run build
 pnpm run test
@@ -69,10 +77,10 @@ Useful commands:
 cargo build
 
 # Run CLI directly
-cargo run -p modality -- --help
+cargo run -p modal -- --help
 
 # Install CLI locally from workspace
-cargo install --path modality
+cargo install --path modal
 
 # Lint/format (recommended before PRs)
 cargo fmt --all
@@ -89,11 +97,16 @@ rust/scripts/test    # cargo test
 
 Artifacts:
 
-- CLI binary (after release build): `rust/target/release/modality`
+- CLI binary (after debug build): `rust/target/debug/modal`
+- CLI binary (after release build): `rust/target/release/modal`
 
 ---
 
 ## JavaScript Development
+
+`modality-js` is provided as needed. New language, node, hub, and network
+behavior should land in Rust first; add a JS package when a JS host requires
+it, preferably wrapping WASM.
 
 The JS workspace uses pnpm workspaces + lerna.
 
@@ -102,24 +115,6 @@ cd js
 pnpm i -r          # install all workspaces
 pnpm run build     # lerna run build across packages
 pnpm run test      # lerna run test across packages
-```
-
-Convenience scripts:
-
-```bash
-js/scripts/build    # pnpm i -r
-js/scripts/test     # pnpm i -r && pnpm run -r test --passWithNoTests
-```
-
-Notes:
-
-- Engines: Node ≥ 18.1, pnpm ≥ 8.14.1 (repo pins pnpm 9.3.0).
-- Use `pnpm run -r <script>` to execute a script across all packages.
-- Individual packages can be built/tested with filters, e.g.:
-
-```bash
-pnpm --filter @modality-dev/network-node run build
-pnpm --filter @modality-dev/network-node run test
 ```
 
 ---
@@ -181,7 +176,8 @@ Refer to `examples/network/VERIFICATION.md` for verification steps and `SCRIPTS_
 - Network configs: `fixtures/network-configs/*` and `fixtures/network-node-configs/*`
 - Passfiles for local testing: `fixtures/passfiles/*`
 
-Use these fixtures with the JS node commands or Rust node tools as needed.
+Use these fixtures with the Rust `modal` CLI (`modal node run`, `modal net …`)
+or with `modality-js` when a JS-hosted node is required.
 
 ---
 

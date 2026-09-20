@@ -1,6 +1,8 @@
-//! HTTP client for Contract Hub service
+//! HTTP client for the Rust contract hub (`modal hub start`).
 //!
-//! Handles authentication and contract operations against a centralized hub.
+//! Authentication headers are sent when credentials are present so a
+//! JavaScript hub with two-tier auth still accepts the client. The Rust hub
+//! does not require them.
 
 use anyhow::{anyhow, Result};
 use ed25519_dalek::{Keypair, SecretKey, Signer};
@@ -10,7 +12,7 @@ use serde_json::{json, Value};
 use sha2::{Digest, Sha512};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-/// Hub client credentials
+/// Hub client credentials (JavaScript hub two-tier auth).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HubCredentials {
     pub hub_url: String,
@@ -45,8 +47,8 @@ impl HubCredentials {
 pub struct HubClient {
     client: Client,
     hub_url: String,
-    access_id: String,
-    access_keypair: Keypair,
+    access_id: Option<String>,
+    access_keypair: Option<Keypair>,
 }
 
 impl HubClient {
@@ -61,9 +63,19 @@ impl HubClient {
         Ok(Self {
             client: Client::new(),
             hub_url: creds.hub_url.trim_end_matches('/').to_string(),
-            access_id: creds.access_id.clone(),
-            access_keypair,
+            access_id: Some(creds.access_id.clone()),
+            access_keypair: Some(access_keypair),
         })
+    }
+
+    /// Client for the canonical Rust hub (no access-key headers).
+    pub fn unauthenticated(hub_url: impl Into<String>) -> Self {
+        Self {
+            client: Client::new(),
+            hub_url: hub_origin(&hub_url.into()),
+            access_id: None,
+            access_keypair: None,
+        }
     }
 
     /// Create auth headers for a request
@@ -73,6 +85,11 @@ impl HubClient {
         path: &str,
         body: Option<&Value>,
     ) -> Result<Vec<(String, String)>> {
+        let Some(access_keypair) = &self.access_keypair else {
+            return Ok(vec![]);
+        };
+        let access_id = self.access_id.clone().unwrap_or_default();
+
         let timestamp = SystemTime::now()
             .duration_since(UNIX_EPOCH)?
             .as_millis()
@@ -90,10 +107,10 @@ impl HubClient {
         };
 
         let message = format!("{}:{}:{}:{}", method, path, timestamp, body_hash);
-        let signature = self.access_keypair.sign(message.as_bytes());
+        let signature = access_keypair.sign(message.as_bytes());
 
         Ok(vec![
-            ("X-Access-Id".to_string(), self.access_id.clone()),
+            ("X-Access-Id".to_string(), access_id),
             ("X-Timestamp".to_string(), timestamp),
             ("X-Signature".to_string(), hex::encode(signature.to_bytes())),
         ])
@@ -262,4 +279,25 @@ impl HubClient {
 /// Check if a URL is an HTTP hub URL (vs p2p multiaddress)
 pub fn is_hub_url(url: &str) -> bool {
     url.starts_with("http://") || url.starts_with("https://")
+}
+
+/// Origin of a hub URL, stripping a trailing `/contracts/<id>` path.
+pub fn hub_origin(url: &str) -> String {
+    let url = url.trim_end_matches('/');
+    match url.find("/contracts/") {
+        Some(idx) => url[..idx].to_string(),
+        None => url.to_string(),
+    }
+}
+
+/// Contract id embedded in `http://host/contracts/<id>`, if any.
+pub fn contract_id_from_hub_url(url: &str) -> Option<String> {
+    url.split_once("/contracts/").and_then(|(_, rest)| {
+        let id = rest.split('/').next().unwrap_or("").trim();
+        if id.is_empty() {
+            None
+        } else {
+            Some(id.to_string())
+        }
+    })
 }

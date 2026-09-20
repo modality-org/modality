@@ -30,8 +30,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
     let mermaid = modality_lang::generate_mermaid_diagram(&model);
     let html = render_html(&model.name, &opts.input, &source, &mermaid);
     let path = temp_html_path(&model.name)?;
-    std::fs::write(&path, html)
-        .with_context(|| format!("Failed to write {}", path.display()))?;
+    std::fs::write(&path, html).with_context(|| format!("Failed to write {}", path.display()))?;
 
     if opts.no_open {
         println!("Wrote {}", path.display());

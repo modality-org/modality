@@ -4,7 +4,9 @@ use serde_json::json;
 use std::path::PathBuf;
 
 use modality_common::contract_store::{CommitFile, ContractStore};
-use modality_common::hub_client::{is_hub_url, HubClient, HubCredentials};
+use modality_common::hub_client::{
+    contract_id_from_hub_url, hub_origin, is_hub_url, HubClient, HubCredentials,
+};
 
 #[cfg(feature = "p2p")]
 use modality_node::actions::request;
@@ -81,25 +83,22 @@ pub async fn run(opts: &Opts) -> Result<()> {
 
     // Fetch commits based on remote type
     let commits: Vec<serde_json::Value> = if is_hub_url(&remote_url) {
-        // HTTP Hub pull
         let creds_path = opts
             .hub_creds
             .clone()
             .unwrap_or_else(|| contract_dir.join(".modal-hub/credentials.json"));
 
-        if !creds_path.exists() {
-            anyhow::bail!(
-                "Hub credentials not found at {:?}\nRun: modal hub register",
-                creds_path
-            );
-        }
+        let origin = hub_origin(&remote_url);
+        let contract_id =
+            contract_id_from_hub_url(&remote_url).unwrap_or_else(|| config.contract_id.clone());
 
-        let creds = HubCredentials::load(&creds_path)?;
-        let hub = HubClient::new(&creds)?;
+        let hub = if creds_path.exists() {
+            HubClient::new(&HubCredentials::load(&creds_path)?)?
+        } else {
+            HubClient::unauthenticated(origin)
+        };
 
-        let (_head, commits) = hub
-            .pull(&config.contract_id, since_commit.as_deref())
-            .await?;
+        let (_head, commits) = hub.pull(&contract_id, since_commit.as_deref()).await?;
         commits
     } else {
         #[cfg(feature = "p2p")]

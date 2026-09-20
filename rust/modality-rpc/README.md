@@ -215,7 +215,7 @@ ws.onmessage = (event) => {
 ## Integration
 
 This crate is used by:
-- `services/contract-hub/` - Contract collaboration hub
+- `modality-cli-hub/` - Canonical contract hub (`modal hub start`)
 - `modality-node/` - Network node
 
 ## License

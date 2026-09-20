@@ -14,8 +14,9 @@ use std::sync::Arc;
 
 use super::core::{
     CommitEntry, CommitLog, ContractState, CreateContractRequest, CreateContractResponse,
-    GetContractResponse, HubCore, HubError, SubmitCommitRequest, SubmitCommitResponse,
-    SynthesizeRequest, SynthesizeResponse, Template, TemplateInfo,
+    GetContractResponse, HubCore, HubError, PullCommitsResponse, PushCommitsRequest,
+    PushCommitsResponse, SubmitCommitRequest, SubmitCommitResponse, SynthesizeRequest,
+    SynthesizeResponse, Template, TemplateInfo,
 };
 
 // ============================================================================
@@ -111,6 +112,11 @@ pub struct LogQuery {
     pub offset: Option<u32>,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct PullQuery {
+    pub since: Option<String>,
+}
+
 // ============================================================================
 // Router
 // ============================================================================
@@ -126,6 +132,8 @@ pub fn router(core: Arc<HubCore>) -> Router {
         .route("/contracts/:id/log", get(get_log))
         .route("/contracts/:id/commits", post(submit_commit))
         .route("/contracts/:id/commits/:hash", get(get_commit))
+        .route("/contracts/:id/push", post(push_commits))
+        .route("/contracts/:id/pull", get(pull_commits))
         // Templates
         .route("/templates", get(list_templates))
         .route("/templates/:id", get(get_template))
@@ -210,6 +218,26 @@ async fn get_commit(
     Path((id, hash)): Path<(String, String)>,
 ) -> Result<Json<CommitEntry>, ApiError> {
     let resp = core.get_commit(&id, &hash).await?;
+    Ok(Json(resp))
+}
+
+/// Batch-push commits (`modal c push`)
+async fn push_commits(
+    State(core): State<Arc<HubCore>>,
+    Path(id): Path<String>,
+    Json(req): Json<PushCommitsRequest>,
+) -> Result<Json<PushCommitsResponse>, ApiError> {
+    let resp = core.push_commits(&id, req.commits).await?;
+    Ok(Json(resp))
+}
+
+/// Pull commits after `since` (`modal c pull`)
+async fn pull_commits(
+    State(core): State<Arc<HubCore>>,
+    Path(id): Path<String>,
+    Query(query): Query<PullQuery>,
+) -> Result<Json<PullCommitsResponse>, ApiError> {
+    let resp = core.pull_commits(&id, query.since.as_deref()).await?;
     Ok(Json(resp))
 }
 
@@ -306,5 +334,44 @@ mod tests {
             .unwrap();
 
         assert_eq!(response.status(), StatusCode::NOT_FOUND);
+    }
+
+    #[tokio::test]
+    async fn test_push_and_pull_commits() {
+        let app = setup_router().await;
+
+        let body = serde_json::json!({
+            "commits": [{
+                "hash": "abc123",
+                "parent": null,
+                "data": [{"method": "post", "path": "/hello.txt", "value": "hi"}],
+                "head": {"parent": null, "signatures": {}}
+            }]
+        });
+
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/contracts/c_test/push")
+                    .header("content-type", "application/json")
+                    .body(Body::from(body.to_string()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/contracts/c_test/pull")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
     }
 }

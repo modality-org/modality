@@ -231,11 +231,8 @@ pub async fn run(opts: &Opts) -> Result<()> {
             "📊 Parsed {} formula(s) with the Modality parser\n",
             parsed_input.formulas.len()
         );
-        let model = take_synthesized_model(synthesize_bounded(
-            &parsed_input.formulas,
-            opts,
-            "Contract",
-        ))?;
+        let model =
+            take_synthesized_model(synthesize_bounded(&parsed_input.formulas, opts, "Contract"))?;
 
         if opts.verify {
             verify_synthesized_model_with_labels(
@@ -295,11 +292,8 @@ pub async fn run(opts: &Opts) -> Result<()> {
             parsed_input.warn_unparsed();
         }
 
-        let model = take_synthesized_model(synthesize_bounded(
-            &parsed_input.formulas,
-            opts,
-            "Contract",
-        ))?;
+        let model =
+            take_synthesized_model(synthesize_bounded(&parsed_input.formulas, opts, "Contract"))?;
 
         if opts.verify {
             verify_synthesized_model_with_labels(
@@ -476,17 +470,15 @@ struct FormulaExampleGroup {
     formulas: &'static [&'static str],
 }
 
-const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
-    FormulaExampleGroup {
-        title: r#"Core formula shapes"#,
-        description: r#"Single-action requirements and always-safe commitments."#,
-        formulas: &[
-            r#"always([<+APPROVE>] true)"#,
-            r#"always(<+A> true)"#,
-            r#"[] always([-signed_by(/parties/alice.id) -signed_by(/parties/bob.id)] false)"#,
-        ],
-    },
-];
+const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[FormulaExampleGroup {
+    title: r#"Core formula shapes"#,
+    description: r#"Single-action requirements and always-safe commitments."#,
+    formulas: &[
+        r#"always([<+APPROVE>] true)"#,
+        r#"always(<+A> true)"#,
+        r#"[] always([-signed_by(/parties/alice.id) -signed_by(/parties/bob.id)] false)"#,
+    ],
+}];
 
 fn print_synthesis_list() {
     print!("{}", synthesis_list_text());
@@ -2144,9 +2136,7 @@ fn format_failed_rule_review_bundle(
 
     output.push_str("## Verifier Result\n\n");
     output.push_str("- Status: failed (`--verify`)\n");
-    output.push_str(
-        "- Outcome: no satisfying witness was found by bounded μ-calculus search.\n",
-    );
+    output.push_str("- Outcome: no satisfying witness was found by bounded μ-calculus search.\n");
     output.push_str(&format!("- Verifier error: `{}`\n\n", verifier_error));
 
     output.push_str("## Candidate Witness Model\n\n");
@@ -2159,7 +2149,9 @@ fn format_failed_rule_review_bundle(
     output.push_str("- Signature, path, oracle, and external-world facts must still be supplied by contract evidence at verification time.\n\n");
 
     output.push_str("## Known Gaps\n\n");
-    output.push_str("- This is bounded explicit-state μ-calculus search, not a complete model finder.\n");
+    output.push_str(
+        "- This is bounded explicit-state μ-calculus search, not a complete model finder.\n",
+    );
     output.push_str(
         "- Review the candidate, formula shape, and predicate assumptions before raising `--max-states`.\n",
     );
@@ -2943,7 +2935,10 @@ rule authorized {
         std::fs::remove_file(&rule_path).ok();
         std::fs::remove_file(&output_path).ok();
         assert!(output.contains("model Contract"));
-        assert!(output.contains("+signed_by(/parties/alice.id)") || output.contains("+signed_by(/parties/bob.id)"));
+        assert!(
+            output.contains("+signed_by(/parties/alice.id)")
+                || output.contains("+signed_by(/parties/bob.id)")
+        );
     }
 
     #[tokio::test]
@@ -3158,7 +3153,9 @@ F3. Approval requires external review evidence.
     fn verify_requires_every_input_formula_to_parse() {
         let parsed = parse_formula_inputs(&["not a formula {{{".to_string()]);
         let err = parsed.ensure_all_parsed().unwrap_err();
-        assert!(err.to_string().contains("--verify requires every input formula to parse"));
+        assert!(err
+            .to_string()
+            .contains("--verify requires every input formula to parse"));
     }
 
     #[test]

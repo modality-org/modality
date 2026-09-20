@@ -4,7 +4,9 @@ use serde_json::json;
 use std::path::PathBuf;
 
 use modality_common::contract_store::ContractStore;
-use modality_common::hub_client::{is_hub_url, HubClient, HubCredentials};
+use modality_common::hub_client::{
+    contract_id_from_hub_url, hub_origin, is_hub_url, HubClient, HubCredentials,
+};
 
 #[cfg(feature = "p2p")]
 use modality_node::actions::request;
@@ -102,90 +104,47 @@ pub async fn run(opts: &Opts) -> Result<()> {
 
     // Check if this is an HTTP hub or p2p remote
     if is_hub_url(&remote_url) {
-        // Check if remote URL contains /contracts/ (Contract Nexus REST API)
         let creds_path = opts
             .hub_creds
             .clone()
             .unwrap_or_else(|| contract_dir.join(".modal-hub/credentials.json"));
 
-        if creds_path.exists() {
-            // Use hub RPC auth
-            let creds = HubCredentials::load(&creds_path)?;
-            let hub = HubClient::new(&creds)?;
+        let origin = hub_origin(&remote_url);
+        let contract_id =
+            contract_id_from_hub_url(&remote_url).unwrap_or_else(|| config.contract_id.clone());
 
-            let (pushed, head) = hub.push(&config.contract_id, commits_data).await?;
-
-            if let Some(h) = &head {
-                store.set_remote_head(&opts.remote_name, h)?;
-            }
-
-            if opts.output == "json" {
-                println!(
-                    "{}",
-                    serde_json::to_string_pretty(&json!({
-                        "status": "pushed",
-                        "pushed_count": pushed,
-                        "commits": unpushed,
-                        "head": head,
-                    }))?
-                );
-            } else {
-                println!("✅ Successfully pushed {} commit(s) to hub!", pushed);
-                println!("   Contract ID: {}", config.contract_id);
-                println!("   Remote: {} ({})", opts.remote_name, remote_url);
-                if let Some(h) = head {
-                    println!("   Head: {}", h);
-                }
-                println!();
-                for commit_id in &unpushed {
-                    println!("  - {}", commit_id);
-                }
-            }
+        let hub = if creds_path.exists() {
+            HubClient::new(&HubCredentials::load(&creds_path)?)?
         } else {
-            // No credentials — try REST push directly
-            // Remote URL may be https://host/contracts/<id> or https://host
-            let push_url = if remote_url.contains("/contracts/") {
-                format!("{}/push", remote_url)
-            } else {
-                format!("{}/contracts/{}/push", remote_url, config.contract_id)
-            };
+            HubClient::unauthenticated(origin)
+        };
 
-            let client = reqwest::Client::new();
-            let resp = client
-                .post(&push_url)
-                .json(&json!({ "commits": commits_data }))
-                .send()
-                .await?;
+        let (pushed, head) = hub.push(&contract_id, commits_data).await?;
 
-            if resp.status().is_success() {
-                let body: serde_json::Value = resp.json().await?;
-                let head = body
-                    .get("head")
-                    .and_then(|h| h.as_str())
-                    .map(|s| s.to_string());
+        if let Some(h) = &head {
+            store.set_remote_head(&opts.remote_name, h)?;
+        }
 
-                if let Some(h) = &head {
-                    store.set_remote_head(&opts.remote_name, h)?;
-                }
-
-                if opts.output == "json" {
-                    println!("{}", serde_json::to_string_pretty(&body)?);
-                } else {
-                    println!("✅ Successfully pushed {} commit(s)!", unpushed.len());
-                    println!("   Contract ID: {}", config.contract_id);
-                    println!("   Remote: {} ({})", opts.remote_name, remote_url);
-                    if let Some(h) = head {
-                        println!("   Head: {}", h);
-                    }
-                    println!();
-                    for commit_id in &unpushed {
-                        println!("  - {}", commit_id);
-                    }
-                }
-            } else {
-                let status = resp.status();
-                let body = resp.text().await.unwrap_or_default();
-                anyhow::bail!("Push failed (HTTP {}): {}", status, body);
+        if opts.output == "json" {
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&json!({
+                    "status": "pushed",
+                    "pushed_count": pushed,
+                    "commits": unpushed,
+                    "head": head,
+                }))?
+            );
+        } else {
+            println!("✅ Successfully pushed {} commit(s) to hub!", pushed);
+            println!("   Contract ID: {}", contract_id);
+            println!("   Remote: {} ({})", opts.remote_name, remote_url);
+            if let Some(h) = head {
+                println!("   Head: {}", h);
+            }
+            println!();
+            for commit_id in &unpushed {
+                println!("  - {}", commit_id);
             }
         }
     } else {

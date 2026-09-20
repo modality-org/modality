@@ -2,6 +2,10 @@
 
 High-level JavaScript API for creating and interacting with Modal Contracts.
 
+This package wraps **Rust** `modality-lang` WASM for parse/check. For new
+work prefer [`@modality-org/sdk`](https://www.npmjs.com/package/@modality-org/sdk)
+and `@modality-dev/wasm`. The two SDKs will be folded together.
+
 ## Installation
 
 ```bash

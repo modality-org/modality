@@ -149,6 +149,41 @@ pub struct CommitEntry {
     pub timestamp: u64,
 }
 
+/// Wire commit used by `modal c push` / `modal c pull`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PushCommitItem {
+    #[serde(default)]
+    pub hash: Option<String>,
+    #[serde(default)]
+    pub parent: Option<String>,
+    #[serde(default, alias = "data")]
+    pub body: Option<Value>,
+    #[serde(default)]
+    pub head: Option<Value>,
+    #[serde(default)]
+    pub timestamp: Option<u64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PushCommitsRequest {
+    pub commits: Vec<PushCommitItem>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PushCommitsResponse {
+    pub pushed: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub head: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PullCommitsResponse {
+    pub contract_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub head: Option<String>,
+    pub commits: Vec<Value>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TemplateInfo {
     pub id: String,
@@ -646,6 +681,157 @@ impl HubCore {
             new_state,
             timestamp,
         })
+    }
+
+    /// Batch-push commits in the `modal c push` wire format.
+    ///
+    /// Missing contracts are created so a local contract can be published
+    /// without a separate hub create step. Duplicate hashes are skipped.
+    pub async fn push_commits(
+        &self,
+        contract_id: &str,
+        items: Vec<PushCommitItem>,
+    ) -> Result<PushCommitsResponse, HubError> {
+        self.ensure_contract(contract_id).await?;
+
+        let mut pushed = 0u64;
+
+        for item in items {
+            let body = match item.body {
+                Some(Value::Array(arr)) => Value::Array(arr),
+                Some(other) => json!([other]),
+                None => json!([]),
+            };
+            let parent = item.parent.clone().or_else(|| {
+                item.head
+                    .as_ref()
+                    .and_then(|h| h.get("parent"))
+                    .and_then(|p| p.as_str())
+                    .map(|s| s.to_string())
+            });
+            let head = item.head.clone().unwrap_or_else(|| json!({ "parent": parent }));
+            let hash = item
+                .hash
+                .clone()
+                .unwrap_or_else(|| compute_hash(&body, &head));
+            let timestamp = item.timestamp.unwrap_or_else(now);
+
+            {
+                let contracts = self.contracts.read().await;
+                if let Some(contract) = contracts.get(contract_id) {
+                    if contract.commits.iter().any(|c| c.hash == hash) {
+                        continue;
+                    }
+                    if contract.head != parent {
+                        return Err(HubError::InvalidRequest(format!(
+                            "parent mismatch for {}: expected {:?}, got {:?}",
+                            hash, contract.head, parent
+                        )));
+                    }
+                }
+            }
+
+            self.validate_commit(contract_id, &body, &head).await?;
+
+            let commit = StoredCommit {
+                hash: hash.clone(),
+                parent,
+                body,
+                head,
+                timestamp,
+            };
+
+            self.save_commit_to_disk(contract_id, &commit)?;
+
+            {
+                let mut contracts = self.contracts.write().await;
+                let contract = contracts.get_mut(contract_id).ok_or_else(|| {
+                    HubError::ContractNotFound(contract_id.to_string())
+                })?;
+                Self::apply_commit_to_state(contract_id, &commit, contract);
+                contract.commits.push(commit);
+                contract.head = Some(hash);
+            }
+
+            pushed += 1;
+        }
+
+        let head = {
+            let contracts = self.contracts.read().await;
+            contracts.get(contract_id).and_then(|c| c.head.clone())
+        };
+
+        Ok(PushCommitsResponse { pushed, head })
+    }
+
+    /// Pull commits after `since` (exclusive) in the `modal c pull` wire format.
+    pub async fn pull_commits(
+        &self,
+        contract_id: &str,
+        since: Option<&str>,
+    ) -> Result<PullCommitsResponse, HubError> {
+        let contracts = self.contracts.read().await;
+        let contract = contracts
+            .get(contract_id)
+            .ok_or_else(|| HubError::ContractNotFound(contract_id.to_string()))?;
+
+        let start = if let Some(since) = since {
+            contract
+                .commits
+                .iter()
+                .position(|c| c.hash == since)
+                .map(|i| i + 1)
+                .unwrap_or(0)
+        } else {
+            0
+        };
+
+        let commits = contract.commits[start..]
+            .iter()
+            .map(|c| {
+                json!({
+                    "hash": c.hash,
+                    "parent": c.parent,
+                    "data": c.body,
+                    "body": c.body,
+                    "head": c.head,
+                    "timestamp": c.timestamp,
+                })
+            })
+            .collect();
+
+        Ok(PullCommitsResponse {
+            contract_id: contract_id.to_string(),
+            head: contract.head.clone(),
+            commits,
+        })
+    }
+
+    async fn ensure_contract(&self, contract_id: &str) -> Result<(), HubError> {
+        {
+            let contracts = self.contracts.read().await;
+            if contracts.contains_key(contract_id) {
+                return Ok(());
+            }
+        }
+
+        let timestamp = now();
+        let contract_dir = self.data_dir.join("contracts").join(contract_id);
+        std::fs::create_dir_all(contract_dir.join("commits"))?;
+
+        let mut contracts = self.contracts.write().await;
+        contracts.entry(contract_id.to_string()).or_insert_with(|| ContractData {
+            head: None,
+            commits: Vec::new(),
+            created_at: timestamp,
+            model: None,
+            rules: Vec::new(),
+            assets: HashMap::new(),
+            balances: HashMap::new(),
+            pending_sends: HashMap::new(),
+            received_sends: HashMap::new(),
+        });
+        Ok(())
     }
 
     // ========================================================================

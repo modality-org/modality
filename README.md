@@ -46,12 +46,16 @@ curl --proto '=https' --tlsv1.2 -sSf https://www.modality.org/install.sh | sh
 
 ## Development
 
-Modality is developed in both JavaScript and Rust.
+Rust is the canonical implementation: language, verifier, CLI (`modal`), node, hub, and network (`modality-*` crates under [`/rust`](/rust)).
+
+JavaScript is provided **as needed** for hosts that are not Rust — WASM, the TypeScript SDK, browsers, and Node agents. Prefer wrapping the Rust libraries (especially `modality-lang` WASM) over reimplementing them.
 
 | | Path | Purpose |
 |---|---|---|
-| **JavaScript** | [`/js`](/js) | Web-compatible libraries for verifiable contracts |
-| **Rust** | [`/rust`](/rust) | System libraries and CLI |
+| **Rust** | [`/rust`](/rust) | Canonical libraries and `modal` CLI |
+| **JavaScript** | [`/js`](/js) | As-needed JS packages (`modality-js`), WASM, network/browser clients |
+| **TypeScript SDK** | [`/packages/modality-sdk`](/packages/modality-sdk) | `@modality-org/sdk` |
+| **VS Code** | [`/common/modality-vscode`](/common/modality-vscode) | LSP client for `modality-lsp` |
 
 See [DEVELOPMENT.md](DEVELOPMENT.md) for local setup, build, and test instructions.
 

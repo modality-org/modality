@@ -338,9 +338,9 @@ the generated artifact directory through the downloaded-artifact verifier with
 `MODAL_ONBOARDING_ARTIFACT_SMOKE=1`, so the consumer replay path is proved with
 the same language CLI before producer-side replay is reported.
 
-After `cargo build` within `/rust`, you can use this directory to locally try out the `modality` command.
-
-Alternatively, you can also use `modality-js` for the javascript implementation of the cli.
+After `cargo build -p modal` within `/rust`, you can use this directory to
+locally try out the `modal` command. `modality-js` is available when a
+JS-hosted CLI is needed.
 
 Be sure to approve direnv to add the debug build to your PATH within this directory.
 

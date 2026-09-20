@@ -32,7 +32,7 @@ You can add Modality to almost any software project — the same way you might a
 | **TypeScript/JavaScript SDK** | Web apps, agents, backends | Create contracts, sign commits, and verify rules programmatically via [`@modality-org/sdk`](https://www.npmjs.com/package/@modality-org/sdk). |
 | **Contract hub (HTTP)** | Multi-party collaboration | Run or connect to a hub server for push/pull workflows — similar to using a hosted database instead of a local file. See the [Contract Hub tutorial](../tutorials/contract-hub). |
 | **Rust libraries** | Native services, validators, nodes | Embed `modality-lang`, `modality-common`, and related crates directly in Rust binaries. |
-| **WASM / browser** | Client-side verification | Parse and check models in the browser without a round trip to a server. |
+| **WASM / browser** | Client-side verification | Parse and check models in the browser via `@modality-dev/wasm` (`modality-lang` compiled to WASM). |
 
 **Local-first, network-optional.** A contract starts as files on disk (`state/`, `model/`, `rules/`, commit history) — comparable to SQLite or a git repo. When you're ready, you sync to a hub or the network, the same way you'd point an app at Postgres or a cloud API.
 

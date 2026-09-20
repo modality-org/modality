@@ -5,15 +5,16 @@ title: Contract Hub
 
 # Contract Hub Tutorial
 
-Push and pull Modality contracts to a **hub** (centralized) or **chain** (decentralized).
+Push and pull Modality contracts through the **Rust hub** (`modal hub start`)
+or a **chain** remote (decentralized). A JavaScript hub remains under
+`services/contract-hub` when a JS-hosted API is needed.
 
 ## Hub vs Chain
 
 | Feature | Hub | Chain |
 |---------|-----|-------|
 | URL format | `http://...` | `/ip4/.../p2p/...` |
-| Auth | ed25519 keypairs | Node identity |
-| Validation | Server-side | Consensus |
+| Validation | Server-side (`modality-lang`) | Consensus |
 | Speed | Fast | Depends on network |
 | Trust | Hub operator | Validators |
 
@@ -22,112 +23,58 @@ Push and pull Modality contracts to a **hub** (centralized) or **chain** (decent
 ### 1. Start the Hub
 
 ```bash
-modal hub start --detach
-modal hub status
+modal hub start --host 127.0.0.1 --port 8080 --rpc-port 0 --data-dir .hub
 ```
 
-### 2. Register Your Identity
+The current `modal hub` command group starts the server only. See
+[Hub Commands](../cli/hub-commands).
+
+### 2. Create a contract (optional)
 
 ```bash
-modal hub register
+curl -s -X POST http://127.0.0.1:8080/contracts \
+  -H 'content-type: application/json' \
+  -d '{"template":"escrow"}'
 ```
 
-This saves credentials to `.modal-hub/credentials.json`.
-
-### 3. Create a Contract on Hub
-
-```bash
-modal hub create "My Contract" --description "Description here"
-```
+`modal c push` will also create the remote contract id if it does not exist.
 
 ## Push/Pull Workflow
 
-### Add a Remote
-
 ```bash
-modal c remote add hub http://localhost:3100/contracts/my-contract
+modal c remote add origin http://127.0.0.1:8080/contracts/my-contract
+modal c push origin
+modal c pull origin
 ```
 
-### Push Changes
-
-```bash
-modal c push hub
-```
-
-### Pull Changes
-
-```bash
-modal c pull hub
-```
+Credentials in `.modal-hub/credentials.json` are optional on the Rust hub.
+They are used by the JavaScript hub in `services/contract-hub`. The Rust hub
+accepts unauthenticated push/pull on localhost.
 
 ## Multi-Party Collaboration
 
-### Alice Creates the Contract
+### Alice publishes
 
 ```bash
-modal hub create "Escrow with Bob"
-# Output: Contract ID: con_abc123
-
-modal c remote add hub http://localhost:3100/contracts/con_abc123
-modal c push hub
+modal c remote add origin http://127.0.0.1:8080/contracts/escrow-with-bob
+modal c push origin
 ```
 
-### Alice Grants Bob Access
+### Bob clones and contributes
 
 ```bash
-modal hub grant con_abc123 --identity bob_id_xyz --role writer
+modal c clone http://127.0.0.1:8080/contracts/escrow-with-bob
+modal c set-named-id /parties/bob.id ./bob.mod_passfile
+modal c commit --all --sign bob.mod_passfile -m "Bob joins"
+modal c push origin
 ```
-
-### Bob Clones and Contributes
-
-```bash
-# Bob clones
-modal c clone http://localhost:3100/contracts/con_abc123
-
-# Bob adds his changes
-modal c set-named-id /parties/bob.id ./bob.passfile
-modal c commit --all --sign bob.passfile -m "Bob joins"
-modal c push hub
-```
-
-## Access Control
-
-| Role | Permissions |
-|------|-------------|
-| `owner` | Full control (push, grant, delete) |
-| `writer` | Push commits |
-| `reader` | Pull only |
-
-### Grant Access
-
-```bash
-modal hub grant <contract_id> --identity <id> --role writer
-```
-
-### Revoke Access
-
-```bash
-modal hub revoke <contract_id> --identity <id>
-```
-
-## Two-Tier Authentication
-
-The hub uses two ed25519 keypairs:
-
-- **Identity Key** — Long-lived, represents your permanent identity
-- **Access Key** — Short-lived, rotatable session key
-
-If an access key is compromised, you can revoke it without changing your identity.
 
 ## Chain Sync (Decentralized)
 
 For trustless operation, sync to the chain instead:
 
 ```bash
-# Add chain remote
 modal c remote add chain /ip4/validator.modality.network/tcp/4001/p2p/12D3KooW...
-
-# Push to chain
 modal c push chain
 ```
 
@@ -135,5 +82,6 @@ Chain commits are validated by consensus — no single party can censor or tampe
 
 ## See also
 
-- [RFC 8555 ACME autoformalization example](../../experiments/ietf-autoformalization/rfc8555-acme/) — IETF protocol governance as a Modality contract
-- [IETF autoformalization plan](../progress/IETF_AUTOFORMALIZATION_PLAN.md)
+- [Hub Commands](../cli/hub-commands)
+- [Hub REST API](../reference/hub-rest-api)
+- [RFC 8555 ACME autoformalization example](../../experiments/ietf-autoformalization/rfc8555-acme/)

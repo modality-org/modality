@@ -2,6 +2,11 @@
 
 SDK for creating, signing, and verifying Modality contracts. Designed for AI agents using the Agent Trust Protocol (ATP).
 
+Verification of models and formulas belongs in **Rust** (`modality-lang`),
+exposed to JS via WASM (`@modality-dev/wasm` / `modality-lang-wasm`). This
+package currently signs locally with ed25519; do not treat it as a second
+language implementation.
+
 ## Install
 
 ```bash

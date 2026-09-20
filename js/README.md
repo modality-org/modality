@@ -1,14 +1,14 @@
 # modality-js
 
-A modular framework for running and managing nodes with efficient communication between them.
+JavaScript packages for Modality, provided **as needed** for hosts that are not
+Rust (Node, browsers, WASM).
 
-> "All models are wrong but some are useful"
->
-> - George Box
+Rust is canonical: the `modal` CLI and `modality-*` crates under `/rust`
+implement the language, verifier, node, hub, and network. Add or keep JS here
+when a JS host actually needs it. Prefer wrapping `modality-lang` WASM over
+reimplementing the parser or model checker.
 
 ## Installation
-
-To install the necessary dependencies, run:
 
 ```bash
 pnpm i
@@ -16,21 +16,19 @@ pnpm i
 
 ## Running a Node
 
-To run a node, you'll find the configurations in `packages/fixtures/network-node/fixtures/config`.
-
-Execute the following command:
+Configurations live in `packages/network-node/fixtures/configs`.
 
 ```bash
 node packages/network-node/src/cmds/run.js --config packages/network-node/fixtures/configs/node1.json
 ```
 
-You should now see in the terminal that you are listening on the addresses set in the `node1.json` config.
+You should see the node listening on the addresses in `node1.json`.
 
 ## Communication Between Nodes
 
 ### Ping
 
-To start a second node and ping node 1 from node 2, use the `target` address from when you started `node1`:
+Start a second node and ping node 1 (use the `target` address from node 1):
 
 ```bash
 node packages/network-node/src/cmds/ping.js --config packages/network-node/fixtures/configs/node2.json --target /ip4/127.0.0.1/tcp/10001/ws/p2p/12D3KooWPBRNBzgceXh7Z27wGoyYYz9ggwaYg2dWiwXXe8ieyFCN --times 10
@@ -38,22 +36,15 @@ node packages/network-node/src/cmds/ping.js --config packages/network-node/fixtu
 
 ### ReqRes
 
-You can communicate directly between nodes and pass data by running the ReqRes command and specifying a `path` and `data`.
-
-#### Valid Paths
-
-- `/consensus/status`
-- `/consensus/sign_vertex`
-- `/consensus/submit_commits`
-
-Example command:
+Valid paths include `/consensus/status`, `/consensus/sign_vertex`, and
+`/consensus/submit_commits`.
 
 ```bash
 node packages/network-node/src/cmds/request.js --config packages/network-node/fixtures/configs/node2.json --target /ip4/127.0.0.1/tcp/10001/ws/p2p/12D3KooWPBRNBzgceXh7Z27wGoyYYz9ggwaYg2dWiwXXe8ieyFCN --path "/consensus/status" --data "{\"hello\": \"world\"}"
 ```
 
-Feel free to reach out for any issues or contributions!
-
 ## Start new datastore
 
+```bash
 node src/cmds/run.js --config ./fixtures/configs/node1.json --load_storage ./fixtures/datastores/devnet-static1.tgz --services scribe
+```
