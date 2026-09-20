@@ -11,12 +11,13 @@ use ratatui::widgets::{Block, Borders, List, ListItem, ListState, Paragraph, Wra
 use ratatui::{Frame, Terminal};
 use std::io::stdout;
 
-use super::keys::{event_stream, is_quit_key, next_key, subscribe_interrupt};
+use super::keys::{is_quit_key, subscribe_interrupt, KeyPump};
 use super::runner::NodeRole;
 use super::tui::{install_panic_hook, TerminalGuard, ACCENT, GREEN, MUTED};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PickedAction {
+    ViewDashboard,
     RunFromConfig,
     Run(NodeRole),
     Create,
@@ -40,6 +41,7 @@ pub struct ActionMenu {
     pub status_line: String,
     pub items: Vec<ActionItem>,
     pub selected: usize,
+    pub session_running: bool,
 }
 
 /// Interactive list until the user picks an action or quits.
@@ -56,7 +58,7 @@ pub async fn pick_action(menu: ActionMenu) -> Result<Option<PickedAction>> {
     let mut terminal = Terminal::new(ratatui::backend::CrosstermBackend::new(stdout))?;
     terminal.clear()?;
 
-    let mut events = event_stream();
+    let mut keys = KeyPump::new();
     let mut selected = menu.selected.min(menu.items.len() - 1);
     if !menu.items[selected].enabled {
         if let Some((idx, _)) = menu.items.iter().enumerate().find(|(_, item)| item.enabled) {
@@ -69,7 +71,7 @@ pub async fn pick_action(menu: ActionMenu) -> Result<Option<PickedAction>> {
     let picked = loop {
         terminal.draw(|frame| draw(frame, &menu, &mut state))?;
         tokio::select! {
-            key = next_key(&mut events) => {
+            key = keys.next_key() => {
                 let Some(key) = key else { break None; };
                 if is_quit_key(&key) {
                     break None;
@@ -125,7 +127,7 @@ fn draw(frame: &mut Frame, menu: &ActionMenu, state: &mut ListState) {
     draw_header(frame, chunks[0], menu);
     draw_status(frame, chunks[1], menu);
     draw_list(frame, chunks[2], menu, state);
-    draw_footer(frame, chunks[3]);
+    draw_footer(frame, chunks[3], menu);
 }
 
 fn draw_header(frame: &mut Frame, area: Rect, menu: &ActionMenu) {
@@ -191,7 +193,7 @@ fn draw_list(frame: &mut Frame, area: Rect, menu: &ActionMenu, state: &mut ListS
     frame.render_stateful_widget(list, area, state);
 }
 
-fn draw_footer(frame: &mut Frame, area: Rect) {
+fn draw_footer(frame: &mut Frame, area: Rect, menu: &ActionMenu) {
     let lines = vec![
         Line::from(vec![
             Span::styled(
@@ -203,7 +205,14 @@ fn draw_footer(frame: &mut Frame, area: Rect) {
                 " q  Esc  Ctrl-C ",
                 Style::default().fg(ACCENT).add_modifier(Modifier::BOLD),
             ),
-            Span::styled("quit", Style::default()),
+            Span::styled(
+                if menu.session_running {
+                    "quit CLI (stops this node)"
+                } else {
+                    "quit"
+                },
+                Style::default(),
+            ),
         ]),
         Line::from(vec![
             Span::styled(
@@ -215,7 +224,7 @@ fn draw_footer(frame: &mut Frame, area: Rect) {
                 " 1-9 ",
                 Style::default().fg(ACCENT).add_modifier(Modifier::BOLD),
             ),
-            Span::styled("jump (Tab does nothing here)", Style::default().fg(MUTED)),
+            Span::styled("jump", Style::default().fg(MUTED)),
         ]),
     ];
     frame.render_widget(Paragraph::new(lines), area);

@@ -17,7 +17,7 @@ use ratatui::{Frame, Terminal};
 use std::io::stdout;
 use std::time::Duration;
 
-use super::keys::{event_stream, is_quit_key, next_key, subscribe_interrupt};
+use super::keys::{is_quit_key, subscribe_interrupt, KeyPump};
 
 /// Named ANSI colors so the dashboard follows the terminal palette
 /// instead of painting a fixed RGB scheme.
@@ -55,19 +55,22 @@ pub(crate) fn install_panic_hook() {
     }));
 }
 
-/// Run the node dashboard until the user quits or the node shuts down.
-pub async fn run(source: NodeStatusSource, logs: LogRing) -> Result<()> {
+/// Run the node dashboard until the user leaves it or the node shuts down.
+///
+/// When `stop_node_on_leave` is true (standalone `node run*`), leaving the
+/// dashboard stops the node. When false (picker session), the node keeps running.
+pub async fn run(source: NodeStatusSource, logs: LogRing, stop_node_on_leave: bool) -> Result<()> {
     install_panic_hook();
     let mut interrupt = subscribe_interrupt()?;
     let _guard = TerminalGuard;
     let mut stdout = stdout();
     execute!(stdout, EnterAlternateScreen)?;
     execute!(stdout, crossterm::cursor::Hide)?;
-    let _shutdown = ShutdownOnExit(source.clone());
+    let _shutdown = stop_node_on_leave.then(|| ShutdownOnExit(source.clone()));
     let mut terminal = Terminal::new(ratatui::backend::CrosstermBackend::new(stdout))?;
     terminal.clear()?;
 
-    let mut events = event_stream();
+    let mut keys = KeyPump::new();
     let mut snapshot = None;
     let mut snap_task = {
         let src = source.clone();
@@ -79,11 +82,11 @@ pub async fn run(source: NodeStatusSource, logs: LogRing) -> Result<()> {
 
     loop {
         let log_lines = logs.snapshot();
-        terminal.draw(|frame| draw(frame, snapshot.as_ref(), &log_lines))?;
+        terminal.draw(|frame| draw(frame, snapshot.as_ref(), &log_lines, stop_node_on_leave))?;
 
         tokio::select! {
             biased;
-            key = next_key(&mut events) => {
+            key = keys.next_key() => {
                 let Some(key) = key else { break; };
                 if is_quit_key(&key) {
                     break;
@@ -113,7 +116,7 @@ pub async fn run(source: NodeStatusSource, logs: LogRing) -> Result<()> {
     Ok(())
 }
 
-fn draw(frame: &mut Frame, status: Option<&NodeStatus>, logs: &[String]) {
+fn draw(frame: &mut Frame, status: Option<&NodeStatus>, logs: &[String], stop_node_on_leave: bool) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
@@ -126,15 +129,20 @@ fn draw(frame: &mut Frame, status: Option<&NodeStatus>, logs: &[String]) {
         ])
         .split(frame.area());
 
-    draw_header(frame, chunks[0], status);
+    draw_header(frame, chunks[0], status, stop_node_on_leave);
     draw_epoch(frame, chunks[1], status);
     draw_stats(frame, chunks[2], status);
     draw_blocks(frame, chunks[3], status);
     draw_logs(frame, chunks[4], logs);
-    draw_footer(frame, chunks[5]);
+    draw_footer(frame, chunks[5], stop_node_on_leave);
 }
 
-fn draw_header(frame: &mut Frame, area: Rect, status: Option<&NodeStatus>) {
+fn draw_header(
+    frame: &mut Frame,
+    area: Rect,
+    status: Option<&NodeStatus>,
+    stop_node_on_leave: bool,
+) {
     let (role, network, peer, peers, height, epoch, round) = match status {
         Some(s) => (
             s.role.as_str(),
@@ -181,7 +189,11 @@ fn draw_header(frame: &mut Frame, area: Rect, status: Option<&NodeStatus>) {
             Block::default()
                 .borders(Borders::ALL)
                 .border_style(Style::default().fg(MUTED))
-                .title(" node · Ctrl-C or q to quit "),
+                .title(if stop_node_on_leave {
+                    " node · q / Esc / Ctrl-C stop "
+                } else {
+                    " node · q / Esc back to menu "
+                }),
         ),
         area,
     );
@@ -308,17 +320,19 @@ fn key_hint(label: &'static str) -> Span<'static> {
     )
 }
 
-fn draw_footer(frame: &mut Frame, area: Rect) {
+fn draw_footer(frame: &mut Frame, area: Rect, stop_node_on_leave: bool) {
+    let action = if stop_node_on_leave {
+        "  stop the node"
+    } else {
+        "  back to menu  ·  node keeps running"
+    };
     let line = Line::from(vec![
-        key_hint(" Ctrl-C "),
-        Span::styled(" or ", Style::default().fg(MUTED)),
         key_hint(" q "),
         Span::styled(" or ", Style::default().fg(MUTED)),
         key_hint(" Esc "),
-        Span::styled(
-            "  quit   ·   no tabs, this is the whole screen",
-            Style::default().fg(MUTED),
-        ),
+        Span::styled(" or ", Style::default().fg(MUTED)),
+        key_hint(" Ctrl-C "),
+        Span::styled(action, Style::default().fg(MUTED)),
     ]);
     frame.render_widget(Paragraph::new(line), area);
 }
@@ -365,7 +379,7 @@ mod tests {
         let backend = TestBackend::new(100, 28);
         let mut terminal = Terminal::new(backend).unwrap();
         terminal
-            .draw(|frame| draw(frame, None, &["hello log".into()]))
+            .draw(|frame| draw(frame, None, &["hello log".into()], false))
             .unwrap();
         let buffer = terminal.backend().buffer();
         let mut text = String::new();
@@ -376,14 +390,30 @@ mod tests {
             text.push('\n');
         }
         assert!(
-            text.contains("Ctrl-C") && text.contains("quit"),
-            "quit hint missing from dashboard:\n{text}"
+            text.contains("menu") && text.contains("keeps running"),
+            "back-to-menu hint missing from dashboard:\n{text}"
         );
         assert!(
             !text.to_lowercase().contains("overview") || !text.contains("Tab  ←"),
             "tab navigation should not be the main UI:\n{text}"
         );
         assert!(text.contains("hello log"));
+
+        terminal
+            .draw(|frame| draw(frame, None, &["hello log".into()], true))
+            .unwrap();
+        let buffer = terminal.backend().buffer();
+        let mut stop_text = String::new();
+        for y in buffer.area.top()..buffer.area.bottom() {
+            for x in buffer.area.left()..buffer.area.right() {
+                stop_text.push_str(buffer[(x, y)].symbol());
+            }
+            stop_text.push('\n');
+        }
+        assert!(
+            stop_text.contains("stop the node"),
+            "standalone quit hint missing:\n{stop_text}"
+        );
 
         for y in buffer.area.top()..buffer.area.bottom() {
             for x in buffer.area.left()..buffer.area.right() {

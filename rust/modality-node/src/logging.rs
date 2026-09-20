@@ -166,7 +166,9 @@ fn init_logging_with_sink(
         ring: sink.ring,
     };
     builder.target(env_logger::Target::Pipe(Box::new(writer)));
-    builder.init();
+    if builder.try_init().is_err() {
+        return Ok(());
+    }
 
     if let Some(logs_dir) = logs_path {
         if save_logs {

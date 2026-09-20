@@ -2,14 +2,16 @@
 
 use anyhow::{bail, Result};
 use clap::Args;
-use std::io::IsTerminal;
+use std::io::{self, IsTerminal, Write};
 use std::path::PathBuf;
 
 use modality_node::config_resolution::load_config_with_node_dir;
+use modality_node::logging::LogRing;
 use modality_node::pid::read_pid_file;
 
 use super::picker::{pick_action, ActionItem, ActionMenu, PickedAction};
-use super::runner::{self, CommonNodeOpts, NodeRole};
+use super::runner::{self, CommonNodeOpts, NodeRole, RunningNode};
+use super::tui;
 
 /// Options for the no-subcommand node launcher.
 #[derive(Debug, Clone, Args)]
@@ -31,7 +33,7 @@ pub struct Opts {
     pub tui: bool,
 }
 
-/// Open the action picker, then run the chosen command.
+/// Open the action picker. Run actions keep the node alive until Stop or quit.
 pub async fn run(opts: &Opts) -> Result<()> {
     if opts.no_tui || std::env::var_os("MODALITY_NO_TUI").is_some() {
         bail!(
@@ -47,14 +49,30 @@ pub async fn run(opts: &Opts) -> Result<()> {
     }
 
     let dir = opts.dir.clone().unwrap_or(std::env::current_dir()?);
-    let menu = build_menu(&dir, opts.config.as_ref())?;
-    let Some(action) = pick_action(menu).await? else {
-        return Ok(());
-    };
-    dispatch(opts, &dir, action).await
+    let mut session: Option<RunningNode> = None;
+    let log_ring = LogRing::new();
+
+    loop {
+        reclaim_finished(&mut session).await?;
+        let menu = build_menu(&dir, opts.config.as_ref(), session.as_ref().map(|s| s.role))?;
+        let Some(action) = pick_action(menu).await? else {
+            if let Some(running) = session.take() {
+                running.stop().await?;
+            }
+            return Ok(());
+        };
+        if let Err(err) = handle_action(opts, &dir, action, &mut session, &log_ring).await {
+            eprintln!("{err:#}");
+            wait_for_enter();
+        }
+    }
 }
 
-fn build_menu(dir: &PathBuf, config: Option<&PathBuf>) -> Result<ActionMenu> {
+fn build_menu(
+    dir: &PathBuf,
+    config: Option<&PathBuf>,
+    session_role: Option<NodeRole>,
+) -> Result<ActionMenu> {
     let config_path = config.cloned().unwrap_or_else(|| dir.join("config.json"));
     let config_exists = config_path.exists();
     let loaded = if config_exists {
@@ -66,24 +84,43 @@ fn build_menu(dir: &PathBuf, config: Option<&PathBuf>) -> Result<ActionMenu> {
         .as_ref()
         .map(|c| c.get_node_role())
         .unwrap_or_else(|| "none".to_string());
-    let running = read_pid_file(dir).ok().flatten().is_some();
+    let pid_running = read_pid_file(dir).ok().flatten().is_some();
+    let session_running = session_role.is_some();
 
-    let status_line = if !config_exists {
+    let status_line = if let Some(role) = session_role {
+        format!(
+            "this CLI is running a {}  ·  q/Esc on the dashboard returns here",
+            role.description()
+        )
+    } else if !config_exists {
         format!(
             "No config.json in {}. Create a node, or point --dir at an existing one.",
             dir.display()
         )
-    } else if running {
+    } else if pid_running {
         format!("config present  ·  role {suggested}  ·  background PID file found")
     } else {
         format!("config present  ·  configured role {suggested}")
     };
 
-    let items = vec![
+    let mut items = Vec::new();
+    if session_running {
+        items.push(item(
+            PickedAction::ViewDashboard,
+            "View dashboard",
+            "node keeps running if you leave it",
+            true,
+        ));
+    }
+    items.extend([
         item(
             PickedAction::RunFromConfig,
             "Run from config",
-            "use run_as / miner flags in config.json",
+            if session_running {
+                "open the dashboard for the node already running"
+            } else {
+                "use run_as / miner flags in config.json"
+            },
             config_exists,
         ),
         item(
@@ -120,13 +157,21 @@ fn build_menu(dir: &PathBuf, config: Option<&PathBuf>) -> Result<ActionMenu> {
             PickedAction::Start,
             "Start in background",
             "detach with node.pid; no TUI",
-            config_exists,
+            config_exists && !session_running,
         ),
         item(
             PickedAction::Stop,
-            "Stop background node",
-            "SIGTERM the PID in node.pid",
-            config_exists,
+            if session_running {
+                "Stop this node"
+            } else {
+                "Stop background node"
+            },
+            if session_running {
+                "shut down the node started from this menu"
+            } else {
+                "SIGTERM the PID in node.pid"
+            },
+            config_exists || session_running,
         ),
         item(
             PickedAction::Info,
@@ -140,12 +185,14 @@ fn build_menu(dir: &PathBuf, config: Option<&PathBuf>) -> Result<ActionMenu> {
             "last 50 lines from the node log file",
             config_exists,
         ),
-    ];
+    ]);
 
     let selected = items
         .iter()
         .position(|item| {
-            if config_exists {
+            if session_running {
+                item.action == PickedAction::ViewDashboard
+            } else if config_exists {
                 item.action == PickedAction::RunFromConfig
             } else {
                 item.action == PickedAction::Create
@@ -158,6 +205,7 @@ fn build_menu(dir: &PathBuf, config: Option<&PathBuf>) -> Result<ActionMenu> {
         status_line,
         items,
         selected,
+        session_running,
     })
 }
 
@@ -170,18 +218,88 @@ fn item(action: PickedAction, title: &str, hint: &str, enabled: bool) -> ActionI
     }
 }
 
-async fn dispatch(opts: &Opts, dir: &PathBuf, action: PickedAction) -> Result<()> {
-    let common = CommonNodeOpts {
+fn common_opts(opts: &Opts, dir: &PathBuf) -> CommonNodeOpts {
+    CommonNodeOpts {
         config: opts.config.clone(),
         dir: Some(dir.clone()),
-        no_tui: false,
-        tui: opts.tui,
-    };
+        no_tui: true,
+        tui: false,
+    }
+}
+
+async fn reclaim_finished(session: &mut Option<RunningNode>) -> Result<()> {
+    if session.as_ref().is_some_and(|s| !s.is_running()) {
+        if let Some(finished) = session.take() {
+            if let Err(err) = finished.join().await {
+                eprintln!("node exited: {err:#}");
+            }
+        }
+    }
+    Ok(())
+}
+
+async fn open_dashboard(session: &RunningNode) -> Result<()> {
+    tui::run(session.source.clone(), session.logs.clone(), false).await
+}
+
+async fn ensure_session(
+    opts: &Opts,
+    dir: &PathBuf,
+    role: NodeRole,
+    session: &mut Option<RunningNode>,
+    log_ring: &LogRing,
+) -> Result<()> {
+    if session.as_ref().is_some_and(|s| s.is_running()) {
+        return Ok(());
+    }
+    *session = None;
+    if read_pid_file(dir).ok().flatten().is_some() {
+        bail!(
+            "A background node PID file exists in {}. Stop that node before running from this menu.",
+            dir.display()
+        );
+    }
+    *session =
+        Some(runner::spawn_node(&common_opts(opts, dir), role, false, log_ring.clone()).await?);
+    Ok(())
+}
+
+async fn handle_action(
+    opts: &Opts,
+    dir: &PathBuf,
+    action: PickedAction,
+    session: &mut Option<RunningNode>,
+    log_ring: &LogRing,
+) -> Result<()> {
     match action {
-        PickedAction::RunFromConfig => runner::run_server(&common).await,
-        PickedAction::Run(role) => runner::run_node(&common, role, true).await,
+        PickedAction::ViewDashboard => {
+            if let Some(running) = session.as_ref() {
+                open_dashboard(running).await?;
+            }
+        }
+        PickedAction::RunFromConfig => {
+            let config = load_config_with_node_dir(opts.config.clone(), Some(dir.clone()))?;
+            ensure_session(
+                opts,
+                dir,
+                runner::role_from_config(&config)?,
+                session,
+                log_ring,
+            )
+            .await?;
+            if let Some(running) = session.as_ref() {
+                open_dashboard(running).await?;
+            }
+        }
+        PickedAction::Run(role) => {
+            ensure_session(opts, dir, role, session, log_ring).await?;
+            if let Some(running) = session.as_ref() {
+                open_dashboard(running).await?;
+            }
+        }
         PickedAction::Create => {
-            super::create::run(&super::create::Opts::for_dir(dir.clone())).await
+            super::create::run(&super::create::Opts::for_dir(dir.clone())).await?;
+            wait_for_enter();
         }
         PickedAction::Start => {
             super::start::run(&super::start::Opts {
@@ -189,15 +307,23 @@ async fn dispatch(opts: &Opts, dir: &PathBuf, action: PickedAction) -> Result<()
                 dir: Some(dir.clone()),
                 node_type: None,
             })
-            .await
+            .await?;
+            wait_for_enter();
         }
         PickedAction::Stop => {
-            super::stop::run(&super::stop::Opts {
-                config: opts.config.clone(),
-                dir: Some(dir.clone()),
-                force: false,
-            })
-            .await
+            if let Some(running) = session.take() {
+                running.stop().await?;
+                println!("Stopped the node started from this menu.");
+            }
+            if dir.join("node.pid").exists() {
+                super::stop::run(&super::stop::Opts {
+                    config: opts.config.clone(),
+                    dir: Some(dir.clone()),
+                    force: false,
+                })
+                .await?;
+            }
+            wait_for_enter();
         }
         PickedAction::Info => {
             super::info::run(&super::info::Opts {
@@ -205,7 +331,8 @@ async fn dispatch(opts: &Opts, dir: &PathBuf, action: PickedAction) -> Result<()
                 dir: Some(dir.clone()),
                 verbose: false,
             })
-            .await
+            .await?;
+            wait_for_enter();
         }
         PickedAction::Logs => {
             super::logs::run(&super::logs::Opts {
@@ -215,9 +342,17 @@ async fn dispatch(opts: &Opts, dir: &PathBuf, action: PickedAction) -> Result<()
                 follow: false,
                 offline: true,
             })
-            .await
+            .await?;
+            wait_for_enter();
         }
     }
+    Ok(())
+}
+
+fn wait_for_enter() {
+    print!("\nPress Enter to return to the menu.");
+    let _ = io::stdout().flush();
+    let _ = io::stdin().read_line(&mut String::new());
 }
 
 #[cfg(test)]
@@ -228,10 +363,23 @@ mod tests {
     fn menu_without_config_selects_create() {
         let tmp = tempfile::tempdir().unwrap();
         let dir = tmp.path().to_path_buf();
-        let menu = build_menu(&dir, None).unwrap();
+        let menu = build_menu(&dir, None, None).unwrap();
         assert!(!menu.items[0].enabled);
         assert!(menu.items[5].enabled);
         assert_eq!(menu.items[5].action, PickedAction::Create);
         assert_eq!(menu.selected, 5);
+        assert!(!menu.session_running);
+    }
+
+    #[test]
+    fn menu_with_session_puts_dashboard_first() {
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = tmp.path().to_path_buf();
+        let menu = build_menu(&dir, None, Some(NodeRole::Miner)).unwrap();
+        assert_eq!(menu.items[0].action, PickedAction::ViewDashboard);
+        assert!(menu.items[0].enabled);
+        assert_eq!(menu.selected, 0);
+        assert!(menu.session_running);
+        assert!(menu.status_line.contains("running"));
     }
 }

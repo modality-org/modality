@@ -3,12 +3,17 @@
 //! Crossterm raw mode disables ISIG, so Ctrl-C never becomes SIGINT and the
 //! process looks "stuck". We re-enable ISIG, ignore Ctrl-Z suspend, and treat
 //! q / Esc / Ctrl-C as quit in both the picker and the dashboard.
+//!
+//! Keys come from a dedicated reader thread so the picker and dashboard can
+//! each take over stdin after the other has left.
 
 use anyhow::Result;
-use crossterm::event::{Event, EventStream, KeyCode, KeyEvent, KeyModifiers};
+use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyModifiers};
 use crossterm::terminal::enable_raw_mode;
-use futures::StreamExt;
 use std::io;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
+use std::time::Duration;
 
 pub(crate) fn is_quit_key(key: &KeyEvent) -> bool {
     match key.code {
@@ -21,16 +26,52 @@ pub(crate) fn is_quit_key(key: &KeyEvent) -> bool {
     }
 }
 
-pub(crate) fn event_stream() -> EventStream {
-    EventStream::new()
+/// Owns a stdin reader thread for one TUI screen. Drop it before opening another.
+pub(crate) struct KeyPump {
+    rx: tokio::sync::mpsc::UnboundedReceiver<KeyEvent>,
+    stop: Arc<AtomicBool>,
+    thread: Option<std::thread::JoinHandle<()>>,
 }
 
-pub(crate) async fn next_key(events: &mut EventStream) -> Option<KeyEvent> {
-    loop {
-        match events.next().await {
-            Some(Ok(Event::Key(key))) => return Some(key),
-            Some(Ok(_)) => continue,
-            Some(Err(_)) | None => return None,
+impl KeyPump {
+    pub fn new() -> Self {
+        let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+        let stop = Arc::new(AtomicBool::new(false));
+        let stop_thread = stop.clone();
+        let thread = std::thread::spawn(move || {
+            while !stop_thread.load(Ordering::Relaxed) {
+                match event::poll(Duration::from_millis(50)) {
+                    Ok(true) => match event::read() {
+                        Ok(Event::Key(key)) => {
+                            if tx.send(key).is_err() {
+                                break;
+                            }
+                        }
+                        Ok(_) => {}
+                        Err(_) => break,
+                    },
+                    Ok(false) => {}
+                    Err(_) => break,
+                }
+            }
+        });
+        Self {
+            rx,
+            stop,
+            thread: Some(thread),
+        }
+    }
+
+    pub async fn next_key(&mut self) -> Option<KeyEvent> {
+        self.rx.recv().await
+    }
+}
+
+impl Drop for KeyPump {
+    fn drop(&mut self) {
+        self.stop.store(true, Ordering::Relaxed);
+        if let Some(thread) = self.thread.take() {
+            let _ = thread.join();
         }
     }
 }

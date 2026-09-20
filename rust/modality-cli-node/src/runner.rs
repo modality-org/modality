@@ -99,34 +99,100 @@ fn should_use_tui(opts: &CommonNodeOpts) -> bool {
     std::io::stdout().is_terminal()
 }
 
-/// Run a node with the specified role.
-pub async fn run_node(opts: &CommonNodeOpts, role: NodeRole, manage_pid: bool) -> Result<()> {
+/// A node started from the picker; the dashboard can leave without stopping it.
+pub struct RunningNode {
+    pub role: NodeRole,
+    pub source: modality_node::status_snapshot::NodeStatusSource,
+    pub logs: LogRing,
+    task: tokio::task::JoinHandle<Result<()>>,
+}
+
+impl RunningNode {
+    pub fn is_running(&self) -> bool {
+        !self.task.is_finished()
+    }
+
+    pub async fn join(self) -> Result<()> {
+        match self.task.await {
+            Ok(result) => result,
+            Err(err) if err.is_cancelled() => Ok(()),
+            Err(err) => Err(anyhow::anyhow!("node task failed: {err}")),
+        }
+    }
+
+    pub async fn stop(self) -> Result<()> {
+        self.source.request_shutdown();
+        self.join().await
+    }
+}
+
+/// Role from `run_as` / miner flags in config.
+pub fn role_from_config(config: &Config) -> Result<NodeRole> {
+    match config.run_as.as_deref() {
+        Some("miner") => Ok(NodeRole::Miner),
+        Some("hybrid") => Ok(NodeRole::Hybrid),
+        Some("observer") => Ok(NodeRole::Observer),
+        Some("validator") => Ok(NodeRole::Validator),
+        Some("noop") => Ok(NodeRole::Noop),
+        Some(unknown) => anyhow::bail!(
+            "Unknown run_as value in config: '{}'. Valid values: miner, hybrid, observer, validator, noop",
+            unknown
+        ),
+        None => {
+            if config.run_miner.unwrap_or(false) {
+                Ok(NodeRole::Miner)
+            } else {
+                Ok(NodeRole::Server)
+            }
+        }
+    }
+}
+
+async fn run_role(node: &mut Node, role: NodeRole, config: &Config) -> Result<()> {
+    match role {
+        NodeRole::Miner => actions::miner::run(node).await,
+        NodeRole::Hybrid => {
+            node.hybrid_consensus = true;
+            actions::miner::run(node).await
+        }
+        NodeRole::Observer => actions::observer::run(node).await,
+        NodeRole::Validator => actions::validator::run(node).await,
+        NodeRole::Noop => actions::noop::run(node).await,
+        NodeRole::Server => {
+            if config.run_miner.unwrap_or(false) {
+                log::info!("Running node in miner mode");
+                actions::miner::run(node).await
+            } else {
+                log::info!("Running node in server mode");
+                actions::server::run(node).await
+            }
+        }
+    }
+}
+
+/// Start a node without attaching a TUI. The caller can open/close the dashboard.
+pub async fn spawn_node(
+    opts: &CommonNodeOpts,
+    role: NodeRole,
+    manage_pid: bool,
+    log_ring: LogRing,
+) -> Result<RunningNode> {
     let dir = opts.resolve_dir()?;
     let config = load_config_with_node_dir(opts.config.clone(), dir.clone())?;
-    let use_tui = should_use_tui(opts);
-    let log_ring = LogRing::new();
-
-    if use_tui {
-        logging::init_logging_for_tui(
-            config.logs_path.clone(),
-            config.logs_enabled,
-            config.log_level.clone(),
-            log_ring.clone(),
-        )?;
-    } else {
-        logging::init_logging(
-            config.logs_path.clone(),
-            config.logs_enabled,
-            config.log_level.clone(),
-        )?;
-    }
+    logging::init_logging_for_tui(
+        config.logs_path.clone(),
+        config.logs_enabled,
+        config.log_level.clone(),
+        log_ring.clone(),
+    )?;
+    modality_common::hash_tax::set_mining_shutdown(false);
 
     log::info!(
         "Starting {} with config loaded from node directory or config file",
         role.description()
     );
 
-    let _pid_guard = if manage_pid {
+    let pid_guard = if manage_pid {
         let pid_dir = dir
             .clone()
             .unwrap_or_else(|| std::env::current_dir().expect("Failed to get current directory"));
@@ -142,42 +208,56 @@ pub async fn run_node(opts: &CommonNodeOpts, role: NodeRole, manage_pid: bool) -
         node.mining_shutdown = Some(Arc::new(AtomicBool::new(false)));
     }
 
-    let tui_task = if use_tui {
-        let source = node.status_source();
-        Some(tokio::spawn(
-            async move { tui::run(source, log_ring).await },
-        ))
-    } else {
-        None
-    };
+    let source = node.status_source();
+    let task = tokio::spawn(async move {
+        let _pid_guard = pid_guard;
+        run_role(&mut node, role, &config).await
+    });
 
-    let run_result = match role {
-        NodeRole::Miner => actions::miner::run(&mut node).await,
-        NodeRole::Hybrid => {
-            node.hybrid_consensus = true;
-            actions::miner::run(&mut node).await
-        }
-        NodeRole::Observer => actions::observer::run(&mut node).await,
-        NodeRole::Validator => actions::validator::run(&mut node).await,
-        NodeRole::Noop => actions::noop::run(&mut node).await,
-        NodeRole::Server => {
-            if config.run_miner.unwrap_or(false) {
-                log::info!("Running node in miner mode");
-                actions::miner::run(&mut node).await
-            } else {
-                log::info!("Running node in server mode");
-                actions::server::run(&mut node).await
-            }
-        }
-    };
+    Ok(RunningNode {
+        role,
+        source,
+        logs: log_ring,
+        task,
+    })
+}
 
-    if let Some(task) = tui_task {
-        node.request_shutdown();
-        task.abort();
-        let _ = task.await;
+/// Run a node with the specified role.
+pub async fn run_node(opts: &CommonNodeOpts, role: NodeRole, manage_pid: bool) -> Result<()> {
+    let use_tui = should_use_tui(opts);
+    let log_ring = LogRing::new();
+
+    if !use_tui {
+        let dir = opts.resolve_dir()?;
+        let config = load_config_with_node_dir(opts.config.clone(), dir.clone())?;
+        logging::init_logging(
+            config.logs_path.clone(),
+            config.logs_enabled,
+            config.log_level.clone(),
+        )?;
+        log::info!(
+            "Starting {} with config loaded from node directory or config file",
+            role.description()
+        );
+        let _pid_guard = if manage_pid {
+            let pid_dir = dir.clone().unwrap_or_else(|| {
+                std::env::current_dir().expect("Failed to get current directory")
+            });
+            Some(PidGuard::new(&pid_dir)?)
+        } else {
+            None
+        };
+        let mut node = Node::from_config(config.clone()).await?;
+        node.setup(&config).await?;
+        if node.mining_shutdown.is_none() {
+            node.mining_shutdown = Some(Arc::new(AtomicBool::new(false)));
+        }
+        return run_role(&mut node, role, &config).await;
     }
 
-    run_result
+    let running = spawn_node(opts, role, manage_pid, log_ring).await?;
+    let _ = tui::run(running.source.clone(), running.logs.clone(), true).await;
+    running.stop().await
 }
 
 /// Run a miner node with the given options.
@@ -209,27 +289,7 @@ pub async fn run_noop(opts: &CommonNodeOpts) -> Result<()> {
 pub async fn run_server(opts: &CommonNodeOpts) -> Result<()> {
     let dir = opts.resolve_dir()?;
     let config = load_config_with_node_dir(opts.config.clone(), dir.clone())?;
-
-    let role = match config.run_as.as_deref() {
-        Some("miner") => NodeRole::Miner,
-        Some("hybrid") => NodeRole::Hybrid,
-        Some("observer") => NodeRole::Observer,
-        Some("validator") => NodeRole::Validator,
-        Some("noop") => NodeRole::Noop,
-        Some(unknown) => anyhow::bail!(
-            "Unknown run_as value in config: '{}'. Valid values: miner, hybrid, observer, validator, noop",
-            unknown
-        ),
-        None => {
-            if config.run_miner.unwrap_or(false) {
-                NodeRole::Miner
-            } else {
-                NodeRole::Server
-            }
-        }
-    };
-
-    run_node(opts, role, true).await
+    run_node(opts, role_from_config(&config)?, true).await
 }
 
 #[cfg(test)]

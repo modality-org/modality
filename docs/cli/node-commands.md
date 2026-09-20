@@ -21,8 +21,14 @@ modal node --dir ./tmp/node1
 With no subcommand, `modal node` opens a **terminal UI** to pick an action: run
 from config, hybrid, miner, validator, observer, create, start, stop, info, or
 logs. Arrow keys move, `Enter` runs the highlighted action, and `q`, Esc, or
-Ctrl-C quits. Requires a TTY. Background scripts should keep using an explicit
-subcommand such as `run-hybrid`.
+Ctrl-C quits the picker. Requires a TTY. Background scripts should keep using an
+explicit subcommand such as `run-hybrid`.
+
+After you run a node from the picker, `q` / Esc / Ctrl-C on the dashboard
+returns to this menu and the node keeps running. Choose **View dashboard** to
+watch it again, or **Stop this node** to shut it down. Quitting the picker
+stops a node started from this menu. `node start` is still the way to leave a
+node running after the CLI exits.
 
 ## Create
 
@@ -128,7 +134,7 @@ All foreground run commands accept:
 | `--no-tui` | Print logs to stdout instead of the terminal UI |
 | `--tui` | Force the terminal UI even when stdout is not a TTY |
 
-Foreground `run*` commands open a **terminal UI** by default when stdout is a TTY. Status, recent blocks, and logs are on one screen. Press `q`, Esc, or Ctrl-C to quit. Background `node start` always uses `--no-tui`. Set `MODALITY_NO_TUI=1` to disable the UI without a flag.
+Foreground `run*` commands open a **terminal UI** by default when stdout is a TTY. Status, recent blocks, and logs are on one screen. Press `q`, Esc, or Ctrl-C to quit (this stops that standalone process). From the picker, the same keys leave the dashboard without stopping the node. Background `node start` always uses `--no-tui`. Set `MODALITY_NO_TUI=1` to disable the UI without a flag.
 
 `modal node run` additionally accepts `--enable-consensus`, which is deprecated;
 prefer config-driven node roles.
