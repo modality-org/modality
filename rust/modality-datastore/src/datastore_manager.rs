@@ -66,6 +66,14 @@ impl std::fmt::Debug for DatastoreManager {
     }
 }
 
+fn prefix_certs_key(contract: &str, through: &str) -> String {
+    format!("prefix_certs/{}/{}", contract, through)
+}
+
+fn legacy_prefix_cert_key(contract: &str, through: &str) -> String {
+    format!("prefix_cert/{}/{}", contract, through)
+}
+
 fn decode_prefix_certs(data: &[u8]) -> Vec<serde_json::Value> {
     match serde_json::from_slice::<serde_json::Value>(data) {
         Ok(serde_json::Value::Array(arr)) => arr,
@@ -359,11 +367,11 @@ impl DatastoreManager {
             "validator_qc_numerator": network_config
                 .get("validator_qc_numerator")
                 .and_then(|v| v.as_u64())
-                .unwrap_or(2),
+                .unwrap_or(crate::VALIDATOR_QC_NUMERATOR),
             "validator_qc_denominator": network_config
                 .get("validator_qc_denominator")
                 .and_then(|v| v.as_u64())
-                .unwrap_or(3),
+                .unwrap_or(crate::VALIDATOR_QC_DENOMINATOR),
         });
         self.node_state
             .put("contract_validator_config", &serde_json::to_vec(&cfg)?)
@@ -413,12 +421,16 @@ impl DatastoreManager {
             .unwrap_or(false))
     }
 
+    pub fn dest_apply_requires_validator_cert(&self) -> Result<bool> {
+        self.repost_requires_validator_cert()
+    }
+
     pub fn validator_qc_numerator(&self) -> Result<u64> {
         let cfg = self.contract_validator_config()?;
         Ok(cfg
             .get("validator_qc_numerator")
             .and_then(|v| v.as_u64())
-            .unwrap_or(2))
+            .unwrap_or(crate::VALIDATOR_QC_NUMERATOR))
     }
 
     pub fn validator_qc_denominator(&self) -> Result<u64> {
@@ -426,7 +438,7 @@ impl DatastoreManager {
         Ok(cfg
             .get("validator_qc_denominator")
             .and_then(|v| v.as_u64())
-            .unwrap_or(3))
+            .unwrap_or(crate::VALIDATOR_QC_DENOMINATOR))
     }
 
     pub fn enqueue_prefix_cert_request(&self, request: serde_json::Value) -> Result<()> {
@@ -467,10 +479,13 @@ impl DatastoreManager {
             list.retain(|c| c.get("validator_peer_id").and_then(|v| v.as_str()) != Some(signer));
         }
         list.push(cert.clone());
-        let key = format!("prefix_certs/{}/{}", contract, through);
-        self.node_state.put(&key, &serde_json::to_vec(&list)?)?;
-        let old_key = format!("prefix_cert/{}/{}", contract, through);
-        let _ = self.node_state.delete(&old_key);
+        self.node_state.put(
+            &prefix_certs_key(contract, through),
+            &serde_json::to_vec(&list)?,
+        )?;
+        let _ = self
+            .node_state
+            .delete(&legacy_prefix_cert_key(contract, through));
         Ok(())
     }
 
@@ -479,26 +494,17 @@ impl DatastoreManager {
         source_contract: &str,
         through_commit: &str,
     ) -> Result<Vec<serde_json::Value>> {
-        let new_key = format!("prefix_certs/{}/{}", source_contract, through_commit);
+        let new_key = prefix_certs_key(source_contract, through_commit);
         if let Some(data) = self.node_state.get(&new_key)? {
             return Ok(decode_prefix_certs(&data));
         }
-        let old_key = format!("prefix_cert/{}/{}", source_contract, through_commit);
-        match self.node_state.get(&old_key)? {
+        match self
+            .node_state
+            .get(&legacy_prefix_cert_key(source_contract, through_commit))?
+        {
             Some(data) => Ok(decode_prefix_certs(&data)),
             None => Ok(Vec::new()),
         }
-    }
-
-    pub fn get_prefix_cert(
-        &self,
-        source_contract: &str,
-        through_commit: &str,
-    ) -> Result<Option<serde_json::Value>> {
-        Ok(self
-            .list_prefix_certs(source_contract, through_commit)?
-            .into_iter()
-            .next())
     }
 
     pub fn has_prefix_cert_from(

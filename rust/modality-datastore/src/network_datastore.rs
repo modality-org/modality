@@ -311,8 +311,8 @@ impl NetworkDatastore {
             validator_min_stake: 0,
             validation_fees: crate::ValidationFees::default(),
             repost_requires_validator_cert: false,
-            validator_qc_numerator: 2,
-            validator_qc_denominator: 3,
+            validator_qc_numerator: crate::VALIDATOR_QC_NUMERATOR,
+            validator_qc_denominator: crate::VALIDATOR_QC_DENOMINATOR,
         })
     }
 

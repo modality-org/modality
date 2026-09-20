@@ -155,6 +155,43 @@ impl Commit {
     pub async fn save_to_final(&self, datastore: &DatastoreManager) -> Result<()> {
         self.save_to_store(datastore.validator_final()).await
     }
+
+    pub fn is_sequenced(&self) -> bool {
+        self.in_batch
+            .as_deref()
+            .map(|batch| !batch.is_empty())
+            .unwrap_or(false)
+    }
+
+    /// Look up a commit by id across contracts. Prefer `find_one_multi` when the
+    /// contract id is known.
+    pub async fn find_by_id_multi(
+        datastore: &DatastoreManager,
+        commit_id: &str,
+    ) -> Result<Option<Self>> {
+        let iterator = datastore.validator_final().iterator("/commits");
+        for result in iterator {
+            let (key, _) = result?;
+            let key_str = String::from_utf8_lossy(&key);
+            let parts: Vec<&str> = key_str.split('/').collect();
+            if parts.len() < 4 {
+                continue;
+            }
+            let found_contract_id = parts[2];
+            let found_commit_id = parts[3];
+            if found_commit_id != commit_id {
+                continue;
+            }
+            let keys = [
+                ("contract_id".to_string(), found_contract_id.to_string()),
+                ("commit_id".to_string(), commit_id.to_string()),
+            ]
+            .into_iter()
+            .collect();
+            return Self::find_one_multi(datastore, keys).await;
+        }
+        Ok(None)
+    }
 }
 
 /// An asset created within a contract

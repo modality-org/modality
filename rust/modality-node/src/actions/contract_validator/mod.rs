@@ -6,8 +6,9 @@ use anyhow::Result;
 use modality_common::contract_store::parse_repost_json;
 use modality_common::keypair::Keypair;
 use modality_datastore::DatastoreManager;
+use modality_datastore::models::Commit;
 use modality_validator::prefix_cert::{
-    PREFIX_CERT_TYPE, PrefixCert, build_prefix_from_store, sign_cert,
+    PREFIX_CERT_TYPE, PrefixCert, build_prefix_from_store, is_prefix_cert_event, sign_cert,
 };
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -40,7 +41,7 @@ pub fn maybe_start_worker(node: &Node) {
             let mgr = datastore.lock().await;
             mgr.contract_validators().unwrap_or_default()
         };
-        if !force && !named.contains(&peer_id) {
+        if !named.contains(&peer_id) && !force {
             log::debug!(
                 "contract-validator worker not started (peer {} not in contract_validators)",
                 peer_id
@@ -103,45 +104,55 @@ async fn prefix_cert_requests_from_pending(
                 continue;
             };
             for action in actions {
-                let method = action
-                    .get("method")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("")
-                    .to_lowercase();
-                if method == "repost" {
-                    if let Ok(spec) = parse_repost_json(action) {
-                        out.push(serde_json::json!({
-                            "source_contract": spec.source_contract,
-                            "through_commit": spec.source_commit,
-                            "source_path": spec.source_path,
-                            "value": spec.value,
-                        }));
-                    }
-                } else if method == "recv" {
-                    let Some(send_commit_id) = action
-                        .get("value")
-                        .and_then(|v| v.get("send_commit_id"))
-                        .and_then(|v| v.as_str())
-                        .or_else(|| action.get("send_commit_id").and_then(|v| v.as_str()))
-                    else {
-                        continue;
-                    };
-                    if let Ok(send) = modality_validator::ContractProcessor::find_commit_by_id(
-                        mgr,
-                        send_commit_id,
-                    )
-                    .await
-                    {
-                        out.push(serde_json::json!({
-                            "source_contract": send.contract_id,
-                            "through_commit": send_commit_id,
-                        }));
-                    }
+                if let Some(req) = dest_action_prefix_request(mgr, action).await? {
+                    out.push(req);
                 }
             }
         }
     }
     Ok(out)
+}
+
+async fn dest_action_prefix_request(
+    mgr: &DatastoreManager,
+    action: &serde_json::Value,
+) -> Result<Option<serde_json::Value>> {
+    let method = action
+        .get("method")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_lowercase();
+    match method.as_str() {
+        "repost" => {
+            let Ok(spec) = parse_repost_json(action) else {
+                return Ok(None);
+            };
+            Ok(Some(serde_json::json!({
+                "source_contract": spec.source_contract,
+                "through_commit": spec.source_commit,
+                "source_path": spec.source_path,
+                "value": spec.value,
+            })))
+        }
+        "recv" => {
+            let Some(send_commit_id) = action
+                .get("value")
+                .and_then(|v| v.get("send_commit_id"))
+                .and_then(|v| v.as_str())
+                .or_else(|| action.get("send_commit_id").and_then(|v| v.as_str()))
+            else {
+                return Ok(None);
+            };
+            let Some(send) = Commit::find_by_id_multi(mgr, send_commit_id).await? else {
+                return Ok(None);
+            };
+            Ok(Some(serde_json::json!({
+                "source_contract": send.contract_id,
+                "through_commit": send_commit_id,
+            })))
+        }
+        _ => Ok(None),
+    }
 }
 
 pub async fn issue_cert(
@@ -162,7 +173,7 @@ pub async fn issue_cert(
     {
         let mgr = datastore.lock().await;
         let named = mgr.contract_validators()?;
-        if !named.is_empty() && !named.iter().any(|id| id == peer_id) {
+        if !named.is_empty() && !named.contains(&peer_id.to_string()) {
             anyhow::bail!("this node is not a named contract validator");
         }
         let min_stake = mgr.validator_min_stake()?;
@@ -176,14 +187,12 @@ pub async fn issue_cert(
         if mgr.has_prefix_cert_from(source_contract, through_commit, peer_id)? {
             return Ok(None);
         }
-        for event in mgr.peek_sequencer_events()? {
-            if event.get("type").and_then(|v| v.as_str()) == Some(PREFIX_CERT_TYPE)
-                && event.get("source_contract").and_then(|v| v.as_str()) == Some(source_contract)
-                && event.get("through_commit").and_then(|v| v.as_str()) == Some(through_commit)
-                && event.get("validator_peer_id").and_then(|v| v.as_str()) == Some(peer_id)
-            {
-                return Ok(None);
-            }
+        if mgr
+            .peek_sequencer_events()?
+            .iter()
+            .any(|event| is_prefix_cert_event(event, source_contract, through_commit, peer_id))
+        {
+            return Ok(None);
         }
     }
 
@@ -221,7 +230,6 @@ pub async fn issue_cert(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use modality_datastore::models::Commit;
     use modality_validator::prefix_cert::peer_id_of;
 
     #[tokio::test]
@@ -361,5 +369,35 @@ mod tests {
         .await
         .unwrap();
         assert!(skip_first.is_none(), "same peer should not recertify");
+    }
+
+    #[tokio::test]
+    async fn pending_dest_recv_requests_prefix_through_send() {
+        let mgr = DatastoreManager::create_in_memory().unwrap();
+        let send = Commit {
+            contract_id: "src".into(),
+            commit_id: "send1".into(),
+            commit_data: serde_json::json!({"body": [{"method": "send"}], "head": {}}).to_string(),
+            timestamp: 1,
+            in_batch: Some("b".into()),
+        };
+        Commit::save_to_final(&send, &mgr).await.unwrap();
+        mgr.enqueue_sequencer_event(serde_json::json!({
+            "type": "contract_push",
+            "data": {
+                "commits": [{
+                    "body": [{
+                        "method": "recv",
+                        "value": { "send_commit_id": "send1" }
+                    }]
+                }]
+            }
+        }))
+        .await
+        .unwrap();
+        let reqs = prefix_cert_requests_from_pending(&mgr).await.unwrap();
+        assert_eq!(reqs.len(), 1);
+        assert_eq!(reqs[0]["source_contract"], "src");
+        assert_eq!(reqs[0]["through_commit"], "send1");
     }
 }

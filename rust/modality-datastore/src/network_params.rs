@@ -1,5 +1,9 @@
 use serde::{Deserialize, Serialize};
 
+/// Default dest-apply QC: ⌈2n/3⌉ named prefix signatures.
+pub const VALIDATOR_QC_NUMERATOR: u64 = 2;
+pub const VALIDATOR_QC_DENOMINATOR: u64 = 3;
+
 /// Per-network validation fee schedule (nominal + metered compute).
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub struct ValidationFees {
@@ -44,11 +48,11 @@ pub struct NetworkParameters {
 }
 
 fn default_qc_numerator() -> u64 {
-    2
+    VALIDATOR_QC_NUMERATOR
 }
 
 fn default_qc_denominator() -> u64 {
-    3
+    VALIDATOR_QC_DENOMINATOR
 }
 
 impl NetworkParameters {
@@ -67,8 +71,8 @@ impl NetworkParameters {
             validator_min_stake: 0,
             validation_fees: ValidationFees::default(),
             repost_requires_validator_cert: false,
-            validator_qc_numerator: 2,
-            validator_qc_denominator: 3,
+            validator_qc_numerator: VALIDATOR_QC_NUMERATOR,
+            validator_qc_denominator: VALIDATOR_QC_DENOMINATOR,
         }
     }
 }
@@ -104,8 +108,8 @@ mod tests {
             validator_min_stake: 0,
             validation_fees: ValidationFees::default(),
             repost_requires_validator_cert: false,
-            validator_qc_numerator: 2,
-            validator_qc_denominator: 3,
+            validator_qc_numerator: VALIDATOR_QC_NUMERATOR,
+            validator_qc_denominator: VALIDATOR_QC_DENOMINATOR,
         };
 
         assert_eq!(params.miner_hash_func, "randomx");
@@ -127,7 +131,7 @@ mod tests {
         assert!(params.contract_validators.is_empty());
         assert!(!params.repost_requires_validator_cert);
         assert_eq!(params.validation_fees.quote(10), 0);
-        assert_eq!(params.validator_qc_numerator, 2);
-        assert_eq!(params.validator_qc_denominator, 3);
+        assert_eq!(params.validator_qc_numerator, VALIDATOR_QC_NUMERATOR);
+        assert_eq!(params.validator_qc_denominator, VALIDATOR_QC_DENOMINATOR);
     }
 }

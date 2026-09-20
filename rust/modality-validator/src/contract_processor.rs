@@ -74,12 +74,36 @@ impl ContractProcessor {
         }
     }
 
-    fn commit_is_sequenced(commit: &Commit) -> bool {
-        commit
-            .in_batch
-            .as_deref()
-            .map(|batch| !batch.is_empty())
-            .unwrap_or(false)
+    pub async fn assert_source_commit_sequenced(
+        ds: &DatastoreManager,
+        source_contract: &str,
+        source_commit: &str,
+        action: &str,
+    ) -> Result<Commit> {
+        let keys = [
+            ("contract_id".to_string(), source_contract.to_string()),
+            ("commit_id".to_string(), source_commit.to_string()),
+        ]
+        .into_iter()
+        .collect();
+        let commit = Commit::find_one_multi(ds, keys).await?.ok_or_else(|| {
+            anyhow::anyhow!(
+                "{} rejected: source commit '{}' was not found on contract '{}'",
+                action,
+                source_commit,
+                source_contract
+            )
+        })?;
+        if commit.is_sequenced() {
+            Ok(commit)
+        } else {
+            anyhow::bail!(
+                "{} rejected: source commit '{}' on '{}' has not been sequenced",
+                action,
+                source_commit,
+                source_contract
+            )
+        }
     }
 
     /// REPOST may only snapshot a source commit that consensus has already sequenced.
@@ -87,28 +111,14 @@ impl ContractProcessor {
         ds: &DatastoreManager,
         spec: &modality_common::contract_store::RepostAction,
     ) -> Result<()> {
-        let keys = [
-            ("contract_id".to_string(), spec.source_contract.clone()),
-            ("commit_id".to_string(), spec.source_commit.clone()),
-        ]
-        .into_iter()
-        .collect();
-        let source_commit = Commit::find_one_multi(ds, keys).await?.ok_or_else(|| {
-            anyhow::anyhow!(
-                "REPOST rejected: source commit '{}' was not found on contract '{}'",
-                spec.source_commit,
-                spec.source_contract
-            )
-        })?;
-        if Self::commit_is_sequenced(&source_commit) {
-            Ok(())
-        } else {
-            anyhow::bail!(
-                "REPOST rejected: source commit '{}' on '{}' has not been sequenced",
-                spec.source_commit,
-                spec.source_contract
-            )
-        }
+        Self::assert_source_commit_sequenced(
+            ds,
+            &spec.source_contract,
+            &spec.source_commit,
+            "REPOST",
+        )
+        .await?;
+        Ok(())
     }
 
     /// Dest apply that requires certs consumes a QC on the source prefix through C.
@@ -120,15 +130,17 @@ impl ContractProcessor {
         value: Option<&Value>,
         action: &str,
     ) -> Result<()> {
-        if !ds.repost_requires_validator_cert().unwrap_or(false) {
+        if !ds.dest_apply_requires_validator_cert().unwrap_or(false) {
             return Ok(());
         }
         let named = ds.contract_validators()?;
         let n = named.len();
         let threshold = crate::prefix_cert::qc_threshold(
             n,
-            ds.validator_qc_numerator().unwrap_or(2),
-            ds.validator_qc_denominator().unwrap_or(3),
+            ds.validator_qc_numerator()
+                .unwrap_or(modality_datastore::VALIDATOR_QC_NUMERATOR),
+            ds.validator_qc_denominator()
+                .unwrap_or(modality_datastore::VALIDATOR_QC_DENOMINATOR),
         );
         let (_, digest, _) =
             crate::prefix_cert::build_prefix_from_store(ds, source_contract, through_commit)
@@ -441,8 +453,15 @@ impl ContractProcessor {
         }
 
         // Find the SEND commit
-        let send_commit_data = Self::find_commit_by_id(&ds, send_commit_id).await?;
-        if !Self::commit_is_sequenced(&send_commit_data) {
+        let send_commit_data = Commit::find_by_id_multi(&ds, send_commit_id)
+            .await?
+            .ok_or_else(|| {
+                anyhow::anyhow!(
+                    "RECV rejected: SEND commit '{}' was not found",
+                    send_commit_id
+                )
+            })?;
+        if !send_commit_data.is_sequenced() {
             anyhow::bail!(
                 "RECV rejected: SEND commit '{}' on '{}' has not been sequenced",
                 send_commit_id,
@@ -465,16 +484,9 @@ impl ContractProcessor {
             .and_then(|v| v.as_array())
             .ok_or_else(|| anyhow::anyhow!("Invalid SEND commit structure"))?;
 
-        // Find the SEND action
-        let mut send_action = None;
-        for action in send_body {
-            if action.get("method").and_then(|v| v.as_str()) == Some("send") {
-                send_action = Some(action);
-                break;
-            }
-        }
-
-        let send_action = send_action
+        let send_action = send_body
+            .iter()
+            .find(|action| action.get("method").and_then(|v| v.as_str()) == Some("send"))
             .ok_or_else(|| anyhow::anyhow!("No SEND action found in commit {}", send_commit_id))?;
 
         let send_value = send_action
@@ -783,48 +795,6 @@ impl ContractProcessor {
             sha256_hash,
             gas_limit,
         })
-    }
-
-    pub async fn find_commit_by_id(ds: &DatastoreManager, commit_id: &str) -> Result<Commit> {
-        // Since we don't know the contract_id, we need to search all contracts
-        // This is inefficient - in production we'd want to index commits by ID
-        use modality_datastore::stores::Store;
-
-        // Iterate through all commit keys in ValidatorFinal
-        let iter = ds.validator_final().iterator("/commits");
-
-        for result in iter {
-            match result {
-                Ok((key, _value)) => {
-                    let key_str = String::from_utf8_lossy(&key);
-
-                    // Filter for commit keys: /commits/${contract_id}/${commit_id}
-                    let parts: Vec<&str> = key_str.split('/').collect();
-                    if parts.len() >= 4 {
-                        let found_contract_id = parts[2];
-                        let found_commit_id = parts[3];
-
-                        if found_commit_id == commit_id {
-                            // Found it! Fetch using multi-store method
-                            let keys: std::collections::HashMap<String, String> = [
-                                ("contract_id".to_string(), found_contract_id.to_string()),
-                                ("commit_id".to_string(), commit_id.to_string()),
-                            ]
-                            .into_iter()
-                            .collect();
-                            if let Some(commit) = Commit::find_one_multi(ds, keys).await? {
-                                return Ok(commit);
-                            }
-                        }
-                    }
-                }
-                Err(e) => {
-                    return Err(e.into());
-                }
-            }
-        }
-
-        anyhow::bail!("Commit {} not found", commit_id)
     }
 
     /// Process an INVOKE action - execute program and process resulting actions

@@ -82,7 +82,7 @@ pub struct NetworkInfo {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub validation_fees: Option<ValidationFees>,
 
-    /// When true, dest REPOST apply requires a sequenced prefix_cert QC.
+    /// When true, dest REPOST and dest RECV apply require a prefix_cert QC.
     #[serde(default)]
     pub repost_requires_validator_cert: bool,
 
@@ -95,12 +95,15 @@ pub struct NetworkInfo {
     pub validator_qc_denominator: u64,
 }
 
+const DEFAULT_QC_NUMERATOR: u64 = 2;
+const DEFAULT_QC_DENOMINATOR: u64 = 3;
+
 fn default_qc_numerator() -> u64 {
-    2
+    DEFAULT_QC_NUMERATOR
 }
 
 fn default_qc_denominator() -> u64 {
-    3
+    DEFAULT_QC_DENOMINATOR
 }
 
 impl NetworkInfo {
@@ -339,8 +342,8 @@ mod tests {
             validator_min_stake: 0,
             validation_fees: None,
             repost_requires_validator_cert: false,
-            validator_qc_numerator: 2,
-            validator_qc_denominator: 3,
+            validator_qc_numerator: DEFAULT_QC_NUMERATOR,
+            validator_qc_denominator: DEFAULT_QC_DENOMINATOR,
         };
         assert_eq!(network.get_checkpoint_mode(), CheckpointMode::None);
         assert!(!network.checkpoints_enabled());
@@ -359,8 +362,8 @@ mod tests {
             validator_min_stake: 0,
             validation_fees: None,
             repost_requires_validator_cert: false,
-            validator_qc_numerator: 2,
-            validator_qc_denominator: 3,
+            validator_qc_numerator: DEFAULT_QC_NUMERATOR,
+            validator_qc_denominator: DEFAULT_QC_DENOMINATOR,
         };
         assert_eq!(network.get_checkpoint_mode(), CheckpointMode::Consensus);
         assert!(network.checkpoints_enabled());
@@ -378,8 +381,8 @@ mod tests {
             validator_min_stake: 0,
             validation_fees: None,
             repost_requires_validator_cert: false,
-            validator_qc_numerator: 2,
-            validator_qc_denominator: 3,
+            validator_qc_numerator: DEFAULT_QC_NUMERATOR,
+            validator_qc_denominator: DEFAULT_QC_DENOMINATOR,
             checkpoints: Some(vec![
                 ManualCheckpoint {
                     block_index: 100,

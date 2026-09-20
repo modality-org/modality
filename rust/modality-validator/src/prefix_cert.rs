@@ -181,7 +181,7 @@ pub async fn build_prefix_from_store(
     Ok((ids, digest, gas_used))
 }
 
-pub fn cert_matches_repost(
+pub fn cert_matches_source(
     cert: &serde_json::Value,
     source_contract: &str,
     source_commit: &str,
@@ -207,13 +207,27 @@ pub fn cert_matches_repost(
     true
 }
 
+pub fn cert_matches_repost(
+    cert: &serde_json::Value,
+    source_contract: &str,
+    source_commit: &str,
+    source_path: Option<&str>,
+    value: Option<&serde_json::Value>,
+) -> bool {
+    cert_matches_source(cert, source_contract, source_commit, source_path, value)
+}
+
 /// ⌈n * numerator / denominator⌉, capped at n. `n = 0` cannot form a QC.
 pub fn qc_threshold(n: usize, numerator: u64, denominator: u64) -> usize {
     if n == 0 {
         return 0;
     }
     let d = denominator.max(1);
-    let num = if numerator == 0 { 2 } else { numerator };
+    let num = if numerator == 0 {
+        modality_datastore::VALIDATOR_QC_NUMERATOR
+    } else {
+        numerator
+    };
     let t = (n as u64).saturating_mul(num).div_ceil(d) as usize;
     t.min(n)
 }
@@ -239,7 +253,7 @@ pub fn matching_qc_signers(
         if !signer_is_named(&cert, contract_validators) {
             continue;
         }
-        if !cert_matches_repost(
+        if !cert_matches_source(
             cert_json,
             source_contract,
             source_commit,
@@ -251,6 +265,18 @@ pub fn matching_qc_signers(
         seen.insert(cert.validator_peer_id);
     }
     seen.len()
+}
+
+pub fn is_prefix_cert_event(
+    event: &serde_json::Value,
+    source_contract: &str,
+    through_commit: &str,
+    peer_id: &str,
+) -> bool {
+    event.get("type").and_then(|v| v.as_str()) == Some(PREFIX_CERT_TYPE)
+        && event.get("source_contract").and_then(|v| v.as_str()) == Some(source_contract)
+        && event.get("through_commit").and_then(|v| v.as_str()) == Some(through_commit)
+        && event.get("validator_peer_id").and_then(|v| v.as_str()) == Some(peer_id)
 }
 
 #[cfg(test)]
