@@ -527,7 +527,7 @@ impl ContractProcessor {
                  Expected '{}', got '{}'",
                 spec.source_path,
                 &source_value[..source_value.len().min(100)],
-                spec.value.to_string()
+                spec.value
             );
         }
 

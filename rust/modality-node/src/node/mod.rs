@@ -262,8 +262,8 @@ impl Node {
         let remote_bootstrappers: Vec<Multiaddr> = self
             .bootstrappers
             .iter()
+            .filter(|addr| extract_peer_id((*addr).clone()).is_some_and(|peer| peer != self.peerid))
             .cloned()
-            .filter(|addr| extract_peer_id(addr.clone()).is_some_and(|peer| peer != self.peerid))
             .collect();
 
         if remote_bootstrappers.is_empty() {

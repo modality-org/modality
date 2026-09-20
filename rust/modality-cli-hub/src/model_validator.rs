@@ -182,19 +182,19 @@ impl ModelValidator {
         for state in &self.current_states {
             for part in &model.parts {
                 for transition in &part.transitions {
-                    if &transition.from == state || state == "*" {
-                        if self.labels_match(&transition.properties, labels) {
-                            next_states.insert(transition.to.clone());
-                        }
+                    if (&transition.from == state || state == "*")
+                        && self.labels_match(&transition.properties, labels)
+                    {
+                        next_states.insert(transition.to.clone());
                     }
                 }
             }
 
             for transition in &model.transitions {
-                if &transition.from == state || state == "*" {
-                    if self.labels_match(&transition.properties, labels) {
-                        next_states.insert(transition.to.clone());
-                    }
+                if (&transition.from == state || state == "*")
+                    && self.labels_match(&transition.properties, labels)
+                {
+                    next_states.insert(transition.to.clone());
                 }
             }
         }

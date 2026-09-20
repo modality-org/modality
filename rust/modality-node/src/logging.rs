@@ -101,7 +101,7 @@ impl Write for LogRing {
         let mut pending = self
             .pending
             .lock()
-            .map_err(|_| io::Error::new(io::ErrorKind::Other, "log ring pending lock poisoned"))?;
+            .map_err(|_| io::Error::other("log ring pending lock poisoned"))?;
         pending.push_str(&chunk);
         while let Some(idx) = pending.find('\n') {
             let mut line: String = pending.drain(..=idx).collect();

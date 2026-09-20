@@ -29,20 +29,11 @@ pub(crate) const MUTED: Color = Color::DarkGray;
 const WARN: Color = Color::Yellow;
 const ERROR: Color = Color::Red;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 struct LogFilter {
     /// Inclusive maximum verbosity. `None` shows every type in the ring.
     max_level: Option<Level>,
     topic: Option<String>,
-}
-
-impl Default for LogFilter {
-    fn default() -> Self {
-        Self {
-            max_level: None,
-            topic: None,
-        }
-    }
 }
 
 impl LogFilter {
@@ -340,15 +331,15 @@ fn draw_stats(frame: &mut Frame, area: Rect, status: Option<&NodeStatus>) {
         kv("Difficulty", &s.current_difficulty),
         kv(
             "Hashrate",
-            &format!(
+            format!(
                 "miner {} H/s   network {} H/s",
                 s.miner_hashrate, s.network_hashrate
             ),
         ),
-        kv("Blocks mined here", &s.blocks_mined_by_node.to_string()),
+        kv("Blocks mined here", s.blocks_mined_by_node.to_string()),
         kv(
             "Sequencing",
-            &format!(
+            format!(
                 "round {}  ·  {} canonical",
                 s.current_round, s.total_miner_blocks
             ),
@@ -358,7 +349,7 @@ fn draw_stats(frame: &mut Frame, area: Rect, status: Option<&NodeStatus>) {
         lines.push(kv("Status page", url));
     }
     if !s.listeners.is_empty() {
-        lines.push(kv("Listen", &s.listeners.join(", ")));
+        lines.push(kv("Listen", s.listeners.join(", ")));
     }
 
     frame.render_widget(

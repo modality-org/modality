@@ -1648,8 +1648,8 @@ fn find_word_from(haystack: &str, needle: &str, start: usize) -> Option<usize> {
         let pos = search_from + offset;
         let before = haystack[..pos].chars().next_back();
         let after = haystack[pos + needle.len()..].chars().next();
-        let before_ok = before.map_or(true, |c| !is_ident_char(c));
-        let after_ok = after.map_or(true, |c| !is_ident_char(c));
+        let before_ok = before.is_none_or(|c| !is_ident_char(c));
+        let after_ok = after.is_none_or(|c| !is_ident_char(c));
         if before_ok && after_ok {
             return Some(pos);
         }
@@ -2001,6 +2001,7 @@ fn write_or_print_model(output: &str, output_path: Option<&PathBuf>) -> Result<(
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 fn write_llm_review_bundle_if_requested(
     review_bundle_path: Option<&PathBuf>,
     source_label: &str,
@@ -2033,6 +2034,7 @@ fn write_llm_review_bundle_if_requested(
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 fn write_rule_failed_review_bundle_if_requested(
     review_bundle_path: Option<&PathBuf>,
     rule_path: &PathBuf,
@@ -2219,6 +2221,7 @@ fn format_llm_review_bundle(
     )
 }
 
+#[allow(clippy::too_many_arguments)]
 fn format_synthesis_review_bundle(
     input_heading: &str,
     input_label: &str,
@@ -2610,15 +2613,14 @@ fn source_fact_shape_label(fact: &str) -> &'static str {
         return "review warning: malformed source fact";
     }
 
-    if name == "sets" || name == "posts_to" || name == "post_to" {
-        if args
+    if (name == "sets" || name == "posts_to" || name == "post_to")
+        && args
             .split(',')
             .next()
             .map(|first_arg| is_source_fact_path_template(first_arg.trim()))
             .unwrap_or(false)
-        {
-            return "path-write template";
-        }
+    {
+        return "path-write template";
     }
 
     "predicate call"

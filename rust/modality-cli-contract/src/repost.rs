@@ -1,10 +1,8 @@
 use anyhow::{anyhow, Result};
 use clap::Parser;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
-use modality_common::contract_store::{
-    default_repost_dest, ContractStore, RepostProvenance,
-};
+use modality_common::contract_store::{default_repost_dest, ContractStore, RepostProvenance};
 use modality_common::hub_client::HubClient;
 
 #[derive(Debug, Parser)]
@@ -61,7 +59,10 @@ pub async fn run(opts: &Opts) -> Result<()> {
     )?;
 
     println!("✅ Staged REPOST at {dest_path}");
-    println!("   Source: {}{} @ {source_commit}", opts.source_contract, source_path);
+    println!(
+        "   Source: {}{} @ {source_commit}",
+        opts.source_contract, source_path
+    );
     println!("   Value:  {}", truncate_display(&value, 80));
     println!();
     println!("Run 'modal commit --all' to commit this repost.");
@@ -70,7 +71,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
 }
 
 fn fetch_from_local(
-    from_dir: &PathBuf,
+    from_dir: &Path,
     source_contract: &str,
     source_path: &str,
 ) -> Result<(serde_json::Value, String)> {
@@ -87,12 +88,9 @@ fn fetch_from_local(
         .get_head()?
         .ok_or_else(|| anyhow!("Source contract has no HEAD"))?;
     let state = source.build_state_from_commits()?;
-    let value = state
-        .get(source_path)
-        .cloned()
-        .ok_or_else(|| {
-            anyhow!("Path '{source_path}' not found in source contract {source_contract}")
-        })?;
+    let value = state.get(source_path).cloned().ok_or_else(|| {
+        anyhow!("Path '{source_path}' not found in source contract {source_contract}")
+    })?;
     Ok((value, source_commit))
 }
 
@@ -124,9 +122,7 @@ async fn fetch_from_hub(
         .get(normalized)
         .or_else(|| paths.get(source_path))
         .cloned()
-        .ok_or_else(|| {
-            anyhow!("Path '{source_path}' not found in contract {source_contract}")
-        })?;
+        .ok_or_else(|| anyhow!("Path '{source_path}' not found in contract {source_contract}"))?;
     Ok((value, source_commit))
 }
 

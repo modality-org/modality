@@ -19,6 +19,8 @@ struct AnchoredRule {
     anchor_states: HashSet<String>,
 }
 
+type ReplayState = (HashSet<String>, HashMap<String, Value>, Vec<AnchoredRule>);
+
 pub fn validate_pending_commit(
     model_content: &str,
     store: &ContractStore,
@@ -82,10 +84,7 @@ fn pending_model_content(commit: &CommitFile) -> Option<&str> {
     })
 }
 
-fn replay_history_to_current_state(
-    model: &Model,
-    store: &ContractStore,
-) -> Result<(HashSet<String>, HashMap<String, Value>, Vec<AnchoredRule>)> {
+fn replay_history_to_current_state(model: &Model, store: &ContractStore) -> Result<ReplayState> {
     let mut current_states = initial_states(model);
     let mut state = HashMap::new();
     let mut anchored_rules = Vec::new();

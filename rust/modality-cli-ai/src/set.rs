@@ -1,6 +1,6 @@
 use anyhow::Result;
 use clap::Parser;
-use std::path::PathBuf;
+use std::path::Path;
 
 use crate::config::{self, AiConfig, Provider};
 
@@ -66,7 +66,7 @@ pub fn run(opts: &Opts) -> Result<()> {
     Ok(())
 }
 
-fn print_set_summary(config: &AiConfig, path: &PathBuf, saved_key: bool) {
+fn print_set_summary(config: &AiConfig, path: &Path, saved_key: bool) {
     let provider = config.provider.map(|p| p.as_str()).unwrap_or("unset");
     println!("✅ AI provider saved to {}", path.display());
     println!("   Provider: {provider}");
