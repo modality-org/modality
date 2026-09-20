@@ -2463,6 +2463,35 @@ fn write_review_checklist(
         "- Prompt-to-facts trace: not automatic; review preserved clauses against parser-backed formulas\n",
     );
 
+    let source_facts = review_source
+        .map(|source| extract_source_facts_with_lines(&source.content))
+        .unwrap_or_default();
+    let malformed_source_fact_count = source_facts
+        .iter()
+        .filter(|fact| {
+            source_fact_shape_label(&fact.value) == "review warning: malformed source fact"
+        })
+        .count();
+    let source_assumptions = review_source
+        .map(|source| extract_source_assumptions_with_lines(&source.content))
+        .unwrap_or_default();
+    output.push_str(&format!(
+        "- Source facts preserved: {}\n",
+        if source_facts.is_empty() { "no" } else { "yes" }
+    ));
+    output.push_str(&format!(
+        "- Malformed source facts flagged: {}\n",
+        malformed_source_fact_count
+    ));
+    output.push_str(&format!(
+        "- External assumptions preserved: {}\n",
+        if source_assumptions.is_empty() {
+            "no"
+        } else {
+            "yes"
+        }
+    ));
+
     output.push_str(&format!(
         "- Parser-backed formulas: {}\n",
         parsed_formula_count
@@ -2899,6 +2928,9 @@ rule post_requires_reviewer {
         assert!(bundle.contains(
             "Line 4: signature verification and path identity evidence come from commit data."
         ));
+        assert!(bundle.contains("- Source facts preserved: yes"));
+        assert!(bundle.contains("- Malformed source facts flagged: 1"));
+        assert!(bundle.contains("- External assumptions preserved: yes"));
         assert!(bundle.contains("- Verifier result: passed"));
         assert!(bundle.contains("## Witness Model"));
         assert!(bundle.contains("model Contract"));
@@ -2952,6 +2984,9 @@ rule impossible_contract {
             ),
             "bundle was:\n{bundle}"
         );
+        assert!(bundle.contains("- Source facts preserved: no"));
+        assert!(bundle.contains("- Malformed source facts flagged: 0"));
+        assert!(bundle.contains("- External assumptions preserved: no"));
         assert!(
             bundle.contains("bounded μ-calculus search"),
             "bundle was:\n{bundle}"

@@ -30,6 +30,9 @@ committing the result:
   ordinary reviewer text?
 - Does the Review Checklist say source capture, clause trace, parser-backed
   formulas, verifier result, assumptions, and known gaps are present?
+- Does the Review Checklist summarize whether source facts were preserved, how
+  many malformed source facts were flagged, and whether external assumptions
+  were preserved?
 - Does the Source Assumptions section preserve any reviewer-supplied
   `External assumption:` lines as out-of-proof evidence boundaries, with source
   line numbers for traceability?
@@ -54,8 +57,10 @@ rule post_requires_reviewer {
 
 the bundle should include the rule source, extracted facts such as `+POST` and
 `+signed_by(/users/reviewer.id)`, a Review Checklist with `Verifier result:
-passed`, and the witness model that the verifier accepted. Treat that witness as
-something to inspect, not as proof that the original human intent was complete.
+passed`, `Source facts preserved: yes`, `Malformed source facts flagged: 1`,
+and `External assumptions preserved: yes`, plus the witness model that the
+verifier accepted. Treat that witness as something to inspect, not as proof that
+the original human intent was complete.
 
 When the rule came from reviewer-authored text, pass that text with
 `--source-file` or `--source-text` instead of relying on the rule file alone.
@@ -91,7 +96,8 @@ If `--verify` rejects the synthesized candidate, the CLI should say that no sati
 - Any `External assumption:` lines supplied with the original source, or an
   explicit note that none were supplied. Supplied assumptions should include
   their source line numbers.
-- A Review Checklist with `Verifier result: failed`.
+- A Review Checklist with `Verifier result: failed`, source-fact preservation,
+  malformed-source-fact count, and external-assumption preservation.
 - The verifier error.
 - The candidate witness model that failed verification.
 - Assumptions and known gaps, including the bounded explicit-state μ-calculus search.
