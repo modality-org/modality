@@ -2425,12 +2425,14 @@ fn write_source_assumptions(output: &mut String, review_source: Option<&ReviewSo
     }
 
     output.push_str(
-        "- These reviewer-supplied assumptions are preserved with source line numbers for contract review; they are not proven by synthesis.\n\n",
+        "- These reviewer-supplied assumptions are preserved with source line numbers and assumption-boundary labels for contract review; they are not proven by synthesis.\n\n",
     );
     for assumption in assumptions {
         output.push_str(&format!(
-            "- Line {}: {}\n",
-            assumption.line, assumption.value
+            "- Line {} [{}]: {}\n",
+            assumption.line,
+            external_assumption_shape_label(&assumption.value),
+            assumption.value
         ));
     }
     output.push('\n');
@@ -2598,6 +2600,29 @@ fn source_fact_shape_label(fact: &str) -> &'static str {
     }
 
     "predicate call"
+}
+
+fn external_assumption_shape_label(assumption: &str) -> &'static str {
+    let assumption = assumption.trim().to_ascii_lowercase();
+    if assumption.contains("commit data")
+        || assumption.contains("signature verification")
+        || assumption.contains("path identity")
+    {
+        return "commit evidence boundary";
+    }
+
+    if assumption.contains("dns")
+        || assumption.contains("http")
+        || assumption.contains("ca policy")
+        || assumption.contains("webpki")
+        || assumption.contains("cryptographic")
+        || assumption.contains("payment settlement")
+        || assumption.contains("physical delivery")
+    {
+        return "external-world boundary";
+    }
+
+    "reviewer assumption"
 }
 
 fn has_balanced_source_fact_args(args: &str) -> bool {
@@ -2802,6 +2827,26 @@ mod tests {
     }
 
     #[test]
+    fn external_assumption_shape_labels_review_boundaries() {
+        assert_eq!(
+            external_assumption_shape_label(
+                "signature verification and path identity evidence come from commit data."
+            ),
+            "commit evidence boundary"
+        );
+        assert_eq!(
+            external_assumption_shape_label(
+                "DNS control, HTTP control, CA policy, WebPKI trust, and cryptographic soundness are external."
+            ),
+            "external-world boundary"
+        );
+        assert_eq!(
+            external_assumption_shape_label("reviewer must confirm deployment policy."),
+            "reviewer assumption"
+        );
+    }
+
+    #[test]
     fn parse_formula_strings_uses_modality_parser() {
         let formulas = vec![
             "always([<+APPROVE>] true)".to_string(),
@@ -2934,7 +2979,7 @@ rule post_requires_reviewer {
         ));
         assert!(bundle.contains("## Source Assumptions"));
         assert!(bundle.contains(
-            "Line 4: signature verification and path identity evidence come from commit data."
+            "Line 4 [commit evidence boundary]: signature verification and path identity evidence come from commit data."
         ));
         assert!(bundle.contains("- Source facts preserved: yes"));
         assert!(bundle.contains("- Source facts preserved count: 2"));

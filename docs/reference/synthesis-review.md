@@ -36,7 +36,7 @@ committing the result:
   were preserved?
 - Does the Source Assumptions section preserve any reviewer-supplied
   `External assumption:` lines as out-of-proof evidence boundaries, with source
-  line numbers for traceability?
+  line numbers and assumption-boundary labels for traceability?
 - Does the Review Checklist say `Prompt-to-facts trace: not automatic` so the
   reviewer knows preserved source clauses still need human comparison against
   parser-backed formulas?
@@ -85,7 +85,13 @@ with a `review warning: malformed source fact` label. That warning means the
 line was preserved for audit, but reviewers should not treat it as structured
 path-write or predicate evidence until the source text is fixed.
 
-Structured lines such as `External assumption: signature verification and path identity evidence come from commit data.` should appear in the Source Assumptions section. Treat those lines as explicit review boundaries: synthesis preserves them, but does not prove them.
+Structured lines such as `External assumption: signature verification and path
+identity evidence come from commit data.` should appear in the Source
+Assumptions section with labels such as `commit evidence boundary`. Treat those
+lines as explicit review boundaries: synthesis preserves them, but does not
+prove them. External-world dependencies such as DNS control, HTTP control, CA
+policy, WebPKI trust, cryptographic soundness, payment settlement, or physical
+delivery should be labelled as `external-world boundary`.
 
 ## No-Witness Bundle
 
@@ -97,7 +103,7 @@ If `--verify` rejects the synthesized candidate, the CLI should say that no sati
   numbers and source-fact shape labels, including malformed-source warnings.
 - Any `External assumption:` lines supplied with the original source, or an
   explicit note that none were supplied. Supplied assumptions should include
-  their source line numbers.
+  their source line numbers and assumption-boundary labels.
 - A Review Checklist with `Verifier result: failed`, source-fact preservation,
   source-fact count, malformed-source-fact count, external-assumption
   preservation, and external-assumption count.

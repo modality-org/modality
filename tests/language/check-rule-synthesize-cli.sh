@@ -104,8 +104,8 @@ required_review_patterns=(
   'Line 2 [path-write template]: `+sets(/posts/{post_id}/body)`'
   'Line 3 [review warning: malformed source fact]: `+sets(/posts/{post_id}/body`'
   "## Source Assumptions"
-  "These reviewer-supplied assumptions are preserved with source line numbers for contract review; they are not proven by synthesis."
-  "Line 4: signature verification and path identity evidence come from commit data."
+  "These reviewer-supplied assumptions are preserved with source line numbers and assumption-boundary labels for contract review; they are not proven by synthesis."
+  "Line 4 [commit evidence boundary]: signature verification and path identity evidence come from commit data."
   "## Review Checklist"
   "Original source captured: yes"
   "Source-clause trace present: yes"

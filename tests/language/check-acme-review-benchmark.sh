@@ -149,8 +149,8 @@ required_review_patterns=(
   'Line 6 [path-write template]: `+sets(/authorizations/{authorization}/status)`'
   'Line 8 [path-write template]: `+sets(/orders/{order}/certificate)`'
   "## Source Assumptions"
-  "These reviewer-supplied assumptions are preserved with source line numbers for contract review; they are not proven by synthesis."
-  "Line 9: ACME account-key authentication, CSR cryptographic soundness, CA policy, WebPKI trust, and DNS or HTTP domain-control validation are checked outside this Modality witness."
+  "These reviewer-supplied assumptions are preserved with source line numbers and assumption-boundary labels for contract review; they are not proven by synthesis."
+  "Line 9 [external-world boundary]: ACME account-key authentication, CSR cryptographic soundness, CA policy, WebPKI trust, and DNS or HTTP domain-control validation are checked outside this Modality witness."
   "## Review Checklist"
   "Original source captured: yes"
   "Source-clause trace present: yes"
