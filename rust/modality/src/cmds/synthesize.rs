@@ -2480,6 +2480,10 @@ fn write_review_checklist(
         if source_facts.is_empty() { "no" } else { "yes" }
     ));
     output.push_str(&format!(
+        "- Source facts preserved count: {}\n",
+        source_facts.len()
+    ));
+    output.push_str(&format!(
         "- Malformed source facts flagged: {}\n",
         malformed_source_fact_count
     ));
@@ -2490,6 +2494,10 @@ fn write_review_checklist(
         } else {
             "yes"
         }
+    ));
+    output.push_str(&format!(
+        "- External assumptions preserved count: {}\n",
+        source_assumptions.len()
     ));
 
     output.push_str(&format!(
@@ -2929,8 +2937,10 @@ rule post_requires_reviewer {
             "Line 4: signature verification and path identity evidence come from commit data."
         ));
         assert!(bundle.contains("- Source facts preserved: yes"));
+        assert!(bundle.contains("- Source facts preserved count: 2"));
         assert!(bundle.contains("- Malformed source facts flagged: 1"));
         assert!(bundle.contains("- External assumptions preserved: yes"));
+        assert!(bundle.contains("- External assumptions preserved count: 1"));
         assert!(bundle.contains("- Verifier result: passed"));
         assert!(bundle.contains("## Witness Model"));
         assert!(bundle.contains("model Contract"));
@@ -2985,8 +2995,10 @@ rule impossible_contract {
             "bundle was:\n{bundle}"
         );
         assert!(bundle.contains("- Source facts preserved: no"));
+        assert!(bundle.contains("- Source facts preserved count: 0"));
         assert!(bundle.contains("- Malformed source facts flagged: 0"));
         assert!(bundle.contains("- External assumptions preserved: no"));
+        assert!(bundle.contains("- External assumptions preserved count: 0"));
         assert!(
             bundle.contains("bounded μ-calculus search"),
             "bundle was:\n{bundle}"
