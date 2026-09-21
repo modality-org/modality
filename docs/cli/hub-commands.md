@@ -9,11 +9,9 @@ Run the contract hub server from the full Rust wrapper. These commands are
 available in full builds, not in the lean first-contract onboarding wrapper.
 
 The current CLI surface exposes server startup only. Contract exchange happens
-through the hub HTTP API and the contract remote commands. Older sketches that
-mentioned `modal hub register`, `create`, `grant`, `revoke`, `status`, or
-`auth` do not match this wrapper. `modal c push` / `modal c pull` talk to this
-Rust hub without credentials. A JavaScript hub remains under
-`services/contract-hub` for hosts that need that HTTP API.
+through the hub HTTP API and the contract remote commands that can talk to HTTP
+hub URLs. Older sketches that mentioned `modal hub register`, `create`,
+`grant`, `revoke`, `status`, or `auth` do not match the current wrapper.
 
 ## Start
 
@@ -77,5 +75,7 @@ modal c push origin --sign ~/.modality/alice.mod_passfile
 modal c pull origin
 ```
 
-HTTP hub remotes do not require `.modal-hub/credentials.json` for the Rust
-hub. That file is used by the JavaScript hub in `services/contract-hub`.
+HTTP hub remotes read credentials from `.modal-hub/credentials.json` by default,
+or from the `--hub-creds <HUB_CREDS>` option on `modal c push` and `modal c
+pull`. The current `modal hub` command group does not create that credentials
+file.

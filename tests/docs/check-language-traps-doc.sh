@@ -28,6 +28,7 @@ BANK_DEPOSITS_JS_EXAMPLE="$ROOT_DIR/examples/bank_deposits.js"
 UNBREAKABLE_TREASURY_RFC="$ROOT_DIR/docs/rfcs/RFC-002-UNBREAKABLE-TREASURY.md"
 IETF_AUTOFORMALIZATION_PLAN="$ROOT_DIR/docs/progress/IETF_AUTOFORMALIZATION_PLAN.md"
 RFC_0001_RESOURCE="$ROOT_DIR/docs/resources/rfc-0001.md"
+SITE_RFC_0001_RESOURCE="$ROOT_DIR/sites/www.modality.org/docs/resources/rfc-0001.md"
 STANDARD_PREDICATES_DOC="$ROOT_DIR/docs/reference/standard-predicates.md"
 LLM_SYNTHESIS_GUIDE="$ROOT_DIR/experiments/llm-synthesizer/SYNTHESIS_GUIDE.md"
 LLM_RULE_GENERATION_DOC="$ROOT_DIR/experiments/llm-synthesizer/rule-generation.md"
@@ -89,7 +90,7 @@ CONTRACT_HUB_EXAMPLE="$ROOT_DIR/services/contract-hub/example.js"
 CONTRACT_HUB_VALIDATOR_TEST="$ROOT_DIR/services/contract-hub/src/contract-validator.test.js"
 RULE_SYNTHESIZE_CLI_SMOKE="$ROOT_DIR/tests/language/check-rule-synthesize-cli.sh"
 RUST_SYNTHESIZE_CMD="$ROOT_DIR/rust/modality/src/cmds/synthesize.rs"
-MEMBERS_ONLY_INTEGRATION_TEST="$ROOT_DIR/rust/modal/tests/members_only_integration.rs"
+MEMBERS_ONLY_INTEGRATION_TEST="$ROOT_DIR/rust/modality/tests/members_only_integration.rs"
 LLM_SYNTHESIS_SRC="$ROOT_DIR/rust/modality-lang/src/llm_synthesis.rs"
 FORMULA_SYNTHESIS_SRC="$ROOT_DIR/rust/modality-lang/src/formula_synthesis.rs"
 MODAL_CLI_HUB_CORE="$ROOT_DIR/rust/modality-cli-hub/src/core.rs"
@@ -538,19 +539,26 @@ fi
 rfc_0001_required_patterns=(
   "!<+RELEASE> true | <+DELIVER> true"
   "explicit Boolean form for the conditional"
+  "modal id create --name <name>"
+  "modal id get --name <name>"
+  "modal c set-named-id <path> <name>"
 )
 
 for pattern in "${rfc_0001_required_patterns[@]}"; do
-  if ! grep -Fq "$pattern" "$RFC_0001_RESOURCE"; then
-    echo "RFC-0001 resource is missing language-trap text: $pattern" >&2
+  for resource_doc in "$RFC_0001_RESOURCE" "$SITE_RFC_0001_RESOURCE"; do
+    if ! grep -Fq "$pattern" "$resource_doc"; then
+      echo "RFC-0001 resource is missing language-trap text: $pattern" >&2
+      exit 1
+    fi
+  done
+done
+
+for resource_doc in "$RFC_0001_RESOURCE" "$SITE_RFC_0001_RESOURCE"; do
+  if grep -Eq -- ' true[[:space:]]*->| implies |modal id get --path <file>' "$resource_doc"; then
+    echo "RFC-0001 resource should not present formula implication sugar or stale raw identity lookup as the teaching path" >&2
     exit 1
   fi
 done
-
-if grep -Eq -- ' true[[:space:]]*->| implies ' "$RFC_0001_RESOURCE"; then
-  echo "RFC-0001 resource should not present formula implication sugar as the teaching path" >&2
-  exit 1
-fi
 
 standard_predicates_required_patterns=(
   "always(!<+modifies(/members)> true | <+modifies(/members) +all_signed(/members)> true)"

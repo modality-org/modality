@@ -48,7 +48,7 @@ or an inline domain action.
 | `--dir <DIR>` | Contract directory (defaults to current directory) |
 | `--output <FORMAT>` | Output format: `text` or `json` |
 | `--sign <PASSFILE>` | Sign with a passfile path or identity name; repeat to attach multiple signatures |
-| `--all`, `-a` | Commit all changed `state/`, `rules/`, and `model/default.modality` files |
+| `--all`, `-a` | Commit all changed `state/`, `rules/`, `reposts/`, and `model/default.modality` files. Staged REPOST dests emit `method: repost`. |
 | `--message`, `-m <MSG>` | Commit message |
 | `--action <JSON>` | Commit an inline JSON domain action or read it from a `.json` file path |
 | `--asset-id <ASSET_ID>` | Asset ID for `CREATE` commits |

@@ -37,7 +37,7 @@ required_patterns=(
   "\`--value <VALUE>\` | Value for the single-path commit"
   "\`--method <METHOD>\` | Commit method for the single-path commit"
   "\`--sign <PASSFILE>\` | Sign with a passfile path or identity name; repeat to attach multiple signatures"
-  "\`--all\`, \`-a\` | Commit all changed \`state/\`, \`rules/\`, and \`model/default.modality\` files"
+  "\`--all\`, \`-a\` | Commit all changed \`state/\`, \`rules/\`, \`reposts/\`, and \`model/default.modality\` files. Staged REPOST dests emit \`method: repost\`."
   "\`--asset-id <ASSET_ID>\` | Asset ID for \`CREATE\` commits"
   "\`--to-contract <TO_CONTRACT>\` | Destination contract ID for \`SEND\` commits"
   "\`--send-commit-id <SEND_COMMIT_ID>\` | Source \`SEND\` commit ID for \`RECV\` commits"

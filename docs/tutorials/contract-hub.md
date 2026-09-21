@@ -64,8 +64,8 @@ modal c push origin
 
 ```bash
 modal c clone http://127.0.0.1:8080/contracts/escrow-with-bob
-modal c set-named-id /parties/bob.id ./bob.mod_passfile
-modal c commit --all --sign bob.mod_passfile -m "Bob joins"
+modal c set-named-id /parties/bob.id ./bob.passfile
+modal c commit --all --sign bob.passfile -m "Bob joins"
 modal c push origin
 ```
 
