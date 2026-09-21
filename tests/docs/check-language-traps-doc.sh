@@ -3,6 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 DOC="$ROOT_DIR/docs/language/rule-syntax.md"
+SITE_RULE_SYNTAX_DOC="$ROOT_DIR/sites/www.modality.org/docs/language/rule-syntax.md"
 GOTCHAS_DOC="$ROOT_DIR/docs/reference/gotchas.md"
 MEMBERS_ONLY_TUTORIAL="$ROOT_DIR/docs/tutorials/members-only-contract.md"
 JS_SDK_HUB_TUTORIAL="$ROOT_DIR/docs/tutorials/js-sdk-hub.md"
@@ -118,15 +119,22 @@ required_patterns=(
   "onboarding examples avoid it"
 )
 
-for pattern in "${required_patterns[@]}"; do
-  if ! grep -Fq "$pattern" "$DOC"; then
-    echo "rule syntax reference is missing language-trap text: $pattern" >&2
+for rule_syntax_doc in "$DOC" "$SITE_RULE_SYNTAX_DOC"; do
+  for pattern in "${required_patterns[@]}"; do
+    if ! grep -Fq "$pattern" "$rule_syntax_doc"; then
+      echo "rule syntax reference is missing language-trap text: $pattern" >&2
+      exit 1
+    fi
+  done
+
+  if grep -Eq -- 'φ[[:space:]]*->[[:space:]]*ψ| implies ' "$rule_syntax_doc"; then
+    echo "rule syntax reference should not present formula implication sugar as the teaching path" >&2
     exit 1
   fi
 done
 
-if grep -Eq -- 'φ[[:space:]]*->[[:space:]]*ψ| implies ' "$DOC"; then
-  echo "rule syntax reference should not present formula implication sugar as the teaching path" >&2
+if ! cmp -s "$DOC" "$SITE_RULE_SYNTAX_DOC"; then
+  echo "site rule syntax reference should match the source language-trap guidance" >&2
   exit 1
 fi
 
