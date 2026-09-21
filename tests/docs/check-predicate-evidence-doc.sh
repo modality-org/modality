@@ -4,6 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 DOC="$ROOT_DIR/docs/reference/standard-predicates.md"
 LANG_DOC="$ROOT_DIR/docs/language/predicates.md"
+MODEL_GOVERNANCE="$ROOT_DIR/rust/modality-common/src/model_governance.rs"
 
 required_patterns=(
   "## Current Local Evidence Matrix"
@@ -17,19 +18,20 @@ required_patterns=(
   "| \`has_property(/path, \"a.b\")\` | Accepted-state JSON at \`/path\` | Reads previously committed JSON and follows dot-separated object keys |"
   "| \`state_exists(/path)\` | Accepted-state path map | Checks that a path was already committed before the pending commit |"
   "| \`text_eq(/path, \"value\")\` or \`text_eq(/left, /right)\` | Accepted-state text | Compares previously committed string values or a committed string to a literal |"
-  "| \`text_contains(/path, \"needle\")\` | Accepted-state text | Checks whether a previously committed string contains a literal substring |"
+  "| \`text_contains(/path, \"needle\")\`, \`text_starts_with(/path, \"prefix\")\`, and \`text_ends_with(/path, \"suffix\")\` | Accepted-state text | Checks whether a previously committed string contains, starts with, or ends with a literal substring |"
   "| \`amount_in_range(/path, \"min\", \"max\")\` | Accepted-state number | Compares a previously committed number to inclusive quoted numeric or accepted-state numeric bounds |"
   "| \`num_eq\`, \`num_gt\`, \`num_gte\`, \`num_lt\`, \`num_lte\` | Accepted-state number | Compares a previously committed number to a literal or accepted-state numeric bound |"
   "| \`bool_true(/path)\` and \`bool_false(/path)\` | Accepted-state boolean | Checks a previously committed boolean value |"
   "## Implementation Status"
-  "| \`signed_by\`, \`any_signed\`, \`all_signed\`, \`threshold\`, \`modifies\`, \`post_to_path\`, \`has_property\`, \`state_exists\`, \`text_eq\`, \`text_contains\`, \`amount_in_range\`, \`num_eq\`, \`num_gt\`, \`num_gte\`, \`num_lt\`, \`num_lte\`, \`bool_true\`, \`bool_false\` | Enforced | Derived from pending signatures, accepted state, pending methods, pending paths, accepted-state path existence, accepted-state JSON, accepted-state text, accepted-state numbers, and accepted-state booleans |"
+  "| \`signed_by\`, \`any_signed\`, \`all_signed\`, \`threshold\`, \`modifies\`, \`post_to_path\`, \`has_property\`, \`state_exists\`, \`text_eq\`, \`text_contains\`, \`text_starts_with\`, \`text_ends_with\`, \`amount_in_range\`, \`num_eq\`, \`num_gt\`, \`num_gte\`, \`num_lt\`, \`num_lte\`, \`bool_true\`, \`bool_false\` | Enforced | Derived from pending signatures, accepted state, pending methods, pending paths, accepted-state path existence, accepted-state JSON, accepted-state text, accepted-state numbers, and accepted-state booleans |"
   "| \`timestamp_valid\` | Unit-tested extension module only | Implemented in \`modality-wasm-validation\`; not yet replay evidence for the local first-contract validator |"
   "| \`before\`, \`after\`, other state-value predicates, hash predicates, \`oracle_attests\`, and \`wasm\` | Not first-contract-local yet | Intended extension vocabulary; treat as external or future predicate checks unless a validator path explicitly documents support |"
   "## Checkpoint Review Scope"
   "covers method labels, pending signatures, accepted-state identity paths,"
   "segment-aware pending write paths, accepted-state JSON properties,"
-  "accepted-state path existence, accepted-state text comparisons and contains checks, accepted-state numeric ranges, and"
-  "accepted-state numeric comparisons plus accepted-state boolean checks."
+  "accepted-state path existence, accepted-state text comparison, contains, prefix,"
+  "and suffix checks, accepted-state numeric ranges, and accepted-state numeric"
+  "comparisons plus accepted-state boolean checks."
   "enough to review local log conformance"
   "without depending on clocks, oracles,"
   "hash preimages, or custom WASM execution."
@@ -48,15 +50,18 @@ required_patterns=(
   "a value written by the same pending commit is not evidence for"
   "The local validator also derives \`text_eq\` from accepted contract state."
   "see text written by the same pending commit."
-  "The \`has_property\`, \`state_exists\`, \`text_eq\`, \`text_contains\`, \`amount_in_range\`, numeric"
+  "The \`has_property\`, \`state_exists\`, \`text_eq\`, \`text_contains\`,"
+  "\`text_starts_with\`, \`text_ends_with\`, \`amount_in_range\`, numeric comparison,"
   "evidence today. They read only accepted state; they"
   "path existence, text, numbers, or booleans written by the same"
   "same pending commit"
   "other state predicate inputs"
   "### amount_in_range"
   "Bounds can be quoted numeric values or paths to accepted-state numeric values."
-  "### text_eq / text_contains"
-  "literal substring"
+  "### text_eq / text_contains / text_starts_with / text_ends_with"
+  "contains, starts with, or ends with a literal substring"
+  "text_starts_with(/status.text, \"approved\")"
+  "text_ends_with(/status.text, \"reviewer\")"
   "### num_eq / num_gt / num_gte / num_lt / num_lte"
   "Checks accepted-state numeric values."
   "numeric literal or a"
@@ -65,7 +70,8 @@ required_patterns=(
   "It does not see booleans written by the same pending commit."
   "The local validator now derives \`post_to_path(/path)\`"
   "\`has_property(/path, \"a.b\")\` from"
-  "\`text_eq\` and \`text_contains\` from accepted-state strings"
+  "\`text_eq\`, \`text_contains\`, \`text_starts_with\`,"
+  "and \`text_ends_with\` from accepted-state strings"
   "comparisons from accepted-state numbers"
   "accepted-state booleans; other WASM-style predicate-test inputs remain"
   "explicit JSON until a validator path documents their replay binding."
@@ -97,6 +103,8 @@ wasm_patterns=(
   "It also derives \`state_exists(/path)\` from accepted-state path existence."
   "It also derives \`text_eq\` from accepted-state strings"
   "It also derives \`text_contains\` from accepted-state strings"
+  "It also derives \`text_starts_with\` and \`text_ends_with\` from accepted-state"
+  "literal prefixes or suffixes"
   "\`amount_in_range(/path, \"min\", \"max\")\` directly from accepted-state numbers"
   "It also derives \`amount_in_range\` from accepted-state numbers"
   "It also derives \`num_eq\`, \`num_gt\`, \`num_gte\`, \`num_lt\`, and \`num_lte\` from"
@@ -122,15 +130,17 @@ language_patterns=(
   "The currently verified local"
   "first-contract path is narrower: method labels, \`signed_by\`, \`any_signed\`,"
   "\`all_signed\`, \`threshold\`, \`modifies\`, \`post_to_path\`, \`has_property\`,"
-  "\`state_exists\`, \`text_eq\`, \`text_contains\`, \`amount_in_range\`, \`num_eq\`, \`num_gt\`,"
-  "\`num_gte\`, \`num_lt\`, \`num_lte\`, \`bool_true\`, and \`bool_false\` are enforced from"
+  "\`state_exists\`, \`text_eq\`, \`text_contains\`, \`text_starts_with\`,"
+  "\`text_ends_with\`, \`amount_in_range\`, \`num_eq\`, \`num_gt\`, \`num_gte\`, \`num_lt\`,"
+  "\`num_lte\`, \`bool_true\`, and \`bool_false\` are enforced from"
   "replayable commit"
   "The local validator derives \`state_exists\` from accepted-state path existence"
   "a path written by the same pending commit is not evidence for that commit."
   "The local validator derives \`bool_true\` and \`bool_false\` from accepted-state"
   "The local validator also derives \`num_eq\`, \`num_gt\`, \`num_gte\`, \`num_lt\`, and"
   "\`num_lte\` from accepted-state numbers only."
-  "The local validator derives \`text_eq\` and \`text_contains\` from accepted-state"
+  "The local validator derives \`text_eq\`, \`text_contains\`, \`text_starts_with\`, and"
+  "\`text_ends_with\` from accepted-state"
   "[standard predicate evidence matrix](../reference/standard-predicates.md)"
   "Do not treat the future vocabulary below as runtime evidence until a validator"
   "Oracle, time, hash,"
@@ -140,6 +150,23 @@ language_patterns=(
 for pattern in "${language_patterns[@]}"; do
   if ! grep -Fq "$pattern" "$LANG_DOC"; then
     echo "language predicate reference is missing evidence-boundary text: $pattern" >&2
+    exit 1
+  fi
+done
+
+local_predicate_patterns=(
+  '"text_starts_with" => match (args.first(), args.get(1))'
+  '"text_ends_with" => match (args.first(), args.get(1))'
+  "fn state_text_starts_with"
+  "fn state_text_ends_with"
+  "fn enforces_text_prefix_suffix_against_accepted_state_strings"
+  "accepted state text at {path} does not start with {prefix}"
+  "accepted state text at {path} does not end with {suffix}"
+)
+
+for pattern in "${local_predicate_patterns[@]}"; do
+  if ! grep -Fq "$pattern" "$MODEL_GOVERNANCE"; then
+    echo "local predicate implementation is missing text prefix/suffix evidence: $pattern" >&2
     exit 1
   fi
 done

@@ -1274,6 +1274,14 @@ impl CommitFacts {
                 (Some(path), Some(needle)) => self.state_text_contains(path, needle),
                 _ => false,
             },
+            "text_starts_with" => match (args.first(), args.get(1)) {
+                (Some(path), Some(prefix)) => self.state_text_starts_with(path, prefix),
+                _ => false,
+            },
+            "text_ends_with" => match (args.first(), args.get(1)) {
+                (Some(path), Some(suffix)) => self.state_text_ends_with(path, suffix),
+                _ => false,
+            },
             "amount_in_range" => match (args.first(), args.get(1), args.get(2)) {
                 (Some(path), Some(min), Some(max)) => self.amount_in_range(path, min, max),
                 _ => false,
@@ -1368,6 +1376,24 @@ impl CommitFacts {
             if let (Some(path), Some(needle)) = (args.first(), args.get(1)) {
                 return format!(
                     "missing {formatted} (accepted state text at {path} does not contain {needle})"
+                );
+            }
+        }
+
+        if property.name == "text_starts_with" {
+            let args = predicate_args(property);
+            if let (Some(path), Some(prefix)) = (args.first(), args.get(1)) {
+                return format!(
+                    "missing {formatted} (accepted state text at {path} does not start with {prefix})"
+                );
+            }
+        }
+
+        if property.name == "text_ends_with" {
+            let args = predicate_args(property);
+            if let (Some(path), Some(suffix)) = (args.first(), args.get(1)) {
+                return format!(
+                    "missing {formatted} (accepted state text at {path} does not end with {suffix})"
                 );
             }
         }
@@ -1519,6 +1545,22 @@ impl CommitFacts {
             .get(&normalize_path(path))
             .and_then(Value::as_str)
             .map(|actual| actual.contains(needle))
+            .unwrap_or(false)
+    }
+
+    fn state_text_starts_with(&self, path: &str, prefix: &str) -> bool {
+        self.state
+            .get(&normalize_path(path))
+            .and_then(Value::as_str)
+            .map(|actual| actual.starts_with(prefix))
+            .unwrap_or(false)
+    }
+
+    fn state_text_ends_with(&self, path: &str, suffix: &str) -> bool {
+        self.state
+            .get(&normalize_path(path))
+            .and_then(Value::as_str)
+            .map(|actual| actual.ends_with(suffix))
             .unwrap_or(false)
     }
 
@@ -2555,6 +2597,81 @@ model TextContains {
 
         assert!(
             err.contains("missing +text_contains(/status.text, approve)"),
+            "{err}"
+        );
+    }
+
+    #[test]
+    fn enforces_text_prefix_suffix_against_accepted_state_strings() {
+        let model = parse_content_lalrpop(
+            r#"
+model TextPrefixSuffix {
+  initial active
+  active --> active: +POST +text_starts_with(/status.text, "approved") +text_ends_with(/status.text, "reviewer")
+}
+            "#,
+        )
+        .unwrap();
+        let mut current_states = HashSet::new();
+        current_states.insert("active".to_string());
+        let mut state = HashMap::new();
+        state.insert(
+            "status.text".to_string(),
+            Value::String("approved by reviewer".to_string()),
+        );
+
+        let mut commit = CommitFile::new();
+        commit.add_action(
+            "post".to_string(),
+            Some("/notes/next.text".to_string()),
+            Value::String("ok".to_string()),
+        );
+        let facts = CommitFacts::from_commit(&commit, &state);
+
+        assert!(
+            has_valid_transition(&model, &current_states, &facts),
+            "accepted-state text should satisfy prefix and suffix checks"
+        );
+
+        let mut pending_only = CommitFile::new();
+        pending_only.add_action(
+            "post".to_string(),
+            Some("/status.text".to_string()),
+            Value::String("approved by reviewer".to_string()),
+        );
+        let pending_only_facts = CommitFacts::from_commit(&pending_only, &HashMap::new());
+        let err = explain_no_valid_transition(&model, &current_states, &pending_only_facts);
+
+        assert!(
+            err.contains("missing +text_starts_with(/status.text, approved)"),
+            "{err}"
+        );
+        assert!(
+            err.contains("accepted state text at /status.text does not start with approved"),
+            "{err}"
+        );
+        assert!(
+            err.contains("missing +text_ends_with(/status.text, reviewer)"),
+            "{err}"
+        );
+        assert!(
+            err.contains("accepted state text at /status.text does not end with reviewer"),
+            "{err}"
+        );
+
+        state.insert(
+            "status.text".to_string(),
+            Value::String("rejected by reviewer note".to_string()),
+        );
+        let wrong_facts = CommitFacts::from_commit(&commit, &state);
+        let err = explain_no_valid_transition(&model, &current_states, &wrong_facts);
+
+        assert!(
+            err.contains("missing +text_starts_with(/status.text, approved)"),
+            "{err}"
+        );
+        assert!(
+            err.contains("missing +text_ends_with(/status.text, reviewer)"),
             "{err}"
         );
     }

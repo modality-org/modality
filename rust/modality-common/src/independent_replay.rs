@@ -546,6 +546,7 @@ pub fn verify_replay_artifact(
         let _ = invoke_engine;
         let _ = wasm;
         let _ = &mut accepted;
+        let _ = &mut invokes_expanded;
         errors.push(
             "rule replay requires the model-governance feature; artifact structure checked only"
                 .to_string(),

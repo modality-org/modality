@@ -8,8 +8,9 @@ title: Predicates
 This page names the language vocabulary. The currently verified local
 first-contract path is narrower: method labels, `signed_by`, `any_signed`,
 `all_signed`, `threshold`, `modifies`, `post_to_path`, `has_property`,
-`state_exists`, `text_eq`, `text_contains`, `amount_in_range`, `num_eq`, `num_gt`,
-`num_gte`, `num_lt`, `num_lte`, `bool_true`, and `bool_false` are enforced from
+`state_exists`, `text_eq`, `text_contains`, `text_starts_with`,
+`text_ends_with`, `amount_in_range`, `num_eq`, `num_gt`, `num_gte`, `num_lt`,
+`num_lte`, `bool_true`, and `bool_false` are enforced from
 replayable commit artifacts. See the
 [standard predicate evidence matrix](../reference/standard-predicates.md) for
 the exact source of each fact.
@@ -65,6 +66,8 @@ proof that external facts were checked.
 // Text comparisons
 +text_eq(/path/a.text, /path/b.text)
 +text_contains(/path/a.text, "substring")
++text_starts_with(/path/a.text, "prefix")
++text_ends_with(/path/a.text, "suffix")
 
 // Accepted-state numeric range
 +amount_in_range(/invoice/amount.num, "10", "100")
@@ -90,10 +93,11 @@ The local validator also derives `num_eq`, `num_gt`, `num_gte`, `num_lt`, and
 literal number or another accepted-state number path; a number written by the
 same pending commit is not evidence for that commit.
 
-The local validator derives `text_eq` and `text_contains` from accepted-state
-strings only. `text_eq` can compare two accepted-state string paths or one path
-to a literal; `text_contains` checks a literal substring. Text written by the
-same pending commit is not evidence for that commit.
+The local validator derives `text_eq`, `text_contains`, `text_starts_with`, and
+`text_ends_with` from accepted-state strings only. `text_eq` can compare two
+accepted-state string paths or one path to a literal; the other text predicates
+check literal substrings. Text written by the same pending commit is not
+evidence for that commit.
 
 ## Hash Predicates
 
