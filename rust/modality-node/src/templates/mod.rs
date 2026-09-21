@@ -673,6 +673,8 @@ mod tests {
         assert!(html.contains("data-tab=\"sequencers\""));
         assert!(html.contains("data-tab=\"validators\""));
         assert!(html.contains("data-tab=\"miners\""));
+        assert!(html.contains("data-active-tab"));
+        assert!(html.contains("refreshStatus"));
         assert!(html.contains("/status.json"));
     }
 

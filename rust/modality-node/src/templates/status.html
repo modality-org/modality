@@ -1,9 +1,20 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-active-tab="overview">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Modality Network Node Status</title>
+    <script>
+        (function() {{
+            var tab = 'overview';
+            try {{
+                tab = localStorage.getItem('activeTab') || 'overview';
+            }} catch (e) {{}}
+            var allowed = {{ overview: 1, nodes: 1, miners: 1, sequencers: 1, validators: 1 }};
+            if (!allowed[tab]) tab = 'overview';
+            document.documentElement.setAttribute('data-active-tab', tab);
+        }})();
+    </script>
     <style>
         :root {{
             --bg: #0a0a0f;
@@ -16,6 +27,9 @@
             --line: #2a2a3a;
             --ok: #4ade80;
             --warn: #fbbf24;
+        }}
+        html {{
+            background: var(--bg);
         }}
         body {{
             font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
@@ -193,7 +207,11 @@
             background: var(--panel-2);
             color: var(--text);
         }}
-        .tab.active {{
+        html[data-active-tab="overview"] .tab[data-tab="overview"],
+        html[data-active-tab="nodes"] .tab[data-tab="nodes"],
+        html[data-active-tab="miners"] .tab[data-tab="miners"],
+        html[data-active-tab="sequencers"] .tab[data-tab="sequencers"],
+        html[data-active-tab="validators"] .tab[data-tab="validators"] {{
             background: var(--bg);
             color: var(--accent);
             border-bottom: 2px solid var(--accent);
@@ -202,26 +220,21 @@
         .tab-content {{
             display: none;
         }}
-        .tab-content.active {{
+        html[data-active-tab="overview"] #overview-content,
+        html[data-active-tab="nodes"] #nodes-content,
+        html[data-active-tab="miners"] #miners-content,
+        html[data-active-tab="sequencers"] #sequencers-content,
+        html[data-active-tab="validators"] #validators-content {{
             display: block;
         }}
     </style>
     <script>
         function switchTab(tabName) {{
-            document.querySelectorAll('.tab-content').forEach(function(content) {{
-                content.classList.remove('active');
-            }});
-            document.querySelectorAll('.tab').forEach(function(tab) {{
-                tab.classList.remove('active');
-            }});
-            document.getElementById(tabName + '-content').classList.add('active');
-            document.querySelector('[data-tab="' + tabName + '"]').classList.add('active');
-            localStorage.setItem('activeTab', tabName);
+            document.documentElement.setAttribute('data-active-tab', tabName);
+            try {{
+                localStorage.setItem('activeTab', tabName);
+            }} catch (e) {{}}
         }}
-        window.addEventListener('DOMContentLoaded', function() {{
-            const savedTab = localStorage.getItem('activeTab') || 'overview';
-            switchTab(savedTab);
-        }});
         function toggleTimestamp(element) {{
             const timestamp = parseInt(element.getAttribute('data-timestamp'));
             const currentText = element.textContent;
@@ -234,9 +247,58 @@
                 element.style.color = '#e8e8f0';
             }}
         }}
-        setTimeout(function() {{
-            location.reload();
-        }}, {refresh_interval}000);
+        function captureScroll() {{
+            var scrolls = {{}};
+            document.querySelectorAll('.tab-content').forEach(function(tab) {{
+                var containers = tab.querySelectorAll('.blocks-container');
+                scrolls[tab.id] = Array.prototype.map.call(containers, function(c) {{
+                    return c.scrollTop;
+                }});
+            }});
+            return scrolls;
+        }}
+        function restoreScroll(scrolls) {{
+            document.querySelectorAll('.tab-content').forEach(function(tab) {{
+                var saved = scrolls[tab.id] || [];
+                tab.querySelectorAll('.blocks-container').forEach(function(c, i) {{
+                    if (typeof saved[i] === 'number') c.scrollTop = saved[i];
+                }});
+            }});
+        }}
+        function applyStatusDocument(doc) {{
+            var header = document.querySelector('.header');
+            var incomingHeader = doc.querySelector('.header');
+            if (header && incomingHeader && header.innerHTML !== incomingHeader.innerHTML) {{
+                header.innerHTML = incomingHeader.innerHTML;
+            }}
+            var scrolls = captureScroll();
+            document.querySelectorAll('.tab-content').forEach(function(el) {{
+                var incoming = doc.getElementById(el.id);
+                if (incoming && el.innerHTML !== incoming.innerHTML) {{
+                    el.innerHTML = incoming.innerHTML;
+                }}
+            }});
+            restoreScroll(scrolls);
+        }}
+        var refreshMs = {refresh_interval}000;
+        function scheduleRefresh() {{
+            setTimeout(refreshStatus, refreshMs);
+        }}
+        function refreshStatus() {{
+            fetch(window.location.href, {{ cache: 'no-store', headers: {{ Accept: 'text/html' }} }})
+                .then(function(r) {{
+                    if (!r.ok) throw new Error('refresh failed');
+                    return r.text();
+                }})
+                .then(function(html) {{
+                    applyStatusDocument(new DOMParser().parseFromString(html, 'text/html'));
+                    scheduleRefresh();
+                }})
+                .catch(function() {{
+                    location.reload();
+                }});
+        }}
+        scheduleRefresh();
     </script>
 </head>
 <body>
@@ -248,14 +310,14 @@
     </div>
 
     <div class="tabs">
-        <div class="tab active" data-tab="overview" onclick="switchTab('overview')">Overview</div>
+        <div class="tab" data-tab="overview" onclick="switchTab('overview')">Overview</div>
         <div class="tab" data-tab="nodes" onclick="switchTab('nodes')">Nodes</div>
         <div class="tab" data-tab="miners" onclick="switchTab('miners')">Miners</div>
         <div class="tab" data-tab="sequencers" onclick="switchTab('sequencers')">Sequencers</div>
         <div class="tab" data-tab="validators" onclick="switchTab('validators')">Validators</div>
     </div>
 
-    <div id="overview-content" class="tab-content active">
+    <div id="overview-content" class="tab-content">
         <div class="status-grid">
             <div class="stat-box">
                 <div class="stat-label">Connected Peers</div>
