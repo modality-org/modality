@@ -12,6 +12,8 @@ When no transition matches the pending commit, the explanation should include:
   deterministic ordering when replay leaves multiple possible current states.
   Duplicate replay states should not duplicate candidate transition lines.
   Duplicate identical transition inputs should not duplicate explanation lines.
+  Duplicate identical non-current similar transitions should not duplicate
+  state-mismatch hints.
   Duplicate failed-predicate details should not duplicate failure text or make
   the failure ordering depend on predicate extraction order.
 - The closest candidate transition from that current state.
@@ -187,6 +189,8 @@ proof-fragment text both paths depend on:
   candidate surface when replay reports the same current state more than once.
 - `renders_duplicate_transition_inputs_once` preserves the deduped explanation
   surface when model traversal reports the same transition more than once.
+- `renders_duplicate_non_current_transition_inputs_once` preserves the deduped state-mismatch hint surface when model traversal reports the same similar
+  non-current transition more than once.
 - `renders_duplicate_failures_once_in_stable_order` preserves the deduped,
   stable failed-predicate surface when predicate extraction reports the same
   failure more than once or in a different order.

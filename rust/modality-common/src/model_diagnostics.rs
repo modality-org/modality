@@ -606,6 +606,31 @@ mod tests {
     }
 
     #[test]
+    fn renders_duplicate_non_current_transition_inputs_once() {
+        let duplicate_transition = TransitionDiagnosticInput {
+            failures: vec!["missing +POST".to_string()],
+            from: "draft".to_string(),
+            part_name: None,
+            properties: "+POST".to_string(),
+            to: "posted".to_string(),
+        };
+
+        let lines = render_transition_diagnostics_for_states(
+            ["active"],
+            vec![duplicate_transition.clone(), duplicate_transition],
+        );
+
+        assert_eq!(
+            lines,
+            vec![
+                "Candidate transitions: none from current states",
+                "Similar transitions from other states ranked by predicate distance:",
+                "non-current transition from draft to posted [+POST]; current states: active; failed predicates: missing +POST",
+            ]
+        );
+    }
+
+    #[test]
     fn renders_duplicate_failures_once_in_stable_order() {
         let lines = render_transition_diagnostics_for_states(
             ["active"],
