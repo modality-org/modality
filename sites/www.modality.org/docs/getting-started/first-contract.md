@@ -453,6 +453,11 @@ The accepted `rules/authorized.modality`, `model/default.modality`, and
 `review/authorized.md` files should also be unchanged. That's the contract
 holding its shape.
 
+When a rejection names `current states {"q1"}`, read the rest of the message
+against that accepted witness state first. If the verifier also shows similar
+transitions from other states, those are state-mismatch hints for review; they
+are not alternative ways the rejected commit could have landed.
+
 ## 8. Let Bob Replace the Witness
 
 That something off from step 5: the synthesized witness only lets Alice sign.

@@ -65,6 +65,11 @@ required_patterns=(
   "state/unsigned.text"
   "\`rules/authorized.modality\`, \`model/default.modality\`, and"
   "\`review/authorized.md\` files should also be"
+  'When a rejection names `current states {"q1"}`'
+  "If the verifier also shows similar"
+  "transitions from other states"
+  "state-mismatch hints for review"
+  "not alternative ways the rejected commit could have landed"
   "## 8. Let Bob Replace the Witness"
   "Bob tries to commit"
   "only lets Alice sign"
