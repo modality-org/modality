@@ -1,14 +1,14 @@
 #[cfg(test)]
 mod tests {
-    use anyhow::{Result};
-    use modality_datastore::NetworkDatastore;
+    use anyhow::Result;
     use modality_datastore::models::block::prelude::*;
     use modality_datastore::models::block_message::BlockMessage;
+    use modality_datastore::NetworkDatastore;
 
     #[tokio::test]
     async fn test_block_message() -> Result<()> {
         let datastore = NetworkDatastore::create_in_memory()?;
-        
+
         // Create and save some test messages
         let messages = vec![
             BlockMessage {
@@ -39,20 +39,24 @@ mod tests {
         }
 
         // Test find_all_in_round_of_type
-        let found_messages = BlockMessage::find_all_in_round_of_type(&datastore, 1, "type1").await?;
+        let found_messages =
+            BlockMessage::find_all_in_round_of_type(&datastore, 1, "type1").await?;
         assert_eq!(found_messages.len(), 2);
         assert!(found_messages.iter().any(|m| m.peer_id == "scribe1"));
         assert!(found_messages.iter().any(|m| m.peer_id == "scribe2"));
 
-        let found_messages = BlockMessage::find_all_in_round_of_type(&datastore, 1, "type2").await?;
+        let found_messages =
+            BlockMessage::find_all_in_round_of_type(&datastore, 1, "type2").await?;
         assert_eq!(found_messages.len(), 1);
         assert_eq!(found_messages[0].peer_id, "scribe3");
 
         // Test non-existent block or type
-        let found_messages = BlockMessage::find_all_in_round_of_type(&datastore, 2, "type1").await?;
+        let found_messages =
+            BlockMessage::find_all_in_round_of_type(&datastore, 2, "type1").await?;
         assert_eq!(found_messages.len(), 0);
 
-        let found_messages = BlockMessage::find_all_in_round_of_type(&datastore, 1, "type3").await?;
+        let found_messages =
+            BlockMessage::find_all_in_round_of_type(&datastore, 1, "type3").await?;
         assert_eq!(found_messages.len(), 0);
 
         Ok(())

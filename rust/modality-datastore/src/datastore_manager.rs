@@ -16,11 +16,11 @@
 //! └── node_state/       # Node-specific state
 //! ```
 
-use crate::Result;
 use crate::stores::{
     MinerActiveStore, MinerCanonStore, MinerForksStore, NodeStateStore, Store,
     ValidatorActiveStore, ValidatorFinalStore,
 };
+use crate::Result;
 use std::fs;
 use std::path::{Path, PathBuf};
 

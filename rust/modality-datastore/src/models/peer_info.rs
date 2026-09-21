@@ -25,7 +25,11 @@ impl PeerInfo {
     }
 
     /// Create a PeerInfo with status URL and role
-    pub fn with_metadata(peer_id: String, status_url: Option<String>, role: Option<String>) -> Self {
+    pub fn with_metadata(
+        peer_id: String,
+        status_url: Option<String>,
+        role: Option<String>,
+    ) -> Self {
         Self {
             peer_id,
             status_url,
@@ -64,14 +68,9 @@ impl PeerInfo {
 #[async_trait]
 impl Model for PeerInfo {
     const ID_PATH: &'static str = "/node/peers/id/${peer_id}";
-    
-    const FIELDS: &'static [&'static str] = &[
-        "peer_id",
-        "status_url",
-        "role",
-        "last_seen",
-    ];
-    
+
+    const FIELDS: &'static [&'static str] = &["peer_id", "status_url", "role", "last_seen"];
+
     const FIELD_DEFAULTS: &'static [(&'static str, serde_json::Value)] = &[];
 
     fn set_field(&mut self, field: &str, value: serde_json::Value) {
@@ -90,6 +89,3 @@ impl Model for PeerInfo {
         keys
     }
 }
-
-
-

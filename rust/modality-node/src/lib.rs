@@ -4,6 +4,7 @@
 pub mod bootup;
 pub mod config;
 pub mod config_resolution;
+pub mod explorer;
 pub mod gossip;
 pub mod inspection;
 pub mod logging;

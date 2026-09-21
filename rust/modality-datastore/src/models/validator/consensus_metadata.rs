@@ -1,31 +1,31 @@
-use crate::{DatastoreManager, Result};
 use crate::model::Model;
-use serde::{Serialize, Deserialize};
-use std::collections::HashMap;
+use crate::{DatastoreManager, Result};
 use async_trait::async_trait;
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 /// Consensus metadata and progress tracking
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct ConsensusMetadata {
     // Identity (singleton - always key "current")
     pub id: String,
-    
+
     // Progress
     pub current_round: u64,
     pub highest_committed_round: u64,
     pub last_anchor_round: Option<u64>,
-    
+
     // Validator info
     pub validator_peer_id: String,
     pub committee_size: usize,
     pub committee_epoch: u64,
-    
+
     // Statistics
     pub total_certificates: usize,
     pub total_committed: usize,
     pub total_batches: usize,
     pub total_transactions: u64,
-    
+
     // Timestamps
     pub started_at: u64,
     pub last_updated: u64,
@@ -35,7 +35,7 @@ pub struct ConsensusMetadata {
 #[async_trait]
 impl Model for ConsensusMetadata {
     const ID_PATH: &'static str = "/dag/metadata/id/${id}";
-    
+
     const FIELDS: &'static [&'static str] = &[
         "id",
         "current_round",
@@ -52,26 +52,32 @@ impl Model for ConsensusMetadata {
         "last_updated",
         "last_checkpoint_at",
     ];
-    
+
     const FIELD_DEFAULTS: &'static [(&'static str, serde_json::Value)] = &[];
 
     fn set_field(&mut self, field: &str, value: serde_json::Value) {
         match field {
             "id" => self.id = value.as_str().unwrap_or_default().to_string(),
             "current_round" => self.current_round = value.as_u64().unwrap_or_default(),
-            "highest_committed_round" => self.highest_committed_round = value.as_u64().unwrap_or_default(),
+            "highest_committed_round" => {
+                self.highest_committed_round = value.as_u64().unwrap_or_default()
+            }
             "last_anchor_round" => self.last_anchor_round = value.as_u64(),
-            "validator_peer_id" => self.validator_peer_id = value.as_str().unwrap_or_default().to_string(),
+            "validator_peer_id" => {
+                self.validator_peer_id = value.as_str().unwrap_or_default().to_string()
+            }
             "committee_size" => self.committee_size = value.as_u64().unwrap_or_default() as usize,
             "committee_epoch" => self.committee_epoch = value.as_u64().unwrap_or_default(),
-            "total_certificates" => self.total_certificates = value.as_u64().unwrap_or_default() as usize,
+            "total_certificates" => {
+                self.total_certificates = value.as_u64().unwrap_or_default() as usize
+            }
             "total_committed" => self.total_committed = value.as_u64().unwrap_or_default() as usize,
             "total_batches" => self.total_batches = value.as_u64().unwrap_or_default() as usize,
             "total_transactions" => self.total_transactions = value.as_u64().unwrap_or_default(),
             "started_at" => self.started_at = value.as_u64().unwrap_or_default(),
             "last_updated" => self.last_updated = value.as_u64().unwrap_or_default(),
             "last_checkpoint_at" => self.last_checkpoint_at = value.as_u64().unwrap_or_default(),
-            _ => {},
+            _ => {}
         }
     }
 
@@ -95,7 +101,7 @@ impl ConsensusMetadata {
                     .duration_since(std::time::UNIX_EPOCH)
                     .unwrap()
                     .as_secs();
-                
+
                 let metadata = Self {
                     id: "current".to_string(),
                     current_round: 0,
@@ -120,6 +126,8 @@ impl ConsensusMetadata {
 
     /// Save this metadata to the ValidatorFinal store
     pub async fn save_to_final(&self, datastore: &DatastoreManager) -> Result<()> {
-        self.save_to_store(datastore.validator_final()).await.map_err(|e| crate::Error::Database(e.to_string()))
+        self.save_to_store(datastore.validator_final())
+            .await
+            .map_err(|e| crate::Error::Database(e.to_string()))
     }
 }

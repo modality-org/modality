@@ -1,11 +1,11 @@
 use anyhow::{anyhow, Result};
-use serde::{Serialize, Deserialize};
-use std::collections::HashMap;
 use async_trait::async_trait;
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
-use crate::DatastoreManager;
-use crate::stores::Store;
 use crate::model::Model;
+use crate::stores::Store;
+use crate::DatastoreManager;
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct Transaction {
@@ -25,7 +25,7 @@ impl Model for Transaction {
             "timestamp" => self.timestamp = value.as_str().unwrap_or_default().to_string(),
             "contract_id" => self.contract_id = value.as_str().unwrap_or_default().to_string(),
             "commit_id" => self.commit_id = value.as_str().unwrap_or_default().to_string(),
-            _ => {},
+            _ => {}
         }
     }
 
@@ -39,9 +39,7 @@ impl Model for Transaction {
 }
 
 impl Transaction {
-    pub async fn find_all_multi(
-        datastore: &DatastoreManager
-    ) -> Result<Vec<Self>> {
+    pub async fn find_all_multi(datastore: &DatastoreManager) -> Result<Vec<Self>> {
         let prefix = "/transactions";
         let mut transactions = Vec::new();
 

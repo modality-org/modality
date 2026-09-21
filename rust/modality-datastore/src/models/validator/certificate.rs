@@ -1,39 +1,39 @@
-use crate::{DatastoreManager, Result};
 use crate::model::Model;
 use crate::stores::Store;
-use serde::{Serialize, Deserialize};
-use std::collections::HashMap;
+use crate::{DatastoreManager, Result};
 use async_trait::async_trait;
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 /// A Narwhal certificate stored in the DAG
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct DAGCertificate {
     // Identity
-    pub digest: String,              // Hex-encoded certificate digest
-    pub author: String,              // PeerId as string
+    pub digest: String, // Hex-encoded certificate digest
+    pub author: String, // PeerId as string
     pub round: u64,
-    
+
     // Content (serialized)
-    pub header: String,              // JSON-serialized Header
+    pub header: String,               // JSON-serialized Header
     pub aggregated_signature: String, // JSON-serialized AggregatedSignature
-    pub signers: Vec<bool>,          // Bitvec of signers
-    
+    pub signers: Vec<bool>,           // Bitvec of signers
+
     // References
-    pub batch_digest: String,        // Hex-encoded batch digest
-    pub parents: Vec<String>,        // List of parent certificate digests
-    
+    pub batch_digest: String, // Hex-encoded batch digest
+    pub parents: Vec<String>, // List of parent certificate digests
+
     // Metadata
     pub timestamp: u64,
-    pub committed: bool,             // Whether this cert is committed
+    pub committed: bool,                 // Whether this cert is committed
     pub committed_at_round: Option<u64>, // When it was committed
-    pub created_at: u64,             // Local timestamp when stored
+    pub created_at: u64,                 // Local timestamp when stored
 }
 
 #[async_trait]
 impl Model for DAGCertificate {
     // Primary key: round + digest (allows efficient round queries)
     const ID_PATH: &'static str = "/dag/certificates/round/${round}/digest/${digest}";
-    
+
     const FIELDS: &'static [&'static str] = &[
         "digest",
         "author",
@@ -48,7 +48,7 @@ impl Model for DAGCertificate {
         "committed_at_round",
         "created_at",
     ];
-    
+
     const FIELD_DEFAULTS: &'static [(&'static str, serde_json::Value)] = &[
         ("committed", serde_json::json!(false)),
         ("parents", serde_json::json!([])),
@@ -68,7 +68,7 @@ impl Model for DAGCertificate {
             "committed" => self.committed = value.as_bool().unwrap_or_default(),
             "committed_at_round" => self.committed_at_round = value.as_u64(),
             "created_at" => self.created_at = value.as_u64().unwrap_or_default(),
-            _ => {},
+            _ => {}
         }
     }
 
@@ -86,7 +86,9 @@ impl DAGCertificate {
         datastore: &DatastoreManager,
         keys: HashMap<String, String>,
     ) -> Result<Option<Self>> {
-        Self::find_one_from_store(datastore.validator_final(), keys).await.map_err(|e| crate::Error::Database(e.to_string()))
+        Self::find_one_from_store(datastore.validator_final(), keys)
+            .await
+            .map_err(|e| crate::Error::Database(e.to_string()))
     }
 
     /// Find all certificates in a specific round
@@ -96,29 +98,31 @@ impl DAGCertificate {
     ) -> Result<Vec<Self>> {
         let prefix = format!("/dag/certificates/round/{}/digest", round);
         let mut certs = Vec::new();
-        
+
         let store = datastore.validator_final();
         let iterator = store.iterator(&prefix);
         for result in iterator {
             let (key, _) = result?;
             let key_str = String::from_utf8(key.to_vec())?;
-            
+
             // Extract digest from key
             if let Some(digest) = key_str.split(&format!("{}/", prefix)).nth(1) {
                 let keys = [
                     ("round".to_string(), round.to_string()),
                     ("digest".to_string(), digest.to_string()),
-                ].into_iter().collect();
-                
+                ]
+                .into_iter()
+                .collect();
+
                 if let Some(cert) = Self::find_one_from_store(store, keys).await? {
                     certs.push(cert);
                 }
             }
         }
-        
+
         Ok(certs)
     }
-    
+
     /// Find all certificates by a specific author
     pub async fn find_by_author_multi(
         datastore: &DatastoreManager,
@@ -126,13 +130,13 @@ impl DAGCertificate {
     ) -> Result<Vec<Self>> {
         let prefix = "/dag/certificates/round";
         let mut certs = Vec::new();
-        
+
         let store = datastore.validator_final();
         let iterator = store.iterator(prefix);
         for result in iterator {
             let (key, _) = result?;
             let key_str = String::from_utf8(key.to_vec())?;
-            
+
             // Parse key to extract round and digest
             let parts: Vec<&str> = key_str.split('/').collect();
             if parts.len() >= 6 {
@@ -140,8 +144,10 @@ impl DAGCertificate {
                     let keys = [
                         ("round".to_string(), round_str.to_string()),
                         ("digest".to_string(), digest.to_string()),
-                    ].into_iter().collect();
-                    
+                    ]
+                    .into_iter()
+                    .collect();
+
                     if let Some(cert) = Self::find_one_from_store(store, keys).await? {
                         if cert.author == author {
                             certs.push(cert);
@@ -150,23 +156,21 @@ impl DAGCertificate {
                 }
             }
         }
-        
+
         Ok(certs)
     }
-    
+
     /// Find all committed certificates
-    pub async fn find_all_committed_multi(
-        datastore: &DatastoreManager,
-    ) -> Result<Vec<Self>> {
+    pub async fn find_all_committed_multi(datastore: &DatastoreManager) -> Result<Vec<Self>> {
         let prefix = "/dag/certificates/round";
         let mut certs = Vec::new();
-        
+
         let store = datastore.validator_final();
         let iterator = store.iterator(prefix);
         for result in iterator {
             let (key, _) = result?;
             let key_str = String::from_utf8(key.to_vec())?;
-            
+
             // Parse key to extract round and digest
             let parts: Vec<&str> = key_str.split('/').collect();
             if parts.len() >= 6 {
@@ -174,8 +178,10 @@ impl DAGCertificate {
                     let keys = [
                         ("round".to_string(), round_str.to_string()),
                         ("digest".to_string(), digest.to_string()),
-                    ].into_iter().collect();
-                    
+                    ]
+                    .into_iter()
+                    .collect();
+
                     if let Some(cert) = Self::find_one_from_store(store, keys).await? {
                         if cert.committed {
                             certs.push(cert);
@@ -184,10 +190,10 @@ impl DAGCertificate {
                 }
             }
         }
-        
+
         Ok(certs)
     }
-    
+
     /// Mark a certificate as committed
     pub async fn mark_committed_multi(
         &mut self,
@@ -202,6 +208,8 @@ impl DAGCertificate {
 
     /// Save this certificate to the ValidatorFinal store
     pub async fn save_to_final(&self, datastore: &DatastoreManager) -> Result<()> {
-        self.save_to_store(datastore.validator_final()).await.map_err(|e| crate::Error::Database(e.to_string()))
+        self.save_to_store(datastore.validator_final())
+            .await
+            .map_err(|e| crate::Error::Database(e.to_string()))
     }
 }

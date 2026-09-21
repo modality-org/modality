@@ -1,7 +1,7 @@
-use std::collections::HashMap;
-use serde::{Serialize, Deserialize};
+use anyhow::{anyhow, Context, Result};
 use async_trait::async_trait;
-use anyhow::{Result, Context, anyhow};
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 use crate::stores::Store;
 
@@ -12,11 +12,12 @@ pub trait Model: Sized + Serialize + for<'de> Deserialize<'de> {
     const FIELD_DEFAULTS: &'static [(&'static str, serde_json::Value)];
 
     fn create_from_json(obj: serde_json::Value) -> Result<Self> {
-        let mut model: Self = serde_json::from_value(obj.clone())
-            .context("Failed to deserialize object")?;
+        let mut model: Self =
+            serde_json::from_value(obj.clone()).context("Failed to deserialize object")?;
         for &field in Self::FIELDS {
             if obj.get(field).is_none() {
-                if let Some(default_value) = Self::FIELD_DEFAULTS.iter().find(|&&(k, _)| k == field) {
+                if let Some(default_value) = Self::FIELD_DEFAULTS.iter().find(|&&(k, _)| k == field)
+                {
                     let value = serde_json::to_value(default_value.1.clone())
                         .context("Failed to convert default value to JSON")?;
                     serde_json::from_value(value)
@@ -31,8 +32,8 @@ pub trait Model: Sized + Serialize + for<'de> Deserialize<'de> {
     fn set_field(&mut self, field: &str, value: serde_json::Value);
 
     fn from_json_string(json: &str) -> Result<Self> {
-        let obj: serde_json::Value = serde_json::from_str(json)
-            .context("Failed to parse JSON string")?;
+        let obj: serde_json::Value =
+            serde_json::from_str(json).context("Failed to parse JSON string")?;
         Self::create_from_json(obj)
     }
 
@@ -51,7 +52,8 @@ pub trait Model: Sized + Serialize + for<'de> Deserialize<'de> {
     /// Save this model to the specified store
     async fn save_to_store<S: Store + Send + Sync>(&self, store: &S) -> Result<()> {
         let json = self.to_json_string()?;
-        store.put(&self.get_id(), json.as_bytes())
+        store
+            .put(&self.get_id(), json.as_bytes())
             .context("Failed to save model to store")
     }
 
@@ -78,14 +80,17 @@ pub trait Model: Sized + Serialize + for<'de> Deserialize<'de> {
     }
 
     /// Find one model from the specified store
-    async fn find_one_from_store<S: Store + Send + Sync>(store: &S, keys: HashMap<String, String>) -> Result<Option<Self>> {
+    async fn find_one_from_store<S: Store + Send + Sync>(
+        store: &S,
+        keys: HashMap<String, String>,
+    ) -> Result<Option<Self>> {
         let key = Self::get_id_for(&keys);
         match store.get(&key)? {
             Some(value) => {
                 let value_str = String::from_utf8(value.to_vec())
                     .context("Failed to convert value to string")?;
                 Ok(Some(Self::from_json_string(&value_str)?))
-            },
+            }
             None => Ok(None),
         }
     }
@@ -103,7 +108,8 @@ pub trait Model: Sized + Serialize + for<'de> Deserialize<'de> {
 
     /// Delete this model from the specified store
     async fn delete_from_store<S: Store + Send + Sync>(&self, store: &S) -> Result<()> {
-        store.delete(&self.get_id())
+        store
+            .delete(&self.get_id())
             .context("Failed to delete model from store")
     }
 }

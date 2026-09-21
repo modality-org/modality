@@ -12,8 +12,8 @@ pub mod stores;
 pub use datastore_manager::DatastoreManager;
 pub use error::Error;
 pub use network_params::{
-    EmissionConfig, GenesisAllocation, NetworkParameters, VALIDATOR_QC_DENOMINATOR,
-    VALIDATOR_QC_NUMERATOR, ValidationFees,
+    EmissionConfig, GenesisAllocation, NetworkParameters, ValidationFees, VALIDATOR_QC_DENOMINATOR,
+    VALIDATOR_QC_NUMERATOR,
 };
 pub use stores::{
     MinerActiveStore, MinerCanonStore, MinerForksStore, NodeStateStore, Store,

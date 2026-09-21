@@ -24,6 +24,13 @@ do
   fi
 done
 
+landing_src=$(curl -fsS --max-time 20 https://testnet.modality.network/ || true)
+if echo "$landing_src" | grep -q "var observer = 'https://node0.testnet.modality.network'"; then
+  ok "landing polls node0 /status.json"
+else
+  bad "landing does not poll node0 /status.json"
+fi
+
 redir=$(curl -sS -o /dev/null -w '%{http_code} %{redirect_url}' --max-time 20 https://testnet.modal.money/ || true)
 if [[ "$redir" == 301*testnet.modality.network* ]]; then
   ok "testnet.modal.money -> $redir"
@@ -73,6 +80,15 @@ for host in node1 node2 node3 node0; do
     bad "HEAD https://${host}.testnet.modality.network/ $head_code"
   fi
 done
+
+echo "== Explorer API (node0)"
+exp_code=$(curl -sS -o /tmp/modality-explorer.json -w '%{http_code}' --max-time 20 \
+  https://node0.testnet.modality.network/api/contracts || true)
+if [[ "$exp_code" == "200" ]]; then
+  ok "node0 /api/contracts HTTP 200"
+else
+  bad "node0 /api/contracts HTTP ${exp_code:-curl-failed}"
+fi
 
 echo "== P2P ping"
 if ! command -v "$MODAL" >/dev/null 2>&1 && [[ ! -x "$MODAL" ]]; then

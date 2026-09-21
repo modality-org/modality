@@ -1,22 +1,22 @@
-use crate::{DatastoreManager, Result};
 use crate::model::Model;
 use crate::stores::Store;
-use serde::{Serialize, Deserialize};
-use std::collections::HashMap;
+use crate::{DatastoreManager, Result};
 use async_trait::async_trait;
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 /// A batch of transactions collected by a worker
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct DAGBatch {
     // Identity
-    pub digest: String,              // Hex-encoded batch digest (primary key)
+    pub digest: String, // Hex-encoded batch digest (primary key)
     pub worker_id: u32,
-    pub author: String,              // PeerId of validator
-    
+    pub author: String, // PeerId of validator
+
     // Content
-    pub transactions: String,        // JSON-serialized Vec<Transaction>
+    pub transactions: String, // JSON-serialized Vec<Transaction>
     pub transaction_count: usize,
-    
+
     // Metadata
     pub timestamp: u64,
     pub size_bytes: usize,
@@ -27,7 +27,7 @@ pub struct DAGBatch {
 #[async_trait]
 impl Model for DAGBatch {
     const ID_PATH: &'static str = "/dag/batches/digest/${digest}";
-    
+
     const FIELDS: &'static [&'static str] = &[
         "digest",
         "worker_id",
@@ -39,7 +39,7 @@ impl Model for DAGBatch {
         "referenced_by_cert",
         "created_at",
     ];
-    
+
     const FIELD_DEFAULTS: &'static [(&'static str, serde_json::Value)] = &[];
 
     fn set_field(&mut self, field: &str, value: serde_json::Value) {
@@ -48,12 +48,14 @@ impl Model for DAGBatch {
             "worker_id" => self.worker_id = value.as_u64().unwrap_or_default() as u32,
             "author" => self.author = value.as_str().unwrap_or_default().to_string(),
             "transactions" => self.transactions = value.to_string(),
-            "transaction_count" => self.transaction_count = value.as_u64().unwrap_or_default() as usize,
+            "transaction_count" => {
+                self.transaction_count = value.as_u64().unwrap_or_default() as usize
+            }
             "timestamp" => self.timestamp = value.as_u64().unwrap_or_default(),
             "size_bytes" => self.size_bytes = value.as_u64().unwrap_or_default() as usize,
             "referenced_by_cert" => self.referenced_by_cert = value.as_str().map(|s| s.to_string()),
             "created_at" => self.created_at = value.as_u64().unwrap_or_default(),
-            _ => {},
+            _ => {}
         }
     }
 
@@ -70,7 +72,9 @@ impl DAGBatch {
         datastore: &DatastoreManager,
         keys: HashMap<String, String>,
     ) -> Result<Option<Self>> {
-        Self::find_one_from_store(datastore.validator_final(), keys).await.map_err(|e| crate::Error::Database(e.to_string()))
+        Self::find_one_from_store(datastore.validator_final(), keys)
+            .await
+            .map_err(|e| crate::Error::Database(e.to_string()))
     }
 
     /// Find all batches by author
@@ -80,17 +84,19 @@ impl DAGBatch {
     ) -> Result<Vec<Self>> {
         let prefix = "/dag/batches/digest";
         let mut batches = Vec::new();
-        
+
         let store = datastore.validator_final();
         let iterator = store.iterator(prefix);
         for result in iterator {
             let (key, _) = result?;
             let key_str = String::from_utf8(key.to_vec())?;
-            
+
             // Extract digest from key
             if let Some(digest) = key_str.split(&format!("{}/", prefix)).nth(1) {
-                let keys = [("digest".to_string(), digest.to_string())].into_iter().collect();
-                
+                let keys = [("digest".to_string(), digest.to_string())]
+                    .into_iter()
+                    .collect();
+
                 if let Some(batch) = Self::find_one_from_store(store, keys).await? {
                     if batch.author == author {
                         batches.push(batch);
@@ -98,27 +104,27 @@ impl DAGBatch {
                 }
             }
         }
-        
+
         Ok(batches)
     }
-    
+
     /// Find all unreferenced batches (not yet linked to a certificate)
-    pub async fn find_unreferenced_multi(
-        datastore: &DatastoreManager,
-    ) -> Result<Vec<Self>> {
+    pub async fn find_unreferenced_multi(datastore: &DatastoreManager) -> Result<Vec<Self>> {
         let prefix = "/dag/batches/digest";
         let mut batches = Vec::new();
-        
+
         let store = datastore.validator_final();
         let iterator = store.iterator(prefix);
         for result in iterator {
             let (key, _) = result?;
             let key_str = String::from_utf8(key.to_vec())?;
-            
+
             // Extract digest from key
             if let Some(digest) = key_str.split(&format!("{}/", prefix)).nth(1) {
-                let keys = [("digest".to_string(), digest.to_string())].into_iter().collect();
-                
+                let keys = [("digest".to_string(), digest.to_string())]
+                    .into_iter()
+                    .collect();
+
                 if let Some(batch) = Self::find_one_from_store(store, keys).await? {
                     if batch.referenced_by_cert.is_none() {
                         batches.push(batch);
@@ -126,12 +132,14 @@ impl DAGBatch {
                 }
             }
         }
-        
+
         Ok(batches)
     }
 
     /// Save this batch to the ValidatorFinal store
     pub async fn save_to_final(&self, datastore: &DatastoreManager) -> Result<()> {
-        self.save_to_store(datastore.validator_final()).await.map_err(|e| crate::Error::Database(e.to_string()))
+        self.save_to_store(datastore.validator_final())
+            .await
+            .map_err(|e| crate::Error::Database(e.to_string()))
     }
 }

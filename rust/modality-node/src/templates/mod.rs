@@ -10,6 +10,9 @@ use crate::status_snapshot::{
 /// The main status page HTML template
 pub const STATUS_TEMPLATE: &str = include_str!("status.html");
 
+/// Contract explorer UI (find / inspect / history / status)
+pub const EXPLORER_TEMPLATE: &str = include_str!("explorer.html");
+
 pub use crate::status_snapshot::display_node_role;
 
 pub fn render_role_chips(active: &[&str]) -> String {
@@ -515,10 +518,7 @@ pub fn render_status_page(vars: StatusPageVars) -> String {
             "{sequencer_nomination_epoch}",
             &vars.sequencer_nomination_epoch,
         )
-        .replace(
-            "{sequencer_committee_html}",
-            &vars.sequencer_committee_html,
-        )
+        .replace("{sequencer_committee_html}", &vars.sequencer_committee_html)
         .replace("{epoch_nominees_sections}", &vars.epoch_nominees_sections)
         .replace("{finalized_rounds_section}", &vars.finalized_rounds_section)
         .replace(
@@ -530,10 +530,7 @@ pub fn render_status_page(vars: StatusPageVars) -> String {
             &vars.validator_min_stake.to_string(),
         )
         .replace("{validator_qc}", &vars.validator_qc)
-        .replace(
-            "{dest_apply_requires_cert}",
-            &vars.dest_apply_requires_cert,
-        )
+        .replace("{dest_apply_requires_cert}", &vars.dest_apply_requires_cert)
         .replace(
             "{pending_prefix_cert_requests}",
             &vars.pending_prefix_cert_requests.to_string(),
@@ -676,6 +673,7 @@ mod tests {
         assert!(html.contains("data-active-tab"));
         assert!(html.contains("refreshStatus"));
         assert!(html.contains("/status.json"));
+        assert!(html.contains("Explorer"));
     }
 
     #[test]

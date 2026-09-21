@@ -49,7 +49,7 @@ Create a node directory with `config.json` and `node.modal_passfile`.
 | `--testnet` | Join the public testnet with a **new** key. Sets bootstrappers, `network_config_path: modality-networks://testnet`, listen `/ip4/0.0.0.0/tcp/4040/ws`, `hybrid_consensus`, and autoupgrade from `get.modality.org`. See [Join the public testnet](join-testnet.md). |
 | `--from-config <CONFIG>` | Merge settings from an existing config file |
 | `--from-passfile <PASSFILE>` | Import an existing node identity passfile |
-| `--from-template <TEMPLATE>` | Load a bundled template such as `devnet1/node1` (that identity **is** the local genesis node: peer ID `12D3KooW9pte76rpnggcLYkFaawuTEs5DC5axHkg3cK3cewGxxHd`, listen `10101`). `testnet/node1`, `testnet/node2`, and `testnet/node3` are the Foundation bootstrap identities (listen `4040`). Do not use a second copy of the same template as a joiner. |
+| `--from-template <TEMPLATE>` | Load a bundled template such as `devnet1/node1` (that identity **is** the local genesis node: peer ID `12D3KooW9pte76rpnggcLYkFaawuTEs5DC5axHkg3cK3cewGxxHd`, listen `10101`). `testnet/node1`, `testnet/node2`, and `testnet/node3` are the Foundation bootstrap identities (listen `4040`). `testnet/node0` is the Foundation observer / explorer (`status_port` 1337). Do not use a second copy of the same template as a joiner. |
 | `--use-mnemonic` | Generate or import the node key from a BIP39 mnemonic |
 | `--mnemonic-words <WORDS>` | Mnemonic word count; defaults to `12` |
 | `--mnemonic-phrase <PHRASE>` | Existing mnemonic phrase to import |

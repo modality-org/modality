@@ -1,4 +1,4 @@
-use modality_datastore::{NetworkDatastore, Model, models::MinerBlock};
+use modality_datastore::{models::MinerBlock, Model, NetworkDatastore};
 use std::collections::HashMap;
 
 #[tokio::main]
@@ -24,7 +24,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             format!("peer_id_{}", i),
             100 + i,
         );
-        
+
         block.save(&datastore).await?;
         println!("  Saved block {} (hash: {})", i, block.hash);
     }
@@ -45,10 +45,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "Chain reorganization - longer chain found".to_string(),
         Some("block_hash_3".to_string()),
     );
-    
+
     orphaned.save(&datastore).await?;
     println!("  Saved orphaned block (hash: {})", orphaned.hash);
-    println!("  Orphan reason: {}", orphaned.orphan_reason.as_ref().unwrap());
+    println!(
+        "  Orphan reason: {}",
+        orphaned.orphan_reason.as_ref().unwrap()
+    );
 
     // Create more blocks in epoch 1
     println!("\nCreating blocks in epoch 1...");
@@ -65,17 +68,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             format!("peer_id_{}", i),
             100 + i,
         );
-        
+
         block.save(&datastore).await?;
         println!("  Saved block {} (hash: {})", i, block.hash);
     }
 
     // Query by hash
     println!("\n📊 Querying blocks...\n");
-    
+
     let mut keys = HashMap::new();
     keys.insert("hash".to_string(), "block_hash_3".to_string());
-    
+
     if let Some(block) = MinerBlock::find_one(&datastore, keys).await? {
         println!("Found block by hash 'block_hash_3':");
         println!("  Index: {}", block.index);
@@ -89,8 +92,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let epoch_0_blocks = MinerBlock::find_canonical_by_epoch(&datastore, 0).await?;
     println!("  Found {} canonical blocks", epoch_0_blocks.len());
     for block in &epoch_0_blocks {
-        println!("    Block {} (hash: {}, miner_number: {})", 
-            block.index, block.hash, block.miner_number);
+        println!(
+            "    Block {} (hash: {}, miner_number: {})",
+            block.index, block.hash, block.miner_number
+        );
     }
 
     // Find all orphaned blocks
@@ -99,7 +104,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("  Found {} orphaned blocks", orphaned_blocks.len());
     for block in &orphaned_blocks {
         println!("    Block {} (hash: {})", block.index, block.hash);
-        println!("      Reason: {}", block.orphan_reason.as_ref().unwrap_or(&"N/A".to_string()));
+        println!(
+            "      Reason: {}",
+            block.orphan_reason.as_ref().unwrap_or(&"N/A".to_string())
+        );
         if let Some(competing) = &block.competing_hash {
             println!("      Competing hash: {}", competing);
         }
@@ -110,8 +118,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let index_3_blocks = MinerBlock::find_by_index(&datastore, 3).await?;
     println!("  Found {} blocks at index 3", index_3_blocks.len());
     for block in &index_3_blocks {
-        println!("    Hash: {}, Is canonical: {}, Is orphaned: {}", 
-            block.hash, block.is_canonical, block.is_orphaned);
+        println!(
+            "    Hash: {}, Is canonical: {}, Is orphaned: {}",
+            block.hash, block.is_canonical, block.is_orphaned
+        );
     }
 
     // Find canonical block at index
@@ -126,19 +136,23 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("\nMarking block_hash_2 as orphaned...");
     let mut keys = HashMap::new();
     keys.insert("hash".to_string(), "block_hash_2".to_string());
-    
+
     if let Some(mut block) = MinerBlock::find_one(&datastore, keys).await? {
-        println!("  Before: is_orphaned = {}, is_canonical = {}", 
-            block.is_orphaned, block.is_canonical);
-        
-        block.mark_as_orphaned(
-            "Manual test orphaning".to_string(), 
-            Some("replacement_hash".to_string())
+        println!(
+            "  Before: is_orphaned = {}, is_canonical = {}",
+            block.is_orphaned, block.is_canonical
         );
-        
-        println!("  After:  is_orphaned = {}, is_canonical = {}", 
-            block.is_orphaned, block.is_canonical);
-        
+
+        block.mark_as_orphaned(
+            "Manual test orphaning".to_string(),
+            Some("replacement_hash".to_string()),
+        );
+
+        println!(
+            "  After:  is_orphaned = {}, is_canonical = {}",
+            block.is_orphaned, block.is_canonical
+        );
+
         // Save the updated block
         block.save(&datastore).await?;
         println!("  Saved updated block");
@@ -156,13 +170,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let all_canonical_epoch_0 = MinerBlock::find_canonical_by_epoch(&datastore, 0).await?;
     let all_canonical_epoch_1 = MinerBlock::find_canonical_by_epoch(&datastore, 1).await?;
     let all_orphaned = MinerBlock::find_all_orphaned(&datastore).await?;
-    
-    println!("  Canonical blocks in epoch 0: {}", all_canonical_epoch_0.len());
-    println!("  Canonical blocks in epoch 1: {}", all_canonical_epoch_1.len());
+
+    println!(
+        "  Canonical blocks in epoch 0: {}",
+        all_canonical_epoch_0.len()
+    );
+    println!(
+        "  Canonical blocks in epoch 1: {}",
+        all_canonical_epoch_1.len()
+    );
     println!("  Total orphaned blocks: {}", all_orphaned.len());
 
     println!("\n✓ Example completed successfully!");
 
     Ok(())
 }
-

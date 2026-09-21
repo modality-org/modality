@@ -1,14 +1,13 @@
-//! HTTP status server for node monitoring.
-//!
-//! This module provides a web-based status page for monitoring node health,
-//! blockchain state, and mining statistics.
+//! HTTP status server and observer-served contract explorer.
 
 use std::path::PathBuf;
+use warp::http::StatusCode;
 use warp::Filter;
 
 use crate::constants::STATUS_PAGE_REFRESH_SECS;
+use crate::explorer;
 use crate::status_snapshot::{collect_node_status, NodeStatusSource};
-use crate::templates::render_status_from_snapshot;
+use crate::templates::{render_status_from_snapshot, EXPLORER_TEMPLATE};
 
 /// Start HTTP status server on the specified port
 pub async fn start_status_server(
@@ -16,38 +15,87 @@ pub async fn start_status_server(
     source: NodeStatusSource,
 ) -> Result<tokio::task::JoinHandle<()>, anyhow::Error> {
     let source_filter = warp::any().map(move || source.clone());
-    let html_get = warp::path::end()
+
+    let explorer_get = warp::path::end()
         .and(warp::get())
-        .and(source_filter.clone())
-        .and_then(status_handler);
-    let html_head = warp::path::end().and(warp::head()).map(|| {
+        .map(|| warp::reply::html(EXPLORER_TEMPLATE));
+    let explorer_head = warp::path::end().and(warp::head()).map(|| {
         warp::reply::with_header(
-            warp::reply::with_status(warp::reply(), warp::http::StatusCode::OK),
+            warp::reply::with_status(warp::reply(), StatusCode::OK),
             "content-type",
             "text/html; charset=utf-8",
         )
     });
+    let explorer_contract = warp::path!("contracts" / String)
+        .and(warp::get())
+        .map(|_id: String| warp::reply::html(EXPLORER_TEMPLATE));
+
+    let status_get = warp::path("status")
+        .and(warp::path::end())
+        .and(warp::get())
+        .and(source_filter.clone())
+        .and_then(status_handler);
+    let status_head = warp::path("status")
+        .and(warp::path::end())
+        .and(warp::head())
+        .map(|| {
+            warp::reply::with_header(
+                warp::reply::with_status(warp::reply(), StatusCode::OK),
+                "content-type",
+                "text/html; charset=utf-8",
+            )
+        });
+
     let json_get = warp::path("status.json")
         .and(warp::get())
-        .and(source_filter)
+        .and(source_filter.clone())
         .and_then(status_json_handler);
-    let json_head = warp::path("status.json").and(warp::head()).map(|| {
-        cors_json_reply(warp::reply::with_status(
-            warp::reply(),
-            warp::http::StatusCode::OK,
-        ))
-    });
+    let json_head = warp::path("status.json")
+        .and(warp::head())
+        .map(|| cors_json_reply(warp::reply::with_status(warp::reply(), StatusCode::OK)));
     let json_options = warp::path("status.json").and(warp::options()).map(|| {
         cors_json_reply(warp::reply::with_status(
             warp::reply(),
-            warp::http::StatusCode::NO_CONTENT,
+            StatusCode::NO_CONTENT,
         ))
     });
-    let status_route = html_get
-        .or(html_head)
+
+    let api_all = warp::path!("api" / "contracts")
+        .and(warp::get())
+        .and(source_filter.clone())
+        .and_then(api_contracts_handler);
+    let api_replay = warp::path!("api" / "contracts" / String / "replay")
+        .and(warp::get())
+        .and(source_filter.clone())
+        .and_then(api_replay_handler);
+    let api_commits = warp::path!("api" / "contracts" / String / "commits")
+        .and(warp::get())
+        .and(source_filter.clone())
+        .and_then(api_commits_handler);
+    let api_one = warp::path!("api" / "contracts" / String)
+        .and(warp::get())
+        .and(source_filter)
+        .and_then(api_contract_handler);
+    let api_options = warp::path("api").and(warp::options()).map(|| {
+        cors_json_reply(warp::reply::with_status(
+            warp::reply(),
+            StatusCode::NO_CONTENT,
+        ))
+    });
+
+    let status_route = explorer_get
+        .or(explorer_head)
+        .or(explorer_contract)
+        .or(status_get)
+        .or(status_head)
         .or(json_get)
         .or(json_head)
-        .or(json_options);
+        .or(json_options)
+        .or(api_replay)
+        .or(api_commits)
+        .or(api_one)
+        .or(api_all)
+        .or(api_options);
 
     log::info!("Starting HTTP status server on http://0.0.0.0:{}", port);
 
@@ -108,7 +156,78 @@ async fn status_json_handler(
     Ok(cors_json_reply(warp::reply::json(&body)))
 }
 
-fn cors_json_reply<T: warp::Reply>(reply: T) -> warp::reply::WithHeader<warp::reply::WithHeader<T>> {
+async fn api_contracts_handler(
+    source: NodeStatusSource,
+) -> Result<impl warp::Reply, warp::Rejection> {
+    let mgr = source.datastore.lock().await;
+    let list = explorer::list_contracts(&mgr)
+        .await
+        .map_err(|_| warp::reject::not_found())?;
+    Ok(cors_json_status(StatusCode::OK, list))
+}
+
+async fn api_contract_handler(
+    id: String,
+    source: NodeStatusSource,
+) -> Result<impl warp::Reply, warp::Rejection> {
+    let mgr = source.datastore.lock().await;
+    match explorer::inspect_contract(&mgr, &id)
+        .await
+        .map_err(|_| warp::reject::not_found())?
+    {
+        Some(inspect) => Ok(cors_json_status(StatusCode::OK, inspect)),
+        None => Ok(cors_json_status(
+            StatusCode::NOT_FOUND,
+            serde_json::json!({ "error": "not found" }),
+        )),
+    }
+}
+
+async fn api_commits_handler(
+    id: String,
+    source: NodeStatusSource,
+) -> Result<impl warp::Reply, warp::Rejection> {
+    let mgr = source.datastore.lock().await;
+    match explorer::list_commits(&mgr, &id)
+        .await
+        .map_err(|_| warp::reject::not_found())?
+    {
+        Some(commits) => Ok(cors_json_status(StatusCode::OK, commits)),
+        None => Ok(cors_json_status(
+            StatusCode::NOT_FOUND,
+            serde_json::json!({ "error": "not found" }),
+        )),
+    }
+}
+
+async fn api_replay_handler(
+    id: String,
+    source: NodeStatusSource,
+) -> Result<impl warp::Reply, warp::Rejection> {
+    let mgr = source.datastore.lock().await;
+    match explorer::replay_contract(&mgr, &id, None).await {
+        Ok(Some(replay)) => Ok(cors_json_status(StatusCode::OK, replay)),
+        Ok(None) => Ok(cors_json_status(
+            StatusCode::NOT_FOUND,
+            serde_json::json!({ "error": "not found" }),
+        )),
+        Err(err) => Ok(cors_json_status(
+            StatusCode::CONFLICT,
+            serde_json::json!({ "error": err.to_string() }),
+        )),
+    }
+}
+
+fn cors_json_status<T: serde::Serialize>(
+    status: StatusCode,
+    body: T,
+) -> warp::reply::WithHeader<warp::reply::WithHeader<warp::reply::WithStatus<warp::reply::Json>>> {
+    cors_json_reply(warp::reply::with_status(warp::reply::json(&body), status))
+}
+
+fn cors_json_reply<T: warp::Reply>(
+    reply: T,
+) -> warp::reply::WithHeader<warp::reply::WithHeader<T>> {
     warp::reply::with_header(
         warp::reply::with_header(reply, "access-control-allow-origin", "*"),
         "access-control-allow-methods",

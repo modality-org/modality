@@ -1,11 +1,11 @@
 use anyhow::Result;
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 
-use crate::DatastoreManager;
 use crate::model::Model;
 use crate::stores::Store;
+use crate::DatastoreManager;
 
 /// A contract represents a stateful entity with a unique ID
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -156,6 +156,24 @@ impl Commit {
         }
 
         Ok(commits)
+    }
+
+    /// Contract IDs that have at least one commit in validator_final.
+    pub async fn list_contract_ids_multi(datastore: &DatastoreManager) -> Result<Vec<String>> {
+        let mut ids = BTreeSet::new();
+        let store = datastore.validator_final();
+        for result in store.iterator("/commits") {
+            let (key, _) = result?;
+            let key_str = String::from_utf8(key.to_vec())?;
+            let parts: Vec<&str> = key_str.split('/').collect();
+            if parts.len() >= 4 {
+                let contract_id = parts[2];
+                if !contract_id.is_empty() {
+                    ids.insert(contract_id.to_string());
+                }
+            }
+        }
+        Ok(ids.into_iter().collect())
     }
 
     pub async fn find_one_multi(

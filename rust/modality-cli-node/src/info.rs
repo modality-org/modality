@@ -40,8 +40,8 @@ pub async fn run(opts: &Opts) -> Result<()> {
         .or(config.storage_path.as_ref())
         .context("No data_dir or storage_path in config")?;
 
-    let datastore_result = DatastoreManager::open_readonly(data_dir)
-        .or_else(|_| DatastoreManager::open(data_dir));
+    let datastore_result =
+        DatastoreManager::open_readonly(data_dir).or_else(|_| DatastoreManager::open(data_dir));
 
     // Get mining statistics from datastore (if available)
     let (canonical_blocks, chain_tip, genesis_block, blocks_mined_by_node) =

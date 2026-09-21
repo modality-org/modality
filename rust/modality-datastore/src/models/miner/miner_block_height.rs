@@ -1,6 +1,6 @@
 use crate::model::Model;
-use crate::DatastoreManager;
 use crate::stores::Store;
+use crate::DatastoreManager;
 use anyhow::{Context, Result};
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
@@ -37,8 +37,8 @@ impl MinerBlockHeight {
         let active_store = datastore.miner_active();
         for item in active_store.iterator(&prefix) {
             let (_, value) = item?;
-            let entry: MinerBlockHeight = serde_json::from_slice(&value)
-                .context("Failed to deserialize MinerBlockHeight")?;
+            let entry: MinerBlockHeight =
+                serde_json::from_slice(&value).context("Failed to deserialize MinerBlockHeight")?;
 
             if entry.is_canonical {
                 blocks.push(entry);
@@ -74,8 +74,8 @@ impl MinerBlockHeight {
         let active_store = datastore.miner_active();
         for item in active_store.iterator(&prefix) {
             let (_, value) = item?;
-            let entry: MinerBlockHeight = serde_json::from_slice(&value)
-                .context("Failed to deserialize MinerBlockHeight")?;
+            let entry: MinerBlockHeight =
+                serde_json::from_slice(&value).context("Failed to deserialize MinerBlockHeight")?;
             blocks.push(entry);
         }
 
@@ -83,8 +83,8 @@ impl MinerBlockHeight {
         let canon_store = datastore.miner_canon();
         for item in canon_store.iterator(&prefix) {
             let (_, value) = item?;
-            let entry: MinerBlockHeight = serde_json::from_slice(&value)
-                .context("Failed to deserialize MinerBlockHeight")?;
+            let entry: MinerBlockHeight =
+                serde_json::from_slice(&value).context("Failed to deserialize MinerBlockHeight")?;
             // Avoid duplicates
             if !blocks.iter().any(|b| b.block_hash == entry.block_hash) {
                 blocks.push(entry);
@@ -96,7 +96,10 @@ impl MinerBlockHeight {
 
     /// Delete this height index entry from the active store
     pub async fn delete_from_active(&self, datastore: &DatastoreManager) -> Result<()> {
-        let key = format!("/miner_blocks/index/{}/hash/{}", self.index, self.block_hash);
+        let key = format!(
+            "/miner_blocks/index/{}/hash/{}",
+            self.index, self.block_hash
+        );
         datastore.miner_active().delete(&key)?;
         Ok(())
     }
@@ -133,7 +136,7 @@ impl Model for MinerBlockHeight {
             _ => {}
         }
     }
-    
+
     fn get_id_keys(&self) -> std::collections::HashMap<String, String> {
         let mut keys = std::collections::HashMap::new();
         keys.insert("index".to_string(), self.index.to_string());
@@ -149,24 +152,19 @@ mod tests {
     #[tokio::test]
     async fn test_create_and_save_height_entry() {
         let ds = DatastoreManager::create_in_memory().unwrap();
-        
-        let entry = MinerBlockHeight::new(
-            100,
-            "test_hash_123".to_string(),
-            true,
-        );
-        
+
+        let entry = MinerBlockHeight::new(100, "test_hash_123".to_string(), true);
+
         entry.save_to_active(&ds).await.unwrap();
-        
+
         let mut keys = std::collections::HashMap::new();
         keys.insert("index".to_string(), "100".to_string());
         keys.insert("block_hash".to_string(), "test_hash_123".to_string());
-        
-        let loaded = MinerBlockHeight::find_one_from_store(
-            &*ds.miner_active(),
-            keys
-        ).await.unwrap();
-        
+
+        let loaded = MinerBlockHeight::find_one_from_store(&*ds.miner_active(), keys)
+            .await
+            .unwrap();
+
         assert!(loaded.is_some());
         let loaded = loaded.unwrap();
         assert_eq!(loaded.index, 100);
@@ -177,17 +175,19 @@ mod tests {
     #[tokio::test]
     async fn test_find_canonical_by_index() {
         let ds = DatastoreManager::create_in_memory().unwrap();
-        
+
         // Add canonical block
         let entry1 = MinerBlockHeight::new(100, "hash1".to_string(), true);
         entry1.save_to_active(&ds).await.unwrap();
-        
+
         // Add non-canonical block at same index
         let entry2 = MinerBlockHeight::new(100, "hash2".to_string(), false);
         entry2.save_to_active(&ds).await.unwrap();
-        
-        let canonical = MinerBlockHeight::find_canonical_by_index_multi(&ds, 100).await.unwrap();
-        
+
+        let canonical = MinerBlockHeight::find_canonical_by_index_multi(&ds, 100)
+            .await
+            .unwrap();
+
         assert_eq!(canonical.len(), 1);
         assert_eq!(canonical[0].block_hash, "hash1");
     }
@@ -195,18 +195,22 @@ mod tests {
     #[tokio::test]
     async fn test_detect_duplicate_canonical() {
         let ds = DatastoreManager::create_in_memory().unwrap();
-        
+
         // Add TWO canonical blocks at same index (invalid state)
         let entry1 = MinerBlockHeight::new(100, "hash1".to_string(), true);
         entry1.save_to_active(&ds).await.unwrap();
-        
+
         let entry2 = MinerBlockHeight::new(100, "hash2".to_string(), true);
         entry2.save_to_active(&ds).await.unwrap();
-        
-        let canonical = MinerBlockHeight::find_canonical_by_index_multi(&ds, 100).await.unwrap();
-        
-        assert_eq!(canonical.len(), 2, "Should detect duplicate canonical blocks");
+
+        let canonical = MinerBlockHeight::find_canonical_by_index_multi(&ds, 100)
+            .await
+            .unwrap();
+
+        assert_eq!(
+            canonical.len(),
+            2,
+            "Should detect duplicate canonical blocks"
+        );
     }
 }
-
-

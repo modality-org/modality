@@ -54,16 +54,13 @@ impl Model for ValidatorBlock {
         "round_id",
         "prev_round_certs",
         "opening_sig", // prevents equivocation of block header to light clients
-
         // events
         "events",
         "closing_sig", // prevents equivocation of events broadcast
-
         // acks
-        "acks",        
+        "acks",
         "late_acks",
         "cert", // final cert needed for peers to move onto next block
-
         // local view
         "hash",
         "is_section_leader",
@@ -358,13 +355,10 @@ impl ValidatorBlock {
             "acks": self.acks,
         });
         if let Some(cert) = self.cert.clone() {
-            keypair.verify_json(
-                &cert,
-                &facts,
-            )
+            keypair.verify_json(&cert, &facts)
         } else {
             Ok(false)
-        } 
+        }
     }
 
     pub fn validate_cert(&self, acks_needed: usize) -> Result<bool> {

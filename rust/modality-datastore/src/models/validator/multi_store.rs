@@ -1,14 +1,14 @@
 //! Multi-store operations for Validator models
 //!
 //! Provides transparent query routing across ValidatorActive and ValidatorFinal stores.
-//! 
+//!
 //! ## Store Assignment
-//! 
+//!
 //! - **ValidatorFinal**: Finalized validator blocks (with certificates), contracts, network params
 //! - **ValidatorActive**: In-progress rounds, draft blocks (no cert), pending certificates
 
-use crate::{DatastoreManager, Store};
 use crate::models::validator::ValidatorBlock;
+use crate::{DatastoreManager, Store};
 use anyhow::{Context, Result};
 
 /// Key prefixes for validator data
@@ -18,34 +18,37 @@ impl ValidatorBlock {
     // ============================================================
     // Multi-store query methods
     // ============================================================
-    
+
     /// Find a ValidatorBlock by round and peer, searching across stores
-    /// 
+    ///
     /// Search order: ValidatorActive → ValidatorFinal
     pub async fn find_by_round_peer_multi(
         mgr: &DatastoreManager,
         round_id: u64,
         peer_id: &str,
     ) -> Result<Option<Self>> {
-        let key = format!("{}/round/{}/peer/{}", VALIDATOR_BLOCK_PREFIX, round_id, peer_id);
-        
+        let key = format!(
+            "{}/round/{}/peer/{}",
+            VALIDATOR_BLOCK_PREFIX, round_id, peer_id
+        );
+
         // Try ValidatorActive first (hot path for recent blocks)
         if let Some(data) = mgr.validator_active().get(&key)? {
             let block: ValidatorBlock = serde_json::from_slice(&data)
                 .context("Failed to deserialize ValidatorBlock from ValidatorActive")?;
             return Ok(Some(block));
         }
-        
+
         // Check ValidatorFinal for older/finalized blocks
         if let Some(data) = mgr.validator_final().get(&key)? {
             let block: ValidatorBlock = serde_json::from_slice(&data)
                 .context("Failed to deserialize ValidatorBlock from ValidatorFinal")?;
             return Ok(Some(block));
         }
-        
+
         Ok(None)
     }
-    
+
     /// Find all blocks in a round, merging ValidatorActive and ValidatorFinal
     pub async fn find_all_in_round_multi(
         mgr: &DatastoreManager,
@@ -54,7 +57,7 @@ impl ValidatorBlock {
         let prefix = format!("{}/round/{}/peer", VALIDATOR_BLOCK_PREFIX, round_id);
         let mut blocks = Vec::new();
         let mut seen_keys = std::collections::HashSet::new();
-        
+
         // Get from ValidatorFinal (finalized blocks)
         for item in mgr.validator_final().iterator(&prefix) {
             let (key, value) = item?;
@@ -64,7 +67,7 @@ impl ValidatorBlock {
             seen_keys.insert(key_str);
             blocks.push(block);
         }
-        
+
         // Get from ValidatorActive (recent blocks, avoiding duplicates)
         for item in mgr.validator_active().iterator(&prefix) {
             let (key, value) = item?;
@@ -75,10 +78,10 @@ impl ValidatorBlock {
                 blocks.push(block);
             }
         }
-        
+
         Ok(blocks)
     }
-    
+
     /// Find all certified (finalized) blocks in a round
     pub async fn find_certified_in_round_multi(
         mgr: &DatastoreManager,
@@ -87,60 +90,67 @@ impl ValidatorBlock {
         let blocks = Self::find_all_in_round_multi(mgr, round_id).await?;
         Ok(blocks.into_iter().filter(|b| b.cert.is_some()).collect())
     }
-    
+
     // ============================================================
     // Multi-store write methods
     // ============================================================
-    
+
     /// Save a block to ValidatorActive (for in-progress blocks)
     pub async fn save_to_active(&self, mgr: &DatastoreManager) -> Result<()> {
-        let key = format!("{}/round/{}/peer/{}", VALIDATOR_BLOCK_PREFIX, self.round_id, self.peer_id);
+        let key = format!(
+            "{}/round/{}/peer/{}",
+            VALIDATOR_BLOCK_PREFIX, self.round_id, self.peer_id
+        );
         let data = serde_json::to_vec(self)?;
         mgr.validator_active().put(&key, &data)?;
         Ok(())
     }
-    
+
     /// Promote a certified block to ValidatorFinal
     pub async fn promote_to_final(&self, mgr: &DatastoreManager) -> Result<()> {
         if self.cert.is_none() {
             anyhow::bail!("Cannot promote uncertified block to ValidatorFinal");
         }
-        
-        let key = format!("{}/round/{}/peer/{}", VALIDATOR_BLOCK_PREFIX, self.round_id, self.peer_id);
+
+        let key = format!(
+            "{}/round/{}/peer/{}",
+            VALIDATOR_BLOCK_PREFIX, self.round_id, self.peer_id
+        );
         let data = serde_json::to_vec(self)?;
         mgr.validator_final().put(&key, &data)?;
         Ok(())
     }
-    
+
     /// Delete a block from ValidatorActive (after promotion to Final)
     pub async fn delete_from_active(&self, mgr: &DatastoreManager) -> Result<()> {
-        let key = format!("{}/round/{}/peer/{}", VALIDATOR_BLOCK_PREFIX, self.round_id, self.peer_id);
+        let key = format!(
+            "{}/round/{}/peer/{}",
+            VALIDATOR_BLOCK_PREFIX, self.round_id, self.peer_id
+        );
         mgr.validator_active().delete(&key)?;
         Ok(())
     }
-    
+
     // ============================================================
     // Finalization helpers
     // ============================================================
-    
+
     /// Find all blocks in ValidatorActive that have certificates (should be promoted)
-    pub async fn find_blocks_to_finalize(
-        mgr: &DatastoreManager,
-    ) -> Result<Vec<Self>> {
+    pub async fn find_blocks_to_finalize(mgr: &DatastoreManager) -> Result<Vec<Self>> {
         let mut to_finalize = Vec::new();
-        
+
         for item in mgr.validator_active().iterator(VALIDATOR_BLOCK_PREFIX) {
             let (_, value) = item?;
             let block: ValidatorBlock = serde_json::from_slice(&value)?;
-            
+
             if block.cert.is_some() {
                 to_finalize.push(block);
             }
         }
-        
+
         Ok(to_finalize)
     }
-    
+
     /// Run the finalization task: move certified blocks to ValidatorFinal
     /// Optionally delete from ValidatorActive after a certain round age
     pub async fn run_finalization(
@@ -149,36 +159,38 @@ impl ValidatorBlock {
         retain_rounds: u64, // How many rounds to keep in active before deletion
     ) -> Result<(usize, usize)> {
         let blocks_to_finalize = Self::find_blocks_to_finalize(mgr).await?;
-        
+
         let mut finalized_count = 0;
         let mut deleted_count = 0;
-        
+
         for block in blocks_to_finalize {
             // Promote to final if not already there
-            let key = format!("{}/round/{}/peer/{}", VALIDATOR_BLOCK_PREFIX, block.round_id, block.peer_id);
+            let key = format!(
+                "{}/round/{}/peer/{}",
+                VALIDATOR_BLOCK_PREFIX, block.round_id, block.peer_id
+            );
             if mgr.validator_final().get(&key)?.is_none() {
                 block.promote_to_final(mgr).await?;
                 finalized_count += 1;
             }
-            
+
             // Delete from active if old enough
             if current_round >= block.round_id + retain_rounds {
                 block.delete_from_active(mgr).await?;
                 deleted_count += 1;
             }
         }
-        
+
         Ok((finalized_count, deleted_count))
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::contract::{Contract, Commit};
+    use crate::models::contract::{Commit, Contract};
     use std::collections::HashMap;
-    
+
     fn create_test_validator_block(peer_id: &str, round_id: u64, has_cert: bool) -> ValidatorBlock {
         ValidatorBlock {
             peer_id: peer_id.to_string(),
@@ -190,7 +202,11 @@ mod tests {
             hash: Some("hash".to_string()),
             acks: HashMap::new(),
             late_acks: vec![],
-            cert: if has_cert { Some("cert".to_string()) } else { None },
+            cert: if has_cert {
+                Some("cert".to_string())
+            } else {
+                None
+            },
             is_section_leader: None,
             section_ending_block_id: None,
             section_starting_block_id: None,
@@ -199,72 +215,78 @@ mod tests {
             seen_at_block_id: None,
         }
     }
-    
+
     #[tokio::test]
     async fn test_save_and_find_validator_block() {
         let mgr = DatastoreManager::create_in_memory().unwrap();
-        
+
         let block = create_test_validator_block("peer1", 10, false);
         block.save_to_active(&mgr).await.unwrap();
-        
-        let found = ValidatorBlock::find_by_round_peer_multi(&mgr, 10, "peer1").await.unwrap();
+
+        let found = ValidatorBlock::find_by_round_peer_multi(&mgr, 10, "peer1")
+            .await
+            .unwrap();
         assert!(found.is_some());
         assert_eq!(found.unwrap().peer_id, "peer1");
     }
-    
+
     #[tokio::test]
     async fn test_promote_certified_block() {
         let mgr = DatastoreManager::create_in_memory().unwrap();
-        
+
         let block = create_test_validator_block("peer2", 20, true);
         block.save_to_active(&mgr).await.unwrap();
         block.promote_to_final(&mgr).await.unwrap();
-        
+
         // Should be findable via multi-store search
-        let found = ValidatorBlock::find_by_round_peer_multi(&mgr, 20, "peer2").await.unwrap();
+        let found = ValidatorBlock::find_by_round_peer_multi(&mgr, 20, "peer2")
+            .await
+            .unwrap();
         assert!(found.is_some());
         assert!(found.unwrap().cert.is_some());
     }
-    
+
     #[tokio::test]
     async fn test_finalization_task() {
         let mgr = DatastoreManager::create_in_memory().unwrap();
-        
+
         // Create certified and uncertified blocks
         let certified = create_test_validator_block("peer3", 5, true);
         let uncertified = create_test_validator_block("peer4", 5, false);
-        
+
         certified.save_to_active(&mgr).await.unwrap();
         uncertified.save_to_active(&mgr).await.unwrap();
-        
+
         // Run finalization with current round 10, retain 3 rounds
         let (finalized, deleted) = ValidatorBlock::run_finalization(&mgr, 10, 3).await.unwrap();
-        
+
         assert_eq!(finalized, 1); // Only certified block should be finalized
-        assert_eq!(deleted, 1);   // And deleted (5 + 3 <= 10)
+        assert_eq!(deleted, 1); // And deleted (5 + 3 <= 10)
     }
-    
+
     #[tokio::test]
     async fn test_contract_multi_store() {
         let mgr = DatastoreManager::create_in_memory().unwrap();
-        
+
         let contract = Contract {
             contract_id: "test_contract".to_string(),
             genesis: "{}".to_string(),
             created_at: 12345,
         };
-        
+
         contract.save_to_final(&mgr).await.unwrap();
-        
-        let found = Contract::find_by_id_multi(&mgr, "test_contract").await.unwrap();
+
+        let found = Contract::find_by_id_multi(&mgr, "test_contract")
+            .await
+            .unwrap();
         assert!(found.is_some());
         assert_eq!(found.unwrap().contract_id, "test_contract");
     }
-    
+
     #[tokio::test]
     async fn test_commit_multi_store() {
         let mgr = DatastoreManager::create_in_memory().unwrap();
-        
+
         let commit = Commit {
             contract_id: "contract1".to_string(),
             commit_id: "commit1".to_string(),
@@ -272,17 +294,21 @@ mod tests {
             timestamp: 12345,
             in_batch: None,
         };
-        
+
         commit.save_to_final(&mgr).await.unwrap();
-        
+
         let keys: HashMap<String, String> = [
             ("contract_id".to_string(), "contract1".to_string()),
             ("commit_id".to_string(), "commit1".to_string()),
-        ].into_iter().collect();
+        ]
+        .into_iter()
+        .collect();
         let found = Commit::find_one_multi(&mgr, keys).await.unwrap();
         assert!(found.is_some());
-        
-        let by_contract = Commit::find_by_contract_multi(&mgr, "contract1").await.unwrap();
+
+        let by_contract = Commit::find_by_contract_multi(&mgr, "contract1")
+            .await
+            .unwrap();
         assert_eq!(by_contract.len(), 1);
     }
 }

@@ -1,16 +1,16 @@
 //! Multi-store operations for MinerBlock
 //!
 //! Provides transparent query routing across MinerActive, MinerCanon, and MinerForks stores.
-//! 
+//!
 //! ## Query Priority
-//! 
+//!
 //! - `find_by_hash`: MinerActive → MinerCanon → MinerForks
 //! - `find_canonical_by_index`: MinerActive (recent) or MinerCanon (old) based on epoch
 //! - `find_all_canonical`: Merge MinerActive + MinerCanon
 //! - `find_all_orphaned`: Merge MinerActive + MinerForks
 
-use crate::{DatastoreManager, Store};
 use crate::models::miner::MinerBlock;
+use crate::{DatastoreManager, Store};
 use anyhow::{Context, Result};
 
 /// Key prefix for miner blocks in stores
@@ -20,42 +20,39 @@ impl MinerBlock {
     // ============================================================
     // Multi-store query methods
     // ============================================================
-    
+
     /// Find a MinerBlock by hash, searching across all stores
-    /// 
+    ///
     /// Search order: MinerActive → MinerCanon → MinerForks
-    pub async fn find_by_hash_multi(
-        mgr: &DatastoreManager,
-        hash: &str,
-    ) -> Result<Option<Self>> {
+    pub async fn find_by_hash_multi(mgr: &DatastoreManager, hash: &str) -> Result<Option<Self>> {
         let key = format!("{}/{}", MINER_BLOCK_PREFIX, hash);
-        
+
         // Try MinerActive first (hot path for recent blocks)
         if let Some(data) = mgr.miner_active().get(&key)? {
             let block: MinerBlock = serde_json::from_slice(&data)
                 .context("Failed to deserialize MinerBlock from MinerActive")?;
             return Ok(Some(block));
         }
-        
+
         // Check MinerCanon for older canonical blocks
         if let Some(data) = mgr.miner_canon().get(&key)? {
             let block: MinerBlock = serde_json::from_slice(&data)
                 .context("Failed to deserialize MinerBlock from MinerCanon")?;
             return Ok(Some(block));
         }
-        
+
         // Check MinerForks for orphaned blocks
         if let Some(data) = mgr.miner_forks().get(&key)? {
             let block: MinerBlock = serde_json::from_slice(&data)
                 .context("Failed to deserialize MinerBlock from MinerForks")?;
             return Ok(Some(block));
         }
-        
+
         Ok(None)
     }
-    
+
     /// Find the canonical block at a specific index, routing based on epoch
-    /// 
+    ///
     /// - Recent epochs (within promotion_delay): Query MinerActive
     /// - Older epochs: Query MinerCanon, fall back to MinerActive
     pub async fn find_canonical_by_index_multi(
@@ -64,33 +61,33 @@ impl MinerBlock {
         current_epoch: u64,
     ) -> Result<Option<Self>> {
         let block_epoch = mgr.block_index_to_epoch(index);
-        
+
         // Check if block is old enough to be in MinerCanon
         if mgr.should_promote(block_epoch, current_epoch) {
             // Check MinerCanon first for finalized blocks
             for item in mgr.miner_canon().iterator(MINER_BLOCK_PREFIX) {
                 let (_, value) = item?;
-                let block: MinerBlock = serde_json::from_slice(&value)
-                    .context("Failed to deserialize MinerBlock")?;
+                let block: MinerBlock =
+                    serde_json::from_slice(&value).context("Failed to deserialize MinerBlock")?;
                 if block.index == index && block.is_canonical {
                     return Ok(Some(block));
                 }
             }
         }
-        
+
         // Fall back to MinerActive (may still have the block during overlap period)
         for item in mgr.miner_active().iterator(MINER_BLOCK_PREFIX) {
             let (_, value) = item?;
-            let block: MinerBlock = serde_json::from_slice(&value)
-                .context("Failed to deserialize MinerBlock")?;
+            let block: MinerBlock =
+                serde_json::from_slice(&value).context("Failed to deserialize MinerBlock")?;
             if block.index == index && block.is_canonical {
                 return Ok(Some(block));
             }
         }
-        
+
         Ok(None)
     }
-    
+
     /// Find canonical block by index (simple version - always checks both stores)
     pub async fn find_canonical_by_index_simple(
         mgr: &DatastoreManager,
@@ -99,33 +96,31 @@ impl MinerBlock {
         // Check MinerCanon first
         for item in mgr.miner_canon().iterator(MINER_BLOCK_PREFIX) {
             let (_, value) = item?;
-            let block: MinerBlock = serde_json::from_slice(&value)
-                .context("Failed to deserialize MinerBlock")?;
+            let block: MinerBlock =
+                serde_json::from_slice(&value).context("Failed to deserialize MinerBlock")?;
             if block.index == index && block.is_canonical {
                 return Ok(Some(block));
             }
         }
-        
+
         // Fall back to MinerActive
         for item in mgr.miner_active().iterator(MINER_BLOCK_PREFIX) {
             let (_, value) = item?;
-            let block: MinerBlock = serde_json::from_slice(&value)
-                .context("Failed to deserialize MinerBlock")?;
+            let block: MinerBlock =
+                serde_json::from_slice(&value).context("Failed to deserialize MinerBlock")?;
             if block.index == index && block.is_canonical {
                 return Ok(Some(block));
             }
         }
-        
+
         Ok(None)
     }
-    
+
     /// Find all canonical blocks, merging MinerActive and MinerCanon
-    pub async fn find_all_canonical_multi(
-        mgr: &DatastoreManager,
-    ) -> Result<Vec<Self>> {
+    pub async fn find_all_canonical_multi(mgr: &DatastoreManager) -> Result<Vec<Self>> {
         let mut blocks = Vec::new();
         let mut seen_hashes = std::collections::HashSet::new();
-        
+
         // Get from MinerCanon (finalized blocks)
         for item in mgr.miner_canon().iterator(MINER_BLOCK_PREFIX) {
             let (_, value) = item?;
@@ -136,7 +131,7 @@ impl MinerBlock {
                 blocks.push(block);
             }
         }
-        
+
         // Get from MinerActive (recent blocks, avoiding duplicates)
         for item in mgr.miner_active().iterator(MINER_BLOCK_PREFIX) {
             let (_, value) = item?;
@@ -146,18 +141,16 @@ impl MinerBlock {
                 blocks.push(block);
             }
         }
-        
+
         blocks.sort_by_key(|b| b.index);
         Ok(blocks)
     }
-    
+
     /// Find all orphaned blocks, merging MinerActive and MinerForks
-    pub async fn find_all_orphaned_multi(
-        mgr: &DatastoreManager,
-    ) -> Result<Vec<Self>> {
+    pub async fn find_all_orphaned_multi(mgr: &DatastoreManager) -> Result<Vec<Self>> {
         let mut blocks = Vec::new();
         let mut seen_hashes = std::collections::HashSet::new();
-        
+
         // Get from MinerForks (archived orphans)
         for item in mgr.miner_forks().iterator(MINER_BLOCK_PREFIX) {
             let (_, value) = item?;
@@ -168,7 +161,7 @@ impl MinerBlock {
                 blocks.push(block);
             }
         }
-        
+
         // Get from MinerActive (recent orphans, avoiding duplicates)
         for item in mgr.miner_active().iterator(MINER_BLOCK_PREFIX) {
             let (_, value) = item?;
@@ -178,18 +171,16 @@ impl MinerBlock {
                 blocks.push(block);
             }
         }
-        
+
         blocks.sort_by_key(|b| b.index);
         Ok(blocks)
     }
-    
+
     /// Find all blocks (canonical, orphaned, pending) across all stores
-    pub async fn find_all_blocks_multi(
-        mgr: &DatastoreManager,
-    ) -> Result<Vec<Self>> {
+    pub async fn find_all_blocks_multi(mgr: &DatastoreManager) -> Result<Vec<Self>> {
         let mut blocks = Vec::new();
         let mut seen_hashes = std::collections::HashSet::new();
-        
+
         // Get from MinerCanon
         for item in mgr.miner_canon().iterator(MINER_BLOCK_PREFIX) {
             let (_, value) = item?;
@@ -198,7 +189,7 @@ impl MinerBlock {
             seen_hashes.insert(block.hash.clone());
             blocks.push(block);
         }
-        
+
         // Get from MinerForks
         for item in mgr.miner_forks().iterator(MINER_BLOCK_PREFIX) {
             let (_, value) = item?;
@@ -209,7 +200,7 @@ impl MinerBlock {
                 blocks.push(block);
             }
         }
-        
+
         // Get from MinerActive
         for item in mgr.miner_active().iterator(MINER_BLOCK_PREFIX) {
             let (_, value) = item?;
@@ -219,19 +210,16 @@ impl MinerBlock {
                 blocks.push(block);
             }
         }
-        
+
         blocks.sort_by_key(|b| b.index);
         Ok(blocks)
     }
-    
+
     /// Find all blocks at a specific index (canonical, orphaned, pending)
-    pub async fn find_by_index_multi(
-        mgr: &DatastoreManager,
-        index: u64,
-    ) -> Result<Vec<Self>> {
+    pub async fn find_by_index_multi(mgr: &DatastoreManager, index: u64) -> Result<Vec<Self>> {
         let mut blocks = Vec::new();
         let mut seen_hashes = std::collections::HashSet::new();
-        
+
         // Check all three stores
         for item in mgr.miner_canon().iterator(MINER_BLOCK_PREFIX) {
             let (_, value) = item?;
@@ -241,7 +229,7 @@ impl MinerBlock {
                 blocks.push(block);
             }
         }
-        
+
         for item in mgr.miner_forks().iterator(MINER_BLOCK_PREFIX) {
             let (_, value) = item?;
             let block: MinerBlock = serde_json::from_slice(&value)?;
@@ -250,7 +238,7 @@ impl MinerBlock {
                 blocks.push(block);
             }
         }
-        
+
         for item in mgr.miner_active().iterator(MINER_BLOCK_PREFIX) {
             let (_, value) = item?;
             let block: MinerBlock = serde_json::from_slice(&value)?;
@@ -258,10 +246,10 @@ impl MinerBlock {
                 blocks.push(block);
             }
         }
-        
+
         Ok(blocks)
     }
-    
+
     /// Find canonical blocks in a specific epoch
     pub async fn find_canonical_by_epoch_multi(
         mgr: &DatastoreManager,
@@ -270,7 +258,7 @@ impl MinerBlock {
     ) -> Result<Vec<Self>> {
         let mut blocks = Vec::new();
         let mut seen_hashes = std::collections::HashSet::new();
-        
+
         // If epoch is old enough, check MinerCanon first
         if mgr.should_promote(epoch, current_epoch) {
             for item in mgr.miner_canon().iterator(MINER_BLOCK_PREFIX) {
@@ -282,7 +270,7 @@ impl MinerBlock {
                 }
             }
         }
-        
+
         // Also check MinerActive (may have blocks during overlap period)
         for item in mgr.miner_active().iterator(MINER_BLOCK_PREFIX) {
             let (_, value) = item?;
@@ -291,21 +279,21 @@ impl MinerBlock {
                 blocks.push(block);
             }
         }
-        
+
         blocks.sort_by_key(|b| b.index);
         Ok(blocks)
     }
-    
+
     // ============================================================
     // Multi-store write methods
     // ============================================================
-    
+
     /// Save a block to MinerActive (for recent blocks)
     pub async fn save_to_active(&self, mgr: &DatastoreManager) -> Result<()> {
         let key = format!("{}/{}", MINER_BLOCK_PREFIX, self.hash);
         let data = serde_json::to_vec(self)?;
         mgr.miner_active().put(&key, &data)?;
-        
+
         // Also save height index
         let height_key = format!("/miner_blocks/index/{}/hash/{}", self.index, self.hash);
         let height_entry = serde_json::json!({
@@ -313,23 +301,26 @@ impl MinerBlock {
             "block_hash": self.hash,
             "is_canonical": self.is_canonical
         });
-        mgr.miner_active().put(&height_key, serde_json::to_string(&height_entry)?.as_bytes())?;
+        mgr.miner_active().put(
+            &height_key,
+            serde_json::to_string(&height_entry)?.as_bytes(),
+        )?;
 
         mgr.apply_native_mod_for_miner_block(self)?;
-        
+
         Ok(())
     }
-    
+
     /// Promote a canonical block to MinerCanon
     pub async fn promote_to_canon(&self, mgr: &DatastoreManager) -> Result<()> {
         if !self.is_canonical {
             anyhow::bail!("Cannot promote non-canonical block to MinerCanon");
         }
-        
+
         let key = format!("{}/{}", MINER_BLOCK_PREFIX, self.hash);
         let data = serde_json::to_vec(self)?;
         mgr.miner_canon().put(&key, &data)?;
-        
+
         // Also save height index in canon store
         let height_key = format!("/miner_blocks/index/{}/hash/{}", self.index, self.hash);
         let height_entry = serde_json::json!({
@@ -337,21 +328,24 @@ impl MinerBlock {
             "block_hash": self.hash,
             "is_canonical": true
         });
-        mgr.miner_canon().put(&height_key, serde_json::to_string(&height_entry)?.as_bytes())?;
-        
+        mgr.miner_canon().put(
+            &height_key,
+            serde_json::to_string(&height_entry)?.as_bytes(),
+        )?;
+
         Ok(())
     }
-    
+
     /// Archive an orphaned block to MinerForks
     pub async fn archive_to_forks(&self, mgr: &DatastoreManager) -> Result<()> {
         if !self.is_orphaned {
             anyhow::bail!("Cannot archive non-orphaned block to MinerForks");
         }
-        
+
         let key = format!("{}/{}", MINER_BLOCK_PREFIX, self.hash);
         let data = serde_json::to_vec(self)?;
         mgr.miner_forks().put(&key, &data)?;
-        
+
         // Also save height index in forks store
         let height_key = format!("/miner_blocks/index/{}/hash/{}", self.index, self.hash);
         let height_entry = serde_json::json!({
@@ -360,65 +354,68 @@ impl MinerBlock {
             "is_canonical": false,
             "is_orphaned": true
         });
-        mgr.miner_forks().put(&height_key, serde_json::to_string(&height_entry)?.as_bytes())?;
-        
+        mgr.miner_forks().put(
+            &height_key,
+            serde_json::to_string(&height_entry)?.as_bytes(),
+        )?;
+
         Ok(())
     }
-    
+
     /// Delete a block from MinerActive (used during purge)
     pub async fn delete_from_active(&self, mgr: &DatastoreManager) -> Result<()> {
         let key = format!("{}/{}", MINER_BLOCK_PREFIX, self.hash);
         mgr.miner_active().delete(&key)?;
-        
+
         // Also delete height index
         let height_key = format!("/miner_blocks/index/{}/hash/{}", self.index, self.hash);
         mgr.miner_active().delete(&height_key)?;
-        
+
         Ok(())
     }
-    
+
     // ============================================================
     // Promotion and purge helpers
     // ============================================================
-    
+
     /// Find all blocks in MinerActive that should be promoted (2+ epochs old)
     pub async fn find_blocks_to_promote(
         mgr: &DatastoreManager,
         current_epoch: u64,
     ) -> Result<Vec<Self>> {
         let mut to_promote = Vec::new();
-        
+
         for item in mgr.miner_active().iterator(MINER_BLOCK_PREFIX) {
             let (_, value) = item?;
             let block: MinerBlock = serde_json::from_slice(&value)?;
-            
+
             if mgr.should_promote(block.epoch, current_epoch) {
                 to_promote.push(block);
             }
         }
-        
+
         Ok(to_promote)
     }
-    
+
     /// Find all blocks in MinerActive that should be purged (12+ epochs old)
     pub async fn find_blocks_to_purge(
         mgr: &DatastoreManager,
         current_epoch: u64,
     ) -> Result<Vec<Self>> {
         let mut to_purge = Vec::new();
-        
+
         for item in mgr.miner_active().iterator(MINER_BLOCK_PREFIX) {
             let (_, value) = item?;
             let block: MinerBlock = serde_json::from_slice(&value)?;
-            
+
             if mgr.should_purge(block.epoch, current_epoch) {
                 to_purge.push(block);
             }
         }
-        
+
         Ok(to_purge)
     }
-    
+
     /// Run the promotion task: move canonical blocks to MinerCanon, orphans to MinerForks
     /// Does NOT delete from MinerActive (that happens during purge)
     pub async fn run_promotion(
@@ -426,10 +423,10 @@ impl MinerBlock {
         current_epoch: u64,
     ) -> Result<(usize, usize)> {
         let blocks_to_promote = Self::find_blocks_to_promote(mgr, current_epoch).await?;
-        
+
         let mut canonical_count = 0;
         let mut orphan_count = 0;
-        
+
         for block in blocks_to_promote {
             if block.is_canonical {
                 // Check if already in MinerCanon
@@ -448,25 +445,22 @@ impl MinerBlock {
             }
             // Pending blocks (neither canonical nor orphaned) stay in MinerActive
         }
-        
+
         Ok((canonical_count, orphan_count))
     }
-    
+
     /// Run the purge task: delete blocks from MinerActive that are 12+ epochs old
-    pub async fn run_purge(
-        mgr: &DatastoreManager,
-        current_epoch: u64,
-    ) -> Result<usize> {
+    pub async fn run_purge(mgr: &DatastoreManager, current_epoch: u64) -> Result<usize> {
         let blocks_to_purge = Self::find_blocks_to_purge(mgr, current_epoch).await?;
         let count = blocks_to_purge.len();
-        
+
         for block in blocks_to_purge {
             block.delete_from_active(mgr).await?;
         }
-        
+
         Ok(count)
     }
-    
+
     /// Delete all pending blocks (neither canonical nor orphaned) from MinerActive
     /// Note: In the multi-store architecture, pending blocks are those in MinerActive
     /// that haven't been marked as canonical or orphaned yet
@@ -477,13 +471,13 @@ impl MinerBlock {
         // blocks where !is_canonical && !is_orphaned.
         Ok(0)
     }
-    
+
     // ============================================================
     // Checkpoint-aware pruning methods
     // ============================================================
-    
+
     /// Find orphaned blocks that are before a checkpoint and can be safely pruned.
-    /// 
+    ///
     /// Blocks are prunable if:
     /// - They are orphaned (not canonical)
     /// - Their index is <= the checkpoint's last block index
@@ -492,36 +486,38 @@ impl MinerBlock {
         checkpoint_block_index: u64,
     ) -> Result<Vec<Self>> {
         let all_orphaned = Self::find_all_orphaned_multi(mgr).await?;
-        Ok(all_orphaned.into_iter()
+        Ok(all_orphaned
+            .into_iter()
             .filter(|b| b.index <= checkpoint_block_index)
             .collect())
     }
-    
+
     /// Prune orphaned blocks that are before a checkpoint.
-    /// 
+    ///
     /// This removes orphaned blocks from both MinerActive and MinerForks stores.
     /// Returns the count of pruned blocks.
     pub async fn prune_orphaned_before_checkpoint_multi(
         mgr: &DatastoreManager,
         checkpoint_block_index: u64,
     ) -> Result<usize> {
-        let blocks_to_prune = Self::find_orphaned_before_checkpoint_multi(mgr, checkpoint_block_index).await?;
+        let blocks_to_prune =
+            Self::find_orphaned_before_checkpoint_multi(mgr, checkpoint_block_index).await?;
         let count = blocks_to_prune.len();
-        
+
         for block in &blocks_to_prune {
             // Delete from MinerActive if present
             let key = format!("{}/{}", MINER_BLOCK_PREFIX, block.hash);
             let _ = mgr.miner_active().delete(&key);
-            
-            // Delete from MinerForks if present  
+
+            // Delete from MinerForks if present
             let _ = mgr.miner_forks().delete(&key);
-            
+
             // Delete height index from both stores
             let height_key = format!("/miner_blocks/index/{}/hash/{}", block.index, block.hash);
             let _ = mgr.miner_active().delete(&height_key);
             let _ = mgr.miner_forks().delete(&height_key);
         }
-        
+
         if count > 0 {
             log::info!(
                 "🗑️  Pruned {} orphaned blocks before checkpoint at index {}",
@@ -529,15 +525,15 @@ impl MinerBlock {
                 checkpoint_block_index
             );
         }
-        
+
         Ok(count)
     }
-    
+
     /// Check if a block branches from a given checkpoint.
-    /// 
+    ///
     /// A block branches from a checkpoint if it can trace its ancestry
     /// through previous_hash links back to the checkpoint block.
-    /// 
+    ///
     /// Returns true if:
     /// - The block is the checkpoint block itself
     /// - The block's index is before the checkpoint (assumed to be part of history)
@@ -552,23 +548,23 @@ impl MinerBlock {
         if block.hash == checkpoint_block_hash {
             return Ok(true);
         }
-        
+
         // Block is before checkpoint - assume it's part of validated history
         if block.index <= checkpoint_block_index {
             return Ok(true);
         }
-        
+
         // Trace ancestry back to checkpoint
         let mut current_hash = block.previous_hash.clone();
         let mut depth = 0;
         let max_depth = (block.index - checkpoint_block_index) as usize + 10; // Safety margin
-        
+
         while depth < max_depth {
             // Found checkpoint
             if current_hash == checkpoint_block_hash {
                 return Ok(true);
             }
-            
+
             // Try to find the block with this hash
             match Self::find_by_hash_multi(mgr, &current_hash).await? {
                 Some(parent) => {
@@ -586,13 +582,13 @@ impl MinerBlock {
             }
             depth += 1;
         }
-        
+
         // Exceeded max depth - likely invalid
         Ok(false)
     }
-    
+
     /// Find blocks that don't branch from all preceding checkpoints.
-    /// 
+    ///
     /// These blocks are invalid and can be discarded.
     pub async fn find_blocks_not_branching_from_checkpoints_multi(
         mgr: &DatastoreManager,
@@ -601,10 +597,10 @@ impl MinerBlock {
         if checkpoints.is_empty() {
             return Ok(vec![]);
         }
-        
+
         let all_blocks = Self::find_all_blocks_multi(mgr).await?;
         let mut invalid_blocks = Vec::new();
-        
+
         for block in all_blocks {
             // Check that block branches from all checkpoints before it
             for (checkpoint_index, checkpoint_hash) in checkpoints {
@@ -614,43 +610,46 @@ impl MinerBlock {
                         &block,
                         checkpoint_hash,
                         *checkpoint_index,
-                    ).await? {
-                        invalid_blocks.push(block.clone());
-                        break;
-                    }
+                    )
+                    .await?
+                {
+                    invalid_blocks.push(block.clone());
+                    break;
+                }
             }
         }
-        
+
         Ok(invalid_blocks)
     }
-    
+
     /// Prune blocks that don't branch from all preceding checkpoints.
-    /// 
+    ///
     /// This is useful after a checkpoint is created to clean up any
     /// blocks that ended up on an invalid fork.
     pub async fn prune_blocks_not_branching_from_checkpoints_multi(
         mgr: &DatastoreManager,
         checkpoints: &[(u64, String)],
     ) -> Result<usize> {
-        let invalid_blocks = Self::find_blocks_not_branching_from_checkpoints_multi(mgr, checkpoints).await?;
+        let invalid_blocks =
+            Self::find_blocks_not_branching_from_checkpoints_multi(mgr, checkpoints).await?;
         let count = invalid_blocks.len();
-        
+
         for block in &invalid_blocks {
             let key = format!("{}/{}", MINER_BLOCK_PREFIX, block.hash);
             let _ = mgr.miner_active().delete(&key);
             let _ = mgr.miner_canon().delete(&key);
             let _ = mgr.miner_forks().delete(&key);
-            
+
             let height_key = format!("/miner_blocks/index/{}/hash/{}", block.index, block.hash);
             let _ = mgr.miner_active().delete(&height_key);
             let _ = mgr.miner_canon().delete(&height_key);
             let _ = mgr.miner_forks().delete(&height_key);
         }
-        
+
         if count > 0 {
             log::info!("🗑️  Pruned {} blocks not branching from checkpoints", count);
         }
-        
+
         Ok(count)
     }
 }
@@ -658,8 +657,14 @@ impl MinerBlock {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
-    fn create_test_block(hash: &str, index: u64, epoch: u64, is_canonical: bool, is_orphaned: bool) -> MinerBlock {
+
+    fn create_test_block(
+        hash: &str,
+        index: u64,
+        epoch: u64,
+        is_canonical: bool,
+        is_orphaned: bool,
+    ) -> MinerBlock {
         MinerBlock {
             hash: hash.to_string(),
             index,
@@ -676,101 +681,106 @@ mod tests {
             is_canonical,
             seen_at: Some(1234567890),
             orphaned_at: if is_orphaned { Some(1234567890) } else { None },
-            orphan_reason: if is_orphaned { Some("test".to_string()) } else { None },
+            orphan_reason: if is_orphaned {
+                Some("test".to_string())
+            } else {
+                None
+            },
             height_at_time: Some(index),
             competing_hash: None,
         }
     }
-    
+
     #[tokio::test]
     async fn test_save_and_find_in_active() {
         let mut mgr = DatastoreManager::create_in_memory().unwrap();
-        
+
         let block = create_test_block("hash1", 100, 1, true, false);
         block.save_to_active(&mgr).await.unwrap();
-        
+
         let found = MinerBlock::find_by_hash_multi(&mgr, "hash1").await.unwrap();
         assert!(found.is_some());
         assert_eq!(found.unwrap().index, 100);
     }
-    
+
     #[tokio::test]
     async fn test_promote_to_canon() {
         let mut mgr = DatastoreManager::create_in_memory().unwrap();
-        
+
         let block = create_test_block("hash2", 100, 1, true, false);
         block.save_to_active(&mgr).await.unwrap();
         block.promote_to_canon(&mgr).await.unwrap();
-        
+
         // Should be findable via multi-store search
         let found = MinerBlock::find_by_hash_multi(&mgr, "hash2").await.unwrap();
         assert!(found.is_some());
-        
+
         // Should be in canonical results
         let canonical = MinerBlock::find_all_canonical_multi(&mgr).await.unwrap();
         assert_eq!(canonical.len(), 1);
     }
-    
+
     #[tokio::test]
     async fn test_archive_to_forks() {
         let mut mgr = DatastoreManager::create_in_memory().unwrap();
-        
+
         let block = create_test_block("hash3", 100, 1, false, true);
         block.save_to_active(&mgr).await.unwrap();
         block.archive_to_forks(&mgr).await.unwrap();
-        
+
         // Should be findable via multi-store search
         let found = MinerBlock::find_by_hash_multi(&mgr, "hash3").await.unwrap();
         assert!(found.is_some());
-        
+
         // Should be in orphaned results
         let orphaned = MinerBlock::find_all_orphaned_multi(&mgr).await.unwrap();
         assert_eq!(orphaned.len(), 1);
     }
-    
+
     #[tokio::test]
     async fn test_promotion_task() {
         let mut mgr = DatastoreManager::create_in_memory().unwrap();
         mgr.set_blocks_per_epoch(100);
-        
+
         // Create blocks at epoch 5
         let canonical = create_test_block("canonical", 500, 5, true, false);
         let orphan = create_test_block("orphan", 501, 5, false, true);
-        
+
         canonical.save_to_active(&mgr).await.unwrap();
         orphan.save_to_active(&mgr).await.unwrap();
-        
+
         // Current epoch 6 - not old enough (only 1 epoch)
         let (c, o) = MinerBlock::run_promotion(&mgr, 6).await.unwrap();
         assert_eq!(c, 0);
         assert_eq!(o, 0);
-        
+
         // Current epoch 7 - old enough (2 epochs)
         let (c, o) = MinerBlock::run_promotion(&mgr, 7).await.unwrap();
         assert_eq!(c, 1);
         assert_eq!(o, 1);
     }
-    
+
     #[tokio::test]
     async fn test_purge_task() {
         let mut mgr = DatastoreManager::create_in_memory().unwrap();
         mgr.set_blocks_per_epoch(100);
-        
+
         // Create block at epoch 5
         let block = create_test_block("old_block", 500, 5, true, false);
         block.save_to_active(&mgr).await.unwrap();
-        
+
         // Current epoch 16 - not old enough (11 epochs)
         let count = MinerBlock::run_purge(&mgr, 16).await.unwrap();
         assert_eq!(count, 0);
-        
+
         // Current epoch 17 - old enough (12 epochs)
         let count = MinerBlock::run_purge(&mgr, 17).await.unwrap();
         assert_eq!(count, 1);
-        
+
         // Block should no longer be in active
-        let found = MinerBlock::find_by_hash_multi(&mgr, "old_block").await.unwrap();
+        let found = MinerBlock::find_by_hash_multi(&mgr, "old_block")
+            .await
+            .unwrap();
         assert!(found.is_none()); // Not in any store since we didn't promote it
     }
 }
-

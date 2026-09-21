@@ -31,11 +31,7 @@ impl DnsManager {
     }
 
     /// Create a DNS manager with custom configuration
-    pub fn with_config(
-        client: Client,
-        hosted_zone_id: String,
-        base_domain: String,
-    ) -> Self {
+    pub fn with_config(client: Client, hosted_zone_id: String, base_domain: String) -> Self {
         Self {
             client,
             hosted_zone_id,
@@ -47,7 +43,7 @@ impl DnsManager {
     /// Following the dnsaddr protocol: https://github.com/multiformats/multiaddr/blob/master/protocols/DNSADDR.md
     pub async fn set_network_records(&self, network: &NetworkInfo) -> Result<()> {
         let record_name = format!("_dnsaddr.{}.{}", network.name, self.base_domain);
-        
+
         // Convert bootstrapper addresses to dnsaddr TXT records
         let txt_values: Vec<String> = network
             .bootstrappers
@@ -56,12 +52,15 @@ impl DnsManager {
             .collect();
 
         if txt_values.is_empty() {
-            println!("No bootstrappers for network {}, skipping DNS update", network.name);
+            println!(
+                "No bootstrappers for network {}, skipping DNS update",
+                network.name
+            );
             return Ok(());
         }
 
         self.set_txt_records(&record_name, &txt_values, 300).await?;
-        
+
         println!("Successfully set DNS records for {}", network.name);
         Ok(())
     }
@@ -124,4 +123,3 @@ impl DnsManager {
         Ok(())
     }
 }
-

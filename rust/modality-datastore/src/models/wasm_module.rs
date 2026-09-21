@@ -1,9 +1,9 @@
 use crate::model::Model;
 use anyhow::Result;
+use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;
-use async_trait::async_trait;
 
 /// WASM module stored in the datastore
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -36,7 +36,7 @@ impl Model for WasmModule {
             "module_name" => self.module_name = value.as_str().unwrap_or_default().to_string(),
             "wasm_bytes" => {
                 if let Some(s) = value.as_str() {
-                    use base64::{Engine as _, engine::general_purpose};
+                    use base64::{engine::general_purpose, Engine as _};
                     if let Ok(bytes) = general_purpose::STANDARD.decode(s) {
                         self.wasm_bytes = bytes;
                     }
@@ -97,7 +97,7 @@ impl WasmModule {
         if !path.ends_with(".wasm") {
             return None;
         }
-        
+
         path.trim_end_matches(".wasm")
             .split('/')
             .next_back()
@@ -120,7 +120,7 @@ impl WasmModule {
             Ok(None)
         }
     }
-    
+
     /// Find a WASM module by contract ID and path (multi-store version)
     /// Searches in ValidatorFinal store
     pub async fn find_by_contract_and_path_multi(
@@ -129,33 +129,33 @@ impl WasmModule {
         path: &str,
     ) -> Result<Option<Self>> {
         use crate::stores::Store;
-        
+
         if let Some(module_name) = Self::module_name_from_path(path) {
             // Build the key for the WasmModule
             let key = format!("/wasm_modules/{}/{}", contract_id, module_name);
-            
+
             // Check ValidatorFinal store first (finalized modules)
             if let Some(bytes) = datastore_manager.validator_final().get(&key)? {
                 let module: WasmModule = serde_json::from_slice(&bytes)?;
                 return Ok(Some(module));
             }
-            
+
             // Check ValidatorActive store (pending modules)
             if let Some(bytes) = datastore_manager.validator_active().get(&key)? {
                 let module: WasmModule = serde_json::from_slice(&bytes)?;
                 return Ok(Some(module));
             }
-            
+
             Ok(None)
         } else {
             Ok(None)
         }
     }
-    
+
     /// Save WASM module to ValidatorFinal store (multi-store version)
     pub async fn save_to_final(&self, datastore_manager: &crate::DatastoreManager) -> Result<()> {
         use crate::stores::Store;
-        
+
         let key = format!("/wasm_modules/{}/{}", self.contract_id, self.module_name);
         let value = serde_json::to_vec(self)?;
         datastore_manager.validator_final().put(&key, &value)?;
@@ -165,8 +165,8 @@ impl WasmModule {
 
 // Helper module for serializing bytes
 mod serde_bytes {
+    use base64::{engine::general_purpose, Engine as _};
     use serde::{Deserialize, Deserializer, Serializer};
-    use base64::{Engine as _, engine::general_purpose};
 
     pub fn serialize<S>(bytes: &Vec<u8>, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -180,7 +180,9 @@ mod serde_bytes {
         D: Deserializer<'de>,
     {
         let s = String::deserialize(deserializer)?;
-        general_purpose::STANDARD.decode(s).map_err(serde::de::Error::custom)
+        general_purpose::STANDARD
+            .decode(s)
+            .map_err(serde::de::Error::custom)
     }
 }
 
@@ -222,7 +224,7 @@ mod tests {
 
         // Modify wasm_bytes after creation
         module.wasm_bytes = vec![5, 4, 3, 2, 1];
-        
+
         assert!(!module.verify_hash());
     }
 
@@ -232,21 +234,17 @@ mod tests {
             WasmModule::module_name_from_path("/_code/my_predicate.wasm"),
             Some("my_predicate".to_string())
         );
-        
+
         assert_eq!(
             WasmModule::module_name_from_path("/validators/primary.wasm"),
             Some("primary".to_string())
         );
-        
+
         assert_eq!(
             WasmModule::module_name_from_path("/_code/modal/signed_by.wasm"),
             Some("signed_by".to_string())
         );
-        
-        assert_eq!(
-            WasmModule::module_name_from_path("/not_wasm.txt"),
-            None
-        );
+
+        assert_eq!(WasmModule::module_name_from_path("/not_wasm.txt"), None);
     }
 }
-

@@ -1,10 +1,10 @@
 //! MinerForks store - archived orphaned miner blocks (2+ epochs old)
-//! 
+//!
 //! This store contains historical orphaned blocks for chain analysis.
 //! Eventually shareable, but currently local-only.
 
+use crate::stores::{open_store, open_store_readonly, Store};
 use crate::Result;
-use crate::stores::{Store, open_store, open_store_readonly};
 use rocksdb::DB;
 use std::path::Path;
 
@@ -19,13 +19,13 @@ impl MinerForksStore {
         let db = open_store(path)?;
         Ok(Self { db })
     }
-    
+
     /// Open the store in read-only mode
     pub fn open_readonly(path: &Path) -> Result<Self> {
         let db = open_store_readonly(path)?;
         Ok(Self { db })
     }
-    
+
     /// Create an in-memory store for testing
     pub fn create_in_memory() -> Result<Self> {
         let mut opts = rocksdb::Options::default();
@@ -47,4 +47,3 @@ impl Drop for MinerForksStore {
         let _ = self.db.flush();
     }
 }
-

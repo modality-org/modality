@@ -22,6 +22,9 @@ currently joinable. Check the `description` on the bundled `testnet` network
 (`modal net info testnet`) before treating it as live. Public names:
 
 - Status: `https://testnet.modality.network`
+- Explorer: `https://node0.testnet.modality.network` (observer-served contract
+  inspect / history; any `run-observer` can serve the same HTTP on its
+  `status_port`)
 - Bootstrappers: `node1.testnet.modality.network`,
   `node2.testnet.modality.network`, `node3.testnet.modality.network`
   (TCP **4040**/ws)
@@ -52,8 +55,8 @@ modal node create --dir ./my-node --testnet
 - bootstrappers from the bundled testnet list
 - autoupgrade from `https://get.modality.org` (branch `testnet`)
 
-Do **not** use `--from-template testnet/node1` (or node2 / node3) as a joiner.
-Those identities are the Foundation bootstrap nodes.
+Do **not** use `--from-template testnet/node1` (or node2 / node3 / node0) as a joiner.
+Those identities are the Foundation bootstrap and explorer nodes.
 
 Open **TCP 4040** if you want other peers to dial you.
 

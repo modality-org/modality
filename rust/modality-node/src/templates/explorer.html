@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Modality Explorer</title>
+  <style>
+    :root {
+      --bg: #0a0a0f;
+      --panel: #14141f;
+      --panel-2: #1a1a2e;
+      --text: #e8e8f0;
+      --heading: #ffffff;
+      --dim: #555570;
+      --accent: #6c8cff;
+      --line: #2a2a3a;
+      --ok: #4ade80;
+      --warn: #fbbf24;
+      --bad: #f87171;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+    }
+    a { color: var(--accent); }
+    code, pre {
+      font-family: 'JetBrains Mono', 'Fira Code', ui-monospace, monospace;
+    }
+    header {
+      border-bottom: 1px solid var(--line);
+      padding: 1.1rem 1.5rem;
+      display: flex;
+      gap: 1rem;
+      align-items: baseline;
+      flex-wrap: wrap;
+    }
+    header h1 {
+      margin: 0;
+      font-size: 1.15rem;
+      font-weight: 650;
+      letter-spacing: -0.02em;
+      color: var(--heading);
+    }
+    header .kicker { color: var(--accent); font-size: 0.8rem; font-weight: 600; }
+    header nav { margin-left: auto; color: var(--dim); font-size: 0.9rem; }
+    main { max-width: 64rem; margin: 0 auto; padding: 1.5rem; }
+    .find {
+      display: flex;
+      gap: 0.5rem;
+      margin: 0 0 1.25rem;
+    }
+    .find input {
+      flex: 1;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      color: var(--text);
+      border-radius: 6px;
+      padding: 0.65rem 0.8rem;
+      font: inherit;
+    }
+    button {
+      background: var(--accent);
+      color: #050510;
+      border: 0;
+      border-radius: 6px;
+      font-weight: 650;
+      padding: 0.65rem 0.9rem;
+      cursor: pointer;
+    }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 1rem 1.1rem;
+      margin-bottom: 1rem;
+    }
+    .card h2 {
+      margin: 0 0 0.75rem;
+      font-size: 0.95rem;
+      color: var(--heading);
+    }
+    .muted { color: var(--dim); }
+    .ok { color: var(--ok); }
+    .bad { color: var(--bad); }
+    .warn { color: var(--warn); }
+    table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+    th, td { text-align: left; padding: 0.45rem 0.35rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+    th { color: var(--dim); font-weight: 600; }
+    pre {
+      background: var(--panel-2);
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 0.85rem 1rem;
+      overflow: auto;
+      font-size: 0.82rem;
+    }
+    .row { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+    .chip {
+      background: var(--panel-2);
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 0.15rem 0.6rem;
+      font-size: 0.8rem;
+    }
+    .empty { color: var(--dim); padding: 1.5rem 0; }
+    #err { color: var(--bad); margin: 0 0 1rem; }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <div class="kicker">Modality Network</div>
+      <h1>Explorer</h1>
+    </div>
+    <nav>
+      <a href="/">Contracts</a>
+      · <a href="/status">Node status</a>
+      · <a href="https://testnet.modality.network">Join testnet</a>
+    </nav>
+  </header>
+  <main>
+    <form class="find" id="find">
+      <input id="qid" placeholder="Paste a contract ID" autocomplete="off" spellcheck="false">
+      <button type="submit">Find</button>
+    </form>
+    <p id="err" hidden></p>
+    <div id="app"><p class="muted">Loading…</p></div>
+  </main>
+  <script>
+    function contractIdFromPath() {
+      var m = location.pathname.match(/^\/contracts\/([^/]+)\/?$/);
+      return m ? decodeURIComponent(m[1]) : null;
+    }
+    function short(v, n) {
+      n = n || 10;
+      if (!v) return '—';
+      return v.length > n * 2 ? v.slice(0, n) + '…' + v.slice(-n) : v;
+    }
+    function esc(s) {
+      return String(s == null ? '' : s)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+    function jsonBlock(obj) {
+      return '<pre>' + esc(JSON.stringify(obj, null, 2)) + '</pre>';
+    }
+    function pathsTable(map) {
+      var keys = Object.keys(map || {});
+      if (!keys.length) return '<p class="muted">None on this prefix.</p>';
+      return '<table><thead><tr><th>Path</th><th>Value</th></tr></thead><tbody>' +
+        keys.map(function (k) {
+          var v = map[k];
+          var shown = typeof v === 'string' ? v : JSON.stringify(v);
+          return '<tr><td><code>' + esc(k) + '</code></td><td><code>' + esc(shown) + '</code></td></tr>';
+        }).join('') + '</tbody></table>';
+    }
+    function showErr(msg) {
+      var el = document.getElementById('err');
+      if (!msg) { el.hidden = true; el.textContent = ''; return; }
+      el.hidden = false;
+      el.textContent = msg;
+    }
+    async function api(path) {
+      var r = await fetch(path);
+      var body = await r.json().catch(function () { return null; });
+      if (r.status === 404) {
+        var err = new Error('not found');
+        err.notFound = true;
+        throw err;
+      }
+      if (!r.ok) throw new Error((body && (body.error || body.message)) || ('HTTP ' + r.status));
+      return body;
+    }
+    function renderList(contracts) {
+      document.title = 'Modality Explorer';
+      if (!contracts.length) {
+        document.getElementById('app').innerHTML =
+          '<div class="empty">This node has no sequenced contracts yet. Paste a contract ID after catch-up, or wait for certified apply.</div>';
+        return;
+      }
+      document.getElementById('app').innerHTML =
+        '<div class="card"><h2>Contracts on this node</h2><table><thead><tr><th>Contract</th><th>HEAD</th><th>Sequenced</th></tr></thead><tbody>' +
+        contracts.map(function (c) {
+          var href = '/contracts/' + encodeURIComponent(c.contract_id);
+          return '<tr><td><a href="' + href + '"><code>' + esc(c.contract_id) + '</code></a></td><td><code>' +
+            esc(short(c.head, 8)) + '</code></td><td>' + c.commits_sequenced + ' / ' + c.commits_total + '</td></tr>';
+        }).join('') + '</tbody></table></div>';
+    }
+    function renderInspect(id, inspect, commits, replay) {
+      document.title = 'Contract ' + short(id, 8);
+      var status = inspect.sequenced
+        ? '<span class="ok">sequenced</span>'
+        : '<span class="warn">not sequenced on this node</span>';
+      var replayStatus = '—';
+      if (replay && replay.report) {
+        replayStatus = replay.report.ok
+          ? '<span class="ok">replay ok</span> · ' + replay.report.commits_checked + ' commits'
+          : '<span class="bad">replay failed</span> · ' + esc((replay.report.errors || []).join('; '));
+      }
+      var commitRows = (commits || []).map(function (c) {
+        var mark = c.sequenced ? '<span class="ok">in_batch</span>' : '<span class="warn">unsequenced</span>';
+        return '<tr id="c-' + esc(c.commit_id) + '"><td><code>' + esc(short(c.commit_id, 8)) +
+          '</code></td><td><code>' + esc(short(c.parent, 8)) + '</code></td><td>' + esc((c.methods || []).join(', ')) +
+          '</td><td>' + mark + '</td><td><code>' + esc(short(c.in_batch, 8)) + '</code></td></tr>';
+      }).join('');
+      document.getElementById('app').innerHTML =
+        '<p class="muted"><a href="/">← contracts</a></p>' +
+        '<div class="card"><h2>Status</h2>' +
+        '<p><code>' + esc(id) + '</code></p>' +
+        '<div class="row"><span class="chip">' + status + '</span>' +
+        '<span class="chip">HEAD <code>' + esc(short(inspect.head, 8)) + '</code></span>' +
+        '<span class="chip">' + replayStatus + '</span></div></div>' +
+        '<div class="card"><h2>State</h2>' + pathsTable(inspect.state) + '</div>' +
+        '<div class="card"><h2>Model</h2>' + pathsTable(inspect.model) + '</div>' +
+        '<div class="card"><h2>Rules</h2>' + pathsTable(inspect.rules) + '</div>' +
+        '<div class="card"><h2>History</h2><table><thead><tr><th>Commit</th><th>Parent</th><th>Actions</th><th>Sequenced</th><th>Batch</th></tr></thead><tbody>' +
+        (commitRows || '<tr><td colspan="5" class="muted">No commits</td></tr>') +
+        '</tbody></table></div>' +
+        (replay ? '<div class="card"><h2>Replay artifact</h2>' + jsonBlock(replay.report || replay) + '</div>' : '');
+    }
+    async function load() {
+      showErr('');
+      var id = contractIdFromPath();
+      try {
+        if (!id) {
+          renderList(await api('/api/contracts'));
+          return;
+        }
+        document.getElementById('qid').value = id;
+        var inspect = await api('/api/contracts/' + encodeURIComponent(id));
+        var commits = await api('/api/contracts/' + encodeURIComponent(id) + '/commits');
+        var replay = null;
+        try {
+          replay = await api('/api/contracts/' + encodeURIComponent(id) + '/replay');
+        } catch (e) {
+          if (!e.notFound) replay = { report: { ok: false, errors: [e.message] } };
+        }
+        renderInspect(id, inspect, commits, replay);
+      } catch (e) {
+        if (e.notFound) {
+          document.getElementById('app').innerHTML =
+            '<div class="empty">Unknown contract on this node. Catch-up may still be pulling sequenced logs.</div>';
+        } else {
+          showErr(e.message || String(e));
+          document.getElementById('app').innerHTML = '';
+        }
+      }
+    }
+    document.getElementById('find').addEventListener('submit', function (ev) {
+      ev.preventDefault();
+      var id = document.getElementById('qid').value.trim();
+      if (!id) return;
+      location.href = '/contracts/' + encodeURIComponent(id);
+    });
+    load();
+  </script>
+</body>
+</html>

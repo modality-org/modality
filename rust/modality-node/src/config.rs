@@ -258,11 +258,7 @@ impl Config {
             {
                 if let Some(net) = modality_networks::networks::by_name(network_name) {
                     if let Some(difficulty) = net.initial_difficulty {
-                        log::info!(
-                            "Using {} initial_difficulty = {}",
-                            network_name,
-                            difficulty
-                        );
+                        log::info!("Using {} initial_difficulty = {}", network_name, difficulty);
                         return Some(difficulty as u128);
                     }
                 }

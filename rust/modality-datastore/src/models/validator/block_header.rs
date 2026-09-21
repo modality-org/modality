@@ -1,10 +1,10 @@
-use anyhow::{Result, Context, anyhow};
-use crate::DatastoreManager;
 use crate::stores::Store;
+use crate::DatastoreManager;
+use anyhow::{anyhow, Context, Result};
 
-use serde::{Serialize, Deserialize};
-use std::collections::HashMap;
 use async_trait::async_trait;
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 use crate::model::Model;
 
@@ -47,10 +47,12 @@ impl Model for ValidatorBlockHeader {
         match field {
             "peer_id" => self.peer_id = value.as_str().unwrap_or_default().to_string(),
             "round_id" => self.round_id = value.as_u64().unwrap_or_default(),
-            "prev_round_certs" => { self.prev_round_certs = serde_json::from_value(value).unwrap_or_default() },
+            "prev_round_certs" => {
+                self.prev_round_certs = serde_json::from_value(value).unwrap_or_default()
+            }
             "opening_sig" => self.opening_sig = value.as_str().map(|s| s.to_string()),
             "cert" => self.cert = value.as_str().map(|s| s.to_string()),
-            _ => {},
+            _ => {}
         }
     }
 
@@ -91,7 +93,7 @@ impl ValidatorBlockHeader {
                 }
             }
         }
-        
+
         if !block_headers.is_empty() {
             return Ok(block_headers);
         }
@@ -121,8 +123,11 @@ impl ValidatorBlockHeader {
         Ok(block_headers)
     }
 
-    pub async fn derive_all_in_round_multi(datastore: &DatastoreManager, round_id: u64) -> Result<()> {
-        let blocks = ValidatorBlock::find_all_in_round_multi(datastore, round_id).await?;        
+    pub async fn derive_all_in_round_multi(
+        datastore: &DatastoreManager,
+        round_id: u64,
+    ) -> Result<()> {
+        let blocks = ValidatorBlock::find_all_in_round_multi(datastore, round_id).await?;
         for block in &blocks {
             let header = ValidatorBlockHeader {
                 round_id: block.round_id,
@@ -149,7 +154,6 @@ impl ValidatorBlockHeader {
 
 pub mod prelude {
     pub use super::ValidatorBlockHeader;
-    pub use crate::Model;
     pub use crate::DatastoreManager;
+    pub use crate::Model;
 }
-

@@ -286,6 +286,10 @@ pub mod templates {
                 passfile: include_str!("../templates/testnet/node3/node.modal_passfile"),
                 config: include_str!("../templates/testnet/node3/config.json"),
             }),
+            "testnet/node0" => Some(NodeTemplate {
+                passfile: include_str!("../templates/testnet/node0/node.modal_passfile"),
+                config: include_str!("../templates/testnet/node0/config.json"),
+            }),
             _ => None,
         }
     }
@@ -302,6 +306,7 @@ pub mod templates {
             "testnet/node1",
             "testnet/node2",
             "testnet/node3",
+            "testnet/node0",
         ]
     }
 }
@@ -577,5 +582,20 @@ mod tests {
             );
         }
         assert!(templates::list().contains(&"testnet/node1"));
+    }
+
+    #[test]
+    fn test_testnet_observer_template_exists() {
+        let tmpl = templates::get("testnet/node0").expect("missing template testnet/node0");
+        let cfg: serde_json::Value = serde_json::from_str(tmpl.config).unwrap();
+        assert_eq!(cfg["network_config_path"], "modality-networks://testnet");
+        assert_eq!(cfg["status_port"], 1337);
+        assert_eq!(cfg["run_miner"], false);
+        assert_eq!(cfg["run_validator"], false);
+        assert_eq!(cfg["listeners"][0], "/ip4/0.0.0.0/tcp/4040/ws");
+        let id = cfg["id"].as_str().expect("template id");
+        assert!(tmpl.passfile.contains(id), "passfile must match config id");
+        assert_eq!(cfg["status_url"], "https://node0.testnet.modality.network");
+        assert!(templates::list().contains(&"testnet/node0"));
     }
 }

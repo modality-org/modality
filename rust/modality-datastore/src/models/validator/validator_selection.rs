@@ -1,5 +1,5 @@
-use crate::DatastoreManager;
 use crate::models::{miner::MinerBlock, validator::ValidatorSet};
+use crate::DatastoreManager;
 use anyhow::Result;
 
 /// Get validator set for an epoch (multi-store version)
@@ -12,19 +12,19 @@ pub async fn get_validator_set_for_epoch_multi(
         // Create validator set from static validators
         return Ok(ValidatorSet::new(
             epoch,
-            epoch + 1, // This set will be used for the next mining epoch
+            epoch + 1,         // This set will be used for the next mining epoch
             static_validators, // All validators are "nominated"
-            Vec::new(), // No staked validators
-            Vec::new(), // No alternate validators
+            Vec::new(),        // No staked validators
+            Vec::new(),        // No alternate validators
         ));
     }
-    
+
     // Fall back to dynamic validator selection from mining epochs
     generate_validator_set_from_epoch_multi(datastore, epoch).await
 }
 
 /// Get validator set for hybrid consensus (multi-store version)
-/// 
+///
 /// In hybrid consensus, validators for mining epoch N are selected from
 /// nominations in mining epoch N-2. This provides a 2-epoch lookback
 /// to ensure the validator set is stable before being activated.
@@ -39,15 +39,15 @@ pub async fn get_validator_set_for_mining_epoch_hybrid_multi(
         );
         return Ok(None);
     }
-    
+
     let nomination_epoch = current_mining_epoch - 2;
-    
+
     log::info!(
         "Getting validator set for mining epoch {} from nominations in epoch {}",
         current_mining_epoch,
         nomination_epoch
     );
-    
+
     match generate_validator_set_from_epoch_multi(mgr, nomination_epoch).await {
         Ok(mut validator_set) => {
             validator_set.mining_epoch = current_mining_epoch;
@@ -70,25 +70,31 @@ pub async fn generate_validator_set_from_epoch_multi(
     epoch: u64,
 ) -> Result<ValidatorSet> {
     let all_blocks = MinerBlock::find_all_canonical_multi(mgr).await?;
-    let epoch_blocks: Vec<_> = all_blocks.into_iter().filter(|b| b.epoch == epoch).collect();
-    
+    let epoch_blocks: Vec<_> = all_blocks
+        .into_iter()
+        .filter(|b| b.epoch == epoch)
+        .collect();
+
     if epoch_blocks.is_empty() {
         anyhow::bail!("No blocks found for epoch {}", epoch);
     }
 
     // Count nominations for each peer ID (for stakes)
-    let mut nomination_counts: std::collections::HashMap<String, u64> = std::collections::HashMap::new();
+    let mut nomination_counts: std::collections::HashMap<String, u64> =
+        std::collections::HashMap::new();
     for block in &epoch_blocks {
-        *nomination_counts.entry(block.nominated_peer_id.clone()).or_insert(0) += 1;
+        *nomination_counts
+            .entry(block.nominated_peer_id.clone())
+            .or_insert(0) += 1;
     }
-    
+
     log::info!(
         "Epoch {} nomination counts: {} unique validators, total {} nominations",
         epoch,
         nomination_counts.len(),
         epoch_blocks.len()
     );
-    
+
     // Log the nomination distribution
     for (peer_id, count) in &nomination_counts {
         let short_id = if peer_id.len() > 16 {
@@ -100,9 +106,12 @@ pub async fn generate_validator_set_from_epoch_multi(
     }
 
     let seed = calculate_epoch_seed(&epoch_blocks);
-    let peer_ids: Vec<String> = epoch_blocks.iter().map(|b| b.nominated_peer_id.clone()).collect();
+    let peer_ids: Vec<String> = epoch_blocks
+        .iter()
+        .map(|b| b.nominated_peer_id.clone())
+        .collect();
     let shuffled_peer_ids = shuffle_peer_ids(seed, &peer_ids);
-    
+
     // Deduplicate shuffled peer IDs while preserving order
     let mut seen = std::collections::HashSet::new();
     let mut unique_shuffled: Vec<String> = Vec::new();
@@ -111,15 +120,20 @@ pub async fn generate_validator_set_from_epoch_multi(
             unique_shuffled.push(peer_id);
         }
     }
-    
+
     let nominated_validators = unique_shuffled.iter().take(27).cloned().collect();
     let total_peers = unique_shuffled.len();
     let alternate_validators = if total_peers > 27 {
-        unique_shuffled.iter().skip(total_peers.saturating_sub(13)).take(13).cloned().collect()
+        unique_shuffled
+            .iter()
+            .skip(total_peers.saturating_sub(13))
+            .take(13)
+            .cloned()
+            .collect()
     } else {
         Vec::new()
     };
-    
+
     Ok(ValidatorSet::new_with_stakes(
         epoch,
         epoch + 1,
@@ -180,7 +194,7 @@ mod tests {
                 43,
             ),
         ];
-        
+
         let seed = calculate_epoch_seed(&blocks);
         assert_eq!(seed, 100 ^ 200); // XOR of the two nonces
     }
@@ -192,19 +206,19 @@ mod tests {
             "peer2".to_string(),
             "peer3".to_string(),
         ];
-        
+
         let shuffled1 = shuffle_peer_ids(42, &peer_ids);
         let shuffled2 = shuffle_peer_ids(42, &peer_ids);
-        
+
         // Same seed should produce same result
         assert_eq!(shuffled1, shuffled2);
-        
+
         // Should contain all peers
         assert_eq!(shuffled1.len(), 3);
         for peer in &peer_ids {
             assert!(shuffled1.contains(peer));
         }
-        
+
         // Different seed should produce different result (with high probability)
         let shuffled3 = shuffle_peer_ids(999, &peer_ids);
         assert_ne!(shuffled1, shuffled3);
@@ -219,18 +233,23 @@ mod tests {
             "12D3KooW9pypLnRn67EFjiWgEiDdqo8YizaPn8yKe5cNJd3PGnMB".to_string(),
             "12D3KooW9qGaMuW7k2a5iEQ37gWgtjfFC4B3j5R1kKJPZofS62Se".to_string(),
         ];
-        datastore.set_static_validators(&static_validators).await.unwrap();
-        
+        datastore
+            .set_static_validators(&static_validators)
+            .await
+            .unwrap();
+
         // Get validator set for epoch 0
-        let validator_set = get_validator_set_for_epoch_multi(&datastore, 0).await.unwrap();
-        
+        let validator_set = get_validator_set_for_epoch_multi(&datastore, 0)
+            .await
+            .unwrap();
+
         // Verify it uses the static validators
         assert_eq!(validator_set.epoch, 0);
         assert_eq!(validator_set.mining_epoch, 1);
         assert_eq!(validator_set.nominated_validators.len(), 3);
         assert_eq!(validator_set.staked_validators.len(), 0);
         assert_eq!(validator_set.alternate_validators.len(), 0);
-        
+
         // Verify all static validators are present
         for validator in &static_validators {
             assert!(validator_set.nominated_validators.contains(validator));
@@ -241,7 +260,7 @@ mod tests {
     async fn test_get_validator_set_for_epoch_without_static_validators() {
         // Create a datastore without static validators
         let datastore = DatastoreManager::create_in_memory().unwrap();
-        
+
         // This should fail since there are no blocks for dynamic selection
         let result = get_validator_set_for_epoch_multi(&datastore, 0).await;
         assert!(result.is_err());

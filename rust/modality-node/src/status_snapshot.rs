@@ -280,8 +280,10 @@ pub async fn collect_node_status(source: &NodeStatusSource) -> anyhow::Result<No
     first_blocks.sort_by_key(|b| b.index);
     first_blocks.truncate(STATUS_FIRST_BLOCKS_COUNT);
 
-    let genesis = miner_blocks.iter().find(|b| b.index == 0).map(|block| {
-        GenesisBlock {
+    let genesis = miner_blocks
+        .iter()
+        .find(|b| b.index == 0)
+        .map(|block| GenesisBlock {
             index: block.index,
             hash: block.hash.clone(),
             epoch: block.epoch,
@@ -290,8 +292,7 @@ pub async fn collect_node_status(source: &NodeStatusSource) -> anyhow::Result<No
             data_hash: block.data_hash.clone(),
             difficulty: block.target_difficulty.clone(),
             nominated_peer_id: block.nominated_peer_id.clone(),
-        }
-    });
+        });
 
     let mut peers = Vec::new();
     for peer_id in &peer_ids {
@@ -660,10 +661,7 @@ mod tests {
         let named = vec!["peer".to_string()];
         let roles = derive_active_roles("hybrid", true, false, false, true, &named, "peer");
         assert_eq!(roles, vec!["Miner", "Sequencer", "Validator"]);
-        assert_eq!(
-            format_enumerated_roles(&roles),
-            "Miner+Sequencer+Validator"
-        );
+        assert_eq!(format_enumerated_roles(&roles), "Miner+Sequencer+Validator");
     }
 
     #[test]
@@ -681,15 +679,8 @@ mod tests {
 
     #[test]
     fn contract_validator_role_is_validator_only() {
-        let roles = derive_active_roles(
-            "contract-validator",
-            false,
-            false,
-            true,
-            false,
-            &[],
-            "peer",
-        );
+        let roles =
+            derive_active_roles("contract-validator", false, false, true, false, &[], "peer");
         assert_eq!(roles, vec!["Validator"]);
     }
 }

@@ -4,13 +4,13 @@
 //! negotiate and execute formally verified agreements.
 
 use anyhow::Result;
-use serde::{Serialize, Deserialize};
-use std::collections::HashMap;
 use async_trait::async_trait;
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
-use crate::DatastoreManager;
-use crate::stores::Store;
 use crate::model::Model;
+use crate::stores::Store;
+use crate::DatastoreManager;
 
 /// A Modality contract - a verified agreement between parties
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -34,8 +34,13 @@ pub struct ModalityContract {
 impl Model for ModalityContract {
     const ID_PATH: &'static str = "/modality/contracts/${contract_id}";
     const FIELDS: &'static [&'static str] = &[
-        "contract_id", "parties", "phase", "rule_count", 
-        "action_count", "created_at", "updated_at"
+        "contract_id",
+        "parties",
+        "phase",
+        "rule_count",
+        "action_count",
+        "created_at",
+        "updated_at",
     ];
     const FIELD_DEFAULTS: &'static [(&'static str, serde_json::Value)] = &[];
 
@@ -43,10 +48,13 @@ impl Model for ModalityContract {
         match field {
             "contract_id" => self.contract_id = value.as_str().unwrap_or_default().to_string(),
             "parties" => {
-                self.parties = value.as_array()
-                    .map(|arr| arr.iter()
-                        .filter_map(|v| v.as_str().map(String::from))
-                        .collect())
+                self.parties = value
+                    .as_array()
+                    .map(|arr| {
+                        arr.iter()
+                            .filter_map(|v| v.as_str().map(String::from))
+                            .collect()
+                    })
                     .unwrap_or_default();
             }
             "phase" => self.phase = value.as_str().unwrap_or_default().to_string(),
@@ -54,7 +62,7 @@ impl Model for ModalityContract {
             "action_count" => self.action_count = value.as_u64().unwrap_or_default(),
             "created_at" => self.created_at = value.as_u64().unwrap_or_default(),
             "updated_at" => self.updated_at = value.as_u64().unwrap_or_default(),
-            _ => {},
+            _ => {}
         }
     }
 
@@ -71,7 +79,7 @@ impl ModalityContract {
             .duration_since(std::time::UNIX_EPOCH)
             .map(|d| d.as_secs())
             .unwrap_or(0);
-        
+
         Self {
             contract_id,
             parties,
@@ -83,10 +91,13 @@ impl ModalityContract {
         }
     }
 
-    pub async fn find_by_id(datastore: &DatastoreManager, contract_id: &str) -> Result<Option<Self>> {
-        let keys = [
-            ("contract_id".to_string(), contract_id.to_string()),
-        ].into_iter().collect();
+    pub async fn find_by_id(
+        datastore: &DatastoreManager,
+        contract_id: &str,
+    ) -> Result<Option<Self>> {
+        let keys = [("contract_id".to_string(), contract_id.to_string())]
+            .into_iter()
+            .collect();
         Self::find_one_from_store(datastore.validator_final(), keys).await
     }
 
@@ -115,8 +126,13 @@ pub struct ModalityRule {
 impl Model for ModalityRule {
     const ID_PATH: &'static str = "/modality/rules/${contract_id}/${rule_id}";
     const FIELDS: &'static [&'static str] = &[
-        "contract_id", "rule_id", "formula", "added_by", 
-        "signature", "commit_id", "created_at"
+        "contract_id",
+        "rule_id",
+        "formula",
+        "added_by",
+        "signature",
+        "commit_id",
+        "created_at",
     ];
     const FIELD_DEFAULTS: &'static [(&'static str, serde_json::Value)] = &[];
 
@@ -129,7 +145,7 @@ impl Model for ModalityRule {
             "signature" => self.signature = value.as_str().unwrap_or_default().to_string(),
             "commit_id" => self.commit_id = value.as_str().unwrap_or_default().to_string(),
             "created_at" => self.created_at = value.as_u64().unwrap_or_default(),
-            _ => {},
+            _ => {}
         }
     }
 
@@ -142,31 +158,36 @@ impl Model for ModalityRule {
 }
 
 impl ModalityRule {
-    pub async fn find_by_contract(datastore: &DatastoreManager, contract_id: &str) -> Result<Vec<Self>> {
+    pub async fn find_by_contract(
+        datastore: &DatastoreManager,
+        contract_id: &str,
+    ) -> Result<Vec<Self>> {
         let prefix = format!("/modality/rules/{}/", contract_id);
         let mut rules = Vec::new();
-        
+
         let store = datastore.validator_final();
         let iterator = store.iterator(&prefix);
         for result in iterator {
             let (key, _) = result?;
             let key_str = String::from_utf8(key.to_vec())?;
-            
+
             let parts: Vec<&str> = key_str.split('/').collect();
             if parts.len() >= 5 {
                 if let (Some(cid), Some(rid)) = (parts.get(3), parts.get(4)) {
                     let keys = [
                         ("contract_id".to_string(), cid.to_string()),
                         ("rule_id".to_string(), rid.to_string()),
-                    ].into_iter().collect();
-                    
+                    ]
+                    .into_iter()
+                    .collect();
+
                     if let Some(rule) = Self::find_one_from_store(store, keys).await? {
                         rules.push(rule);
                     }
                 }
             }
         }
-        
+
         Ok(rules)
     }
 
@@ -197,8 +218,14 @@ pub struct ModalityAction {
 impl Model for ModalityAction {
     const ID_PATH: &'static str = "/modality/actions/${contract_id}/${action_id}";
     const FIELDS: &'static [&'static str] = &[
-        "contract_id", "action_id", "action", "payload",
-        "executed_by", "signature", "commit_id", "created_at"
+        "contract_id",
+        "action_id",
+        "action",
+        "payload",
+        "executed_by",
+        "signature",
+        "commit_id",
+        "created_at",
     ];
     const FIELD_DEFAULTS: &'static [(&'static str, serde_json::Value)] = &[];
 
@@ -212,7 +239,7 @@ impl Model for ModalityAction {
             "signature" => self.signature = value.as_str().unwrap_or_default().to_string(),
             "commit_id" => self.commit_id = value.as_str().unwrap_or_default().to_string(),
             "created_at" => self.created_at = value.as_u64().unwrap_or_default(),
-            _ => {},
+            _ => {}
         }
     }
 
@@ -225,31 +252,36 @@ impl Model for ModalityAction {
 }
 
 impl ModalityAction {
-    pub async fn find_by_contract(datastore: &DatastoreManager, contract_id: &str) -> Result<Vec<Self>> {
+    pub async fn find_by_contract(
+        datastore: &DatastoreManager,
+        contract_id: &str,
+    ) -> Result<Vec<Self>> {
         let prefix = format!("/modality/actions/{}/", contract_id);
         let mut actions = Vec::new();
-        
+
         let store = datastore.validator_final();
         let iterator = store.iterator(&prefix);
         for result in iterator {
             let (key, _) = result?;
             let key_str = String::from_utf8(key.to_vec())?;
-            
+
             let parts: Vec<&str> = key_str.split('/').collect();
             if parts.len() >= 5 {
                 if let (Some(cid), Some(aid)) = (parts.get(3), parts.get(4)) {
                     let keys = [
                         ("contract_id".to_string(), cid.to_string()),
                         ("action_id".to_string(), aid.to_string()),
-                    ].into_iter().collect();
-                    
+                    ]
+                    .into_iter()
+                    .collect();
+
                     if let Some(action) = Self::find_one_from_store(store, keys).await? {
                         actions.push(action);
                     }
                 }
             }
         }
-        
+
         Ok(actions)
     }
 
@@ -268,7 +300,7 @@ pub enum ModalityCommitBody {
         version: String,
         parties: Vec<String>,
     },
-    
+
     /// Add a rule (formula) to the contract
     #[serde(rename = "add_rule")]
     AddRule {
@@ -276,7 +308,7 @@ pub enum ModalityCommitBody {
         signed_by: String,
         signature: String,
     },
-    
+
     /// Execute a domain action
     #[serde(rename = "domain_action")]
     DomainAction {
@@ -285,7 +317,7 @@ pub enum ModalityCommitBody {
         signed_by: String,
         signature: String,
     },
-    
+
     /// Finalize the negotiation phase
     #[serde(rename = "finalize")]
     Finalize {
@@ -304,7 +336,10 @@ impl ModalityCommitBody {
     pub fn is_modality_commit(json: &str) -> bool {
         if let Ok(value) = serde_json::from_str::<serde_json::Value>(json) {
             if let Some(t) = value.get("type").and_then(|v| v.as_str()) {
-                return matches!(t, "init_modality" | "add_rule" | "domain_action" | "finalize");
+                return matches!(
+                    t,
+                    "init_modality" | "add_rule" | "domain_action" | "finalize"
+                );
             }
         }
         false
@@ -319,8 +354,13 @@ impl ModalityCommitBody {
             ModalityCommitBody::AddRule { formula, .. } => {
                 format!("add_rule:{}:{}:{}", contract_id, commit_id, formula)
             }
-            ModalityCommitBody::DomainAction { action, payload, .. } => {
-                format!("domain_action:{}:{}:{}:{}", contract_id, commit_id, action, payload)
+            ModalityCommitBody::DomainAction {
+                action, payload, ..
+            } => {
+                format!(
+                    "domain_action:{}:{}:{}:{}",
+                    contract_id, commit_id, action, payload
+                )
             }
             ModalityCommitBody::Finalize { .. } => {
                 format!("finalize:{}:{}", contract_id, commit_id)
@@ -340,7 +380,7 @@ mod tests {
             "version": "0.1",
             "parties": ["alice_pubkey", "bob_pubkey"]
         }"#;
-        
+
         let commit = ModalityCommitBody::from_json(json).unwrap();
         match commit {
             ModalityCommitBody::Init { version, parties } => {
@@ -359,10 +399,12 @@ mod tests {
             "signed_by": "alice_pubkey",
             "signature": "sig_hex"
         }"#;
-        
+
         let commit = ModalityCommitBody::from_json(json).unwrap();
         match commit {
-            ModalityCommitBody::AddRule { formula, signed_by, .. } => {
+            ModalityCommitBody::AddRule {
+                formula, signed_by, ..
+            } => {
                 assert!(formula.contains("DELIVER"));
                 assert_eq!(signed_by, "alice_pubkey");
             }
@@ -379,10 +421,12 @@ mod tests {
             "signed_by": "bob_pubkey",
             "signature": "sig_hex"
         }"#;
-        
+
         let commit = ModalityCommitBody::from_json(json).unwrap();
         match commit {
-            ModalityCommitBody::DomainAction { action, payload, .. } => {
+            ModalityCommitBody::DomainAction {
+                action, payload, ..
+            } => {
                 assert_eq!(action, "+PAY");
                 assert_eq!(payload["amount"], 100);
             }
@@ -392,10 +436,18 @@ mod tests {
 
     #[test]
     fn test_is_modality_commit() {
-        assert!(ModalityCommitBody::is_modality_commit(r#"{"type": "init_modality"}"#));
-        assert!(ModalityCommitBody::is_modality_commit(r#"{"type": "add_rule"}"#));
-        assert!(ModalityCommitBody::is_modality_commit(r#"{"type": "domain_action"}"#));
-        assert!(!ModalityCommitBody::is_modality_commit(r#"{"type": "post"}"#));
+        assert!(ModalityCommitBody::is_modality_commit(
+            r#"{"type": "init_modality"}"#
+        ));
+        assert!(ModalityCommitBody::is_modality_commit(
+            r#"{"type": "add_rule"}"#
+        ));
+        assert!(ModalityCommitBody::is_modality_commit(
+            r#"{"type": "domain_action"}"#
+        ));
+        assert!(!ModalityCommitBody::is_modality_commit(
+            r#"{"type": "post"}"#
+        ));
         assert!(!ModalityCommitBody::is_modality_commit(r#"{"foo": "bar"}"#));
     }
 }

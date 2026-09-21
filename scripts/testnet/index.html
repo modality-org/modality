@@ -84,14 +84,10 @@ modal node run-miner --dir ./my-node --no-tui</pre>
     <li><a href="https://node2.testnet.modality.network"><code>node2.testnet.modality.network</code></a></li>
     <li><a href="https://node3.testnet.modality.network"><code>node3.testnet.modality.network</code></a></li>
   </ul>
-  <p class="warn">How-to: <a href="https://www.modality.org/docs/cli/join-testnet">Join the public testnet</a>. Packages: <a href="https://get.modality.org/testnet/latest/">get.modality.org</a>. Observer: <a href="https://node0.testnet.modality.network">node0</a>.</p>
+  <p class="warn">How-to: <a href="https://www.modality.org/docs/cli/join-testnet">Join the public testnet</a>. Packages: <a href="https://get.modality.org/testnet/latest/">get.modality.org</a>. Explorer: <a href="https://node0.testnet.modality.network">node0</a>.</p>
   <script>
-    var hosts = [
-      'https://node1.testnet.modality.network',
-      'https://node2.testnet.modality.network',
-      'https://node3.testnet.modality.network'
-    ];
-    function show(s, host) {
+    var observer = 'https://node0.testnet.modality.network';
+    function show(s) {
       document.getElementById('f-height').textContent = s.height;
       document.getElementById('f-epoch').textContent = s.epoch;
       document.getElementById('f-peers').textContent = s.peers;
@@ -102,18 +98,19 @@ modal node run-miner --dir ./my-node --no-tui</pre>
       document.getElementById('facts').hidden = false;
       var src = document.getElementById('facts-src');
       src.innerHTML = '<span class="live">live</span> from ' +
-        host.replace('https://', '') +
+        observer.replace('https://', '') +
         (s.hybrid ? ' · hybrid' : '');
       src.hidden = false;
     }
-    function load(i) {
-      if (i >= hosts.length) return;
-      fetch(hosts[i] + '/status.json')
-        .then(function (r) { return r.ok ? r.json() : Promise.reject(); })
-        .then(function (s) { show(s, hosts[i]); })
-        .catch(function () { load(i + 1); });
+    function load(url) {
+      return fetch(url).then(function (r) {
+        return r.ok ? r.json() : Promise.reject();
+      });
     }
-    load(0);
+    load('/status.json')
+      .catch(function () { return load(observer + '/status.json'); })
+      .then(show)
+      .catch(function () {});
   </script>
 </body>
 </html>

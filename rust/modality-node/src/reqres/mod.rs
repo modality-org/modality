@@ -1,7 +1,7 @@
 use anyhow::Result;
 use libp2p::request_response;
 mod consensus;
-mod contract;
+pub(crate) mod contract;
 mod dag;
 mod data;
 pub mod inspect;
@@ -116,7 +116,11 @@ pub async fn handle_request(
                 .await?
         }
         "/contract/list" => {
-            contract::list::handler(Some(data.clone()), datastore_manager, consensus_tx).await?
+            contract::list::handler(Some(data.clone()), datastore_manager, consensus_tx.clone())
+                .await?
+        }
+        "/contract/catalog" => {
+            contract::catalog::handler(Some(data.clone()), datastore_manager, consensus_tx).await?
         }
         _ => Response {
             ok: false,

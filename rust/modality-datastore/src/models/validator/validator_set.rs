@@ -1,5 +1,5 @@
-use crate::DatastoreManager;
 use crate::stores::Store;
+use crate::DatastoreManager;
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 
@@ -12,7 +12,7 @@ pub struct ValidatorSet {
     pub staked_validators: Vec<String>, // Top 13 from staking
     pub alternate_validators: Vec<String>, // Bottom 13 from nominations
     pub validator_stakes: std::collections::HashMap<String, u64>, // Stake (nomination count) per validator
-    pub created_at: i64, // Unix timestamp
+    pub created_at: i64,                                          // Unix timestamp
 }
 
 impl ValidatorSet {
@@ -29,7 +29,7 @@ impl ValidatorSet {
             .duration_since(UNIX_EPOCH)
             .unwrap()
             .as_secs() as i64;
-        
+
         Self {
             epoch,
             mining_epoch,
@@ -40,7 +40,7 @@ impl ValidatorSet {
             created_at,
         }
     }
-    
+
     /// Create a new validator set with stakes
     pub fn new_with_stakes(
         epoch: u64,
@@ -55,7 +55,7 @@ impl ValidatorSet {
             .duration_since(UNIX_EPOCH)
             .unwrap()
             .as_secs() as i64;
-        
+
         Self {
             epoch,
             mining_epoch,
@@ -66,16 +66,16 @@ impl ValidatorSet {
             created_at,
         }
     }
-    
+
     /// Get the stake for a validator
     pub fn get_validator_stake(&self, peer_id: &str) -> u64 {
         *self.validator_stakes.get(peer_id).unwrap_or(&1)
     }
-    
+
     /// Get all active validators with their stakes
     pub fn get_active_validators_with_stakes(&self) -> Vec<(String, u64)> {
         let mut active = Vec::new();
-        
+
         // Take first 27 from nominated
         for peer in self.nominated_validators.iter().take(27) {
             if !active.iter().any(|(p, _)| p == peer) {
@@ -83,7 +83,7 @@ impl ValidatorSet {
                 active.push((peer.clone(), stake));
             }
         }
-        
+
         // Add up to 13 from staked that aren't already nominated
         for peer in &self.staked_validators {
             if !active.iter().any(|(p, _)| p == peer) && active.len() < 40 {
@@ -91,28 +91,28 @@ impl ValidatorSet {
                 active.push((peer.clone(), stake));
             }
         }
-        
+
         active
     }
 
     /// Get all active validators (nominated + staked, up to 40 total)
     pub fn get_active_validators(&self) -> Vec<String> {
         let mut active = Vec::new();
-        
+
         // Take first 27 from nominated
         for peer in self.nominated_validators.iter().take(27) {
             if !active.contains(peer) {
                 active.push(peer.clone());
             }
         }
-        
+
         // Add up to 13 from staked that aren't already nominated
         for peer in &self.staked_validators {
             if !active.contains(peer) && active.len() < 40 {
                 active.push(peer.clone());
             }
         }
-        
+
         active
     }
 
@@ -144,7 +144,10 @@ impl ValidatorSet {
     }
 
     /// Find a validator set by epoch
-    pub async fn find_by_epoch_multi(datastore: &DatastoreManager, epoch: u64) -> Result<Option<Self>> {
+    pub async fn find_by_epoch_multi(
+        datastore: &DatastoreManager,
+        epoch: u64,
+    ) -> Result<Option<Self>> {
         let key = format!("validator_set:{}", epoch);
         let store = datastore.validator_final();
         match store.get(&key)? {
@@ -169,7 +172,7 @@ impl ValidatorSet {
         if mining_epoch == 0 {
             return Ok(None);
         }
-        
+
         Self::find_by_epoch_multi(datastore, mining_epoch - 1).await
     }
 
@@ -178,7 +181,7 @@ impl ValidatorSet {
         // Scan through all validator sets to find the latest
         // In production, we'd want to maintain an index or metadata for this
         let mut latest: Option<ValidatorSet> = None;
-        
+
         // For now, we'll try to find sets by scanning recent epochs
         // This is not efficient but works for demonstration
         for epoch in (0..1000).rev() {
@@ -187,7 +190,7 @@ impl ValidatorSet {
                 break;
             }
         }
-        
+
         Ok(latest)
     }
 
@@ -208,9 +211,9 @@ mod tests {
         let nominated = vec!["peer1".to_string(), "peer2".to_string()];
         let staked = vec!["peer3".to_string()];
         let alternates = vec!["peer4".to_string()];
-        
+
         let set = ValidatorSet::new(1, 2, nominated.clone(), staked.clone(), alternates.clone());
-        
+
         assert_eq!(set.epoch, 1);
         assert_eq!(set.mining_epoch, 2);
         assert_eq!(set.nominated_validators, nominated);
@@ -223,9 +226,9 @@ mod tests {
         let nominated: Vec<String> = (0..27).map(|i| format!("nominated_{}", i)).collect();
         let staked: Vec<String> = (0..13).map(|i| format!("staked_{}", i)).collect();
         let alternates: Vec<String> = (0..13).map(|i| format!("alt_{}", i)).collect();
-        
+
         let set = ValidatorSet::new(1, 2, nominated, staked, alternates);
-        
+
         let active = set.get_active_validators();
         assert_eq!(active.len(), 40); // 27 nominated + 13 staked
     }
@@ -235,9 +238,9 @@ mod tests {
         let nominated = vec!["peer1".to_string(), "peer2".to_string()];
         let staked = vec!["peer3".to_string()];
         let alternates = vec!["peer4".to_string()];
-        
+
         let set = ValidatorSet::new(1, 2, nominated, staked, alternates);
-        
+
         assert!(set.is_active_validator("peer1"));
         assert!(set.is_active_validator("peer2"));
         assert!(set.is_active_validator("peer3"));
@@ -250,9 +253,9 @@ mod tests {
         let nominated = vec!["peer1".to_string()];
         let staked = vec!["peer2".to_string()];
         let alternates = vec!["peer3".to_string(), "peer4".to_string()];
-        
+
         let set = ValidatorSet::new(1, 2, nominated, staked, alternates);
-        
+
         assert!(set.is_alternate_validator("peer3"));
         assert!(set.is_alternate_validator("peer4"));
         assert!(!set.is_alternate_validator("peer1"));

@@ -20,6 +20,7 @@
 
 pub mod chain_maintenance;
 pub mod chain_monitor;
+pub mod contract_catchup;
 pub mod sync;
 
 // Re-export commonly used functions
@@ -72,6 +73,10 @@ pub async fn run(node: &mut Node) -> Result<()> {
     gossip::add_miner_event_listeners(node).await?;
     log::info!("Subscribed to mining block gossip");
 
+    gossip::add_validator_event_listeners(node).await?;
+    log::info!("Subscribed to certified sequencer-block gossip");
+    contract_catchup::start_live_apply(node);
+
     // Start status server
     node.start_status_server().await?;
     node.start_status_html_writer().await?;
@@ -115,6 +120,7 @@ pub async fn run(node: &mut Node) -> Result<()> {
     );
 
     log::info!("Observer node running - observing mining chain");
+    contract_catchup::start_historical_pull(node);
 
     // Wait for shutdown signal
     node.wait_for_shutdown().await?;

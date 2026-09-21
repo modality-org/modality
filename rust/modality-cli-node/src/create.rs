@@ -542,10 +542,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
                 "network_config_path".to_string(),
                 json!("modality-networks://testnet"),
             );
-            obj.insert(
-                "listeners".to_string(),
-                json!(["/ip4/0.0.0.0/tcp/4040/ws"]),
-            );
+            obj.insert("listeners".to_string(), json!(["/ip4/0.0.0.0/tcp/4040/ws"]));
             obj.insert("hybrid_consensus".to_string(), json!(true));
             obj.insert("run_miner".to_string(), json!(true));
             if let Some(net) = networks::by_name("testnet") {

@@ -1,10 +1,10 @@
 #[cfg(test)]
 mod tests {
+    use anyhow::Result;
     use modality_common::keypair::Keypair;
-    use anyhow::{Result};
-    use modality_datastore::NetworkDatastore;
-    use modality_datastore::Model;
     use modality_datastore::models::block::Block;
+    use modality_datastore::Model;
+    use modality_datastore::NetworkDatastore;
 
     #[tokio::test]
     async fn test_page() -> Result<()> {
@@ -63,10 +63,17 @@ mod tests {
 
         let result = b1.get_id();
         assert_eq!(result, format!("/blocks/round/1/peer/{}", node1_pubkey));
-        let b1r = Block::find_one(&datastore, [
-            ("round_id".to_string(), "1".to_string()),
-            ("peer_id".to_string(), node1_pubkey.clone())
-        ].into_iter().collect()).await?.unwrap();
+        let b1r = Block::find_one(
+            &datastore,
+            [
+                ("round_id".to_string(), "1".to_string()),
+                ("peer_id".to_string(), node1_pubkey.clone()),
+            ]
+            .into_iter()
+            .collect(),
+        )
+        .await?
+        .unwrap();
         assert_eq!(b1r.cert, b1.cert);
 
         let r1blocks = Block::find_all_in_round(&datastore, 1).await?;

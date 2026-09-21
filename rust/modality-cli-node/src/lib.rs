@@ -21,6 +21,7 @@ pub mod compare;
 pub mod config;
 pub mod contract_get;
 pub mod create;
+pub mod ephemeral_client;
 pub mod info;
 pub mod inspect;
 pub mod keys;

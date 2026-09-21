@@ -10,8 +10,15 @@ async fn test_network_datastore() {
     let datastore = NetworkDatastore::new(&path).unwrap();
 
     // Test set and get
-    datastore.set_data_by_key("/test/key1", b"value1").await.unwrap();
-    let value = datastore.get_data_by_key("/test/key1").await.unwrap().unwrap();
+    datastore
+        .set_data_by_key("/test/key1", b"value1")
+        .await
+        .unwrap();
+    let value = datastore
+        .get_data_by_key("/test/key1")
+        .await
+        .unwrap()
+        .unwrap();
     assert_eq!(value, b"value1");
 
     // Test get_string
@@ -23,8 +30,13 @@ async fn test_network_datastore() {
     struct TestStruct {
         field: String,
     }
-    let test_struct = TestStruct { field: "test".to_string() };
-    datastore.put("/test/json", &serde_json::to_vec(&test_struct).unwrap()).await.unwrap();
+    let test_struct = TestStruct {
+        field: "test".to_string(),
+    };
+    datastore
+        .put("/test/json", &serde_json::to_vec(&test_struct).unwrap())
+        .await
+        .unwrap();
     let retrieved: TestStruct = datastore.get_json("/test/json").await.unwrap().unwrap();
     assert_eq!(retrieved, test_struct);
 
@@ -32,7 +44,11 @@ async fn test_network_datastore() {
     datastore.set_data_by_key("/pages/1", b"").await.unwrap();
     datastore.set_data_by_key("/pages/2", b"").await.unwrap();
     datastore.set_data_by_key("/pages/3", b"").await.unwrap();
-    let max_key = datastore.find_max_string_key("/pages").await.unwrap().unwrap();
+    let max_key = datastore
+        .find_max_string_key("/pages")
+        .await
+        .unwrap()
+        .unwrap();
     assert_eq!(max_key, "3");
 
     // Test find_max_int_key
@@ -49,14 +65,31 @@ async fn test_network_datastore() {
     let new_block = datastore.bump_current_round().await.unwrap();
     assert_eq!(new_block, 6);
 
-
     // Test iteration within prefix
-    datastore.set_data_by_key("/block_messages/1/type/type1/peer/scribe1", b"").await.unwrap();
-    datastore.set_data_by_key("/block_messages/1/type/type1/peer/scribe2", b"").await.unwrap();
-    datastore.set_data_by_key("/block_messages/1/type/type1/peer/scribe3", b"").await.unwrap();
-    datastore.set_data_by_key("/block_messages/1/type/type1a/peer/scribe1", b"").await.unwrap();
-    datastore.set_data_by_key("/block_messages/1/type/type2/peer/scribe1", b"").await.unwrap();
-    datastore.set_data_by_key("/block_messages/1/type/type10/peer/scribe1", b"").await.unwrap();
+    datastore
+        .set_data_by_key("/block_messages/1/type/type1/peer/scribe1", b"")
+        .await
+        .unwrap();
+    datastore
+        .set_data_by_key("/block_messages/1/type/type1/peer/scribe2", b"")
+        .await
+        .unwrap();
+    datastore
+        .set_data_by_key("/block_messages/1/type/type1/peer/scribe3", b"")
+        .await
+        .unwrap();
+    datastore
+        .set_data_by_key("/block_messages/1/type/type1a/peer/scribe1", b"")
+        .await
+        .unwrap();
+    datastore
+        .set_data_by_key("/block_messages/1/type/type2/peer/scribe1", b"")
+        .await
+        .unwrap();
+    datastore
+        .set_data_by_key("/block_messages/1/type/type10/peer/scribe1", b"")
+        .await
+        .unwrap();
     let iterator = datastore.iterator(&"/block_messages/1/type/type1");
     assert_eq!(iterator.count(), 3);
 }

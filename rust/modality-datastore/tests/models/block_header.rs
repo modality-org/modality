@@ -1,8 +1,8 @@
 #[cfg(test)]
 mod tests {
     use anyhow::Result;
-    use modality_datastore::models::block_header::{self, prelude::*};
     use modality_datastore::models::block::prelude::*;
+    use modality_datastore::models::block_header::{self, prelude::*};
     use modality_devnet::Devnet;
 
     #[tokio::test]
@@ -26,7 +26,7 @@ mod tests {
         Devnet::add_fully_connected_empty_round(&mut ds, NODE_COUNT).await?;
         Devnet::add_fully_connected_empty_round(&mut ds, NODE_COUNT).await?;
         Devnet::add_fully_connected_empty_round(&mut ds, NODE_COUNT).await?;
-        
+
         BlockHeader::dervive_all_in_round(&mut ds, 2).await?;
         let block_headers = BlockHeader::find_all_in_round(&mut ds, 2).await?;
         assert_eq!(block_headers.len(), NODE_COUNT);

@@ -5,7 +5,7 @@
 
 use anyhow::Result;
 use modality_common::keypair::{Keypair, KeypairOrPublicKey};
-use modality_datastore::models::{Commit, ValidatorBlock};
+use modality_datastore::models::{Commit, Contract, ValidatorBlock};
 use modality_datastore::DatastoreManager;
 use modality_networks::CheckpointMode;
 use modality_validator::prefix_cert::{self, PREFIX_CERT_TYPE};
@@ -271,7 +271,7 @@ async fn ingest_into_shoal(
     }
 }
 
-async fn apply_certified_contract_events(
+pub(crate) async fn apply_certified_contract_events(
     block: &ValidatorBlock,
     datastore: &Arc<Mutex<DatastoreManager>>,
 ) {
@@ -321,6 +321,32 @@ async fn apply_certified_contract_events(
             continue;
         };
 
+        {
+            let mgr = datastore.lock().await;
+            if Contract::find_by_id_multi(&mgr, contract_id)
+                .await
+                .ok()
+                .flatten()
+                .is_none()
+            {
+                let genesis = commits
+                    .first()
+                    .map(|c| c.to_string())
+                    .unwrap_or_else(|| "{}".to_string());
+                let created_at = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map(|d| d.as_secs())
+                    .unwrap_or(0);
+                let _ = Contract {
+                    contract_id: contract_id.to_string(),
+                    genesis,
+                    created_at,
+                }
+                .save_to_final(&mgr)
+                .await;
+            }
+        }
+
         for commit_entry in commits {
             let Some(commit_id) = commit_entry
                 .get("commit_id")
@@ -336,6 +362,26 @@ async fn apply_certified_contract_events(
                 "body": body,
                 "head": commit_entry.get("head"),
             });
+
+            {
+                let mgr = datastore.lock().await;
+                let keys = [
+                    ("contract_id".to_string(), contract_id.to_string()),
+                    ("commit_id".to_string(), commit_id.to_string()),
+                ]
+                .into_iter()
+                .collect();
+                if let Ok(Some(existing)) = Commit::find_one_multi(&mgr, keys).await {
+                    if existing.is_sequenced() {
+                        log::debug!(
+                            "Skipping already-sequenced commit {} for contract {}",
+                            commit_id,
+                            contract_id
+                        );
+                        continue;
+                    }
+                }
+            }
 
             match processor
                 .process_commit(contract_id, commit_id, &commit_data.to_string())
@@ -1189,6 +1235,37 @@ model FirstContract {
         assert_eq!(
             in_batch_of(&ds, "c1", "signed").await.as_deref(),
             Some("batch-ok")
+        );
+    }
+
+    #[tokio::test]
+    async fn reapplying_certified_create_keeps_in_batch() {
+        let ds = Arc::new(Mutex::new(DatastoreManager::create_in_memory().unwrap()));
+        let event = json!({
+            "type": "contract_push",
+            "data": {
+                "contract_id": "alice",
+                "commits": [{
+                    "commit_id": "create-token",
+                    "body": [{
+                        "method": "create",
+                        "value": { "asset_id": "TOKEN", "quantity": 1, "divisibility": 1 }
+                    }],
+                    "head": {}
+                }]
+            }
+        });
+        apply_certified_contract_events(&certified_block(vec![event.clone()], "batch-1"), &ds)
+            .await;
+        assert_eq!(
+            in_batch_of(&ds, "alice", "create-token").await.as_deref(),
+            Some("batch-1")
+        );
+        apply_certified_contract_events(&certified_block(vec![event], "batch-2"), &ds).await;
+        assert_eq!(
+            in_batch_of(&ds, "alice", "create-token").await.as_deref(),
+            Some("batch-1"),
+            "second apply must not clear in_batch after CREATE already-exists"
         );
     }
 

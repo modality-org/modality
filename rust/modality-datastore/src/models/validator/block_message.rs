@@ -1,9 +1,9 @@
-use crate::{DatastoreManager, Error, Result};
 use crate::model::Model;
 use crate::stores::Store;
-use serde::{Serialize, Deserialize};
-use std::collections::HashMap;
+use crate::{DatastoreManager, Error, Result};
 use async_trait::async_trait;
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct ValidatorBlockMessage {
@@ -16,8 +16,10 @@ pub struct ValidatorBlockMessage {
 
 #[async_trait]
 impl Model for ValidatorBlockMessage {
-    const ID_PATH: &'static str = "/validator/block_messages/round/${round_id}/type/${type}/peer/${peer_id}";
-    const FIELDS: &'static [&'static str] = &["round_id", "peer_id", "type", "seen_at_block_id", "content"];
+    const ID_PATH: &'static str =
+        "/validator/block_messages/round/${round_id}/type/${type}/peer/${peer_id}";
+    const FIELDS: &'static [&'static str] =
+        &["round_id", "peer_id", "type", "seen_at_block_id", "content"];
     const FIELD_DEFAULTS: &'static [(&'static str, serde_json::Value)] = &[];
 
     fn set_field(&mut self, field: &str, value: serde_json::Value) {
@@ -27,7 +29,7 @@ impl Model for ValidatorBlockMessage {
             "type" => self.r#type = value.as_str().unwrap_or_default().to_string(),
             "seen_at_block_id" => self.seen_at_block_id = value.as_u64(),
             "content" => self.content = value,
-            _ => {},
+            _ => {}
         }
     }
 
@@ -41,8 +43,15 @@ impl Model for ValidatorBlockMessage {
 }
 
 impl ValidatorBlockMessage {
-    pub async fn find_all_in_round_of_type_multi(datastore: &DatastoreManager, round_id: u64, r#type: &str) -> Result<Vec<Self>> {
-        let prefix = format!("/validator/block_messages/round/{}/type/{}/peer", round_id, r#type);
+    pub async fn find_all_in_round_of_type_multi(
+        datastore: &DatastoreManager,
+        round_id: u64,
+        r#type: &str,
+    ) -> Result<Vec<Self>> {
+        let prefix = format!(
+            "/validator/block_messages/round/{}/type/{}/peer",
+            round_id, r#type
+        );
         let mut messages = Vec::new();
 
         // Try ValidatorActive first
@@ -52,8 +61,17 @@ impl ValidatorBlockMessage {
             for result in iterator {
                 let (key, _) = result?;
                 let key_str = String::from_utf8(key.to_vec())?;
-                let peer_id = key_str.split(&format!("{}/", prefix)).nth(1).ok_or_else(|| Error::Database(format!("Invalid key format: {} with prefix {}", key_str, &format!("{}/", prefix))))?;
-                
+                let peer_id = key_str
+                    .split(&format!("{}/", prefix))
+                    .nth(1)
+                    .ok_or_else(|| {
+                        Error::Database(format!(
+                            "Invalid key format: {} with prefix {}",
+                            key_str,
+                            &format!("{}/", prefix)
+                        ))
+                    })?;
+
                 let mut keys = HashMap::new();
                 keys.insert("round_id".to_string(), round_id.to_string());
                 keys.insert("type".to_string(), r#type.to_string());
@@ -64,7 +82,7 @@ impl ValidatorBlockMessage {
                 }
             }
         }
-        
+
         if !messages.is_empty() {
             return Ok(messages);
         }
@@ -76,8 +94,17 @@ impl ValidatorBlockMessage {
             for result in iterator {
                 let (key, _) = result?;
                 let key_str = String::from_utf8(key.to_vec())?;
-                let peer_id = key_str.split(&format!("{}/", prefix)).nth(1).ok_or_else(|| Error::Database(format!("Invalid key format: {} with prefix {}", key_str, &format!("{}/", prefix))))?;
-                
+                let peer_id = key_str
+                    .split(&format!("{}/", prefix))
+                    .nth(1)
+                    .ok_or_else(|| {
+                        Error::Database(format!(
+                            "Invalid key format: {} with prefix {}",
+                            key_str,
+                            &format!("{}/", prefix)
+                        ))
+                    })?;
+
                 let mut keys = HashMap::new();
                 keys.insert("round_id".to_string(), round_id.to_string());
                 keys.insert("type".to_string(), r#type.to_string());
@@ -94,12 +121,15 @@ impl ValidatorBlockMessage {
 
     /// Save this message to the ValidatorActive store
     pub async fn save_to_active(&self, datastore: &DatastoreManager) -> Result<()> {
-        self.save_to_store(datastore.validator_active()).await.map_err(|e| Error::Database(e.to_string()))
+        self.save_to_store(datastore.validator_active())
+            .await
+            .map_err(|e| Error::Database(e.to_string()))
     }
 
     /// Save this message to the ValidatorFinal store
     pub async fn save_to_final(&self, datastore: &DatastoreManager) -> Result<()> {
-        self.save_to_store(datastore.validator_final()).await.map_err(|e| Error::Database(e.to_string()))
+        self.save_to_store(datastore.validator_final())
+            .await
+            .map_err(|e| Error::Database(e.to_string()))
     }
 }
-

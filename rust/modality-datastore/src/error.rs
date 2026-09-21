@@ -27,5 +27,5 @@ pub enum Error {
     ParseInt(#[from] std::num::ParseIntError),
 
     #[error(transparent)]
-    Other(#[from] anyhow::Error)
+    Other(#[from] anyhow::Error),
 }

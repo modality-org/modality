@@ -10,7 +10,7 @@
 
 mod ack_collector;
 pub mod checkpoint;
-mod consensus;
+pub(crate) mod consensus;
 mod hybrid;
 
 use anyhow::Result;

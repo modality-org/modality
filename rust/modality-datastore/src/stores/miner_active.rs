@@ -1,11 +1,11 @@
 //! MinerActive store - recent miner blocks (12 epoch rolling window)
-//! 
+//!
 //! This store contains blocks that are still potentially subject to reorg.
 //! Blocks are promoted to MinerCanon/MinerForks at 2+ epochs old,
 //! and purged from this store at 12+ epochs old.
 
+use crate::stores::{open_store, open_store_readonly, Store};
 use crate::Result;
-use crate::stores::{Store, open_store, open_store_readonly};
 use rocksdb::DB;
 use std::path::Path;
 
@@ -20,13 +20,13 @@ impl MinerActiveStore {
         let db = open_store(path)?;
         Ok(Self { db })
     }
-    
+
     /// Open the store in read-only mode
     pub fn open_readonly(path: &Path) -> Result<Self> {
         let db = open_store_readonly(path)?;
         Ok(Self { db })
     }
-    
+
     /// Create an in-memory store for testing
     pub fn create_in_memory() -> Result<Self> {
         let mut opts = rocksdb::Options::default();
@@ -48,4 +48,3 @@ impl Drop for MinerActiveStore {
         let _ = self.db.flush();
     }
 }
-

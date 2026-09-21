@@ -1,0 +1,19 @@
+[Unit]
+Description=Modality testnet observer
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/home/ubuntu/testnet0
+Environment=HOME=/home/ubuntu
+Environment=PATH=/home/ubuntu/.modality/bin:/usr/local/bin:/usr/bin:/bin
+ExecStart=/home/ubuntu/.modality/bin/modal node run-observer --dir /home/ubuntu/testnet0 --no-tui
+Restart=on-failure
+RestartSec=5
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target
