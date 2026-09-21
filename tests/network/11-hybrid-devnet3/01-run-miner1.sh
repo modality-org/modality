@@ -13,8 +13,8 @@ if [ ! -f "./tmp/node1/config.json" ]; then
     # This node will nominate all 3 nodes in rotation
     cat > "${SCRIPT_DIR}/tmp/node1/config.json" << 'EOF'
 {
-  "passfile_path": "./node.passfile",
-  "storage_path": "./storage",
+  "passfile_path": "./node.modal_passfile",
+  "data_dir": "./data",
   "listeners": ["/ip4/0.0.0.0/tcp/10311/ws"],
   "bootstrappers": [
     "/ip4/127.0.0.1/tcp/10312/ws/p2p/12D3KooW9pypLnRn67EFjiWgEiDdqo8YizaPn8yKe5cNJd3PGnMB",

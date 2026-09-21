@@ -44,6 +44,11 @@ pub async fn run(opts: &Opts) -> Result<()> {
 
     let config = load_config_with_node_dir(opts.config.clone(), dir.clone())?;
 
+    let node_dir = dir
+        .clone()
+        .unwrap_or_else(|| std::env::current_dir().expect("Failed to get current directory"));
+    let is_running = check_node_running(&node_dir);
+
     // Determine which command to run - support both --level and positional command
     let command = if let Some(ref cmd) = opts.command {
         cmd.as_str()
@@ -53,6 +58,11 @@ pub async fn run(opts: &Opts) -> Result<()> {
         "general"
     };
 
+    let data_dir = config
+        .datastore_dir()
+        .context("No data_dir or storage_path in config")?;
+    let datastore_manager = open_inspect_store(data_dir, is_running)?;
+
     // Handle datastore-get command separately
     if command == "datastore-get" {
         let key = opts
@@ -60,20 +70,8 @@ pub async fn run(opts: &Opts) -> Result<()> {
             .as_ref()
             .context("datastore-get requires a KEY argument")?;
 
-        // Open datastore
-        let data_dir = config
-            .data_dir
-            .as_ref()
-            .or(config.storage_path.as_ref())
-            .context("No data_dir or storage_path in config")?;
-
-        let datastore_manager =
-            DatastoreManager::open(data_dir).context("Failed to open datastore")?;
-
-        // Query the key from datastore
         match datastore_manager.get_data_by_key(key).await {
             Ok(Some(value)) => {
-                // Output the raw value (as string)
                 let value_str = String::from_utf8_lossy(&value);
                 println!("{}", value_str);
                 return Ok(());
@@ -87,15 +85,6 @@ pub async fn run(opts: &Opts) -> Result<()> {
         }
     }
 
-    // For other commands, proceed with normal inspection
-    let node_dir = dir
-        .clone()
-        .unwrap_or_else(|| std::env::current_dir().expect("Failed to get current directory"));
-
-    // Check if node is running by looking for PID file and verifying process
-    let is_running = check_node_running(&node_dir);
-
-    // Use read-only mode to allow inspection while node is running
     if is_running {
         println!("🔍 Inspecting node (Online - Read-only mode)");
     } else {
@@ -103,18 +92,8 @@ pub async fn run(opts: &Opts) -> Result<()> {
     }
     println!();
 
-    // Show node identity first
     inspect_identity(&config)?;
     println!();
-
-    // Open datastore
-    let data_dir = config
-        .data_dir
-        .as_ref()
-        .or(config.storage_path.as_ref())
-        .context("No data_dir or storage_path in config")?;
-
-    let datastore_manager = DatastoreManager::open(data_dir).context("Failed to open datastore")?;
 
     match command {
         "general" | "blocks" => {
@@ -138,6 +117,34 @@ pub async fn run(opts: &Opts) -> Result<()> {
     }
 
     Ok(())
+}
+
+fn open_inspect_store(data_dir: &std::path::Path, readonly: bool) -> Result<DatastoreManager> {
+    if readonly {
+        return DatastoreManager::open_readonly(data_dir).with_context(|| {
+            format!(
+                "Failed to open datastore read-only at {}. If the node is running, wait until it has created its stores.",
+                data_dir.display()
+            )
+        });
+    }
+    match DatastoreManager::open(data_dir) {
+        Ok(mgr) => Ok(mgr),
+        Err(e) => {
+            let msg = e.to_string();
+            if msg.contains("LOCK") || msg.contains("temporarily unavailable") {
+                DatastoreManager::open_readonly(data_dir).with_context(|| {
+                    format!(
+                        "Failed to open datastore at {} ({}); read-only retry also failed",
+                        data_dir.display(),
+                        e
+                    )
+                })
+            } else {
+                Err(e).context("Failed to open datastore")
+            }
+        }
+    }
 }
 
 /// Check if the node is currently running by verifying PID file and process

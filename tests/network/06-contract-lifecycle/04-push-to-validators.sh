@@ -53,9 +53,11 @@ fi
 
 cd "$CONTRACT_DIR"
 
+REMOTE="/ip4/127.0.0.1/tcp/10101/ws/p2p/12D3KooW9pte76rpnggcLYkFaawuTEs5DC5axHkg3cK3cewGxxHd"
+
 # Push commits
 echo "Pushing commits to network..."
-modal contract push --output json | tee push_result.json
+modal contract push --remote "$REMOTE" --output json | tee push_result.json
 echo ""
 
 # Parse result

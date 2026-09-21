@@ -51,6 +51,6 @@ echo "📁 Contract location: ./tmp/my-contract"
 echo ""
 echo "🎯 Next steps:"
 echo "   • View contract: cd ./tmp/my-contract && modal contract status"
-echo "   • Add more commits: cd ./tmp/my-contract && modal contract commit --path /test --value 'data'"
+echo "   • Add more commits: cd ./tmp/my-contract && modal contract commit --path /test.text --value 'data'"
 echo "   • Push to network: ./04-push-to-validators.sh (requires validator)"
 

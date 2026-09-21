@@ -39,7 +39,15 @@ pub async fn run(opts: &Opts) -> Result<()> {
         opts.dir.clone()
     };
 
-    let config = load_config_with_node_dir(opts.config.clone(), dir)?;
+    let tmp = tempfile::tempdir()?;
+    let mut config = load_config_with_node_dir(opts.config.clone(), dir)?;
+    // Ping is a short-lived client: do not open the live node's RocksDB, bind
+    // its listen port, or reuse its peer ID (libp2p refuses to dial itself).
+    config.data_dir = Some(tmp.path().join("data"));
+    config.storage_path = None;
+    config.listeners = Some(vec![]);
+    config.network_config_path = None;
+    config.passfile_path = None;
 
     let times_to_ping = opts.times;
     let mut node = Node::from_config(config.clone()).await?;

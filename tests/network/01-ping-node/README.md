@@ -49,7 +49,7 @@ The `modal node create --from-template` command:
 ```
 tmp/node1/
 ├── config.json       # Node configuration
-├── node.passfile     # Node identity (keep this secure!)
+├── node.modal_passfile     # Node identity (keep this secure!)
 ├── storage/          # RocksDB datastore
 └── logs/             # Node logs
 ```
@@ -105,7 +105,7 @@ modal node create --dir ./my-node --bootstrappers "/ip4/1.2.3.4/tcp/4040/ws/p2p/
    - Logging configuration
    - Autoupgrade settings (if enabled)
 
-2. **`node.passfile`** - Node identity (keypair)
+2. **`node.modal_passfile`** - Node identity (keypair)
    - Keep this file secure!
    - Never share it or commit it to version control
    - This determines your node's peer ID
@@ -168,7 +168,7 @@ modality-networks/
 └── templates/
     └── devnet1/
         └── node1/
-            ├── node.passfile  # Standard devnet1/node1 identity
+            ├── node.modal_passfile  # Standard devnet1/node1 identity
             └── config.json    # Standard devnet1/node1 configuration
 ```
 
@@ -209,7 +209,7 @@ Output:
 Node ID: 12D3KooW...
 Storage: ./storage
 Config: ./config.json
-Passfile: ./node.passfile
+Passfile: ./node.modal_passfile
 ```
 
 ## Ping Command
@@ -308,7 +308,7 @@ Another process is using port 10101. Either:
 
 ## Security Notes
 
-⚠️ **IMPORTANT**: The `node.passfile` contains your node's private key!
+⚠️ **IMPORTANT**: The `node.modal_passfile` contains your node's private key!
 
 - **DO NOT** commit passfiles to version control
 - **DO NOT** share passfiles with others

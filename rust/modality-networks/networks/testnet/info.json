@@ -1,6 +1,6 @@
 {
   "name": "testnet",
-  "description": "a test network for testing upcoming features",
+  "description": "Public testnet is not deployed. The bootstrap multiaddrs below do not currently accept connections; do not treat this file as a joinable network.",
   "bootstrappers": [
     "/ip4/3.125.46.158/tcp/4040/ws/p2p/12D3KooWBGR3m1JmVFm2aZYR7TZXicjA7HSVSWi2fama5cPpgQiX",
     "/ip4/18.217.58.253/tcp/4040/ws/p2p/12D3KooWEA6dRWvK1vutRDxKfdPZZr7ycHvQNWrDGZZQbiE6YibZ",

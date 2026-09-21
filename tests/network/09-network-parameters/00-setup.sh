@@ -28,7 +28,7 @@ fi
 echo "✓ Test environment setup complete"
 echo "  Storage: ./tmp/test-network-params/storage"
 echo "  Config: ./tmp/test-network-params/config.json"
-echo "  Passfile: ./tmp/test-network-params/node.passfile"
+echo "  Passfile: ./tmp/test-network-params/node.modal_passfile"
 echo "  Network: devnet1 (with genesis contract)"
 
 

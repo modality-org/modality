@@ -65,7 +65,7 @@ echo "Test 4: Creating multiple commits..."
 COMMITS_CREATED=0
 
 # Create first commit
-if COMMIT1_OUTPUT=$(cd "$CONTRACT_DIR" && modal contract commit --path '/data/message' --value 'Hello Modality' --output json 2>&1); then
+if COMMIT1_OUTPUT=$(cd "$CONTRACT_DIR" && modal contract commit --path '/data/message.text' --value 'Hello Modality' --output json 2>&1); then
     echo "$COMMIT1_OUTPUT" > "$CONTRACT_DIR/commit1.json"
     COMMIT1_ID=$(echo "$COMMIT1_OUTPUT" | grep "commit_id" | sed 's/.*"commit_id"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/' || echo "")
     echo "Commit 1 ID: $COMMIT1_ID" >> "$CURRENT_LOG"
@@ -76,7 +76,7 @@ else
 fi
 
 # Create second commit
-if COMMIT2_OUTPUT=$(cd "$CONTRACT_DIR" && modal contract commit --path '/config/rate' --value 7.5 --output json 2>&1); then
+if COMMIT2_OUTPUT=$(cd "$CONTRACT_DIR" && modal contract commit --path '/config/rate.json' --value 7.5 --output json 2>&1); then
     echo "$COMMIT2_OUTPUT" > "$CONTRACT_DIR/commit2.json"
     COMMIT2_ID=$(echo "$COMMIT2_OUTPUT" | grep "commit_id" | sed 's/.*"commit_id"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/' || echo "")
     echo "Commit 2 ID: $COMMIT2_ID" >> "$CURRENT_LOG"
@@ -87,7 +87,7 @@ else
 fi
 
 # Create third commit
-if COMMIT3_OUTPUT=$(cd "$CONTRACT_DIR" && modal contract commit --path '/data/status' --value 'active' --output json 2>&1); then
+if COMMIT3_OUTPUT=$(cd "$CONTRACT_DIR" && modal contract commit --path '/data/status.text' --value 'active' --output json 2>&1); then
     echo "$COMMIT3_OUTPUT" > "$CONTRACT_DIR/commit3.json"
     COMMIT3_ID=$(echo "$COMMIT3_OUTPUT" | grep "commit_id" | sed 's/.*"commit_id"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/' || echo "")
     echo "Commit 3 ID: $COMMIT3_ID" >> "$CURRENT_LOG"
@@ -195,18 +195,18 @@ sleep 3  # Give validator time to fully initialize
 # Test 10: Push commits to validator
 echo ""
 echo "Test 10: Pushing commits to validator..."
-# Try to push - this may or may not succeed depending on validator state
-PUSH_OUTPUT=$(cd "$CONTRACT_DIR" && modal contract push --output json 2>&1 || echo '{"status":"attempted"}')
+REMOTE="/ip4/127.0.0.1/tcp/10101/ws/p2p/12D3KooW9pte76rpnggcLYkFaawuTEs5DC5axHkg3cK3cewGxxHd"
+PUSH_OUTPUT=$(cd "$CONTRACT_DIR" && modal contract push --remote "$REMOTE" --output json 2>&1) || true
 echo "Push output: $PUSH_OUTPUT" >> "$CURRENT_LOG"
 
-# For now, we just verify the command runs without crashing
 TESTS_RUN=$((TESTS_RUN + 1))
-if echo "$PUSH_OUTPUT" | grep -q "contract_id\|status\|pushed\|attempted"; then
+if echo "$PUSH_OUTPUT" | grep -q '"status"[[:space:]]*:[[:space:]]*"queued"\|"pushed"'; then
     TESTS_PASSED=$((TESTS_PASSED + 1))
-    echo -e "  ${GREEN}✓${NC} Contract push command executed"
+    echo -e "  ${GREEN}✓${NC} Contract push queued on the sequencer"
 else
     TESTS_FAILED=$((TESTS_FAILED + 1))
-    echo -e "  ${RED}✗${NC} Contract push command failed"
+    echo -e "  ${RED}✗${NC} Contract push should queue with --remote"
+    echo "Error: $PUSH_OUTPUT" >> "$CURRENT_LOG"
 fi
 
 # Test 11: Test pull command (may not find anything, but should not crash)

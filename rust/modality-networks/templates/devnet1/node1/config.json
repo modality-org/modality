@@ -1,8 +1,8 @@
 {
-  "passfile_path": "./node.passfile",
+  "passfile_path": "./node.modal_passfile",
   "data_dir": "./data",
   "listeners": ["/ip4/0.0.0.0/tcp/10101/ws"],
-  "bootstrappers": ["/dnsaddr/devnet1.modality.network"],
+  "bootstrappers": [],
   "logs_path": "./logs",
   "logs_enabled": true,
   "log_level": "info"

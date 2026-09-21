@@ -40,7 +40,7 @@ if command -v jq &> /dev/null; then
 fi
 
 assert_file_exists "./tmp/miner/config.json" "Node config should be created"
-assert_file_exists "./tmp/miner/node.passfile" "Node passfile should be created"
+assert_file_exists "./tmp/miner/node.modal_passfile" "Node passfile should be created"
 
 # Test 3: Start miner
 echo ""
@@ -58,11 +58,11 @@ echo "Test 4: Verifying blocks are being mined..."
 MINER_LOG="$LOG_DIR/${CURRENT_TEST}_miner.log"
 assert_success "test_wait_for_log '$MINER_LOG' 'Block .* mined' 120" "Should mine at least one block"
 
-# Test 5: Verify storage was created
+# Test 5: Verify datastore was created
 echo ""
-echo "Test 5: Verifying storage was created..."
-assert_file_exists "./tmp/miner/storage" "Miner storage should be created"
-assert_file_exists "./tmp/miner/storage/IDENTITY" "Miner datastore should be initialized"
+echo "Test 5: Verifying datastore was created..."
+assert_file_exists "./tmp/miner/data" "Miner data directory should be created"
+assert_file_exists "./tmp/miner/data/node_state" "Miner datastore should be initialized"
 
 # Test 6: Inspect blocks using modal node inspect (while running!)
 echo ""
