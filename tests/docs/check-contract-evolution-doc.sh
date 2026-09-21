@@ -31,6 +31,9 @@ required_patterns=(
   "Alice alone cannot add \`/members/carol.id\`"
   "Both one-signer rejected"
   "missing +all_signed(/members)"
+  "human-readable status/log output"
+  "Model state: active"
+  "signer IDs after replacement"
   "The first runnable"
   "contract CLI smoke now covers"
   "rules still accumulate"
@@ -46,6 +49,9 @@ required_patterns=(
   "unrelated older rules still accumulate"
   "A parser-only"
   "evolution evidence by itself"
+  "human-readable bounded-term status/log view"
+  "Model state: expired"
+  "CLI surface a developer reads matches the replay"
 )
 
 for pattern in "${required_patterns[@]}"; do
@@ -57,6 +63,12 @@ done
 
 if grep -Eq -- ' true[[:space:]]*->| implies ' "$DOC"; then
   echo "contract evolution reference should avoid formula implication sugar" >&2
+  exit 1
+fi
+
+SITE_DOC="$ROOT_DIR/sites/www.modality.org/docs/reference/contract-evolution.md"
+if [[ -f "$SITE_DOC" ]] && ! cmp -s "$DOC" "$SITE_DOC"; then
+  echo "contract evolution site reference is out of sync with docs/reference" >&2
   exit 1
 fi
 

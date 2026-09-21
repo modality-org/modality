@@ -121,6 +121,9 @@ use the same membership authority.
 The contract evolution CLI smoke runs this pattern end to end: Alice alone can
 append an ordinary note, Alice can add Bob while she is the only accepted member,
 Bob can then append an ordinary note, Alice alone cannot replace the witness model after Bob is accepted, Alice and Bob together can replace the witness model with repeated `--sign` flags, and Alice alone cannot add `/members/carol.id` after Bob is accepted. Both one-signer rejected commits report `missing +all_signed(/members)`.
+The smoke checks both JSON and human-readable status/log output, so the visible
+CLI view still shows `Model state: active`, the accepted evolution messages, and
+the signer IDs after replacement.
 
 ## Bounded Terms
 
@@ -151,3 +154,6 @@ the evolution lesson honest: bounded terms can make a commitment expire, but
 unrelated older rules still accumulate and continue constraining replacement
 models. A parser-only `until(...)` example is useful language evidence, but it
 is not contract evolution evidence by itself.
+The smoke also checks the human-readable bounded-term status/log view, including
+`Model state: expired`, so the CLI surface a developer reads matches the replay
+state proven by JSON.
