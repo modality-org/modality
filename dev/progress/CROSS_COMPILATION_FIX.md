@@ -64,8 +64,8 @@ pre-build = [
    - Creates index.html files for S3 browsing
 
 4. **Deployment**
-   - Uploads to S3: `s3://get.modal.money-content/{branch}/{version}/`
-   - Updates latest symlink: `s3://get.modal.money-content/{branch}/latest/`
+   - Uploads to S3: `s3://get.modality.org-content/{branch}/{version}/`
+   - Updates latest symlink: `s3://get.modality.org-content/{branch}/latest/`
    - Builds and publishes Cargo registry
    - Invalidates CloudFront cache for immediate availability
 
@@ -135,18 +135,18 @@ git push origin testnet
 **Verification:**
 ```bash
 # Test installation from S3
-curl -fsSL https://get.modal.money/testnet/latest/install.sh | sh
+curl -fsSL https://get.modality.org/testnet/latest/install.sh | sh
 
 # Verify binary works
 ~/.modality/bin/modal --version
 
 # Test direct download
-curl -L https://get.modal.money/testnet/latest/binaries/linux-x86_64/modal -o /tmp/modal-test
+curl -L https://get.modality.org/testnet/latest/binaries/linux-x86_64/modal -o /tmp/modal-test
 chmod +x /tmp/modal-test
 /tmp/modal-test --version
 
 # Test Cargo install
-cargo install --index sparse+https://get.modal.money/testnet/latest/cargo-registry/index/ modal
+cargo install --index sparse+https://get.modality.org/testnet/latest/cargo-registry/index/ modal
 ```
 
 ## Configuration Requirements
@@ -161,8 +161,8 @@ The workflow requires the following secrets to be configured in GitHub:
 ### AWS Permissions
 
 The AWS credentials need permissions for:
-- S3: `s3:PutObject`, `s3:ListBucket`, `s3:DeleteObject` on `get.modal.money-content` bucket
-- CloudFront: `cloudfront:CreateInvalidation` for distribution `EAB0G50HTKF8I`
+- S3: `s3:PutObject`, `s3:ListBucket`, `s3:DeleteObject` on `get.modality.org-content` bucket
+- CloudFront: `cloudfront:CreateInvalidation` for distribution `E1FBO6H39OPO86`
 
 ## Migration Path
 

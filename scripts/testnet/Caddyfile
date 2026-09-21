@@ -1,0 +1,21 @@
+# Observer / public status host (Lightsail testnet0).
+# Primary names live on modality.network. modal.money names redirect.
+# Join instructions stay on the apex; live node status is node0.
+
+testnet.modality.network {
+	root * /var/www/html
+	file_server
+	encode gzip
+}
+
+node0.testnet.modality.network {
+	reverse_proxy 127.0.0.1:1337
+}
+
+testnet.modal.money {
+	redir https://testnet.modality.network{uri} permanent
+}
+
+node0.testnet.modal.money {
+	redir https://node0.testnet.modality.network{uri} permanent
+}

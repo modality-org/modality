@@ -1,0 +1,63 @@
+{
+  "Comment": "Public hybrid testnet names on modality.network",
+  "Changes": [
+    {
+      "Action": "UPSERT",
+      "ResourceRecordSet": {
+        "Name": "testnet.modality.network",
+        "Type": "A",
+        "TTL": 300,
+        "ResourceRecords": [{ "Value": "54.178.121.50" }]
+      }
+    },
+    {
+      "Action": "UPSERT",
+      "ResourceRecordSet": {
+        "Name": "node0.testnet.modality.network",
+        "Type": "A",
+        "TTL": 300,
+        "ResourceRecords": [{ "Value": "54.178.121.50" }]
+      }
+    },
+    {
+      "Action": "UPSERT",
+      "ResourceRecordSet": {
+        "Name": "node1.testnet.modality.network",
+        "Type": "A",
+        "TTL": 300,
+        "ResourceRecords": [{ "Value": "63.187.123.157" }]
+      }
+    },
+    {
+      "Action": "UPSERT",
+      "ResourceRecordSet": {
+        "Name": "node2.testnet.modality.network",
+        "Type": "A",
+        "TTL": 300,
+        "ResourceRecords": [{ "Value": "18.221.103.255" }]
+      }
+    },
+    {
+      "Action": "UPSERT",
+      "ResourceRecordSet": {
+        "Name": "node3.testnet.modality.network",
+        "Type": "A",
+        "TTL": 300,
+        "ResourceRecords": [{ "Value": "52.193.135.164" }]
+      }
+    },
+    {
+      "Action": "UPSERT",
+      "ResourceRecordSet": {
+        "Name": "_dnsaddr.testnet.modality.network",
+        "Type": "TXT",
+        "TTL": 300,
+        "ResourceRecords": [
+          { "Value": "\"dnsaddr=/dns4/node1.testnet.modality.network/tcp/4040/ws/p2p/12D3KooWE4NPREQxLkevA5Rxd61Xiue4tTkUGN22qNABD7Mw5JhM\"" },
+          { "Value": "\"dnsaddr=/dns4/node2.testnet.modality.network/tcp/4040/ws/p2p/12D3KooWJpFYTRHNuPfwoj1hTf87aqB7CDJHKtVFp3RhPNB1DrRw\"" },
+          { "Value": "\"dnsaddr=/dns4/node3.testnet.modality.network/tcp/4040/ws/p2p/12D3KooWLHTsoeBE1ZWBgzumeSi6hsm3o9AndFufrGx7xLTyq2dw\"" }
+        ]
+      }
+    }
+  ]
+}

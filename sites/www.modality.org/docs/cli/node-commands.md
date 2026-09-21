@@ -45,11 +45,11 @@ Create a node directory with `config.json` and `node.modal_passfile`.
 | `--node-id <NODE_ID>` | Existing peer ID to record; otherwise a new identity is generated |
 | `--data-dir <DATA_DIR>` | Data directory written into config; defaults to `./data` |
 | `--bootstrappers <ADDRS>` | Comma-separated bootstrapper multiaddrs |
-| `--network <NETWORK>` | Network preset such as `testnet`, `devnet1`, `devnet2`, or `devnet3` |
-| `--testnet` | Enable the testnet preset |
+| `--network <NETWORK>` | Network preset such as `testnet`, `devnet1`, `devnet2`, or `devnet3`. Joins that network with a **new** key; does not copy a bundled identity. Local `devnet1` bootstraps at `127.0.0.1:10101`. |
+| `--testnet` | Join the public testnet with a **new** key. Sets bootstrappers, `network_config_path: modality-networks://testnet`, listen `/ip4/0.0.0.0/tcp/4040/ws`, `hybrid_consensus`, and autoupgrade from `get.modality.org`. See [Join the public testnet](join-testnet.md). |
 | `--from-config <CONFIG>` | Merge settings from an existing config file |
 | `--from-passfile <PASSFILE>` | Import an existing node identity passfile |
-| `--from-template <TEMPLATE>` | Load a bundled template such as `devnet1/node1` |
+| `--from-template <TEMPLATE>` | Load a bundled template such as `devnet1/node1` (that identity **is** the local genesis node: peer ID `12D3KooW9pte76rpnggcLYkFaawuTEs5DC5axHkg3cK3cewGxxHd`, listen `10101`). `testnet/node1`, `testnet/node2`, and `testnet/node3` are the Foundation bootstrap identities (listen `4040`). Do not use a second copy of the same template as a joiner. |
 | `--use-mnemonic` | Generate or import the node key from a BIP39 mnemonic |
 | `--mnemonic-words <WORDS>` | Mnemonic word count; defaults to `12` |
 | `--mnemonic-phrase <PHRASE>` | Existing mnemonic phrase to import |
@@ -76,6 +76,12 @@ node/
 |-- data/
 `-- logs/
 ```
+
+`--from-template` and `--network` are different commands. Template `devnet1/node1` **is** the local bootstrapper. `--network devnet1` creates a joiner that dials that bootstrapper. `modal node create --testnet` listens on public testnet port **4040** (`/ip4/0.0.0.0/tcp/4040/ws`). Without `--testnet` or a template, create uses an ephemeral local port.
+
+After `--testnet`, run `modal node run-miner --dir <dir>` or `modal node run-hybrid --dir <dir>`.
+
+Build the full CLI from `rust/` (`cargo build -p modal`). A `modality` binary already on `PATH` may be an old language-only CLI with no `node` commands.
 
 ## Lifecycle
 
@@ -216,7 +222,10 @@ modal node inspect [COMMAND] [KEY|INDEX] [OPTIONS]
 
 Inspect local datastore state. `COMMAND` may be `general`, `mining`, `blocks`,
 `block <INDEX>`, or `datastore-get <KEY>`. `--level <LEVEL>` remains available
-for backward compatibility with `general`, `mining`, and `blocks`.
+for backward compatibility with `general`, `mining`, and `blocks`. When the
+node is running, inspect opens the datastore read-only. `ping --dir` uses a
+temporary datastore and does not bind the node's listen port; pinging from a
+second node directory is the usual connectivity check.
 
 **Options:**
 | Option | Description |

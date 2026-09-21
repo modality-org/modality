@@ -1,0 +1,643 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>The Modality Network</title>
+  <meta name="description" content="The Modality Network is where machines exchange commitments. Formally verified. Built to scale.">
+  <link rel="canonical" href="https://modality.network/">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://modality.network/">
+  <meta property="og:title" content="The Modality Network">
+  <meta property="og:description" content="Machines exchange commitments, not just information or value. Formally verified. Built to scale.">
+  <meta property="og:locale" content="en_US">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="The Modality Network">
+  <meta name="twitter:description" content="Machines exchange commitments, not just information or value. Formally verified. Built to scale.">
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" media="(prefers-color-scheme: light)" content="#e4e4ea">
+  <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0a0a0f">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #e4e4ea;
+      --bg-footer: #d8d8e0;
+      --text: #3a3a48;
+      --heading: #0a0a0f;
+      --muted: #5c5c70;
+      --dim: #6a6a80;
+      --accent: #4a6aef;
+      --accent-dark: #3b58d6;
+      --well: rgba(10, 10, 15, 0.04);
+      --line: rgba(10, 10, 15, 0.12);
+      --max: 52rem;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0a0a0f;
+        --bg-footer: #050510;
+        --text: #e8e8f0;
+        --heading: #ffffff;
+        --muted: #9a9ab8;
+        --dim: #8a8aa3;
+        --accent: #6c8cff;
+        --accent-dark: #5476f5;
+        --well: rgba(255, 255, 255, 0.04);
+        --line: rgba(255, 255, 255, 0.12);
+      }
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; overflow-x: hidden; }
+    html, body {
+      background: var(--bg);
+      color: var(--text);
+    }
+    body {
+      font-family: Inter, system-ui, -apple-system, sans-serif;
+      line-height: 1.6;
+      min-height: 100vh;
+    }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    code, pre { font-family: "JetBrains Mono", "Fira Code", ui-monospace, monospace; }
+
+    .page {
+      max-width: var(--max);
+      margin: 0 auto;
+      padding: 0 1.5rem 6rem;
+    }
+
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      background: var(--bg);
+    }
+    .nav {
+      max-width: var(--max);
+      margin: 0 auto;
+      padding: 0 1.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      min-height: 4rem;
+      gap: 1rem;
+    }
+    .wordmark {
+      font-weight: 700;
+      letter-spacing: -0.04em;
+      color: var(--heading);
+      font-size: 1.15rem;
+      text-decoration: none;
+    }
+    .wordmark:hover { color: var(--heading); text-decoration: none; }
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 1.25rem;
+      font-size: 0.95rem;
+    }
+    .nav-links a { color: var(--muted); }
+    .nav-links a:hover { color: var(--heading); text-decoration: none; }
+    .nav-cta {
+      background: var(--accent) !important;
+      color: #fff !important;
+      border-radius: 4px;
+      padding: 0.35rem 0.95rem;
+      font-weight: 600;
+    }
+    .nav-cta:hover {
+      background: var(--accent-dark) !important;
+      color: #fff !important;
+      text-decoration: none;
+    }
+
+    .hero {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      padding: 2.5rem 0 0;
+      min-height: calc(100vh - 4rem);
+      box-sizing: border-box;
+      width: 100vw;
+      margin-left: calc(50% - 50vw);
+      overflow: hidden;
+    }
+    .hero-canvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 0;
+    }
+    .hero-copy {
+      position: relative;
+      z-index: 1;
+      margin-top: auto;
+      margin-bottom: auto;
+      padding: 4rem 1.5rem 6rem;
+      max-width: 52rem;
+    }
+    .banner {
+      position: relative;
+      z-index: 1;
+    }
+    h1 {
+      font-size: clamp(3rem, 9vw, 6.2rem);
+      font-weight: 700;
+      letter-spacing: -0.055em;
+      line-height: 0.96;
+      color: var(--heading);
+    }
+    .sub {
+      margin: 1.6rem 0 0;
+      font-size: clamp(1.15rem, 2.2vw, 1.5rem);
+      line-height: 1.45;
+      color: var(--muted);
+      font-weight: 400;
+    }
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 0.75rem;
+      margin-top: 2.25rem;
+    }
+    .btn,
+    .btn-ghost {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0.8rem 1.35rem;
+      border-radius: 4px;
+      font-weight: 600;
+      font-size: 1rem;
+      text-decoration: none;
+      transition: transform 0.12s ease, background 0.12s ease, color 0.12s ease;
+    }
+    .btn {
+      color: #fff;
+      background: var(--accent);
+    }
+    .btn:hover {
+      color: #fff;
+      text-decoration: none;
+      background: var(--accent-dark);
+      transform: translateY(-1px);
+    }
+    .btn-ghost {
+      color: var(--heading);
+      background: transparent;
+      border: 1px solid var(--line);
+    }
+    .btn-ghost:hover {
+      text-decoration: none;
+      color: var(--heading);
+      background: var(--well);
+      transform: translateY(-1px);
+    }
+    .banner {
+      margin: 1.5rem auto 0;
+      padding: 0.7rem 1.1rem;
+      width: fit-content;
+      max-width: 100%;
+      text-align: center;
+      font-size: 0.98rem;
+      line-height: 1.4;
+      letter-spacing: -0.01em;
+      color: var(--accent);
+      border: 1px solid var(--accent);
+      border-radius: 2px;
+    }
+
+    .block {
+      padding: 0 0 4.5rem;
+      text-align: left;
+      scroll-margin-top: 5rem;
+    }
+    .block h2 {
+      margin: 0 0 1rem;
+      font-size: clamp(1.8rem, 4.2vw, 2.7rem);
+      font-weight: 700;
+      letter-spacing: -0.04em;
+      line-height: 1.1;
+      color: var(--heading);
+    }
+    .block p {
+      margin: 0 0 1rem;
+      font-size: 1.12rem;
+      line-height: 1.65;
+      color: var(--muted);
+      max-width: 40rem;
+    }
+    .block p:last-child { margin-bottom: 0; }
+
+    .cmd,
+    .tree {
+      margin: 1.25rem 0;
+      padding: 1rem 1.15rem;
+      overflow-x: auto;
+      font-size: 0.92rem;
+      line-height: 1.55;
+      text-align: left;
+      color: var(--heading);
+      background: var(--well);
+      border: 1px solid var(--line);
+      border-radius: 4px;
+    }
+    .cmd { white-space: pre; }
+    .cm { color: var(--dim); }
+
+    footer {
+      background: var(--bg-footer);
+      padding: 2rem 0 2.5rem;
+      color: var(--dim);
+      font-size: 0.88rem;
+    }
+    .foot {
+      max-width: var(--max);
+      margin: 0 auto;
+      padding: 0 1.5rem;
+      display: flex;
+      justify-content: space-between;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+    footer a { color: var(--muted); }
+    footer nav { display: flex; flex-wrap: wrap; gap: 1rem; }
+
+    @media (max-width: 640px) {
+      .hero {
+        min-height: calc(100svh - 4rem);
+        padding: 1.25rem 0 0;
+      }
+      .hero-copy { padding: 3rem 1.5rem 4rem; }
+      h1 { font-size: clamp(2.4rem, 12vw, 3.4rem); }
+      .nav-links .hide-sm { display: none; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      .btn, .btn-ghost { transition: none; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="nav">
+      <a class="wordmark" href="/">Modality</a>
+      <nav class="nav-links" aria-label="Primary">
+        <a class="hide-sm" href="https://www.modality.org/">Language</a>
+        <a href="https://www.modality.org/docs">Docs</a>
+        <a class="hide-sm" href="https://github.com/modality-org/modality">GitHub</a>
+        <a class="nav-cta" href="#join">Join</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="page">
+    <section class="hero">
+      <canvas class="hero-canvas" id="coop" aria-hidden="true"></canvas>
+      <p class="banner">Public testnet. This is not mainnet.</p>
+      <div class="hero-copy">
+        <h1>Formally verified.<br>Built to scale.</h1>
+        <p class="sub">
+          The Modality Network.<br>
+          Machines exchange commitments, not just information.
+        </p>
+        <div class="actions">
+          <a class="btn" href="#join">Run a node</a>
+          <a class="btn-ghost" href="https://www.modality.org/">Language</a>
+        </div>
+      </div>
+    </section>
+
+    <section class="block" id="network">
+      <h2>A public network for checkable agreements</h2>
+      <p>
+        Today’s internet lets machines exchange information. Blockchains let
+        machines exchange value. This network is where they exchange
+        commitments — permissions, duties, evidence, and failure paths
+        another party can replay and check.
+      </p>
+      <p>
+        A contract only a permissioned set can order is not a stranger’s
+        agreement. A contract that is safe only after a long confirmation
+        window is not usable by agents that must act.
+      </p>
+    </section>
+
+    <section class="block">
+      <h2>Permissionless entry</h2>
+      <p>
+        Proof of work grounds consensus. A node joins by mining, not by a
+        permission list and not by already holding a stake.
+      </p>
+    </section>
+
+    <section class="block">
+      <h2>Fast finality</h2>
+      <p>
+        Accepted commits become usable near instantly under normal network
+        conditions. Fast finality is not claimed if those conditions fail.
+      </p>
+    </section>
+
+    <section class="block">
+      <h2>Verified composition</h2>
+      <p>
+        The combined protocol is specified so those properties can be checked.
+        Invalid contract commits are rejected, not penalized later.
+      </p>
+    </section>
+
+    <section class="block" id="contracts">
+      <h2>Git for trust</h2>
+      <p>
+        A Modality contract is not a prompt and not a policy PDF. It is
+        state, a model of possible moves, and accumulating rules. Every
+        accepted commit is signed. Anyone can replay the log.
+      </p>
+      <pre class="tree"><code>contract/
+├── state/     # posted data
+├── model/     # possible moves
+└── rules/     # who / when / under what</code></pre>
+      <p>
+        The language, verifier, CLI (<code>modal</code>), hub, SDK, and node
+        are completely open source. The network is how those contracts become
+        global.
+      </p>
+    </section>
+
+    <section class="block" id="roles">
+      <h2>Miner</h2>
+      <p>
+        Permissionless proof of work. Extends the canonical index. Anyone
+        who can mine can enter consensus. Hashpower is how a stranger joins.
+      </p>
+    </section>
+
+    <section class="block">
+      <h2>Sequencer</h2>
+      <p>
+        Miner-nominated. Orders contract bytes on the finalized log that
+        contract users wait on. Sequencers are not the language verifier.
+      </p>
+    </section>
+
+    <section class="block">
+      <h2>Validator</h2>
+      <p>
+        A later bonded role. Attests that a contract prefix is valid
+        Modality. Not the join path.
+      </p>
+    </section>
+
+    <section class="block" id="join">
+      <h2>Run a node</h2>
+      <p>
+        Install a current <code>modal</code> binary and create a joiner with
+        a new key. Do not reuse Foundation bootstrap identities. Open TCP
+        4040 if you want other peers to dial you.
+      </p>
+      <pre class="cmd"><code><span class="cm"># install</span>
+curl -fsSL https://get.modality.org/testnet/latest/install.sh | sh
+
+<span class="cm"># new key, public testnet config</span>
+modal node create --dir ./my-node --testnet
+modal node run-miner --dir ./my-node --no-tui</code></pre>
+      <p>
+        If ping to a published bootstrapper times out, the testnet is not
+        currently joinable. Language how-to lives at
+        <a href="https://www.modality.org/">modality.org</a>.
+        Binaries live at
+        <a href="https://get.modality.org">get.modality.org</a>.
+      </p>
+    </section>
+  </main>
+
+  <footer>
+    <div class="foot">
+      <p>© Modality · the Modality Network · not mainnet</p>
+      <nav aria-label="Footer">
+        <a href="https://www.modality.org/">Language</a>
+        <a href="https://www.modality.org/docs">Docs</a>
+        <a href="https://github.com/modality-org/modality">GitHub</a>
+        <a href="https://discord.gg/KpYFdrfnkS">Discord</a>
+        <a href="https://get.modality.org">Install</a>
+      </nav>
+    </div>
+  </footer>
+  <script>
+    (function () {
+      var canvas = document.getElementById("coop");
+      if (!canvas || !canvas.getContext) return;
+      var reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      var ctx = canvas.getContext("2d");
+      var nodes = [];
+      var edges = [];
+      var pulses = [];
+      var dpr = 1;
+      var w = 0;
+      var h = 0;
+      var lastPulse = 0;
+      var running = true;
+
+      function color() {
+        var s = getComputedStyle(document.documentElement);
+        return {
+          accent: (s.getPropertyValue("--accent") || "#4a6aef").trim(),
+          heading: (s.getPropertyValue("--heading") || "#0a0a0f").trim(),
+        };
+      }
+
+      function hexAlpha(hex, a) {
+        hex = hex.replace("#", "").trim();
+        if (hex.length === 3) {
+          hex = hex[0] + hex[0] + hex[1] + hex[1] + hex[2] + hex[2];
+        }
+        var n = parseInt(hex, 16);
+        if (isNaN(n)) return "rgba(74,106,239," + a + ")";
+        var r = (n >> 16) & 255;
+        var g = (n >> 8) & 255;
+        var b = n & 255;
+        return "rgba(" + r + "," + g + "," + b + "," + a + ")";
+      }
+
+      function resize() {
+        var rect = canvas.parentElement.getBoundingClientRect();
+        dpr = Math.min(window.devicePixelRatio || 1, 2);
+        w = rect.width;
+        h = rect.height;
+        canvas.width = Math.floor(w * dpr);
+        canvas.height = Math.floor(h * dpr);
+        canvas.style.width = w + "px";
+        canvas.style.height = h + "px";
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        layout();
+      }
+
+      function layout() {
+        var cx = w / 2;
+        var cy = h * 0.52;
+        var padX = Math.max(28, w * 0.06);
+        var padY = Math.max(72, h * 0.1);
+        var rx = Math.max(40, w / 2 - padX);
+        var ry = Math.max(40, h / 2 - padY);
+        var n = w < 640 ? 10 : 14;
+        nodes = [];
+        for (var i = 0; i < n; i++) {
+          var a = (i / n) * Math.PI * 2 - Math.PI / 2;
+          nodes.push({
+            bx: cx + Math.cos(a) * rx,
+            by: cy + Math.sin(a) * ry,
+            rPhase: i * 0.55,
+          });
+        }
+        edges = [];
+        for (var k = 0; k < n; k++) {
+          edges.push([k, (k + 1) % n]);
+        }
+        pulses = [];
+      }
+
+      function control(a, b) {
+        var mx = (a.x + b.x) / 2;
+        var my = (a.y + b.y) / 2;
+        var dx = mx - w / 2;
+        var dy = my - h * 0.52;
+        var len = Math.hypot(dx, dy) || 1;
+        var bow = Math.min(w, h) * 0.045;
+        return { x: mx + (dx / len) * bow, y: my + (dy / len) * bow };
+      }
+
+      function ease(u) {
+        return u < 0.5 ? 2 * u * u : -1 + (4 - 2 * u) * u;
+      }
+
+      function draw(ts) {
+        var c = color();
+        ctx.clearRect(0, 0, w, h);
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
+        var t = ts * 0.00022;
+
+        for (var i = 0; i < nodes.length; i++) {
+          var node = nodes[i];
+          node.x = node.bx + (reduce ? 0 : 3.5 * Math.sin(t * 1.4 + node.rPhase));
+          node.y = node.by + (reduce ? 0 : 2.8 * Math.cos(t * 1.1 + node.rPhase));
+        }
+
+        for (var e = 0; e < edges.length; e++) {
+          var a = nodes[edges[e][0]];
+          var b = nodes[edges[e][1]];
+          var q = control(a, b);
+          ctx.strokeStyle = hexAlpha(c.accent, 0.22);
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.moveTo(a.x, a.y);
+          ctx.quadraticCurveTo(q.x, q.y, b.x, b.y);
+          ctx.stroke();
+        }
+
+        if (!reduce && ts - lastPulse > 2200) {
+          var ei = Math.floor(Math.random() * edges.length);
+          pulses.push({ from: edges[ei][0], to: edges[ei][1], start: ts, dur: 2100 });
+          lastPulse = ts;
+        }
+
+        for (var p = pulses.length - 1; p >= 0; p--) {
+          var pulse = pulses[p];
+          var u = (ts - pulse.start) / pulse.dur;
+          if (u >= 1) {
+            nodes[pulse.to].flash = ts;
+            pulses.splice(p, 1);
+            continue;
+          }
+          var s = nodes[pulse.from];
+          var d = nodes[pulse.to];
+          var q2 = control(s, d);
+          var eu = ease(u);
+          var x =
+            (1 - eu) * (1 - eu) * s.x +
+            2 * (1 - eu) * eu * q2.x +
+            eu * eu * d.x;
+          var y =
+            (1 - eu) * (1 - eu) * s.y +
+            2 * (1 - eu) * eu * q2.y +
+            eu * eu * d.y;
+          for (var trail = 5; trail >= 0; trail--) {
+            var tu = Math.max(0, eu - trail * 0.045);
+            var tx =
+              (1 - tu) * (1 - tu) * s.x +
+              2 * (1 - tu) * tu * q2.x +
+              tu * tu * d.x;
+            var ty =
+              (1 - tu) * (1 - tu) * s.y +
+              2 * (1 - tu) * tu * q2.y +
+              tu * tu * d.y;
+            ctx.fillStyle = hexAlpha(c.accent, 0.12 + (5 - trail) * 0.12);
+            ctx.beginPath();
+            ctx.arc(tx, ty, 1.4 + (5 - trail) * 0.35, 0, Math.PI * 2);
+            ctx.fill();
+          }
+          ctx.fillStyle = hexAlpha(c.accent, 0.95);
+          ctx.beginPath();
+          ctx.arc(x, y, 2.6, 0, Math.PI * 2);
+          ctx.fill();
+        }
+
+        for (var k = 0; k < nodes.length; k++) {
+          var nd = nodes[k];
+          var flash = nd.flash ? Math.max(0, 1 - (ts - nd.flash) / 900) : 0;
+          if (flash > 0) {
+            ctx.strokeStyle = hexAlpha(c.accent, flash * 0.45);
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.arc(nd.x, nd.y, 10 + (1 - flash) * 14, 0, Math.PI * 2);
+            ctx.stroke();
+          }
+          ctx.fillStyle = hexAlpha(c.heading, 0.9);
+          ctx.beginPath();
+          ctx.arc(nd.x, nd.y, 2.4, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.strokeStyle = hexAlpha(c.accent, 0.5 + flash * 0.4);
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.arc(nd.x, nd.y, 8, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+      }
+
+      function tick(ts) {
+        if (!running) return;
+        draw(ts || 0);
+        if (!reduce) requestAnimationFrame(tick);
+      }
+
+      document.addEventListener("visibilitychange", function () {
+        running = !document.hidden;
+        if (running && !reduce) requestAnimationFrame(tick);
+      });
+      window.addEventListener("resize", resize);
+      var scheme = window.matchMedia("(prefers-color-scheme: dark)");
+      if (scheme.addEventListener) {
+        scheme.addEventListener("change", function () {
+          draw(performance.now());
+        });
+      }
+      resize();
+      if (reduce) draw(0);
+      else requestAnimationFrame(tick);
+    })();
+  </script>
+</body>
+</html>

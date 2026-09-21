@@ -58,8 +58,12 @@ pub fn start_mining_loop(
                 continue;
             }
 
-            // Non-blocking check for view updates
-            current_index = process_mining_updates(&mut mining_update_rx, current_index);
+            // Non-blocking check for view updates. Cap against the persisted tip so
+            // a longer *foreign* fork cannot yank this miner onto heights it does
+            // not have; catch-up is datastore sync.
+            let datastore_next = get_next_mining_index(&datastore).await;
+            current_index =
+                process_mining_updates(&mut mining_update_rx, current_index, datastore_next);
 
             // Get latest canonical view
             current_index = update_from_datastore(&datastore, current_index).await;
@@ -100,8 +104,10 @@ pub fn start_mining_loop(
                         current_index
                     );
 
-                    // Verify actual chain tip
-                    current_index = get_next_mining_index(&datastore).await;
+                    // Datastore tip can lag the in-memory chain that triggered Skip.
+                    // Always advance at least one index so we cannot spin on the same height.
+                    let tip_next = get_next_mining_index(&datastore).await;
+                    current_index = current_index.saturating_add(1).max(tip_next);
                     log::info!("📍 Verified next mining index: {}", current_index);
 
                     let mut state = mining_state.lock().await;
@@ -124,7 +130,9 @@ pub fn start_mining_loop(
                     tokio::time::sleep(tokio::time::Duration::from_millis(MINING_RETRY_PAUSE_MS))
                         .await;
 
-                    // Correct index if needed
+                    // Drop gossip tips from a fork we did not adopt, then follow
+                    // the persisted canonical chain.
+                    while mining_update_rx.try_recv().is_ok() {}
                     current_index = get_next_mining_index(&datastore).await;
                 }
             }
@@ -135,23 +143,21 @@ pub fn start_mining_loop(
     });
 }
 
-/// Process pending mining updates from the channel
+/// Process pending mining updates from the channel.
+/// Only follow tips that are *ahead* of the in-memory index and no more than
+/// one height past the persisted tip. Stale gossip of a lower tip is not a
+/// reorg; a longer foreign fork is not our chain.
 fn process_mining_updates(
     rx: &mut tokio::sync::mpsc::UnboundedReceiver<u64>,
     mut current_index: u64,
+    datastore_next: u64,
 ) -> u64 {
+    let max_next = datastore_next.saturating_add(1);
     while let Ok(new_tip_index) = rx.try_recv() {
         let next_index = new_tip_index + 1;
-        if next_index > current_index {
+        if next_index > current_index && next_index <= max_next {
             log::info!(
                 "⛏️  Mining view updated: switching from block {} to block {}",
-                current_index,
-                next_index
-            );
-            current_index = next_index;
-        } else if next_index < current_index {
-            log::warn!(
-                "⛏️  Mining view updated: reorg detected, switching from block {} to block {}",
                 current_index,
                 next_index
             );
@@ -161,8 +167,9 @@ fn process_mining_updates(
     current_index
 }
 
-/// Update mining index from datastore if chain tip has changed.
-/// Uses observer's get_chain_tip_index for the actual chain query.
+/// Update mining index from datastore if the persisted tip has moved *ahead*.
+/// Datastore writes can lag the in-memory chain; never yank the miner backward
+/// onto a height it already skipped, or it spins on "block already exists".
 async fn update_from_datastore(
     datastore: &Arc<Mutex<DatastoreManager>>,
     current_index: u64,
@@ -170,7 +177,7 @@ async fn update_from_datastore(
     let tip = get_chain_tip_index(datastore).await;
     let next_index = tip + 1;
 
-    if next_index != current_index {
+    if next_index > current_index {
         log::info!(
             "⛏️  Detected chain tip change via datastore: updating from {} to {}",
             current_index,

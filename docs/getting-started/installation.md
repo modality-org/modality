@@ -5,7 +5,17 @@ title: Installation
 
 # Installation
 
-## Prerequisites
+## Install a binary
+
+```bash
+curl -fsSL https://www.modality.org/install.sh | sh
+```
+
+That installs the `modal` CLI. Then create [your first contract](./first-contract.md).
+Build from source when you need a development binary or the lean onboarding
+wrapper.
+
+## Prerequisites (from source)
 
 - Git
 - Rust toolchain (for building from source)

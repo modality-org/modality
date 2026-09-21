@@ -114,7 +114,7 @@ mod tests {
     #[tokio::test]
     #[ignore] // Only run manually as it requires network access
     async fn test_download_from_binary_server() {
-        let base_url = "http://get.modal.money";
+        let base_url = "https://get.modality.org";
         let branch = "testnet";
 
         let binary_path = download_from_binary_server(base_url, branch).await.unwrap();

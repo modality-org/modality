@@ -1,0 +1,20 @@
+[Unit]
+Description=Modality hybrid testnet node
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/home/ubuntu/testnet-node
+Environment=HOME=/home/ubuntu
+Environment=PATH=/home/ubuntu/.modality/bin:/usr/local/bin:/usr/bin:/bin
+ExecStart=/home/ubuntu/.modality/bin/modal node run-hybrid --dir /home/ubuntu/testnet-node --no-tui
+Restart=on-failure
+RestartSec=5
+LimitNOFILE=65536
+# RandomX needs RAM; do not run miners on 2 GB hosts without swap.
+
+[Install]
+WantedBy=multi-user.target

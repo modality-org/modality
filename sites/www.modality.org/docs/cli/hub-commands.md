@@ -52,6 +52,8 @@ The startup command serves these REST routes:
 | `/contracts/:id/log` | `GET` | Get the commit log; accepts `limit` and `offset` query parameters |
 | `/contracts/:id/commits` | `POST` | Submit a commit |
 | `/contracts/:id/commits/:hash` | `GET` | Get one commit |
+| `/contracts/:id/push` | `POST` | Batch-push commits (`modal c push`) |
+| `/contracts/:id/pull` | `GET` | Pull commits; optional `since` query (`modal c pull`) |
 | `/templates` | `GET` | List built-in templates |
 | `/templates/:id` | `GET` | Get one template |
 

@@ -7,49 +7,56 @@ title: FAQ
 
 ## What is Modality?
 
-Modality is an open source standard for verifiable contracts.
+Modality is a verification language for agential cooperation. A contract is
+state, a model of possible moves, and accumulating rules. Every accepted
+commit is signed. Anyone can replay the log.
+
+Cooperation at the scale of many agents requires shared rules built on
+formally verified agreements, in place of trust. Formal verification already
+made computers, clouds, and medical devices reliable. This language points
+that reliability at agreements.
+
+The language, verifier, CLI (`modal`), hub, and SDK are open source.
 
 ## What are verifiable contracts?
 
-Verifiable contracts are a mechanism for ensuring the compliance of evolving constraints over data.
+A verifiable contract is an append-only log of signed commits. Rules are
+formal specifications. The next commit is accepted only if it is a valid
+model transition and satisfies every rule already on the log.
 
-Unlike smart contracts — which are implemented as computer programs and can't truly be formally verified — verifiable contracts use formal specifications that are confirmed over all possible outcomes.
+That is different from a prompt an agent can ignore, and different from a
+program that later monitoring might flag.
 
-## Why do AI agents need contracts?
+## Why do agents need contracts?
 
-As AI agents increasingly cooperate, delegate tasks, and exchange value, they need a way to make enforceable commitments — not just promises. An agent delegating work to another agent needs guarantees: that funds won't disappear, that deadlines will be honored, that authority won't be misused.
+Agents call tools, spawn other agents, and forget. They deal with strangers.
+Reputation and system prompts do not survive that.
 
-Modality gives agents a shared language for expressing and verifying these commitments mathematically.
+A counterparty needs a log they can replay: who may do what, when, and with
+what evidence — including after the process that promised it is gone.
 
-## How are verifiable contracts different from smart contracts?
+## How is this different from a smart contract?
 
-Both smart contracts and verifiable contracts keep an append-only log of interactions. Both serve to restrict the nature of those interactions.
+Smart contracts are programs, usually on a chain. Audits look for bugs in
+those programs.
 
-But only verifiable contracts provide native formal verification, ensuring that they work exactly as specified.
-
-In contrast, smart contracts are implemented as computer programs and are not able to be formally verified. Any attempt at formal verification of smart contracts is critically limited because of this. Even the most expensive audits of smart contracts are known to miss critical bugs.
-
-|                                       | Smart Contracts     | Verifiable Contracts       |
-| :------------------------------------ | :-----------------: | :------------------------: |
-| Does it need a blockchain?            | ✅                   | ❌                         |
-| Does it keep an append-only log?      | ✅                   | ✅                         |
-| Does it restrict interactions?        | ✅                   | ✅                         |
-| Does it ensure correctness?           | ❌                   | ✅                         |
-| Is it formally specified?             | ❌                   | ✅                         |
+A Modality contract is specified as a model and formulas. The verifier
+rejects a commit that has no valid witness. You can start locally, or share
+through a [Contract Hub](/docs/tutorials/contract-hub). You do not need a
+chain to check an agreement.
 
 ## How do verifiable contracts work?
 
-Verifiable contracts are an append-only log of interactions called commits.
+Each commit may post state, change the witness model, or add a rule.
 
-Each commit may contain values and rules. Values are recorded in the log. Rules are formal specifications that constrain future commits.
-
-Whenever a new rule is added, a governing model is provided, proving that all rules remain satisfied.
-
-Whenever a commit is added, it must match a valid transition in the governing model. The model's transition predicates are the commit-time enforcement mechanism; rules constrain which models are acceptable witnesses.
+When a rule is added, a governing model must still satisfy **all** accumulated
+rules. When a commit is added, it must match a valid transition in that model.
+Predicates on the transition (signatures, evidence, time) are checked at
+commit time.
 
 ## What do rules look like?
 
-Modality rules constrain who can commit based on signatures and state. They use predicates like:
+Modality rules constrain who can commit, based on signatures and posted state:
 
 ```modality
 // All commits must be signed by alice or bob
@@ -62,26 +69,39 @@ always(!<+modifies(/members)> true | <+modifies(/members) +all_signed(/members)>
 always(!<+RELEASE> true | <+RELEASE +after(/deadlines/expiry.datetime) +signed_by(/users/buyer.id)> true)
 ```
 
-For fixed quorum examples, use explicit signer combinations in formulas. Governing models can use predicate guards such as `+threshold("2", /treasury/signers.json)` on transitions.
+For fixed quorum examples, use explicit signer combinations in formulas.
+Governing models can use predicate guards such as
+`+threshold("2", /treasury/signers.json)` on transitions.
 
-## Do I need a blockchain to use Modality?
+See the [formula cookbook](/docs/language/formula-cookbook).
 
-No. Modality works without a blockchain. You can use a Hub — a lightweight server for contract collaboration — or even work entirely locally.
+## Do I need a network to use Modality?
 
-The Modality Network is an optional blockchain for applications that benefit from public, decentralized posting of verifiable contracts.
+No. A contract is files on disk. Start locally, or use a
+[Contract Hub](/docs/tutorials/contract-hub) when several parties need to
+push and pull.
 
 ## How do I get started?
 
-Check out the [Quickstart](/docs/quickstart) to create your first verifiable contract, or browse the [tutorials](/docs/category/tutorials) for step-by-step walkthroughs.
+Install `modal`, then create [your first contract](/docs/getting-started/first-contract).
+Tutorials cover escrow, membership, and hub workflows.
 
 ## Is Modality open source?
 
-Yes. Modality is fully open source. You can find the code on [GitHub](https://github.com/modality-org/modality).
+Yes. The language, verifier, CLI, hub, SDK, and node are open source:
+[github.com/modality-org/modality](https://github.com/modality-org/modality).
 
 ## Who started this project?
 
-Modality was initially conceptualized by [Bud Mishra](https://scholar.google.com/citations?user=kXVBr20AAAAJ&hl=en&oi=ao) and [Foy Savas](https://foysavas.com).
+Modality was initially conceptualized by
+[Bud Mishra](https://scholar.google.com/citations?user=kXVBr20AAAAJ&hl=en&oi=ao)
+and [Foy Savas](https://foysavas.com).
 
-Notably, [Bud was the first person to use formal verification to identify a hardware bug](https://discuss.modality.org/t/the-birth-of-model-checking/14/2). When formal verification for hardware was being initially developed, almost everyone considered it impossible or impractical. Today, formal verification is a standard part of the hardware development process.
+[Bud was among the first to use formal verification to identify a hardware
+bug](https://discuss.modality.org/t/the-birth-of-model-checking/14/2). When
+formal verification for hardware was being developed, almost everyone
+considered it impossible or impractical. Today it is a standard part of
+hardware development.
 
-Watch Foy's presentation on Modality: [**Verifiable Contracts for AI Agent Cooperation**](https://www.youtube.com/watch?v=poOqWdh10BQ)
+Watch Foy's presentation:
+[**Verifiable Contracts for AI Agent Cooperation**](https://www.youtube.com/watch?v=poOqWdh10BQ)

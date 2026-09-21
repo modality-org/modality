@@ -56,6 +56,7 @@ pub struct Node {
     pub datastore_manager: Arc<Mutex<DatastoreManager>>,
     pub miner_nominees: Option<Vec<String>>,
     pub hybrid_consensus: bool,
+    pub run_miner: bool,
     pub run_validator: bool,
     pub run_contract_validator: bool,
     pub network_name: String,
@@ -121,6 +122,12 @@ impl Node {
                 Some("contract-validator" | "contract_validator")
             );
 
+        let run_miner = if let Some(ref run_as) = config.run_as {
+            matches!(run_as.to_ascii_lowercase().as_str(), "miner" | "hybrid")
+        } else {
+            config.run_miner.unwrap_or(true)
+        };
+
         let network_name = config.get_network_name();
         let role = config.get_node_role();
         let status_port = config.status_port;
@@ -165,6 +172,7 @@ impl Node {
             datastore_manager,
             miner_nominees,
             hybrid_consensus,
+            run_miner,
             run_validator,
             run_contract_validator,
             network_name,
@@ -223,6 +231,9 @@ impl Node {
             listeners: self.listeners.clone(),
             status_port: self.status_port,
             hybrid_consensus: self.hybrid_consensus,
+            run_miner: self.run_miner,
+            run_validator: self.run_validator,
+            run_contract_validator: self.run_contract_validator,
             datastore: self.datastore_manager.clone(),
             swarm: self.swarm.clone(),
             mining_metrics: self.mining_metrics.clone(),
@@ -518,17 +529,8 @@ impl Node {
     pub async fn start_status_server(&mut self) -> Result<()> {
         if let Some(port) = self.status_port {
             log::info!("Starting HTTP status server on port {}", port);
-            let handle = crate::status_server::start_status_server(
-                port,
-                self.peerid,
-                self.datastore_manager.clone(),
-                self.swarm.clone(),
-                self.listeners.clone(),
-                self.mining_metrics.clone(),
-                self.network_name.clone(),
-                self.role.clone(),
-            )
-            .await?;
+            let handle =
+                crate::status_server::start_status_server(port, self.status_source()).await?;
             self.status_server_task = Some(handle);
         }
         Ok(())
@@ -543,13 +545,7 @@ impl Node {
             );
             let handle = crate::status_server::start_status_html_writer(
                 dir.clone(),
-                self.peerid,
-                self.datastore_manager.clone(),
-                self.swarm.clone(),
-                self.listeners.clone(),
-                self.mining_metrics.clone(),
-                self.network_name.clone(),
-                self.role.clone(),
+                self.status_source(),
                 self.shutdown_tx.subscribe(),
             )
             .await?;

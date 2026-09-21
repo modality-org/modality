@@ -6,12 +6,15 @@ use tokio::sync::{broadcast, Mutex};
 
 use libp2p::Multiaddr;
 use modality_datastore::models::miner::MinerBlock;
-use modality_datastore::models::validator::ValidatorBlock;
+use modality_datastore::models::validator::{
+    get_validator_set_for_mining_epoch_hybrid_multi, ValidatorBlock,
+};
 use modality_datastore::DatastoreManager;
 
 use crate::constants::{
     BFT_THRESHOLD_PERCENTAGE, NETWORK_HASHRATE_SAMPLE_SIZE, STATUS_EPOCHS_TO_SHOW,
-    STATUS_FINALIZED_ROUNDS_TO_SHOW, STATUS_RECENT_BLOCKS_COUNT,
+    STATUS_FINALIZED_ROUNDS_TO_SHOW, STATUS_FIRST_BLOCKS_COUNT, STATUS_RECENT_BLOCKS_COUNT,
+    STATUS_RECENT_PREFIX_CERTS_COUNT,
 };
 use crate::mining_metrics::SharedMiningMetrics;
 
@@ -24,6 +27,9 @@ pub struct NodeStatusSource {
     pub listeners: Vec<Multiaddr>,
     pub status_port: Option<u16>,
     pub hybrid_consensus: bool,
+    pub run_miner: bool,
+    pub run_validator: bool,
+    pub run_contract_validator: bool,
     pub datastore: Arc<Mutex<DatastoreManager>>,
     pub swarm: Arc<Mutex<crate::swarm::NodeSwarm>>,
     pub mining_metrics: SharedMiningMetrics,
@@ -50,6 +56,8 @@ impl NodeStatusSource {
 pub struct NodeStatus {
     pub peerid: String,
     pub role: String,
+    pub role_display: String,
+    pub active_roles: Vec<&'static str>,
     pub network_name: String,
     pub hybrid_consensus: bool,
     pub listeners: Vec<String>,
@@ -62,18 +70,31 @@ pub struct NodeStatus {
     pub total_miner_blocks: usize,
     pub blocks_mined_by_node: usize,
     pub current_difficulty: String,
+    pub cumulative_difficulty: u128,
     pub miner_hashrate: String,
     pub network_hashrate: String,
     pub current_round: u64,
+    pub genesis: Option<GenesisBlock>,
     pub recent_blocks: Vec<BlockStatus>,
+    pub first_blocks: Vec<BlockStatus>,
     pub finalized_rounds: Vec<RoundStatus>,
     pub epoch_nominees: Vec<EpochNominees>,
+    pub sequencer_committee: Vec<String>,
+    pub sequencer_nomination_epoch: Option<u64>,
+    pub named_validators: Vec<String>,
+    pub validator_min_stake: u64,
+    pub validator_qc_numerator: u64,
+    pub validator_qc_denominator: u64,
+    pub dest_apply_requires_cert: bool,
+    pub recent_prefix_certs: Vec<PrefixCertStatus>,
+    pub pending_prefix_cert_requests: usize,
 }
 
 #[derive(Debug, Clone)]
 pub struct PeerStatus {
     pub peer_id: String,
     pub role: Option<String>,
+    pub status_url: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -82,6 +103,20 @@ pub struct BlockStatus {
     pub epoch: u64,
     pub hash: String,
     pub nominee: String,
+    pub timestamp: i64,
+    pub time_delta: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct GenesisBlock {
+    pub index: u64,
+    pub hash: String,
+    pub epoch: u64,
+    pub timestamp: i64,
+    pub previous_hash: String,
+    pub data_hash: String,
+    pub difficulty: String,
+    pub nominated_peer_id: String,
 }
 
 #[derive(Debug, Clone)]
@@ -93,9 +128,25 @@ pub struct RoundStatus {
 }
 
 #[derive(Debug, Clone)]
+pub struct EpochNominee {
+    pub rank: usize,
+    pub block_index: u64,
+    pub block_hash: String,
+    pub peer_id: String,
+}
+
+#[derive(Debug, Clone)]
 pub struct EpochNominees {
     pub epoch: u64,
-    pub nominees: Vec<String>,
+    pub nominees: Vec<EpochNominee>,
+}
+
+#[derive(Debug, Clone)]
+pub struct PrefixCertStatus {
+    pub source_contract: String,
+    pub through_commit: String,
+    pub validator_peer_id: String,
+    pub prefix_digest: String,
 }
 
 impl NodeStatus {
@@ -105,6 +156,66 @@ impl NodeStatus {
         }
         (self.chain_tip % self.blocks_per_epoch) as f64 / self.blocks_per_epoch as f64
     }
+
+    pub fn hybrid_label(&self) -> &'static str {
+        if self.hybrid_consensus {
+            "on (sequencers from epoch N−2)"
+        } else {
+            "off"
+        }
+    }
+}
+
+/// Map stored / gossip role strings onto protocol display names.
+pub fn display_node_role(role: &str) -> String {
+    match role.trim().to_ascii_lowercase().as_str() {
+        "miner" => "Miner".to_string(),
+        "hybrid" | "miner+validator" | "miner+sequencer" => "Hybrid".to_string(),
+        "validator" | "sequencer" => "Sequencer".to_string(),
+        "contract-validator" | "contract_validator" => "Validator".to_string(),
+        "observer" => "Observer".to_string(),
+        "noop" => "Noop".to_string(),
+        "" => "Unknown".to_string(),
+        other => other.to_string(),
+    }
+}
+
+/// Protocol role chips for this process. A node may run one, two, or all three.
+pub fn derive_active_roles(
+    role: &str,
+    run_miner: bool,
+    run_validator: bool,
+    run_contract_validator: bool,
+    hybrid_consensus: bool,
+    named_validators: &[String],
+    peerid: &str,
+) -> Vec<&'static str> {
+    let r = role.trim().to_ascii_lowercase();
+    let miner = run_miner
+        || matches!(
+            r.as_str(),
+            "miner" | "hybrid" | "miner+validator" | "miner+sequencer"
+        );
+    let sequencer = run_validator
+        || matches!(
+            r.as_str(),
+            "sequencer" | "validator" | "hybrid" | "miner+validator" | "miner+sequencer"
+        )
+        || (hybrid_consensus && miner);
+    let validator = run_contract_validator
+        || named_validators.iter().any(|id| id == peerid)
+        || matches!(r.as_str(), "contract-validator" | "contract_validator");
+    let mut out = Vec::new();
+    if miner {
+        out.push("Miner");
+    }
+    if sequencer {
+        out.push("Sequencer");
+    }
+    if validator {
+        out.push("Validator");
+    }
+    out
 }
 
 /// Collect a live status snapshot from node handles.
@@ -134,45 +245,111 @@ pub async fn collect_node_status(source: &NodeStatusSource) -> anyhow::Result<No
         .filter(|block| block.nominated_peer_id == peerid_str)
         .count();
 
+    let cumulative_difficulty: u128 = miner_blocks
+        .iter()
+        .filter_map(|block| block.target_difficulty.parse::<u128>().ok())
+        .sum();
+
     let network_hashrate = calculate_network_hashrate(&miner_blocks);
     let miner_hashrate = {
         let metrics = source.mining_metrics.read().await;
         metrics.average_hashrate()
     };
 
+    let block_map: std::collections::HashMap<u64, &MinerBlock> = miner_blocks
+        .iter()
+        .map(|block| (block.index, block))
+        .collect();
+
     let mut recent_blocks: Vec<BlockStatus> = miner_blocks
         .iter()
-        .map(|b| BlockStatus {
-            index: b.index,
-            epoch: b.epoch,
-            hash: b.hash.clone(),
-            nominee: b.nominated_peer_id.clone(),
-        })
+        .map(|b| block_status(b, &block_map))
         .collect();
     recent_blocks.sort_by_key(|b| std::cmp::Reverse(b.index));
-    recent_blocks.truncate(STATUS_RECENT_BLOCKS_COUNT.min(16));
+    recent_blocks.truncate(STATUS_RECENT_BLOCKS_COUNT);
+
+    let mut first_blocks: Vec<BlockStatus> = miner_blocks
+        .iter()
+        .map(|b| block_status(b, &block_map))
+        .collect();
+    first_blocks.sort_by_key(|b| b.index);
+    first_blocks.truncate(STATUS_FIRST_BLOCKS_COUNT);
+
+    let genesis = miner_blocks.iter().find(|b| b.index == 0).map(|block| {
+        GenesisBlock {
+            index: block.index,
+            hash: block.hash.clone(),
+            epoch: block.epoch,
+            timestamp: block.timestamp,
+            previous_hash: block.previous_hash.clone(),
+            data_hash: block.data_hash.clone(),
+            difficulty: block.target_difficulty.clone(),
+            nominated_peer_id: block.nominated_peer_id.clone(),
+        }
+    });
 
     let mut peers = Vec::new();
     for peer_id in &peer_ids {
         let peer_id_str = peer_id.to_string();
-        let role = modality_datastore::models::PeerInfo::find_one(&mgr, &peer_id_str)
+        let info = modality_datastore::models::PeerInfo::find_one(&mgr, &peer_id_str)
             .await
             .ok()
-            .flatten()
-            .and_then(|info| info.role);
+            .flatten();
         peers.push(PeerStatus {
             peer_id: peer_id_str,
-            role,
+            role: info.as_ref().and_then(|i| i.role.clone()),
+            status_url: info.and_then(|i| i.status_url),
         });
     }
 
     let finalized_rounds = collect_finalized_rounds(&mgr, current_round).await;
     let epoch_nominees = collect_epoch_nominees(&miner_blocks, current_epoch, blocks_per_epoch);
+
+    let (sequencer_committee, sequencer_nomination_epoch) =
+        if source.hybrid_consensus && current_epoch >= 2 {
+            match get_validator_set_for_mining_epoch_hybrid_multi(&mgr, current_epoch).await {
+                Ok(Some(set)) => (
+                    set.get_active_validators(),
+                    Some(current_epoch.saturating_sub(2)),
+                ),
+                _ => (Vec::new(), Some(current_epoch.saturating_sub(2))),
+            }
+        } else {
+            (Vec::new(), None)
+        };
+
+    let named_validators = mgr.contract_validators().unwrap_or_default();
+    let validator_min_stake = mgr.validator_min_stake().unwrap_or(0);
+    let validator_qc_numerator = mgr.validator_qc_numerator().unwrap_or(2);
+    let validator_qc_denominator = mgr.validator_qc_denominator().unwrap_or(3);
+    let dest_apply_requires_cert = mgr.dest_apply_requires_validator_cert().unwrap_or(false);
+    let recent_prefix_certs = mgr
+        .list_recent_prefix_certs(STATUS_RECENT_PREFIX_CERTS_COUNT)
+        .unwrap_or_default()
+        .iter()
+        .map(prefix_cert_status)
+        .collect();
+    let pending_prefix_cert_requests = mgr
+        .peek_prefix_cert_requests()
+        .map(|r| r.len())
+        .unwrap_or(0);
+
+    let active_roles = derive_active_roles(
+        &source.role,
+        source.run_miner,
+        source.run_validator,
+        source.run_contract_validator,
+        source.hybrid_consensus,
+        &named_validators,
+        &peerid_str,
+    );
     drop(mgr);
 
     Ok(NodeStatus {
         peerid: peerid_str,
         role: source.role.clone(),
+        role_display: display_node_role(&source.role),
+        active_roles,
         network_name: source.network_name.clone(),
         hybrid_consensus: source.hybrid_consensus,
         listeners: source.listeners.iter().map(|l| l.to_string()).collect(),
@@ -185,13 +362,71 @@ pub async fn collect_node_status(source: &NodeStatusSource) -> anyhow::Result<No
         total_miner_blocks: miner_blocks.len(),
         blocks_mined_by_node,
         current_difficulty,
+        cumulative_difficulty,
         miner_hashrate: format_hashrate(miner_hashrate),
         network_hashrate: format_hashrate(network_hashrate),
         current_round,
+        genesis,
         recent_blocks,
+        first_blocks,
         finalized_rounds,
         epoch_nominees,
+        sequencer_committee,
+        sequencer_nomination_epoch,
+        named_validators,
+        validator_min_stake,
+        validator_qc_numerator,
+        validator_qc_denominator,
+        dest_apply_requires_cert,
+        recent_prefix_certs,
+        pending_prefix_cert_requests,
     })
+}
+
+fn block_status(
+    block: &MinerBlock,
+    block_map: &std::collections::HashMap<u64, &MinerBlock>,
+) -> BlockStatus {
+    let time_delta = if block.index == 0 {
+        "-".to_string()
+    } else if let Some(parent) = block_map.get(&(block.index - 1)) {
+        (block.timestamp - parent.timestamp).to_string()
+    } else {
+        "N/A".to_string()
+    };
+    BlockStatus {
+        index: block.index,
+        epoch: block.epoch,
+        hash: block.hash.clone(),
+        nominee: block.nominated_peer_id.clone(),
+        timestamp: block.timestamp,
+        time_delta,
+    }
+}
+
+fn prefix_cert_status(v: &serde_json::Value) -> PrefixCertStatus {
+    PrefixCertStatus {
+        source_contract: v
+            .get("source_contract")
+            .and_then(|x| x.as_str())
+            .unwrap_or("-")
+            .to_string(),
+        through_commit: v
+            .get("through_commit")
+            .and_then(|x| x.as_str())
+            .unwrap_or("-")
+            .to_string(),
+        validator_peer_id: v
+            .get("validator_peer_id")
+            .and_then(|x| x.as_str())
+            .unwrap_or("-")
+            .to_string(),
+        prefix_digest: v
+            .get("prefix_digest")
+            .and_then(|x| x.as_str())
+            .unwrap_or("-")
+            .to_string(),
+    }
 }
 
 async fn collect_finalized_rounds(mgr: &DatastoreManager, current_round: u64) -> Vec<RoundStatus> {
@@ -216,7 +451,7 @@ async fn collect_finalized_rounds(mgr: &DatastoreManager, current_round: u64) ->
         } else if completion_pct > 0.0 {
             "Partial"
         } else {
-            "In progress"
+            "In Progress"
         };
         rounds.push(RoundStatus {
             round_id,
@@ -257,11 +492,19 @@ fn collect_epoch_nominees(
         }
         let shuffled_indices =
             modality_common::shuffle::fisher_yates_shuffle(seed, epoch_blocks.len());
-        let mut nominees: Vec<String> = shuffled_indices
+        let nominees: Vec<EpochNominee> = shuffled_indices
             .into_iter()
-            .map(|original_idx| epoch_blocks[original_idx].nominated_peer_id.clone())
+            .enumerate()
+            .map(|(rank, original_idx)| {
+                let block = epoch_blocks[original_idx];
+                EpochNominee {
+                    rank: rank + 1,
+                    block_index: block.index,
+                    block_hash: block.hash.clone(),
+                    peer_id: block.nominated_peer_id.clone(),
+                }
+            })
             .collect();
-        nominees.truncate(8);
         out.push(EpochNominees { epoch, nominees });
     }
     out
@@ -320,8 +563,59 @@ pub fn format_hashrate(hashrate: f64) -> String {
 }
 
 #[cfg(test)]
+pub(crate) fn sample_status() -> NodeStatus {
+    NodeStatus {
+        peerid: String::new(),
+        role: String::new(),
+        role_display: "Miner".into(),
+        active_roles: vec!["Miner"],
+        network_name: String::new(),
+        hybrid_consensus: true,
+        listeners: vec![],
+        status_url: None,
+        connected_peers: 0,
+        peers: vec![],
+        chain_tip: 90,
+        current_epoch: 2,
+        blocks_per_epoch: 40,
+        total_miner_blocks: 91,
+        blocks_mined_by_node: 0,
+        current_difficulty: "1".into(),
+        cumulative_difficulty: 1,
+        miner_hashrate: "0".into(),
+        network_hashrate: "0".into(),
+        current_round: 0,
+        genesis: None,
+        recent_blocks: vec![],
+        first_blocks: vec![],
+        finalized_rounds: vec![],
+        epoch_nominees: vec![],
+        sequencer_committee: vec![],
+        sequencer_nomination_epoch: None,
+        named_validators: vec![],
+        validator_min_stake: 0,
+        validator_qc_numerator: 2,
+        validator_qc_denominator: 3,
+        dest_apply_requires_cert: false,
+        recent_prefix_certs: vec![],
+        pending_prefix_cert_requests: 0,
+    }
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn display_node_role_maps_protocol_names() {
+        assert_eq!(display_node_role("miner"), "Miner");
+        assert_eq!(display_node_role("hybrid"), "Hybrid");
+        assert_eq!(display_node_role("Miner+Validator"), "Hybrid");
+        assert_eq!(display_node_role("validator"), "Sequencer");
+        assert_eq!(display_node_role("sequencer"), "Sequencer");
+        assert_eq!(display_node_role("contract-validator"), "Validator");
+        assert_eq!(display_node_role("observer"), "Observer");
+    }
 
     #[test]
     fn format_hashrate_uses_suffixes() {
@@ -333,28 +627,40 @@ mod tests {
 
     #[test]
     fn epoch_progress_is_fraction_of_blocks_per_epoch() {
-        let status = NodeStatus {
-            peerid: String::new(),
-            role: String::new(),
-            network_name: String::new(),
-            hybrid_consensus: true,
-            listeners: vec![],
-            status_url: None,
-            connected_peers: 0,
-            peers: vec![],
-            chain_tip: 90,
-            current_epoch: 2,
-            blocks_per_epoch: 40,
-            total_miner_blocks: 91,
-            blocks_mined_by_node: 0,
-            current_difficulty: "1".into(),
-            miner_hashrate: "0".into(),
-            network_hashrate: "0".into(),
-            current_round: 0,
-            recent_blocks: vec![],
-            finalized_rounds: vec![],
-            epoch_nominees: vec![],
-        };
+        let status = sample_status();
         assert!((status.epoch_progress() - 0.25).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn hybrid_miner_shows_miner_and_sequencer() {
+        let roles = derive_active_roles("hybrid", true, false, false, true, &[], "peer");
+        assert_eq!(roles, vec!["Miner", "Sequencer"]);
+    }
+
+    #[test]
+    fn named_peer_is_validator() {
+        let named = vec!["peer1".to_string()];
+        let roles = derive_active_roles("miner", true, false, false, true, &named, "peer1");
+        assert!(roles.contains(&"Validator"));
+    }
+
+    #[test]
+    fn observer_is_none_of_the_three() {
+        let roles = derive_active_roles("observer", false, false, false, true, &[], "peer");
+        assert!(roles.is_empty());
+    }
+
+    #[test]
+    fn contract_validator_role_is_validator_only() {
+        let roles = derive_active_roles(
+            "contract-validator",
+            false,
+            false,
+            true,
+            false,
+            &[],
+            "peer",
+        );
+        assert_eq!(roles, vec!["Validator"]);
     }
 }

@@ -75,11 +75,14 @@ pub const STATUS_RECENT_BLOCKS_COUNT: usize = 80;
 /// Number of first blocks to show in status page
 pub const STATUS_FIRST_BLOCKS_COUNT: usize = 40;
 
-/// Number of epochs to show in status page sequencing tab
+/// Number of epochs to show in status page sequencers tab
 pub const STATUS_EPOCHS_TO_SHOW: u64 = 5;
 
-/// Number of finalized rounds to show in status page validators tab
+/// Number of finalized Shoal rounds to show in status page sequencers tab
 pub const STATUS_FINALIZED_ROUNDS_TO_SHOW: u64 = 10;
+
+/// Prefix certs to list on the validators tab
+pub const STATUS_RECENT_PREFIX_CERTS_COUNT: usize = 20;
 
 /// Blocks for network hashrate calculation
 pub const NETWORK_HASHRATE_SAMPLE_SIZE: usize = 10;

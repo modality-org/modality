@@ -1,0 +1,29 @@
+{
+  "id": "12D3KooWLHTsoeBE1ZWBgzumeSi6hsm3o9AndFufrGx7xLTyq2dw",
+  "passfile_path": "./node.modal_passfile",
+  "data_dir": "./data",
+  "logs_path": "./logs",
+  "logs_enabled": true,
+  "log_level": "info",
+  "bootup_enabled": true,
+  "bootup_prune_old_genesis_blocks": false,
+  "listeners": [
+    "/ip4/0.0.0.0/tcp/4040/ws"
+  ],
+  "bootstrappers": [
+    "/dns4/node1.testnet.modality.network/tcp/4040/ws/p2p/12D3KooWE4NPREQxLkevA5Rxd61Xiue4tTkUGN22qNABD7Mw5JhM",
+    "/dns4/node2.testnet.modality.network/tcp/4040/ws/p2p/12D3KooWJpFYTRHNuPfwoj1hTf87aqB7CDJHKtVFp3RhPNB1DrRw"
+  ],
+  "network_config_path": "modality-networks://testnet",
+  "run_miner": true,
+  "miner_nominees": [
+    "12D3KooWE4NPREQxLkevA5Rxd61Xiue4tTkUGN22qNABD7Mw5JhM",
+    "12D3KooWJpFYTRHNuPfwoj1hTf87aqB7CDJHKtVFp3RhPNB1DrRw",
+    "12D3KooWLHTsoeBE1ZWBgzumeSi6hsm3o9AndFufrGx7xLTyq2dw"
+  ],
+  "hybrid_consensus": true,
+  "run_validator": true,
+  "initial_difficulty": 1,
+  "status_port": 3103,
+  "status_url": "https://node3.testnet.modality.network"
+}

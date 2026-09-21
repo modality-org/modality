@@ -11,17 +11,22 @@ PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 BUILD_DIR="$PROJECT_ROOT/build"
 GIT_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
 GIT_COMMIT=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+# Publish current HEAD onto the testnet/mainnet download channel without
+# requiring a git checkout of that branch.
+if [[ -n "${MODAL_PACKAGE_CHANNEL:-}" ]]; then
+    GIT_BRANCH="$MODAL_PACKAGE_CHANNEL"
+fi
 
 # Validate allowed branches
 ALLOWED_BRANCHES=("mainnet" "testnet")
 if [[ ! " ${ALLOWED_BRANCHES[@]} " =~ " ${GIT_BRANCH} " ]]; then
     echo -e "\033[0;31m[ERROR]\033[0m Branch '$GIT_BRANCH' is not allowed. Allowed branches: ${ALLOWED_BRANCHES[*]}"
-    echo -e "\033[0;31m[ERROR]\033[0m Please switch to one of the allowed branches before running this script."
+    echo -e "\033[0;31m[ERROR]\033[0m Please switch to one of the allowed branches, or set MODAL_PACKAGE_CHANNEL=testnet."
     exit 1
 fi
 
 # Default values
-S3_BUCKET="get.modal.money-content"
+S3_BUCKET="get.modality.org-content"
 S3_PREFIX=""
 AWS_REGION="us-east-1"
 SKIP_CARGO_REGISTRY=true
@@ -59,7 +64,7 @@ USAGE:
     $0 [OPTIONS]
 
 OPTIONS:
-    --bucket BUCKET         S3 bucket name for uploads (default: get.modal.money-content)
+    --bucket BUCKET         S3 bucket name for uploads (default: get.modality.org-content)
     --prefix PREFIX         S3 prefix for uploads (default: empty)
     --region REGION         AWS region (default: us-east-1)
     --build-dir DIR         Build directory (default: PROJECT_ROOT/build)
@@ -80,12 +85,12 @@ EXAMPLES:
 
 S3 PATH STRUCTURE:
     Uploads will be organized as: s3://BUCKET/PREFIX/BRANCH/VERSION/
-    Default: s3://get.modal.money-content/BRANCH/VERSION/
-    Example: s3://get.modal.money-content/testnet/20251118_143022-a1b2c3d/
+    Default: s3://get.modality.org-content/BRANCH/VERSION/
+    Example: s3://get.modality.org-content/testnet/20251118_143022-a1b2c3d/
 
 CARGO REGISTRY:
     The script also publishes to a Cargo sparse registry for easy installation:
-    cargo install --index sparse+https://get.modal.money/BRANCH/VERSION/cargo-registry/index/ modal
+    cargo install --index sparse+https://get.modality.org/BRANCH/VERSION/cargo-registry/index/ modal
 
 EOF
 }
@@ -167,16 +172,16 @@ invalidate_cloudfront_cache() {
     log_info "Invalidating CloudFront cache..."
     
     # Get the CloudFront distribution ID from CDK exports, or use default
-    # The CDK stack exports this as "GetModalMoneyDistributionId"
+    # The CDK stack exports this as "GetModalityOrgDistributionId"
     DISTRIBUTION_ID=$(aws cloudformation describe-stacks \
         --region "$AWS_REGION" \
-        --query "Stacks[?StackName=='GetModalMoneyStack'].Outputs[?ExportName=='GetModalMoneyDistributionId'].OutputValue" \
+        --query "Stacks[?StackName=='GetModalityOrgStack'].Outputs[?ExportName=='GetModalityOrgDistributionId'].OutputValue" \
         --output text 2>/dev/null)
     
     # Use default distribution ID if not found in CloudFormation
     if [[ -z "$DISTRIBUTION_ID" || "$DISTRIBUTION_ID" == "None" ]]; then
         log_info "CloudFront distribution ID not found in CloudFormation exports"
-        DISTRIBUTION_ID="EAB0G50HTKF8I"
+        DISTRIBUTION_ID="E1FBO6H39OPO86"
         log_info "Using default distribution ID: $DISTRIBUTION_ID"
     fi
     
@@ -243,9 +248,9 @@ upload_to_s3() {
     # Public URLs (assuming the bucket is configured for static website hosting)
     log_info ""
     log_info "Public URLs:"
-    log_info "  Version: https://get.modal.money/$GIT_BRANCH/$VERSION/"
+    log_info "  Version: https://get.modality.org/$GIT_BRANCH/$VERSION/"
     if [[ "$UPLOAD_LATEST" == true ]]; then
-        log_info "  Latest:  https://get.modal.money/$GIT_BRANCH/latest/"
+        log_info "  Latest:  https://get.modality.org/$GIT_BRANCH/latest/"
     fi
 }
 
@@ -262,18 +267,18 @@ publish_to_cargo_registry() {
     CARGO_REGISTRY_PATH="$S3_PREFIX$GIT_BRANCH/$VERSION/cargo-registry/"
     
     # Check if build-registry.sh exists
-    if [[ ! -f "$PROJECT_ROOT/sites/get.modal.money/build-registry.sh" ]]; then
+    if [[ ! -f "$PROJECT_ROOT/sites/get.modality.org/build-registry.sh" ]]; then
         log_warning "build-registry.sh not found, skipping Cargo registry publishing"
         return 0
     fi
     
     # Build registry using dedicated script
     log_info "Building registry with dedicated script..."
-    "$PROJECT_ROOT/sites/get.modal.money/build-registry.sh"
+    "$PROJECT_ROOT/sites/get.modality.org/build-registry.sh"
     
     # Upload registry to S3
     log_info "Uploading registry to S3..."
-    aws s3 sync "$PROJECT_ROOT/sites/get.modal.money/registry/" "s3://$S3_BUCKET/$CARGO_REGISTRY_PATH" \
+    aws s3 sync "$PROJECT_ROOT/sites/get.modality.org/registry/" "s3://$S3_BUCKET/$CARGO_REGISTRY_PATH" \
         --region "$AWS_REGION" \
         --exclude "*.DS_Store" \
         --exclude "*.git*" \
@@ -288,7 +293,7 @@ publish_to_cargo_registry() {
     fi
     
     # Create registry config
-    REGISTRY_CONFIG_URL="https://get.modal.money"
+    REGISTRY_CONFIG_URL="https://get.modality.org"
     REGISTRY_INDEX_URL="$REGISTRY_CONFIG_URL/$GIT_BRANCH/$VERSION/cargo-registry/index"
     
     log_success "Cargo registry published successfully!"
@@ -308,7 +313,7 @@ EOF
     log_info "  index = \"$REGISTRY_INDEX_URL\""
     log_info ""
     log_info "Then install with:"
-    log_info "  cargo install --index sparse+https://get.modal.money/$GIT_BRANCH/$VERSION/cargo-registry/index/ modal"
+    log_info "  cargo install --index sparse+https://get.modality.org/$GIT_BRANCH/$VERSION/cargo-registry/index/ modal"
 }
 
 # Main execution

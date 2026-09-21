@@ -4,28 +4,105 @@
  * work well for content-centric websites.
  */
 
-/* You can override the default Infima variables here. */
+/* Working Modality accent; do not keep the default Docusaurus greens. */
 :root {
-  --ifm-color-primary: #2e8555;
-  --ifm-color-primary-dark: #29784c;
-  --ifm-color-primary-darker: #277148;
-  --ifm-color-primary-darkest: #205d3b;
-  --ifm-color-primary-light: #33925d;
-  --ifm-color-primary-lighter: #359962;
-  --ifm-color-primary-lightest: #3cad6e;
+  --ifm-color-primary: #4a6aef;
+  --ifm-color-primary-dark: #3b58d6;
+  --ifm-color-primary-darker: #3450c7;
+  --ifm-color-primary-darkest: #2b42a4;
+  --ifm-color-primary-light: #6c8cff;
+  --ifm-color-primary-lighter: #8aa3ff;
+  --ifm-color-primary-lightest: #adc0ff;
+  --ifm-font-family-base: Inter, system-ui, -apple-system, sans-serif;
+  --ifm-font-family-monospace: "JetBrains Mono", "Fira Code", ui-monospace, monospace;
+  --ifm-heading-font-weight: 700;
+  --ifm-heading-color: #0a0a0f;
+  --ifm-background-color: #ffffff;
+  --ifm-background-surface-color: #f5f6fb;
   --ifm-code-font-size: 95%;
   --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.1);
 }
 
-/* For readability concerns, you should choose a lighter palette in dark mode. */
+html, body {
+  background-color: var(--ifm-background-color);
+  color: var(--ifm-font-color-base);
+}
+
+.navbar__title {
+  letter-spacing: -0.04em;
+  font-weight: 700;
+  color: var(--ifm-heading-color);
+}
+
+.navbar {
+  box-shadow: none;
+  border-bottom: 1px solid var(--ifm-color-emphasis-200);
+}
+
+.navbar-cta {
+  background: var(--ifm-color-primary) !important;
+  color: #fff !important;
+  border-radius: 4px;
+  padding: 0.35rem 0.95rem !important;
+  margin-left: 0.4rem;
+  font-weight: 600;
+}
+
+.navbar-cta:hover {
+  background: var(--ifm-color-primary-dark) !important;
+  color: #fff !important;
+}
+
+.navbar-sidebar a.navbar-cta {
+  display: inline-flex !important;
+  width: max-content !important;
+  margin: 0.75rem 1rem;
+}
+
+/* Omarchy-like field on the homepage; Harmonic-dark when the theme is dark. */
+html:has(.homepage) {
+  overflow-x: hidden;
+  --ifm-background-color: #e4e4ea;
+  --ifm-navbar-background-color: #e4e4ea;
+  --ifm-footer-background-color: #d8d8e0;
+}
+
+html[data-theme='dark']:has(.homepage) {
+  --ifm-background-color: #0a0a0f;
+  --ifm-navbar-background-color: #0a0a0f;
+  --ifm-footer-background-color: #050510;
+}
+
+html:has(.homepage) .navbar {
+  border-bottom-color: transparent;
+}
+
+html:has(.homepage) .footer {
+  border-top: 0;
+}
+
+html:has(.homepage):not([data-theme='dark']) .footer {
+  --ifm-footer-background-color: #d8d8e0;
+  --ifm-footer-color: #3a3a48;
+  --ifm-footer-link-color: #2a2a38;
+  --ifm-footer-title-color: #0a0a0f;
+  background-color: #d8d8e0;
+}
+
 [data-theme='dark'] {
-  --ifm-color-primary: #25c2a0;
-  --ifm-color-primary-dark: #21af90;
-  --ifm-color-primary-darker: #1fa588;
-  --ifm-color-primary-darkest: #1a8870;
-  --ifm-color-primary-light: #29d5b0;
-  --ifm-color-primary-lighter: #32d8b4;
-  --ifm-color-primary-lightest: #4fddbf;
+  --ifm-color-primary: #6c8cff;
+  --ifm-color-primary-dark: #5476f5;
+  --ifm-color-primary-darker: #4a6aef;
+  --ifm-color-primary-darkest: #3450c7;
+  --ifm-color-primary-light: #8aa3ff;
+  --ifm-color-primary-lighter: #adc0ff;
+  --ifm-color-primary-lightest: #c9d6ff;
+  --ifm-heading-color: #ffffff;
+  --ifm-font-color-base: #e8e8f0;
+  --ifm-background-color: #0a0a0f;
+  --ifm-background-surface-color: #14141f;
+  --ifm-navbar-background-color: rgba(10, 10, 15, 0.92);
+  --ifm-footer-background-color: #050510;
   --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.3);
 }
 

@@ -15,7 +15,7 @@ path = "src/lib.rs"
 tokio = { version = "1.42", features = ["full"] }
 
 # WebSocket
-tokio-tungstenite = { version = "0.21", features = ["native-tls"] }
+tokio-tungstenite = { version = "0.21", features = ["rustls-tls-native-roots"] }
 futures-util = "0.3"
 
 # HTTP server (for REST fallback)

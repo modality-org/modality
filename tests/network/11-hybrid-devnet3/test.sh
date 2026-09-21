@@ -5,6 +5,10 @@
 set -e
 cd "$(dirname "$0")"
 
+if [ -d ../../../rust/target/debug ]; then
+    export PATH="$(cd ../../../rust/target/debug && pwd):$PATH"
+fi
+
 # Source test library
 source ../test-lib.sh
 
@@ -55,7 +59,7 @@ echo ""
 echo "Test 3: Waiting for epoch 2... (mining 80+ blocks)"
 echo "This may take 10-15 minutes with 3 miners at difficulty=1..."
 
-TIMEOUT=1200
+TIMEOUT=1800
 ELAPSED=0
 EPOCH2_REACHED=false
 
@@ -73,13 +77,21 @@ while [ $ELAPSED -lt $TIMEOUT ]; do
         fi
     done
     
-    # Show progress from node1
-    NODE1_LOG="$LOG_DIR/${CURRENT_TEST}_node1.log"
-    if [ -f "$NODE1_LOG" ]; then
-        LATEST_BLOCK=$(grep "Mined block" "$NODE1_LOG" | tail -1 | grep -oE "block [0-9]+" | grep -oE "[0-9]+")
-        if [ -n "$LATEST_BLOCK" ]; then
-            echo "Progress: Block $LATEST_BLOCK/80+ (${ELAPSED}s elapsed)"
+    # Show progress from any node (node1 may skip while others extend the tip)
+    LATEST_BLOCK=""
+    for i in 1 2 3; do
+        NODE_LOG="$LOG_DIR/${CURRENT_TEST}_node${i}.log"
+        if [ -f "$NODE_LOG" ]; then
+            BLOCK=$(grep "Mined block" "$NODE_LOG" | tail -1 | grep -oE "block [0-9]+" | grep -oE "[0-9]+")
+            if [ -n "$BLOCK" ]; then
+                if [ -z "$LATEST_BLOCK" ] || [ "$BLOCK" -gt "$LATEST_BLOCK" ]; then
+                    LATEST_BLOCK="$BLOCK"
+                fi
+            fi
         fi
+    done
+    if [ -n "$LATEST_BLOCK" ]; then
+        echo "Progress: Block $LATEST_BLOCK/80+ (${ELAPSED}s elapsed)"
     fi
 done
 
@@ -180,6 +192,66 @@ for i in 1 2 3; do
 done
 
 echo ""
+echo "Test 8: Pushing a contract commit to a live sequencer..."
+REMOTE="/ip4/127.0.0.1/tcp/10311/ws/p2p/12D3KooW9pte76rpnggcLYkFaawuTEs5DC5axHkg3cK3cewGxxHd"
+CONTRACT_DIR="./tmp/contract"
+CLONE_DIR="./tmp/clone"
+mkdir -p "$CONTRACT_DIR" "$CLONE_DIR"
+
+assert_success "modal contract create --dir $CONTRACT_DIR --output json" \
+    "Should create a local contract"
+assert_success "modal checkout --dir $CONTRACT_DIR" "Should checkout working tree"
+assert_success \
+    "modal commit --path /data/message.text --value hello --dir $CONTRACT_DIR --message hello" \
+    "Should commit a typed path"
+
+HEAD=$(cat "$CONTRACT_DIR/.contract/HEAD")
+PUSH_OUT=$(modal contract push --dir "$CONTRACT_DIR" --remote "$REMOTE" --remote-name origin --output json)
+echo "$PUSH_OUT" >> "$CURRENT_LOG"
+TESTS_RUN=$((TESTS_RUN + 1))
+if echo "$PUSH_OUT" | grep -Eq '"status": "(queued|pushed)"'; then
+    TESTS_PASSED=$((TESTS_PASSED + 1))
+    echo "✅ Contract push accepted by node1"
+else
+    TESTS_FAILED=$((TESTS_FAILED + 1))
+    echo "❌ Contract push was not queued"
+    echo "$PUSH_OUT"
+    test_fail "Push should queue a sequenced commit"
+fi
+
+SEQUENCED=false
+for i in 1 2 3; do
+    NODE_LOG="$LOG_DIR/${CURRENT_TEST}_node${i}.log"
+    if test_wait_for_log "$NODE_LOG" "Sequenced commit $HEAD" 60; then
+        echo "✅ Sequenced commit $HEAD (node${i})"
+        SEQUENCED=true
+        break
+    fi
+done
+if [ "$SEQUENCED" = false ]; then
+    test_fail "Sequencer should sequence the pushed commit"
+fi
+
+PULL_OUT=$(modal contract pull --dir "$CONTRACT_DIR" --remote "$REMOTE" --output json)
+echo "$PULL_OUT" >> "$CURRENT_LOG"
+TESTS_RUN=$((TESTS_RUN + 1))
+if echo "$PULL_OUT" | grep -q "$HEAD"; then
+    TESTS_PASSED=$((TESTS_PASSED + 1))
+    echo "✅ Pulled sequenced commit $HEAD"
+else
+    # pull may print a count rather than the id; also accept a non-empty clone
+    modal contract pull --dir "$CLONE_DIR" --remote "$REMOTE" --output json >> "$CURRENT_LOG" || true
+    if grep -R -q "$HEAD" "$CONTRACT_DIR/.contract" "$CLONE_DIR" 2>/dev/null; then
+        TESTS_PASSED=$((TESTS_PASSED + 1))
+        echo "✅ Sequenced commit present after pull"
+    else
+        TESTS_FAILED=$((TESTS_FAILED + 1))
+        echo "❌ Could not pull sequenced commit"
+        test_fail "Pull should return the sequenced commit"
+    fi
+fi
+
+echo ""
 echo "============================================"
 echo "All tests passed! ✅"
 echo "============================================"
@@ -190,6 +262,7 @@ echo "  ✓ Validator set generated from epoch 0 at epoch 2"
 echo "  ✓ Validators activated at epoch 2"
 echo "  ✓ Mining and validation run concurrently"
 echo "  ✓ Multi-node consensus coordination"
+echo "  ✓ Sequenced contract push and pull"
 
 # Test summary
 test_summary

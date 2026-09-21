@@ -4,8 +4,10 @@
   "bootstrappers": [
     "/ip4/127.0.0.1/tcp/10111/ws/p2p/12D3KooW9pte76rpnggcLYkFaawuTEs5DC5axHkg3cK3cewGxxHd"
   ],
+  "blocks_per_epoch": 40,
+  "initial_difficulty": 1,
+  "target_block_time_secs": 60,
   "emission": {
     "block_subsidy": 50
   }
 }
-

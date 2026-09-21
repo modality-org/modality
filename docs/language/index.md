@@ -5,7 +5,11 @@ title: Overview
 
 # Language Reference
 
-This document covers the complete syntax for Modality's model and rule definitions.
+Syntax for models, rules, predicates, and typed paths. Read the cookbooks
+first when you are writing a formula or a witness model.
+
+A contract is **state + model + rules**. This reference is the language those
+artifacts are written in.
 
 ## File Types
 

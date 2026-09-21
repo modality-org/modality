@@ -116,6 +116,18 @@ pub struct NetworkInfo {
     /// Native MOD mint schedule for this network. Omitted = no emission.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub emission: Option<EmissionConfig>,
+
+    /// Blocks per mining epoch. Joiners must share this or they fork.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub blocks_per_epoch: Option<u64>,
+
+    /// Initial PoW difficulty. Joiners must share this or they fork.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub initial_difficulty: Option<u64>,
+
+    /// Target seconds per miner block (informational; applied when present).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub target_block_time_secs: Option<u64>,
 }
 
 const DEFAULT_QC_NUMERATOR: u64 = 2;
@@ -262,6 +274,18 @@ pub mod templates {
                 passfile: include_str!("../templates/devnet3/node3/node.modal_passfile"),
                 config: include_str!("../templates/devnet3/node3/config.json"),
             }),
+            "testnet/node1" => Some(NodeTemplate {
+                passfile: include_str!("../templates/testnet/node1/node.modal_passfile"),
+                config: include_str!("../templates/testnet/node1/config.json"),
+            }),
+            "testnet/node2" => Some(NodeTemplate {
+                passfile: include_str!("../templates/testnet/node2/node.modal_passfile"),
+                config: include_str!("../templates/testnet/node2/config.json"),
+            }),
+            "testnet/node3" => Some(NodeTemplate {
+                passfile: include_str!("../templates/testnet/node3/node.modal_passfile"),
+                config: include_str!("../templates/testnet/node3/config.json"),
+            }),
             _ => None,
         }
     }
@@ -275,6 +299,9 @@ pub mod templates {
             "devnet3/node1",
             "devnet3/node2",
             "devnet3/node3",
+            "testnet/node1",
+            "testnet/node2",
+            "testnet/node3",
         ]
     }
 }
@@ -331,6 +358,18 @@ mod tests {
             testnet.validators.is_none(),
             "testnet should not have static validators"
         );
+        assert_eq!(testnet.blocks_per_epoch, Some(40));
+        assert_eq!(testnet.initial_difficulty, Some(1));
+        assert_eq!(testnet.emission.as_ref().unwrap().block_subsidy, 50);
+        assert!(!testnet.repost_requires_validator_cert);
+        assert_eq!(testnet.target_block_time_secs, Some(60));
+        assert_eq!(testnet.bootstrappers.len(), 3);
+        for addr in &testnet.bootstrappers {
+            assert!(
+                addr.contains("testnet.modality.network/tcp/4040/ws/p2p/12D3KooW"),
+                "testnet bootstrapper should be a named 4040 dns4 multiaddr: {addr}"
+            );
+        }
 
         let mainnet = networks::mainnet();
         assert!(
@@ -369,6 +408,9 @@ mod tests {
             validator_qc_numerator: DEFAULT_QC_NUMERATOR,
             validator_qc_denominator: DEFAULT_QC_DENOMINATOR,
             emission: None,
+            blocks_per_epoch: None,
+            initial_difficulty: None,
+            target_block_time_secs: None,
         };
         assert_eq!(network.get_checkpoint_mode(), CheckpointMode::None);
         assert!(!network.checkpoints_enabled());
@@ -390,6 +432,9 @@ mod tests {
             validator_qc_numerator: DEFAULT_QC_NUMERATOR,
             validator_qc_denominator: DEFAULT_QC_DENOMINATOR,
             emission: None,
+            blocks_per_epoch: None,
+            initial_difficulty: None,
+            target_block_time_secs: None,
         };
         assert_eq!(network.get_checkpoint_mode(), CheckpointMode::Consensus);
         assert!(network.checkpoints_enabled());
@@ -410,6 +455,9 @@ mod tests {
             validator_qc_numerator: DEFAULT_QC_NUMERATOR,
             validator_qc_denominator: DEFAULT_QC_DENOMINATOR,
             emission: None,
+            blocks_per_epoch: None,
+            initial_difficulty: None,
+            target_block_time_secs: None,
             checkpoints: Some(vec![
                 ManualCheckpoint {
                     block_index: 100,
@@ -499,5 +547,25 @@ mod tests {
         assert_eq!(network.validator_qc_numerator, 2);
         assert_eq!(network.validator_qc_denominator, 3);
         assert_eq!(network.emission.as_ref().unwrap().block_subsidy, 50);
+    }
+
+    #[test]
+    fn test_testnet_bootstrap_templates_exist() {
+        for name in ["testnet/node1", "testnet/node2", "testnet/node3"] {
+            let tmpl = templates::get(name).unwrap_or_else(|| panic!("missing template {name}"));
+            let cfg: serde_json::Value = serde_json::from_str(tmpl.config).unwrap();
+            assert_eq!(cfg["network_config_path"], "modality-networks://testnet");
+            assert_eq!(cfg["hybrid_consensus"], true);
+            assert_eq!(cfg["listeners"][0], "/ip4/0.0.0.0/tcp/4040/ws");
+            assert_eq!(cfg["passfile_path"], "./node.modal_passfile");
+            let id = cfg["id"].as_str().expect("template id");
+            assert!(tmpl.passfile.contains(id), "passfile must match config id");
+            let status = cfg["status_url"].as_str().unwrap_or("");
+            assert!(
+                status.contains("testnet.modality.network"),
+                "template status_url should be on modality.network"
+            );
+        }
+        assert!(templates::list().contains(&"testnet/node1"));
     }
 }

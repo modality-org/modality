@@ -36,7 +36,7 @@ pub struct Config {
     pub run_contract_validator: Option<bool>,
     pub status_port: Option<u16>,
     pub status_html_dir: Option<PathBuf>,
-    pub status_url: Option<String>, // Public URL for this node's status page (e.g., "https://node1.testnet.modal.money")
+    pub status_url: Option<String>, // Public URL for this node's status page (e.g., "https://node1.testnet.modality.network")
     pub fork_name: Option<String>,  // Predefined fork configuration (e.g., "testnet/pepi")
     pub minimum_block_timestamp: Option<i64>, // Reject blocks mined before this Unix timestamp (overrides fork_name)
     pub forced_blocks: Option<HashMap<u64, String>>, // Map of block_height -> required_block_hash for forced fork specification (overrides fork_name)
@@ -239,10 +239,10 @@ impl Config {
     }
 
     /// Get initial difficulty, using network-specific defaults
-    /// - Testnet: 1 (for easy testing)
-    /// - Other networks: 10 (devnets, mainnet)
+    /// - Explicit `initial_difficulty` in node config wins
+    /// - Else the embedded network's `initial_difficulty` (via `network_config_path`)
+    /// - Else 10
     pub fn get_initial_difficulty(&self) -> Option<u128> {
-        // If explicitly set, use that value
         if let Some(difficulty) = self.initial_difficulty {
             log::info!(
                 "Using explicitly configured initial_difficulty = {}",
@@ -251,26 +251,24 @@ impl Config {
             return Some(difficulty);
         }
 
-        // Auto-detect testnet from bootstrappers and set difficulty to 1
-        if let Some(ref bootstrappers) = self.bootstrappers {
-            let testnet_bootstrappers = [
-                "12D3KooWBGR3m1JmVFm2aZYR7TZXicjA7HSVSWi2fama5cPpgQiX",
-                "12D3KooWEA6dRWvK1vutRDxKfdPZZr7ycHvQNWrDGZZQbiE6YibZ",
-                "12D3KooWDGLGJhoUfkjG4P5MBaoRFVLMLRu4bEHQb9yy1XtHsH5h",
-            ];
-
-            for bootstrapper in bootstrappers {
-                let bootstrapper_str = bootstrapper.to_string();
-                for testnet_peer_id in &testnet_bootstrappers {
-                    if bootstrapper_str.contains(testnet_peer_id) {
-                        log::info!("Detected testnet network, using initial_difficulty = 1");
-                        return Some(1);
+        if let Some(ref network_config_path) = self.network_config_path {
+            if let Some(network_name) = network_config_path
+                .to_string_lossy()
+                .strip_prefix("modality-networks://")
+            {
+                if let Some(net) = modality_networks::networks::by_name(network_name) {
+                    if let Some(difficulty) = net.initial_difficulty {
+                        log::info!(
+                            "Using {} initial_difficulty = {}",
+                            network_name,
+                            difficulty
+                        );
+                        return Some(difficulty as u128);
                     }
                 }
             }
         }
 
-        // Default for other networks (devnets, mainnet)
         log::info!("Using default initial_difficulty = 10");
         Some(10)
     }
@@ -316,7 +314,7 @@ impl Config {
         let run_validator = self.run_validator.unwrap_or(false);
 
         match (run_miner, run_validator) {
-            (true, true) => "Miner+Validator".to_string(),
+            (true, true) => "hybrid".to_string(),
             (true, false) => "Miner".to_string(),
             (false, true) => "Sequencer".to_string(),
             (false, false) => "Observer".to_string(),

@@ -1,14 +1,12 @@
 import * as cdk from 'aws-cdk-lib';
 import { Construct } from 'constructs';
 import * as s3 from 'aws-cdk-lib/aws-s3';
-import * as s3deploy from 'aws-cdk-lib/aws-s3-deployment';
 import * as cloudfront from 'aws-cdk-lib/aws-cloudfront';
 import * as origins from 'aws-cdk-lib/aws-cloudfront-origins';
 import * as route53 from 'aws-cdk-lib/aws-route53';
 import * as targets from 'aws-cdk-lib/aws-route53-targets';
 import * as acm from 'aws-cdk-lib/aws-certificatemanager';
 import * as iam from 'aws-cdk-lib/aws-iam';
-import * as path from 'path';
 
 export interface GetModalMoneyStackProps extends cdk.StackProps {
   subdomainName: string;
@@ -72,6 +70,23 @@ export class GetModalMoneyStack extends cdk.Stack {
     // ========================================
 
     // CloudFront distribution for get.modal.money
+    const redirectFunction = new cloudfront.Function(this, 'RedirectToModalityOrg', {
+      code: cloudfront.FunctionCode.fromInline(`
+function handler(event) {
+  var request = event.request;
+  var response = {
+    statusCode: 301,
+    statusDescription: 'Moved Permanently',
+    headers: {
+      'location': { value: 'https://get.modality.org' + request.uri }
+    }
+  };
+  return response;
+}
+      `),
+      comment: 'Redirect get.modal.money to get.modality.org',
+    });
+
     const distribution = new cloudfront.Distribution(this, 'Distribution', {
       defaultBehavior: {
         origin: origins.S3BucketOrigin.withOriginAccessIdentity(contentBucket, {
@@ -82,6 +97,12 @@ export class GetModalMoneyStack extends cdk.Stack {
         cachedMethods: cloudfront.CachedMethods.CACHE_GET_HEAD,
         compress: true,
         cachePolicy: cloudfront.CachePolicy.CACHING_OPTIMIZED,
+        functionAssociations: [
+          {
+            function: redirectFunction,
+            eventType: cloudfront.FunctionEventType.VIEWER_REQUEST,
+          },
+        ],
       },
       domainNames: [subdomainName],
       certificate: certificate,
@@ -103,19 +124,7 @@ export class GetModalMoneyStack extends cdk.Stack {
       defaultRootObject: 'index.html',
       priceClass: cloudfront.PriceClass.PRICE_CLASS_100, // Use only North America and Europe
       enableIpv6: true,
-      comment: `CloudFront distribution for ${subdomainName} (Rust crate registry)`,
-    });
-
-    // ========================================
-    // Deploy Static Content
-    // ========================================
-
-    // Deploy website content from registry/ directory to S3
-    new s3deploy.BucketDeployment(this, 'DeployRegistry', {
-      sources: [s3deploy.Source.asset(path.join(__dirname, '../registry'))],
-      destinationBucket: contentBucket,
-      distribution: distribution,
-      distributionPaths: ['/*'],
+      comment: `CloudFront distribution for ${subdomainName} (redirects to get.modality.org)`,
     });
 
     // ========================================
@@ -163,7 +172,7 @@ export class GetModalMoneyStack extends cdk.Stack {
 
     new cdk.CfnOutput(this, 'Url', {
       value: `https://${subdomainName}`,
-      description: 'URL for get.modal.money',
+      description: 'URL for get.modal.money (redirects to get.modality.org)',
     });
 
     new cdk.CfnOutput(this, 'CertificateArn', {

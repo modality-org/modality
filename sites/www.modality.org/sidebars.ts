@@ -47,6 +47,7 @@ const sidebars: SidebarsConfig = {
         'cli/ai-commands',
         'cli/identity-commands',
         'cli/node-commands',
+        'cli/join-testnet',
         'cli/hub-commands',
         'cli/predicate-commands',
         'cli/network-commands',

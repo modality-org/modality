@@ -1,31 +1,43 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Modal Money Node Status</title>
+    <title>Modality Network Node Status</title>
     <style>
+        :root {{
+            --bg: #0a0a0f;
+            --panel: #14141f;
+            --panel-2: #1a1a2e;
+            --text: #e8e8f0;
+            --heading: #ffffff;
+            --dim: #555570;
+            --accent: #6c8cff;
+            --line: #2a2a3a;
+            --ok: #4ade80;
+            --warn: #fbbf24;
+        }}
         body {{
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
             max-width: 1200px;
             margin: 40px auto;
             padding: 20px;
-            background: #0f0f0f;
-            color: #e0e0e0;
+            background: var(--bg);
+            color: var(--text);
         }}
         h1 {{
-            color: #4a9eff;
-            border-bottom: 2px solid #4a9eff;
+            color: var(--heading);
+            border-bottom: 2px solid var(--accent);
             padding-bottom: 10px;
         }}
         h2 {{
-            color: #4a9eff;
+            color: var(--accent);
             font-size: 1.3em;
             margin-top: 0;
         }}
         .status-card {{
-            background: #1a1a1a;
-            border: 1px solid #333;
+            background: var(--panel);
+            border: 1px solid var(--line);
             border-radius: 8px;
             padding: 20px;
             margin: 20px 0;
@@ -40,44 +52,68 @@
             display: flex;
             justify-content: space-between;
             padding: 12px 0;
-            border-bottom: 1px solid #2a2a2a;
+            border-bottom: 1px solid var(--line);
         }}
         .status-item:last-child {{
             border-bottom: none;
         }}
         .label {{
             font-weight: 600;
-            color: #888;
+            color: var(--dim);
         }}
         .value {{
-            color: #e0e0e0;
-            font-family: 'Courier New', monospace;
+            color: var(--text);
+            font-family: 'JetBrains Mono', 'Courier New', monospace;
             word-break: break-all;
         }}
         .stat-box {{
-            background: #1a1a1a;
-            border: 1px solid #333;
+            background: var(--panel);
+            border: 1px solid var(--line);
             border-radius: 8px;
             padding: 20px;
             text-align: center;
         }}
         .stat-label {{
-            color: #888;
+            color: var(--dim);
             font-size: 0.9em;
             margin-bottom: 8px;
         }}
         .stat-value {{
-            color: #4a9eff;
+            color: var(--accent);
             font-size: 2em;
             font-weight: bold;
         }}
         .status-online {{
-            color: #4ade80;
+            color: var(--ok);
             font-weight: bold;
         }}
         .header {{
             text-align: center;
             margin-bottom: 30px;
+        }}
+        .role-chips {{
+            display: flex;
+            justify-content: center;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin: 12px 0;
+        }}
+        .role-chip {{
+            border: 1px solid var(--line);
+            color: var(--dim);
+            padding: 4px 12px;
+            border-radius: 999px;
+            font-size: 0.85em;
+            font-weight: 600;
+        }}
+        .role-chip.on {{
+            border-color: var(--accent);
+            color: var(--accent);
+            background: rgba(108, 140, 255, 0.12);
+        }}
+        .tab-copy {{
+            color: var(--dim);
+            margin: 0 0 16px 0;
         }}
         .listeners {{
             list-style: none;
@@ -86,8 +122,8 @@
         }}
         .listeners li {{
             padding: 4px 0;
-            color: #e0e0e0;
-            font-family: 'Courier New', monospace;
+            color: var(--text);
+            font-family: 'JetBrains Mono', 'Courier New', monospace;
         }}
         table {{
             width: 100%;
@@ -95,25 +131,28 @@
             margin-top: 10px;
         }}
         th {{
-            background: #252525;
-            color: #4a9eff;
+            background: var(--panel-2);
+            color: var(--accent);
             padding: 12px;
             text-align: left;
             font-weight: 600;
-            border-bottom: 2px solid #333;
+            border-bottom: 2px solid var(--line);
         }}
         td {{
             padding: 10px 12px;
-            border-bottom: 1px solid #2a2a2a;
+            border-bottom: 1px solid var(--line);
         }}
         tr:hover {{
-            background: #1f1f1f;
+            background: var(--panel-2);
         }}
         code {{
-            background: #252525;
+            background: var(--panel-2);
             padding: 2px 6px;
             border-radius: 3px;
             font-size: 0.9em;
+        }}
+        a {{
+            color: var(--accent);
         }}
         .blocks-container {{
             max-height: 600px;
@@ -123,42 +162,41 @@
             width: 8px;
         }}
         .blocks-container::-webkit-scrollbar-track {{
-            background: #1a1a1a;
+            background: var(--panel);
         }}
         .blocks-container::-webkit-scrollbar-thumb {{
-            background: #333;
+            background: var(--line);
             border-radius: 4px;
         }}
         .blocks-container::-webkit-scrollbar-thumb:hover {{
             background: #444;
         }}
-        
-        /* Tab Styles */
         .tabs {{
             display: flex;
             gap: 10px;
-            border-bottom: 2px solid #333;
+            border-bottom: 2px solid var(--line);
             margin-bottom: 30px;
+            flex-wrap: wrap;
         }}
         .tab {{
             padding: 12px 24px;
-            background: #1a1a1a;
-            border: 1px solid #333;
+            background: var(--panel);
+            border: 1px solid var(--line);
             border-bottom: none;
             border-radius: 8px 8px 0 0;
             cursor: pointer;
-            color: #888;
+            color: var(--dim);
             font-weight: 600;
             transition: all 0.3s ease;
         }}
         .tab:hover {{
-            background: #252525;
-            color: #e0e0e0;
+            background: var(--panel-2);
+            color: var(--text);
         }}
         .tab.active {{
-            background: #0f0f0f;
-            color: #4a9eff;
-            border-bottom: 2px solid #4a9eff;
+            background: var(--bg);
+            color: var(--accent);
+            border-bottom: 2px solid var(--accent);
             margin-bottom: -2px;
         }}
         .tab-content {{
@@ -169,54 +207,33 @@
         }}
     </style>
     <script>
-        // Tab switching
         function switchTab(tabName) {{
-            // Hide all tab contents
             document.querySelectorAll('.tab-content').forEach(function(content) {{
                 content.classList.remove('active');
             }});
-            
-            // Deactivate all tabs
             document.querySelectorAll('.tab').forEach(function(tab) {{
                 tab.classList.remove('active');
             }});
-            
-            // Show selected tab content
             document.getElementById(tabName + '-content').classList.add('active');
-            
-            // Activate selected tab
             document.querySelector('[data-tab="' + tabName + '"]').classList.add('active');
-            
-            // Save active tab to localStorage
             localStorage.setItem('activeTab', tabName);
         }}
-        
-        // Restore active tab on page load
         window.addEventListener('DOMContentLoaded', function() {{
             const savedTab = localStorage.getItem('activeTab') || 'overview';
             switchTab(savedTab);
         }});
-        
-        // Toggle timestamp between Unix time and local time
         function toggleTimestamp(element) {{
             const timestamp = parseInt(element.getAttribute('data-timestamp'));
             const currentText = element.textContent;
-            
-            // Check if currently showing Unix timestamp
             if (currentText === timestamp.toString()) {{
-                // Convert to local time
                 const date = new Date(timestamp * 1000);
-                const localTime = date.toLocaleString();
-                element.textContent = localTime;
-                element.style.color = '#4a9eff';
+                element.textContent = date.toLocaleString();
+                element.style.color = '#6c8cff';
             }} else {{
-                // Show Unix timestamp
                 element.textContent = timestamp;
-                element.style.color = '#e0e0e0';
+                element.style.color = '#e8e8f0';
             }}
         }}
-        
-        // Auto-refresh every 10 seconds
         setTimeout(function() {{
             location.reload();
         }}, {refresh_interval}000);
@@ -224,19 +241,20 @@
 </head>
 <body>
     <div class="header">
-        <h1>Modal Money {network_name}</h1>
-        <p class="status-online">Status: 🟢 ONLINE | Node ID: {peerid} | Role: {role}</p>
+        <h1>Modality Network {network_name}</h1>
+        <p class="status-online">Status: ONLINE | Node ID: {peerid} | Role: {role_display}</p>
+        <div class="role-chips">{role_chips_html}</div>
+        <p class="tab-copy">Hybrid consensus: {hybrid_label}</p>
     </div>
-    
-    <!-- Tabs Navigation -->
+
     <div class="tabs">
         <div class="tab active" data-tab="overview" onclick="switchTab('overview')">Overview</div>
         <div class="tab" data-tab="nodes" onclick="switchTab('nodes')">Nodes</div>
         <div class="tab" data-tab="miners" onclick="switchTab('miners')">Miners</div>
+        <div class="tab" data-tab="sequencers" onclick="switchTab('sequencers')">Sequencers</div>
         <div class="tab" data-tab="validators" onclick="switchTab('validators')">Validators</div>
     </div>
-    
-    <!-- Overview Tab -->
+
     <div id="overview-content" class="tab-content active">
         <div class="status-grid">
             <div class="stat-box">
@@ -252,7 +270,7 @@
                 <div class="stat-value">{cumulative_difficulty}</div>
             </div>
         </div>
-        
+
         <div class="status-card">
             <h2>Node Information</h2>
             <div class="status-item">
@@ -270,14 +288,10 @@
         </div>
 
         <div class="status-card">
-            <h2>Blockchain Status</h2>
+            <h2>Chain Status</h2>
             <div class="status-item">
-                <span class="label">Current Round:</span>
+                <span class="label">Sequencer Round:</span>
                 <span class="value">{current_round}</span>
-            </div>
-            <div class="status-item">
-                <span class="label">Latest Block Round:</span>
-                <span class="value">{latest_round}</span>
             </div>
         </div>
 
@@ -286,8 +300,7 @@
             {block_0_html}
         </div>
     </div>
-    
-    <!-- Nodes Tab -->
+
     <div id="nodes-content" class="tab-content">
         <div class="status-grid">
             <div class="stat-box">
@@ -314,9 +327,9 @@
             </div>
         </div>
     </div>
-    
-    <!-- Miners Tab -->
+
     <div id="miners-content" class="tab-content">
+        <p class="tab-copy">Miners extend the PoW index and nominate sequencers. Entry is hashpower, not a permission list.</p>
         <div class="status-grid">
             <div class="stat-box">
                 <div class="stat-label">Block Height</div>
@@ -331,18 +344,17 @@
                 <div class="stat-value">{current_difficulty}</div>
             </div>
         </div>
-        
-        <!-- Hashrate Statistics Row -->
+
         <div class="status-grid">
             <div class="stat-box">
                 <div class="stat-label">Miner Hashrate</div>
                 <div class="stat-value">{miner_hashrate}</div>
-                <div style="font-size: 0.7em; color: #888; margin-top: 8px;">H/s</div>
+                <div style="font-size: 0.7em; color: var(--dim); margin-top: 8px;">H/s</div>
             </div>
             <div class="stat-box">
                 <div class="stat-label">Network Hashrate</div>
                 <div class="stat-value">{network_hashrate}</div>
-                <div style="font-size: 0.7em; color: #888; margin-top: 8px;">H/s (implied)</div>
+                <div style="font-size: 0.7em; color: var(--dim); margin-top: 8px;">H/s (implied)</div>
             </div>
         </div>
 
@@ -355,7 +367,7 @@
                             <th>Index</th>
                             <th>Epoch</th>
                             <th>Hash</th>
-                            <th>Nominee</th>
+                            <th>Nominated sequencer</th>
                             <th>Timestamp</th>
                             <th>Time Delta (s)</th>
                         </tr>
@@ -376,7 +388,7 @@
                             <th>Index</th>
                             <th>Epoch</th>
                             <th>Hash</th>
-                            <th>Nominee</th>
+                            <th>Nominated sequencer</th>
                             <th>Timestamp</th>
                             <th>Time Delta (s)</th>
                         </tr>
@@ -388,9 +400,9 @@
             </div>
         </div>
     </div>
-    
-    <!-- Validators Tab -->
-    <div id="validators-content" class="tab-content">
+
+    <div id="sequencers-content" class="tab-content">
+        <p class="tab-copy">Sequencers order contract bytes for fast finality. They are miner-nominated from epoch N−2. They are not validators and not the language verifier.</p>
         <div class="status-grid">
             <div class="stat-box">
                 <div class="stat-label">Current Epoch</div>
@@ -401,8 +413,24 @@
                 <div class="stat-value">{total_miner_blocks}</div>
             </div>
             <div class="stat-box">
-                <div class="stat-label">Completed Epochs</div>
-                <div class="stat-value">{completed_epochs}</div>
+                <div class="stat-label">Nomination Epoch</div>
+                <div class="stat-value">{sequencer_nomination_epoch}</div>
+            </div>
+        </div>
+
+        <div class="status-card">
+            <h2>Current Sequencer Committee</h2>
+            <div class="blocks-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Peer ID</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {sequencer_committee_html}
+                    </tbody>
+                </table>
             </div>
         </div>
 
@@ -411,11 +439,63 @@
         {epoch_nominees_sections}
     </div>
 
+    <div id="validators-content" class="tab-content">
+        <p class="tab-copy">Validators attest that a contract prefix through a named commit is valid Modality. Dest REPOST and dest RECV consume a quorum certificate. This is not the language verifier and not the sequencer set.</p>
+        <div class="status-grid">
+            <div class="stat-box">
+                <div class="stat-label">Named Validators</div>
+                <div class="stat-value">{named_validator_count}</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-label">Min Stake (MOD)</div>
+                <div class="stat-value">{validator_min_stake}</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-label">QC Threshold</div>
+                <div class="stat-value">{validator_qc}</div>
+            </div>
+        </div>
+
+        <div class="status-card">
+            <h2>Named Validator Set</h2>
+            {named_validators_html}
+        </div>
+
+        <div class="status-card">
+            <div class="status-item">
+                <span class="label">Dest apply requires prefix-cert QC:</span>
+                <span class="value">{dest_apply_requires_cert}</span>
+            </div>
+            <div class="status-item">
+                <span class="label">Pending prefix-cert requests:</span>
+                <span class="value">{pending_prefix_cert_requests}</span>
+            </div>
+        </div>
+
+        <div class="status-card">
+            <h2>Recent Prefix Certs</h2>
+            <div class="blocks-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Source Contract</th>
+                            <th>Through Commit</th>
+                            <th>Validator</th>
+                            <th>Prefix Digest</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {prefix_certs_html}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
     <div class="status-card">
-        <p style="text-align: center; color: #666; font-size: 0.9em;">
+        <p style="text-align: center; color: var(--dim); font-size: 0.9em;">
             Page auto-refreshes every {refresh_interval} seconds
         </p>
     </div>
 </body>
 </html>
-

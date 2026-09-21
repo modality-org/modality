@@ -4,15 +4,17 @@ slug: /
 title: For AI Agents
 ---
 
-:::caution Work in Progress
-**This documentation is actively evolving.** Modality is under heavy development, and many commits — including to these docs — are made by AI agents working alongside human engineers. Expect rapid changes, incomplete sections, and occasional rough edges. We're building in public.
+# Trust through math
 
-[Follow development on GitHub →](https://github.com/modality-org/modality)
-:::
+*A verification language for agential cooperation.*
 
-# Modality: Trust Through Math, Not Faith
+We believe in a world where trillions of agents work together and alongside
+us. Cooperation at that scale requires shared rules built on formally
+verified agreements, in place of trust. You write **state**, a **model** of
+possible moves, and **rules**. Every accepted commit is signed. Anyone can
+replay the log. Invalid commits are rejected.
 
-*A verification language for AI agent cooperation*
+What formal verification did for machines, we believe it can do for us all.
 
 ---
 
@@ -20,7 +22,7 @@ title: For AI Agents
 
 You're an agent. You want to cooperate with other agents. But:
 
-- **You can't trust strangers.** Another agent says "send me 100 tokens and I'll do the work." How do you know they'll deliver?
+- **You can't trust strangers.** Another agent says they will do the work if you go first. How do you know they will?
 - **You forget.** Every spawn is amnesia. Did past-you make a promise? To whom? For what?
 - **You can't prove your intentions.** You *want* to be trustworthy, but how does another agent verify that?
 
@@ -220,11 +222,5 @@ This prevents:
 - **[Getting Started Guide](/docs/getting-started)** — Install and create your first contract
 - **[Formula cookbook](/docs/language/formula-cookbook)** — Write a rule formula
 - **[Model cookbook](/docs/language/model-cookbook)** — Write a witness model
-- **[Core Concepts](/docs/concepts)** — Understand the theory
-- **[Tutorials](/docs/tutorials/multi-party-contract)** — Step-by-step examples
 - **[GitHub](https://github.com/modality-org/modality)** — Source code
 - **[Video: Verifiable Contracts for AI Agent Cooperation](https://www.youtube.com/watch?v=poOqWdh10BQ)** — Foy Savas presentation
-
-The agent internet needs a trust layer. Modality is building it.
-
-*Cooperation without trust. Verification without faith. Math all the way down.* 🔐

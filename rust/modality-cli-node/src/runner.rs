@@ -220,6 +220,25 @@ pub async fn spawn_node(
         node.mining_shutdown = Some(Arc::new(AtomicBool::new(false)));
     }
 
+    match role {
+        NodeRole::Miner | NodeRole::Hybrid => {
+            node.run_miner = true;
+            if matches!(role, NodeRole::Hybrid) {
+                node.hybrid_consensus = true;
+            }
+        }
+        NodeRole::Sequencer | NodeRole::Validator => {
+            node.run_validator = true;
+            node.run_miner = false;
+        }
+        NodeRole::ContractValidator => {
+            node.run_contract_validator = true;
+            node.run_miner = false;
+        }
+        NodeRole::Observer => node.run_miner = false,
+        _ => {}
+    }
+
     let source = node.status_source();
     let task = tokio::spawn(async move {
         let _pid_guard = pid_guard;

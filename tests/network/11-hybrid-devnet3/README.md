@@ -31,7 +31,7 @@ This test runs 3 nodes, each:
 
 Terminal 1:
 ```bash
-cd examples/network/11-hybrid-devnet3
+cd tests/network/11-hybrid-devnet3
 ./01-run-miner1.sh
 ```
 
@@ -48,7 +48,7 @@ Terminal 3:
 ### Run as Test
 
 ```bash
-cd examples/network/11-hybrid-devnet3
+cd tests/network/11-hybrid-devnet3
 ./test.sh
 ```
 

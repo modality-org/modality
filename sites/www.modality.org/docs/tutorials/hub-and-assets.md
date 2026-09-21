@@ -7,7 +7,7 @@ This tutorial walks through running a contract hub and managing assets between c
 Install the Modal CLI:
 
 ```bash
-curl --proto '=https' --tlsv1.2 -sSf https://www.modality.org/install.sh | sh
+curl -fsSL https://get.modality.org/testnet/latest/install.sh | sh
 ```
 
 ## Starting a Hub

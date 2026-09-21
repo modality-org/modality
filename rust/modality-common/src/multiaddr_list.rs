@@ -82,14 +82,14 @@ pub async fn resolve_dns_entries(entries: Vec<String>) -> Result<Vec<String>, Er
 
     // Pre-compile regexes outside the loop
     let p2p_re = Regex::new(r"/p2p/(.+)$").unwrap();
-    let dns_re = Regex::new(r"^/dns/([A-Za-z0-9-.]+)(.*)").unwrap();
+    let dns_re = Regex::new(r"^/dns4?/([A-Za-z0-9-.]+)(.*)").unwrap();
     let dnsaddr_re = Regex::new(r"^/dnsaddr/([A-Za-z0-9-.]+)(.*)").unwrap();
     let dnsaddr_value_re = Regex::new(r"^dnsaddr=(.*)").unwrap();
 
     for entry in entries {
         let p2p_match = p2p_re.captures(&entry);
 
-        if entry.starts_with("/dns/") {
+        if entry.starts_with("/dns/") || entry.starts_with("/dns4/") {
             if let Some(caps) = dns_re.captures(&entry) {
                 let name = &caps[1];
                 let rest = &caps[2];
@@ -117,7 +117,13 @@ pub async fn resolve_dns_entries(entries: Vec<String>) -> Result<Vec<String>, Er
                         if peer_id.is_none()
                             || matches_peer_id_suffix(ans, peer_id.as_ref().unwrap())
                         {
-                            results.push(ans.to_string());
+                            if ans.starts_with("/dns/") || ans.starts_with("/dns4/") {
+                                let nested =
+                                    Box::pin(resolve_dns_entries(vec![ans.to_string()])).await?;
+                                results.extend(nested);
+                            } else {
+                                results.push(ans.to_string());
+                            }
                         }
                     }
                 }

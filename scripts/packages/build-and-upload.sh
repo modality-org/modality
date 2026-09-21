@@ -12,10 +12,13 @@ UPLOAD_SCRIPT="$SCRIPT_DIR/upload.sh"
 
 # Validate allowed branches
 GIT_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
+if [[ -n "${MODAL_PACKAGE_CHANNEL:-}" ]]; then
+    GIT_BRANCH="$MODAL_PACKAGE_CHANNEL"
+fi
 ALLOWED_BRANCHES=("mainnet" "testnet")
 if [[ ! " ${ALLOWED_BRANCHES[@]} " =~ " ${GIT_BRANCH} " ]]; then
     echo -e "\033[0;31m[ERROR]\033[0m Branch '$GIT_BRANCH' is not allowed. Allowed branches: ${ALLOWED_BRANCHES[*]}"
-    echo -e "\033[0;31m[ERROR]\033[0m Please switch to one of the allowed branches before running this script."
+    echo -e "\033[0;31m[ERROR]\033[0m Please switch to one of the allowed branches, or set MODAL_PACKAGE_CHANNEL=testnet."
     exit 1
 fi
 
@@ -65,7 +68,7 @@ OPTIONS:
       --skip-build            Skip build step, only upload
 
     Upload Options:
-      --bucket BUCKET         S3 bucket name (default: get.modal.money-content)
+      --bucket BUCKET         S3 bucket name (default: get.modality.org-content)
       --prefix PREFIX         S3 prefix for uploads
       --region REGION         AWS region (default: us-east-1)
       --enable-cargo-registry Enable Cargo registry publishing
@@ -89,7 +92,7 @@ EXAMPLES:
 
 S3 PATH STRUCTURE:
     s3://BUCKET/PREFIX/BRANCH/VERSION/
-    Example: s3://get.modal.money-content/testnet/20251121_215641-1428985/
+    Example: s3://get.modality.org-content/testnet/20251121_215641-1428985/
 
 NOTES:
     - This script calls build.sh and upload.sh sequentially

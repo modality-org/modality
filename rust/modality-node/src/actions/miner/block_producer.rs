@@ -46,10 +46,16 @@ pub async fn mine_and_gossip_block(
         nominated_peer_id
     );
 
-    // Create ChainConfig
+    // Create ChainConfig from the shared network genesis so joiners cannot fork
+    // on epoch retarget (target_block_time) or starting difficulty.
+    let (chain_initial_difficulty, target_block_time_secs) = {
+        let ds = datastore.lock().await;
+        let tbt = ds.network_u64("target_block_time_secs").unwrap_or(60);
+        (initial_difficulty.unwrap_or(1000), tbt)
+    };
     let chain_config = ChainConfig {
-        initial_difficulty: initial_difficulty.unwrap_or(1000),
-        target_block_time_secs: 60,
+        initial_difficulty: chain_initial_difficulty,
+        target_block_time_secs,
         mining_delay_ms,
     };
 

@@ -1,6 +1,9 @@
 # JavaScript SDK with Hub
 
-Use the `@modality-dev/modal-contracts` package to create contracts and sync them with a hub.
+Use the `@modality-dev/modal-contracts` package (WASM over `modality-lang`)
+to create contracts and sync them with a hub. Prefer `modal hub start` (Rust).
+The Node hub in `services/contract-hub` is available when a JS-hosted API is
+needed.
 
 ## Installation
 

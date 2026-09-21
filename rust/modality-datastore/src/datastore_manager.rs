@@ -40,7 +40,7 @@ impl Default for EpochConfig {
         Self {
             promotion_delay_epochs: 2,
             purge_delay_epochs: 12,
-            blocks_per_epoch: 100, // Default, should be loaded from network params
+            blocks_per_epoch: 40, // Match miner BLOCKS_PER_EPOCH; network config may override
         }
     }
 }
@@ -551,6 +551,27 @@ impl DatastoreManager {
             .any(|c| c.get("validator_peer_id").and_then(|v| v.as_str()) == Some(peer_id)))
     }
 
+    /// Prefix certs stored under `prefix_certs/…`, newest-scanned first, capped.
+    pub fn list_recent_prefix_certs(&self, limit: usize) -> Result<Vec<serde_json::Value>> {
+        if limit == 0 {
+            return Ok(Vec::new());
+        }
+        let mut out = Vec::new();
+        for item in self.node_state.iterator("prefix_certs") {
+            let (_key, value) = item?;
+            out.extend(decode_prefix_certs(&value));
+            if out.len() >= limit {
+                break;
+            }
+        }
+        out.truncate(limit);
+        Ok(out)
+    }
+
+    pub fn peek_prefix_cert_requests(&self) -> Result<Vec<serde_json::Value>> {
+        self.load_prefix_cert_requests()
+    }
+
     pub fn emission_config(&self) -> Result<crate::EmissionConfig> {
         match self.node_state.get("network_config")? {
             Some(data) => {
@@ -562,6 +583,13 @@ impl DatastoreManager {
             }
             None => Ok(crate::EmissionConfig::default()),
         }
+    }
+
+    /// Read a u64 field from the persisted network config JSON.
+    pub fn network_u64(&self, key: &str) -> Option<u64> {
+        let data = self.node_state.get("network_config").ok().flatten()?;
+        let cfg: serde_json::Value = serde_json::from_slice(&data).ok()?;
+        cfg.get(key).and_then(|v| v.as_u64())
     }
 
     pub fn native_mod_balance(&self, account: &str) -> Result<u64> {
@@ -876,6 +904,9 @@ mod tests {
             .find(|c| c["validator_peer_id"] == "peer1")
             .unwrap();
         assert_eq!(peer1["prefix_digest"], "bb");
+        let recent = mgr.list_recent_prefix_certs(20).unwrap();
+        assert_eq!(recent.len(), 2);
+        assert!(mgr.peek_prefix_cert_requests().unwrap().is_empty());
     }
 
     #[tokio::test]

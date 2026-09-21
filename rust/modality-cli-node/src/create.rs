@@ -93,7 +93,7 @@ pub struct Opts {
     #[clap(long)]
     pub enable_autoupgrade: bool,
 
-    /// Autoupgrade base URL (optional, default: http://get.modal.money)
+    /// Autoupgrade base URL (optional, default: https://get.modality.org)
     #[clap(long)]
     pub autoupgrade_base_url: Option<String>,
 
@@ -537,6 +537,24 @@ pub async fn run(opts: &Opts) -> Result<()> {
                     network_name
                 );
             }
+        } else if opts.testnet {
+            obj.insert(
+                "network_config_path".to_string(),
+                json!("modality-networks://testnet"),
+            );
+            obj.insert(
+                "listeners".to_string(),
+                json!(["/ip4/0.0.0.0/tcp/4040/ws"]),
+            );
+            obj.insert("hybrid_consensus".to_string(), json!(true));
+            obj.insert("run_miner".to_string(), json!(true));
+            if let Some(net) = networks::by_name("testnet") {
+                if let Some(difficulty) = net.initial_difficulty {
+                    obj.insert("initial_difficulty".to_string(), json!(difficulty));
+                }
+            }
+            println!("📋 Network config: testnet (from modality-networks)");
+            println!("📡 Listeners: /ip4/0.0.0.0/tcp/4040/ws");
         }
     }
 
@@ -633,7 +651,12 @@ pub async fn run(opts: &Opts) -> Result<()> {
     }
 
     println!("\n🚀 You can now run your node with:");
-    println!("   modality node run --dir {}", node_dir.display());
+    if opts.testnet {
+        println!("   modal node run-miner --dir {}", node_dir.display());
+        println!("   modal node run-hybrid --dir {}", node_dir.display());
+    } else {
+        println!("   modal node run --dir {}", node_dir.display());
+    }
     println!("\n🚨🚨🚨  IMPORTANT: Keep your passfile secure and never share it! 🚨🚨🚨");
 
     Ok(())

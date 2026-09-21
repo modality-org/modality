@@ -5,7 +5,20 @@ title: Overview
 
 # Core Concepts
 
-This guide explains the fundamental concepts behind Modality.
+A Modality **contract** is three artifacts:
+
+```
+contract/
+├── state/     # posted data (identities, evidence)
+├── model/     # possible moves (labeled transition system)
+└── rules/     # who / when / under what predicates
+```
+
+A commit is accepted only if it is signed as required, is a valid model
+transition, and satisfies **every accumulated rule**. No valid witness means
+the commit is rejected.
+
+The rest of this guide names the pieces that make that check possible.
 
 ## The Five Pillars
 

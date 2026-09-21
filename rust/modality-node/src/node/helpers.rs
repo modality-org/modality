@@ -118,6 +118,15 @@ pub async fn load_network_config(
         if let Some(emission) = network_info.emission {
             config_json["emission"] = serde_json::to_value(emission)?;
         }
+        if let Some(blocks_per_epoch) = network_info.blocks_per_epoch {
+            config_json["blocks_per_epoch"] = serde_json::json!(blocks_per_epoch);
+        }
+        if let Some(initial_difficulty) = network_info.initial_difficulty {
+            config_json["initial_difficulty"] = serde_json::json!(initial_difficulty);
+        }
+        if let Some(target_block_time_secs) = network_info.target_block_time_secs {
+            config_json["target_block_time_secs"] = serde_json::json!(target_block_time_secs);
+        }
 
         config_json["rounds"] = serde_json::json!({});
 
@@ -132,10 +141,28 @@ pub async fn load_network_config(
         serde_json::from_str(&config_str)?
     };
 
-    // Load network config into NodeState store
+    // Load network config into NodeState store and apply shared genesis params
     {
-        let mgr = datastore_manager.lock().await;
+        let mut mgr = datastore_manager.lock().await;
         mgr.load_network_config(&network_config).await?;
+        if let Some(blocks_per_epoch) = network_config
+            .get("blocks_per_epoch")
+            .and_then(|v| v.as_u64())
+        {
+            if blocks_per_epoch > 0 {
+                mgr.set_blocks_per_epoch(blocks_per_epoch);
+                log::info!("Blocks per epoch: {}", blocks_per_epoch);
+            }
+        }
+        if let Some(difficulty) = network_config
+            .get("initial_difficulty")
+            .and_then(|v| v.as_u64())
+        {
+            log::info!("Network initial_difficulty: {}", difficulty);
+        }
+        if let Some(emission) = network_config.get("emission") {
+            log::info!("Network emission: {}", emission);
+        }
     }
 
     // Load network parameters from genesis contract if present

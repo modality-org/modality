@@ -5,10 +5,10 @@ The Modal Hub exposes a REST API for contract management and collaboration.
 ## Base URL
 
 ```
-http://localhost:3000
+http://localhost:8080
 ```
 
-(Default port when running `modal hub start`)
+REST default when running `modal hub start` (`--port`, default 8080). `--rpc-port` defaults to 3000 for JSON-RPC.
 
 ## Endpoints
 
@@ -147,6 +147,58 @@ Submit a new commit.
     "valid_actions": [...]
   },
   "timestamp": 1707123600
+}
+```
+
+#### POST /contracts/:id/push
+
+Batch-push commits in the `modal c push` wire format. The contract is created
+if it does not exist. Duplicate hashes are skipped.
+
+**Request:**
+```json
+{
+  "commits": [
+    {
+      "hash": "abc123...",
+      "parent": null,
+      "data": [{ "method": "post", "path": "/hello.txt", "value": "hi" }],
+      "head": { "parent": null, "signatures": {} }
+    }
+  ]
+}
+```
+
+**Response:**
+```json
+{
+  "pushed": 1,
+  "head": "abc123..."
+}
+```
+
+#### GET /contracts/:id/pull
+
+Pull commits after an optional `since` hash (`modal c pull`).
+
+**Query params:**
+- `since` (optional): return commits after this hash
+
+**Response:**
+```json
+{
+  "contract_id": "c_abc123",
+  "head": "abc123...",
+  "commits": [
+    {
+      "hash": "abc123...",
+      "parent": null,
+      "data": [{ "method": "post", "path": "/hello.txt", "value": "hi" }],
+      "body": [{ "method": "post", "path": "/hello.txt", "value": "hi" }],
+      "head": { "parent": null },
+      "timestamp": 1707123600
+    }
+  ]
 }
 ```
 

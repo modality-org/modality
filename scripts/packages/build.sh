@@ -12,6 +12,9 @@ BUILD_DIR="$PROJECT_ROOT/build"
 TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
 GIT_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
 GIT_COMMIT=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+if [[ -n "${MODAL_PACKAGE_CHANNEL:-}" ]]; then
+    GIT_BRANCH="$MODAL_PACKAGE_CHANNEL"
+fi
 VERSION="${TIMESTAMP}-${GIT_COMMIT}"
 
 # Default values
@@ -215,6 +218,9 @@ build_packages() {
             src="$PROJECT_ROOT/rust/target/$target/release/modal"
         else
             ensure_cross
+            # include_str! in modality-cli-ai reads ../../../docs from rust/;
+            # cross only mounts rust/ by default.
+            export CROSS_CONTAINER_OPTS="-v ${PROJECT_ROOT}/docs:${PROJECT_ROOT}/docs${CROSS_CONTAINER_OPTS:+ ${CROSS_CONTAINER_OPTS}}"
             MODAL_GIT_BRANCH="$GIT_BRANCH" \
             MODAL_GIT_COMMIT="$GIT_COMMIT" \
             AWS_LC_SYS_CMAKE_BUILDER="1" \

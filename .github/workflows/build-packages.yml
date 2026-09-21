@@ -207,7 +207,7 @@ jobs:
           }
           
           PLATFORM=$(detect_platform)
-          BASE_URL="${MODALITY_INSTALL_URL:-https://get.modal.money/${{ github.ref_name }}/${{ env.VERSION }}}"
+          BASE_URL="${MODALITY_INSTALL_URL:-https://get.modality.org/${{ github.ref_name }}/${{ env.VERSION }}}"
           INSTALL_DIR="${MODALITY_INSTALL_DIR:-$HOME/.modality/bin}"
           
           log_info "Detected platform: $PLATFORM"
@@ -267,7 +267,7 @@ jobs:
               <p>Commit: <code>${{ github.sha }}</code></p>
               
               <h2>Quick Installation</h2>
-              <pre>curl -fsSL https://get.modal.money/${{ github.ref_name }}/${{ env.VERSION }}/install.sh | sh</pre>
+              <pre>curl -fsSL https://get.modality.org/${{ github.ref_name }}/${{ env.VERSION }}/install.sh | sh</pre>
               
               <h2>Available Binaries</h2>
               <ul>
@@ -327,43 +327,43 @@ jobs:
       - name: Upload to S3
         run: |
           S3_PATH="${{ github.ref_name }}/${{ env.VERSION }}/"
-          aws s3 sync build/ "s3://get.modal.money-content/$S3_PATH" \
+          aws s3 sync build/ "s3://get.modality.org-content/$S3_PATH" \
             --region us-east-1 \
             --exclude "*.DS_Store" \
             --exclude ".git*"
           
           # Update latest symlink
-          aws s3 sync "s3://get.modal.money-content/$S3_PATH" \
-            "s3://get.modal.money-content/${{ github.ref_name }}/latest/" \
+          aws s3 sync "s3://get.modality.org-content/$S3_PATH" \
+            "s3://get.modality.org-content/${{ github.ref_name }}/latest/" \
             --region us-east-1 \
             --delete
           
-          echo "Uploaded to: s3://get.modal.money-content/$S3_PATH"
-          echo "Latest: s3://get.modal.money-content/${{ github.ref_name }}/latest/"
+          echo "Uploaded to: s3://get.modality.org-content/$S3_PATH"
+          echo "Latest: s3://get.modality.org-content/${{ github.ref_name }}/latest/"
       
       - name: Build Cargo registry
         run: |
-          cd sites/get.modal.money
+          cd sites/get.modality.org
           ./build-registry.sh
       
       - name: Upload Cargo registry to S3
         run: |
           S3_PATH="${{ github.ref_name }}/${{ env.VERSION }}/cargo-registry/"
-          aws s3 sync sites/get.modal.money/registry/ \
-            "s3://get.modal.money-content/$S3_PATH" \
+          aws s3 sync sites/get.modality.org/registry/ \
+            "s3://get.modality.org-content/$S3_PATH" \
             --region us-east-1 \
             --exclude "*.DS_Store" \
             --delete
           
           # Update latest symlink
-          aws s3 sync "s3://get.modal.money-content/$S3_PATH" \
-            "s3://get.modal.money-content/${{ github.ref_name }}/latest/cargo-registry/" \
+          aws s3 sync "s3://get.modality.org-content/$S3_PATH" \
+            "s3://get.modality.org-content/${{ github.ref_name }}/latest/cargo-registry/" \
             --region us-east-1 \
             --delete
       
       - name: Invalidate CloudFront cache
         run: |
-          DISTRIBUTION_ID="EAB0G50HTKF8I"
+          DISTRIBUTION_ID="E1FBO6H39OPO86"
           aws cloudfront create-invalidation \
             --distribution-id "$DISTRIBUTION_ID" \
             --paths "/${{ github.ref_name }}/${{ env.VERSION }}/*" "/${{ github.ref_name }}/latest/*" \
@@ -379,14 +379,14 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Installation" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
-          echo "curl -fsSL https://get.modal.money/${{ github.ref_name }}/latest/install.sh | sh" >> $GITHUB_STEP_SUMMARY
+          echo "curl -fsSL https://get.modality.org/${{ github.ref_name }}/latest/install.sh | sh" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Direct Downloads" >> $GITHUB_STEP_SUMMARY
-          echo "- [Linux x86_64](https://get.modal.money/${{ github.ref_name }}/latest/binaries/linux-x86_64/modal)" >> $GITHUB_STEP_SUMMARY
-          echo "- [macOS ARM64](https://get.modal.money/${{ github.ref_name }}/latest/binaries/darwin-aarch64/modal)" >> $GITHUB_STEP_SUMMARY
+          echo "- [Linux x86_64](https://get.modality.org/${{ github.ref_name }}/latest/binaries/linux-x86_64/modal)" >> $GITHUB_STEP_SUMMARY
+          echo "- [macOS ARM64](https://get.modality.org/${{ github.ref_name }}/latest/binaries/darwin-aarch64/modal)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Cargo Install" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
-          echo "cargo install --index sparse+https://get.modal.money/${{ github.ref_name }}/latest/cargo-registry/index/ modal" >> $GITHUB_STEP_SUMMARY
+          echo "cargo install --index sparse+https://get.modality.org/${{ github.ref_name }}/latest/cargo-registry/index/ modal" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY

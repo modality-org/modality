@@ -1,3 +1,12 @@
+# Domain migration notes
+
+**Current packages host:** [get.modality.org](https://get.modality.org).
+`get.modal.money` 301s there. `packages.modality.org` was the previous host.
+
+The rest of this file is the historical `packages.modality.org` → `get.modal.money` move.
+
+---
+
 # Domain Migration: packages.modality.org → get.modal.money
 
 ## Summary

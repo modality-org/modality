@@ -5,7 +5,17 @@ title: Installation
 
 # Installation
 
-## Prerequisites
+## Install a binary
+
+```bash
+curl -fsSL https://www.modality.org/install.sh | sh
+```
+
+That installs the `modal` CLI. Then create [your first contract](./first-contract.md).
+Build from source when you need a development binary or the lean onboarding
+wrapper.
+
+## Prerequisites (from source)
 
 - Git
 - Rust toolchain (for building from source)
@@ -121,16 +131,22 @@ Set `MODAL_ONBOARDING_GIT_REV=<commit>` to pin the exact Git revision under
 test for release checklists or CI evidence.
 Release-archive-shaped binary bundles are measured by
 `tests/cli/check-modal-release-archive-readiness.sh`, which creates a
-`modal-<version>-<os>-<arch>-<profile>.tar.gz` containing `bin/modal` and
-`README.txt` plus `PROVENANCE.txt`, `EVIDENCE-BUNDLE.txt`, and `SHA256SUMS`,
+`modal-<version>-<os>-<arch>-<profile>.tar.gz` containing `bin/`, `bin/modal`,
+and `README.txt` plus `PROVENANCE.txt`, `EVIDENCE-BUNDLE.txt`, and `SHA256SUMS`,
 unpacks it, verifies the checksum manifest, checks that the archive contains
-exactly those five entries in the emitted order,
+exactly those six entries in the emitted order,
 and checks that the manifest covers exactly `bin/modal`, `README.txt`, and
 `PROVENANCE.txt` plus `EVIDENCE-BUNDLE.txt`. The provenance file records the
 source revision, version, profile, features, platform, and expected help
-surface. The archive producer now fails before emitting release evidence when
-the source revision is not a lowercase hex commit token, so `unknown` or
-hand-written revision notes cannot become the advertised archive provenance.
+surface. The producer self-check compares the archive member list in emitted
+order before release evidence can pass. The archive producer requires the packaged `MODAL_BIN` to be a regular
+non-symlink executable. The archive producer now fails before emitting release evidence when
+the source revision is not a lowercase hex commit token, so `unknown`,
+too-short, uppercase, non-hex, overlong, or other hand-written revision notes
+cannot become the advertised archive provenance.
+Packaged `modal --version` revision markers follow the same boundary:
+too-short, uppercase, non-hex, and overlong tokens fail before wrapper version
+metadata can become release evidence.
 The evidence manifest names the replayable evidence bundle, artifact,
 version, source revision, profile, feature set, exact help surface, binary,
 provenance file, checksum file, and post-unpack checks, including the
@@ -139,7 +155,12 @@ With `MODAL_ONBOARDING_ARTIFACT_SMOKE=1`, the download verifier now requires a
 same-revision `MODALITY_BIN`, checks the unpacked help surface, and runs the
 first-contract CLI smoke against the unpacked `modal` binary. The language CLI
 revision may be the exact provenance revision or a longer matching hex prefix
-for the same commit. Set
+for the same commit; expected revisions must be full commit hashes or Git-style
+short hashes of at least seven lowercase hexadecimal characters. The producer
+also rejects too-short, uppercase, non-hex, or overlong explicit source revision
+overrides before archive evidence can pass. The producer and downloaded-artifact
+verifier both reject unknown, too-short, uppercase, non-hex, or overlong expected
+revision tokens before replay evidence can pass. Set
 `MODAL_ONBOARDING_ARCHIVE_EXPECT_REV=<commit>` when release evidence must fail
 if the built `modal` binary is stale or came from a different source revision.
 The `.github/workflows/onboarding-release-archive.yml` workflow wires this into
@@ -212,14 +233,17 @@ requires the detached checksum sidecar to be one canonical SHA-256 line naming
 exactly that one archive,
 then rechecks the exact archive members in the emitted order, internal checksum
 manifest entries in the emitted order, executable `bin/modal`,
-regular non-symlink unpacked files with expected payload modes (`bin/modal` as
-`0755`; text and checksum files as `0644`), provenance metadata, source revision,
+regular non-symlink unpacked files with expected payload modes (`bin/` and `bin/modal` as
+`0755`; text and checksum files as `0644`) plus a
+regular non-symlink `bin/` directory with mode `0755`, provenance metadata, source revision,
 single provenance marker, replayable evidence bundle marker, and the recipe's
 archive, checksum, revision, and verifier command.
 The producer smoke also mutates the downloaded archive, checksum sidecar, and
 recipe into directories, symlinks, or non-canonical modes, and renames the
 checksum sidecar without renaming the archive, so top-level payload checks and
 sidecar pairing checks stay covered by executable negative evidence.
+It also proves that a symlinked unpacked `bin/` directory is rejected before
+installer evidence can pass.
 The archive filename must match the version, OS, architecture, and profile
 recorded in provenance, so a consistently renamed tarball, sidecar, and recipe
 still fails before the binary is trusted.
@@ -232,10 +256,11 @@ before the binary is trusted.
 The source revision must also be a lowercase hex commit token, so `unknown` or
 hand-edited revision notes fail even when the checksums and replay recipe are
 rebuilt consistently around them.
-The archive producer also fails before emitting release evidence when the OS or
-architecture provenance is not an archive-safe lowercase platform token, so
-unsafe platform metadata cannot be advertised and then left for the downloaded
-artifact verifier to catch later.
+The archive producer and downloaded-artifact verifier both now prove that OS
+and architecture provenance fail when either value is not an archive-safe
+lowercase platform token, with producer and downloaded-artifact negative cases for unsafe OS and architecture
+provenance, so unsafe platform metadata cannot be advertised and
+then left for the other side of the handoff to catch later.
 The archive producer also fails before emitting release evidence when the build
 profile is not one of the supported values (`debug` or `release`), so ad-hoc
 profile labels cannot become installer provenance even when `MODAL_BIN` points
@@ -244,16 +269,47 @@ The archive producer also fails before emitting release evidence when the
 advertised help surface or wrapper feature set is not one of the supported
 values, so experimental labels cannot be published as replayable installer
 provenance.
+It also requires the advertised help surface to match the wrapper feature set:
+`contract-onboarding` archives must advertise the lean help surface, and `full`
+archives must advertise the full help surface. The producer-side archive smoke
+proves both mismatch directions before release evidence is emitted.
+The producer-side archive smoke also proves that a regular but non-executable
+`MODAL_BIN` fails before any version metadata can be copied into release
+evidence, matching the symlinked-binary guard for the packaged wrapper.
+It also requires the packaged `modal --version` output to identify the `modal`
+wrapper and emit exactly one line, including no trailing blank version lines,
+with at most one embedded revision marker, and that marker must use the
+supported parenthesized `(...@<commit>)` form, with no other parenthesized
+version notes, and with the marker as the final version metadata, before that
+value is copied into the archive name, README, provenance, evidence manifest,
+and verification recipe. When present, the embedded marker must be a full
+commit hash or Git-style short hash of at least seven lowercase hexadecimal
+characters that matches the selected source revision; the producer-side smoke
+also proves uppercase revision markers fail before release evidence is emitted,
+and those uppercase revision markers are rejected as non-canonical tokens.
+It now proves non-hex revision markers fail there too,
+so an otherwise valid bundle cannot carry extra hand-written version notes,
+trailing version text, or stale version provenance as installer metadata. The producer derives that
+selected source revision from the source checkout before falling back to
+embedded version metadata, so a stale `modal --version` marker cannot become
+self-consistent archive provenance just because no expected revision was
+supplied.
 The provenance marker must also appear exactly once, so hand-merged provenance
 preambles fail before any field values are trusted.
 If the provenance version string carries an embedded revision marker, that
-revision must match the single source revision recorded by provenance, so a
-consistently renamed bundle with stale version metadata still fails before the
-binary is trusted.
+marker must also be the only parenthesized version metadata and must be a full
+commit hash or Git-style short hash of at least seven lowercase hexadecimal
+characters that matches the single source revision recorded by provenance, and
+it must be the final version metadata. The downloaded-artifact verifier has
+negative evidence for uppercase revision markers in this provenance version
+field plus too-short, non-hex, and overlong revision markers, so malformed,
+annotated, trailing, or stale version metadata still fails before the binary is
+trusted. In other words, malformed, annotated, trailing, or stale version
+metadata still cannot anchor downloaded-artifact evidence.
 The help surface recorded in provenance must also be one of the supported
 surfaces (`lean` or `full`), and optional smoke replay checks that the unpacked
-binary reports the exact version named by provenance before checking that exact
-help surface instead of assuming a default. A consistently edited README,
+binary reports exactly one version line matching provenance before checking
+that exact help surface instead of assuming a default. A consistently edited README,
 provenance file, and recipe that invent a new surface still fails before the
 binary is trusted.
 The README artifact marker must appear exactly once, and the README must repeat
@@ -294,14 +350,50 @@ fails even when each section still carries the expected value.
 Set
 `MODAL_ONBOARDING_ARTIFACT_EXPECT_REV=<commit>` when a downloaded artifact must
 fail unless its internal provenance matches one exact source revision.
-Set `MODAL_ONBOARDING_ARTIFACT_SMOKE=1` only when a same-revision
-`MODALITY_BIN` is available; the verifier now rejects missing `MODALITY_BIN`
-rather than silently downgrading the requested first-contract smoke to
-archive-only verification, and the producer smoke now proves that a
-non-executable `MODALITY_BIN` is rejected before any replay can pass.
-Unsupported smoke flag values now fail, too, instead of silently downgrading to archive-only
-verification, so a mistyped replay request cannot look like a successful
-archive-only check.
+Set `MODAL_ONBOARDING_ARTIFACT_SMOKE=1` only when a same-revision regular
+non-symlink `MODALITY_BIN` is available; leave it unset for archive-only verification. The
+verifier now rejects missing `MODALITY_BIN` rather than silently downgrading the
+requested first-contract smoke to archive-only verification. The producer
+smoke now treats an explicitly set but non-executable `MODALITY_BIN` as an
+error instead of archive-only evidence, and proves that a non-executable or
+symlinked `MODALITY_BIN` is rejected before any replay can pass. Smoke replay
+also requires the downloaded `bin/modal --version` output to be one line that
+matches provenance before help-surface or first-contract replay is trusted, and
+requires that `MODALITY_BIN --version` return successfully with one line that
+identifies the language CLI with a `modality` prefix and
+exactly one embedded source revision marker in the supported parenthesized
+`(...@<commit>)` form with no other parenthesized version notes and with the
+marker as the final version metadata, so a helper that omits the revision, only
+prints a matching source revision marker, exits after printing a plausible
+version, advertises a too-short, uppercase, non-hex, or overlong revision
+marker, or appends extra revision notes cannot anchor first-contract replay
+evidence.
+When a regular non-symlink executable `MODALITY_BIN` is supplied to the producer smoke, it also
+passes the generated artifact directory back through the downloaded-artifact
+verifier with `MODAL_ONBOARDING_ARTIFACT_SMOKE=1`, so the consumer replay path
+is positively checked before producer-side first-contract replay is reported.
+The producer-side archive smoke and the downloaded-artifact verifier both
+accept exact or matching-prefix hex revision markers for the same commit before
+claiming same-revision first-contract replay, and both reject expected or
+same-revision language CLI revision tokens shorter than seven hexadecimal
+characters or longer than forty. They also reject too-short, uppercase,
+non-hex, or overlong explicit producer source revisions and unknown, too-short,
+uppercase, non-hex, or overlong expected revision tokens before producer or
+downloaded-artifact replay evidence can pass. The producer-side archive
+smoke now also independently enforces
+the same single-line `modality` prefix and supported-marker shape with no other
+parenthesized version notes, duplicate revision markers, bare `@...` markers,
+or trailing marker text before its local first-contract replay, so producer
+evidence does not rely only on the consumer verifier call for language-CLI
+identity.
+The producer-side archive smoke uses the same exact-or-prefix revision match as
+the downloaded-artifact verifier, including rejection of too-short, uppercase,
+non-hex, and overlong same-revision language CLI markers before local replay.
+It now proves the overlong language-CLI marker directly on the producer path,
+before local first-contract replay evidence can be reported.
+Unsupported smoke flag values now fail, too, including an explicit `0`, instead
+of silently downgrading to archive-only verification, so a mistyped replay
+request cannot look like a successful archive-only check.
 The uploaded `VERIFY-DOWNLOAD.txt` repeats the expected source revision and the
 exact two-command verification section, plus the optional `MODAL_ONBOARDING_ARTIFACT_SMOKE=1`
 and `MODALITY_BIN=/path/to/modality` same-revision replay environment, so the artifact

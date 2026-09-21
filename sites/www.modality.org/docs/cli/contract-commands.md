@@ -163,6 +163,34 @@ modal c set /config/name.text "My Contract"
 modal c set /flags/active.bool true
 ```
 
+## Repost
+
+```bash
+modal c repost <SOURCE_CONTRACT> <SOURCE_PATH> [DEST_PATH]
+```
+
+Snapshot a value from another contract into this one so formulas can name the dest path.
+
+**Arguments:**
+| Arg | Description |
+|-----|-------------|
+| `SOURCE_CONTRACT` | Source contract ID |
+| `SOURCE_PATH` | Path on the source (e.g. `/parties/alice.id`) |
+| `DEST_PATH` | Optional dest in this contract. Default: `/reposts/<source_id><source_path>` |
+
+**Options:**
+| Option | Description |
+|--------|-------------|
+| `--from-dir <DIR>` | Read the source from a local contract directory instead of the hub |
+| `--dir <DIR>` | Dest contract directory (defaults to current directory) |
+
+```bash
+modal c repost abc123 /notes/hello.text
+modal c repost abc123 /parties/alice.id /parties/alice.id
+modal c repost abc123 /notes/hello.text --from-dir ../source-contract
+modal commit --all
+```
+
 ## Add Rule
 
 ```bash

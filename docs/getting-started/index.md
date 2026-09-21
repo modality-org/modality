@@ -5,22 +5,29 @@ title: Overview
 
 # Getting Started with Modality
 
-Modality is a verification language for AI agent cooperation. It lets agents define cooperation protocols as labeled transition systems with temporal modal formulas that constrain behavior.
+Modality is a verification language for agential cooperation. A contract is
+**state + model + rules**. Commits are signed. Anyone can replay the log.
+Invalid commits are rejected.
+
+Formal verification already made machines at enormous scale reliable. This
+language points that same discipline at agreements: who may do what, when,
+and with what evidence — including after the process that promised it is
+gone, and including with a counterparty you have never met.
 
 ## Why Modality?
 
-In a world of AI agents making deals, "trust me" isn't good enough. Agents need to:
+Agents (and humans) need checkable terms, not prompts or policy PDFs:
 
-- **Negotiate** cooperation terms formally
-- **Prove** their commitments mathematically
-- **Verify** that all parties will behave as agreed
+- **Negotiate** cooperation as shared rules
+- **Prove** a commit satisfied those rules
+- **Replay** the log without asking the original host to be honest
 
-Modality makes this possible through:
+Modality does that with:
 
-- **State machines** that model allowed behaviors
-- **Temporal logic** that expresses constraints over time
-- **Cryptographic predicates** that bind real-world identity to actions
-- **Append-only contracts** where rules accumulate and potential shrinks to mutual agreement
+- **Models** — labeled transition systems of possible moves
+- **Rules** — temporal formulas that accumulate
+- **Predicates** — signatures, evidence, and other commit-time checks
+- **Append-only logs** — signed history anyone can verify
 
 ## Where can I use Modality?
 
@@ -28,13 +35,13 @@ You can add Modality to almost any software project — the same way you might a
 
 | Integration style | Best for | How it works |
 |-------------------|----------|--------------|
-| **CLI (`modal`)** | Local development, scripting, ops | Manage contracts, identities, and nodes from the terminal — like using `psql` or `mongosh` against a database. |
+| **CLI (`modal`)** | Local development, scripting, ops | Manage contracts and identities from the terminal — like using `psql` or `mongosh` against a database. |
 | **TypeScript/JavaScript SDK** | Web apps, agents, backends | Create contracts, sign commits, and verify rules programmatically via [`@modality-org/sdk`](https://www.npmjs.com/package/@modality-org/sdk). |
 | **Contract hub (HTTP)** | Multi-party collaboration | Run or connect to a hub server for push/pull workflows — similar to using a hosted database instead of a local file. See the [Contract Hub tutorial](../tutorials/contract-hub). |
-| **Rust libraries** | Native services, validators, nodes | Embed `modality-lang`, `modality-common`, and related crates directly in Rust binaries. |
+| **Rust libraries** | Native services | Embed `modality-lang`, `modality-common`, and related crates directly in Rust binaries. |
 | **WASM / browser** | Client-side verification | Parse and check models in the browser via `@modality-dev/wasm` (`modality-lang` compiled to WASM). |
 
-**Local-first, network-optional.** A contract starts as files on disk (`state/`, `model/`, `rules/`, commit history) — comparable to SQLite or a git repo. When you're ready, you sync to a hub or the network, the same way you'd point an app at Postgres or a cloud API.
+**Local-first.** A contract starts as files on disk (`state/`, `model/`, `rules/`, commit history) — comparable to a git repo. When parties need to share, you sync to a hub.
 
 **Typical embedding patterns:**
 
@@ -43,4 +50,9 @@ You can add Modality to almost any software project — the same way you might a
 - **Multi-party workflows** — escrow, multisig treasuries, membership-gated contracts (see [Tutorials](../tutorials/contract-hub)).
 - **DevOps / CI** — commit and push contract changes as part of a deployment pipeline.
 
-You do not need to rewrite your stack. Pick the surface that fits: CLI for exploration, SDK for application code, hub or network when parties need to share verified state.
+You do not need to rewrite your stack. Pick the surface that fits: CLI for exploration, SDK for application code, hub when parties need to share verified state.
+
+## Next
+
+1. [Install `modal`](./installation.md)
+2. [Write your first contract](./first-contract.md)

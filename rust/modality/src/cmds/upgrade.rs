@@ -20,7 +20,7 @@ pub struct Opts {
 
     #[arg(
         long,
-        default_value = "http://get.modal.money",
+        default_value = "https://get.modality.org",
         help = "Base URL for package downloads"
     )]
     pub base_url: String,

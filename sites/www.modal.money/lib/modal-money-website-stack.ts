@@ -68,6 +68,23 @@ export class ModalMoneyWebsiteStack extends cdk.Stack {
       })
     );
 
+    const toNetworkFunction = new cloudfront.Function(this, 'ToNetworkFunction', {
+      code: cloudfront.FunctionCode.fromInline(`
+function handler(event) {
+  var request = event.request;
+  var response = {
+    statusCode: 301,
+    statusDescription: 'Moved Permanently',
+    headers: {
+      'location': { value: 'https://modality.network' + request.uri }
+    }
+  };
+  return response;
+}
+      `),
+      comment: 'Redirect modal.money to modality.network',
+    });
+
     // CloudFront distribution for www.modal.money
     const wwwDistribution = new cloudfront.Distribution(this, 'WwwDistribution', {
       defaultBehavior: {
@@ -79,6 +96,12 @@ export class ModalMoneyWebsiteStack extends cdk.Stack {
         cachedMethods: cloudfront.CachedMethods.CACHE_GET_HEAD,
         compress: true,
         cachePolicy: cloudfront.CachePolicy.CACHING_OPTIMIZED,
+        functionAssociations: [
+          {
+            function: toNetworkFunction,
+            eventType: cloudfront.FunctionEventType.VIEWER_REQUEST,
+          },
+        ],
       },
       domainNames: [subdomainName],
       certificate: certificate,
@@ -175,13 +198,13 @@ function handler(event) {
     statusCode: 301,
     statusDescription: 'Moved Permanently',
     headers: {
-      'location': { value: 'https://${subdomainName}' + request.uri }
+      'location': { value: 'https://modality.network' + request.uri }
     }
   };
   return response;
 }
       `),
-      comment: `Redirect ${domainName} to ${subdomainName}`,
+      comment: `Redirect ${domainName} to modality.network`,
     });
 
     // CloudFront distribution for apex domain (modal.money)

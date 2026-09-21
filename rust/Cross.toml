@@ -5,6 +5,9 @@ passthrough = [
     "MODAL_GIT_COMMIT",
     "AWS_LC_SYS_CMAKE_BUILDER",
 ]
+volumes = [
+    "../docs",
+]
 
 [target.x86_64-unknown-linux-gnu]
 image = "ghcr.io/cross-rs/x86_64-unknown-linux-gnu:main"

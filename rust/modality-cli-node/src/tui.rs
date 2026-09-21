@@ -362,7 +362,7 @@ fn draw_header(
 ) {
     let (role, network, peer, peers, height, epoch, round) = match status {
         Some(s) => (
-            s.role.as_str(),
+            s.role_display.as_str(),
             s.network_name.as_str(),
             short_id(&s.peerid),
             s.connected_peers.to_string(),
@@ -445,7 +445,7 @@ fn draw_stats(frame: &mut Frame, area: Rect, status: Option<&NodeStatus>) {
         "off"
     };
     let mut lines = vec![
-        kv("Role", &s.role),
+        kv("Role", &s.role_display),
         kv("Hybrid", hybrid),
         kv("Difficulty", &s.current_difficulty),
         kv(

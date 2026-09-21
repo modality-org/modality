@@ -6,10 +6,10 @@ import rehypeKatex from 'rehype-katex';
 
 const config: Config = {
   title: 'Modality',
-  tagline: 'A verification language for AI agent cooperation',
+  tagline: 'Formally verified. Built to scale.',
   favicon: 'img/favicon.ico',
 
-  url: 'https://docs.modality.org',
+  url: 'https://www.modality.org',
   baseUrl: '/',
 
   organizationName: 'modality-org',
@@ -36,6 +36,10 @@ const config: Config = {
 
   stylesheets: [
     {
+      href: 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap',
+      type: 'text/css',
+    },
+    {
       href: 'https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css',
       type: 'text/css',
       integrity: 'sha384-n8MVd4RsNIU0tAv4ct0nTaAbDJwPJzDEaqSD1odI+WdtXRGWt2kTvGFasHpSy3SV',
@@ -56,7 +60,7 @@ const config: Config = {
         blog: {
           showReadingTime: true,
           blogTitle: 'Modality Blog',
-          blogDescription: 'Updates, insights, and technical deep-dives from the Modality team',
+          blogDescription: 'Notes on verifiable contracts, formal verification, and agential cooperation',
           postsPerPage: 10,
           blogSidebarTitle: 'Recent posts',
           blogSidebarCount: 5,
@@ -85,6 +89,11 @@ const config: Config = {
           label: 'Docs',
         },
         {
+          to: '/docs/',
+          label: 'For agents',
+          position: 'left',
+        },
+        {
           to: '/blog',
           label: 'Blog',
           position: 'left',
@@ -94,21 +103,31 @@ const config: Config = {
           label: 'GitHub',
           position: 'right',
         },
+        {
+          to: '/docs/getting-started/installation',
+          label: 'Install',
+          position: 'right',
+          className: 'navbar-cta',
+        },
       ],
     },
     footer: {
       style: 'dark',
       links: [
         {
-          title: 'Docs',
+          title: 'Language',
           items: [
             {
               label: 'Getting Started',
               to: '/docs/getting-started',
             },
             {
-              label: 'Core Concepts',
-              to: '/docs/concepts',
+              label: 'First contract',
+              to: '/docs/getting-started/first-contract',
+            },
+            {
+              label: 'For agents',
+              to: '/docs/',
             },
             {
               label: 'Language Reference',
@@ -134,10 +153,6 @@ const config: Config = {
             {
               label: 'GitHub',
               href: 'https://github.com/modality-org/modality',
-            },
-            {
-              label: 'Modal Money',
-              href: 'https://www.modal.money/',
             },
           ],
         },
