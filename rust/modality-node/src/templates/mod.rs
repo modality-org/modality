@@ -627,8 +627,8 @@ mod tests {
     #[test]
     fn display_node_role_maps_protocol_names() {
         assert_eq!(display_node_role("miner"), "Miner");
-        assert_eq!(display_node_role("hybrid"), "Hybrid");
-        assert_eq!(display_node_role("Miner+Validator"), "Hybrid");
+        assert_eq!(display_node_role("hybrid"), "Miner+Sequencer");
+        assert_eq!(display_node_role("Miner+Validator"), "Miner+Sequencer");
         assert_eq!(display_node_role("validator"), "Sequencer");
         assert_eq!(display_node_role("sequencer"), "Sequencer");
         assert_eq!(display_node_role("contract-validator"), "Validator");

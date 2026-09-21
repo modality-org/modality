@@ -166,13 +166,18 @@ impl NodeStatus {
     }
 }
 
-/// Map stored / gossip role strings onto protocol display names.
+/// Join protocol role chips for status display, e.g. `Miner+Sequencer+Validator`.
+pub fn format_enumerated_roles(roles: &[&str]) -> String {
+    roles.join("+")
+}
+
+/// Map stored / gossip role strings onto enumerated protocol role names.
 pub fn display_node_role(role: &str) -> String {
+    let roles = derive_active_roles(role, false, false, false, false, &[], "");
+    if !roles.is_empty() {
+        return format_enumerated_roles(&roles);
+    }
     match role.trim().to_ascii_lowercase().as_str() {
-        "miner" => "Miner".to_string(),
-        "hybrid" | "miner+validator" | "miner+sequencer" => "Hybrid".to_string(),
-        "validator" | "sequencer" => "Sequencer".to_string(),
-        "contract-validator" | "contract_validator" => "Validator".to_string(),
         "observer" => "Observer".to_string(),
         "noop" => "Noop".to_string(),
         "" => "Unknown".to_string(),
@@ -348,7 +353,11 @@ pub async fn collect_node_status(source: &NodeStatusSource) -> anyhow::Result<No
     Ok(NodeStatus {
         peerid: peerid_str,
         role: source.role.clone(),
-        role_display: display_node_role(&source.role),
+        role_display: if active_roles.is_empty() {
+            display_node_role(&source.role)
+        } else {
+            format_enumerated_roles(&active_roles)
+        },
         active_roles,
         network_name: source.network_name.clone(),
         hybrid_consensus: source.hybrid_consensus,
@@ -609,12 +618,20 @@ mod tests {
     #[test]
     fn display_node_role_maps_protocol_names() {
         assert_eq!(display_node_role("miner"), "Miner");
-        assert_eq!(display_node_role("hybrid"), "Hybrid");
-        assert_eq!(display_node_role("Miner+Validator"), "Hybrid");
+        assert_eq!(display_node_role("hybrid"), "Miner+Sequencer");
+        assert_eq!(display_node_role("Miner+Validator"), "Miner+Sequencer");
         assert_eq!(display_node_role("validator"), "Sequencer");
         assert_eq!(display_node_role("sequencer"), "Sequencer");
         assert_eq!(display_node_role("contract-validator"), "Validator");
         assert_eq!(display_node_role("observer"), "Observer");
+    }
+
+    #[test]
+    fn enumerated_roles_join_with_plus() {
+        assert_eq!(
+            format_enumerated_roles(&["Miner", "Sequencer", "Validator"]),
+            "Miner+Sequencer+Validator"
+        );
     }
 
     #[test]
@@ -635,6 +652,18 @@ mod tests {
     fn hybrid_miner_shows_miner_and_sequencer() {
         let roles = derive_active_roles("hybrid", true, false, false, true, &[], "peer");
         assert_eq!(roles, vec!["Miner", "Sequencer"]);
+        assert_eq!(format_enumerated_roles(&roles), "Miner+Sequencer");
+    }
+
+    #[test]
+    fn hybrid_named_validator_enumerates_all_three() {
+        let named = vec!["peer".to_string()];
+        let roles = derive_active_roles("hybrid", true, false, false, true, &named, "peer");
+        assert_eq!(roles, vec!["Miner", "Sequencer", "Validator"]);
+        assert_eq!(
+            format_enumerated_roles(&roles),
+            "Miner+Sequencer+Validator"
+        );
     }
 
     #[test]

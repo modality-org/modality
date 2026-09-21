@@ -3,11 +3,11 @@ use clap::Parser;
 use std::path::PathBuf;
 
 use modality_node::actions;
-use modality_node::config_resolution::load_config_with_node_dir;
 use modality_node::logging;
-use modality_node::node::Node;
 use rand::Rng;
 use std::time::Instant;
+
+use super::ephemeral_client;
 
 #[derive(Debug, Parser)]
 #[command(about = "Ping a Modality Network node")]
@@ -28,35 +28,14 @@ pub struct Opts {
 }
 
 pub async fn run(opts: &Opts) -> Result<()> {
-    // Initialize console logging for ping output
     // Use None for log_level to allow RUST_LOG env var to control verbosity
     logging::init_logging(None, Some(false), None)?;
 
-    // If neither config nor dir is provided, default to current directory
-    let dir = if opts.config.is_none() && opts.dir.is_none() {
-        Some(std::env::current_dir()?)
-    } else {
-        opts.dir.clone()
-    };
-
-    let tmp = tempfile::tempdir()?;
-    let mut config = load_config_with_node_dir(opts.config.clone(), dir)?;
-    // Ping is a short-lived client: do not open the live node's RocksDB, bind
-    // its listen port, or reuse its peer ID (libp2p refuses to dial itself).
-    config.data_dir = Some(tmp.path().join("data"));
-    config.storage_path = None;
-    config.listeners = Some(vec![]);
-    config.network_config_path = None;
-    config.passfile_path = None;
-
-    let times_to_ping = opts.times;
-    let mut node = Node::from_config(config.clone()).await?;
-    log::info!("Pinging from node: {:?}", node.peerid);
-    node.setup(&config).await?;
+    let mut client = ephemeral_client::open(opts.config.clone(), opts.dir.clone()).await?;
+    log::info!("Pinging from node: {:?}", client.node.peerid);
     let target = opts.target.clone();
-
+    let times_to_ping = opts.times;
     let start = Instant::now();
-
     let random_hex = generate_random_hex_string();
 
     log::info!("Pinging {} {} time(s)...", target, times_to_ping);
@@ -69,7 +48,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
         .to_string();
 
         let ping_start = Instant::now();
-        match actions::request::run(&mut node, target.clone(), path, data).await {
+        match actions::request::run(&mut client.node, target.clone(), path, data).await {
             Ok(_) => {
                 let ping_duration = ping_start.elapsed();
                 log::info!("Ping {} successful: {:?}", i + 1, ping_duration);
