@@ -15,7 +15,7 @@ export default function Home(): JSX.Element {
       description="A verification language for AI agent cooperation. Modality enables agents to negotiate and verify cooperation through formal verification."
       wrapperClassName={styles.homeWrap}
     >
-      <main className={`${styles.page} homepage`}>
+      <main className={`${styles.home} homepage`}>
         <section className={styles.hero}>
           <svg
             className={styles.worlds}
@@ -93,6 +93,7 @@ export default function Home(): JSX.Element {
           </div>
         </section>
 
+        <div className={styles.page}>
         <section className={styles.block}>
           <h2>Trillions of agents, one checkable agreement</h2>
           <p>
@@ -179,6 +180,7 @@ export default function Home(): JSX.Element {
             Get started
           </Link>
         </section>
+        </div>
       </main>
     </Layout>
   );

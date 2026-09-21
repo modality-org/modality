@@ -97,9 +97,7 @@ pub async fn run(node: &mut Node) -> Result<()> {
     background_tasks::start_promotion_task(node.datastore_manager.clone(), shutdown.clone());
 
     // Get starting index
-    let starting_index = get_starting_index(&node.datastore_manager).await?;
-
-    // Start sync listener task
+    // Start sync listener before the first peer sync so gossip can land.
     let sync_trigger_rx = node.sync_trigger_tx.subscribe();
     background_tasks::start_sync_listener(
         sync_trigger_rx,
@@ -111,36 +109,9 @@ pub async fn run(node: &mut Node) -> Result<()> {
         mining_update_tx.clone(),
     );
 
-    // Create shared mining state
-    let mining_state = Arc::new(Mutex::new(MiningState {
-        current_mining_index: starting_index,
-    }));
-
-    // Start mining loop
-    mining_loop::start_mining_loop(
-        starting_index,
-        shutdown.clone(),
-        sync_in_progress.clone(),
-        mining_update_rx,
-        node.datastore_manager.clone(),
-        node.swarm.clone(),
-        node.peerid.to_string(),
-        node.miner_nominees.clone(),
-        node.fork_config.clone(),
-        node.mining_metrics.clone(),
-        node.initial_difficulty,
-        node.miner_hash_func.clone(),
-        node.miner_hash_params.clone(),
-        node.mining_delay_ms,
-        if node.hybrid_consensus {
-            Some(node.epoch_transition_tx.clone())
-        } else {
-            None
-        },
-        mining_state.clone(),
-    );
-
-    // Wait for connections and sync
+    // Wait for connections and sync BEFORE mining. An empty node with
+    // bootstrappers must not mint a private genesis and then refuse the
+    // public chain as a divergent fork.
     if !node.bootstrappers.is_empty() {
         log::info!("Waiting for peer connections...");
         node.wait_for_connections().await?;
@@ -166,7 +137,34 @@ pub async fn run(node: &mut Node) -> Result<()> {
         log::info!("No bootstrappers configured - mining in solo mode");
     }
 
-    log::info!("Starting miner...");
+    let starting_index = get_starting_index(&node.datastore_manager).await?;
+    let mining_state = Arc::new(Mutex::new(MiningState {
+        current_mining_index: starting_index,
+    }));
+
+    log::info!("Starting miner at index {}...", starting_index);
+    mining_loop::start_mining_loop(
+        starting_index,
+        shutdown.clone(),
+        sync_in_progress.clone(),
+        mining_update_rx,
+        node.datastore_manager.clone(),
+        node.swarm.clone(),
+        node.peerid.to_string(),
+        node.miner_nominees.clone(),
+        node.fork_config.clone(),
+        node.mining_metrics.clone(),
+        node.initial_difficulty,
+        node.miner_hash_func.clone(),
+        node.miner_hash_params.clone(),
+        node.mining_delay_ms,
+        if node.hybrid_consensus {
+            Some(node.epoch_transition_tx.clone())
+        } else {
+            None
+        },
+        mining_state.clone(),
+    );
 
     // Start auto-healing task
     background_tasks::start_auto_healing_task(

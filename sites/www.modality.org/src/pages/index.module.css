@@ -1,5 +1,13 @@
 .homeWrap {
   background: transparent;
+  max-width: 100%;
+  overflow-x: clip;
+}
+
+.home {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: clip;
 }
 
 .page {
@@ -15,21 +23,32 @@
   align-items: center;
   text-align: center;
   padding: 2.5rem 0 0;
-  min-height: calc(100vh - 4rem);
+  min-height: calc(100dvh - 4rem);
   box-sizing: border-box;
-  width: 100vw;
-  left: 50%;
-  right: 50%;
-  margin-left: -50vw;
-  margin-right: -50vw;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
   overflow: hidden;
+}
+
+.hero > * {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.hero > .worlds {
+  max-width: none;
 }
 
 .worlds {
   position: absolute;
   inset: 0;
+  display: block;
   width: 100%;
   height: 100%;
+  max-width: none;
+  overflow: hidden;
+  contain: paint;
   pointer-events: none;
   color: var(--ifm-color-primary);
   opacity: 0.55;
@@ -102,7 +121,12 @@
   position: relative;
   z-index: 1;
   width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  height: 1.4em;
   overflow: hidden;
+  contain: paint;
+  isolation: isolate;
   margin: 0.5rem 0 2.75rem;
   mask-image: linear-gradient(
     90deg,
@@ -114,6 +138,9 @@
 }
 
 .riverTrack {
+  position: absolute;
+  left: 0;
+  top: 0;
   display: flex;
   width: max-content;
   animation: river 72s linear infinite;
@@ -169,16 +196,18 @@
   margin-top: auto;
   margin-bottom: auto;
   padding: 4rem 1.5rem 3rem;
-  max-width: 52rem;
+  max-width: min(52rem, 100%);
+  box-sizing: border-box;
 }
 
 .banner {
   position: relative;
   z-index: 1;
+  box-sizing: border-box;
   margin: 1.5rem auto 0;
   padding: 0.7rem 1.1rem;
   width: fit-content;
-  max-width: 100%;
+  max-width: calc(100% - 2rem);
   text-align: center;
   font-size: 0.98rem;
   line-height: 1.4;
@@ -189,12 +218,14 @@
 }
 
 .title {
-  font-size: clamp(3rem, 9vw, 6.2rem);
+  font-size: clamp(2.6rem, 9vw, 6.2rem);
   font-weight: 700;
   letter-spacing: -0.055em;
   line-height: 0.96;
   margin: 0;
+  max-width: 100%;
   color: var(--ifm-heading-color);
+  overflow-wrap: break-word;
 }
 
 .sub {
@@ -282,6 +313,8 @@
 .tree {
   margin: 1.25rem 0;
   padding: 1rem 1.15rem;
+  max-width: 100%;
+  min-width: 0;
   overflow-x: auto;
   font-size: 0.92rem;
   line-height: 1.55;
@@ -293,7 +326,8 @@
 }
 
 .cmd {
-  white-space: nowrap;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .close {
@@ -322,7 +356,7 @@
   }
 
   .title {
-    font-size: clamp(2.4rem, 12vw, 3.4rem);
+    font-size: clamp(2.15rem, 11vw, 3.1rem);
   }
 
   .worlds {

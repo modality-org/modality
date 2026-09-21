@@ -57,23 +57,25 @@ pub async fn validate_and_repair_chain(
         });
     }
 
-    // Build index -> block map for quick lookups
-    let mut blocks_by_index: HashMap<u64, MinerBlock> = HashMap::new();
+    let mut by_index: HashMap<u64, Vec<MinerBlock>> = HashMap::new();
     for block in canonical_blocks {
-        if let Some(existing) = blocks_by_index.get(&block.index) {
+        let slot = by_index.entry(block.index).or_default();
+        if slot.iter().any(|existing| existing.hash == block.hash) {
+            continue;
+        }
+        if !slot.is_empty() {
             log::error!(
                 "⚠️  DATA INTEGRITY: Multiple canonical blocks at index {}: {} and {}",
                 block.index,
-                &existing.hash[..16],
-                &block.hash[..16]
+                &slot[0].hash[..16.min(slot[0].hash.len())],
+                &block.hash[..16.min(block.hash.len())]
             );
         }
-        blocks_by_index.insert(block.index, block);
+        slot.push(block);
     }
 
-    let min_index = *blocks_by_index.keys().min().unwrap_or(&0);
-    let max_index = *blocks_by_index.keys().max().unwrap_or(&0);
-
+    let min_index = *by_index.keys().min().unwrap_or(&0);
+    let max_index = *by_index.keys().max().unwrap_or(&0);
     log::info!(
         "📊 Validating {} canonical blocks (indices {} to {})",
         total_blocks,
@@ -81,48 +83,27 @@ pub async fn validate_and_repair_chain(
         max_index
     );
 
-    // Validate chain linkage
-    let mut break_point: Option<u64> = None;
-    let mut valid_blocks = 0;
+    // Prefer the longest prev_hash-linked spine. A leftover genesis from an
+    // earlier wipe must not last-write-win and cause repair to orphan the live chain.
+    let spine = select_longest_spine(&by_index);
+    let valid_blocks = spine.len();
+    let spine_hashes: std::collections::HashSet<String> =
+        spine.iter().map(|b| b.hash.clone()).collect();
+    let spine_tip = spine.last().map(|b| b.index);
+    let break_point = match spine_tip {
+        Some(tip) if tip < max_index => Some(tip + 1),
+        None if total_blocks > 0 => Some(min_index),
+        _ => None,
+    };
 
-    for index in min_index..=max_index {
-        let Some(block) = blocks_by_index.get(&index) else {
-            log::warn!("⚠️  Gap in canonical chain at index {}", index);
-            break_point = Some(index);
-            break;
-        };
+    let extras: Vec<MinerBlock> = by_index
+        .values()
+        .flatten()
+        .filter(|b| !spine_hashes.contains(&b.hash))
+        .cloned()
+        .collect();
 
-        if index == 0 {
-            valid_blocks += 1;
-            continue;
-        }
-
-        let Some(prev_block) = blocks_by_index.get(&(index - 1)) else {
-            log::warn!(
-                "⚠️  Missing canonical block at index {} (needed for block {})",
-                index - 1,
-                index
-            );
-            break_point = Some(index);
-            break;
-        };
-
-        if block.previous_hash != prev_block.hash {
-            log::error!(
-                "❌ Chain break at index {}: prev_hash {} doesn't match block {} hash {}",
-                index,
-                &block.previous_hash[..16],
-                index - 1,
-                &prev_block.hash[..16]
-            );
-            break_point = Some(index);
-            break;
-        }
-
-        valid_blocks += 1;
-    }
-
-    if break_point.is_none() {
+    if extras.is_empty() && break_point.is_none() {
         log::info!(
             "✅ Chain integrity validated: {} blocks properly linked",
             valid_blocks
@@ -136,54 +117,59 @@ pub async fn validate_and_repair_chain(
         });
     }
 
-    let break_index = break_point.unwrap();
-    log::warn!(
-        "⚠️  Chain integrity issue: break at index {}, {} valid blocks before break",
-        break_index,
-        valid_blocks
-    );
+    if let Some(break_index) = break_point {
+        log::warn!(
+            "⚠️  Chain integrity issue: break at index {}, {} valid blocks before break",
+            break_index,
+            valid_blocks
+        );
+    } else {
+        log::warn!(
+            "⚠️  Chain integrity issue: {} extra canonical block(s) off the longest spine ({} blocks)",
+            extras.len(),
+            valid_blocks
+        );
+    }
 
     if !repair {
         log::info!("🔧 Repair not requested - run with repair=true to fix");
         return Ok(ChainIntegrityReport {
             total_blocks,
             valid_blocks,
-            break_point: Some(break_index),
+            break_point,
             orphaned_count: 0,
             repaired: false,
         });
     }
 
-    // Repair: orphan all canonical blocks from break_point onwards
     log::info!(
-        "🔧 Repairing chain: orphaning canonical blocks from index {} onwards",
-        break_index
+        "🔧 Repairing chain: orphaning {} block(s) not on the longest linked spine",
+        extras.len()
     );
 
     let mut orphaned_count = 0;
-    for index in break_index..=max_index {
-        if let Some(block) = blocks_by_index.get(&index) {
-            if block.is_canonical && !block.is_orphaned {
-                let mut orphaned_block = block.clone();
-                orphaned_block.mark_as_orphaned(
-                    format!(
-                        "Chain integrity repair: block built on broken/orphaned chain at index {}",
-                        break_index
-                    ),
-                    None,
-                );
+    for block in extras {
+        if block.is_canonical && !block.is_orphaned {
+            let mut orphaned_block = block.clone();
+            orphaned_block.mark_as_orphaned(
+                "Chain integrity repair: not on the longest linked canonical spine".to_string(),
+                None,
+            );
 
-                if let Err(e) = orphaned_block.save_to_active(mgr).await {
-                    log::error!(
-                        "Failed to orphan block {} at index {}: {}",
-                        &block.hash[..16],
-                        index,
-                        e
-                    );
-                } else {
-                    log::info!("   Orphaned block {} at index {}", &block.hash[..16], index);
-                    orphaned_count += 1;
-                }
+            if let Err(e) = orphaned_block.save_to_active(mgr).await {
+                log::error!(
+                    "Failed to orphan block {} at index {}: {}",
+                    &block.hash[..16.min(block.hash.len())],
+                    block.index,
+                    e
+                );
+            } else {
+                log::info!(
+                    "   Orphaned block {} at index {}",
+                    &block.hash[..16.min(block.hash.len())],
+                    block.index
+                );
+                orphaned_count += 1;
             }
         }
     }
@@ -192,19 +178,67 @@ pub async fn validate_and_repair_chain(
         "✅ Chain repair complete: orphaned {} blocks",
         orphaned_count
     );
-    log::info!(
-        "   Valid chain now ends at index {}",
-        break_index.saturating_sub(1)
-    );
-    log::info!("   Auto-healing should sync correct blocks from peers");
+    if let Some(tip) = spine_tip {
+        log::info!("   Longest linked spine now ends at index {}", tip);
+    }
+    log::info!("   Auto-healing should sync any missing blocks from peers");
 
     Ok(ChainIntegrityReport {
         total_blocks,
         valid_blocks,
-        break_point: Some(break_index),
+        break_point,
         orphaned_count,
         repaired: true,
     })
+}
+
+fn select_longest_spine(by_index: &HashMap<u64, Vec<MinerBlock>>) -> Vec<MinerBlock> {
+    let starts = by_index.get(&0).cloned().unwrap_or_else(|| {
+        by_index
+            .keys()
+            .min()
+            .and_then(|min| by_index.get(min).cloned())
+            .unwrap_or_default()
+    });
+    let mut best: Vec<MinerBlock> = Vec::new();
+    for start in starts {
+        let chain = walk_forward(&start, by_index);
+        if chain.len() > best.len() {
+            best = chain;
+        }
+    }
+    best
+}
+
+fn walk_forward(start: &MinerBlock, by_index: &HashMap<u64, Vec<MinerBlock>>) -> Vec<MinerBlock> {
+    let mut chain = vec![start.clone()];
+    let mut current_hash = start.hash.clone();
+    let mut index = start.index;
+    loop {
+        let Some(cands) = by_index.get(&(index + 1)) else {
+            break;
+        };
+        let children: Vec<&MinerBlock> = cands
+            .iter()
+            .filter(|b| b.previous_hash == current_hash)
+            .collect();
+        if children.is_empty() {
+            break;
+        }
+        let child = if children.len() == 1 {
+            children[0].clone()
+        } else {
+            children
+                .into_iter()
+                .max_by_key(|c| walk_forward(c, by_index).len())
+                .expect("children non-empty")
+                .clone()
+        };
+        current_hash = child.hash.clone();
+        index = child.index;
+        chain.push(child);
+    }
+    chain
 }
 
 /// Quick check if the chain has integrity issues (doesn't repair)
@@ -215,26 +249,14 @@ pub async fn check_chain_integrity(mgr: &DatastoreManager) -> Result<bool> {
         return Ok(true);
     }
 
-    // Build index -> hash map
-    let mut hash_by_index: HashMap<u64, String> = HashMap::new();
-    for block in &canonical_blocks {
-        hash_by_index.insert(block.index, block.hash.clone());
+    let mut by_index: HashMap<u64, Vec<MinerBlock>> = HashMap::new();
+    for block in canonical_blocks {
+        by_index.entry(block.index).or_default().push(block);
     }
-
-    // Check linkage
-    for block in &canonical_blocks {
-        if block.index == 0 {
-            continue;
-        }
-
-        if let Some(prev_hash) = hash_by_index.get(&(block.index - 1)) {
-            if &block.previous_hash != prev_hash {
-                return Ok(false);
-            }
-        }
-    }
-
-    Ok(true)
+    let spine = select_longest_spine(&by_index);
+    let max_all = by_index.keys().copied().max().unwrap_or(0);
+    let spine_tip = spine.last().map(|b| b.index).unwrap_or(0);
+    Ok(spine_tip == max_all)
 }
 
 /// Rolling integrity check for the last N blocks
@@ -414,5 +436,57 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(canonical.len(), 2);
+    }
+
+    #[tokio::test]
+    async fn stale_genesis_is_orphaned_not_the_live_chain() {
+        let datastore = DatastoreManager::create_in_memory().unwrap();
+
+        let stale = MinerBlock::new_canonical(
+            "stale_genesis".to_string(),
+            0,
+            0,
+            1234567890,
+            "none".to_string(),
+            "stale".to_string(),
+            1,
+            1,
+            "old".to_string(),
+            1,
+        );
+        stale.save_to_active(&datastore).await.unwrap();
+
+        for i in 0..4 {
+            let block = MinerBlock::new_canonical(
+                format!("hash_{}", i),
+                i,
+                0,
+                1234567890 + i as i64,
+                if i == 0 {
+                    "genesis".to_string()
+                } else {
+                    format!("hash_{}", i - 1)
+                },
+                format!("data_{}", i),
+                12345,
+                1000,
+                "peer_id".to_string(),
+                1,
+            );
+            block.save_to_active(&datastore).await.unwrap();
+        }
+
+        let report = validate_and_repair_chain(&datastore, true).await.unwrap();
+        assert!(report.break_point.is_none());
+        assert_eq!(report.valid_blocks, 4);
+        assert_eq!(report.orphaned_count, 1);
+
+        let canonical = MinerBlock::find_all_canonical_multi(&datastore)
+            .await
+            .unwrap();
+        let hashes: Vec<String> = canonical.iter().map(|b| b.hash.clone()).collect();
+        assert!(hashes.contains(&"hash_0".to_string()));
+        assert!(hashes.contains(&"hash_3".to_string()));
+        assert!(!hashes.contains(&"stale_genesis".to_string()));
     }
 }

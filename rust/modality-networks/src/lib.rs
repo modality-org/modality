@@ -361,7 +361,16 @@ mod tests {
         assert_eq!(testnet.blocks_per_epoch, Some(40));
         assert_eq!(testnet.initial_difficulty, Some(1));
         assert_eq!(testnet.emission.as_ref().unwrap().block_subsidy, 50);
-        assert!(!testnet.repost_requires_validator_cert);
+        assert_eq!(
+            testnet.contract_validators.as_ref().unwrap().as_slice(),
+            [
+                "12D3KooWE4NPREQxLkevA5Rxd61Xiue4tTkUGN22qNABD7Mw5JhM",
+                "12D3KooWJpFYTRHNuPfwoj1hTf87aqB7CDJHKtVFp3RhPNB1DrRw",
+                "12D3KooWLHTsoeBE1ZWBgzumeSi6hsm3o9AndFufrGx7xLTyq2dw"
+            ]
+        );
+        assert_eq!(testnet.validator_min_stake, 0);
+        assert!(testnet.repost_requires_validator_cert);
         assert_eq!(testnet.target_block_time_secs, Some(60));
         assert_eq!(testnet.bootstrappers.len(), 3);
         for addr in &testnet.bootstrappers {
@@ -556,6 +565,7 @@ mod tests {
             let cfg: serde_json::Value = serde_json::from_str(tmpl.config).unwrap();
             assert_eq!(cfg["network_config_path"], "modality-networks://testnet");
             assert_eq!(cfg["hybrid_consensus"], true);
+            assert_eq!(cfg["run_contract_validator"], true);
             assert_eq!(cfg["listeners"][0], "/ip4/0.0.0.0/tcp/4040/ws");
             assert_eq!(cfg["passfile_path"], "./node.modal_passfile");
             let id = cfg["id"].as_str().expect("template id");

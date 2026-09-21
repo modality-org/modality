@@ -1,11 +1,18 @@
 {
   "name": "testnet",
-  "description": "Public hybrid testnet. Foundation bootstrappers listen on TCP 4040. Anyone may join by mining. Not mainnet. Block subsidy is a small development mint.",
+  "description": "Public hybrid testnet. Foundation bootstrappers listen on TCP 4040. Anyone may join by mining. The three bootstrappers are a named contract-validator set (min stake 0) so dest REPOST/RECV can consume a prefix-cert QC. Not mainnet. Block subsidy is a small development mint.",
   "bootstrappers": [
     "/dns4/node1.testnet.modality.network/tcp/4040/ws/p2p/12D3KooWE4NPREQxLkevA5Rxd61Xiue4tTkUGN22qNABD7Mw5JhM",
     "/dns4/node2.testnet.modality.network/tcp/4040/ws/p2p/12D3KooWJpFYTRHNuPfwoj1hTf87aqB7CDJHKtVFp3RhPNB1DrRw",
     "/dns4/node3.testnet.modality.network/tcp/4040/ws/p2p/12D3KooWLHTsoeBE1ZWBgzumeSi6hsm3o9AndFufrGx7xLTyq2dw"
   ],
+  "contract_validators": [
+    "12D3KooWE4NPREQxLkevA5Rxd61Xiue4tTkUGN22qNABD7Mw5JhM",
+    "12D3KooWJpFYTRHNuPfwoj1hTf87aqB7CDJHKtVFp3RhPNB1DrRw",
+    "12D3KooWLHTsoeBE1ZWBgzumeSi6hsm3o9AndFufrGx7xLTyq2dw"
+  ],
+  "validator_min_stake": 0,
+  "repost_requires_validator_cert": true,
   "blocks_per_epoch": 40,
   "initial_difficulty": 1,
   "target_block_time_secs": 60,

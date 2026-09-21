@@ -26,6 +26,22 @@
 html, body {
   background-color: var(--ifm-background-color);
   color: var(--ifm-font-color-base);
+  max-width: 100%;
+  overflow-x: hidden;
+  overflow-x: clip;
+}
+
+@supports (-webkit-touch-callout: none) {
+  html, body {
+    position: relative;
+    overflow-x: hidden;
+  }
+}
+
+#__docusaurus,
+.main-wrapper {
+  max-width: 100%;
+  overflow-x: clip;
 }
 
 .navbar__title {
@@ -37,6 +53,11 @@ html, body {
 .navbar {
   box-shadow: none;
   border-bottom: 1px solid var(--ifm-color-emphasis-200);
+  max-width: 100%;
+}
+
+.navbar__inner {
+  max-width: 100%;
 }
 
 .navbar-cta {
@@ -62,6 +83,7 @@ html, body {
 /* Omarchy-like field on the homepage; Harmonic-dark when the theme is dark. */
 html:has(.homepage) {
   overflow-x: hidden;
+  overflow-x: clip;
   --ifm-background-color: #e4e4ea;
   --ifm-navbar-background-color: #e4e4ea;
   --ifm-footer-background-color: #d8d8e0;

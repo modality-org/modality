@@ -23,6 +23,7 @@
   ],
   "hybrid_consensus": true,
   "run_validator": true,
+  "run_contract_validator": true,
   "initial_difficulty": 1,
   "status_port": 3101,
   "status_url": "https://node1.testnet.modality.network"

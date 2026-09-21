@@ -16,10 +16,38 @@ pub async fn start_status_server(
     source: NodeStatusSource,
 ) -> Result<tokio::task::JoinHandle<()>, anyhow::Error> {
     let source_filter = warp::any().map(move || source.clone());
-    let status_route = warp::path::end()
+    let html_get = warp::path::end()
+        .and(warp::get())
+        .and(source_filter.clone())
+        .and_then(status_handler);
+    let html_head = warp::path::end().and(warp::head()).map(|| {
+        warp::reply::with_header(
+            warp::reply::with_status(warp::reply(), warp::http::StatusCode::OK),
+            "content-type",
+            "text/html; charset=utf-8",
+        )
+    });
+    let json_get = warp::path("status.json")
         .and(warp::get())
         .and(source_filter)
-        .and_then(status_handler);
+        .and_then(status_json_handler);
+    let json_head = warp::path("status.json").and(warp::head()).map(|| {
+        cors_json_reply(warp::reply::with_status(
+            warp::reply(),
+            warp::http::StatusCode::OK,
+        ))
+    });
+    let json_options = warp::path("status.json").and(warp::options()).map(|| {
+        cors_json_reply(warp::reply::with_status(
+            warp::reply(),
+            warp::http::StatusCode::NO_CONTENT,
+        ))
+    });
+    let status_route = html_get
+        .or(html_head)
+        .or(json_get)
+        .or(json_head)
+        .or(json_options);
 
     log::info!("Starting HTTP status server on http://0.0.0.0:{}", port);
 
@@ -43,6 +71,49 @@ async fn status_handler(source: NodeStatusSource) -> Result<impl warp::Reply, wa
         .await
         .map_err(|_| warp::reject::not_found())?;
     Ok(warp::reply::html(html))
+}
+
+async fn status_json_handler(
+    source: NodeStatusSource,
+) -> Result<impl warp::Reply, warp::Rejection> {
+    let status = collect_node_status(&source)
+        .await
+        .map_err(|_| warp::reject::not_found())?;
+    let genesis_hash = status
+        .genesis
+        .as_ref()
+        .map(|g| g.hash.clone())
+        .unwrap_or_default();
+    let body = serde_json::json!({
+        "network": status.network_name,
+        "peer_id": status.peerid,
+        "role": status.role_display,
+        "height": status.total_miner_blocks,
+        "epoch": status.current_epoch,
+        "blocks_per_epoch": status.blocks_per_epoch,
+        "peers": status.connected_peers,
+        "round": status.current_round,
+        "difficulty": status.current_difficulty,
+        "cumulative_difficulty": status.cumulative_difficulty.to_string(),
+        "hybrid": status.hybrid_consensus,
+        "genesis_hash": genesis_hash,
+        "sequencer_nomination_epoch": status.sequencer_nomination_epoch,
+        "sequencer_committee_size": status.sequencer_committee.len(),
+        "named_validators": status.named_validators,
+        "named_validator_count": status.named_validators.len(),
+        "validator_min_stake": status.validator_min_stake,
+        "dest_apply_requires_cert": status.dest_apply_requires_cert,
+        "active_roles": status.active_roles,
+    });
+    Ok(cors_json_reply(warp::reply::json(&body)))
+}
+
+fn cors_json_reply<T: warp::Reply>(reply: T) -> warp::reply::WithHeader<warp::reply::WithHeader<T>> {
+    warp::reply::with_header(
+        warp::reply::with_header(reply, "access-control-allow-origin", "*"),
+        "access-control-allow-methods",
+        "GET, HEAD, OPTIONS",
+    )
 }
 
 /// Start status HTML writer task that periodically writes HTML to a directory

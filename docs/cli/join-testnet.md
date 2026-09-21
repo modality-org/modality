@@ -10,7 +10,12 @@ Install a current `modal` binary, create a joiner with a **new** key, and mine
 
 Bootstrap nodes are Foundation-operated. Anyone may join by mining. This is
 **not** mainnet. Testnet block subsidy is a small development mint, not the
-mainnet 21M schedule.
+mainnet 21M schedule. The three bootstrappers also run as a **named
+contract-validator set** (min stake 0) so dest REPOST and dest RECV can
+consume a prefix-cert quorum certificate. That named set is a testnet
+bootstrap, not the mainnet stake-gated membership rule. Join remains by
+mining; do not treat `run-validator` as this role (`run-validator` is a
+sequencer alias).
 
 If `modal node ping` to a published bootstrapper times out, the testnet is not
 currently joinable. Check the `description` on the bundled `testnet` network

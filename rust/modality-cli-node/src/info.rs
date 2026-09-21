@@ -40,7 +40,8 @@ pub async fn run(opts: &Opts) -> Result<()> {
         .or(config.storage_path.as_ref())
         .context("No data_dir or storage_path in config")?;
 
-    let datastore_result = DatastoreManager::open(data_dir);
+    let datastore_result = DatastoreManager::open_readonly(data_dir)
+        .or_else(|_| DatastoreManager::open(data_dir));
 
     // Get mining statistics from datastore (if available)
     let (canonical_blocks, chain_tip, genesis_block, blocks_mined_by_node) =
@@ -116,16 +117,18 @@ pub async fn run(opts: &Opts) -> Result<()> {
 
     // Storage
     println!("💾  Storage");
+    if let Some(ref data_dir) = config.data_dir {
+        println!("    Data dir: {}", data_dir.display());
+    }
     if let Some(ref storage_path) = config.storage_path {
-        println!("    Path: {}", storage_path.display());
-
-        // Try to get storage size
+        println!("    Storage path: {}", storage_path.display());
         if let Ok(metadata) = std::fs::metadata(storage_path) {
             if metadata.is_dir() {
                 println!("    Type: Directory");
             }
         }
-    } else {
+    }
+    if config.data_dir.is_none() && config.storage_path.is_none() {
         println!("    Path: In-memory (no persistence)");
     }
     println!();

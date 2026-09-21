@@ -58,9 +58,8 @@ pub fn start_mining_loop(
                 continue;
             }
 
-            // Non-blocking check for view updates. Cap against the persisted tip so
-            // a longer *foreign* fork cannot yank this miner onto heights it does
-            // not have; catch-up is datastore sync.
+            // Non-blocking check for view updates. Cap at the persisted next index
+            // so gossip of a tip we have not written cannot skip a height.
             let datastore_next = get_next_mining_index(&datastore).await;
             current_index =
                 process_mining_updates(&mut mining_update_rx, current_index, datastore_next);
@@ -144,15 +143,16 @@ pub fn start_mining_loop(
 }
 
 /// Process pending mining updates from the channel.
-/// Only follow tips that are *ahead* of the in-memory index and no more than
-/// one height past the persisted tip. Stale gossip of a lower tip is not a
-/// reorg; a longer foreign fork is not our chain.
+///
+/// `new_tip_index` is the last known block; we mine `new_tip_index + 1`.
+/// Cap at `datastore_next` (persisted tip + 1). A previous +1 on that cap
+/// let gossip skip a height and spin on "Index mismatch".
 fn process_mining_updates(
     rx: &mut tokio::sync::mpsc::UnboundedReceiver<u64>,
     mut current_index: u64,
     datastore_next: u64,
 ) -> u64 {
-    let max_next = datastore_next.saturating_add(1);
+    let max_next = datastore_next;
     while let Ok(new_tip_index) = rx.try_recv() {
         let next_index = new_tip_index + 1;
         if next_index > current_index && next_index <= max_next {
@@ -192,4 +192,35 @@ async fn update_from_datastore(
 /// Uses observer's get_chain_tip_index and adds 1 for mining.
 async fn get_next_mining_index(datastore: &Arc<Mutex<DatastoreManager>>) -> u64 {
     get_chain_tip_index(datastore).await + 1
+}
+
+#[cfg(test)]
+mod tests {
+    use super::process_mining_updates;
+    use tokio::sync::mpsc;
+
+    fn drain_from(tips: &[u64], current: u64, datastore_next: u64) -> u64 {
+        let (tx, mut rx) = mpsc::unbounded_channel();
+        for tip in tips {
+            tx.send(*tip).unwrap();
+        }
+        drop(tx);
+        process_mining_updates(&mut rx, current, datastore_next)
+    }
+
+    #[test]
+    fn gossip_of_current_tip_mines_the_next_height() {
+        assert_eq!(drain_from(&[82], 82, 83), 83);
+    }
+
+    #[test]
+    fn gossip_cannot_skip_a_height_we_have_not_persisted() {
+        // Persisted tip 82 → next is 83. Gossip that 83 exists must not mine 84.
+        assert_eq!(drain_from(&[83], 83, 83), 83);
+    }
+
+    #[test]
+    fn stale_lower_gossip_does_not_rewind() {
+        assert_eq!(drain_from(&[80], 83, 83), 83);
+    }
 }

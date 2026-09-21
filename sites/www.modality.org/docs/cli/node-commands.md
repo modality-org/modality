@@ -177,7 +177,10 @@ Network `info.json` may include, besides the sequencer committee `validators`:
 Omitted fields keep existing networks unchanged. Local `devnet1` names the
 single node as a contract validator and sets
 `repost_requires_validator_cert` so dest REPOST and dest RECV wait for that
-node's prefix cert. Request a certificate with `/contract/prefix_cert`
+node's prefix cert. The public `testnet` network names the three Foundation
+bootstrappers as `contract_validators` with `validator_min_stake` 0 and
+`repost_requires_validator_cert` true. That is a named bootstrap set, not
+stake-gated mainnet membership. Request a certificate with `/contract/prefix_cert`
 (`source_contract`, `through_commit`). Local devnets also set
 `emission.block_subsidy` so mining mints native MOD. Copy `emission` into your
 own `info.json` (or network config file) to choose a different schedule.

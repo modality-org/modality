@@ -244,7 +244,7 @@
         <h1>Modality Network {network_name}</h1>
         <p class="status-online">Status: ONLINE | Node ID: {peerid} | Role: {role_display}</p>
         <div class="role-chips">{role_chips_html}</div>
-        <p class="tab-copy">Hybrid consensus: {hybrid_label}</p>
+        <p class="tab-copy">Public hybrid testnet. Not mainnet. Hybrid consensus: {hybrid_label}. <a href="https://testnet.modality.network">Join</a></p>
     </div>
 
     <div class="tabs">
@@ -264,6 +264,10 @@
             <div class="stat-box">
                 <div class="stat-label">Block Height</div>
                 <div class="stat-value">{total_miner_blocks}</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-label">Epoch</div>
+                <div class="stat-value">{current_epoch}</div>
             </div>
             <div class="stat-box">
                 <div class="stat-label">Cumulative Difficulty</div>
@@ -494,7 +498,8 @@
 
     <div class="status-card">
         <p style="text-align: center; color: var(--dim); font-size: 0.9em;">
-            Page auto-refreshes every {refresh_interval} seconds
+            Page auto-refreshes every {refresh_interval} seconds.
+            Machine-readable: <a href="/status.json">/status.json</a>
         </p>
     </div>
 </body>

@@ -5,16 +5,75 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Modality Network</title>
   <style>
-    body { font-family: ui-sans-serif, system-ui, sans-serif; max-width: 42rem; margin: 4rem auto; padding: 0 1.25rem; line-height: 1.5; color: #111; }
-    code { background: #f3f3f3; padding: 0.1em 0.35em; border-radius: 3px; }
-    pre { background: #f3f3f3; padding: 1rem; overflow-x: auto; }
-    a { color: #0b57d0; }
-    a code { color: inherit; }
+    :root {
+      --bg: #0a0a0f;
+      --panel: #14141f;
+      --panel-2: #1a1a2e;
+      --text: #e8e8f0;
+      --heading: #ffffff;
+      --dim: #555570;
+      --accent: #6c8cff;
+      --line: #2a2a3a;
+      --ok: #4ade80;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      max-width: 44rem;
+      margin: 4rem auto;
+      padding: 0 1.25rem 4rem;
+      line-height: 1.55;
+      background: var(--bg);
+      color: var(--text);
+    }
+    h1 { color: var(--heading); font-weight: 650; letter-spacing: -0.02em; margin-bottom: 0.35rem; }
+    .kicker { color: var(--accent); font-size: 0.85rem; font-weight: 600; margin: 0 0 0.75rem; }
+    .dim { color: var(--dim); }
+    a { color: var(--accent); }
+    code, pre {
+      font-family: 'JetBrains Mono', 'Fira Code', ui-monospace, monospace;
+      background: var(--panel-2);
+      border-radius: 4px;
+    }
+    code { padding: 0.1em 0.4em; }
+    pre {
+      padding: 1rem 1.1rem;
+      overflow-x: auto;
+      border: 1px solid var(--line);
+    }
+    ul { padding-left: 1.2rem; }
+    .facts {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(7.5rem, 1fr));
+      gap: 0.75rem;
+      margin: 1.5rem 0 0.4rem;
+    }
+    .fact {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 0.9rem 1rem;
+      text-align: center;
+    }
+    .fact .label { color: var(--dim); font-size: 0.8rem; margin-bottom: 0.35rem; }
+    .fact .value { color: var(--accent); font-size: 1.35rem; font-weight: 700; font-family: 'JetBrains Mono', ui-monospace, monospace; }
+    .facts-src { color: var(--dim); font-size: 0.85rem; margin: 0 0 1.25rem; }
+    .facts-src .live { color: var(--ok); }
+    .warn { color: var(--dim); font-size: 0.95rem; }
   </style>
 </head>
 <body>
+  <p class="kicker">Public hybrid testnet · not mainnet</p>
   <h1>Modality Network</h1>
-  <p>This is the Foundation-operated public hybrid testnet. It is <strong>not</strong> mainnet. Anyone may join by mining. Bootstrap nodes are operated by the Foundation until independent pools exist.</p>
+  <p>Foundation-operated bootstrappers. Anyone may join by mining. Independent pools do not exist yet. The three bootstrappers are also a named validator set (min stake 0) for dest REPOST/RECV prefix-cert QC.</p>
+  <div class="facts" id="facts" hidden>
+    <div class="fact"><div class="label">Height</div><div class="value" id="f-height">—</div></div>
+    <div class="fact"><div class="label">Epoch</div><div class="value" id="f-epoch">—</div></div>
+    <div class="fact"><div class="label">Round</div><div class="value" id="f-round">—</div></div>
+    <div class="fact"><div class="label">Peers</div><div class="value" id="f-peers">—</div></div>
+    <div class="fact"><div class="label">Validators</div><div class="value" id="f-validators">—</div></div>
+  </div>
+  <p class="facts-src" id="facts-src" hidden></p>
   <p>Install and join:</p>
   <pre>curl -fsSL https://get.modality.org/testnet/latest/install.sh | sh
 modal node create --dir ./my-node --testnet
@@ -25,6 +84,36 @@ modal node run-miner --dir ./my-node --no-tui</pre>
     <li><a href="https://node2.testnet.modality.network"><code>node2.testnet.modality.network</code></a></li>
     <li><a href="https://node3.testnet.modality.network"><code>node3.testnet.modality.network</code></a></li>
   </ul>
-  <p>How-to: <a href="https://www.modality.org/docs/cli/join-testnet">Join the public testnet</a>. Packages: <a href="https://get.modality.org/testnet/latest/">get.modality.org</a>.</p>
+  <p class="warn">How-to: <a href="https://www.modality.org/docs/cli/join-testnet">Join the public testnet</a>. Packages: <a href="https://get.modality.org/testnet/latest/">get.modality.org</a>. Observer: <a href="https://node0.testnet.modality.network">node0</a>.</p>
+  <script>
+    var hosts = [
+      'https://node1.testnet.modality.network',
+      'https://node2.testnet.modality.network',
+      'https://node3.testnet.modality.network'
+    ];
+    function show(s, host) {
+      document.getElementById('f-height').textContent = s.height;
+      document.getElementById('f-epoch').textContent = s.epoch;
+      document.getElementById('f-peers').textContent = s.peers;
+      document.getElementById('f-round').textContent =
+        s.round == null ? '—' : s.round;
+      var nval = Array.isArray(s.named_validators) ? s.named_validators.length : 0;
+      document.getElementById('f-validators').textContent = nval;
+      document.getElementById('facts').hidden = false;
+      var src = document.getElementById('facts-src');
+      src.innerHTML = '<span class="live">live</span> from ' +
+        host.replace('https://', '') +
+        (s.hybrid ? ' · hybrid' : '');
+      src.hidden = false;
+    }
+    function load(i) {
+      if (i >= hosts.length) return;
+      fetch(hosts[i] + '/status.json')
+        .then(function (r) { return r.ok ? r.json() : Promise.reject(); })
+        .then(function (s) { show(s, hosts[i]); })
+        .catch(function () { load(i + 1); });
+    }
+    load(0);
+  </script>
 </body>
 </html>

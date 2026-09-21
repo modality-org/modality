@@ -668,9 +668,12 @@ mod tests {
         assert!(html.contains("170"));
         assert!(html.contains("Modality Network"));
         assert!(!html.contains("Modal Money"));
+        assert!(html.contains("Not mainnet"));
+        assert!(html.contains("stat-label\">Epoch"));
         assert!(html.contains("data-tab=\"sequencers\""));
         assert!(html.contains("data-tab=\"validators\""));
         assert!(html.contains("data-tab=\"miners\""));
+        assert!(html.contains("/status.json"));
     }
 
     #[test]
