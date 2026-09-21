@@ -264,6 +264,7 @@ fn print_report(opts: &Opts, artifact: &ReplayArtifact, report: &ReplayReport) -
 #[cfg(feature = "wasm")]
 pub(crate) struct CliWasmEngine;
 
+#[cfg(feature = "wasm")]
 pub(crate) fn prefix_from_store(store: &ContractStore) -> Result<Vec<(String, CommitFile)>> {
     let through = store
         .get_head()?
