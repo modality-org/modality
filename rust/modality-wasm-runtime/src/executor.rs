@@ -1,6 +1,41 @@
+use crate::gas::{GasMetrics, DEFAULT_GAS_LIMIT};
 use anyhow::{anyhow, Result};
 use wasmtime::*;
-use crate::gas::{GasMetrics, DEFAULT_GAS_LIMIT};
+
+/// Compile a WAT program that ignores input and returns a fixed JSON
+/// `ProgramResult` (length-prefixed in memory, `execute` + `alloc` exports).
+pub fn fixed_result_wasm(result_json: &str) -> Result<Vec<u8>> {
+    let mut data = Vec::new();
+    let len = result_json.len() as u32;
+    data.extend_from_slice(&len.to_le_bytes());
+    data.extend_from_slice(result_json.as_bytes());
+    let escaped: String = data.iter().map(|b| format!("\\{:02x}", b)).collect();
+    let wat = format!(
+        r#"(module
+  (memory (export "memory") 1)
+  (data (i32.const 0) "{escaped}")
+  (func (export "alloc") (param i32) (result i32)
+    i32.const 32768)
+  (func (export "execute") (param i32 i32) (result i32)
+    i32.const 0)
+)"#
+    );
+    Ok(wat::parse_str(&wat)?)
+}
+
+/// WASM that emits one `post` action at `path` with string `value`.
+pub fn program_that_posts(path: &str, value: &str) -> Result<Vec<u8>> {
+    let result = serde_json::json!({
+        "actions": [{
+            "method": "post",
+            "path": path,
+            "value": value
+        }],
+        "gas_used": 1,
+        "errors": []
+    });
+    fixed_result_wasm(&result.to_string())
+}
 
 /// WASM executor with gas metering
 pub struct WasmExecutor {
@@ -14,13 +49,10 @@ impl WasmExecutor {
         // Configure engine with fuel consumption enabled
         let mut config = Config::new();
         config.consume_fuel(true);
-        
+
         let engine = Engine::new(&config).expect("Failed to create WASM engine");
-        
-        Self {
-            engine,
-            gas_limit,
-        }
+
+        Self { engine, gas_limit }
     }
 
     /// Validate a WASM module without executing it
@@ -32,7 +64,7 @@ impl WasmExecutor {
     }
 
     /// Execute a WASM module with the specified method and arguments
-    /// 
+    ///
     /// The WASM module must export a function with the given name that:
     /// - Takes a single string argument (JSON-encoded)
     /// - Returns a string result (JSON-encoded)
@@ -47,14 +79,15 @@ impl WasmExecutor {
 
         // Create a linker with minimal host functions
         let mut linker = Linker::new(&self.engine);
-        
+
         // Add basic host functions
         linker.func_wrap("env", "abort", || {
             Err::<(), _>(anyhow!("WASM module called abort"))
         })?;
 
         // Instantiate the module
-        let instance = linker.instantiate(&mut store, &module)
+        let instance = linker
+            .instantiate(&mut store, &module)
             .map_err(|e| anyhow!("Failed to instantiate WASM module: {}", e))?;
 
         // Get memory for string operations
@@ -75,15 +108,18 @@ impl WasmExecutor {
         // Allocate memory for input string
         let args_bytes = args.as_bytes();
         let args_len = args_bytes.len() as i32;
-        let args_ptr = alloc_func.call(&mut store, args_len)
+        let args_ptr = alloc_func
+            .call(&mut store, args_len)
             .map_err(|e| anyhow!("Failed to allocate memory: {}", e))?;
 
         // Write input to WASM memory
-        memory.write(&mut store, args_ptr as usize, args_bytes)
+        memory
+            .write(&mut store, args_ptr as usize, args_bytes)
             .map_err(|e| anyhow!("Failed to write to WASM memory: {}", e))?;
 
         // Call the method
-        let result_ptr = method_func.call(&mut store, (args_ptr, args_len))
+        let result_ptr = method_func
+            .call(&mut store, (args_ptr, args_len))
             .map_err(|e| anyhow!("WASM execution failed: {}", e))?;
 
         // Read result from memory
@@ -149,5 +185,15 @@ mod tests {
         let executor = WasmExecutor::default();
         assert_eq!(executor.gas_limit(), DEFAULT_GAS_LIMIT);
     }
-}
 
+    #[test]
+    fn fixed_result_program_returns_posted_json() {
+        let wasm = program_that_posts("/notes/from-program.text", "pwned").unwrap();
+        WasmExecutor::validate_module(&wasm).unwrap();
+        let mut executor = WasmExecutor::new(1_000_000);
+        let out = executor.execute(&wasm, "execute", "{}").unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&out).unwrap();
+        assert_eq!(parsed["actions"][0]["path"], "/notes/from-program.text");
+        assert_eq!(parsed["actions"][0]["value"], "pwned");
+    }
+}

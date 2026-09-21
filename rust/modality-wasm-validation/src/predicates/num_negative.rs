@@ -1,7 +1,7 @@
 //! num_negative predicate - check if number is negative (< 0)
 
-use super::{PredicateResult, PredicateInput};
 use super::text_common::{CorrelationInput, CorrelationResult};
+use super::{PredicateInput, PredicateResult};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -15,13 +15,14 @@ pub fn evaluate(input: &PredicateInput) -> PredicateResult {
         Ok(i) => i,
         Err(e) => return PredicateResult::error(gas_used, format!("Invalid input: {}", e)),
     };
-    
+
     if num_input.value < 0.0 {
         PredicateResult::success(gas_used)
     } else {
-        PredicateResult::failure(gas_used, vec![
-            format!("{} is not negative", num_input.value)
-        ])
+        PredicateResult::failure(
+            gas_used,
+            vec![format!("{} is not negative", num_input.value)],
+        )
     }
 }
 
@@ -29,7 +30,7 @@ pub fn correlate(input: &CorrelationInput) -> CorrelationResult {
     let gas_used = 10;
     let mut formulas = Vec::new();
     let mut satisfiable = true;
-    
+
     for rule in &input.other_rules {
         match rule.predicate.as_str() {
             "num_positive" => {
@@ -81,7 +82,10 @@ pub fn correlate(input: &CorrelationInput) -> CorrelationResult {
             _ => {}
         }
     }
-    
-    if satisfiable { CorrelationResult::satisfiable(formulas, gas_used) }
-    else { CorrelationResult::unsatisfiable(formulas, gas_used) }
+
+    if satisfiable {
+        CorrelationResult::satisfiable(formulas, gas_used)
+    } else {
+        CorrelationResult::unsatisfiable(formulas, gas_used)
+    }
 }

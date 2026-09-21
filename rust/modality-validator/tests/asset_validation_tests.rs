@@ -1,5 +1,5 @@
-use modality_datastore::DatastoreManager;
 use modality_datastore::models::{AssetBalance, Commit, ContractAsset, ReceivedSend};
+use modality_datastore::DatastoreManager;
 use modality_validator::ContractProcessor;
 use std::sync::Arc;
 use tokio::sync::Mutex;

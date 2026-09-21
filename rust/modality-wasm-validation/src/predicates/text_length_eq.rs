@@ -1,7 +1,7 @@
 //! text_length_eq predicate - exact length check
 
-use super::{PredicateResult, PredicateInput};
 use super::text_common::{CorrelationInput, CorrelationResult};
+use super::{PredicateInput, PredicateResult};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -12,7 +12,7 @@ pub struct Input {
 
 pub fn evaluate(input: &PredicateInput) -> PredicateResult {
     let gas_used = 10;
-    
+
     let text_input: Input = match serde_json::from_value(input.data.clone()) {
         Ok(i) => i,
         Err(e) => return PredicateResult::error(gas_used, format!("Invalid input: {}", e)),
@@ -22,9 +22,13 @@ pub fn evaluate(input: &PredicateInput) -> PredicateResult {
     if actual_len == text_input.length {
         PredicateResult::success(gas_used)
     } else {
-        PredicateResult::failure(gas_used, vec![
-            format!("Text length {} does not equal {}", actual_len, text_input.length)
-        ])
+        PredicateResult::failure(
+            gas_used,
+            vec![format!(
+                "Text length {} does not equal {}",
+                actual_len, text_input.length
+            )],
+        )
     }
 }
 
@@ -32,12 +36,12 @@ pub fn correlate(input: &CorrelationInput) -> CorrelationResult {
     let gas_used = 15;
     let mut formulas = Vec::new();
     let mut satisfiable = true;
-    
+
     let length: usize = match input.params.get("length").and_then(|v| v.as_u64()) {
         Some(n) => n as usize,
         None => return CorrelationResult::ok(gas_used),
     };
-    
+
     for rule in &input.other_rules {
         match rule.predicate.as_str() {
             "text_equals" => {
@@ -117,14 +121,15 @@ pub fn correlate(input: &CorrelationInput) -> CorrelationResult {
                         length
                     ));
                 } else {
-                    formulas.push("!(text_length_eq($path, 0) & text_not_empty($path))".to_string());
+                    formulas
+                        .push("!(text_length_eq($path, 0) & text_not_empty($path))".to_string());
                     satisfiable = false;
                 }
             }
             _ => {}
         }
     }
-    
+
     if satisfiable {
         CorrelationResult::satisfiable(formulas, gas_used)
     } else {
@@ -138,12 +143,25 @@ mod tests {
     use crate::predicates::PredicateContext;
 
     fn create_input(data: serde_json::Value) -> PredicateInput {
-        PredicateInput { data, context: PredicateContext::new("test".to_string(), 1, 0) }
+        PredicateInput {
+            data,
+            context: PredicateContext::new("test".to_string(), 1, 0),
+        }
     }
 
     #[test]
     fn test_evaluate() {
-        assert!(evaluate(&create_input(serde_json::json!({"value": "hello", "length": 5}))).valid);
-        assert!(!evaluate(&create_input(serde_json::json!({"value": "hello", "length": 10}))).valid);
+        assert!(
+            evaluate(&create_input(
+                serde_json::json!({"value": "hello", "length": 5})
+            ))
+            .valid
+        );
+        assert!(
+            !evaluate(&create_input(
+                serde_json::json!({"value": "hello", "length": 10})
+            ))
+            .valid
+        );
     }
 }

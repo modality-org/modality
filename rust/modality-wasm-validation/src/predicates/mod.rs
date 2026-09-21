@@ -1,43 +1,43 @@
 use serde::{Deserialize, Serialize};
 
-pub mod signed_by;
-pub mod any_signed;
 pub mod all_signed;
-pub mod modifies;
 pub mod amount_in_range;
-pub mod has_property;
-pub mod timestamp_valid;
-pub mod post_to_path;
+pub mod any_signed;
 pub mod balance_sufficient;
+pub mod has_property;
+pub mod modifies;
+pub mod post_to_path;
+pub mod signed_by;
+pub mod timestamp_valid;
 
 // Text predicates - each in its own file
 pub mod text_common;
+pub mod text_contains;
+pub mod text_ends_with;
 pub mod text_equals;
 pub mod text_equals_ignore_case;
-pub mod text_contains;
-pub mod text_starts_with;
-pub mod text_ends_with;
 pub mod text_is_empty;
-pub mod text_not_empty;
 pub mod text_length_eq;
 pub mod text_length_gt;
 pub mod text_length_lt;
+pub mod text_not_empty;
+pub mod text_starts_with;
 
 // Bool predicates
-pub mod bool_is_true;
-pub mod bool_is_false;
 pub mod bool_equals;
+pub mod bool_is_false;
+pub mod bool_is_true;
 pub mod bool_not;
 
 // Number predicates
+pub mod num_between;
 pub mod num_equals;
 pub mod num_gt;
-pub mod num_lt;
 pub mod num_gte;
+pub mod num_lt;
 pub mod num_lte;
-pub mod num_between;
-pub mod num_positive;
 pub mod num_negative;
+pub mod num_positive;
 pub mod num_zero;
 
 // Timestamp predicates
@@ -121,7 +121,10 @@ impl PredicateContext {
 }
 
 /// Helper to encode predicate input as JSON string
-pub fn encode_predicate_input(data: serde_json::Value, context: PredicateContext) -> Result<String, serde_json::Error> {
+pub fn encode_predicate_input(
+    data: serde_json::Value,
+    context: PredicateContext,
+) -> Result<String, serde_json::Error> {
     let input = PredicateInput { data, context };
     serde_json::to_string(&input)
 }
@@ -155,7 +158,7 @@ mod tests {
     fn test_encode_decode() {
         let context = PredicateContext::new("contract123".to_string(), 100, 1234567890);
         let data = serde_json::json!({"amount": 100});
-        
+
         let encoded = encode_predicate_input(data, context).unwrap();
         assert!(encoded.contains("contract123"));
         assert!(encoded.contains("100"));
@@ -169,4 +172,3 @@ mod tests {
         assert_eq!(result.gas_used, 250);
     }
 }
-

@@ -1,8 +1,8 @@
 use anyhow::{Context, Result};
 use clap::Parser;
-use std::path::PathBuf;
+use modality_common::contract_store::{CommitFile, ContractStore};
 use std::fs;
-use modality_common::contract_store::{ContractStore, CommitFile};
+use std::path::PathBuf;
 
 #[derive(Parser, Debug)]
 pub struct Opts {
@@ -46,17 +46,16 @@ pub async fn run(opts: &Opts) -> Result<()> {
             .file_stem()
             .and_then(|s| s.to_str())
             .ok_or_else(|| anyhow::anyhow!("Could not determine program name from file"))?
-            .trim_end_matches("_bg")  // Remove wasm-pack suffix
+            .trim_end_matches("_bg") // Remove wasm-pack suffix
             .to_string()
     };
 
     // Read WASM file
-    let wasm_bytes = fs::read(&opts.wasm_file)
-        .context("Failed to read WASM file")?;
+    let wasm_bytes = fs::read(&opts.wasm_file).context("Failed to read WASM file")?;
     validate_wasm_module(&wasm_bytes)?;
 
     // Encode as base64
-    use base64::{Engine as _, engine::general_purpose};
+    use base64::{engine::general_purpose, Engine as _};
     let wasm_base64 = general_purpose::STANDARD.encode(&wasm_bytes);
 
     // Create commit with POST action
@@ -76,11 +75,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
         "gas_limit": opts.gas_limit
     });
 
-    commit.add_action(
-        "post".to_string(),
-        Some(path.clone()),
-        value
-    );
+    commit.add_action("post".to_string(), Some(path.clone()), value);
 
     // Validate the commit
     commit.validate()?;
@@ -96,14 +91,17 @@ pub async fn run(opts: &Opts) -> Result<()> {
 
     // Output
     if opts.output == "json" {
-        println!("{}", serde_json::to_string_pretty(&serde_json::json!({
-            "status": "success",
-            "program_name": name,
-            "path": path,
-            "commit_id": commit_id,
-            "wasm_size": wasm_bytes.len(),
-            "gas_limit": opts.gas_limit
-        }))?);
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&serde_json::json!({
+                "status": "success",
+                "program_name": name,
+                "path": path,
+                "commit_id": commit_id,
+                "wasm_size": wasm_bytes.len(),
+                "gas_limit": opts.gas_limit
+            }))?
+        );
     } else {
         println!("✓ Program uploaded successfully");
         println!();
@@ -132,8 +130,6 @@ fn validate_wasm_module(wasm_bytes: &[u8]) -> Result<()> {
     #[cfg(not(feature = "wasm"))]
     {
         let _ = wasm_bytes;
-        anyhow::bail!(
-            "WASM validation requires the `wasm` feature. Rebuild with full features."
-        );
+        anyhow::bail!("WASM validation requires the `wasm` feature. Rebuild with full features.");
     }
 }

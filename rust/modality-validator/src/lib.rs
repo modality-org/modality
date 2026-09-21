@@ -16,10 +16,12 @@
 
 pub mod contract_processor;
 pub mod error;
+pub mod invoke_engine;
 pub mod modality_processor;
 pub mod predicate_executor;
 pub mod prefix_cert;
 pub mod program_executor;
+pub mod sequenced_rules;
 pub mod shoal_validator;
 pub mod validator;
 

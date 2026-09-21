@@ -382,6 +382,9 @@ enum ContractCommands {
 
     #[command(about = "Download a packed contract file")]
     Download(modality_cli_contract::download::Opts),
+
+    #[command(about = "Fetch a sequenced prefix and re-check it without the original node")]
+    Replay(modality_cli_contract::replay::Opts),
 }
 
 #[derive(Subcommand)]
@@ -670,6 +673,7 @@ pub async fn run() -> Result<()> {
             ContractCommands::AddRule(opts) => modality_cli_contract::add_rule::run(opts).await?,
             ContractCommands::Ai { command } => modality_cli_contract::ai::run(command).await?,
             ContractCommands::Download(opts) => modality_cli_contract::download::run(opts).await?,
+            ContractCommands::Replay(opts) => modality_cli_contract::replay::run(opts).await?,
         },
         #[cfg(all(feature = "contract", not(feature = "cli-contract")))]
         Commands::Contract(opts) => crate::cmds::contract::run(opts).await?,

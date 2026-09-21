@@ -1,4 +1,4 @@
-use super::{PredicateResult, PredicateInput};
+use super::{PredicateInput, PredicateResult};
 use serde::{Deserialize, Serialize};
 
 /// Input for has_property predicate
@@ -11,12 +11,12 @@ pub struct HasPropertyInput {
 }
 
 /// Check if a JSON object has a specific property
-/// 
+///
 /// Returns true if the property exists at the specified path
 /// Supports dot notation for nested properties (e.g., "user.address.city")
 pub fn evaluate(input: &PredicateInput) -> PredicateResult {
     let gas_used = 30; // Base gas cost
-    
+
     // Parse input
     let prop_input: HasPropertyInput = match serde_json::from_value(input.data.clone()) {
         Ok(i) => i,
@@ -34,13 +34,13 @@ pub fn evaluate(input: &PredicateInput) -> PredicateResult {
 
     for part in path_parts {
         gas_cost += 10; // Add gas for each level of nesting
-        
+
         if let Some(next) = current.get(part) {
             current = next;
         } else {
             return PredicateResult::failure(
                 gas_cost,
-                vec![format!("Property '{}' not found", prop_input.property_path)]
+                vec![format!("Property '{}' not found", prop_input.property_path)],
             );
         }
     }
@@ -61,7 +61,7 @@ mod tests {
             "property_path": "name"
         });
         let input = PredicateInput { data, context };
-        
+
         let result = evaluate(&input);
         assert!(result.valid);
     }
@@ -80,7 +80,7 @@ mod tests {
             "property_path": "user.address.city"
         });
         let input = PredicateInput { data, context };
-        
+
         let result = evaluate(&input);
         assert!(result.valid);
     }
@@ -93,7 +93,7 @@ mod tests {
             "property_path": "email"
         });
         let input = PredicateInput { data, context };
-        
+
         let result = evaluate(&input);
         assert!(!result.valid);
         assert!(result.errors[0].contains("not found"));
@@ -107,10 +107,9 @@ mod tests {
             "property_path": ""
         });
         let input = PredicateInput { data, context };
-        
+
         let result = evaluate(&input);
         assert!(!result.valid);
         assert!(result.errors[0].contains("empty"));
     }
 }
-

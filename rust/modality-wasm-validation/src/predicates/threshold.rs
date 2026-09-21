@@ -5,10 +5,10 @@
 //!
 //! Example: 2-of-3 multisig where any 2 of Alice, Bob, Carol can approve.
 
-use super::{PredicateResult, PredicateInput};
 use super::text_common::{CorrelationInput, CorrelationResult};
+use super::{PredicateInput, PredicateResult};
+use ed25519_dalek::{Signature, Verifier, VerifyingKey};
 use serde::{Deserialize, Serialize};
-use ed25519_dalek::{Signature, VerifyingKey, Verifier};
 
 /// Input for threshold signature verification
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -36,49 +36,55 @@ pub struct ThresholdSignature {
 /// Returns success if at least `threshold` unique valid signatures are present
 pub fn evaluate_threshold(input: &PredicateInput) -> PredicateResult {
     let base_gas = 20;
-    let per_sig_gas = 100;  // Signature verification is expensive
-    
+    let per_sig_gas = 100; // Signature verification is expensive
+
     let thresh_input: ThresholdInput = match serde_json::from_value(input.data.clone()) {
         Ok(i) => i,
         Err(e) => return PredicateResult::error(base_gas, format!("Invalid input: {}", e)),
     };
-    
+
     let gas_used = base_gas + (thresh_input.signatures.len() as u64 * per_sig_gas);
-    
+
     // Validate threshold is sensible
     if thresh_input.threshold == 0 {
         return PredicateResult::error(gas_used, "Threshold must be at least 1".to_string());
     }
     if thresh_input.threshold > thresh_input.signers.len() {
-        return PredicateResult::error(gas_used, format!(
-            "Threshold {} exceeds number of signers {}", 
-            thresh_input.threshold, 
-            thresh_input.signers.len()
-        ));
+        return PredicateResult::error(
+            gas_used,
+            format!(
+                "Threshold {} exceeds number of signers {}",
+                thresh_input.threshold,
+                thresh_input.signers.len()
+            ),
+        );
     }
-    
+
     // Decode message
     let message_bytes = match hex::decode(&thresh_input.message) {
         Ok(b) => b,
         Err(e) => return PredicateResult::error(gas_used, format!("Invalid message hex: {}", e)),
     };
-    
+
     // Track which signers have provided valid signatures
     let mut valid_signers = std::collections::HashSet::new();
     let mut errors = Vec::new();
-    
+
     for sig_entry in &thresh_input.signatures {
         // Check signer is in authorized list
         if !thresh_input.signers.contains(&sig_entry.signer) {
-            errors.push(format!("Signer {} not in authorized list", &sig_entry.signer[..8.min(sig_entry.signer.len())]));
+            errors.push(format!(
+                "Signer {} not in authorized list",
+                &sig_entry.signer[..8.min(sig_entry.signer.len())]
+            ));
             continue;
         }
-        
+
         // Skip if we already have a valid signature from this signer
         if valid_signers.contains(&sig_entry.signer) {
             continue;
         }
-        
+
         // Decode public key
         let pubkey_bytes = match hex::decode(&sig_entry.signer) {
             Ok(b) => b,
@@ -87,7 +93,7 @@ pub fn evaluate_threshold(input: &PredicateInput) -> PredicateResult {
                 continue;
             }
         };
-        
+
         let pubkey_array: [u8; 32] = match pubkey_bytes.try_into() {
             Ok(a) => a,
             Err(_) => {
@@ -95,7 +101,7 @@ pub fn evaluate_threshold(input: &PredicateInput) -> PredicateResult {
                 continue;
             }
         };
-        
+
         let verifying_key = match VerifyingKey::from_bytes(&pubkey_array) {
             Ok(k) => k,
             Err(_) => {
@@ -103,7 +109,7 @@ pub fn evaluate_threshold(input: &PredicateInput) -> PredicateResult {
                 continue;
             }
         };
-        
+
         // Decode signature
         let sig_bytes = match hex::decode(&sig_entry.signature) {
             Ok(b) => b,
@@ -112,7 +118,7 @@ pub fn evaluate_threshold(input: &PredicateInput) -> PredicateResult {
                 continue;
             }
         };
-        
+
         let sig_array: [u8; 64] = match sig_bytes.try_into() {
             Ok(a) => a,
             Err(_) => {
@@ -120,26 +126,32 @@ pub fn evaluate_threshold(input: &PredicateInput) -> PredicateResult {
                 continue;
             }
         };
-        
+
         let signature = Signature::from_bytes(&sig_array);
-        
+
         // Verify signature
         if verifying_key.verify(&message_bytes, &signature).is_ok() {
             valid_signers.insert(sig_entry.signer.clone());
         } else {
-            errors.push(format!("Invalid signature from {}", &sig_entry.signer[..8.min(sig_entry.signer.len())]));
+            errors.push(format!(
+                "Invalid signature from {}",
+                &sig_entry.signer[..8.min(sig_entry.signer.len())]
+            ));
         }
     }
-    
+
     // Check if we met the threshold
     if valid_signers.len() >= thresh_input.threshold {
         PredicateResult::success(gas_used)
     } else {
-        errors.insert(0, format!(
-            "Threshold not met: got {} valid signatures, need {}", 
-            valid_signers.len(), 
-            thresh_input.threshold
-        ));
+        errors.insert(
+            0,
+            format!(
+                "Threshold not met: got {} valid signatures, need {}",
+                valid_signers.len(),
+                thresh_input.threshold
+            ),
+        );
         PredicateResult::failure(gas_used, errors)
     }
 }
@@ -153,18 +165,22 @@ pub struct ThresholdConfigInput {
 
 pub fn evaluate_threshold_valid(input: &PredicateInput) -> PredicateResult {
     let gas_used = 5;
-    
+
     let config: ThresholdConfigInput = match serde_json::from_value(input.data.clone()) {
         Ok(i) => i,
         Err(e) => return PredicateResult::error(gas_used, format!("Invalid input: {}", e)),
     };
-    
+
     if config.threshold == 0 {
         PredicateResult::failure(gas_used, vec!["Threshold must be at least 1".to_string()])
     } else if config.threshold > config.total_signers {
-        PredicateResult::failure(gas_used, vec![
-            format!("Threshold {} exceeds total signers {}", config.threshold, config.total_signers)
-        ])
+        PredicateResult::failure(
+            gas_used,
+            vec![format!(
+                "Threshold {} exceeds total signers {}",
+                config.threshold, config.total_signers
+            )],
+        )
     } else {
         PredicateResult::success(gas_used)
     }
@@ -183,28 +199,28 @@ mod tests {
     use super::*;
     use ed25519_dalek::SigningKey;
     use rand::rngs::OsRng;
-    
+
     fn create_test_signer() -> (String, SigningKey) {
         let signing_key = SigningKey::generate(&mut OsRng);
         let pubkey_hex = hex::encode(signing_key.verifying_key().as_bytes());
         (pubkey_hex, signing_key)
     }
-    
+
     fn sign_message(signing_key: &SigningKey, message: &[u8]) -> String {
         use ed25519_dalek::Signer;
         let signature = signing_key.sign(message);
         hex::encode(signature.to_bytes())
     }
-    
+
     #[test]
     fn test_threshold_2_of_3_success() {
         let (pk1, sk1) = create_test_signer();
         let (pk2, sk2) = create_test_signer();
         let (pk3, _sk3) = create_test_signer();
-        
+
         let message = b"approve transaction";
         let message_hex = hex::encode(message);
-        
+
         let input = PredicateInput {
             data: serde_json::json!({
                 "threshold": 2,
@@ -217,20 +233,24 @@ mod tests {
             }),
             context: super::super::PredicateContext::new("test".to_string(), 0, 0),
         };
-        
+
         let result = evaluate_threshold(&input);
-        assert!(result.valid, "2-of-3 should pass with 2 valid sigs: {:?}", result.errors);
+        assert!(
+            result.valid,
+            "2-of-3 should pass with 2 valid sigs: {:?}",
+            result.errors
+        );
     }
-    
+
     #[test]
     fn test_threshold_2_of_3_failure_insufficient() {
         let (pk1, sk1) = create_test_signer();
         let (pk2, _sk2) = create_test_signer();
         let (pk3, _sk3) = create_test_signer();
-        
+
         let message = b"approve transaction";
         let message_hex = hex::encode(message);
-        
+
         let input = PredicateInput {
             data: serde_json::json!({
                 "threshold": 2,
@@ -242,20 +262,20 @@ mod tests {
             }),
             context: super::super::PredicateContext::new("test".to_string(), 0, 0),
         };
-        
+
         let result = evaluate_threshold(&input);
         assert!(!result.valid, "2-of-3 should fail with only 1 sig");
     }
-    
+
     #[test]
     fn test_threshold_rejects_duplicate_signer() {
         let (pk1, sk1) = create_test_signer();
         let (pk2, _sk2) = create_test_signer();
         let (pk3, _sk3) = create_test_signer();
-        
+
         let message = b"approve transaction";
         let message_hex = hex::encode(message);
-        
+
         // Try to use same signer twice
         let input = PredicateInput {
             data: serde_json::json!({
@@ -269,21 +289,21 @@ mod tests {
             }),
             context: super::super::PredicateContext::new("test".to_string(), 0, 0),
         };
-        
+
         let result = evaluate_threshold(&input);
         assert!(!result.valid, "Should not count same signer twice");
     }
-    
+
     #[test]
     fn test_threshold_rejects_unauthorized_signer() {
         let (pk1, sk1) = create_test_signer();
         let (pk2, _sk2) = create_test_signer();
         let (pk3, _sk3) = create_test_signer();
         let (pk_unauthorized, sk_unauthorized) = create_test_signer();
-        
+
         let message = b"approve transaction";
         let message_hex = hex::encode(message);
-        
+
         let input = PredicateInput {
             data: serde_json::json!({
                 "threshold": 2,
@@ -296,11 +316,11 @@ mod tests {
             }),
             context: super::super::PredicateContext::new("test".to_string(), 0, 0),
         };
-        
+
         let result = evaluate_threshold(&input);
         assert!(!result.valid, "Should reject unauthorized signer");
     }
-    
+
     #[test]
     fn test_threshold_config_validation() {
         // Valid config
@@ -309,14 +329,14 @@ mod tests {
             context: super::super::PredicateContext::new("test".to_string(), 0, 0),
         };
         assert!(evaluate_threshold_valid(&input).valid);
-        
+
         // Invalid: threshold > signers
         let input = PredicateInput {
             data: serde_json::json!({"threshold": 4, "total_signers": 3}),
             context: super::super::PredicateContext::new("test".to_string(), 0, 0),
         };
         assert!(!evaluate_threshold_valid(&input).valid);
-        
+
         // Invalid: threshold = 0
         let input = PredicateInput {
             data: serde_json::json!({"threshold": 0, "total_signers": 3}),

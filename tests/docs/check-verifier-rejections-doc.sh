@@ -4,7 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 DOC="$ROOT_DIR/docs/reference/verifier-rejections.md"
 FIRST_CONTRACT_SMOKE="$ROOT_DIR/tests/cli/run-first-contract-cli-smoke.sh"
-LOCAL_GOVERNANCE="$ROOT_DIR/rust/modality-cli-contract/src/model_governance.rs"
+LOCAL_GOVERNANCE="$ROOT_DIR/rust/modality-common/src/model_governance.rs"
 HUB_VALIDATOR="$ROOT_DIR/rust/modality-cli-hub/src/model_validator.rs"
 COMMON_DIAGNOSTICS="$ROOT_DIR/rust/modality-common/src/model_diagnostics.rs"
 

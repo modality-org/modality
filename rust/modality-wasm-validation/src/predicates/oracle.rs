@@ -7,11 +7,11 @@
 //!
 //! Oracle attestations are signed statements that can be verified on-chain.
 
-use super::{PredicateResult, PredicateInput};
 use super::text_common::{CorrelationInput, CorrelationResult};
+use super::{PredicateInput, PredicateResult};
+use ed25519_dalek::{Signature, Verifier, VerifyingKey};
 use serde::{Deserialize, Serialize};
-use ed25519_dalek::{Signature, VerifyingKey, Verifier};
-use sha2::{Sha256, Digest};
+use sha2::{Digest, Sha256};
 
 /// Oracle attestation structure
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -64,90 +64,124 @@ pub struct OracleAttestsInput {
 
 /// Verify an oracle attestation
 pub fn evaluate_oracle_attests(input: &PredicateInput) -> PredicateResult {
-    let gas_used = 150;  // Signature verification + hashing
-    
+    let gas_used = 150; // Signature verification + hashing
+
     let oracle_input: OracleAttestsInput = match serde_json::from_value(input.data.clone()) {
         Ok(i) => i,
         Err(e) => return PredicateResult::error(gas_used, format!("Invalid input: {}", e)),
     };
-    
+
     let attestation = &oracle_input.attestation;
-    
+
     // Check oracle is trusted
-    if !oracle_input.trusted_oracles.contains(&attestation.oracle_pubkey) {
-        return PredicateResult::failure(gas_used, vec![
-            format!("Oracle {} is not in trusted list", &attestation.oracle_pubkey[..16.min(attestation.oracle_pubkey.len())])
-        ]);
+    if !oracle_input
+        .trusted_oracles
+        .contains(&attestation.oracle_pubkey)
+    {
+        return PredicateResult::failure(
+            gas_used,
+            vec![format!(
+                "Oracle {} is not in trusted list",
+                &attestation.oracle_pubkey[..16.min(attestation.oracle_pubkey.len())]
+            )],
+        );
     }
-    
+
     // Check claim type matches
     if attestation.claim != oracle_input.expected_claim {
-        return PredicateResult::failure(gas_used, vec![
-            format!("Claim mismatch: expected '{}', got '{}'", oracle_input.expected_claim, attestation.claim)
-        ]);
+        return PredicateResult::failure(
+            gas_used,
+            vec![format!(
+                "Claim mismatch: expected '{}', got '{}'",
+                oracle_input.expected_claim, attestation.claim
+            )],
+        );
     }
-    
+
     // Check value if specified
     if let Some(expected_value) = &oracle_input.expected_value {
         if &attestation.value != expected_value {
-            return PredicateResult::failure(gas_used, vec![
-                format!("Value mismatch: expected '{}', got '{}'", expected_value, attestation.value)
-            ]);
+            return PredicateResult::failure(
+                gas_used,
+                vec![format!(
+                    "Value mismatch: expected '{}', got '{}'",
+                    expected_value, attestation.value
+                )],
+            );
         }
     }
-    
+
     // Check attestation age
     if oracle_input.max_age_seconds > 0 {
         let age = input.context.timestamp as i64 - attestation.timestamp;
         if age > oracle_input.max_age_seconds {
-            return PredicateResult::failure(gas_used, vec![
-                format!("Attestation too old: {} seconds (max {})", age, oracle_input.max_age_seconds)
-            ]);
+            return PredicateResult::failure(
+                gas_used,
+                vec![format!(
+                    "Attestation too old: {} seconds (max {})",
+                    age, oracle_input.max_age_seconds
+                )],
+            );
         }
         if age < 0 {
-            return PredicateResult::failure(gas_used, vec![
-                "Attestation timestamp is in the future".to_string()
-            ]);
+            return PredicateResult::failure(
+                gas_used,
+                vec!["Attestation timestamp is in the future".to_string()],
+            );
         }
     }
-    
+
     // Check contract ID matches
     if attestation.contract_id != input.context.contract_id {
-        return PredicateResult::failure(gas_used, vec![
-            format!("Contract ID mismatch: attestation for '{}', current '{}'", 
-                attestation.contract_id, input.context.contract_id)
-        ]);
+        return PredicateResult::failure(
+            gas_used,
+            vec![format!(
+                "Contract ID mismatch: attestation for '{}', current '{}'",
+                attestation.contract_id, input.context.contract_id
+            )],
+        );
     }
-    
+
     // Verify signature
     let pubkey_bytes = match hex::decode(&attestation.oracle_pubkey) {
         Ok(b) => b,
-        Err(e) => return PredicateResult::error(gas_used, format!("Invalid oracle pubkey hex: {}", e)),
+        Err(e) => {
+            return PredicateResult::error(gas_used, format!("Invalid oracle pubkey hex: {}", e))
+        }
     };
-    
+
     let pubkey_array: [u8; 32] = match pubkey_bytes.try_into() {
         Ok(a) => a,
-        Err(_) => return PredicateResult::error(gas_used, "Oracle pubkey must be 32 bytes".to_string()),
+        Err(_) => {
+            return PredicateResult::error(gas_used, "Oracle pubkey must be 32 bytes".to_string())
+        }
     };
-    
+
     let verifying_key = match VerifyingKey::from_bytes(&pubkey_array) {
         Ok(k) => k,
-        Err(_) => return PredicateResult::error(gas_used, "Invalid oracle ed25519 public key".to_string()),
+        Err(_) => {
+            return PredicateResult::error(
+                gas_used,
+                "Invalid oracle ed25519 public key".to_string(),
+            )
+        }
     };
-    
+
     let sig_bytes = match hex::decode(&attestation.signature) {
         Ok(b) => b,
         Err(e) => return PredicateResult::error(gas_used, format!("Invalid signature hex: {}", e)),
     };
-    
+
     let sig_array: [u8; 64] = match sig_bytes.try_into() {
         Ok(a) => a,
-        Err(_) => return PredicateResult::error(gas_used, "Signature must be 64 bytes".to_string()),
+        Err(_) => {
+            return PredicateResult::error(gas_used, "Signature must be 64 bytes".to_string())
+        }
     };
-    
+
     let signature = Signature::from_bytes(&sig_array);
     let message = attestation.signing_message();
-    
+
     if verifying_key.verify(&message, &signature).is_ok() {
         PredicateResult::success(gas_used)
     } else {
@@ -165,12 +199,12 @@ pub struct OracleBoolInput {
 
 pub fn evaluate_oracle_bool(input: &PredicateInput) -> PredicateResult {
     let gas_used = 150;
-    
+
     let oracle_input: OracleBoolInput = match serde_json::from_value(input.data.clone()) {
         Ok(i) => i,
         Err(e) => return PredicateResult::error(gas_used, format!("Invalid input: {}", e)),
     };
-    
+
     // Convert to full OracleAttestsInput
     let full_input = PredicateInput {
         data: serde_json::json!({
@@ -182,7 +216,7 @@ pub fn evaluate_oracle_bool(input: &PredicateInput) -> PredicateResult {
         }),
         context: input.context.clone(),
     };
-    
+
     evaluate_oracle_attests(&full_input)
 }
 
@@ -196,15 +230,15 @@ pub fn correlate_oracle(_inputs: &[CorrelationInput]) -> CorrelationResult {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ed25519_dalek::{SigningKey, Signer};
+    use ed25519_dalek::{Signer, SigningKey};
     use rand::rngs::OsRng;
-    
+
     fn create_oracle() -> (String, SigningKey) {
         let signing_key = SigningKey::generate(&mut OsRng);
         let pubkey_hex = hex::encode(signing_key.verifying_key().as_bytes());
         (pubkey_hex, signing_key)
     }
-    
+
     fn create_attestation(
         oracle_pubkey: &str,
         signing_key: &SigningKey,
@@ -221,20 +255,20 @@ mod tests {
             timestamp,
             signature: String::new(),
         };
-        
+
         let message = attestation.signing_message();
         let signature = signing_key.sign(&message);
         attestation.signature = hex::encode(signature.to_bytes());
-        
+
         attestation
     }
-    
+
     #[test]
     fn test_oracle_attestation_valid() {
         let (oracle_pk, oracle_sk) = create_oracle();
         let contract_id = "test_contract";
         let timestamp = 1000;
-        
+
         let attestation = create_attestation(
             &oracle_pk,
             &oracle_sk,
@@ -243,7 +277,7 @@ mod tests {
             contract_id,
             timestamp,
         );
-        
+
         let input = PredicateInput {
             data: serde_json::json!({
                 "attestation": attestation,
@@ -254,17 +288,21 @@ mod tests {
             }),
             context: super::super::PredicateContext::new(contract_id.to_string(), 0, 1000),
         };
-        
+
         let result = evaluate_oracle_attests(&input);
-        assert!(result.valid, "Valid attestation should pass: {:?}", result.errors);
+        assert!(
+            result.valid,
+            "Valid attestation should pass: {:?}",
+            result.errors
+        );
     }
-    
+
     #[test]
     fn test_oracle_untrusted_rejected() {
         let (oracle_pk, oracle_sk) = create_oracle();
         let (other_pk, _) = create_oracle();
         let contract_id = "test_contract";
-        
+
         let attestation = create_attestation(
             &oracle_pk,
             &oracle_sk,
@@ -273,7 +311,7 @@ mod tests {
             contract_id,
             1000,
         );
-        
+
         let input = PredicateInput {
             data: serde_json::json!({
                 "attestation": attestation,
@@ -284,25 +322,25 @@ mod tests {
             }),
             context: super::super::PredicateContext::new(contract_id.to_string(), 0, 1000),
         };
-        
+
         let result = evaluate_oracle_attests(&input);
         assert!(!result.valid, "Untrusted oracle should be rejected");
     }
-    
+
     #[test]
     fn test_oracle_stale_attestation_rejected() {
         let (oracle_pk, oracle_sk) = create_oracle();
         let contract_id = "test_contract";
-        
+
         let attestation = create_attestation(
             &oracle_pk,
             &oracle_sk,
             "delivery_confirmed",
             "true",
             contract_id,
-            1000,  // Old timestamp
+            1000, // Old timestamp
         );
-        
+
         let input = PredicateInput {
             data: serde_json::json!({
                 "attestation": attestation,
@@ -313,24 +351,24 @@ mod tests {
             }),
             context: super::super::PredicateContext::new(contract_id.to_string(), 0, 2000), // 1000 seconds later
         };
-        
+
         let result = evaluate_oracle_attests(&input);
         assert!(!result.valid, "Stale attestation should be rejected");
     }
-    
+
     #[test]
     fn test_oracle_wrong_contract_rejected() {
         let (oracle_pk, oracle_sk) = create_oracle();
-        
+
         let attestation = create_attestation(
             &oracle_pk,
             &oracle_sk,
             "delivery_confirmed",
             "true",
-            "contract_A",  // Attestation for contract A
+            "contract_A", // Attestation for contract A
             1000,
         );
-        
+
         let input = PredicateInput {
             data: serde_json::json!({
                 "attestation": attestation,
@@ -341,26 +379,29 @@ mod tests {
             }),
             context: super::super::PredicateContext::new("contract_B".to_string(), 0, 1000), // Different contract
         };
-        
+
         let result = evaluate_oracle_attests(&input);
-        assert!(!result.valid, "Wrong contract attestation should be rejected");
+        assert!(
+            !result.valid,
+            "Wrong contract attestation should be rejected"
+        );
     }
-    
+
     #[test]
     fn test_oracle_forged_signature_rejected() {
         let (oracle_pk, _oracle_sk) = create_oracle();
-        let (_, other_sk) = create_oracle();  // Sign with different key
+        let (_, other_sk) = create_oracle(); // Sign with different key
         let contract_id = "test_contract";
-        
+
         let attestation = create_attestation(
             &oracle_pk,
-            &other_sk,  // Wrong signing key!
+            &other_sk, // Wrong signing key!
             "delivery_confirmed",
             "true",
             contract_id,
             1000,
         );
-        
+
         let input = PredicateInput {
             data: serde_json::json!({
                 "attestation": attestation,
@@ -371,7 +412,7 @@ mod tests {
             }),
             context: super::super::PredicateContext::new(contract_id.to_string(), 0, 1000),
         };
-        
+
         let result = evaluate_oracle_attests(&input);
         assert!(!result.valid, "Forged signature should be rejected");
     }

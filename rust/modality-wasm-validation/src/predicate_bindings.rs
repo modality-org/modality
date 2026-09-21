@@ -1,22 +1,19 @@
+use crate::predicates::text_common::CorrelationInput;
+use crate::predicates::PredicateInput;
+use crate::predicates::{amount_in_range, has_property, post_to_path, signed_by, timestamp_valid};
+use crate::predicates::{
+    bool_equals, bool_is_false, bool_is_true, bool_not, num_between, num_equals, num_gt, num_gte,
+    num_lt, num_lte, num_negative, num_positive, num_zero, oracle, text_common, text_contains,
+    text_ends_with, text_equals, text_equals_ignore_case, text_is_empty, text_length_eq,
+    text_length_gt, text_length_lt, text_not_empty, text_starts_with, threshold,
+};
 /// WASM bindings for standard predicates
-/// 
+///
 /// Each predicate is compiled to a standalone WASM module
 /// with an "evaluate" function that takes JSON input and returns JSON output
 
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
-use crate::predicates::PredicateInput;
-use crate::predicates::{signed_by, amount_in_range, has_property, timestamp_valid, post_to_path};
-use crate::predicates::{
-    text_common, text_equals, text_equals_ignore_case, text_contains,
-    text_starts_with, text_ends_with, text_is_empty, text_not_empty,
-    text_length_eq, text_length_gt, text_length_lt,
-    bool_is_true, bool_is_false, bool_equals, bool_not,
-    num_equals, num_gt, num_lt, num_gte, num_lte, num_between,
-    num_positive, num_negative, num_zero,
-    threshold, oracle,
-};
-use crate::predicates::text_common::CorrelationInput;
 
 /// Memory allocator for WASM
 #[no_mangle]
@@ -41,7 +38,10 @@ pub fn evaluate_signed_by(input_json: &str) -> String {
             })
         }
         Err(e) => {
-            format!(r#"{{"valid":false,"gas_used":10,"errors":["Invalid input: {}"]}}"#, e)
+            format!(
+                r#"{{"valid":false,"gas_used":10,"errors":["Invalid input: {}"]}}"#,
+                e
+            )
         }
     }
 }
@@ -57,7 +57,10 @@ pub fn evaluate_amount_in_range(input_json: &str) -> String {
             })
         }
         Err(e) => {
-            format!(r#"{{"valid":false,"gas_used":10,"errors":["Invalid input: {}"]}}"#, e)
+            format!(
+                r#"{{"valid":false,"gas_used":10,"errors":["Invalid input: {}"]}}"#,
+                e
+            )
         }
     }
 }
@@ -73,7 +76,10 @@ pub fn evaluate_has_property(input_json: &str) -> String {
             })
         }
         Err(e) => {
-            format!(r#"{{"valid":false,"gas_used":10,"errors":["Invalid input: {}"]}}"#, e)
+            format!(
+                r#"{{"valid":false,"gas_used":10,"errors":["Invalid input: {}"]}}"#,
+                e
+            )
         }
     }
 }
@@ -89,7 +95,10 @@ pub fn evaluate_timestamp_valid(input_json: &str) -> String {
             })
         }
         Err(e) => {
-            format!(r#"{{"valid":false,"gas_used":10,"errors":["Invalid input: {}"]}}"#, e)
+            format!(
+                r#"{{"valid":false,"gas_used":10,"errors":["Invalid input: {}"]}}"#,
+                e
+            )
         }
     }
 }
@@ -105,7 +114,10 @@ pub fn evaluate_post_to_path(input_json: &str) -> String {
             })
         }
         Err(e) => {
-            format!(r#"{{"valid":false,"gas_used":10,"errors":["Invalid input: {}"]}}"#, e)
+            format!(
+                r#"{{"valid":false,"gas_used":10,"errors":["Invalid input: {}"]}}"#,
+                e
+            )
         }
     }
 }
@@ -123,7 +135,10 @@ pub fn evaluate_text_equals(input_json: &str) -> String {
             })
         }
         Err(e) => {
-            format!(r#"{{"valid":false,"gas_used":10,"errors":["Invalid input: {}"]}}"#, e)
+            format!(
+                r#"{{"valid":false,"gas_used":10,"errors":["Invalid input: {}"]}}"#,
+                e
+            )
         }
     }
 }
@@ -139,7 +154,10 @@ pub fn evaluate_text_equals_ignore_case(input_json: &str) -> String {
             })
         }
         Err(e) => {
-            format!(r#"{{"valid":false,"gas_used":10,"errors":["Invalid input: {}"]}}"#, e)
+            format!(
+                r#"{{"valid":false,"gas_used":10,"errors":["Invalid input: {}"]}}"#,
+                e
+            )
         }
     }
 }
@@ -155,7 +173,10 @@ pub fn evaluate_text_contains(input_json: &str) -> String {
             })
         }
         Err(e) => {
-            format!(r#"{{"valid":false,"gas_used":10,"errors":["Invalid input: {}"]}}"#, e)
+            format!(
+                r#"{{"valid":false,"gas_used":10,"errors":["Invalid input: {}"]}}"#,
+                e
+            )
         }
     }
 }
@@ -171,7 +192,10 @@ pub fn evaluate_text_starts_with(input_json: &str) -> String {
             })
         }
         Err(e) => {
-            format!(r#"{{"valid":false,"gas_used":10,"errors":["Invalid input: {}"]}}"#, e)
+            format!(
+                r#"{{"valid":false,"gas_used":10,"errors":["Invalid input: {}"]}}"#,
+                e
+            )
         }
     }
 }
@@ -187,7 +211,10 @@ pub fn evaluate_text_ends_with(input_json: &str) -> String {
             })
         }
         Err(e) => {
-            format!(r#"{{"valid":false,"gas_used":10,"errors":["Invalid input: {}"]}}"#, e)
+            format!(
+                r#"{{"valid":false,"gas_used":10,"errors":["Invalid input: {}"]}}"#,
+                e
+            )
         }
     }
 }
@@ -203,7 +230,10 @@ pub fn evaluate_text_is_empty(input_json: &str) -> String {
             })
         }
         Err(e) => {
-            format!(r#"{{"valid":false,"gas_used":10,"errors":["Invalid input: {}"]}}"#, e)
+            format!(
+                r#"{{"valid":false,"gas_used":10,"errors":["Invalid input: {}"]}}"#,
+                e
+            )
         }
     }
 }
@@ -219,7 +249,10 @@ pub fn evaluate_text_not_empty(input_json: &str) -> String {
             })
         }
         Err(e) => {
-            format!(r#"{{"valid":false,"gas_used":10,"errors":["Invalid input: {}"]}}"#, e)
+            format!(
+                r#"{{"valid":false,"gas_used":10,"errors":["Invalid input: {}"]}}"#,
+                e
+            )
         }
     }
 }
@@ -235,7 +268,10 @@ pub fn evaluate_text_length_eq(input_json: &str) -> String {
             })
         }
         Err(e) => {
-            format!(r#"{{"valid":false,"gas_used":10,"errors":["Invalid input: {}"]}}"#, e)
+            format!(
+                r#"{{"valid":false,"gas_used":10,"errors":["Invalid input: {}"]}}"#,
+                e
+            )
         }
     }
 }
@@ -251,7 +287,10 @@ pub fn evaluate_text_length_gt(input_json: &str) -> String {
             })
         }
         Err(e) => {
-            format!(r#"{{"valid":false,"gas_used":10,"errors":["Invalid input: {}"]}}"#, e)
+            format!(
+                r#"{{"valid":false,"gas_used":10,"errors":["Invalid input: {}"]}}"#,
+                e
+            )
         }
     }
 }
@@ -267,7 +306,10 @@ pub fn evaluate_text_length_lt(input_json: &str) -> String {
             })
         }
         Err(e) => {
-            format!(r#"{{"valid":false,"gas_used":10,"errors":["Invalid input: {}"]}}"#, e)
+            format!(
+                r#"{{"valid":false,"gas_used":10,"errors":["Invalid input: {}"]}}"#,
+                e
+            )
         }
     }
 }
@@ -283,7 +325,10 @@ pub fn evaluate_signed_by(input_json: &str) -> String {
             })
         }
         Err(e) => {
-            format!(r#"{{"valid":false,"gas_used":10,"errors":["Invalid input: {}"]}}"#, e)
+            format!(
+                r#"{{"valid":false,"gas_used":10,"errors":["Invalid input: {}"]}}"#,
+                e
+            )
         }
     }
 }
@@ -298,7 +343,10 @@ pub fn evaluate_amount_in_range(input_json: &str) -> String {
             })
         }
         Err(e) => {
-            format!(r#"{{"valid":false,"gas_used":10,"errors":["Invalid input: {}"]}}"#, e)
+            format!(
+                r#"{{"valid":false,"gas_used":10,"errors":["Invalid input: {}"]}}"#,
+                e
+            )
         }
     }
 }
@@ -313,7 +361,10 @@ pub fn evaluate_has_property(input_json: &str) -> String {
             })
         }
         Err(e) => {
-            format!(r#"{{"valid":false,"gas_used":10,"errors":["Invalid input: {}"]}}"#, e)
+            format!(
+                r#"{{"valid":false,"gas_used":10,"errors":["Invalid input: {}"]}}"#,
+                e
+            )
         }
     }
 }
@@ -328,7 +379,10 @@ pub fn evaluate_timestamp_valid(input_json: &str) -> String {
             })
         }
         Err(e) => {
-            format!(r#"{{"valid":false,"gas_used":10,"errors":["Invalid input: {}"]}}"#, e)
+            format!(
+                r#"{{"valid":false,"gas_used":10,"errors":["Invalid input: {}"]}}"#,
+                e
+            )
         }
     }
 }
@@ -343,7 +397,10 @@ pub fn evaluate_post_to_path(input_json: &str) -> String {
             })
         }
         Err(e) => {
-            format!(r#"{{"valid":false,"gas_used":10,"errors":["Invalid input: {}"]}}"#, e)
+            format!(
+                r#"{{"valid":false,"gas_used":10,"errors":["Invalid input: {}"]}}"#,
+                e
+            )
         }
     }
 }
@@ -360,7 +417,10 @@ pub fn evaluate_text_equals(input_json: &str) -> String {
             })
         }
         Err(e) => {
-            format!(r#"{{"valid":false,"gas_used":10,"errors":["Invalid input: {}"]}}"#, e)
+            format!(
+                r#"{{"valid":false,"gas_used":10,"errors":["Invalid input: {}"]}}"#,
+                e
+            )
         }
     }
 }
@@ -375,7 +435,10 @@ pub fn evaluate_text_equals_ignore_case(input_json: &str) -> String {
             })
         }
         Err(e) => {
-            format!(r#"{{"valid":false,"gas_used":10,"errors":["Invalid input: {}"]}}"#, e)
+            format!(
+                r#"{{"valid":false,"gas_used":10,"errors":["Invalid input: {}"]}}"#,
+                e
+            )
         }
     }
 }
@@ -390,7 +453,10 @@ pub fn evaluate_text_contains(input_json: &str) -> String {
             })
         }
         Err(e) => {
-            format!(r#"{{"valid":false,"gas_used":10,"errors":["Invalid input: {}"]}}"#, e)
+            format!(
+                r#"{{"valid":false,"gas_used":10,"errors":["Invalid input: {}"]}}"#,
+                e
+            )
         }
     }
 }
@@ -405,7 +471,10 @@ pub fn evaluate_text_starts_with(input_json: &str) -> String {
             })
         }
         Err(e) => {
-            format!(r#"{{"valid":false,"gas_used":10,"errors":["Invalid input: {}"]}}"#, e)
+            format!(
+                r#"{{"valid":false,"gas_used":10,"errors":["Invalid input: {}"]}}"#,
+                e
+            )
         }
     }
 }
@@ -420,7 +489,10 @@ pub fn evaluate_text_ends_with(input_json: &str) -> String {
             })
         }
         Err(e) => {
-            format!(r#"{{"valid":false,"gas_used":10,"errors":["Invalid input: {}"]}}"#, e)
+            format!(
+                r#"{{"valid":false,"gas_used":10,"errors":["Invalid input: {}"]}}"#,
+                e
+            )
         }
     }
 }
@@ -435,7 +507,10 @@ pub fn evaluate_text_is_empty(input_json: &str) -> String {
             })
         }
         Err(e) => {
-            format!(r#"{{"valid":false,"gas_used":10,"errors":["Invalid input: {}"]}}"#, e)
+            format!(
+                r#"{{"valid":false,"gas_used":10,"errors":["Invalid input: {}"]}}"#,
+                e
+            )
         }
     }
 }
@@ -450,7 +525,10 @@ pub fn evaluate_text_not_empty(input_json: &str) -> String {
             })
         }
         Err(e) => {
-            format!(r#"{{"valid":false,"gas_used":10,"errors":["Invalid input: {}"]}}"#, e)
+            format!(
+                r#"{{"valid":false,"gas_used":10,"errors":["Invalid input: {}"]}}"#,
+                e
+            )
         }
     }
 }
@@ -465,7 +543,10 @@ pub fn evaluate_text_length_eq(input_json: &str) -> String {
             })
         }
         Err(e) => {
-            format!(r#"{{"valid":false,"gas_used":10,"errors":["Invalid input: {}"]}}"#, e)
+            format!(
+                r#"{{"valid":false,"gas_used":10,"errors":["Invalid input: {}"]}}"#,
+                e
+            )
         }
     }
 }
@@ -480,7 +561,10 @@ pub fn evaluate_text_length_gt(input_json: &str) -> String {
             })
         }
         Err(e) => {
-            format!(r#"{{"valid":false,"gas_used":10,"errors":["Invalid input: {}"]}}"#, e)
+            format!(
+                r#"{{"valid":false,"gas_used":10,"errors":["Invalid input: {}"]}}"#,
+                e
+            )
         }
     }
 }
@@ -495,7 +579,10 @@ pub fn evaluate_text_length_lt(input_json: &str) -> String {
             })
         }
         Err(e) => {
-            format!(r#"{{"valid":false,"gas_used":10,"errors":["Invalid input: {}"]}}"#, e)
+            format!(
+                r#"{{"valid":false,"gas_used":10,"errors":["Invalid input: {}"]}}"#,
+                e
+            )
         }
     }
 }
@@ -505,31 +592,41 @@ pub fn evaluate_text_length_lt(input_json: &str) -> String {
 // ============================================================================
 
 // Helper to handle correlate calls (single input)
-fn correlate_helper(input_json: &str, correlate_fn: fn(&CorrelationInput) -> text_common::CorrelationResult) -> String {
+fn correlate_helper(
+    input_json: &str,
+    correlate_fn: fn(&CorrelationInput) -> text_common::CorrelationResult,
+) -> String {
     match serde_json::from_str::<CorrelationInput>(input_json) {
         Ok(input) => {
             let result = correlate_fn(&input);
-            serde_json::to_string(&result).unwrap_or_else(|e| {
-                format!(r#"{{"implied":[],"gas_used":10,"error":"{}"}}"#, e)
-            })
+            serde_json::to_string(&result)
+                .unwrap_or_else(|e| format!(r#"{{"implied":[],"gas_used":10,"error":"{}"}}"#, e))
         }
         Err(e) => {
-            format!(r#"{{"implied":[],"gas_used":10,"error":"Invalid input: {}"}}"#, e)
+            format!(
+                r#"{{"implied":[],"gas_used":10,"error":"Invalid input: {}"}}"#,
+                e
+            )
         }
     }
 }
 
 // Helper to handle correlate calls (batch/slice input - for threshold, oracle)
-fn correlate_helper_batch(input_json: &str, correlate_fn: fn(&[CorrelationInput]) -> text_common::CorrelationResult) -> String {
+fn correlate_helper_batch(
+    input_json: &str,
+    correlate_fn: fn(&[CorrelationInput]) -> text_common::CorrelationResult,
+) -> String {
     match serde_json::from_str::<CorrelationInput>(input_json) {
         Ok(input) => {
             let result = correlate_fn(&[input]);
-            serde_json::to_string(&result).unwrap_or_else(|e| {
-                format!(r#"{{"implied":[],"gas_used":10,"error":"{}"}}"#, e)
-            })
+            serde_json::to_string(&result)
+                .unwrap_or_else(|e| format!(r#"{{"implied":[],"gas_used":10,"error":"{}"}}"#, e))
         }
         Err(e) => {
-            format!(r#"{{"implied":[],"gas_used":10,"error":"Invalid input: {}"}}"#, e)
+            format!(
+                r#"{{"implied":[],"gas_used":10,"error":"Invalid input: {}"}}"#,
+                e
+            )
         }
     }
 }
@@ -664,7 +761,10 @@ pub fn evaluate_bool_is_true(input_json: &str) -> String {
                 format!(r#"{{"valid":false,"gas_used":10,"errors":["{}"]}}"#, e)
             })
         }
-        Err(e) => format!(r#"{{"valid":false,"gas_used":10,"errors":["Invalid input: {}"]}}"#, e),
+        Err(e) => format!(
+            r#"{{"valid":false,"gas_used":10,"errors":["Invalid input: {}"]}}"#,
+            e
+        ),
     }
 }
 
@@ -678,7 +778,10 @@ pub fn evaluate_bool_is_false(input_json: &str) -> String {
                 format!(r#"{{"valid":false,"gas_used":10,"errors":["{}"]}}"#, e)
             })
         }
-        Err(e) => format!(r#"{{"valid":false,"gas_used":10,"errors":["Invalid input: {}"]}}"#, e),
+        Err(e) => format!(
+            r#"{{"valid":false,"gas_used":10,"errors":["Invalid input: {}"]}}"#,
+            e
+        ),
     }
 }
 
@@ -692,7 +795,10 @@ pub fn evaluate_bool_equals(input_json: &str) -> String {
                 format!(r#"{{"valid":false,"gas_used":10,"errors":["{}"]}}"#, e)
             })
         }
-        Err(e) => format!(r#"{{"valid":false,"gas_used":10,"errors":["Invalid input: {}"]}}"#, e),
+        Err(e) => format!(
+            r#"{{"valid":false,"gas_used":10,"errors":["Invalid input: {}"]}}"#,
+            e
+        ),
     }
 }
 
@@ -706,7 +812,10 @@ pub fn evaluate_bool_not(input_json: &str) -> String {
                 format!(r#"{{"valid":false,"gas_used":10,"errors":["{}"]}}"#, e)
             })
         }
-        Err(e) => format!(r#"{{"valid":false,"gas_used":10,"errors":["Invalid input: {}"]}}"#, e),
+        Err(e) => format!(
+            r#"{{"valid":false,"gas_used":10,"errors":["Invalid input: {}"]}}"#,
+            e
+        ),
     }
 }
 
@@ -721,7 +830,10 @@ pub fn evaluate_bool_is_true(input_json: &str) -> String {
                 format!(r#"{{"valid":false,"gas_used":10,"errors":["{}"]}}"#, e)
             })
         }
-        Err(e) => format!(r#"{{"valid":false,"gas_used":10,"errors":["Invalid input: {}"]}}"#, e),
+        Err(e) => format!(
+            r#"{{"valid":false,"gas_used":10,"errors":["Invalid input: {}"]}}"#,
+            e
+        ),
     }
 }
 
@@ -734,7 +846,10 @@ pub fn evaluate_bool_is_false(input_json: &str) -> String {
                 format!(r#"{{"valid":false,"gas_used":10,"errors":["{}"]}}"#, e)
             })
         }
-        Err(e) => format!(r#"{{"valid":false,"gas_used":10,"errors":["Invalid input: {}"]}}"#, e),
+        Err(e) => format!(
+            r#"{{"valid":false,"gas_used":10,"errors":["Invalid input: {}"]}}"#,
+            e
+        ),
     }
 }
 
@@ -747,7 +862,10 @@ pub fn evaluate_bool_equals(input_json: &str) -> String {
                 format!(r#"{{"valid":false,"gas_used":10,"errors":["{}"]}}"#, e)
             })
         }
-        Err(e) => format!(r#"{{"valid":false,"gas_used":10,"errors":["Invalid input: {}"]}}"#, e),
+        Err(e) => format!(
+            r#"{{"valid":false,"gas_used":10,"errors":["Invalid input: {}"]}}"#,
+            e
+        ),
     }
 }
 
@@ -760,7 +878,10 @@ pub fn evaluate_bool_not(input_json: &str) -> String {
                 format!(r#"{{"valid":false,"gas_used":10,"errors":["{}"]}}"#, e)
             })
         }
-        Err(e) => format!(r#"{{"valid":false,"gas_used":10,"errors":["Invalid input: {}"]}}"#, e),
+        Err(e) => format!(
+            r#"{{"valid":false,"gas_used":10,"errors":["Invalid input: {}"]}}"#,
+            e
+        ),
     }
 }
 
@@ -828,7 +949,10 @@ macro_rules! num_predicate_bindings {
                         format!(r#"{{"valid":false,"gas_used":10,"errors":["{}"]}}"#, e)
                     })
                 }
-                Err(e) => format!(r#"{{"valid":false,"gas_used":10,"errors":["Invalid input: {}"]}}"#, e),
+                Err(e) => format!(
+                    r#"{{"valid":false,"gas_used":10,"errors":["Invalid input: {}"]}}"#,
+                    e
+                ),
             }
         }
 
@@ -841,7 +965,10 @@ macro_rules! num_predicate_bindings {
                         format!(r#"{{"valid":false,"gas_used":10,"errors":["{}"]}}"#, e)
                     })
                 }
-                Err(e) => format!(r#"{{"valid":false,"gas_used":10,"errors":["Invalid input: {}"]}}"#, e),
+                Err(e) => format!(
+                    r#"{{"valid":false,"gas_used":10,"errors":["Invalid input: {}"]}}"#,
+                    e
+                ),
             }
         }
     };
@@ -898,7 +1025,10 @@ pub fn evaluate_threshold(input_json: &str) -> String {
                 format!(r#"{{"valid":false,"gas_used":20,"errors":["{}"]}}"#, e)
             })
         }
-        Err(e) => format!(r#"{{"valid":false,"gas_used":20,"errors":["Invalid input: {}"]}}"#, e),
+        Err(e) => format!(
+            r#"{{"valid":false,"gas_used":20,"errors":["Invalid input: {}"]}}"#,
+            e
+        ),
     }
 }
 
@@ -911,7 +1041,10 @@ pub fn evaluate_threshold(input_json: &str) -> String {
                 format!(r#"{{"valid":false,"gas_used":20,"errors":["{}"]}}"#, e)
             })
         }
-        Err(e) => format!(r#"{{"valid":false,"gas_used":20,"errors":["Invalid input: {}"]}}"#, e),
+        Err(e) => format!(
+            r#"{{"valid":false,"gas_used":20,"errors":["Invalid input: {}"]}}"#,
+            e
+        ),
     }
 }
 
@@ -921,11 +1054,13 @@ pub fn evaluate_threshold_valid(input_json: &str) -> String {
     match serde_json::from_str::<PredicateInput>(input_json) {
         Ok(input) => {
             let result = threshold::evaluate_threshold_valid(&input);
-            serde_json::to_string(&result).unwrap_or_else(|e| {
-                format!(r#"{{"valid":false,"gas_used":5,"errors":["{}"]}}"#, e)
-            })
+            serde_json::to_string(&result)
+                .unwrap_or_else(|e| format!(r#"{{"valid":false,"gas_used":5,"errors":["{}"]}}"#, e))
         }
-        Err(e) => format!(r#"{{"valid":false,"gas_used":5,"errors":["Invalid input: {}"]}}"#, e),
+        Err(e) => format!(
+            r#"{{"valid":false,"gas_used":5,"errors":["Invalid input: {}"]}}"#,
+            e
+        ),
     }
 }
 
@@ -934,11 +1069,13 @@ pub fn evaluate_threshold_valid(input_json: &str) -> String {
     match serde_json::from_str::<PredicateInput>(input_json) {
         Ok(input) => {
             let result = threshold::evaluate_threshold_valid(&input);
-            serde_json::to_string(&result).unwrap_or_else(|e| {
-                format!(r#"{{"valid":false,"gas_used":5,"errors":["{}"]}}"#, e)
-            })
+            serde_json::to_string(&result)
+                .unwrap_or_else(|e| format!(r#"{{"valid":false,"gas_used":5,"errors":["{}"]}}"#, e))
         }
-        Err(e) => format!(r#"{{"valid":false,"gas_used":5,"errors":["Invalid input: {}"]}}"#, e),
+        Err(e) => format!(
+            r#"{{"valid":false,"gas_used":5,"errors":["Invalid input: {}"]}}"#,
+            e
+        ),
     }
 }
 
@@ -967,7 +1104,10 @@ pub fn evaluate_oracle_attests(input_json: &str) -> String {
                 format!(r#"{{"valid":false,"gas_used":150,"errors":["{}"]}}"#, e)
             })
         }
-        Err(e) => format!(r#"{{"valid":false,"gas_used":150,"errors":["Invalid input: {}"]}}"#, e),
+        Err(e) => format!(
+            r#"{{"valid":false,"gas_used":150,"errors":["Invalid input: {}"]}}"#,
+            e
+        ),
     }
 }
 
@@ -980,7 +1120,10 @@ pub fn evaluate_oracle_attests(input_json: &str) -> String {
                 format!(r#"{{"valid":false,"gas_used":150,"errors":["{}"]}}"#, e)
             })
         }
-        Err(e) => format!(r#"{{"valid":false,"gas_used":150,"errors":["Invalid input: {}"]}}"#, e),
+        Err(e) => format!(
+            r#"{{"valid":false,"gas_used":150,"errors":["Invalid input: {}"]}}"#,
+            e
+        ),
     }
 }
 
@@ -994,7 +1137,10 @@ pub fn evaluate_oracle_bool(input_json: &str) -> String {
                 format!(r#"{{"valid":false,"gas_used":150,"errors":["{}"]}}"#, e)
             })
         }
-        Err(e) => format!(r#"{{"valid":false,"gas_used":150,"errors":["Invalid input: {}"]}}"#, e),
+        Err(e) => format!(
+            r#"{{"valid":false,"gas_used":150,"errors":["Invalid input: {}"]}}"#,
+            e
+        ),
     }
 }
 
@@ -1007,7 +1153,10 @@ pub fn evaluate_oracle_bool(input_json: &str) -> String {
                 format!(r#"{{"valid":false,"gas_used":150,"errors":["{}"]}}"#, e)
             })
         }
-        Err(e) => format!(r#"{{"valid":false,"gas_used":150,"errors":["Invalid input: {}"]}}"#, e),
+        Err(e) => format!(
+            r#"{{"valid":false,"gas_used":150,"errors":["Invalid input: {}"]}}"#,
+            e
+        ),
     }
 }
 
@@ -1021,4 +1170,3 @@ pub fn correlate_oracle(input_json: &str) -> String {
 pub fn correlate_oracle(input_json: &str) -> String {
     correlate_helper_batch(input_json, oracle::correlate_oracle)
 }
-

@@ -12,9 +12,9 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 pub use commit_file::{
-    default_repost_dest, is_repost_working_path, json_values_equal, parse_legacy_dollar_repost_path,
-    parse_repost_action, parse_repost_json, CommitAction, CommitFile, RepostAction,
-    RuleForThisCommit,
+    default_repost_dest, is_repost_working_path, json_values_equal,
+    parse_legacy_dollar_repost_path, parse_repost_action, parse_repost_json, CommitAction,
+    CommitFile, RepostAction, RuleForThisCommit,
 };
 pub use config::ContractConfig;
 pub use one_step_rule::{
@@ -423,9 +423,9 @@ impl ContractStore {
     pub fn write_repost(&self, path: &str, value: &serde_json::Value) -> Result<()> {
         self.init_reposts_dir()?;
 
-        let relative = path
-            .strip_prefix("/reposts/")
-            .ok_or_else(|| anyhow::anyhow!("REPOST working path must start with /reposts/, got: {path}"))?;
+        let relative = path.strip_prefix("/reposts/").ok_or_else(|| {
+            anyhow::anyhow!("REPOST working path must start with /reposts/, got: {path}")
+        })?;
         let file_path = self.reposts_dir().join(relative);
 
         if let Some(parent) = file_path.parent() {
@@ -446,9 +446,9 @@ impl ContractStore {
     /// Read dest `/reposts/<source_id>/...` from the working tree.
     #[allow(clippy::unnecessary_lazy_evaluations)]
     pub fn read_repost(&self, path: &str) -> Result<Option<serde_json::Value>> {
-        let relative = path
-            .strip_prefix("/reposts/")
-            .ok_or_else(|| anyhow::anyhow!("REPOST working path must start with /reposts/, got: {path}"))?;
+        let relative = path.strip_prefix("/reposts/").ok_or_else(|| {
+            anyhow::anyhow!("REPOST working path must start with /reposts/, got: {path}")
+        })?;
         let file_path = self.reposts_dir().join(relative);
 
         if !file_path.exists() {
@@ -489,10 +489,7 @@ impl ContractStore {
         Ok(serde_json::from_str(&content)?)
     }
 
-    pub fn save_pending_reposts(
-        &self,
-        pending: &BTreeMap<String, RepostProvenance>,
-    ) -> Result<()> {
+    pub fn save_pending_reposts(&self, pending: &BTreeMap<String, RepostProvenance>) -> Result<()> {
         let path = self.pending_reposts_path();
         if pending.is_empty() {
             if path.exists() {
@@ -504,7 +501,11 @@ impl ContractStore {
         Ok(())
     }
 
-    pub fn record_pending_repost(&self, dest_path: &str, provenance: RepostProvenance) -> Result<()> {
+    pub fn record_pending_repost(
+        &self,
+        dest_path: &str,
+        provenance: RepostProvenance,
+    ) -> Result<()> {
         let mut pending = self.load_pending_reposts()?;
         pending.insert(dest_path.to_string(), provenance);
         self.save_pending_reposts(&pending)

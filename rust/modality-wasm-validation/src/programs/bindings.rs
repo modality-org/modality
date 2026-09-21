@@ -1,6 +1,6 @@
+use super::{ProgramContext, ProgramInput, ProgramResult};
 use anyhow::Result;
 use serde_json::Value;
-use super::{ProgramInput, ProgramResult, ProgramContext};
 
 /// Encode program input to JSON string
 /// Used to prepare input for WASM execution
@@ -19,7 +19,7 @@ pub fn decode_program_result(json_str: &str) -> Result<ProgramResult> {
 pub fn validate_program_result(result: &ProgramResult) -> Result<()> {
     // Check that actions have valid methods
     let valid_methods = ["post", "create", "send", "recv", "rule"];
-    
+
     for action in &result.actions {
         if !valid_methods.contains(&action.method.as_str()) {
             anyhow::bail!("Invalid action method: {}", action.method);
@@ -45,8 +45,11 @@ mod tests {
         let context = ProgramContext {
             contract_id: "test".to_string(),
             block_height: 10,
-            timestamp: 1000,
+            timestamp: 0,
             invoker: "invoker_key".to_string(),
+            commit_id: String::new(),
+            parent_commit_id: None,
+            state: json!({}),
         };
 
         let encoded = encode_program_input(args, context).unwrap();
@@ -100,13 +103,11 @@ mod tests {
     #[test]
     fn test_validate_program_result_invalid_method() {
         let result = ProgramResult {
-            actions: vec![
-                super::super::CommitAction {
-                    method: "invalid_method".to_string(),
-                    path: None,
-                    value: json!("value"),
-                },
-            ],
+            actions: vec![super::super::CommitAction {
+                method: "invalid_method".to_string(),
+                path: None,
+                value: json!("value"),
+            }],
             gas_used: 100,
             errors: vec![],
         };
@@ -117,13 +118,11 @@ mod tests {
     #[test]
     fn test_validate_program_result_missing_path() {
         let result = ProgramResult {
-            actions: vec![
-                super::super::CommitAction {
-                    method: "post".to_string(),
-                    path: None,  // Missing required path
-                    value: json!("value"),
-                },
-            ],
+            actions: vec![super::super::CommitAction {
+                method: "post".to_string(),
+                path: None, // Missing required path
+                value: json!("value"),
+            }],
             gas_used: 100,
             errors: vec![],
         };
@@ -131,4 +130,3 @@ mod tests {
         assert!(validate_program_result(&result).is_err());
     }
 }
-

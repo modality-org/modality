@@ -1,4 +1,4 @@
-use anyhow::{Context, Result, bail};
+use anyhow::{bail, Context, Result};
 use clap::Parser;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -16,7 +16,7 @@ pub struct Opts {
 
 pub async fn run(opts: &Opts) -> Result<()> {
     let dir = opts.dir.canonicalize().unwrap_or(opts.dir.clone());
-    
+
     // Check if directory already exists
     if dir.exists() {
         bail!("Directory '{}' already exists", dir.display());
@@ -35,16 +35,13 @@ pub async fn run(opts: &Opts) -> Result<()> {
     println!();
 
     // Create directory structure
-    fs::create_dir_all(&dir)
-        .context("Failed to create project directory")?;
-    
+    fs::create_dir_all(&dir).context("Failed to create project directory")?;
+
     let src_dir = dir.join("src");
-    fs::create_dir_all(&src_dir)
-        .context("Failed to create src directory")?;
-    
+    fs::create_dir_all(&src_dir).context("Failed to create src directory")?;
+
     let tests_dir = dir.join("tests");
-    fs::create_dir_all(&tests_dir)
-        .context("Failed to create tests directory")?;
+    fs::create_dir_all(&tests_dir).context("Failed to create tests directory")?;
 
     // Generate template files
     create_cargo_toml(&dir, &name)?;
@@ -74,7 +71,8 @@ pub async fn run(opts: &Opts) -> Result<()> {
 }
 
 fn create_cargo_toml(dir: &Path, name: &str) -> Result<()> {
-    let content = format!(r#"[package]
+    let content = format!(
+        r#"[package]
 name = "{}"
 version = "0.1.0"
 edition = "2021"
@@ -90,10 +88,11 @@ serde_json = "1.0"
 [profile.release]
 opt-level = "z"
 lto = true
-"#, name);
+"#,
+        name
+    );
 
-    fs::write(dir.join("Cargo.toml"), content)
-        .context("Failed to write Cargo.toml")?;
+    fs::write(dir.join("Cargo.toml"), content).context("Failed to write Cargo.toml")?;
     Ok(())
 }
 
@@ -117,12 +116,21 @@ struct ProgramInput {
 struct ProgramContext {
     /// Contract ID being executed
     contract_id: String,
-    /// Current block height
+    /// Sequenced prefix length before this commit (not a replica clock)
     block_height: u64,
-    /// Current timestamp (Unix epoch)
+    /// Frozen at 0. Not wall-clock. Read posted state if you need time.
+    #[serde(default)]
     timestamp: u64,
-    /// Public key of the user who invoked the program
+    /// Lexicographically first signature public key on the invoke commit
     invoker: String,
+    /// Commit being applied
+    #[serde(default)]
+    commit_id: String,
+    #[serde(default)]
+    parent_commit_id: Option<String>,
+    /// Accepted contract state. Keys are `/`-prefixed paths.
+    #[serde(default)]
+    state: Value,
 }
 
 /// Result of program execution
@@ -195,11 +203,12 @@ pub fn execute(input_json: &str) -> String {
     //     }
     // };
 
-    // TODO: Access context information if needed
+    // TODO: Access frozen context if needed
     // let contract_id = &input.context.contract_id;
-    // let block_height = input.context.block_height;
-    // let timestamp = input.context.timestamp;
+    // let block_height = input.context.block_height; // prefix length
+    // let timestamp = input.context.timestamp; // always 0
     // let invoker = &input.context.invoker;
+    // let state = &input.context.state;
 
     // TODO: Implement your program logic here
     // Create actions based on your computation
@@ -229,13 +238,13 @@ pub fn execute(input_json: &str) -> String {
 // }
 "#;
 
-    fs::write(src_dir.join("lib.rs"), content)
-        .context("Failed to write src/lib.rs")?;
+    fs::write(src_dir.join("lib.rs"), content).context("Failed to write src/lib.rs")?;
     Ok(())
 }
 
 fn create_package_json(dir: &Path, name: &str) -> Result<()> {
-    let content = format!(r#"{{
+    let content = format!(
+        r#"{{
   "name": "{}",
   "version": "0.1.0",
   "description": "WASM program for Modality contracts",
@@ -243,10 +252,11 @@ fn create_package_json(dir: &Path, name: &str) -> Result<()> {
     "build": "wasm-pack build --target web --release"
   }}
 }}
-"#, name);
+"#,
+        name
+    );
 
-    fs::write(dir.join("package.json"), content)
-        .context("Failed to write package.json")?;
+    fs::write(dir.join("package.json"), content).context("Failed to write package.json")?;
     Ok(())
 }
 
@@ -262,8 +272,7 @@ echo "Output: pkg/*.wasm"
 "#;
 
     let build_sh = dir.join("build.sh");
-    fs::write(&build_sh, content)
-        .context("Failed to write build.sh")?;
+    fs::write(&build_sh, content).context("Failed to write build.sh")?;
 
     #[cfg(unix)]
     {
@@ -277,7 +286,8 @@ echo "Output: pkg/*.wasm"
 }
 
 fn create_readme(dir: &Path, name: &str) -> Result<()> {
-    let content = format!(r#"# {}
+    let content = format!(
+        r#"# {}
 
 A WASM program for Modality contracts.
 
@@ -350,10 +360,11 @@ cargo test
 ## Gas Usage
 
 Programs are metered to prevent infinite loops. Set appropriate gas limits when uploading.
-"#, name, name, name, name);
+"#,
+        name, name, name, name
+    );
 
-    fs::write(dir.join("README.md"), content)
-        .context("Failed to write README.md")?;
+    fs::write(dir.join("README.md"), content).context("Failed to write README.md")?;
     Ok(())
 }
 
@@ -369,8 +380,6 @@ mod tests {
 }
 "#;
 
-    fs::write(tests_dir.join("lib.rs"), content)
-        .context("Failed to write tests/lib.rs")?;
+    fs::write(tests_dir.join("lib.rs"), content).context("Failed to write tests/lib.rs")?;
     Ok(())
 }
-

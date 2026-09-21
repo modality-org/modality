@@ -3,8 +3,8 @@
 //! Timestamps are represented as i64 Unix timestamps (seconds since epoch).
 //! These predicates enable deadline checks, time-window validation, etc.
 
-use super::{PredicateResult, PredicateInput};
 use super::text_common::{CorrelationInput, CorrelationResult};
+use super::{PredicateInput, PredicateResult};
 use serde::{Deserialize, Serialize};
 
 /// Check if timestamp is before deadline
@@ -20,13 +20,17 @@ pub fn evaluate_before(input: &PredicateInput) -> PredicateResult {
         Ok(i) => i,
         Err(e) => return PredicateResult::error(gas_used, format!("Invalid input: {}", e)),
     };
-    
+
     if ts_input.timestamp < ts_input.deadline {
         PredicateResult::success(gas_used)
     } else {
-        PredicateResult::failure(gas_used, vec![
-            format!("Timestamp {} is not before deadline {}", ts_input.timestamp, ts_input.deadline)
-        ])
+        PredicateResult::failure(
+            gas_used,
+            vec![format!(
+                "Timestamp {} is not before deadline {}",
+                ts_input.timestamp, ts_input.deadline
+            )],
+        )
     }
 }
 
@@ -43,13 +47,17 @@ pub fn evaluate_after(input: &PredicateInput) -> PredicateResult {
         Ok(i) => i,
         Err(e) => return PredicateResult::error(gas_used, format!("Invalid input: {}", e)),
     };
-    
+
     if ts_input.timestamp > ts_input.deadline {
         PredicateResult::success(gas_used)
     } else {
-        PredicateResult::failure(gas_used, vec![
-            format!("Timestamp {} is not after deadline {}", ts_input.timestamp, ts_input.deadline)
-        ])
+        PredicateResult::failure(
+            gas_used,
+            vec![format!(
+                "Timestamp {} is not after deadline {}",
+                ts_input.timestamp, ts_input.deadline
+            )],
+        )
     }
 }
 
@@ -67,14 +75,17 @@ pub fn evaluate_within(input: &PredicateInput) -> PredicateResult {
         Ok(i) => i,
         Err(e) => return PredicateResult::error(gas_used, format!("Invalid input: {}", e)),
     };
-    
+
     if ts_input.timestamp >= ts_input.start && ts_input.timestamp <= ts_input.end {
         PredicateResult::success(gas_used)
     } else {
-        PredicateResult::failure(gas_used, vec![
-            format!("Timestamp {} not in window [{}, {}]", 
-                    ts_input.timestamp, ts_input.start, ts_input.end)
-        ])
+        PredicateResult::failure(
+            gas_used,
+            vec![format!(
+                "Timestamp {} not in window [{}, {}]",
+                ts_input.timestamp, ts_input.start, ts_input.end
+            )],
+        )
     }
 }
 
@@ -91,13 +102,17 @@ pub fn evaluate_expired(input: &PredicateInput) -> PredicateResult {
         Ok(i) => i,
         Err(e) => return PredicateResult::error(gas_used, format!("Invalid input: {}", e)),
     };
-    
+
     if ts_input.current > ts_input.deadline {
         PredicateResult::success(gas_used)
     } else {
-        PredicateResult::failure(gas_used, vec![
-            format!("Deadline {} not yet expired (current: {})", ts_input.deadline, ts_input.current)
-        ])
+        PredicateResult::failure(
+            gas_used,
+            vec![format!(
+                "Deadline {} not yet expired (current: {})",
+                ts_input.deadline, ts_input.current
+            )],
+        )
     }
 }
 
@@ -115,15 +130,18 @@ pub fn evaluate_near(input: &PredicateInput) -> PredicateResult {
         Ok(i) => i,
         Err(e) => return PredicateResult::error(gas_used, format!("Invalid input: {}", e)),
     };
-    
+
     let diff = (ts_input.timestamp - ts_input.target).abs();
     if diff <= ts_input.tolerance {
         PredicateResult::success(gas_used)
     } else {
-        PredicateResult::failure(gas_used, vec![
-            format!("Timestamp {} not within {} seconds of {}", 
-                    ts_input.timestamp, ts_input.tolerance, ts_input.target)
-        ])
+        PredicateResult::failure(
+            gas_used,
+            vec![format!(
+                "Timestamp {} not within {} seconds of {}",
+                ts_input.timestamp, ts_input.tolerance, ts_input.target
+            )],
+        )
     }
 }
 
@@ -132,12 +150,12 @@ pub fn correlate_before(input: &CorrelationInput) -> CorrelationResult {
     let gas_used = 15;
     let mut formulas = Vec::new();
     let mut satisfiable = true;
-    
+
     let deadline: i64 = match input.params.get("deadline").and_then(|v| v.as_i64()) {
         Some(n) => n,
         None => return CorrelationResult::ok(gas_used),
     };
-    
+
     for rule in &input.other_rules {
         match rule.predicate.as_str() {
             "timestamp_after" => {
@@ -179,9 +197,12 @@ pub fn correlate_before(input: &CorrelationInput) -> CorrelationResult {
             _ => {}
         }
     }
-    
-    if satisfiable { CorrelationResult::satisfiable(formulas, gas_used) }
-    else { CorrelationResult::unsatisfiable(formulas, gas_used) }
+
+    if satisfiable {
+        CorrelationResult::satisfiable(formulas, gas_used)
+    } else {
+        CorrelationResult::unsatisfiable(formulas, gas_used)
+    }
 }
 
 // Correlation for timestamp_after
@@ -189,12 +210,12 @@ pub fn correlate_after(input: &CorrelationInput) -> CorrelationResult {
     let gas_used = 15;
     let mut formulas = Vec::new();
     let mut satisfiable = true;
-    
+
     let deadline: i64 = match input.params.get("deadline").and_then(|v| v.as_i64()) {
         Some(n) => n,
         None => return CorrelationResult::ok(gas_used),
     };
-    
+
     for rule in &input.other_rules {
         if rule.predicate.as_str() == "timestamp_before" {
             if let Some(other_deadline) = rule.params.get("deadline").and_then(|v| v.as_i64()) {
@@ -213,9 +234,12 @@ pub fn correlate_after(input: &CorrelationInput) -> CorrelationResult {
             }
         }
     }
-    
-    if satisfiable { CorrelationResult::satisfiable(formulas, gas_used) }
-    else { CorrelationResult::unsatisfiable(formulas, gas_used) }
+
+    if satisfiable {
+        CorrelationResult::satisfiable(formulas, gas_used)
+    } else {
+        CorrelationResult::unsatisfiable(formulas, gas_used)
+    }
 }
 
 // Correlation for timestamp_within
@@ -223,7 +247,7 @@ pub fn correlate_within(input: &CorrelationInput) -> CorrelationResult {
     let gas_used = 20;
     let mut formulas = Vec::new();
     let satisfiable = true;
-    
+
     let start: i64 = match input.params.get("start").and_then(|v| v.as_i64()) {
         Some(n) => n,
         None => return CorrelationResult::ok(gas_used),
@@ -232,24 +256,28 @@ pub fn correlate_within(input: &CorrelationInput) -> CorrelationResult {
         Some(n) => n,
         None => return CorrelationResult::ok(gas_used),
     };
-    
+
     // Express window as conjunction of before and after
     formulas.push(format!(
         "timestamp_within($path, {}, {}) <-> (timestamp_after($path, {}) & timestamp_before($path, {}))",
         start, end, start - 1, end + 1
     ));
-    
-    if satisfiable { CorrelationResult::satisfiable(formulas, gas_used) }
-    else { CorrelationResult::unsatisfiable(formulas, gas_used) }
+
+    if satisfiable {
+        CorrelationResult::satisfiable(formulas, gas_used)
+    } else {
+        CorrelationResult::unsatisfiable(formulas, gas_used)
+    }
 }
 
 // Correlation for timestamp_expired
 pub fn correlate_expired(_input: &CorrelationInput) -> CorrelationResult {
     let gas_used = 10;
     let formulas = vec![
-        "timestamp_expired($deadline, $current) <-> timestamp_after($current, $deadline)".to_string()
+        "timestamp_expired($deadline, $current) <-> timestamp_after($current, $deadline)"
+            .to_string(),
     ];
-    
+
     CorrelationResult::satisfiable(formulas, gas_used)
 }
 
@@ -303,13 +331,15 @@ mod tests {
 
     #[test]
     fn near_pass() {
-        let input = eval_input(serde_json::json!({"timestamp": 1050, "target": 1000, "tolerance": 100}));
+        let input =
+            eval_input(serde_json::json!({"timestamp": 1050, "target": 1000, "tolerance": 100}));
         assert!(evaluate_near(&input).valid);
     }
 
     #[test]
     fn near_fail() {
-        let input = eval_input(serde_json::json!({"timestamp": 2000, "target": 1000, "tolerance": 100}));
+        let input =
+            eval_input(serde_json::json!({"timestamp": 2000, "target": 1000, "tolerance": 100}));
         assert!(!evaluate_near(&input).valid);
     }
 }

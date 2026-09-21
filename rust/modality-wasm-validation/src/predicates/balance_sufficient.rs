@@ -3,7 +3,7 @@
 //! Verifies that an account's balance is >= the requested amount.
 //! Used for withdrawal limits in multi-account contracts.
 
-use super::{PredicateResult, PredicateInput};
+use super::{PredicateInput, PredicateResult};
 use serde::{Deserialize, Serialize};
 
 /// Input for balance_sufficient predicate
@@ -19,19 +19,19 @@ pub struct BalanceSufficientInput {
 }
 
 /// Verify that balance >= amount
-/// 
+///
 /// # Input Format
 /// - `balance`: Current account balance (number)
 /// - `amount`: Requested withdrawal/transfer amount (number)
 /// - `account`: Account identifier for error messages (optional string)
-/// 
+///
 /// # Returns
 /// - `PredicateResult::success()` if balance >= amount
 /// - `PredicateResult::failure()` if balance < amount
 /// - `PredicateResult::error()` if input is malformed
 pub fn evaluate(input: &PredicateInput) -> PredicateResult {
     let gas_used = 10;
-    
+
     let bal_input: BalanceSufficientInput = match serde_json::from_value(input.data.clone()) {
         Ok(i) => i,
         Err(e) => return PredicateResult::error(gas_used, format!("Invalid input: {}", e)),
@@ -53,12 +53,13 @@ pub fn evaluate(input: &PredicateInput) -> PredicateResult {
         } else {
             format!(" for account '{}'", bal_input.account)
         };
-        PredicateResult::failure(gas_used, vec![
-            format!(
+        PredicateResult::failure(
+            gas_used,
+            vec![format!(
                 "Insufficient balance{}: have {}, need {}",
                 account_info, bal_input.balance, bal_input.amount
-            )
-        ])
+            )],
+        )
     }
 }
 

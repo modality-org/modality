@@ -1,11 +1,14 @@
 //! text_contains predicate - substring check
 
-use super::{PredicateResult, PredicateInput};
 use super::text_common::{CorrelationInput, CorrelationResult};
+use super::{PredicateInput, PredicateResult};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Input { pub value: String, pub substring: String }
+pub struct Input {
+    pub value: String,
+    pub substring: String,
+}
 
 pub fn evaluate(input: &PredicateInput) -> PredicateResult {
     let gas_used = 15;
@@ -16,7 +19,13 @@ pub fn evaluate(input: &PredicateInput) -> PredicateResult {
     if text_input.value.contains(&text_input.substring) {
         PredicateResult::success(gas_used)
     } else {
-        PredicateResult::failure(gas_used, vec![format!("'{}' does not contain '{}'", text_input.value, text_input.substring)])
+        PredicateResult::failure(
+            gas_used,
+            vec![format!(
+                "'{}' does not contain '{}'",
+                text_input.value, text_input.substring
+            )],
+        )
     }
 }
 
@@ -24,12 +33,12 @@ pub fn correlate(input: &CorrelationInput) -> CorrelationResult {
     let gas_used = 15;
     let mut formulas = Vec::new();
     let mut satisfiable = true;
-    
+
     let substring: String = match input.params.get("substring").and_then(|v| v.as_str()) {
         Some(s) => s.to_string(),
         None => return CorrelationResult::ok(gas_used),
     };
-    
+
     for rule in &input.other_rules {
         match rule.predicate.as_str() {
             "text_length_lt" => {
@@ -43,7 +52,8 @@ pub fn correlate(input: &CorrelationInput) -> CorrelationResult {
                     } else {
                         formulas.push(format!(
                             "text_contains($path, \"{}\") -> text_length_gt($path, {})",
-                            substring, substring.len() - 1
+                            substring,
+                            substring.len() - 1
                         ));
                     }
                 }
@@ -87,7 +97,10 @@ pub fn correlate(input: &CorrelationInput) -> CorrelationResult {
             _ => {}
         }
     }
-    
-    if satisfiable { CorrelationResult::satisfiable(formulas, gas_used) }
-    else { CorrelationResult::unsatisfiable(formulas, gas_used) }
+
+    if satisfiable {
+        CorrelationResult::satisfiable(formulas, gas_used)
+    } else {
+        CorrelationResult::unsatisfiable(formulas, gas_used)
+    }
 }

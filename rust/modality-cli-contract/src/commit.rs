@@ -142,11 +142,9 @@ pub async fn run(opts: &Opts) -> Result<()> {
         }
 
         for (dest_path, provenance) in &pending_reposts {
-            let current_value = store
-                .read_working_path(dest_path)?
-                .ok_or_else(|| {
-                    anyhow::anyhow!("Staged REPOST dest {dest_path} is missing from the working tree")
-                })?;
+            let current_value = store.read_working_path(dest_path)?.ok_or_else(|| {
+                anyhow::anyhow!("Staged REPOST dest {dest_path} is missing from the working tree")
+            })?;
             let is_new = !committed.contains_key(dest_path);
             let is_modified = committed
                 .get(dest_path)
@@ -382,9 +380,54 @@ fn validate_commit_against_model(
     commit: &CommitFile,
 ) -> Result<()> {
     let model_path = dir.join("model").join("default.modality");
+    let model_content = if model_path.exists() {
+        std::fs::read_to_string(&model_path)?
+    } else {
+        String::new()
+    };
+
+    #[cfg(feature = "wasm")]
+    {
+        use modality_common::independent_replay::{
+            commit_has_invoke, expand_invoke_actions, expand_prefix, frozen_invoke_context,
+            wasm_modules_from_commits,
+        };
+        let prefix = match crate::replay::prefix_from_store(store) {
+            Ok(prefix) => prefix,
+            Err(_) => Vec::new(),
+        };
+        if commit_has_invoke(commit) || prefix.iter().any(|(_, file)| commit_has_invoke(file)) {
+            let history_files: Vec<_> = prefix.iter().map(|(_, file)| file.clone()).collect();
+            let mut wasm = wasm_modules_from_commits(&history_files)?;
+            for module in wasm_modules_from_commits(&[commit.clone()])? {
+                if modality_common::independent_replay::lookup_wasm(&wasm, &module.path).is_none() {
+                    wasm.push(module);
+                }
+            }
+            let contract_id = store.load_config()?.contract_id;
+            let mut engine = crate::replay::CliWasmEngine;
+            let accepted = if prefix.iter().any(|(_, file)| commit_has_invoke(file)) {
+                expand_prefix(&contract_id, &prefix, &wasm, Some(&mut engine))?.0
+            } else {
+                history_files
+            };
+            let pending = if commit_has_invoke(commit) {
+                let ctx = frozen_invoke_context(&contract_id, "pending", commit, &accepted);
+                expand_invoke_actions(commit, &wasm, &ctx, &mut engine)?.0
+            } else {
+                commit.clone()
+            };
+            modality_common::model_governance::validate_pending_commit_with_history(
+                &model_content,
+                &accepted,
+                &pending,
+            )?;
+            return Ok(());
+        }
+    }
+
     if model_path.exists() {
-        let model_content = std::fs::read_to_string(&model_path)?;
-        crate::model_governance::validate_pending_commit(&model_content, store, commit)?;
+        modality_common::model_governance::validate_pending_commit(&model_content, store, commit)?;
     }
 
     Ok(())

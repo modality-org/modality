@@ -53,7 +53,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
         #[cfg(feature = "model-status")]
         {
             let model_content = std::fs::read_to_string(&model_path)?;
-            crate::model_governance::current_model_state_labels(&model_content, &store)
+            modality_common::model_governance::current_model_state_labels(&model_content, &store)
                 .ok()
                 .map(|states| states.join(", "))
         }

@@ -40,7 +40,9 @@ pub async fn handler(
         anyhow::bail!("Missing request data");
     };
 
-    let all_commits = Commit::find_by_contract_multi(datastore_manager, &req.contract_id).await?;
+    let mut all_commits =
+        Commit::find_by_contract_multi(datastore_manager, &req.contract_id).await?;
+    all_commits.retain(|commit| commit.is_sequenced());
 
     let mut commits_to_return = Vec::new();
     let mut found_since = req.since_commit_id.is_none();
@@ -73,4 +75,52 @@ pub async fn handler(
         data: Some(serde_json::to_value(response)?),
         errors: None,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[tokio::test]
+    async fn pull_returns_only_sequenced_commits() {
+        let mgr = DatastoreManager::create_in_memory().unwrap();
+        let (_tx, _rx) = mpsc::channel::<ConsensusMessage>(100);
+
+        Commit {
+            contract_id: "c1".to_string(),
+            commit_id: "queued".to_string(),
+            commit_data: json!({"body": [], "head": {}}).to_string(),
+            timestamp: 1,
+            in_batch: None,
+        }
+        .save_to_final(&mgr)
+        .await
+        .unwrap();
+        Commit {
+            contract_id: "c1".to_string(),
+            commit_id: "accepted".to_string(),
+            commit_data: json!({
+                "body": [{ "method": "post", "path": "/notes/ok.text", "value": "yes" }],
+                "head": {}
+            })
+            .to_string(),
+            timestamp: 2,
+            in_batch: Some("batch-ok".to_string()),
+        }
+        .save_to_final(&mgr)
+        .await
+        .unwrap();
+
+        let response = handler(Some(json!({ "contract_id": "c1" })), &mgr, _tx)
+            .await
+            .unwrap();
+        assert!(response.ok);
+        let commits = response.data.unwrap()["commits"]
+            .as_array()
+            .cloned()
+            .unwrap();
+        assert_eq!(commits.len(), 1);
+        assert_eq!(commits[0]["commit_id"], "accepted");
+    }
 }

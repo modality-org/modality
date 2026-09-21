@@ -15,15 +15,27 @@ pub struct CorrelationResult {
 
 impl CorrelationResult {
     pub fn ok(gas_used: u64) -> Self {
-        Self { formulas: vec![], satisfiable: true, gas_used }
+        Self {
+            formulas: vec![],
+            satisfiable: true,
+            gas_used,
+        }
     }
-    
+
     pub fn satisfiable(formulas: Vec<String>, gas_used: u64) -> Self {
-        Self { formulas, satisfiable: true, gas_used }
+        Self {
+            formulas,
+            satisfiable: true,
+            gas_used,
+        }
     }
-    
+
     pub fn unsatisfiable(formulas: Vec<String>, gas_used: u64) -> Self {
-        Self { formulas, satisfiable: false, gas_used }
+        Self {
+            formulas,
+            satisfiable: false,
+            gas_used,
+        }
     }
 }
 

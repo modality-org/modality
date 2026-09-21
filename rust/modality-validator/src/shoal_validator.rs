@@ -1,14 +1,14 @@
 use crate::error::{Result, ValidatorError};
 use modality_datastore::DatastoreManager;
-use modality_validator_consensus::narwhal::{
-    create_vote, Certificate, Committee, Primary, PublicKey, Transaction, Validator, Worker,
-    SyncClient, SyncRequest, SyncResponse,
-};
 use modality_validator_consensus::narwhal::dag::DAG;
-use modality_validator_consensus::shoal::ReputationConfig;
-use modality_validator_consensus::shoal::reputation::ReputationManager;
+use modality_validator_consensus::narwhal::{
+    create_vote, Certificate, Committee, Primary, PublicKey, SyncClient, SyncRequest, SyncResponse,
+    Transaction, Validator, Worker,
+};
 use modality_validator_consensus::shoal::consensus::ShoalConsensus;
 use modality_validator_consensus::shoal::ordering::OrderingEngine;
+use modality_validator_consensus::shoal::reputation::ReputationManager;
+use modality_validator_consensus::shoal::ReputationConfig;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::sync::{Mutex, RwLock};
@@ -18,13 +18,13 @@ use tokio::sync::{Mutex, RwLock};
 pub struct ShoalValidatorConfig {
     /// This validator's keypair (placeholder - would use real crypto)
     pub validator_key: PublicKey,
-    
+
     /// Committee of all validators
     pub committee: Committee,
-    
+
     /// Narwhal configuration
     pub narwhal_config: NarwhalConfig,
-    
+
     /// Shoal reputation configuration
     pub reputation_config: ReputationConfig,
 }
@@ -34,10 +34,10 @@ pub struct ShoalValidatorConfig {
 pub struct NarwhalConfig {
     /// Number of worker threads per validator
     pub workers_per_validator: usize,
-    
+
     /// Maximum transactions per batch
     pub batch_size: usize,
-    
+
     /// Maximum batch size in bytes
     pub max_batch_bytes: usize,
 }
@@ -56,37 +56,34 @@ impl ShoalValidatorConfig {
     /// Create a simple test configuration with N validators
     pub fn new_test(n_validators: usize, validator_index: usize) -> Self {
         use libp2p_identity::ed25519;
-        
+
         let validators: Vec<Validator> = (0..n_validators)
             .map(|i| {
                 // Create deterministic PeerId for testing
                 let mut secret_bytes = [0u8; 32];
                 secret_bytes[0] = i as u8 + 1;
-                let secret = ed25519::SecretKey::try_from_bytes(secret_bytes)
-                    .expect("valid secret key");
+                let secret =
+                    ed25519::SecretKey::try_from_bytes(secret_bytes).expect("valid secret key");
                 let keypair = ed25519::Keypair::from(secret);
                 let peer_id = libp2p_identity::PeerId::from_public_key(&keypair.public().into());
-                
+
                 Validator {
                     public_key: peer_id,
                     stake: 1,
-                    network_address: format!("127.0.0.1:800{}", i)
-                        .parse::<SocketAddr>()
-                        .unwrap(),
+                    network_address: format!("127.0.0.1:800{}", i).parse::<SocketAddr>().unwrap(),
                 }
             })
             .collect();
-        
+
         // Create validator key
         let mut secret_bytes = [0u8; 32];
         secret_bytes[0] = validator_index as u8 + 1;
-        let secret = ed25519::SecretKey::try_from_bytes(secret_bytes)
-            .expect("valid secret key");
+        let secret = ed25519::SecretKey::try_from_bytes(secret_bytes).expect("valid secret key");
         let keypair = ed25519::Keypair::from(secret);
         let validator_key = libp2p_identity::PeerId::from_public_key(&keypair.public().into());
-        
+
         let committee = Committee::new(validators);
-        
+
         Self {
             validator_key,
             committee,
@@ -96,18 +93,15 @@ impl ShoalValidatorConfig {
     }
 
     /// Create configuration from a list of peer ID strings
-    /// 
+    ///
     /// This is useful for creating a committee from static validator configuration.
     /// All validators will have equal stake (1) and placeholder network addresses.
-    pub fn from_peer_ids(
-        peer_id_strings: Vec<String>,
-        validator_index: usize,
-    ) -> Result<Self> {
+    pub fn from_peer_ids(peer_id_strings: Vec<String>, validator_index: usize) -> Result<Self> {
         Self::from_peer_ids_with_stakes(peer_id_strings, Vec::new(), validator_index)
     }
-    
+
     /// Create configuration from a list of peer ID strings with custom stakes
-    /// 
+    ///
     /// This allows creating a committee with weighted validators based on nomination counts.
     /// If stakes is empty, all validators will have equal stake (1).
     pub fn from_peer_ids_with_stakes(
@@ -116,51 +110,48 @@ impl ShoalValidatorConfig {
         validator_index: usize,
     ) -> Result<Self> {
         if validator_index >= peer_id_strings.len() {
-            return Err(ValidatorError::InitializationFailed(
-                format!("validator_index {} out of range for {} validators", 
-                        validator_index, peer_id_strings.len())
-            ));
+            return Err(ValidatorError::InitializationFailed(format!(
+                "validator_index {} out of range for {} validators",
+                validator_index,
+                peer_id_strings.len()
+            )));
         }
-        
+
         // Validate stakes length if provided
         if !stakes.is_empty() && stakes.len() != peer_id_strings.len() {
-            return Err(ValidatorError::InitializationFailed(
-                format!("stakes length ({}) must match peer_id_strings length ({})",
-                        stakes.len(), peer_id_strings.len())
-            ));
+            return Err(ValidatorError::InitializationFailed(format!(
+                "stakes length ({}) must match peer_id_strings length ({})",
+                stakes.len(),
+                peer_id_strings.len()
+            )));
         }
-        
+
         // Parse all peer IDs
         let mut validators = Vec::new();
         for (i, peer_id_str) in peer_id_strings.iter().enumerate() {
-            let peer_id: PublicKey = peer_id_str.parse()
-                .map_err(|e| ValidatorError::InitializationFailed(
-                    format!("invalid peer ID '{}': {}", peer_id_str, e)
-                ))?;
-            
-            let stake = if stakes.is_empty() {
-                1
-            } else {
-                stakes[i]
-            };
-            
+            let peer_id: PublicKey = peer_id_str.parse().map_err(|e| {
+                ValidatorError::InitializationFailed(format!(
+                    "invalid peer ID '{}': {}",
+                    peer_id_str, e
+                ))
+            })?;
+
+            let stake = if stakes.is_empty() { 1 } else { stakes[i] };
+
             validators.push(Validator {
                 public_key: peer_id,
                 stake,
-                network_address: format!("127.0.0.1:800{}", i)
-                    .parse::<SocketAddr>()
-                    .unwrap(),
+                network_address: format!("127.0.0.1:800{}", i).parse::<SocketAddr>().unwrap(),
             });
         }
-        
+
         // Get this validator's key
-        let validator_key = peer_id_strings[validator_index].parse()
-            .map_err(|e| ValidatorError::InitializationFailed(
-                format!("invalid validator peer ID: {}", e)
-            ))?;
-        
+        let validator_key = peer_id_strings[validator_index].parse().map_err(|e| {
+            ValidatorError::InitializationFailed(format!("invalid validator peer ID: {}", e))
+        })?;
+
         let committee = Committee::new(validators);
-        
+
         Ok(Self {
             validator_key,
             committee,
@@ -174,25 +165,25 @@ impl ShoalValidatorConfig {
 pub struct ShoalValidator {
     /// Configuration
     config: ShoalValidatorConfig,
-    
+
     /// Multi-store datastore manager
     datastore_manager: Option<Arc<Mutex<DatastoreManager>>>,
-    
+
     /// The DAG
     dag: Arc<RwLock<DAG>>,
-    
+
     /// Primary node
     primary: Arc<Mutex<Primary>>,
-    
+
     /// Worker nodes
     workers: Vec<Arc<Mutex<Worker>>>,
-    
+
     /// Shoal consensus engine
     consensus: Arc<Mutex<ShoalConsensus>>,
-    
+
     /// Ordering engine
     ordering: OrderingEngine,
-    
+
     /// Sync client for DAG synchronization
     sync_client: SyncClient,
 
@@ -208,7 +199,7 @@ impl ShoalValidator {
     ) -> Result<Self> {
         // Start with a fresh DAG for multi-store mode
         let dag = Arc::new(RwLock::new(DAG::new()));
-        
+
         // Create workers
         let mut workers = Vec::new();
         for i in 0..config.narwhal_config.workers_per_validator {
@@ -220,42 +211,32 @@ impl ShoalValidator {
             );
             workers.push(Arc::new(Mutex::new(worker)));
         }
-        
+
         // Create primary
-        let primary = Primary::new(
-            config.validator_key,
-            config.committee.clone(),
-            dag.clone(),
-        );
+        let primary = Primary::new(config.validator_key, config.committee.clone(), dag.clone());
         let primary = Arc::new(Mutex::new(primary));
-        
+
         // Create reputation manager
-        let reputation = ReputationManager::new(
-            config.committee.clone(),
-            config.reputation_config.clone(),
-        );
-        
+        let reputation =
+            ReputationManager::new(config.committee.clone(), config.reputation_config.clone());
+
         // Create consensus engine
         let consensus = {
-            let cons = ShoalConsensus::new(
-                dag.clone(),
-                reputation,
-                config.committee.clone(),
-            );
+            let cons = ShoalConsensus::new(dag.clone(), reputation, config.committee.clone());
             Arc::new(Mutex::new(cons))
         };
-        
+
         // Create ordering engine
         let ordering = OrderingEngine::new(dag.clone());
-        
+
         // Create sync client
         let sync_client = SyncClient::new(dag.clone());
-        
+
         log::info!(
             "created Shoal validator (multi-store) for validator {:?}",
             config.validator_key
         );
-        
+
         Ok(Self {
             config,
             datastore_manager: Some(datastore_manager),
@@ -274,14 +255,14 @@ impl ShoalValidator {
         self.signing_keypair = Some(keypair);
         self
     }
-    
+
     /// Initialize the validator by loading existing state
     pub async fn initialize(&self) -> Result<()> {
         // TODO: Load DAG and consensus state from datastore
         log::info!("Shoal validator initialized");
         Ok(())
     }
-    
+
     /// Submit a transaction for ordering
     pub async fn submit_transaction(&self, tx: Transaction) -> Result<()> {
         // Add transaction to first available worker
@@ -296,7 +277,7 @@ impl ShoalValidator {
             ))
         }
     }
-    
+
     /// Propose a new batch (called periodically by consensus loop).
     ///
     /// Adds this validator's signed vote only. Returns `None` until a quorum of
@@ -312,7 +293,10 @@ impl ShoalValidator {
         self.propose_batch_inner(true).await
     }
 
-    async fn propose_batch_inner(&self, simulate_committee_votes: bool) -> Result<Option<Certificate>> {
+    async fn propose_batch_inner(
+        &self,
+        simulate_committee_votes: bool,
+    ) -> Result<Option<Certificate>> {
         let batch_opt = if let Some(worker) = self.workers.first() {
             let mut worker = worker.lock().await;
             worker.form_batch().await
@@ -324,7 +308,10 @@ impl ShoalValidator {
             return Ok(None);
         };
 
-        log::info!("formed batch with {} transactions", batch.transactions.len());
+        log::info!(
+            "formed batch with {} transactions",
+            batch.transactions.len()
+        );
 
         let mut primary = self.primary.lock().await;
         let header = primary.propose(batch_digest).await?;
@@ -398,7 +385,7 @@ impl ShoalValidator {
         }
         Ok(())
     }
-    
+
     /// Process a certificate received from another validator
     pub async fn process_certificate(&self, cert: Certificate) -> Result<Vec<Transaction>> {
         // Note: Certificate persistence requires DatastoreManager support in DAG (TODO)
@@ -410,17 +397,17 @@ impl ShoalValidator {
         //         // TODO: Update DAG to support DatastoreManager
         //     }
         // }
-        
+
         let primary = self.primary.lock().await;
         primary.process_certificate(cert.clone()).await?;
         drop(primary);
-        
+
         let mut consensus = self.consensus.lock().await;
         let committed = consensus.process_certificate(cert).await?;
-        
+
         if !committed.is_empty() {
             log::info!("committed {} certificates", committed.len());
-            
+
             // Create checkpoint every 100 rounds
             // Note: Checkpoint creation requires DatastoreManager support in DAG (TODO)
             // #[cfg(feature = "persistence")]
@@ -429,18 +416,19 @@ impl ShoalValidator {
             //         let dag = self.dag.read().await;
             //         dag.highest_round()
             //     };
-            //     
+            //
             //     if current_round > 0 && current_round % 100 == 0 {
             //         // TODO: Update DAG to support DatastoreManager
             //     }
             // }
-            
+
             // Order and extract transactions
             let consensus_state = &consensus.state;
-            let transactions = self.ordering
+            let transactions = self
+                .ordering
                 .order_certificates(&consensus_state.committed)
                 .await?;
-            
+
             // Process contract commits for asset state updates
             use crate::contract_processor::ContractProcessor;
             // Use datastore_manager if available, otherwise skip contract processing
@@ -449,7 +437,7 @@ impl ShoalValidator {
                 return Ok(transactions);
             };
             let contract_processor = ContractProcessor::new(datastore_for_contracts);
-            
+
             for tx in &transactions {
                 // Parse transaction to see if it contains a contract commit
                 if let Ok(tx_str) = std::str::from_utf8(&tx.data) {
@@ -461,23 +449,34 @@ impl ShoalValidator {
                                 if let Some(data) = tx_json.get("data") {
                                     if let (Some(contract_id), Some(commits)) = (
                                         data.get("contract_id").and_then(|v| v.as_str()),
-                                        data.get("commits").and_then(|v| v.as_array())
+                                        data.get("commits").and_then(|v| v.as_array()),
                                     ) {
                                         // Process each commit
                                         for commit_entry in commits {
                                             if let (Some(commit_id), Some(commit_data_obj)) = (
-                                                commit_entry.get("commit_id").and_then(|v| v.as_str()),
-                                                commit_entry.get("body")
+                                                commit_entry
+                                                    .get("commit_id")
+                                                    .and_then(|v| v.as_str()),
+                                                commit_entry.get("body"),
                                             ) {
                                                 // Reconstruct commit data string
                                                 let commit_data = serde_json::json!({
                                                     "body": commit_data_obj,
                                                     "head": commit_entry.get("head")
                                                 });
-                                                let commit_data_str = serde_json::to_string(&commit_data).unwrap_or_default();
-                                                
+                                                let commit_data_str =
+                                                    serde_json::to_string(&commit_data)
+                                                        .unwrap_or_default();
+
                                                 // Process the commit
-                                                match contract_processor.process_commit(contract_id, commit_id, &commit_data_str).await {
+                                                match contract_processor
+                                                    .process_commit(
+                                                        contract_id,
+                                                        commit_id,
+                                                        &commit_data_str,
+                                                    )
+                                                    .await
+                                                {
                                                     Ok(state_changes) => {
                                                         log::info!("Processed commit {} for contract {}: {} state changes", 
                                                             commit_id, contract_id, state_changes.len());
@@ -496,46 +495,51 @@ impl ShoalValidator {
                     }
                 }
             }
-            
+
             return Ok(transactions);
         }
-        
+
         Ok(vec![])
     }
-    
+
     /// Get the current consensus round
     pub async fn get_current_round(&self) -> u64 {
         let consensus = self.consensus.lock().await;
         consensus.current_round()
     }
-    
+
     /// Get the last committed round
     pub async fn get_chain_tip(&self) -> u64 {
         let consensus = self.consensus.lock().await;
         consensus.last_committed_round()
     }
-    
+
     /// Advance to the next round
     pub async fn advance_round(&self) {
         let mut primary = self.primary.lock().await;
         primary.advance_round();
-        
+
         let mut consensus = self.consensus.lock().await;
         consensus.advance_round();
-        
+
         log::info!("advanced to round {}", consensus.current_round());
     }
-    
+
     /// Get committed transactions up to a certain round
-    pub async fn get_committed_transactions(&self, _from_round: u64, _to_round: u64) -> Result<Vec<Transaction>> {
+    pub async fn get_committed_transactions(
+        &self,
+        _from_round: u64,
+        _to_round: u64,
+    ) -> Result<Vec<Transaction>> {
         // TODO: Implement range queries
         let consensus = self.consensus.lock().await;
-        let transactions = self.ordering
+        let transactions = self
+            .ordering
             .order_certificates(&consensus.state.committed)
             .await?;
         Ok(transactions)
     }
-    
+
     /// Get the number of pending transactions
     pub async fn pending_transaction_count(&self) -> usize {
         let mut total = 0;
@@ -545,25 +549,31 @@ impl ShoalValidator {
         }
         total
     }
-    
+
     // Sync methods for DAG synchronization
-    
+
     /// Handle sync request from another node
     pub async fn handle_sync_request(&self, request: SyncRequest) -> SyncResponse {
         let dag = self.dag.read().await;
         dag.handle_sync_request(request)
     }
-    
+
     /// Sync DAG with a peer using a request function
     /// The request_fn should send requests to the peer and return responses
-    pub async fn sync_with_peer<F, Fut>(&self, request_fn: F) -> Result<modality_validator_consensus::narwhal::SyncStats>
+    pub async fn sync_with_peer<F, Fut>(
+        &self,
+        request_fn: F,
+    ) -> Result<modality_validator_consensus::narwhal::SyncStats>
     where
         F: Fn(SyncRequest) -> Fut,
         Fut: std::future::Future<Output = anyhow::Result<SyncResponse>>,
     {
-        self.sync_client.sync_with_peer(request_fn).await.map_err(|e| e.into())
+        self.sync_client
+            .sync_with_peer(request_fn)
+            .await
+            .map_err(|e| e.into())
     }
-    
+
     /// Request specific certificates from a peer
     pub async fn request_certificates<F, Fut>(
         &self,
@@ -574,9 +584,12 @@ impl ShoalValidator {
         F: Fn(SyncRequest) -> Fut,
         Fut: std::future::Future<Output = anyhow::Result<SyncResponse>>,
     {
-        self.sync_client.request_certificates(digests, request_fn).await.map_err(|e| e.into())
+        self.sync_client
+            .request_certificates(digests, request_fn)
+            .await
+            .map_err(|e| e.into())
     }
-    
+
     /// Sync missing parents for a certificate before processing it
     pub async fn sync_and_process_certificate<F, Fut>(
         &self,
@@ -592,28 +605,31 @@ impl ShoalValidator {
             let dag = self.dag.read().await;
             dag.has_all_parents(&cert)
         };
-        
+
         if !has_parents {
             log::info!("Certificate has missing parents, syncing...");
-            let synced = self.sync_client.sync_missing_parents(&cert, request_fn).await?;
-            
+            let synced = self
+                .sync_client
+                .sync_missing_parents(&cert, request_fn)
+                .await?;
+
             if !synced {
                 return Err(ValidatorError::Custom(
-                    "Failed to sync all parents for certificate".to_string()
+                    "Failed to sync all parents for certificate".to_string(),
                 ));
             }
         }
-        
+
         // Now process the certificate
         self.process_certificate(cert).await
     }
-    
+
     /// Get the highest round in our DAG
     pub async fn get_highest_round(&self) -> u64 {
         let dag = self.dag.read().await;
         dag.highest_round()
     }
-    
+
     /// Check if we have all certificates in a round
     pub async fn has_complete_round(&self, round: u64) -> bool {
         let dag = self.dag.read().await;
@@ -635,29 +651,30 @@ fn test_committee_keypair(index: usize) -> libp2p_identity::Keypair {
 mod tests {
     use super::*;
     use tempfile::TempDir;
-    
+
     async fn create_test_validator(validator_index: usize) -> (ShoalValidator, TempDir) {
         let temp_dir = TempDir::new().unwrap();
-        let datastore_manager = DatastoreManager::open(temp_dir.path())
-            .unwrap();
+        let datastore_manager = DatastoreManager::open(temp_dir.path()).unwrap();
         let datastore_manager = Arc::new(Mutex::new(datastore_manager));
-        
+
         let config = ShoalValidatorConfig::new_test(4, validator_index);
-        let validator = ShoalValidator::new(datastore_manager, config).await.unwrap()
+        let validator = ShoalValidator::new(datastore_manager, config)
+            .await
+            .unwrap()
             .with_signing_keypair(test_committee_keypair(validator_index));
-        
+
         (validator, temp_dir)
     }
-    
+
     #[tokio::test]
     async fn test_shoal_validator_create() {
         let (validator, _temp) = create_test_validator(0).await;
         validator.initialize().await.unwrap();
-        
+
         assert_eq!(validator.get_current_round().await, 0);
         assert_eq!(validator.get_chain_tip().await, 0);
     }
-    
+
     #[tokio::test]
     async fn test_shoal_validator_from_peer_ids() {
         // Test creating a validator configuration from peer IDs
@@ -666,55 +683,55 @@ mod tests {
             "12D3KooW9pypLnRn67EFjiWgEiDdqo8YizaPn8yKe5cNJd3PGnMB".to_string(),
             "12D3KooW9qGaMuW7k2a5iEQ37gWgtjfFC4B3j5R1kKJPZofS62Se".to_string(),
         ];
-        
+
         // Create config with validator at index 1
         let config = ShoalValidatorConfig::from_peer_ids(peer_ids.clone(), 1).unwrap();
-        
+
         // Verify committee has all validators
         assert_eq!(config.committee.size(), 3);
-        
+
         // Verify validator key is correct
         let expected_key: libp2p_identity::PeerId = peer_ids[1].parse().unwrap();
         assert_eq!(config.validator_key, expected_key);
-        
+
         // Verify all peer IDs are in the committee
         for peer_id_str in peer_ids {
             let peer_id: libp2p_identity::PeerId = peer_id_str.parse().unwrap();
             assert!(config.committee.contains(&peer_id));
         }
     }
-    
+
     #[tokio::test]
     async fn test_shoal_validator_from_peer_ids_invalid_index() {
         let peer_ids = vec![
             "12D3KooW9pte76rpnggcLYkFaawuTEs5DC5axHkg3cK3cewGxxHd".to_string(),
             "12D3KooW9pypLnRn67EFjiWgEiDdqo8YizaPn8yKe5cNJd3PGnMB".to_string(),
         ];
-        
+
         // Try to create config with out-of-bounds index
         let result = ShoalValidatorConfig::from_peer_ids(peer_ids, 5);
         assert!(result.is_err());
     }
-    
+
     #[tokio::test]
     async fn test_shoal_validator_submit_transaction() {
         let (validator, _temp) = create_test_validator(0).await;
         validator.initialize().await.unwrap();
-        
+
         let tx = Transaction {
             data: vec![1, 2, 3],
             timestamp: 1000,
         };
-        
+
         validator.submit_transaction(tx).await.unwrap();
         assert_eq!(validator.pending_transaction_count().await, 1);
     }
-    
+
     #[tokio::test]
     async fn test_shoal_validator_propose_batch() {
         let (validator, _temp) = create_test_validator(0).await;
         validator.initialize().await.unwrap();
-        
+
         // Submit some transactions
         for i in 0..5 {
             let tx = Transaction {
@@ -723,28 +740,28 @@ mod tests {
             };
             validator.submit_transaction(tx).await.unwrap();
         }
-        
+
         // Propose batch with a simulated committee quorum (unit test only)
         let cert = validator.propose_batch_with_test_quorum().await.unwrap();
         assert!(cert.is_some());
-        
+
         let cert = cert.unwrap();
         assert_eq!(cert.header.round, 0); // Genesis round
-        
+
         // Should be committed
         assert_eq!(validator.get_chain_tip().await, 0);
     }
-    
+
     #[tokio::test]
     async fn test_shoal_validator_advance_round() {
         let (validator, _temp) = create_test_validator(0).await;
         validator.initialize().await.unwrap();
-        
+
         assert_eq!(validator.get_current_round().await, 0);
-        
+
         validator.advance_round().await;
         assert_eq!(validator.get_current_round().await, 1);
-        
+
         validator.advance_round().await;
         assert_eq!(validator.get_current_round().await, 2);
     }
@@ -761,4 +778,3 @@ mod tests {
         assert_eq!(validator.pending_transaction_count().await, 1);
     }
 }
-

@@ -1,11 +1,13 @@
-use anyhow::{Result, anyhow};
+use anyhow::{anyhow, Result};
+use modality_datastore::{models::WasmModule, DatastoreManager};
+use modality_wasm_runtime::{WasmExecutor, WasmModuleCache};
+use modality_wasm_validation::{
+    decode_predicate_result, encode_predicate_input, PredicateContext, PredicateResult,
+};
+use serde_json::Value;
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use modality_datastore::{DatastoreManager, models::WasmModule};
-use modality_wasm_runtime::{WasmExecutor, WasmModuleCache};
-use modality_wasm_validation::{PredicateResult, PredicateContext, encode_predicate_input, decode_predicate_result};
-use serde_json::Value;
-use wasmtime::{Engine, Config, Module};
+use wasmtime::{Config, Engine, Module};
 
 /// Evaluates WASM predicates to boolean propositions
 /// Handles cross-contract predicate execution and resolution with caching
@@ -22,10 +24,10 @@ impl PredicateExecutor {
         let mut config = Config::new();
         config.consume_fuel(true);
         let engine = Engine::new(&config).expect("Failed to create WASM engine");
-        
+
         // Create cache with default limits (100 modules, 50MB)
         let cache = Arc::new(Mutex::new(WasmModuleCache::default()));
-        
+
         Self {
             datastore,
             gas_limit,
@@ -44,9 +46,9 @@ impl PredicateExecutor {
         let mut config = Config::new();
         config.consume_fuel(true);
         let engine = Engine::new(&config).expect("Failed to create WASM engine");
-        
+
         let cache = Arc::new(Mutex::new(WasmModuleCache::new(max_modules, max_size_mb)));
-        
+
         Self {
             datastore,
             gas_limit,
@@ -62,7 +64,7 @@ impl PredicateExecutor {
     }
 
     /// Evaluate a predicate and return a boolean result
-    /// 
+    ///
     /// The predicate path can be:
     /// - Local: `/_code/my_predicate.wasm` → looks in current contract
     /// - Network: `/_code/modal/signed_by.wasm` → looks in network genesis contract
@@ -75,26 +77,35 @@ impl PredicateExecutor {
         context: PredicateContext,
     ) -> Result<PredicateResult> {
         // Parse the predicate reference
-        let (target_contract_id, path) = self.parse_predicate_reference(contract_id, predicate_path)?;
+        let (target_contract_id, path) =
+            self.parse_predicate_reference(contract_id, predicate_path)?;
 
         // Fetch the WASM module from datastore
         let wasm_module = self.fetch_wasm_module(&target_contract_id, &path).await?;
 
         // Execute the predicate
-        self.execute_predicate_wasm(&wasm_module, data, context).await
+        self.execute_predicate_wasm(&wasm_module, data, context)
+            .await
     }
 
     /// Parse a predicate reference to determine target contract and path
-    /// 
+    ///
     /// Examples:
     /// - `/_code/my_predicate.wasm` → (contract_id, `/_code/my_predicate.wasm`)
     /// - `@abc123/_code/custom.wasm` → ("abc123", `/_code/custom.wasm`)
-    fn parse_predicate_reference(&self, current_contract_id: &str, predicate_path: &str) -> Result<(String, String)> {
+    fn parse_predicate_reference(
+        &self,
+        current_contract_id: &str,
+        predicate_path: &str,
+    ) -> Result<(String, String)> {
         if let Some(stripped) = predicate_path.strip_prefix('@') {
             // Cross-contract reference: @{contract_id}/path
             let parts: Vec<&str> = stripped.splitn(2, '/').collect();
             if parts.len() != 2 {
-                return Err(anyhow!("Invalid cross-contract predicate reference: {}", predicate_path));
+                return Err(anyhow!(
+                    "Invalid cross-contract predicate reference: {}",
+                    predicate_path
+                ));
             }
             Ok((parts[0].to_string(), format!("/{}", parts[1])))
         } else {
@@ -106,21 +117,23 @@ impl PredicateExecutor {
     /// Fetch a WASM module from the datastore
     async fn fetch_wasm_module(&self, contract_id: &str, path: &str) -> Result<WasmModule> {
         let ds = self.datastore.lock().await;
-        
+
         match WasmModule::find_by_contract_and_path_multi(&ds, contract_id, path).await? {
             Some(module) => {
                 // Verify hash integrity
                 if !module.verify_hash() {
                     return Err(anyhow!(
                         "WASM module hash verification failed for {} in contract {}",
-                        path, contract_id
+                        path,
+                        contract_id
                     ));
                 }
                 Ok(module)
             }
             None => Err(anyhow!(
                 "WASM module not found: {} in contract {}",
-                path, contract_id
+                path,
+                contract_id
             )),
         }
     }
@@ -141,9 +154,11 @@ impl PredicateExecutor {
         let cache_key_hash = wasm_module.sha256_hash.clone();
 
         let mut cache = self.cache.lock().await;
-        
+
         // Try to get compiled module from cache
-        let _compiled_module = if let Some(module) = cache.get(&cache_key_contract, &cache_key_path, &cache_key_hash) {
+        let _compiled_module = if let Some(module) =
+            cache.get(&cache_key_contract, &cache_key_path, &cache_key_hash)
+        {
             log::debug!(
                 "Cache hit for WASM module: {} in contract {}",
                 wasm_module.module_name,
@@ -156,11 +171,11 @@ impl PredicateExecutor {
                 wasm_module.module_name,
                 wasm_module.contract_id
             );
-            
+
             // Compile the module
             let module = Module::new(&self.engine, &wasm_module.wasm_bytes)
                 .map_err(|e| anyhow!("Failed to compile WASM module: {}", e))?;
-            
+
             // Insert into cache
             cache.insert(
                 &cache_key_contract,
@@ -169,10 +184,10 @@ impl PredicateExecutor {
                 module.clone(),
                 wasm_module.wasm_bytes.len(),
             );
-            
+
             Arc::new(module)
         };
-        
+
         // Release cache lock before execution
         drop(cache);
 
@@ -183,7 +198,8 @@ impl PredicateExecutor {
         // Execute the WASM module using cached compiled module
         // For now, we'll still use the executor's execute method with bytes
         // In a future optimization, we could modify WasmExecutor to accept compiled modules
-        let result_json = executor.execute(&wasm_module.wasm_bytes, "evaluate", &input_json)
+        let result_json = executor
+            .execute(&wasm_module.wasm_bytes, "evaluate", &input_json)
             .map_err(|e| anyhow!("Predicate execution failed: {}", e))?;
 
         // Decode result
@@ -257,4 +273,3 @@ mod tests {
         );
     }
 }
-

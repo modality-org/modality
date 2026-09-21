@@ -220,8 +220,10 @@ fn test_existing_methods_still_work() {
 
 #[test]
 fn test_rule_rejection_explains_failed_consequent_predicate() {
-    let contract_dir =
-        std::env::temp_dir().join(format!("modality-common-rule-explain-{}", std::process::id()));
+    let contract_dir = std::env::temp_dir().join(format!(
+        "modality-common-rule-explain-{}",
+        std::process::id()
+    ));
     let _ = std::fs::remove_dir_all(&contract_dir);
     std::fs::create_dir_all(&contract_dir).unwrap();
 
@@ -323,9 +325,11 @@ fn sample_repost_commit(dest: &str) -> CommitFile {
 
 #[test]
 fn test_repost_action_validation() {
-    assert!(sample_repost_commit("/reposts/abc123def456/announcements/latest.text")
-        .validate()
-        .is_ok());
+    assert!(
+        sample_repost_commit("/reposts/abc123def456/announcements/latest.text")
+            .validate()
+            .is_ok()
+    );
 }
 
 #[test]
@@ -452,10 +456,7 @@ fn test_legacy_dollar_repost_still_parses() {
     let spec = parse_repost_json(&action).unwrap();
     assert_eq!(spec.source_contract, "abc123");
     assert_eq!(spec.source_path, "/data/file.text");
-    assert_eq!(
-        spec.dest_path,
-        "/reposts/abc123/data/file.text"
-    );
+    assert_eq!(spec.dest_path, "/reposts/abc123/data/file.text");
 }
 
 #[test]

@@ -1,7 +1,7 @@
 //! text_equals predicate - exact string match
 
-use super::{PredicateResult, PredicateInput};
 use super::text_common::{CorrelationInput, CorrelationResult};
+use super::{PredicateInput, PredicateResult};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -12,7 +12,7 @@ pub struct Input {
 
 pub fn evaluate(input: &PredicateInput) -> PredicateResult {
     let gas_used = 10;
-    
+
     let text_input: Input = match serde_json::from_value(input.data.clone()) {
         Ok(i) => i,
         Err(e) => return PredicateResult::error(gas_used, format!("Invalid input: {}", e)),
@@ -21,9 +21,13 @@ pub fn evaluate(input: &PredicateInput) -> PredicateResult {
     if text_input.value == text_input.expected {
         PredicateResult::success(gas_used)
     } else {
-        PredicateResult::failure(gas_used, vec![
-            format!("Text '{}' does not equal '{}'", text_input.value, text_input.expected)
-        ])
+        PredicateResult::failure(
+            gas_used,
+            vec![format!(
+                "Text '{}' does not equal '{}'",
+                text_input.value, text_input.expected
+            )],
+        )
     }
 }
 
@@ -31,12 +35,12 @@ pub fn correlate(input: &CorrelationInput) -> CorrelationResult {
     let gas_used = 20;
     let mut formulas = Vec::new();
     let mut satisfiable = true;
-    
+
     let expected: String = match input.params.get("expected").and_then(|v| v.as_str()) {
         Some(s) => s.to_string(),
         None => return CorrelationResult::ok(gas_used),
     };
-    
+
     for rule in &input.other_rules {
         match rule.predicate.as_str() {
             "text_length_eq" => {
@@ -45,7 +49,8 @@ pub fn correlate(input: &CorrelationInput) -> CorrelationResult {
                         // Compatible: text_equals("hello") -> text_length_eq(5)
                         formulas.push(format!(
                             "text_equals($path, \"{}\") -> text_length_eq($path, {})",
-                            expected, expected.len()
+                            expected,
+                            expected.len()
                         ));
                     } else {
                         // Contradiction: !(text_equals("hello") & text_length_eq(10))
@@ -107,7 +112,8 @@ pub fn correlate(input: &CorrelationInput) -> CorrelationResult {
                         expected
                     ));
                 } else {
-                    formulas.push("!(text_equals($path, \"\") & text_not_empty($path))".to_string());
+                    formulas
+                        .push("!(text_equals($path, \"\") & text_not_empty($path))".to_string());
                     satisfiable = false;
                 }
             }
@@ -173,7 +179,7 @@ pub fn correlate(input: &CorrelationInput) -> CorrelationResult {
             _ => {}
         }
     }
-    
+
     if satisfiable {
         CorrelationResult::satisfiable(formulas, gas_used)
     } else {
@@ -183,14 +189,14 @@ pub fn correlate(input: &CorrelationInput) -> CorrelationResult {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::super::text_common::RuleContext;
+    use super::*;
     use crate::predicates::PredicateContext;
 
     fn create_input(data: serde_json::Value) -> PredicateInput {
-        PredicateInput { 
-            data, 
-            context: PredicateContext::new("test".to_string(), 1, 0) 
+        PredicateInput {
+            data,
+            context: PredicateContext::new("test".to_string(), 1, 0),
         }
     }
 
@@ -204,12 +210,10 @@ mod tests {
     fn test_correlate_generates_formula() {
         let input = CorrelationInput {
             params: serde_json::json!({"expected": "hello"}),
-            other_rules: vec![
-                RuleContext {
-                    predicate: "text_length_eq".to_string(),
-                    params: serde_json::json!({"length": 5}),
-                }
-            ],
+            other_rules: vec![RuleContext {
+                predicate: "text_length_eq".to_string(),
+                params: serde_json::json!({"length": 5}),
+            }],
         };
         let result = correlate(&input);
         assert!(result.satisfiable);
@@ -220,12 +224,10 @@ mod tests {
     fn test_correlate_contradiction_formula() {
         let input = CorrelationInput {
             params: serde_json::json!({"expected": "hello"}),
-            other_rules: vec![
-                RuleContext {
-                    predicate: "text_length_eq".to_string(),
-                    params: serde_json::json!({"length": 10}),
-                }
-            ],
+            other_rules: vec![RuleContext {
+                predicate: "text_length_eq".to_string(),
+                params: serde_json::json!({"length": 10}),
+            }],
         };
         let result = correlate(&input);
         assert!(!result.satisfiable);

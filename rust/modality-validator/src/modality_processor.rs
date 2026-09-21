@@ -3,17 +3,16 @@
 //! Validates and processes Modality contract commits during consensus.
 //! Each commit is checked against accumulated formulas before acceptance.
 
-use anyhow::{Result, anyhow};
+use anyhow::{anyhow, Result};
+use modality_datastore::models::{
+    ModalityAction as ModalityActionRecord, ModalityCommitBody, ModalityContract, ModalityRule,
+};
+use modality_datastore::DatastoreManager;
+use modality_lang::crypto::{verify_ed25519, VerifyResult};
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use modality_datastore::DatastoreManager;
-use modality_datastore::models::{
-    ModalityContract, ModalityRule, ModalityAction as ModalityActionRecord,
-    ModalityCommitBody,
-};
-use modality_lang::crypto::{verify_ed25519, VerifyResult};
-use serde::{Serialize, Deserialize};
 
 /// State change from processing a Modality commit
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -43,29 +42,55 @@ pub enum ModalityStateChange {
 /// Error types for Modality processing
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ModalityError {
-    InvalidSignature { signer: String, reason: String },
-    UnauthorizedParty { party: String },
-    FormulaViolation { action: String, formula: String, reason: String },
-    InvalidPhase { expected: String, actual: String },
-    ContractNotFound { contract_id: String },
-    ParseError { reason: String },
+    InvalidSignature {
+        signer: String,
+        reason: String,
+    },
+    UnauthorizedParty {
+        party: String,
+    },
+    FormulaViolation {
+        action: String,
+        formula: String,
+        reason: String,
+    },
+    InvalidPhase {
+        expected: String,
+        actual: String,
+    },
+    ContractNotFound {
+        contract_id: String,
+    },
+    ParseError {
+        reason: String,
+    },
 }
 
 impl std::fmt::Display for ModalityError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            ModalityError::InvalidSignature { signer, reason } => 
-                write!(f, "Invalid signature from {}: {}", signer, reason),
-            ModalityError::UnauthorizedParty { party } => 
-                write!(f, "Unauthorized party: {}", party),
-            ModalityError::FormulaViolation { action, formula, reason } => 
-                write!(f, "Action {} violates formula {}: {}", action, formula, reason),
-            ModalityError::InvalidPhase { expected, actual } => 
-                write!(f, "Invalid phase: expected {}, got {}", expected, actual),
-            ModalityError::ContractNotFound { contract_id } => 
-                write!(f, "Contract not found: {}", contract_id),
-            ModalityError::ParseError { reason } => 
-                write!(f, "Parse error: {}", reason),
+            ModalityError::InvalidSignature { signer, reason } => {
+                write!(f, "Invalid signature from {}: {}", signer, reason)
+            }
+            ModalityError::UnauthorizedParty { party } => {
+                write!(f, "Unauthorized party: {}", party)
+            }
+            ModalityError::FormulaViolation {
+                action,
+                formula,
+                reason,
+            } => write!(
+                f,
+                "Action {} violates formula {}: {}",
+                action, formula, reason
+            ),
+            ModalityError::InvalidPhase { expected, actual } => {
+                write!(f, "Invalid phase: expected {}, got {}", expected, actual)
+            }
+            ModalityError::ContractNotFound { contract_id } => {
+                write!(f, "Contract not found: {}", contract_id)
+            }
+            ModalityError::ParseError { reason } => write!(f, "Parse error: {}", reason),
         }
     }
 }
@@ -102,29 +127,57 @@ impl ModalityContractProcessor {
             return Ok(vec![]); // Not a modality commit, skip
         }
 
-        let commit_body = ModalityCommitBody::from_json(commit_body_json)
-            .map_err(|e| anyhow!(ModalityError::ParseError { reason: e.to_string() }))?;
+        let commit_body = ModalityCommitBody::from_json(commit_body_json).map_err(|e| {
+            anyhow!(ModalityError::ParseError {
+                reason: e.to_string()
+            })
+        })?;
 
         let mut changes = Vec::new();
 
         match commit_body {
-            ModalityCommitBody::Init { version: _, parties } => {
+            ModalityCommitBody::Init {
+                version: _,
+                parties,
+            } => {
                 changes.extend(self.process_init(contract_id, commit_id, parties).await?);
             }
-            ModalityCommitBody::AddRule { formula, signed_by, signature } => {
-                changes.extend(self.process_add_rule(
-                    contract_id, commit_id, &formula, &signed_by, &signature
-                ).await?);
+            ModalityCommitBody::AddRule {
+                formula,
+                signed_by,
+                signature,
+            } => {
+                changes.extend(
+                    self.process_add_rule(contract_id, commit_id, &formula, &signed_by, &signature)
+                        .await?,
+                );
             }
-            ModalityCommitBody::DomainAction { action, payload, signed_by, signature } => {
-                changes.extend(self.process_domain_action(
-                    contract_id, commit_id, &action, &payload, &signed_by, &signature
-                ).await?);
+            ModalityCommitBody::DomainAction {
+                action,
+                payload,
+                signed_by,
+                signature,
+            } => {
+                changes.extend(
+                    self.process_domain_action(
+                        contract_id,
+                        commit_id,
+                        &action,
+                        &payload,
+                        &signed_by,
+                        &signature,
+                    )
+                    .await?,
+                );
             }
-            ModalityCommitBody::Finalize { signed_by, signature } => {
-                changes.extend(self.process_finalize(
-                    contract_id, commit_id, &signed_by, &signature
-                ).await?);
+            ModalityCommitBody::Finalize {
+                signed_by,
+                signature,
+            } => {
+                changes.extend(
+                    self.process_finalize(contract_id, commit_id, &signed_by, &signature)
+                        .await?,
+                );
             }
         }
 
@@ -139,18 +192,23 @@ impl ModalityContractProcessor {
         parties: Vec<String>,
     ) -> Result<Vec<ModalityStateChange>> {
         let contract = ModalityContract::new(contract_id.to_string(), parties.clone());
-        
+
         // Save to datastore
         {
             let ds = self.datastore.lock().await;
             contract.save(&ds).await?;
         }
-        
+
         // Update cache
-        self.contract_cache.insert(contract_id.to_string(), contract);
+        self.contract_cache
+            .insert(contract_id.to_string(), contract);
         self.rules_cache.insert(contract_id.to_string(), Vec::new());
 
-        log::info!("Modality contract initialized: {} with {} parties", contract_id, parties.len());
+        log::info!(
+            "Modality contract initialized: {} with {} parties",
+            contract_id,
+            parties.len()
+        );
 
         Ok(vec![ModalityStateChange::ContractCreated {
             contract_id: contract_id.to_string(),
@@ -172,8 +230,8 @@ impl ModalityContractProcessor {
 
         // Verify party is authorized
         if !contract.parties.contains(&signed_by.to_string()) {
-            return Err(anyhow!(ModalityError::UnauthorizedParty { 
-                party: signed_by.to_string() 
+            return Err(anyhow!(ModalityError::UnauthorizedParty {
+                party: signed_by.to_string()
             }));
         }
 
@@ -217,20 +275,26 @@ impl ModalityContractProcessor {
             .duration_since(std::time::UNIX_EPOCH)
             .map(|d| d.as_secs())
             .unwrap_or(0);
-        
+
         {
             let ds = self.datastore.lock().await;
             updated_contract.save(&ds).await?;
         }
 
         // Update caches
-        self.contract_cache.insert(contract_id.to_string(), updated_contract);
+        self.contract_cache
+            .insert(contract_id.to_string(), updated_contract);
         self.rules_cache
             .entry(contract_id.to_string())
             .or_default()
             .push(rule);
 
-        log::info!("Rule added to contract {}: {} by {}", contract_id, formula, signed_by);
+        log::info!(
+            "Rule added to contract {}: {} by {}",
+            contract_id,
+            formula,
+            signed_by
+        );
 
         Ok(vec![ModalityStateChange::RuleAdded {
             contract_id: contract_id.to_string(),
@@ -255,8 +319,8 @@ impl ModalityContractProcessor {
 
         // Verify party is authorized
         if !contract.parties.contains(&signed_by.to_string()) {
-            return Err(anyhow!(ModalityError::UnauthorizedParty { 
-                party: signed_by.to_string() 
+            return Err(anyhow!(ModalityError::UnauthorizedParty {
+                party: signed_by.to_string()
             }));
         }
 
@@ -269,7 +333,10 @@ impl ModalityContractProcessor {
         }
 
         // Verify signature
-        let message = format!("domain_action:{}:{}:{}:{}", contract_id, commit_id, action, payload);
+        let message = format!(
+            "domain_action:{}:{}:{}:{}",
+            contract_id, commit_id, action, payload
+        );
         self.verify_signature(signed_by, message.as_bytes(), signature)?;
 
         // Get all rules and validate action against them
@@ -305,15 +372,21 @@ impl ModalityContractProcessor {
             .duration_since(std::time::UNIX_EPOCH)
             .map(|d| d.as_secs())
             .unwrap_or(0);
-        
+
         {
             let ds = self.datastore.lock().await;
             updated_contract.save(&ds).await?;
         }
 
-        self.contract_cache.insert(contract_id.to_string(), updated_contract);
+        self.contract_cache
+            .insert(contract_id.to_string(), updated_contract);
 
-        log::info!("Action executed in contract {}: {} by {}", contract_id, action, signed_by);
+        log::info!(
+            "Action executed in contract {}: {} by {}",
+            contract_id,
+            action,
+            signed_by
+        );
 
         Ok(vec![ModalityStateChange::ActionExecuted {
             contract_id: contract_id.to_string(),
@@ -336,8 +409,8 @@ impl ModalityContractProcessor {
 
         // Verify party is authorized
         if !contract.parties.contains(&signed_by.to_string()) {
-            return Err(anyhow!(ModalityError::UnauthorizedParty { 
-                party: signed_by.to_string() 
+            return Err(anyhow!(ModalityError::UnauthorizedParty {
+                party: signed_by.to_string()
             }));
         }
 
@@ -362,13 +435,14 @@ impl ModalityContractProcessor {
             .duration_since(std::time::UNIX_EPOCH)
             .map(|d| d.as_secs())
             .unwrap_or(0);
-        
+
         {
             let ds = self.datastore.lock().await;
             updated_contract.save(&ds).await?;
         }
 
-        self.contract_cache.insert(contract_id.to_string(), updated_contract);
+        self.contract_cache
+            .insert(contract_id.to_string(), updated_contract);
 
         log::info!("Contract {} finalized by {}", contract_id, signed_by);
 
@@ -385,12 +459,16 @@ impl ModalityContractProcessor {
         }
 
         let ds = self.datastore.lock().await;
-        let contract = ModalityContract::find_by_id(&ds, contract_id).await?
-            .ok_or_else(|| anyhow!(ModalityError::ContractNotFound { 
-                contract_id: contract_id.to_string() 
-            }))?;
+        let contract = ModalityContract::find_by_id(&ds, contract_id)
+            .await?
+            .ok_or_else(|| {
+                anyhow!(ModalityError::ContractNotFound {
+                    contract_id: contract_id.to_string()
+                })
+            })?;
 
-        self.contract_cache.insert(contract_id.to_string(), contract.clone());
+        self.contract_cache
+            .insert(contract_id.to_string(), contract.clone());
         Ok(contract)
     }
 
@@ -403,7 +481,8 @@ impl ModalityContractProcessor {
         let ds = self.datastore.lock().await;
         let rules = ModalityRule::find_by_contract(&ds, contract_id).await?;
 
-        self.rules_cache.insert(contract_id.to_string(), rules.clone());
+        self.rules_cache
+            .insert(contract_id.to_string(), rules.clone());
         Ok(rules)
     }
 
@@ -429,18 +508,10 @@ impl ModalityContractProcessor {
         _payload: &serde_json::Value,
         rules: &[ModalityRule],
     ) -> Result<()> {
-        // For now, we do basic validation
-        // TODO: Integrate with modality-lang model checker for full formula verification
-        
-        for rule in rules {
-            // Check if the rule's formula mentions this action
-            // In a full implementation, we'd parse the formula and check semantically
-            if rule.formula.contains(action) {
-                log::debug!("Action {} is mentioned in rule: {}", action, rule.formula);
-                // For Phase 1, we just log - Phase 2 will add full model checking
-            }
-        }
-
+        // Real first-contract rule checks run in ContractProcessor::process_commit
+        // (validate_sequenced_commit). This processor is a separate commit-body
+        // format and is not the sequenced apply path.
+        let _ = (action, rules);
         Ok(())
     }
 
@@ -454,8 +525,8 @@ impl ModalityContractProcessor {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tempfile::TempDir;
     use modality_lang::crypto::{generate_keypair, sign_ed25519};
+    use tempfile::TempDir;
 
     async fn create_test_processor() -> (ModalityContractProcessor, TempDir) {
         let temp_dir = TempDir::new().unwrap();
@@ -468,7 +539,7 @@ mod tests {
     #[tokio::test]
     async fn test_init_contract() {
         let (mut processor, _temp) = create_test_processor().await;
-        
+
         let (_, alice_pub) = generate_keypair();
         let (_, bob_pub) = generate_keypair();
 
@@ -476,17 +547,20 @@ mod tests {
             "type": "init_modality",
             "version": "0.1",
             "parties": [alice_pub, bob_pub]
-        }).to_string();
+        })
+        .to_string();
 
-        let changes = processor.process_commit(
-            "test_contract",
-            "commit_0",
-            &init_json,
-        ).await.unwrap();
+        let changes = processor
+            .process_commit("test_contract", "commit_0", &init_json)
+            .await
+            .unwrap();
 
         assert_eq!(changes.len(), 1);
         match &changes[0] {
-            ModalityStateChange::ContractCreated { contract_id, parties } => {
+            ModalityStateChange::ContractCreated {
+                contract_id,
+                parties,
+            } => {
                 assert_eq!(contract_id, "test_contract");
                 assert_eq!(parties.len(), 2);
             }
@@ -497,7 +571,7 @@ mod tests {
     #[tokio::test]
     async fn test_add_rule() {
         let (mut processor, _temp) = create_test_processor().await;
-        
+
         let (alice_priv, alice_pub) = generate_keypair();
         let (_, bob_pub) = generate_keypair();
 
@@ -506,9 +580,13 @@ mod tests {
             "type": "init_modality",
             "version": "0.1",
             "parties": [&alice_pub, &bob_pub]
-        }).to_string();
+        })
+        .to_string();
 
-        processor.process_commit("test_contract", "commit_0", &init_json).await.unwrap();
+        processor
+            .process_commit("test_contract", "commit_0", &init_json)
+            .await
+            .unwrap();
 
         // Now add a rule
         let formula = "[+DELIVER] eventually(paid | refunded)";
@@ -520,17 +598,21 @@ mod tests {
             "formula": formula,
             "signed_by": alice_pub,
             "signature": signature
-        }).to_string();
+        })
+        .to_string();
 
-        let changes = processor.process_commit(
-            "test_contract",
-            "commit_1",
-            &add_rule_json,
-        ).await.unwrap();
+        let changes = processor
+            .process_commit("test_contract", "commit_1", &add_rule_json)
+            .await
+            .unwrap();
 
         assert_eq!(changes.len(), 1);
         match &changes[0] {
-            ModalityStateChange::RuleAdded { formula: f, added_by, .. } => {
+            ModalityStateChange::RuleAdded {
+                formula: f,
+                added_by,
+                ..
+            } => {
                 assert_eq!(f, formula);
                 assert_eq!(added_by, &alice_pub);
             }
@@ -541,7 +623,7 @@ mod tests {
     #[tokio::test]
     async fn test_unauthorized_party() {
         let (mut processor, _temp) = create_test_processor().await;
-        
+
         let (_, alice_pub) = generate_keypair();
         let (_, bob_pub) = generate_keypair();
         let (charlie_priv, charlie_pub) = generate_keypair();
@@ -551,9 +633,13 @@ mod tests {
             "type": "init_modality",
             "version": "0.1",
             "parties": [&alice_pub, &bob_pub]
-        }).to_string();
+        })
+        .to_string();
 
-        processor.process_commit("test_contract", "commit_0", &init_json).await.unwrap();
+        processor
+            .process_commit("test_contract", "commit_0", &init_json)
+            .await
+            .unwrap();
 
         // Charlie tries to add a rule (should fail)
         let formula = "[+STEAL] eventually(profit)";
@@ -565,13 +651,12 @@ mod tests {
             "formula": formula,
             "signed_by": charlie_pub,
             "signature": signature
-        }).to_string();
+        })
+        .to_string();
 
-        let result = processor.process_commit(
-            "test_contract",
-            "commit_1",
-            &add_rule_json,
-        ).await;
+        let result = processor
+            .process_commit("test_contract", "commit_1", &add_rule_json)
+            .await;
 
         assert!(result.is_err());
         let err = result.unwrap_err().to_string();

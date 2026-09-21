@@ -1,11 +1,14 @@
 use anyhow::{anyhow, Result};
+use modality_datastore::{models::WasmModule, DatastoreManager};
+use modality_wasm_runtime::{WasmExecutor, WasmModuleCache};
+use modality_wasm_validation::{
+    decode_program_result, encode_program_input, validate_program_result, ProgramContext,
+    ProgramResult,
+};
+use serde_json::Value;
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use modality_datastore::{DatastoreManager, models::WasmModule};
-use modality_wasm_runtime::{WasmExecutor, WasmModuleCache};
-use modality_wasm_validation::{ProgramContext, ProgramResult, encode_program_input, decode_program_result, validate_program_result};
-use serde_json::Value;
-use wasmtime::{Engine, Config, Module};
+use wasmtime::{Config, Engine, Module};
 
 /// Executes WASM programs to produce commit actions
 /// Handles program loading, execution, and result validation with caching
@@ -22,10 +25,10 @@ impl ProgramExecutor {
         let mut config = Config::new();
         config.consume_fuel(true);
         let engine = Engine::new(&config).expect("Failed to create WASM engine");
-        
+
         // Create cache with default limits (100 modules, 50MB)
         let cache = Arc::new(Mutex::new(WasmModuleCache::default()));
-        
+
         Self {
             datastore,
             gas_limit,
@@ -44,9 +47,9 @@ impl ProgramExecutor {
         let mut config = Config::new();
         config.consume_fuel(true);
         let engine = Engine::new(&config).expect("Failed to create WASM engine");
-        
+
         let cache = Arc::new(Mutex::new(WasmModuleCache::new(max_modules, max_size_mb)));
-        
+
         Self {
             datastore,
             gas_limit,
@@ -62,7 +65,7 @@ impl ProgramExecutor {
     }
 
     /// Execute a program and return the result
-    /// 
+    ///
     /// The program path should be: `/__programs__/{name}.wasm`
     pub async fn execute_program(
         &self,
@@ -81,10 +84,17 @@ impl ProgramExecutor {
     /// Fetch a WASM module from the datastore
     async fn fetch_wasm_module(&self, contract_id: &str, program_path: &str) -> Result<WasmModule> {
         let ds = self.datastore.lock().await;
-        
-        let wasm_module = WasmModule::find_by_contract_and_path_multi(&ds, contract_id, program_path)
-            .await?
-            .ok_or_else(|| anyhow!("Program not found: {} in contract {}", program_path, contract_id))?;
+
+        let wasm_module =
+            WasmModule::find_by_contract_and_path_multi(&ds, contract_id, program_path)
+                .await?
+                .ok_or_else(|| {
+                    anyhow!(
+                        "Program not found: {} in contract {}",
+                        program_path,
+                        contract_id
+                    )
+                })?;
 
         // Verify hash integrity
         if !wasm_module.verify_hash() {
@@ -110,9 +120,11 @@ impl ProgramExecutor {
         let cache_key_hash = wasm_module.sha256_hash.clone();
 
         let mut cache = self.cache.lock().await;
-        
+
         // Try to get compiled module from cache
-        let _compiled_module = if let Some(module) = cache.get(&cache_key_contract, &cache_key_path, &cache_key_hash) {
+        let _compiled_module = if let Some(module) =
+            cache.get(&cache_key_contract, &cache_key_path, &cache_key_hash)
+        {
             log::debug!(
                 "Cache hit for program WASM module: {} in contract {}",
                 wasm_module.module_name,
@@ -125,11 +137,11 @@ impl ProgramExecutor {
                 wasm_module.module_name,
                 wasm_module.contract_id
             );
-            
+
             // Compile the module
             let module = Module::new(&self.engine, &wasm_module.wasm_bytes)
                 .map_err(|e| anyhow!("Failed to compile WASM module: {}", e))?;
-            
+
             // Insert into cache
             cache.insert(
                 &cache_key_contract,
@@ -138,10 +150,10 @@ impl ProgramExecutor {
                 module.clone(),
                 wasm_module.wasm_bytes.len(),
             );
-            
+
             Arc::new(module)
         };
-        
+
         // Release cache lock before execution
         drop(cache);
 
@@ -150,7 +162,8 @@ impl ProgramExecutor {
         let mut executor = WasmExecutor::new(gas_limit);
 
         // Execute the WASM module
-        let result_json = executor.execute(&wasm_module.wasm_bytes, "execute", &input_json)
+        let result_json = executor
+            .execute(&wasm_module.wasm_bytes, "execute", &input_json)
             .map_err(|e| anyhow!("Program execution failed: {}", e))?;
 
         // Decode result
@@ -179,8 +192,9 @@ mod tests {
         let ds = Arc::new(Mutex::new(DatastoreManager::create_in_memory().unwrap()));
         let executor = ProgramExecutor::new(ds, 10_000_000);
 
-        let result = executor.fetch_wasm_module("test_contract", "/__programs__/missing.wasm").await;
+        let result = executor
+            .fetch_wasm_module("test_contract", "/__programs__/missing.wasm")
+            .await;
         assert!(result.is_err());
     }
 }
-

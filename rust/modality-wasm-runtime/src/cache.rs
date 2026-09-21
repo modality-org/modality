@@ -17,7 +17,7 @@ struct CacheEntry {
 }
 
 /// LRU cache for compiled WASM modules
-/// 
+///
 /// Caches compiled Wasmtime modules to avoid recompilation overhead.
 /// Uses LRU eviction when cache size exceeds limits.
 pub struct WasmModuleCache {
@@ -43,7 +43,7 @@ impl Default for WasmModuleCache {
 
 impl WasmModuleCache {
     /// Create a new cache with size limits
-    /// 
+    ///
     /// # Arguments
     /// * `max_modules` - Maximum number of modules to cache (default: 100)
     /// * `max_size_mb` - Maximum cache size in megabytes (default: 50)
@@ -64,11 +64,11 @@ impl WasmModuleCache {
     }
 
     /// Get a module from the cache
-    /// 
+    ///
     /// Returns `Some(module)` if found, `None` if not in cache
     pub fn get(&mut self, contract_id: &str, module_path: &str, hash: &str) -> Option<Arc<Module>> {
         let key = Self::cache_key(contract_id, module_path, hash);
-        
+
         if let Some(entry) = self.entries.get_mut(&key) {
             // Update last access time for LRU
             entry.last_access = Self::current_timestamp();
@@ -81,13 +81,21 @@ impl WasmModuleCache {
     }
 
     /// Insert a module into the cache
-    /// 
+    ///
     /// May trigger eviction of least recently used modules if cache is full
-    pub fn insert(&mut self, contract_id: &str, module_path: &str, hash: &str, module: Module, wasm_size: usize) {
+    pub fn insert(
+        &mut self,
+        contract_id: &str,
+        module_path: &str,
+        hash: &str,
+        module: Module,
+        wasm_size: usize,
+    ) {
         let key = Self::cache_key(contract_id, module_path, hash);
-        
+
         // Check if we need to evict
-        while (self.entries.len() >= self.max_modules || self.current_size_bytes + wasm_size > self.max_size_bytes)
+        while (self.entries.len() >= self.max_modules
+            || self.current_size_bytes + wasm_size > self.max_size_bytes)
             && !self.entries.is_empty()
         {
             self.evict_lru();
@@ -112,7 +120,9 @@ impl WasmModuleCache {
 
     /// Evict the least recently used entry
     fn evict_lru(&mut self) {
-        if let Some((lru_key, lru_entry)) = self.entries.iter()
+        if let Some((lru_key, lru_entry)) = self
+            .entries
+            .iter()
             .min_by_key(|(_, entry)| entry.last_access)
             .map(|(k, e)| (k.clone(), e.clone()))
         {
@@ -181,18 +191,21 @@ pub struct CacheStats {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use wasmtime::{Engine, Config};
+    use wasmtime::{Config, Engine};
 
     fn create_test_module() -> Module {
         // Create a minimal valid WASM module
-        let wasm = wat::parse_str(r#"
+        let wasm = wat::parse_str(
+            r#"
             (module
                 (func (export "test") (result i32)
                     i32.const 42
                 )
             )
-        "#).unwrap();
-        
+        "#,
+        )
+        .unwrap();
+
         let engine = Engine::new(&Config::new()).unwrap();
         Module::new(&engine, &wasm).unwrap()
     }
@@ -201,12 +214,12 @@ mod tests {
     fn test_cache_insert_and_get() {
         let mut cache = WasmModuleCache::new(10, 10);
         let module = create_test_module();
-        
+
         cache.insert("contract1", "/_code/test.wasm", "hash123", module, 100);
-        
+
         let retrieved = cache.get("contract1", "/_code/test.wasm", "hash123");
         assert!(retrieved.is_some());
-        
+
         let stats = cache.stats();
         assert_eq!(stats.entries, 1);
         assert_eq!(stats.hits, 1);
@@ -216,10 +229,10 @@ mod tests {
     #[test]
     fn test_cache_miss() {
         let mut cache = WasmModuleCache::new(10, 10);
-        
+
         let retrieved = cache.get("contract1", "/_code/test.wasm", "hash123");
         assert!(retrieved.is_none());
-        
+
         let stats = cache.stats();
         assert_eq!(stats.misses, 1);
     }
@@ -228,25 +241,25 @@ mod tests {
     #[ignore] // FIXME: LRU eviction order not guaranteed with small timestamps
     fn test_cache_eviction_by_count() {
         let mut cache = WasmModuleCache::new(2, 1000); // Max 2 modules
-        
+
         let module1 = create_test_module();
         let module2 = create_test_module();
         let module3 = create_test_module();
-        
+
         cache.insert("contract1", "/_code/m1.wasm", "hash1", module1, 10);
         // Give a small delay so timestamps differ
         std::thread::sleep(std::time::Duration::from_millis(10));
         cache.insert("contract2", "/_code/m2.wasm", "hash2", module2, 10);
-        
+
         // Don't access either - module1 is oldest now
-        
+
         // Insert module3, should evict module1 (LRU - oldest timestamp)
         std::thread::sleep(std::time::Duration::from_millis(10));
         cache.insert("contract3", "/_code/m3.wasm", "hash3", module3, 10);
-        
+
         let stats = cache.stats();
         assert_eq!(stats.entries, 2);
-        
+
         // module1 should be evicted (oldest)
         assert!(cache.get("contract1", "/_code/m1.wasm", "hash1").is_none());
         // module2 should still be there
@@ -259,10 +272,10 @@ mod tests {
     fn test_cache_clear() {
         let mut cache = WasmModuleCache::new(10, 10);
         let module = create_test_module();
-        
+
         cache.insert("contract1", "/_code/test.wasm", "hash123", module, 100);
         assert_eq!(cache.stats().entries, 1);
-        
+
         cache.clear();
         assert_eq!(cache.stats().entries, 0);
         assert_eq!(cache.stats().size_bytes, 0);
@@ -272,21 +285,20 @@ mod tests {
     fn test_hit_rate_calculation() {
         let mut cache = WasmModuleCache::new(10, 10);
         let module = create_test_module();
-        
+
         cache.insert("contract1", "/_code/test.wasm", "hash123", module, 100);
-        
+
         // 3 hits
         cache.get("contract1", "/_code/test.wasm", "hash123");
         cache.get("contract1", "/_code/test.wasm", "hash123");
         cache.get("contract1", "/_code/test.wasm", "hash123");
-        
+
         // 1 miss
         cache.get("contract2", "/_code/other.wasm", "hash456");
-        
+
         let stats = cache.stats();
         assert_eq!(stats.hits, 3);
         assert_eq!(stats.misses, 1);
         assert_eq!(stats.hit_rate, 0.75);
     }
 }
-

@@ -1,9 +1,10 @@
 use anyhow::Result;
 use modality_common::keypair::{Keypair, KeypairOrPublicKey};
-use modality_datastore::DatastoreManager;
 use modality_datastore::models::Commit;
+use modality_datastore::DatastoreManager;
 use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
+
+pub use modality_common::independent_replay::prefix_digest;
 
 pub const PREFIX_CERT_TYPE: &str = "prefix_cert";
 pub const GAS_PER_COMMIT: u64 = 1;
@@ -32,15 +33,6 @@ impl PrefixCert {
     pub fn as_event(&self) -> Result<serde_json::Value> {
         Ok(serde_json::to_value(self)?)
     }
-}
-
-pub fn prefix_digest(commit_ids: &[String]) -> String {
-    let mut hasher = Sha256::new();
-    for id in commit_ids {
-        hasher.update(id.as_bytes());
-        hasher.update([0u8]);
-    }
-    hex::encode(hasher.finalize())
 }
 
 pub fn parent_of_commit_data(commit_data: &str) -> Option<String> {

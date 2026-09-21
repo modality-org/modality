@@ -1,10 +1,15 @@
+use crate::invoke_engine::WasmInvokeEngine;
 use crate::predicate_executor::PredicateExecutor;
 use crate::program_executor::ProgramExecutor;
 use anyhow::Result;
-use modality_datastore::DatastoreManager;
+use modality_common::contract_store::CommitFile;
+use modality_common::independent_replay::{
+    commit_has_invoke, expand_prefix, frozen_invoke_context, wasm_modules_from_commits, ReplayWasm,
+};
 use modality_datastore::models::{AssetBalance, Commit, ContractAsset, ReceivedSend, WasmModule};
-use modality_wasm_runtime::{DEFAULT_GAS_LIMIT, WasmExecutor};
-use modality_wasm_validation::{PredicateContext, ProgramContext};
+use modality_datastore::DatastoreManager;
+use modality_wasm_runtime::{WasmExecutor, DEFAULT_GAS_LIMIT};
+use modality_wasm_validation::PredicateContext;
 use serde_json::Value;
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -60,6 +65,7 @@ pub enum StateChange {
 pub struct ContractProcessor {
     datastore: Arc<Mutex<DatastoreManager>>,
     predicate_executor: PredicateExecutor,
+    #[allow(dead_code)]
     program_executor: ProgramExecutor,
 }
 
@@ -171,16 +177,22 @@ impl ContractProcessor {
     /// Process a commit during consensus ordering
     ///
     /// This method:
-    /// 1. Saves the commit to the datastore for future reference
-    /// 2. Processes all actions in the commit
-    /// 3. Returns state changes that occurred
+    /// 1. Rejects the commit if local first-contract model governance would
+    /// 2. Saves the commit to the datastore for future reference
+    /// 3. Processes all actions in the commit
+    /// 4. Returns state changes that occurred
     pub async fn process_commit(
         &self,
         contract_id: &str,
         commit_id: &str,
         commit_data: &str,
     ) -> Result<Vec<StateChange>> {
-        // Save the commit to the datastore so it can be referenced by RECV actions
+        let pending = crate::sequenced_rules::parse_commit_file(commit_data)?;
+        let expanded = self
+            .assert_same_rules_as_local_verify(contract_id, commit_id, &pending)
+            .await?;
+
+        // Save the original posted commit so a stranger can replay invoke + rules.
         {
             let ds = self.datastore.lock().await;
             let timestamp = std::time::SystemTime::now()
@@ -197,58 +209,160 @@ impl ContractProcessor {
             commit.save_to_final(&ds).await?;
         }
 
-        let commit: serde_json::Value = serde_json::from_str(commit_data)?;
-        let body = commit
-            .get("body")
-            .and_then(|v| v.as_array())
-            .ok_or_else(|| anyhow::anyhow!("Invalid commit structure"))?;
-
         let mut state_changes = Vec::new();
 
-        for action in body {
-            let method = action
-                .get("method")
-                .and_then(|v| v.as_str())
-                .ok_or_else(|| anyhow::anyhow!("Action missing method"))?;
+        for action in &expanded.body {
+            let method = action.method.as_str();
+            let action_value = serde_json::to_value(action)?;
 
             match method {
                 "create" => {
-                    let value = action
-                        .get("value")
-                        .ok_or_else(|| anyhow::anyhow!("Action missing value"))?;
-                    state_changes.push(self.process_create(contract_id, commit_id, value).await?);
+                    state_changes.push(
+                        self.process_create(contract_id, commit_id, &action.value)
+                            .await?,
+                    );
                 }
                 "send" => {
-                    let value = action
-                        .get("value")
-                        .ok_or_else(|| anyhow::anyhow!("Action missing value"))?;
-                    state_changes.push(self.process_send(contract_id, commit_id, value).await?);
+                    state_changes.push(
+                        self.process_send(contract_id, commit_id, &action.value)
+                            .await?,
+                    );
                 }
                 "recv" => {
-                    let value = action
-                        .get("value")
-                        .ok_or_else(|| anyhow::anyhow!("Action missing value"))?;
-                    state_changes.push(self.process_recv(contract_id, commit_id, value).await?);
+                    state_changes.push(
+                        self.process_recv(contract_id, commit_id, &action.value)
+                            .await?,
+                    );
                 }
                 "post" => {
-                    state_changes.push(self.process_post(contract_id, action).await?);
+                    state_changes.push(self.process_post(contract_id, &action_value).await?);
                 }
                 "repost" => {
-                    state_changes.push(self.process_repost(contract_id, action).await?);
+                    state_changes.push(self.process_repost(contract_id, &action_value).await?);
                 }
-                "invoke" => {
-                    // Process INVOKE action - execute program and process resulting actions
-                    let invoke_changes =
-                        self.process_invoke(contract_id, commit_id, action).await?;
-                    state_changes.extend(invoke_changes);
-                }
-                _ => {
-                    // Other actions are not processed
-                }
+                _ => {}
             }
         }
 
+        if commit_has_invoke(&pending) {
+            let program_name = pending
+                .body
+                .iter()
+                .filter(|action| action.method.eq_ignore_ascii_case("invoke"))
+                .filter_map(|action| action.path.as_deref())
+                .next_back()
+                .unwrap_or("program")
+                .trim_end_matches(".wasm")
+                .split('/')
+                .next_back()
+                .unwrap_or("program");
+            state_changes.push(StateChange::ProgramInvoked {
+                contract_id: contract_id.to_string(),
+                program_name: program_name.to_string(),
+                gas_used: 0,
+                actions_count: expanded
+                    .body
+                    .iter()
+                    .filter(|action| {
+                        !pending.body.iter().any(|original| {
+                            original.method == action.method
+                                && original.path == action.path
+                                && original.value == action.value
+                        })
+                    })
+                    .count(),
+            });
+        }
+
         Ok(state_changes)
+    }
+
+    async fn assert_same_rules_as_local_verify(
+        &self,
+        contract_id: &str,
+        commit_id: &str,
+        pending: &CommitFile,
+    ) -> Result<CommitFile> {
+        let accepted_raw = {
+            let ds = self.datastore.lock().await;
+            crate::sequenced_rules::load_sequenced_parent_chain(
+                &ds,
+                contract_id,
+                pending.head.parent.as_deref(),
+            )
+            .await?
+        };
+        let accepted_files: Vec<CommitFile> =
+            accepted_raw.iter().map(|(_, file)| file.clone()).collect();
+        let mut wasm = wasm_modules_from_commits(&accepted_files)?;
+        for module in wasm_modules_from_commits(&[pending.clone()])? {
+            if modality_common::independent_replay::lookup_wasm(&wasm, &module.path).is_none() {
+                wasm.push(module);
+            }
+        }
+        self.merge_datastore_wasm(contract_id, pending, &mut wasm)
+            .await?;
+
+        let mut engine = WasmInvokeEngine::new(DEFAULT_GAS_LIMIT);
+        let accepted_expanded = if accepted_raw.iter().any(|(_, file)| commit_has_invoke(file)) {
+            expand_prefix(contract_id, &accepted_raw, &wasm, Some(&mut engine))?.0
+        } else {
+            accepted_raw.iter().map(|(_, file)| file.clone()).collect()
+        };
+        let pending_expanded = if commit_has_invoke(pending) {
+            let ctx = frozen_invoke_context(contract_id, commit_id, pending, &accepted_expanded);
+            let (expanded, _) = modality_common::independent_replay::expand_invoke_actions(
+                pending,
+                &wasm,
+                &ctx,
+                &mut engine,
+            )?;
+            expanded
+        } else {
+            pending.clone()
+        };
+        crate::sequenced_rules::validate_against_local_rules(
+            &accepted_expanded,
+            &pending_expanded,
+        )?;
+        Ok(pending_expanded)
+    }
+
+    async fn merge_datastore_wasm(
+        &self,
+        contract_id: &str,
+        pending: &CommitFile,
+        wasm: &mut Vec<ReplayWasm>,
+    ) -> Result<()> {
+        for action in &pending.body {
+            if !action.method.eq_ignore_ascii_case("invoke") {
+                continue;
+            }
+            let Some(path) = action.path.as_deref() else {
+                continue;
+            };
+            if modality_common::independent_replay::lookup_wasm(wasm, path).is_some() {
+                continue;
+            }
+            let ds = self.datastore.lock().await;
+            if let Some(module) =
+                WasmModule::find_by_contract_and_path_multi(&ds, contract_id, path).await?
+            {
+                if !module.verify_hash() {
+                    anyhow::bail!("WASM module hash verification failed for {path}");
+                }
+                wasm.push(ReplayWasm {
+                    path: modality_common::independent_replay::host_path(path),
+                    sha256: module.sha256_hash.clone(),
+                    gas_limit: module.gas_limit,
+                    bytes_b64: base64::Engine::encode(
+                        &base64::engine::general_purpose::STANDARD,
+                        &module.wasm_bytes,
+                    ),
+                });
+            }
+        }
+        Ok(())
     }
 
     async fn process_create(
@@ -752,7 +866,7 @@ impl ContractProcessor {
         };
 
         // Decode base64
-        use base64::{Engine as _, engine::general_purpose};
+        use base64::{engine::general_purpose, Engine as _};
         let wasm_bytes = general_purpose::STANDARD
             .decode(wasm_base64)
             .map_err(|e| anyhow::anyhow!("Invalid base64 WASM bytes: {}", e))?;
@@ -795,132 +909,6 @@ impl ContractProcessor {
             sha256_hash,
             gas_limit,
         })
-    }
-
-    /// Process an INVOKE action - execute program and process resulting actions
-    ///
-    /// This method:
-    /// 1. Extracts program path and args from the invoke action
-    /// 2. Executes the program using ProgramExecutor
-    /// 3. Processes each action returned by the program
-    /// 4. Returns all state changes from those actions + a ProgramInvoked change
-    async fn process_invoke(
-        &self,
-        contract_id: &str,
-        commit_id: &str,
-        action: &Value,
-    ) -> Result<Vec<StateChange>> {
-        let path = action
-            .get("path")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| anyhow::anyhow!("INVOKE action missing path"))?;
-
-        let value = action
-            .get("value")
-            .ok_or_else(|| anyhow::anyhow!("INVOKE action missing value"))?;
-
-        let args = value
-            .get("args")
-            .ok_or_else(|| anyhow::anyhow!("INVOKE value missing 'args'"))?
-            .clone();
-
-        // Extract program name from path
-        let program_name = path
-            .trim_end_matches(".wasm")
-            .split('/')
-            .next_back()
-            .ok_or_else(|| anyhow::anyhow!("Invalid program path: {}", path))?;
-
-        log::info!(
-            "Executing program '{}' for contract {} via commit {}",
-            program_name,
-            contract_id,
-            commit_id
-        );
-
-        // Create execution context
-        let context = ProgramContext {
-            contract_id: contract_id.to_string(),
-            block_height: 0, // TODO: Get from block context
-            timestamp: std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)?
-                .as_secs(),
-            invoker: "system".to_string(), // TODO: Extract from commit signature
-        };
-
-        // Execute the program
-        let result = self
-            .program_executor
-            .execute_program(contract_id, path, args, context)
-            .await?;
-
-        if !result.is_success() {
-            anyhow::bail!("Program execution failed: {:?}", result.errors);
-        }
-
-        log::info!(
-            "Program '{}' produced {} actions, gas used: {}",
-            program_name,
-            result.actions.len(),
-            result.gas_used
-        );
-
-        // Process each action returned by the program
-        let mut state_changes = Vec::new();
-
-        for program_action in &result.actions {
-            // Convert program action to JSON value
-            let action_value = serde_json::json!({
-                "method": program_action.method,
-                "path": program_action.path,
-                "value": program_action.value
-            });
-
-            // Process the action based on its method
-            match program_action.method.as_str() {
-                "create" => {
-                    state_changes.push(
-                        self.process_create(contract_id, commit_id, &program_action.value)
-                            .await?,
-                    );
-                }
-                "send" => {
-                    state_changes.push(
-                        self.process_send(contract_id, commit_id, &program_action.value)
-                            .await?,
-                    );
-                }
-                "recv" => {
-                    state_changes.push(
-                        self.process_recv(contract_id, commit_id, &program_action.value)
-                            .await?,
-                    );
-                }
-                "post" => {
-                    state_changes.push(self.process_post(contract_id, &action_value).await?);
-                }
-                "rule" => {
-                    // Rule actions don't produce state changes
-                    log::debug!("Program produced rule action (no state change)");
-                }
-                _ => {
-                    log::warn!(
-                        "Program produced unknown action method: {}",
-                        program_action.method
-                    );
-                }
-            }
-        }
-
-        // Add a state change for the program invocation itself
-        state_changes.push(StateChange::ProgramInvoked {
-            contract_id: contract_id.to_string(),
-            program_name: program_name.to_string(),
-            gas_used: result.gas_used,
-            actions_count: result.actions.len(),
-        });
-
-        Ok(state_changes)
     }
 }
 
@@ -1674,5 +1662,255 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(changes.len(), 1);
+    }
+
+    const FIRST_CONTRACT_MODEL: &str = r#"
+model FirstContract {
+  initial q0
+  q0 --> q1: +POST
+  q1 --> q1: +POST +signed_by(/parties/alice.id)
+  q1 --> q1: +POST +signed_by(/parties/bob.id)
+}
+"#;
+
+    fn bootstrap_commit_json() -> serde_json::Value {
+        serde_json::json!({
+            "body": [
+                {
+                    "method": "post",
+                    "path": "/parties/alice.id",
+                    "value": "alice_key"
+                },
+                {
+                    "method": "post",
+                    "path": "/parties/bob.id",
+                    "value": "bob_key"
+                },
+                {
+                    "method": "model",
+                    "path": "/model/default.modality",
+                    "value": FIRST_CONTRACT_MODEL
+                }
+            ],
+            "head": {}
+        })
+    }
+
+    async fn sequence_commit(
+        processor: &ContractProcessor,
+        datastore: &Arc<Mutex<DatastoreManager>>,
+        contract_id: &str,
+        commit_id: &str,
+        commit_data: &str,
+        batch: &str,
+    ) {
+        processor
+            .process_commit(contract_id, commit_id, commit_data)
+            .await
+            .unwrap();
+        let ds = datastore.lock().await;
+        let keys = [
+            ("contract_id".to_string(), contract_id.to_string()),
+            ("commit_id".to_string(), commit_id.to_string()),
+        ]
+        .into_iter()
+        .collect();
+        let mut commit = Commit::find_one_multi(&ds, keys).await.unwrap().unwrap();
+        commit.in_batch = Some(batch.to_string());
+        commit.save_to_final(&ds).await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn sequenced_apply_rejects_unsigned_commit_local_verify_would_reject() {
+        let datastore = Arc::new(Mutex::new(DatastoreManager::create_in_memory().unwrap()));
+        let processor = ContractProcessor::new(datastore.clone());
+        sequence_commit(
+            &processor,
+            &datastore,
+            "c1",
+            "bootstrap",
+            &bootstrap_commit_json().to_string(),
+            "batch-bootstrap",
+        )
+        .await;
+
+        let unsigned = serde_json::json!({
+            "body": [{
+                "method": "post",
+                "path": "/notes/unsigned.text",
+                "value": "unsigned"
+            }],
+            "head": { "parent": "bootstrap" }
+        });
+        let err = processor
+            .process_commit("c1", "unsigned", &unsigned.to_string())
+            .await
+            .expect_err("unsigned post must be rejected on sequenced apply");
+        assert!(
+            err.to_string()
+                .contains("missing +signed_by(/parties/alice.id)"),
+            "unexpected error: {err}"
+        );
+
+        {
+            let ds = datastore.lock().await;
+            let posted = ds
+                .get_data_by_key("/contracts/c1/notes/unsigned.text")
+                .await
+                .unwrap();
+            assert!(posted.is_none(), "rejected commit must not post state");
+            let keys = [
+                ("contract_id".to_string(), "c1".to_string()),
+                ("commit_id".to_string(), "unsigned".to_string()),
+            ]
+            .into_iter()
+            .collect();
+            assert!(
+                Commit::find_one_multi(&ds, keys).await.unwrap().is_none(),
+                "rejected commit must not be saved by process_commit"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn sequenced_apply_accepts_signed_commit_local_verify_would_accept() {
+        let datastore = Arc::new(Mutex::new(DatastoreManager::create_in_memory().unwrap()));
+        let processor = ContractProcessor::new(datastore.clone());
+        sequence_commit(
+            &processor,
+            &datastore,
+            "c1",
+            "bootstrap",
+            &bootstrap_commit_json().to_string(),
+            "batch-bootstrap",
+        )
+        .await;
+
+        let signed = serde_json::json!({
+            "body": [{
+                "method": "post",
+                "path": "/notes/signed.text",
+                "value": "signed"
+            }],
+            "head": {
+                "parent": "bootstrap",
+                "signatures": { "alice_key": "sig" }
+            }
+        });
+        let changes = processor
+            .process_commit("c1", "signed", &signed.to_string())
+            .await
+            .unwrap();
+        assert_eq!(changes.len(), 1);
+        {
+            let ds = datastore.lock().await;
+            let posted = ds
+                .get_data_by_key("/contracts/c1/notes/signed.text")
+                .await
+                .unwrap()
+                .expect("accepted commit must post state");
+            assert_eq!(String::from_utf8(posted).unwrap(), "signed");
+        }
+    }
+
+    fn wasm_post_action() -> serde_json::Value {
+        let wasm = modality_wasm_runtime::program_that_posts("/notes/from-program.text", "pwned")
+            .expect("fixture wasm");
+        let b64 = base64::Engine::encode(&base64::engine::general_purpose::STANDARD, &wasm);
+        serde_json::json!({
+            "method": "post",
+            "path": "/__programs__/gate.wasm",
+            "value": b64
+        })
+    }
+
+    fn bootstrap_with_program() -> serde_json::Value {
+        let mut bootstrap = bootstrap_commit_json();
+        bootstrap["body"]
+            .as_array_mut()
+            .unwrap()
+            .push(wasm_post_action());
+        bootstrap
+    }
+
+    fn invoke_commit(signed: bool) -> serde_json::Value {
+        let mut head = serde_json::json!({ "parent": "bootstrap" });
+        if signed {
+            head["signatures"] = serde_json::json!({ "alice_key": "sig" });
+        }
+        serde_json::json!({
+            "body": [{
+                "method": "invoke",
+                "path": "/__programs__/gate.wasm",
+                "value": { "args": {} }
+            }],
+            "head": head
+        })
+    }
+
+    #[tokio::test]
+    async fn sequenced_apply_rejects_unsigned_invoke_that_emits_post() {
+        let datastore = Arc::new(Mutex::new(DatastoreManager::create_in_memory().unwrap()));
+        let processor = ContractProcessor::new(datastore.clone());
+        sequence_commit(
+            &processor,
+            &datastore,
+            "c1",
+            "bootstrap",
+            &bootstrap_with_program().to_string(),
+            "batch-bootstrap",
+        )
+        .await;
+
+        let err = processor
+            .process_commit("c1", "inv-unsigned", &invoke_commit(false).to_string())
+            .await
+            .expect_err("unsigned invoke emitting POST must be rejected");
+        assert!(
+            err.to_string()
+                .contains("missing +signed_by(/parties/alice.id)"),
+            "unexpected error: {err}"
+        );
+        {
+            let ds = datastore.lock().await;
+            let posted = ds
+                .get_data_by_key("/contracts/c1/notes/from-program.text")
+                .await
+                .unwrap();
+            assert!(posted.is_none());
+        }
+    }
+
+    #[tokio::test]
+    async fn sequenced_apply_accepts_signed_invoke_and_posts_emitted_state() {
+        let datastore = Arc::new(Mutex::new(DatastoreManager::create_in_memory().unwrap()));
+        let processor = ContractProcessor::new(datastore.clone());
+        sequence_commit(
+            &processor,
+            &datastore,
+            "c1",
+            "bootstrap",
+            &bootstrap_with_program().to_string(),
+            "batch-bootstrap",
+        )
+        .await;
+
+        let changes = processor
+            .process_commit("c1", "inv-signed", &invoke_commit(true).to_string())
+            .await
+            .unwrap();
+        assert!(changes.iter().any(|change| matches!(
+            change,
+            StateChange::Posted { path, .. } if path == "/notes/from-program.text"
+        )));
+        {
+            let ds = datastore.lock().await;
+            let posted = ds
+                .get_data_by_key("/contracts/c1/notes/from-program.text")
+                .await
+                .unwrap()
+                .expect("emitted post must be applied");
+            assert_eq!(String::from_utf8(posted).unwrap(), "pwned");
+        }
     }
 }

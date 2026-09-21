@@ -19,10 +19,10 @@ pub async fn run(opts: &Opts) -> Result<()> {
         println!("{}", "━".repeat(80));
         println!("\nPrograms are executable WASM modules stored in contracts.");
         println!("Unlike predicates, programs produce commit actions.\n");
-        
+
         println!("{}", "Program Storage:".bold());
         println!("  Path: /__programs__/{{name}}.wasm\n");
-        
+
         println!("{}", "Common Use Cases:".bold());
         println!("  • Automated state updates");
         println!("  • Multi-step transactions");
@@ -41,4 +41,3 @@ pub async fn run(opts: &Opts) -> Result<()> {
 
     Ok(())
 }
-

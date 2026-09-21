@@ -1,11 +1,14 @@
 //! text_length_gt predicate - length greater than
 
-use super::{PredicateResult, PredicateInput};
 use super::text_common::{CorrelationInput, CorrelationResult};
+use super::{PredicateInput, PredicateResult};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Input { pub value: String, pub length: usize }
+pub struct Input {
+    pub value: String,
+    pub length: usize,
+}
 
 pub fn evaluate(input: &PredicateInput) -> PredicateResult {
     let gas_used = 10;
@@ -16,7 +19,14 @@ pub fn evaluate(input: &PredicateInput) -> PredicateResult {
     if text_input.value.len() > text_input.length {
         PredicateResult::success(gas_used)
     } else {
-        PredicateResult::failure(gas_used, vec![format!("Length {} not > {}", text_input.value.len(), text_input.length)])
+        PredicateResult::failure(
+            gas_used,
+            vec![format!(
+                "Length {} not > {}",
+                text_input.value.len(),
+                text_input.length
+            )],
+        )
     }
 }
 
@@ -24,12 +34,12 @@ pub fn correlate(input: &CorrelationInput) -> CorrelationResult {
     let gas_used = 15;
     let mut formulas = Vec::new();
     let mut satisfiable = true;
-    
+
     let min_len: usize = match input.params.get("length").and_then(|v| v.as_u64()) {
         Some(n) => n as usize,
         None => return CorrelationResult::ok(gas_used),
     };
-    
+
     for rule in &input.other_rules {
         match rule.predicate.as_str() {
             "text_length_lt" => {
@@ -91,7 +101,10 @@ pub fn correlate(input: &CorrelationInput) -> CorrelationResult {
             _ => {}
         }
     }
-    
-    if satisfiable { CorrelationResult::satisfiable(formulas, gas_used) }
-    else { CorrelationResult::unsatisfiable(formulas, gas_used) }
+
+    if satisfiable {
+        CorrelationResult::satisfiable(formulas, gas_used)
+    } else {
+        CorrelationResult::unsatisfiable(formulas, gas_used)
+    }
 }

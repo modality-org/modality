@@ -1,10 +1,10 @@
-use anyhow::Result;
-use modality_common::contract_store::{CommitFile, ContractStore};
-use modality_common::model_diagnostics::{
+use crate::contract_store::{CommitFile, ContractStore};
+use crate::model_diagnostics::{
     format_state_set, render_transition_diagnostics_for_states, FixedPointPolarity,
     FixedPointUnfoldingDiagnostic, FixedPointUnfoldingOutcome, FormulaFailureDiagnostic,
     TransitionDiagnosticInput,
 };
+use anyhow::Result;
 use modality_lang::{
     parse_content_lalrpop, Formula, FormulaExpr, Model, ModelChecker, Part, Property, PropertySign,
     PropertySource, Transition,
@@ -26,18 +26,26 @@ pub fn validate_pending_commit(
     store: &ContractStore,
     commit: &CommitFile,
 ) -> Result<()> {
-    let governing_model = if let Some(pending) = pending_model_content(commit) {
-        pending.to_string()
-    } else if let Some(accepted) = latest_accepted_model_content(store)? {
-        accepted
-    } else {
-        model_content.to_string()
+    let history = load_commits_oldest_first(store)?;
+    validate_pending_commit_with_history(model_content, &history, commit)
+}
+
+/// Same check as local first-contract verify, over an explicit accepted prefix.
+pub fn validate_pending_commit_with_history(
+    fallback_model_content: &str,
+    accepted: &[CommitFile],
+    pending: &CommitFile,
+) -> Result<()> {
+    let Some(governing_model) = governing_model_content(fallback_model_content, accepted, pending)
+    else {
+        return Ok(());
     };
 
     let model = parse_content_lalrpop(&governing_model)
         .map_err(|err| anyhow::anyhow!("Invalid governing model syntax: {}", err))?;
-    let (current_states, state, _anchored_rules) = replay_history_to_current_state(&model, store)?;
-    let facts = CommitFacts::from_commit(commit, &state);
+    let (current_states, state, _anchored_rules) =
+        replay_commits_to_current_state(&model, accepted)?;
+    let facts = CommitFacts::from_commit(pending, &state);
 
     if has_valid_transition(&model, &current_states, &facts) {
         return Ok(());
@@ -46,32 +54,76 @@ pub fn validate_pending_commit(
     anyhow::bail!(
         "{}",
         explain_no_valid_transition(&model, &current_states, &facts)
-    );
+    )
+}
+
+/// Sequenced apply: skip genesis-only and contracts that never posted a model.
+pub fn validate_sequenced_commit(accepted: &[CommitFile], pending: &CommitFile) -> Result<()> {
+    if is_genesis_only(pending) {
+        return Ok(());
+    }
+    if pending_model_content(pending).is_none()
+        && latest_accepted_model_from_commits(accepted).is_none()
+    {
+        return Ok(());
+    }
+    validate_pending_commit_with_history("", accepted, pending)
 }
 
 pub fn latest_accepted_model_content(store: &ContractStore) -> Result<Option<String>> {
-    for commit in load_commits_oldest_first(store)?.into_iter().rev() {
-        if let Some(model_content) = pending_model_content(&commit) {
-            return Ok(Some(model_content.to_string()));
-        }
-    }
-
-    Ok(None)
+    Ok(latest_accepted_model_from_commits(
+        &load_commits_oldest_first(store)?,
+    ))
 }
 
 pub fn current_model_state_labels(
     fallback_model_content: &str,
     store: &ContractStore,
 ) -> Result<Vec<String>> {
-    let governing_model =
-        latest_accepted_model_content(store)?.unwrap_or_else(|| fallback_model_content.to_string());
+    let history = load_commits_oldest_first(store)?;
+    let governing_model = latest_accepted_model_from_commits(&history)
+        .unwrap_or_else(|| fallback_model_content.to_string());
     let model = parse_content_lalrpop(&governing_model)
         .map_err(|err| anyhow::anyhow!("Invalid governing model syntax: {}", err))?;
-    let (current_states, _state, _anchored_rules) = replay_history_to_current_state(&model, store)?;
+    let (current_states, _state, _anchored_rules) =
+        replay_commits_to_current_state(&model, &history)?;
 
     let mut states = current_states.into_iter().collect::<Vec<_>>();
     states.sort();
     Ok(states)
+}
+
+fn governing_model_content(
+    fallback_model_content: &str,
+    accepted: &[CommitFile],
+    pending: &CommitFile,
+) -> Option<String> {
+    if let Some(pending_model) = pending_model_content(pending) {
+        return Some(pending_model.to_string());
+    }
+    if let Some(accepted_model) = latest_accepted_model_from_commits(accepted) {
+        return Some(accepted_model);
+    }
+    let fallback = fallback_model_content.trim();
+    if fallback.is_empty() {
+        None
+    } else {
+        Some(fallback.to_string())
+    }
+}
+
+fn latest_accepted_model_from_commits(commits: &[CommitFile]) -> Option<String> {
+    commits.iter().rev().find_map(|commit| {
+        pending_model_content(commit).map(|model_content| model_content.to_string())
+    })
+}
+
+fn is_genesis_only(commit: &CommitFile) -> bool {
+    !commit.body.is_empty()
+        && commit
+            .body
+            .iter()
+            .all(|action| action.method.eq_ignore_ascii_case("genesis"))
 }
 
 fn pending_model_content(commit: &CommitFile) -> Option<&str> {
@@ -84,20 +136,20 @@ fn pending_model_content(commit: &CommitFile) -> Option<&str> {
     })
 }
 
-fn replay_history_to_current_state(model: &Model, store: &ContractStore) -> Result<ReplayState> {
+fn replay_commits_to_current_state(model: &Model, commits: &[CommitFile]) -> Result<ReplayState> {
     let mut current_states = initial_states(model);
     let mut state = HashMap::new();
     let mut anchored_rules = Vec::new();
 
-    for (commit_index, commit) in load_commits_oldest_first(store)?.into_iter().enumerate() {
+    for (commit_index, commit) in commits.iter().enumerate() {
         if commit.body.iter().all(|action| action.method == "genesis") {
-            apply_commit_to_state(&commit, &mut state);
+            apply_commit_to_state(commit, &mut state);
             continue;
         }
 
-        let facts = CommitFacts::from_commit(&commit, &state);
+        let facts = CommitFacts::from_commit(commit, &state);
         let next_states = next_states_for_commit(model, &current_states, &facts)
-            .or_else(|| commit_contains_rule(&commit).then(|| current_states.clone()))
+            .or_else(|| commit_contains_rule(commit).then(|| current_states.clone()))
             .ok_or_else(|| {
                 anyhow::anyhow!(
                     "Existing commit cannot be replayed against governing model: {}",
@@ -105,14 +157,14 @@ fn replay_history_to_current_state(model: &Model, store: &ContractStore) -> Resu
                 )
             })?;
 
-        let new_rules = anchored_rules_from_commit(&commit, commit_index, &next_states)?;
+        let new_rules = anchored_rules_from_commit(commit, commit_index, &next_states)?;
         for rule in &new_rules {
             validate_anchored_rule(model, rule)?;
         }
         anchored_rules.extend(new_rules);
 
         current_states = next_states;
-        apply_commit_to_state(&commit, &mut state);
+        apply_commit_to_state(commit, &mut state);
     }
 
     Ok((current_states, state, anchored_rules))
@@ -1578,7 +1630,6 @@ fn format_sorted_set(items: &HashSet<String>) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use modality_common::contract_store::CommitFile;
     use tempfile::TempDir;
 
     #[test]
@@ -3180,6 +3231,54 @@ model BadReplacement {
             "{err}"
         );
 
+        Ok(())
+    }
+
+    #[test]
+    fn sequenced_apply_skips_commits_with_no_posted_model() -> Result<()> {
+        let mut pending = CommitFile::new();
+        pending.add_action(
+            "post".to_string(),
+            Some("/notes/hello.text".to_string()),
+            Value::String("hello".to_string()),
+        );
+        validate_sequenced_commit(&[], &pending)?;
+        Ok(())
+    }
+
+    #[test]
+    fn sequenced_apply_rejects_unsigned_post_after_posted_model() -> Result<()> {
+        let model = r#"
+model FirstContract {
+  initial q0
+  q0 --> q1: +POST
+  q1 --> q1: +POST +signed_by(/parties/alice.id)
+}
+        "#;
+        let mut bootstrap = CommitFile::new();
+        bootstrap.add_action(
+            "post".to_string(),
+            Some("/parties/alice.id".to_string()),
+            Value::String("alice_key".to_string()),
+        );
+        bootstrap.add_action(
+            "model".to_string(),
+            Some("/model/default.modality".to_string()),
+            Value::String(model.to_string()),
+        );
+        let mut unsigned = CommitFile::with_parent("bootstrap".to_string());
+        unsigned.add_action(
+            "post".to_string(),
+            Some("/notes/unsigned.text".to_string()),
+            Value::String("unsigned".to_string()),
+        );
+        let err = validate_sequenced_commit(&[bootstrap], &unsigned)
+            .expect_err("unsigned post must fail after a posted model");
+        assert!(
+            err.to_string()
+                .contains("missing +signed_by(/parties/alice.id)"),
+            "{err}"
+        );
         Ok(())
     }
 }

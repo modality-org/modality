@@ -1,24 +1,33 @@
 //! Comprehensive tests for all predicates
 
-use modality_wasm_validation::predicates::{PredicateInput, PredicateContext};
 use modality_wasm_validation::predicates::text_common::{CorrelationInput, RuleContext};
 use modality_wasm_validation::predicates::*;
+use modality_wasm_validation::predicates::{PredicateContext, PredicateInput};
 
 fn ctx() -> PredicateContext {
     PredicateContext::new("test".to_string(), 1, 0)
 }
 
 fn eval_input(data: serde_json::Value) -> PredicateInput {
-    PredicateInput { data, context: ctx() }
+    PredicateInput {
+        data,
+        context: ctx(),
+    }
 }
 
-fn corr_input(params: serde_json::Value, other_rules: Vec<(&str, serde_json::Value)>) -> CorrelationInput {
+fn corr_input(
+    params: serde_json::Value,
+    other_rules: Vec<(&str, serde_json::Value)>,
+) -> CorrelationInput {
     CorrelationInput {
         params,
-        other_rules: other_rules.into_iter().map(|(p, params)| RuleContext {
-            predicate: p.to_string(),
-            params,
-        }).collect(),
+        other_rules: other_rules
+            .into_iter()
+            .map(|(p, params)| RuleContext {
+                predicate: p.to_string(),
+                params,
+            })
+            .collect(),
     }
 }
 
@@ -57,7 +66,7 @@ mod text_equals_tests {
     fn correlate_with_matching_length() {
         let input = corr_input(
             serde_json::json!({"expected": "hello"}),
-            vec![("text_length_eq", serde_json::json!({"length": 5}))]
+            vec![("text_length_eq", serde_json::json!({"length": 5}))],
         );
         let result = text_equals::correlate(&input);
         assert!(result.satisfiable);
@@ -68,7 +77,7 @@ mod text_equals_tests {
     fn correlate_with_wrong_length() {
         let input = corr_input(
             serde_json::json!({"expected": "hello"}),
-            vec![("text_length_eq", serde_json::json!({"length": 10}))]
+            vec![("text_length_eq", serde_json::json!({"length": 10}))],
         );
         let result = text_equals::correlate(&input);
         assert!(!result.satisfiable);
@@ -79,7 +88,7 @@ mod text_equals_tests {
     fn correlate_with_valid_prefix() {
         let input = corr_input(
             serde_json::json!({"expected": "hello"}),
-            vec![("text_starts_with", serde_json::json!({"prefix": "hel"}))]
+            vec![("text_starts_with", serde_json::json!({"prefix": "hel"}))],
         );
         let result = text_equals::correlate(&input);
         assert!(result.satisfiable);
@@ -89,7 +98,7 @@ mod text_equals_tests {
     fn correlate_with_invalid_prefix() {
         let input = corr_input(
             serde_json::json!({"expected": "hello"}),
-            vec![("text_starts_with", serde_json::json!({"prefix": "xyz"}))]
+            vec![("text_starts_with", serde_json::json!({"prefix": "xyz"}))],
         );
         let result = text_equals::correlate(&input);
         assert!(!result.satisfiable);
@@ -99,7 +108,7 @@ mod text_equals_tests {
     fn correlate_with_contains() {
         let input = corr_input(
             serde_json::json!({"expected": "hello world"}),
-            vec![("text_contains", serde_json::json!({"substring": "lo wo"}))]
+            vec![("text_contains", serde_json::json!({"substring": "lo wo"}))],
         );
         let result = text_equals::correlate(&input);
         assert!(result.satisfiable);
@@ -114,7 +123,7 @@ mod text_equals_tests {
                 ("text_starts_with", serde_json::json!({"prefix": "h"})),
                 ("text_ends_with", serde_json::json!({"suffix": "o"})),
                 ("text_not_empty", serde_json::json!({})),
-            ]
+            ],
         );
         let result = text_equals::correlate(&input);
         assert!(result.satisfiable);
@@ -170,7 +179,7 @@ mod text_length_tests {
         // length > 3 AND length < 10 is satisfiable
         let input = corr_input(
             serde_json::json!({"length": 3}),
-            vec![("text_length_lt", serde_json::json!({"length": 10}))]
+            vec![("text_length_lt", serde_json::json!({"length": 10}))],
         );
         let result = text_length_gt::correlate(&input);
         assert!(result.satisfiable);
@@ -181,7 +190,7 @@ mod text_length_tests {
         // length > 10 AND length < 5 is impossible
         let input = corr_input(
             serde_json::json!({"length": 10}),
-            vec![("text_length_lt", serde_json::json!({"length": 5}))]
+            vec![("text_length_lt", serde_json::json!({"length": 5}))],
         );
         let result = text_length_gt::correlate(&input);
         assert!(!result.satisfiable);
@@ -223,7 +232,7 @@ mod text_empty_tests {
     fn correlate_is_empty_vs_not_empty() {
         let input = corr_input(
             serde_json::json!({}),
-            vec![("text_not_empty", serde_json::json!({}))]
+            vec![("text_not_empty", serde_json::json!({}))],
         );
         let result = text_is_empty::correlate(&input);
         assert!(!result.satisfiable);
@@ -233,7 +242,7 @@ mod text_empty_tests {
     fn correlate_is_empty_vs_length_eq_0() {
         let input = corr_input(
             serde_json::json!({}),
-            vec![("text_length_eq", serde_json::json!({"length": 0}))]
+            vec![("text_length_eq", serde_json::json!({"length": 0}))],
         );
         let result = text_is_empty::correlate(&input);
         assert!(result.satisfiable);
@@ -306,7 +315,7 @@ mod bool_tests {
     fn correlate_is_true_vs_is_false() {
         let input = corr_input(
             serde_json::json!({}),
-            vec![("bool_is_false", serde_json::json!({}))]
+            vec![("bool_is_false", serde_json::json!({}))],
         );
         let result = bool_is_true::correlate(&input);
         assert!(!result.satisfiable);
@@ -316,7 +325,7 @@ mod bool_tests {
     fn correlate_is_true_vs_equals_true() {
         let input = corr_input(
             serde_json::json!({}),
-            vec![("bool_equals", serde_json::json!({"expected": true}))]
+            vec![("bool_equals", serde_json::json!({"expected": true}))],
         );
         let result = bool_is_true::correlate(&input);
         assert!(result.satisfiable);
@@ -328,7 +337,7 @@ mod bool_tests {
         // bool_not(true) AND bool_not(false) is impossible
         let input = corr_input(
             serde_json::json!({"of": true}),
-            vec![("bool_not", serde_json::json!({"of": false}))]
+            vec![("bool_not", serde_json::json!({"of": false}))],
         );
         let result = bool_not::correlate(&input);
         assert!(!result.satisfiable);
@@ -435,7 +444,7 @@ mod num_tests {
     fn correlate_gt_lt_valid() {
         let input = corr_input(
             serde_json::json!({"threshold": 5.0}),
-            vec![("num_lt", serde_json::json!({"threshold": 10.0}))]
+            vec![("num_lt", serde_json::json!({"threshold": 10.0}))],
         );
         let result = num_gt::correlate(&input);
         assert!(result.satisfiable);
@@ -445,7 +454,7 @@ mod num_tests {
     fn correlate_gt_lt_impossible() {
         let input = corr_input(
             serde_json::json!({"threshold": 10.0}),
-            vec![("num_lt", serde_json::json!({"threshold": 5.0}))]
+            vec![("num_lt", serde_json::json!({"threshold": 5.0}))],
         );
         let result = num_gt::correlate(&input);
         assert!(!result.satisfiable);
@@ -455,7 +464,7 @@ mod num_tests {
     fn correlate_positive_negative() {
         let input = corr_input(
             serde_json::json!({}),
-            vec![("num_negative", serde_json::json!({}))]
+            vec![("num_negative", serde_json::json!({}))],
         );
         let result = num_positive::correlate(&input);
         assert!(!result.satisfiable);
@@ -465,7 +474,7 @@ mod num_tests {
     fn correlate_equals_with_gt() {
         let input = corr_input(
             serde_json::json!({"expected": 100.0}),
-            vec![("num_gt", serde_json::json!({"threshold": 50.0}))]
+            vec![("num_gt", serde_json::json!({"threshold": 50.0}))],
         );
         let result = num_equals::correlate(&input);
         assert!(result.satisfiable);
@@ -477,7 +486,8 @@ mod edge_cases {
 
     #[test]
     fn unicode_text() {
-        let input = eval_input(serde_json::json!({"value": "héllo 世界", "expected": "héllo 世界"}));
+        let input =
+            eval_input(serde_json::json!({"value": "héllo 世界", "expected": "héllo 世界"}));
         assert!(text_equals::evaluate(&input).valid);
     }
 
@@ -487,7 +497,7 @@ mod edge_cases {
         // Our length predicates use byte length (Rust's default)
         let input = eval_input(serde_json::json!({"value": "héllo", "length": 6}));
         assert!(text_length_eq::evaluate(&input).valid);
-        
+
         // ASCII string - bytes == chars
         let input = eval_input(serde_json::json!({"value": "hello", "length": 5}));
         assert!(text_length_eq::evaluate(&input).valid);
@@ -505,14 +515,15 @@ mod edge_cases {
     fn whitespace_handling() {
         let input = eval_input(serde_json::json!({"value": "  hello  ", "expected": "  hello  "}));
         assert!(text_equals::evaluate(&input).valid);
-        
+
         let input = eval_input(serde_json::json!({"value": "  hello  ", "expected": "hello"}));
         assert!(!text_equals::evaluate(&input).valid);
     }
 
     #[test]
     fn special_characters() {
-        let input = eval_input(serde_json::json!({"value": "hello\nworld\ttab", "substring": "\n"}));
+        let input =
+            eval_input(serde_json::json!({"value": "hello\nworld\ttab", "substring": "\n"}));
         assert!(text_contains::evaluate(&input).valid);
     }
 }

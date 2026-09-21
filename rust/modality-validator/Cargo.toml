@@ -19,7 +19,7 @@ modality-validator-consensus = { path = "../modality-validator-consensus", versi
 modality-wasm-runtime = { path = "../modality-wasm-runtime", version = "0.1.0" }
 modality-wasm-validation = { path = "../modality-wasm-validation", version = "0.1.0" }
 modality-lang = { path = "../modality-lang", version = "0.1.7" }
-modality-common = { path = "../modality-common", version = "0.1.7" }
+modality-common = { path = "../modality-common", version = "0.1.7", features = ["model-governance"] }
 wasmtime = "26.0"
 libp2p-identity = { version = "0.2.12", features = ["serde"] }
 serde = { version = "1.0", features = ["derive"] }

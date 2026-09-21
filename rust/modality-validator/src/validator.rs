@@ -1,20 +1,18 @@
 use crate::error::{Result, ValidatorError};
-use modality_observer::{ChainObserver, ForkConfig};
 use modality_datastore::DatastoreManager;
+use modality_observer::{ChainObserver, ForkConfig};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
 /// Configuration for the validator
-#[derive(Debug, Clone)]
-#[derive(Default)]
+#[derive(Debug, Clone, Default)]
 pub struct ValidatorConfig {
     /// Optional forced fork configuration for chain observation
     pub fork_config: Option<ForkConfig>,
 }
 
-
 /// Validator for observing the blockchain without mining
-/// 
+///
 /// The validator uses modality-observer to track the canonical chain
 /// by observing mining events via gossip.
 pub struct Validator {
@@ -34,30 +32,31 @@ impl Validator {
         } else {
             ChainObserver::new(datastore)
         };
-        
+
         Ok(Self { config, observer })
     }
-    
+
     /// Create a new validator with default configuration
     pub async fn new_default(datastore: Arc<Mutex<DatastoreManager>>) -> Result<Self> {
         Self::new(datastore, ValidatorConfig::default()).await
     }
-    
+
     /// Initialize the validator by loading existing chain state
     pub async fn initialize(&self) -> Result<()> {
-        self.observer.initialize()
+        self.observer
+            .initialize()
             .await
             .map_err(|e| ValidatorError::InitializationFailed(e.to_string()))?;
-        
+
         log::info!("Validator initialized successfully");
         Ok(())
     }
-    
+
     /// Get the current chain tip from the observer
     pub async fn get_chain_tip(&self) -> u64 {
         self.observer.get_chain_tip().await
     }
-    
+
     /// Get a reference to the chain observer
     pub fn observer(&self) -> &ChainObserver {
         &self.observer
@@ -67,11 +66,10 @@ impl Validator {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[tokio::test]
     async fn test_validator_config_default() {
         let config = ValidatorConfig::default();
         assert!(config.fork_config.is_none());
     }
 }
-

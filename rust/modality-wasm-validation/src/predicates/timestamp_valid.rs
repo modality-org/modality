@@ -1,4 +1,4 @@
-use super::{PredicateResult, PredicateInput};
+use super::{PredicateInput, PredicateResult};
 use serde::{Deserialize, Serialize};
 
 /// Input for timestamp_valid predicate
@@ -13,14 +13,14 @@ pub struct TimestampValidInput {
 }
 
 /// Validate that a timestamp is within acceptable bounds
-/// 
+///
 /// Returns true if the timestamp is valid according to the constraints:
 /// - Not too old (if max_age_seconds specified)
 /// - Not too new (if min_age_seconds specified)
 /// - Compared against context.timestamp
 pub fn evaluate(input: &PredicateInput) -> PredicateResult {
     let gas_used = 25; // Base gas cost
-    
+
     // Parse input
     let ts_input: TimestampValidInput = match serde_json::from_value(input.data.clone()) {
         Ok(i) => i,
@@ -37,7 +37,7 @@ pub fn evaluate(input: &PredicateInput) -> PredicateResult {
             vec![format!(
                 "Timestamp {} is in the future (current: {})",
                 check_timestamp, current_time
-            )]
+            )],
         );
     }
 
@@ -51,7 +51,7 @@ pub fn evaluate(input: &PredicateInput) -> PredicateResult {
                 vec![format!(
                     "Timestamp is too old: age {} seconds exceeds max {} seconds",
                     age, max_age
-                )]
+                )],
             );
         }
     }
@@ -64,7 +64,7 @@ pub fn evaluate(input: &PredicateInput) -> PredicateResult {
                 vec![format!(
                     "Timestamp is too recent: age {} seconds is less than min {} seconds",
                     age, min_age
-                )]
+                )],
             );
         }
     }
@@ -85,7 +85,7 @@ mod tests {
             "max_age_seconds": 200
         });
         let input = PredicateInput { data, context };
-        
+
         let result = evaluate(&input);
         assert!(result.valid);
     }
@@ -98,7 +98,7 @@ mod tests {
             "max_age_seconds": 100
         });
         let input = PredicateInput { data, context };
-        
+
         let result = evaluate(&input);
         assert!(!result.valid);
         assert!(result.errors[0].contains("too old"));
@@ -111,7 +111,7 @@ mod tests {
             "timestamp": 1500
         });
         let input = PredicateInput { data, context };
-        
+
         let result = evaluate(&input);
         assert!(!result.valid);
         assert!(result.errors[0].contains("future"));
@@ -125,10 +125,9 @@ mod tests {
             "min_age_seconds": 20
         });
         let input = PredicateInput { data, context };
-        
+
         let result = evaluate(&input);
         assert!(!result.valid);
         assert!(result.errors[0].contains("too recent"));
     }
 }
-

@@ -5,10 +5,10 @@
 use anyhow::Result;
 use modality_common::contract_store::parse_repost_json;
 use modality_common::keypair::Keypair;
-use modality_datastore::DatastoreManager;
 use modality_datastore::models::Commit;
+use modality_datastore::DatastoreManager;
 use modality_validator::prefix_cert::{
-    PREFIX_CERT_TYPE, PrefixCert, build_prefix_from_store, is_prefix_cert_event, sign_cert,
+    build_prefix_from_store, is_prefix_cert_event, sign_cert, PrefixCert, PREFIX_CERT_TYPE,
 };
 use std::sync::Arc;
 use tokio::sync::Mutex;

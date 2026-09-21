@@ -1,11 +1,14 @@
 //! text_ends_with predicate - suffix check
 
-use super::{PredicateResult, PredicateInput};
 use super::text_common::{CorrelationInput, CorrelationResult};
+use super::{PredicateInput, PredicateResult};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Input { pub value: String, pub suffix: String }
+pub struct Input {
+    pub value: String,
+    pub suffix: String,
+}
 
 pub fn evaluate(input: &PredicateInput) -> PredicateResult {
     let gas_used = 10;
@@ -16,7 +19,13 @@ pub fn evaluate(input: &PredicateInput) -> PredicateResult {
     if text_input.value.ends_with(&text_input.suffix) {
         PredicateResult::success(gas_used)
     } else {
-        PredicateResult::failure(gas_used, vec![format!("'{}' does not end with '{}'", text_input.value, text_input.suffix)])
+        PredicateResult::failure(
+            gas_used,
+            vec![format!(
+                "'{}' does not end with '{}'",
+                text_input.value, text_input.suffix
+            )],
+        )
     }
 }
 
@@ -24,12 +33,12 @@ pub fn correlate(input: &CorrelationInput) -> CorrelationResult {
     let gas_used = 15;
     let mut formulas = Vec::new();
     let mut satisfiable = true;
-    
+
     let suffix: String = match input.params.get("suffix").and_then(|v| v.as_str()) {
         Some(s) => s.to_string(),
         None => return CorrelationResult::ok(gas_used),
     };
-    
+
     for rule in &input.other_rules {
         match rule.predicate.as_str() {
             "text_length_lt" => {
@@ -90,7 +99,10 @@ pub fn correlate(input: &CorrelationInput) -> CorrelationResult {
             _ => {}
         }
     }
-    
-    if satisfiable { CorrelationResult::satisfiable(formulas, gas_used) }
-    else { CorrelationResult::unsatisfiable(formulas, gas_used) }
+
+    if satisfiable {
+        CorrelationResult::satisfiable(formulas, gas_used)
+    } else {
+        CorrelationResult::unsatisfiable(formulas, gas_used)
+    }
 }

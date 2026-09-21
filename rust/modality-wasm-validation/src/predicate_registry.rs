@@ -3,18 +3,14 @@
 //! Provides dynamic lookup of predicates by name, enabling
 //! contract validation without hardcoding predicate references.
 
-use crate::predicates::{PredicateInput, PredicateResult};
 use crate::predicates::text_common::{CorrelationInput, CorrelationResult};
 use crate::predicates::{
-    text_equals, text_equals_ignore_case, text_contains, text_starts_with,
-    text_ends_with, text_is_empty, text_not_empty, text_length_eq,
-    text_length_gt, text_length_lt,
-    bool_is_true, bool_is_false, bool_equals, bool_not,
-    num_equals, num_gt, num_lt, num_gte, num_lte, num_between,
-    num_positive, num_negative, num_zero,
-    timestamp, hash,
-    any_signed, all_signed, modifies,
+    all_signed, any_signed, bool_equals, bool_is_false, bool_is_true, bool_not, hash, modifies,
+    num_between, num_equals, num_gt, num_gte, num_lt, num_lte, num_negative, num_positive,
+    num_zero, text_contains, text_ends_with, text_equals, text_equals_ignore_case, text_is_empty,
+    text_length_eq, text_length_gt, text_length_lt, text_not_empty, text_starts_with, timestamp,
 };
+use crate::predicates::{PredicateInput, PredicateResult};
 
 /// Evaluate a predicate by name
 pub fn evaluate_by_name(predicate: &str, input: &PredicateInput) -> Option<PredicateResult> {
@@ -30,13 +26,13 @@ pub fn evaluate_by_name(predicate: &str, input: &PredicateInput) -> Option<Predi
         "text_length_eq" => Some(text_length_eq::evaluate(input)),
         "text_length_gt" => Some(text_length_gt::evaluate(input)),
         "text_length_lt" => Some(text_length_lt::evaluate(input)),
-        
+
         // Bool predicates
         "bool_is_true" => Some(bool_is_true::evaluate(input)),
         "bool_is_false" => Some(bool_is_false::evaluate(input)),
         "bool_equals" => Some(bool_equals::evaluate(input)),
         "bool_not" => Some(bool_not::evaluate(input)),
-        
+
         // Number predicates
         "num_equals" => Some(num_equals::evaluate(input)),
         "num_gt" => Some(num_gt::evaluate(input)),
@@ -47,27 +43,27 @@ pub fn evaluate_by_name(predicate: &str, input: &PredicateInput) -> Option<Predi
         "num_positive" => Some(num_positive::evaluate(input)),
         "num_negative" => Some(num_negative::evaluate(input)),
         "num_zero" => Some(num_zero::evaluate(input)),
-        
+
         // Timestamp predicates
         "timestamp_before" => Some(timestamp::evaluate_before(input)),
         "timestamp_after" => Some(timestamp::evaluate_after(input)),
         "timestamp_within" => Some(timestamp::evaluate_within(input)),
         "timestamp_expired" => Some(timestamp::evaluate_expired(input)),
         "timestamp_near" => Some(timestamp::evaluate_near(input)),
-        
+
         // Hash predicates
         "sha256_matches" => Some(hash::evaluate_sha256_matches(input)),
         "hash_equals" => Some(hash::evaluate_hash_equals(input)),
         "commitment_verify" => Some(hash::evaluate_commitment(input)),
         "hash_format" => Some(hash::evaluate_hash_format(input)),
-        
+
         // Membership predicates
         "any_signed" => Some(any_signed::evaluate(input)),
         "all_signed" => Some(all_signed::evaluate(input)),
-        
+
         // Path predicates
         "modifies" => Some(modifies::evaluate(input)),
-        
+
         _ => None,
     }
 }
@@ -86,13 +82,13 @@ pub fn correlate_by_name(predicate: &str, input: &CorrelationInput) -> Option<Co
         "text_length_eq" => Some(text_length_eq::correlate(input)),
         "text_length_gt" => Some(text_length_gt::correlate(input)),
         "text_length_lt" => Some(text_length_lt::correlate(input)),
-        
+
         // Bool predicates
         "bool_is_true" => Some(bool_is_true::correlate(input)),
         "bool_is_false" => Some(bool_is_false::correlate(input)),
         "bool_equals" => Some(bool_equals::correlate(input)),
         "bool_not" => Some(bool_not::correlate(input)),
-        
+
         // Number predicates
         "num_equals" => Some(num_equals::correlate(input)),
         "num_gt" => Some(num_gt::correlate(input)),
@@ -103,18 +99,18 @@ pub fn correlate_by_name(predicate: &str, input: &CorrelationInput) -> Option<Co
         "num_positive" => Some(num_positive::correlate(input)),
         "num_negative" => Some(num_negative::correlate(input)),
         "num_zero" => Some(num_zero::correlate(input)),
-        
+
         // Timestamp predicates
         "timestamp_before" => Some(timestamp::correlate_before(input)),
         "timestamp_after" => Some(timestamp::correlate_after(input)),
         "timestamp_within" => Some(timestamp::correlate_within(input)),
         "timestamp_expired" => Some(timestamp::correlate_expired(input)),
-        
+
         // Hash predicates
         "sha256_matches" => Some(hash::correlate_sha256_matches(input)),
         "hash_equals" => Some(hash::correlate_hash_equals(input)),
         "commitment_verify" => Some(hash::correlate_commitment(input)),
-        
+
         _ => None,
     }
 }
@@ -124,7 +120,12 @@ pub fn list_predicates() -> Vec<PredicateInfo> {
     vec![
         // Text predicates
         PredicateInfo::new("text_equals", "text", "Exact string match", &["expected"]),
-        PredicateInfo::new("text_equals_ignore_case", "text", "Case-insensitive match", &["expected"]),
+        PredicateInfo::new(
+            "text_equals_ignore_case",
+            "text",
+            "Case-insensitive match",
+            &["expected"],
+        ),
         PredicateInfo::new("text_contains", "text", "Substring check", &["substring"]),
         PredicateInfo::new("text_starts_with", "text", "Prefix check", &["prefix"]),
         PredicateInfo::new("text_ends_with", "text", "Suffix check", &["suffix"]),
@@ -133,36 +134,77 @@ pub fn list_predicates() -> Vec<PredicateInfo> {
         PredicateInfo::new("text_length_eq", "text", "Exact length", &["length"]),
         PredicateInfo::new("text_length_gt", "text", "Length greater than", &["length"]),
         PredicateInfo::new("text_length_lt", "text", "Length less than", &["length"]),
-        
         // Bool predicates
         PredicateInfo::new("bool_is_true", "bool", "Check if true", &[]),
         PredicateInfo::new("bool_is_false", "bool", "Check if false", &[]),
         PredicateInfo::new("bool_equals", "bool", "Check equals value", &["expected"]),
         PredicateInfo::new("bool_not", "bool", "Check is NOT value", &["of"]),
-        
         // Number predicates
         PredicateInfo::new("num_equals", "number", "Exact match", &["expected"]),
         PredicateInfo::new("num_gt", "number", "Greater than", &["threshold"]),
         PredicateInfo::new("num_lt", "number", "Less than", &["threshold"]),
         PredicateInfo::new("num_gte", "number", "Greater than or equal", &["threshold"]),
         PredicateInfo::new("num_lte", "number", "Less than or equal", &["threshold"]),
-        PredicateInfo::new("num_between", "number", "In range (exclusive)", &["min", "max"]),
+        PredicateInfo::new(
+            "num_between",
+            "number",
+            "In range (exclusive)",
+            &["min", "max"],
+        ),
         PredicateInfo::new("num_positive", "number", "Check > 0", &[]),
         PredicateInfo::new("num_negative", "number", "Check < 0", &[]),
         PredicateInfo::new("num_zero", "number", "Check == 0", &[]),
-        
         // Timestamp predicates
-        PredicateInfo::new("timestamp_before", "timestamp", "Before deadline", &["deadline"]),
-        PredicateInfo::new("timestamp_after", "timestamp", "After deadline", &["deadline"]),
-        PredicateInfo::new("timestamp_within", "timestamp", "In time window", &["start", "end"]),
-        PredicateInfo::new("timestamp_expired", "timestamp", "Deadline passed", &["deadline", "current"]),
-        PredicateInfo::new("timestamp_near", "timestamp", "Within tolerance of target", &["target", "tolerance"]),
-        
+        PredicateInfo::new(
+            "timestamp_before",
+            "timestamp",
+            "Before deadline",
+            &["deadline"],
+        ),
+        PredicateInfo::new(
+            "timestamp_after",
+            "timestamp",
+            "After deadline",
+            &["deadline"],
+        ),
+        PredicateInfo::new(
+            "timestamp_within",
+            "timestamp",
+            "In time window",
+            &["start", "end"],
+        ),
+        PredicateInfo::new(
+            "timestamp_expired",
+            "timestamp",
+            "Deadline passed",
+            &["deadline", "current"],
+        ),
+        PredicateInfo::new(
+            "timestamp_near",
+            "timestamp",
+            "Within tolerance of target",
+            &["target", "tolerance"],
+        ),
         // Hash predicates
-        PredicateInfo::new("sha256_matches", "hash", "SHA-256 verification", &["data", "expected_hash"]),
+        PredicateInfo::new(
+            "sha256_matches",
+            "hash",
+            "SHA-256 verification",
+            &["data", "expected_hash"],
+        ),
         PredicateInfo::new("hash_equals", "hash", "Compare hashes", &["hash1", "hash2"]),
-        PredicateInfo::new("commitment_verify", "hash", "Commitment scheme verification", &["preimage", "salt", "commitment"]),
-        PredicateInfo::new("hash_format", "hash", "Valid hash format", &["hash", "algorithm"]),
+        PredicateInfo::new(
+            "commitment_verify",
+            "hash",
+            "Commitment scheme verification",
+            &["preimage", "salt", "commitment"],
+        ),
+        PredicateInfo::new(
+            "hash_format",
+            "hash",
+            "Valid hash format",
+            &["hash", "algorithm"],
+        ),
     ]
 }
 
@@ -188,10 +230,14 @@ impl PredicateInfo {
 
 /// Check if a predicate exists
 pub fn predicate_exists(name: &str) -> bool {
-    evaluate_by_name(name, &PredicateInput {
-        data: serde_json::json!({}),
-        context: crate::predicates::PredicateContext::new("test".to_string(), 0, 0),
-    }).is_some()
+    evaluate_by_name(
+        name,
+        &PredicateInput {
+            data: serde_json::json!({}),
+            context: crate::predicates::PredicateContext::new("test".to_string(), 0, 0),
+        },
+    )
+    .is_some()
 }
 
 /// Get predicates by data type
@@ -212,7 +258,7 @@ mod tests {
             data: serde_json::json!({"value": "hello", "expected": "hello"}),
             context: crate::predicates::PredicateContext::new("test".to_string(), 0, 0),
         };
-        
+
         let result = evaluate_by_name("text_equals", &input);
         assert!(result.is_some());
         assert!(result.unwrap().valid);
@@ -224,7 +270,7 @@ mod tests {
             params: serde_json::json!({"expected": "hello"}),
             other_rules: vec![],
         };
-        
+
         let result = correlate_by_name("text_equals", &input);
         assert!(result.is_some());
         assert!(result.unwrap().satisfiable);
@@ -236,7 +282,7 @@ mod tests {
             data: serde_json::json!({}),
             context: crate::predicates::PredicateContext::new("test".to_string(), 0, 0),
         };
-        
+
         let result = evaluate_by_name("unknown_predicate", &input);
         assert!(result.is_none());
     }
@@ -251,16 +297,16 @@ mod tests {
     fn test_predicates_for_type() {
         let text_predicates = predicates_for_type("text");
         assert_eq!(text_predicates.len(), 10);
-        
+
         let bool_predicates = predicates_for_type("bool");
         assert_eq!(bool_predicates.len(), 4);
-        
+
         let num_predicates = predicates_for_type("number");
         assert_eq!(num_predicates.len(), 9);
-        
+
         let timestamp_predicates = predicates_for_type("timestamp");
         assert_eq!(timestamp_predicates.len(), 5);
-        
+
         let hash_predicates = predicates_for_type("hash");
         assert_eq!(hash_predicates.len(), 4);
     }

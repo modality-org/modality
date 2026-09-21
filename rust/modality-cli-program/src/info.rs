@@ -56,8 +56,10 @@ pub async fn run(opts: &Opts) -> Result<()> {
 
     println!("{}", "━".repeat(80));
     println!("\n💡 Create a program:");
-    println!("   modal program create --dir ./my-program --name {}\n", opts.name);
-    
+    println!(
+        "   modal program create --dir ./my-program --name {}\n",
+        opts.name
+    );
+
     Ok(())
 }
-

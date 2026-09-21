@@ -111,6 +111,10 @@ pub async fn handle_request(
             contract::pull::handler(Some(data.clone()), datastore_manager, consensus_tx.clone())
                 .await?
         }
+        "/contract/replay" => {
+            contract::replay::handler(Some(data.clone()), datastore_manager, consensus_tx.clone())
+                .await?
+        }
         "/contract/list" => {
             contract::list::handler(Some(data.clone()), datastore_manager, consensus_tx).await?
         }

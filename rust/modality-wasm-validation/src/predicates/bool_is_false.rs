@@ -1,11 +1,13 @@
 //! bool_is_false predicate - check if bool is false
 
-use super::{PredicateResult, PredicateInput};
 use super::text_common::{CorrelationInput, CorrelationResult};
+use super::{PredicateInput, PredicateResult};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Input { pub value: bool }
+pub struct Input {
+    pub value: bool,
+}
 
 pub fn evaluate(input: &PredicateInput) -> PredicateResult {
     let gas_used = 5;
@@ -24,7 +26,7 @@ pub fn correlate(input: &CorrelationInput) -> CorrelationResult {
     let gas_used = 10;
     let mut formulas = Vec::new();
     let mut satisfiable = true;
-    
+
     for rule in &input.other_rules {
         match rule.predicate.as_str() {
             "bool_is_true" => {
@@ -34,9 +36,11 @@ pub fn correlate(input: &CorrelationInput) -> CorrelationResult {
             "bool_equals" => {
                 if let Some(expected) = rule.params.get("expected").and_then(|v| v.as_bool()) {
                     if !expected {
-                        formulas.push("bool_is_false($path) <-> bool_equals($path, false)".to_string());
+                        formulas
+                            .push("bool_is_false($path) <-> bool_equals($path, false)".to_string());
                     } else {
-                        formulas.push("!(bool_is_false($path) & bool_equals($path, true))".to_string());
+                        formulas
+                            .push("!(bool_is_false($path) & bool_equals($path, true))".to_string());
                         satisfiable = false;
                     }
                 }
@@ -44,7 +48,10 @@ pub fn correlate(input: &CorrelationInput) -> CorrelationResult {
             _ => {}
         }
     }
-    
-    if satisfiable { CorrelationResult::satisfiable(formulas, gas_used) }
-    else { CorrelationResult::unsatisfiable(formulas, gas_used) }
+
+    if satisfiable {
+        CorrelationResult::satisfiable(formulas, gas_used)
+    } else {
+        CorrelationResult::unsatisfiable(formulas, gas_used)
+    }
 }

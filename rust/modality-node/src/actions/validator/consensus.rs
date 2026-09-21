@@ -5,24 +5,24 @@
 
 use anyhow::Result;
 use modality_common::keypair::{Keypair, KeypairOrPublicKey};
-use modality_datastore::DatastoreManager;
 use modality_datastore::models::{Commit, ValidatorBlock};
+use modality_datastore::DatastoreManager;
 use modality_networks::CheckpointMode;
-use modality_validator::ContractProcessor;
 use modality_validator::prefix_cert::{self, PREFIX_CERT_TYPE};
+use modality_validator::ContractProcessor;
 use modality_validator_consensus::communication::{Communication, Message as ConsensusMessage};
 use std::collections::HashMap;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
-use tokio::sync::{Mutex, mpsc};
+use std::sync::Arc;
+use tokio::sync::{mpsc, Mutex};
 
 use crate::consensus::node_communication::NodeCommunication;
 use crate::swarm::NodeSwarm;
 
 use super::ack_collector::{
-    AckCollector, run_finalization_task, save_certified_block, validate_certificate,
+    run_finalization_task, save_certified_block, validate_certificate, AckCollector,
 };
-use super::checkpoint::{CheckpointTracker, create_checkpoint_for_epoch};
+use super::checkpoint::{create_checkpoint_for_epoch, CheckpointTracker};
 
 /// Shared flags so the hybrid coordinator can start a single live loop and
 /// later mark this node as in/out of the N−2 committee without respawning.
@@ -700,7 +700,7 @@ pub async fn spawn_consensus_loop_with_checkpoints(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use modality_validator::prefix_cert::{PREFIX_CERT_TYPE, build_prefix_from_store};
+    use modality_validator::prefix_cert::{build_prefix_from_store, PREFIX_CERT_TYPE};
     use serde_json::json;
 
     fn certified_block(events: Vec<serde_json::Value>, batch: &str) -> ValidatorBlock {
@@ -1084,6 +1084,111 @@ mod tests {
         assert_eq!(
             in_batch_of(&ds, "bob", "recv-qc").await.as_deref(),
             Some("batch-qc")
+        );
+    }
+
+    const FIRST_CONTRACT_MODEL: &str = r#"
+model FirstContract {
+  initial q0
+  q0 --> q1: +POST
+  q1 --> q1: +POST +signed_by(/parties/alice.id)
+  q1 --> q1: +POST +signed_by(/parties/bob.id)
+}
+"#;
+
+    fn modeled_push(
+        contract_id: &str,
+        commit_id: &str,
+        body: serde_json::Value,
+        head: serde_json::Value,
+    ) -> serde_json::Value {
+        json!({
+            "type": "contract_push",
+            "data": {
+                "contract_id": contract_id,
+                "commits": [{
+                    "commit_id": commit_id,
+                    "body": body,
+                    "head": head
+                }]
+            }
+        })
+    }
+
+    fn bootstrap_body() -> serde_json::Value {
+        json!([
+            { "method": "post", "path": "/parties/alice.id", "value": "alice_key" },
+            { "method": "post", "path": "/parties/bob.id", "value": "bob_key" },
+            { "method": "model", "path": "/model/default.modality", "value": FIRST_CONTRACT_MODEL }
+        ])
+    }
+
+    #[tokio::test]
+    async fn modeled_unsigned_commit_is_not_sequenced() {
+        let ds = Arc::new(Mutex::new(DatastoreManager::create_in_memory().unwrap()));
+        apply_certified_contract_events(
+            &certified_block(
+                vec![modeled_push("c1", "bootstrap", bootstrap_body(), json!({}))],
+                "batch-boot",
+            ),
+            &ds,
+        )
+        .await;
+        assert_eq!(
+            in_batch_of(&ds, "c1", "bootstrap").await.as_deref(),
+            Some("batch-boot")
+        );
+
+        apply_certified_contract_events(
+            &certified_block(
+                vec![modeled_push(
+                    "c1",
+                    "unsigned",
+                    json!([{ "method": "post", "path": "/notes/unsigned.text", "value": "no" }]),
+                    json!({ "parent": "bootstrap" }),
+                )],
+                "batch-bad",
+            ),
+            &ds,
+        )
+        .await;
+        assert!(
+            in_batch_of(&ds, "c1", "unsigned").await.is_none(),
+            "unsigned commit that local verify rejects must not be sequenced"
+        );
+    }
+
+    #[tokio::test]
+    async fn modeled_signed_commit_is_sequenced() {
+        let ds = Arc::new(Mutex::new(DatastoreManager::create_in_memory().unwrap()));
+        apply_certified_contract_events(
+            &certified_block(
+                vec![modeled_push("c1", "bootstrap", bootstrap_body(), json!({}))],
+                "batch-boot",
+            ),
+            &ds,
+        )
+        .await;
+
+        apply_certified_contract_events(
+            &certified_block(
+                vec![modeled_push(
+                    "c1",
+                    "signed",
+                    json!([{ "method": "post", "path": "/notes/signed.text", "value": "yes" }]),
+                    json!({
+                        "parent": "bootstrap",
+                        "signatures": { "alice_key": "sig" }
+                    }),
+                )],
+                "batch-ok",
+            ),
+            &ds,
+        )
+        .await;
+        assert_eq!(
+            in_batch_of(&ds, "c1", "signed").await.as_deref(),
+            Some("batch-ok")
         );
     }
 

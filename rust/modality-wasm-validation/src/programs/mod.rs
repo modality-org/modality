@@ -13,18 +13,36 @@ pub struct ProgramInput {
     pub context: ProgramContext,
 }
 
-/// Context provided to programs during execution
+/// Context provided to programs during execution.
+///
+/// Frozen host ABI (v1): JSON input is `{ "args": ..., "context": ... }`.
+/// `timestamp` is always 0 (not wall-clock). `block_height` is the sequenced
+/// prefix length before this commit. `invoker` is the lexicographically first
+/// signature public key. `state` is accepted contract paths. No host I/O or
+/// extra host functions besides `env.abort`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProgramContext {
     /// Contract ID being executed
     pub contract_id: String,
-    /// Current block height
+    /// Sequenced prefix length before this commit (not a replica clock)
     pub block_height: u64,
-    /// Current timestamp (Unix epoch)
+    /// Frozen at 0. Programs that need time read posted contract state.
     pub timestamp: u64,
     /// Public key of the user who invoked the program
     pub invoker: String,
+    /// Commit being applied
+    #[serde(default)]
+    pub commit_id: String,
+    /// Parent commit id, if any
+    #[serde(default)]
+    pub parent_commit_id: Option<String>,
+    /// Accepted contract state. Keys are `/`-prefixed paths.
+    #[serde(default)]
+    pub state: Value,
 }
+
+pub const HOST_ABI_VERSION: u32 = 1;
+pub const FROZEN_TIMESTAMP: u64 = 0;
 
 /// Result of program execution
 /// Programs return a list of commit actions to execute
@@ -98,8 +116,11 @@ mod tests {
             context: ProgramContext {
                 contract_id: "test_contract".to_string(),
                 block_height: 42,
-                timestamp: 1234567890,
+                timestamp: 0,
                 invoker: "user_public_key".to_string(),
+                commit_id: "c1".to_string(),
+                parent_commit_id: None,
+                state: json!({}),
             },
         };
 
@@ -112,13 +133,11 @@ mod tests {
 
     #[test]
     fn test_program_result_success() {
-        let actions = vec![
-            CommitAction {
-                method: "post".to_string(),
-                path: Some("/data/result".to_string()),
-                value: json!("computed_value"),
-            },
-        ];
+        let actions = vec![CommitAction {
+            method: "post".to_string(),
+            path: Some("/data/result".to_string()),
+            value: json!("computed_value"),
+        }];
 
         let result = ProgramResult::success(actions, 1000);
 
@@ -157,4 +176,3 @@ mod tests {
         assert_eq!(deserialized.path, None);
     }
 }
-

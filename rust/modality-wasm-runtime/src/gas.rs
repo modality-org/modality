@@ -50,4 +50,3 @@ mod tests {
         assert!(metrics.is_exhausted());
     }
 }
-

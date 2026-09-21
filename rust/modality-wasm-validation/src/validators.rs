@@ -2,7 +2,7 @@ use crate::ValidationResult;
 use serde_json::Value;
 
 /// Validate a transaction deterministically
-/// 
+///
 /// This function must be completely deterministic:
 /// - No system time
 /// - No random numbers
@@ -15,8 +15,8 @@ pub fn validate_transaction_deterministic(
     let mut gas_used = 100; // Base cost
 
     // Parse transaction
-    let tx: Value = serde_json::from_str(tx_data)
-        .map_err(|e| format!("Invalid transaction JSON: {}", e))?;
+    let tx: Value =
+        serde_json::from_str(tx_data).map_err(|e| format!("Invalid transaction JSON: {}", e))?;
     gas_used += 50;
 
     // Parse network parameters
@@ -29,7 +29,7 @@ pub fn validate_transaction_deterministic(
     // Validate amount field
     if let Some(amount) = tx.get("amount").and_then(|v| v.as_u64()) {
         gas_used += 10;
-        
+
         // Check minimum amount from params
         if let Some(min_amount) = params.get("min_amount").and_then(|v| v.as_u64()) {
             gas_used += 10;
@@ -121,8 +121,8 @@ pub fn validate_asset_transfer(
     let mut errors = Vec::new();
 
     // Parse state to check balance
-    let state: Value = serde_json::from_str(state)
-        .map_err(|e| format!("Invalid state JSON: {}", e))?;
+    let state: Value =
+        serde_json::from_str(state).map_err(|e| format!("Invalid state JSON: {}", e))?;
     gas_used += 50;
 
     // Validate addresses
@@ -147,7 +147,10 @@ pub fn validate_asset_transfer(
     if let Some(balance) = state.get("balance").and_then(|v| v.as_u64()) {
         gas_used += 20;
         if balance < amount {
-            errors.push(format!("Insufficient balance: have {}, need {}", balance, amount));
+            errors.push(format!(
+                "Insufficient balance: have {}, need {}",
+                balance, amount
+            ));
         }
     } else {
         errors.push("Balance not found in state".to_string());
@@ -162,14 +165,15 @@ pub fn validate_asset_transfer(
 }
 
 /// Compute mining difficulty adjustment (deterministic)
-/// 
+///
 /// This is a simple example of deterministic computation.
 /// In production, this would use actual block timing data.
 pub fn compute_difficulty_adjustment(blocks_json: &str) -> Result<u64, String> {
-    let blocks: Value = serde_json::from_str(blocks_json)
-        .map_err(|e| format!("Invalid blocks JSON: {}", e))?;
+    let blocks: Value =
+        serde_json::from_str(blocks_json).map_err(|e| format!("Invalid blocks JSON: {}", e))?;
 
-    let blocks_array = blocks.as_array()
+    let blocks_array = blocks
+        .as_array()
         .ok_or_else(|| "Blocks must be an array".to_string())?;
 
     if blocks_array.is_empty() {
@@ -182,7 +186,9 @@ pub fn compute_difficulty_adjustment(blocks_json: &str) -> Result<u64, String> {
 
     for i in 1..blocks_array.len() {
         if let (Some(prev_time), Some(curr_time)) = (
-            blocks_array[i - 1].get("timestamp").and_then(|v| v.as_u64()),
+            blocks_array[i - 1]
+                .get("timestamp")
+                .and_then(|v| v.as_u64()),
             blocks_array[i].get("timestamp").and_then(|v| v.as_u64()),
         ) {
             total_time += curr_time.saturating_sub(prev_time);
@@ -198,7 +204,8 @@ pub fn compute_difficulty_adjustment(blocks_json: &str) -> Result<u64, String> {
     let target_time = 10; // 10 seconds target
 
     // Simple adjustment: increase difficulty if blocks too fast, decrease if too slow
-    let current_difficulty = blocks_array.last()
+    let current_difficulty = blocks_array
+        .last()
         .and_then(|b| b.get("difficulty"))
         .and_then(|d| d.as_u64())
         .unwrap_or(1);
@@ -253,23 +260,17 @@ mod tests {
 
     #[test]
     fn test_validate_post_action_valid() {
-        let result = validate_post_action(
-            "contract123",
-            "/config/value",
-            r#"{"key": "value"}"#,
-            "{}",
-        ).unwrap();
+        let result =
+            validate_post_action("contract123", "/config/value", r#"{"key": "value"}"#, "{}")
+                .unwrap();
         assert!(result.valid);
     }
 
     #[test]
     fn test_validate_post_action_invalid_path() {
-        let result = validate_post_action(
-            "contract123",
-            "invalid_path",
-            r#"{"key": "value"}"#,
-            "{}",
-        ).unwrap();
+        let result =
+            validate_post_action("contract123", "invalid_path", r#"{"key": "value"}"#, "{}")
+                .unwrap();
         assert!(!result.valid);
     }
 
@@ -285,7 +286,10 @@ mod tests {
         let state = r#"{"balance": 100}"#;
         let result = validate_asset_transfer("addr1", "addr2", 500, state).unwrap();
         assert!(!result.valid);
-        assert!(result.errors.iter().any(|e| e.contains("Insufficient balance")));
+        assert!(result
+            .errors
+            .iter()
+            .any(|e| e.contains("Insufficient balance")));
     }
 
     #[test]
@@ -316,4 +320,3 @@ mod tests {
         }
     }
 }
-

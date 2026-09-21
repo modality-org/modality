@@ -1,4 +1,4 @@
-use super::{PredicateResult, PredicateInput};
+use super::{PredicateInput, PredicateResult};
 use serde::{Deserialize, Serialize};
 
 /// Input for post_to_path predicate
@@ -30,12 +30,12 @@ pub struct ActionData {
 }
 
 /// Check if a commit includes a POST action to a specific path
-/// 
+///
 /// Returns true if the commit contains a POST action with the specified path
 /// Supports exact or prefix matching
 pub fn evaluate(input: &PredicateInput) -> PredicateResult {
     let gas_used = 40; // Base gas cost
-    
+
     // Parse input
     let post_input: PostToPathInput = match serde_json::from_value(input.data.clone()) {
         Ok(i) => i,
@@ -78,7 +78,7 @@ pub fn evaluate(input: &PredicateInput) -> PredicateResult {
         vec![format!(
             "No POST action found for path '{}' (exact_match: {})",
             target_path, post_input.exact_match
-        )]
+        )],
     )
 }
 
@@ -101,7 +101,7 @@ mod tests {
             "exact_match": true
         });
         let input = PredicateInput { data, context };
-        
+
         let result = evaluate(&input);
         assert!(result.valid);
     }
@@ -119,7 +119,7 @@ mod tests {
             "exact_match": false
         });
         let input = PredicateInput { data, context };
-        
+
         let result = evaluate(&input);
         assert!(result.valid);
     }
@@ -137,7 +137,7 @@ mod tests {
             "exact_match": true
         });
         let input = PredicateInput { data, context };
-        
+
         let result = evaluate(&input);
         assert!(!result.valid);
         assert!(result.errors[0].contains("No POST action found"));
@@ -157,7 +157,7 @@ mod tests {
             "exact_match": true
         });
         let input = PredicateInput { data, context };
-        
+
         let result = evaluate(&input);
         assert!(!result.valid);
     }
@@ -173,10 +173,9 @@ mod tests {
             "exact_match": true
         });
         let input = PredicateInput { data, context };
-        
+
         let result = evaluate(&input);
         assert!(!result.valid);
         assert!(result.errors[0].contains("empty"));
     }
 }
-

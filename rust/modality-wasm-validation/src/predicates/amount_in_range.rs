@@ -1,4 +1,4 @@
-use super::{PredicateResult, PredicateInput};
+use super::{PredicateInput, PredicateResult};
 use serde::{Deserialize, Serialize};
 
 /// Input for amount_in_range predicate
@@ -13,11 +13,11 @@ pub struct AmountInRangeInput {
 }
 
 /// Check if an amount is within a specified range
-/// 
+///
 /// Returns true if min <= amount <= max
 pub fn evaluate(input: &PredicateInput) -> PredicateResult {
     let gas_used = 20; // Base gas cost for simple numeric comparison
-    
+
     // Parse input
     let range_input: AmountInRangeInput = match serde_json::from_value(input.data.clone()) {
         Ok(i) => i,
@@ -28,13 +28,16 @@ pub fn evaluate(input: &PredicateInput) -> PredicateResult {
     if range_input.min > range_input.max {
         return PredicateResult::error(
             gas_used + 5,
-            format!("Invalid range: min ({}) > max ({})", range_input.min, range_input.max)
+            format!(
+                "Invalid range: min ({}) > max ({})",
+                range_input.min, range_input.max
+            ),
         );
     }
 
     // Check if amount is in range
     let in_range = range_input.amount >= range_input.min && range_input.amount <= range_input.max;
-    
+
     if in_range {
         PredicateResult::success(gas_used + 10)
     } else {
@@ -43,7 +46,7 @@ pub fn evaluate(input: &PredicateInput) -> PredicateResult {
             vec![format!(
                 "Amount {} is not in range [{}, {}]",
                 range_input.amount, range_input.min, range_input.max
-            )]
+            )],
         )
     }
 }
@@ -62,7 +65,7 @@ mod tests {
             "max": 100
         });
         let input = PredicateInput { data, context };
-        
+
         let result = evaluate(&input);
         assert!(result.valid);
     }
@@ -76,7 +79,7 @@ mod tests {
             "max": 100
         });
         let input = PredicateInput { data, context };
-        
+
         let result = evaluate(&input);
         assert!(!result.valid);
         assert!(result.errors[0].contains("not in range"));
@@ -91,7 +94,7 @@ mod tests {
             "max": 100
         });
         let input = PredicateInput { data, context };
-        
+
         let result = evaluate(&input);
         assert!(!result.valid);
     }
@@ -105,10 +108,9 @@ mod tests {
             "max": 10
         });
         let input = PredicateInput { data, context };
-        
+
         let result = evaluate(&input);
         assert!(!result.valid);
         assert!(result.errors[0].contains("Invalid range"));
     }
 }
-

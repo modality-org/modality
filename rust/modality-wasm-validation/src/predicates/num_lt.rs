@@ -1,7 +1,7 @@
 //! num_lt predicate - less than
 
-use super::{PredicateResult, PredicateInput};
 use super::text_common::{CorrelationInput, CorrelationResult};
+use super::{PredicateInput, PredicateResult};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -16,13 +16,17 @@ pub fn evaluate(input: &PredicateInput) -> PredicateResult {
         Ok(i) => i,
         Err(e) => return PredicateResult::error(gas_used, format!("Invalid input: {}", e)),
     };
-    
+
     if num_input.value < num_input.threshold {
         PredicateResult::success(gas_used)
     } else {
-        PredicateResult::failure(gas_used, vec![
-            format!("{} is not < {}", num_input.value, num_input.threshold)
-        ])
+        PredicateResult::failure(
+            gas_used,
+            vec![format!(
+                "{} is not < {}",
+                num_input.value, num_input.threshold
+            )],
+        )
     }
 }
 
@@ -30,12 +34,12 @@ pub fn correlate(input: &CorrelationInput) -> CorrelationResult {
     let gas_used = 15;
     let mut formulas = Vec::new();
     let mut satisfiable = true;
-    
+
     let threshold: f64 = match input.params.get("threshold").and_then(|v| v.as_f64()) {
         Some(n) => n,
         None => return CorrelationResult::ok(gas_used),
     };
-    
+
     for rule in &input.other_rules {
         match rule.predicate.as_str() {
             "num_gt" => {
@@ -96,7 +100,10 @@ pub fn correlate(input: &CorrelationInput) -> CorrelationResult {
             _ => {}
         }
     }
-    
-    if satisfiable { CorrelationResult::satisfiable(formulas, gas_used) }
-    else { CorrelationResult::unsatisfiable(formulas, gas_used) }
+
+    if satisfiable {
+        CorrelationResult::satisfiable(formulas, gas_used)
+    } else {
+        CorrelationResult::unsatisfiable(formulas, gas_used)
+    }
 }

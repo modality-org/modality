@@ -10,8 +10,8 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
-use modality_datastore::DatastoreManager;
 use modality_datastore::models::MinerBlock;
+use modality_datastore::DatastoreManager;
 
 use crate::config::Config;
 use crate::inspection::{

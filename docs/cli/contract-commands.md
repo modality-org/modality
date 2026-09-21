@@ -329,6 +329,37 @@ Pull commits from a hub or chain.
 | `--hub-creds <FILE>` | Hub credentials file for HTTP hub remotes |
 | `--output <FORMAT>` | Output format: `text` or `json` |
 
+## Replay
+
+```bash
+modal c replay [OPTIONS]
+```
+
+Fetch a sequenced contract prefix (and posted WASM, if any) and re-check it
+locally. The original node is not trusted: the same accumulated rules used on
+sequenced apply are run again. That is independent replay.
+
+```bash
+# Stranger: fetch from a sequencer and verify
+modal c replay --remote /ip4/127.0.0.1/tcp/10101/ws/p2p/<peer> \
+  --contract-id <id> --through <commit> --save prefix.json
+
+# Later, offline
+modal c replay --artifact prefix.json
+```
+
+**Options:**
+| Option | Description |
+|--------|-------------|
+| `--artifact <FILE>` | Verify a saved replay artifact (no network) |
+| `--save <FILE>` | Write the fetched or local artifact as JSON |
+| `--remote <MULTIADDR>` | Sequencer to fetch `/contract/replay` from |
+| `--contract-id <ID>` | Contract id when fetching without `--dir` |
+| `--through <COMMIT>` | Sequenced tip to replay through |
+| `--dir <DIR>` | Local contract directory (used when not fetching) |
+| `--node-dir <DIR>` | Node directory for identity/config on P2P remotes |
+| `--output <FORMAT>` | Output format: `text` or `json` |
+
 ## Pack / Unpack
 
 ```bash

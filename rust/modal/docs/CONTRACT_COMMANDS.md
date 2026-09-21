@@ -186,7 +186,7 @@ Accepts a batch of commits and stores them in the node's datastore.
 
 #### `/contract/pull`
 
-Returns commits for a contract, optionally after a specific commit.
+Returns sequenced commits for a contract, optionally after a specific commit.
 
 **Request:**
 ```json
@@ -210,6 +210,25 @@ Returns commits for a contract, optionally after a specific commit.
   ]
 }
 ```
+
+#### `/contract/replay`
+
+Exports a self-contained sequenced prefix so a stranger can re-check locally.
+
+**Request:**
+```json
+{
+  "contract_id": "...",
+  "through_commit": "..."
+}
+```
+
+`through_commit` is optional when the contract has a single sequenced tip.
+
+**Response:** a `modality_replay_artifact` object: `contract_id`, `through_commit`,
+`prefix_digest`, sequenced `commits`, and posted `wasm` bytes if any. The node
+does not attest correctness; `modal contract replay` re-runs the same rules
+(and re-executes invoke, if present) on the artifact.
 
 #### `/contract/list`
 

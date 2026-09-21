@@ -8,7 +8,12 @@ repository = "https://github.com/modality-org/modality"
 homepage = "https://www.modality.org"
 documentation = "https://docs.rs/modality"
 
+[features]
+default = []
+model-governance = ["dep:modality-lang"]
+
 [dependencies]
+modality-lang = { path = "../modality-lang", version = "0.1.7", optional = true }
 anyhow = "1.0"
 lazy_static = "1.4.0"
 num-bigint = "0.4.5"

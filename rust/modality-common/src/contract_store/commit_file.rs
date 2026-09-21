@@ -486,21 +486,22 @@ fn parse_repost_fields(
 ) -> Result<RepostAction> {
     let path = path.ok_or_else(|| anyhow::anyhow!("REPOST action requires a dest path"))?;
 
-    let (source_contract, source_path, dest_path) =
-        if source_contract.is_none() && path.starts_with('$') {
-            let (src, src_path) = parse_legacy_dollar_repost_path(path)?;
-            let dest = default_repost_dest(src, src_path);
-            (src.to_string(), src_path.to_string(), dest)
-        } else {
-            let dest = normalize_abs_path(path, "REPOST dest path")?;
-            let src = source_contract
-                .map(str::trim)
-                .filter(|s| !s.is_empty())
-                .ok_or_else(|| anyhow::anyhow!("REPOST requires source_contract"))?;
-            let src_path = source_path.ok_or_else(|| anyhow::anyhow!("REPOST requires source_path"))?;
-            let src_path = normalize_abs_path(src_path, "REPOST source path")?;
-            (src.to_string(), src_path, dest)
-        };
+    let (source_contract, source_path, dest_path) = if source_contract.is_none()
+        && path.starts_with('$')
+    {
+        let (src, src_path) = parse_legacy_dollar_repost_path(path)?;
+        let dest = default_repost_dest(src, src_path);
+        (src.to_string(), src_path.to_string(), dest)
+    } else {
+        let dest = normalize_abs_path(path, "REPOST dest path")?;
+        let src = source_contract
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .ok_or_else(|| anyhow::anyhow!("REPOST requires source_contract"))?;
+        let src_path = source_path.ok_or_else(|| anyhow::anyhow!("REPOST requires source_path"))?;
+        let src_path = normalize_abs_path(src_path, "REPOST source path")?;
+        (src.to_string(), src_path, dest)
+    };
 
     let source_commit = source_commit
         .map(str::trim)

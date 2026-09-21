@@ -1,5 +1,5 @@
-use std::collections::HashMap;
 use anyhow::Result;
+use std::collections::HashMap;
 
 /// Registry for storing and managing WASM modules
 pub struct ModuleRegistry {
@@ -61,7 +61,9 @@ mod tests {
         assert!(registry.is_empty());
 
         let wasm_bytes = vec![0, 1, 2, 3];
-        registry.register("test_module".to_string(), wasm_bytes.clone()).unwrap();
+        registry
+            .register("test_module".to_string(), wasm_bytes.clone())
+            .unwrap();
 
         assert_eq!(registry.len(), 1);
         assert!(registry.contains("test_module"));
@@ -72,4 +74,3 @@ mod tests {
         assert!(registry.is_empty());
     }
 }
-
