@@ -161,13 +161,13 @@ cd examples/language/01-simple-models
 Network examples (devnets):
 
 ```bash
-cd examples/network/01-ping-node
+cd tests/network/01-ping-node
 ./01-run-node1.sh
 ./02-ping-node1-from-node2.sh
 ```
 
-More scenarios are available under `examples/network/*` and `examples/network/05-mining`.
-Refer to `examples/network/VERIFICATION.md` for verification steps and `SCRIPTS_UPDATE_SUMMARY.md` for script notes.
+More scenarios are available under `tests/network/*` and `tests/network/05-mining`.
+Refer to `tests/network/VERIFICATION.md` for verification steps.
 
 ---
 

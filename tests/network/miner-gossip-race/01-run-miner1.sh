@@ -13,8 +13,8 @@ if [ ! -f "./tmp/miner1/config.json" ]; then
     # This increases the likelihood of race condition
     cat > "${SCRIPT_DIR}/tmp/miner1/config.json" << 'EOF'
 {
-  "passfile_path": "./node.passfile",
-  "storage_path": "./storage",
+  "passfile_path": "./node.modal_passfile",
+  "data_dir": "./data",
   "listeners": ["/ip4/0.0.0.0/tcp/10401/ws"],
   "bootstrappers": [],
   "run_miner": true,

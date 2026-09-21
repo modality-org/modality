@@ -73,9 +73,11 @@ This creates a new contract in `./tmp/my-contract/` with the following structure
 ```
 
 This creates three commits with different data:
-- Commit 1: String value at `/data/message`
-- Commit 2: Numeric value at `/config/rate`
-- Commit 3: Status value at `/data/status`
+- Commit 1: String value at `/data/message.text`
+- Commit 2: Numeric value at `/config/rate.json`
+- Commit 3: Status value at `/data/status.text`
+
+Paths must include a type suffix (see `docs/language/path-types.md`).
 
 **Example output:**
 ```
@@ -212,11 +214,11 @@ Options:
 Push local commits to network validators.
 
 ```bash
-modal contract push [OPTIONS]
+modal contract push --remote <MULTIADDR> [OPTIONS]
 
 Options:
+  --remote <MULTIADDR> Target sequencer (for example /ip4/127.0.0.1/tcp/10101/ws/p2p/<peer>)
   --output <FORMAT>    Output format: text or json [default: text]
-  --force              Force push even if remote has diverged
 ```
 
 **Behavior:**
@@ -300,7 +302,7 @@ Work on contracts locally without network connectivity:
 ```bash
 cd my-project
 modal contract create
-modal contract commit --path "/test" --value "data"
+modal contract commit --path "/notes.text" --value "data"
 modal contract status
 ```
 
@@ -311,8 +313,8 @@ Push changes to share with others:
 ```bash
 # Alice's machine
 modal contract create
-modal contract commit --path "/data" --value "Alice's data"
-modal contract push
+modal contract commit --path "/data/note.text" --value "Alice's data"
+modal contract push --remote /ip4/127.0.0.1/tcp/10101/ws/p2p/<peer>
 
 # Bob's machine (with same contract ID)
 modal contract pull
@@ -436,7 +438,7 @@ done
 - name: Push contract changes
   run: |
     cd my-contract
-    modal contract push --output json > push_result.json
+    modal contract push --remote /ip4/127.0.0.1/tcp/10101/ws/p2p/<peer> --output json > push_result.json
     cat push_result.json | jq .
 ```
 

@@ -26,7 +26,7 @@ assert_success "modal node create --dir ./tmp/node1 --from-template devnet1/node
 echo ""
 echo "Test 2: Verifying node1 structure..."
 assert_file_exists "./tmp/node1/config.json" "Node1 config.json should exist"
-assert_file_exists "./tmp/node1/node.passfile" "Node1 passfile should exist"
+assert_file_exists "./tmp/node1/node.modal_passfile" "Node1 passfile should exist"
 assert_file_exists "./tmp/node1/data" "Node1 data directory should exist"
 
 # Test 3: Verify node1 has the standard peer ID
@@ -101,7 +101,7 @@ echo "Test 9: Creating a local commit..."
 if [ -n "$CONTRACT_ID" ]; then
     echo "DEBUG: CONTRACT_ID=$CONTRACT_ID" >> "$CURRENT_LOG"
     
-    COMMIT_OUTPUT=$(cd ./tmp/test-contract && modal contract commit --path "/test.txt" --value "hello world" --output json 2>&1)
+    COMMIT_OUTPUT=$(cd ./tmp/test-contract && modal contract commit --path "/test.text" --value "hello world" --output json 2>&1)
     if [ $? -eq 0 ]; then
         COMMIT_ID=$(echo "$COMMIT_OUTPUT" | grep '"commit_id"' | sed 's/.*: "\(.*\)".*/\1/')
         echo "Commit ID: $COMMIT_ID" >> "$CURRENT_LOG"

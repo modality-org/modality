@@ -116,6 +116,29 @@ impl DatastoreManager {
         })
     }
 
+    /// Open existing stores read-only (inspect a live node's data dir).
+    pub fn open_readonly(data_dir: &Path) -> Result<Self> {
+        let miner_canon = MinerCanonStore::open_readonly(&data_dir.join("miner_canon"))?;
+        let miner_forks = MinerForksStore::open_readonly(&data_dir.join("miner_forks"))?;
+        let miner_active = MinerActiveStore::open_readonly(&data_dir.join("miner_active"))?;
+        let validator_final =
+            ValidatorFinalStore::open_readonly(&data_dir.join("validator_final"))?;
+        let validator_active =
+            ValidatorActiveStore::open_readonly(&data_dir.join("validator_active"))?;
+        let node_state = NodeStateStore::open_readonly(&data_dir.join("node_state"))?;
+
+        Ok(Self {
+            data_dir: data_dir.to_path_buf(),
+            miner_canon,
+            miner_forks,
+            miner_active,
+            validator_final,
+            validator_active,
+            node_state,
+            epoch_config: EpochConfig::default(),
+        })
+    }
+
     /// Create an in-memory manager for testing
     pub fn create_in_memory() -> Result<Self> {
         let temp_dir = tempfile::tempdir()?;

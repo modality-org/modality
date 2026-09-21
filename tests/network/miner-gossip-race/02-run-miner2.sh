@@ -16,8 +16,8 @@ if [ ! -f "./tmp/miner2/config.json" ]; then
     # Also with very low difficulty to race with miner1
     cat > "${SCRIPT_DIR}/tmp/miner2/config.json" << EOF
 {
-  "passfile_path": "./node.passfile",
-  "storage_path": "./storage",
+  "passfile_path": "./node.modal_passfile",
+  "data_dir": "./data",
   "listeners": ["/ip4/0.0.0.0/tcp/10402/ws"],
   "bootstrappers": [
     "/ip4/127.0.0.1/tcp/10401/ws/p2p/${MINER1_PEER_ID}"

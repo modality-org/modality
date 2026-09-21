@@ -459,7 +459,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
             "bootup_enabled": opts.bootup_enabled.unwrap_or(true),
             "bootup_minimum_genesis_timestamp": opts.bootup_minimum_genesis_timestamp,
             "bootup_prune_old_genesis_blocks": opts.bootup_prune_old_genesis_blocks.unwrap_or(false),
-            "listeners": ["/ip4/0.0.0.0/tcp/4040/ws"],
+            "listeners": ["/ip4/127.0.0.1/tcp/0/ws"],
             "bootstrappers": vec![] as Vec<String>
         })
     };
@@ -517,6 +517,17 @@ pub async fn run(opts: &Opts) -> Result<()> {
             // Verify the network exists in modality-networks
             if modality_networks::networks::by_name(network_name).is_some() {
                 // Use a special marker that the node will recognize to load from embedded configs
+                obj.insert(
+                    "network_config_path".to_string(),
+                    json!(format!("modality-networks://{}", network_name)),
+                );
+                println!(
+                    "📋 Network config: {} (from modality-networks)",
+                    network_name
+                );
+            }
+        } else if let Some(network_name) = &opts.network {
+            if modality_networks::networks::by_name(network_name).is_some() {
                 obj.insert(
                     "network_config_path".to_string(),
                     json!(format!("modality-networks://{}", network_name)),

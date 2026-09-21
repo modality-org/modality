@@ -13,8 +13,8 @@ if [ ! -f "./tmp/node1/config.json" ]; then
     # Update config to use devnet1-hybrid network and enable hybrid consensus
     cat > "${SCRIPT_DIR}/tmp/node1/config.json" << 'EOF'
 {
-  "passfile_path": "./node.passfile",
-  "storage_path": "./storage",
+  "passfile_path": "./node.modal_passfile",
+  "data_dir": "./data",
   "listeners": ["/ip4/0.0.0.0/tcp/10111/ws"],
   "network_config_path": "modality-networks://devnet1-hybrid",
   "run_miner": true,

@@ -141,8 +141,8 @@ fn find_running_nodes() -> Result<Vec<NodeInfo>> {
             }
         }
 
-        // Also check for PID files in common locations
-        let search_paths = vec![
+        // Also check for PID files under the current tree
+        let search_roots = vec![
             std::env::current_dir().ok(),
             Some(PathBuf::from(".")),
             Some(PathBuf::from("./tmp")),
@@ -155,24 +155,17 @@ fn find_running_nodes() -> Result<Vec<NodeInfo>> {
             seen_pids.insert(node.pid);
         }
 
-        for base_path in search_paths.into_iter().flatten() {
-            if let Ok(entries) = fs::read_dir(&base_path) {
-                for entry in entries.flatten() {
-                    let path = entry.path();
-                    if path.is_dir() {
-                        let pid_file = path.join("node.pid");
-                        if pid_file.exists() {
-                            if let Ok(pid_str) = fs::read_to_string(&pid_file) {
-                                if let Ok(pid) = pid_str.trim().parse::<u32>() {
-                                    // Check if process is actually running
-                                    if is_process_running(pid) && !seen_pids.contains(&pid) {
-                                        if let Some(node_info) = get_node_info_from_dir(&path, pid)
-                                        {
-                                            seen_pids.insert(pid);
-                                            nodes.push(node_info);
-                                        }
-                                    }
-                                }
+        for base_path in search_roots.into_iter().flatten() {
+            let mut dirs = Vec::new();
+            collect_node_dirs(&base_path, 5, &mut dirs);
+            for path in dirs {
+                let pid_file = path.join("node.pid");
+                if let Ok(pid_str) = fs::read_to_string(&pid_file) {
+                    if let Ok(pid) = pid_str.trim().parse::<u32>() {
+                        if is_process_running(pid) && !seen_pids.contains(&pid) {
+                            if let Some(node_info) = get_node_info_from_dir(&path, pid) {
+                                seen_pids.insert(pid);
+                                nodes.push(node_info);
                             }
                         }
                     }
@@ -203,14 +196,27 @@ fn is_process_running(_pid: u32) -> bool {
 
 #[cfg(target_family = "unix")]
 fn get_node_info_from_pid(pid: u32) -> Option<NodeInfo> {
-    // Try to find the working directory of the process
     let cwd_link = format!("/proc/{}/cwd", pid);
 
     if let Ok(cwd) = fs::read_link(&cwd_link) {
-        return get_node_info_from_dir(&cwd, pid);
+        if let Some(info) = get_node_info_from_dir(&cwd, pid) {
+            return Some(info);
+        }
     }
 
-    // If /proc is not available (macOS), try using lsof
+    if let Some(cwd) = macos_cwd(pid) {
+        if let Some(info) = get_node_info_from_dir(&cwd, pid) {
+            return Some(info);
+        }
+    }
+
+    if let Some(dir) = dir_from_ps_args(pid) {
+        if let Some(info) = get_node_info_from_dir(&dir, pid) {
+            return Some(info);
+        }
+    }
+
+    // Last resort: lsof paths whose basename is node.pid or config.json
     let output = std::process::Command::new("lsof")
         .arg("-p")
         .arg(pid.to_string())
@@ -221,25 +227,26 @@ fn get_node_info_from_pid(pid: u32) -> Option<NodeInfo> {
         if output.status.success() {
             let output_str = String::from_utf8_lossy(&output.stdout);
 
-            // Look for node.pid or config.json files in the lsof output
             for line in output_str.lines() {
                 if let Some(path_str) = line.strip_prefix('n') {
                     let path = PathBuf::from(path_str);
 
-                    // Check if this is a node.pid file
                     if path.file_name().and_then(|n| n.to_str()) == Some("node.pid") {
                         if let Some(dir) = path.parent() {
-                            return get_node_info_from_dir(dir, pid);
+                            if let Some(info) = get_node_info_from_dir(dir, pid) {
+                                return Some(info);
+                            }
                         }
                     }
 
-                    // Check if this is a config.json in a node directory
                     if path.file_name().and_then(|n| n.to_str()) == Some("config.json") {
                         if let Some(dir) = path.parent() {
-                            // Verify it's a node config by checking for storage or node.pid
-                            let pid_file = dir.join("node.pid");
-                            if pid_file.exists() {
-                                return get_node_info_from_dir(dir, pid);
+                            if dir.join("node.pid").exists()
+                                || dir.join("node.modal_passfile").exists()
+                            {
+                                if let Some(info) = get_node_info_from_dir(dir, pid) {
+                                    return Some(info);
+                                }
                             }
                         }
                     }
@@ -249,6 +256,77 @@ fn get_node_info_from_pid(pid: u32) -> Option<NodeInfo> {
     }
 
     None
+}
+
+#[cfg(target_family = "unix")]
+fn macos_cwd(pid: u32) -> Option<PathBuf> {
+    let output = std::process::Command::new("lsof")
+        .args(["-a", "-p", &pid.to_string(), "-d", "cwd", "-Fn"])
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let output_str = String::from_utf8_lossy(&output.stdout);
+    for line in output_str.lines() {
+        if let Some(path_str) = line.strip_prefix('n') {
+            let path = PathBuf::from(path_str);
+            if path.is_dir() {
+                return Some(path);
+            }
+        }
+    }
+    None
+}
+
+#[cfg(target_family = "unix")]
+fn dir_from_ps_args(pid: u32) -> Option<PathBuf> {
+    let output = std::process::Command::new("ps")
+        .args(["-p", &pid.to_string(), "-ww", "-o", "args="])
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let args = String::from_utf8_lossy(&output.stdout);
+    let parts: Vec<&str> = args.split_whitespace().collect();
+    for (i, part) in parts.iter().enumerate() {
+        if *part == "--dir" {
+            if let Some(dir) = parts.get(i + 1) {
+                return Some(PathBuf::from(dir));
+            }
+        }
+        if let Some(dir) = part.strip_prefix("--dir=") {
+            return Some(PathBuf::from(dir));
+        }
+    }
+    None
+}
+
+fn collect_node_dirs(dir: &std::path::Path, depth: usize, out: &mut Vec<PathBuf>) {
+    if depth == 0 {
+        return;
+    }
+    if dir.join("node.pid").exists() {
+        out.push(dir.to_path_buf());
+    }
+    let Ok(entries) = fs::read_dir(dir) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if !path.is_dir() {
+            continue;
+        }
+        let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
+        if matches!(
+            name,
+            "target" | ".git" | "node_modules" | "data" | "storage" | "logs"
+        ) {
+            continue;
+        }
+        collect_node_dirs(&path, depth.saturating_sub(1), out);
+    }
 }
 
 #[cfg(not(target_family = "unix"))]

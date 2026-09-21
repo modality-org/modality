@@ -110,6 +110,11 @@ impl Config {
         Ok(config)
     }
 
+    /// Directory used for the multi-store datastore (`data_dir`, else `storage_path`).
+    pub fn datastore_dir(&self) -> Option<&Path> {
+        self.data_dir.as_deref().or(self.storage_path.as_deref())
+    }
+
     pub async fn get_libp2p_keypair(&self) -> Result<Keypair> {
         // If no passfile is configured, generate a random keypair (useful for temporary clients)
         let passfile_path = match &self.passfile_path {

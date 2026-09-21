@@ -88,6 +88,11 @@ modal local nodes [OPTIONS]
 
 Find all running modal node processes.
 
+On macOS, discovery uses process cwd and `--dir` on the command line, then
+`node.pid` files. Prefer `modal node stop --dir <node>` (or the PID in
+`node.pid`) when you already know the node directory. `killall` is a
+convenience around the same discovery.
+
 **Options:**
 | Option | Description |
 |--------|-------------|

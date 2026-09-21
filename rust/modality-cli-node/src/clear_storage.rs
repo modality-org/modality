@@ -31,12 +31,10 @@ pub async fn run(opts: &Opts) -> Result<()> {
 
     let config = load_config_with_node_dir(opts.config.clone(), dir.clone())?;
 
-    // Check if storage path exists
     let storage_path = config
-        .storage_path
-        .as_ref()
-        .ok_or_else(|| anyhow::anyhow!("No storage path configured"))?
-        .clone();
+        .datastore_dir()
+        .ok_or_else(|| anyhow::anyhow!("No data_dir or storage_path configured"))?
+        .to_path_buf();
 
     if !storage_path.exists() {
         println!(

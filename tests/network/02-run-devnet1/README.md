@@ -91,7 +91,7 @@ You should see in logs:
 └── tmp/                   # Created at runtime
     ├── node1/             # Validator 1 data
     │   ├── config.json
-    │   ├── node.passfile
+    │   ├── node.modal_passfile
     │   ├── storage/
     │   └── logs/
     └── test-logs/         # Test execution logs

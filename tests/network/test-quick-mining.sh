@@ -15,13 +15,13 @@ echo "Creating test node with devnet1 config..."
 cp -r ../../fixtures/network-configs/devnet1 ./tmp/quick-mining-test/network-config
 
 # Create a simple passfile
-echo '{"keypair":{"public_key":"ed01209c258f5d9487d557f3d1e3a0c4e20c3e0a7a6df2a6d3e0e0a0a0a0a0a0","private_key":"3044022044c5c0ee73d234b6c7e6a5c52b1f7c3c8f6a0e7c6e5a4b3a2a1a0a9a8a7a6a5a402207d6c5b4a3a2a1a0a9a8a7a6a5a4a3a2a1a0a9a8a7a6a5a4a3a2a1a0a9a8a7a6"},"address":"modal1something"}' > ./tmp/quick-mining-test/node.passfile
+echo '{"keypair":{"public_key":"ed01209c258f5d9487d557f3d1e3a0c4e20c3e0a7a6df2a6d3e0e0a0a0a0a0a0","private_key":"3044022044c5c0ee73d234b6c7e6a5c52b1f7c3c8f6a0e7c6e5a4b3a2a1a0a9a8a7a6a5a402207d6c5b4a3a2a1a0a9a8a7a6a5a4a3a2a1a0a9a8a7a6a5a4a3a2a1a0a9a8a7a6"},"address":"modal1something"}' > ./tmp/quick-mining-test/node.modal_passfile
 
 # Create config
 cat > ./tmp/quick-mining-test/config.json << CONFIG_EOF
 {
-  "passfile_path": "./node.passfile",
-  "storage_path": "./storage",
+  "passfile_path": "./node.modal_passfile",
+  "data_dir": "./data",
   "network_config_path": "./network-config/config.json",
   "listeners": ["/ip4/127.0.0.1/tcp/10201/ws"],
   "run_miner": true,

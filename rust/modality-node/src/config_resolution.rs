@@ -33,7 +33,9 @@ pub fn resolve_config_path(config: Option<PathBuf>, node_dir: Option<PathBuf>) -
     }
 }
 
-/// Loads and processes a config, automatically setting storage_path when using node_dir
+/// Loads a config from `--config` or `--dir`. Relative data_dir/storage_path
+/// are resolved against the config file directory. `--dir` selects
+/// `node.modal_passfile` when present and does not invent `./storage`.
 pub fn load_config_with_node_dir(
     config: Option<PathBuf>,
     node_dir: Option<PathBuf>,
@@ -41,19 +43,24 @@ pub fn load_config_with_node_dir(
     let config_path = resolve_config_path(config, node_dir.clone())?;
     let mut config = Config::from_filepath(&config_path)?;
 
-    // If node_dir was used, automatically set storage_path to ./storage relative to node_dir
-    // and check for node.modal_passfile in the node directory
+    // If node_dir was used, keep data_dir/storage_path as resolved from config.json
+    // (relative paths are already made absolute against the config directory).
+    // Prefer node.modal_passfile when it exists. Do not invent ./storage when
+    // data_dir is already set.
     if let Some(node_dir_path) = node_dir {
-        let storage_path = node_dir_path.join("storage");
-        config.storage_path = Some(storage_path);
-
         let logs_path = node_dir_path.join("logs");
         config.logs_path = Some(logs_path);
 
-        // Check if node.modal_passfile exists in the node directory
         let node_passfile_path = node_dir_path.join("node.modal_passfile");
+        let legacy_passfile_path = node_dir_path.join("node.passfile");
         if node_passfile_path.exists() {
             config.passfile_path = Some(node_passfile_path);
+        } else if legacy_passfile_path.exists() {
+            config.passfile_path = Some(legacy_passfile_path);
+        }
+
+        if config.data_dir.is_none() && config.storage_path.is_none() {
+            config.data_dir = Some(node_dir_path.join("data"));
         }
     }
 

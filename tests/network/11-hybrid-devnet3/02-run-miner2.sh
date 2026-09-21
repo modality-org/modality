@@ -12,8 +12,8 @@ if [ ! -f "./tmp/node2/config.json" ]; then
     # Configure as hybrid miner/validator
     cat > "${SCRIPT_DIR}/tmp/node2/config.json" << 'EOF'
 {
-  "passfile_path": "./node.passfile",
-  "storage_path": "./storage",
+  "passfile_path": "./node.modal_passfile",
+  "data_dir": "./data",
   "listeners": ["/ip4/0.0.0.0/tcp/10312/ws"],
   "bootstrappers": [
     "/ip4/127.0.0.1/tcp/10311/ws/p2p/12D3KooW9pte76rpnggcLYkFaawuTEs5DC5axHkg3cK3cewGxxHd",

@@ -21,21 +21,21 @@ cd "$CONTRACT_DIR"
 
 # Commit 1: String data
 echo "Creating commit 1: String value..."
-modal contract commit --path "/data/message" --value "Hello, Modality!" --output json | tee commit1.json
+modal contract commit --path "/data/message.text" --value "Hello, Modality!" --output json | tee commit1.json
 COMMIT1_ID=$(cat commit1.json | grep -o '"commit_id":"[^"]*"' | cut -d'"' -f4 || echo "")
 echo "✅ Commit 1 created: $COMMIT1_ID"
 echo ""
 
 # Commit 2: Numeric data
 echo "Creating commit 2: Numeric value..."
-modal contract commit --path "/config/rate" --value 7.5 --output json | tee commit2.json
+modal contract commit --path "/config/rate.json" --value 7.5 --output json | tee commit2.json
 COMMIT2_ID=$(cat commit2.json | grep -o '"commit_id":"[^"]*"' | cut -d'"' -f4 || echo "")
 echo "✅ Commit 2 created: $COMMIT2_ID"
 echo ""
 
 # Commit 3: Another string
 echo "Creating commit 3: Additional data..."
-modal contract commit --path "/data/status" --value "active" --output json | tee commit3.json
+modal contract commit --path "/data/status.text" --value "active" --output json | tee commit3.json
 COMMIT3_ID=$(cat commit3.json | grep -o '"commit_id":"[^"]*"' | cut -d'"' -f4 || echo "")
 echo "✅ Commit 3 created: $COMMIT3_ID"
 echo ""
