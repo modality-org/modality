@@ -242,3 +242,10 @@ updates are rejected, appends a signed accumulated rule, rejects a replacement
 model that reintroduces unsigned steady-state posts, accepts a replacement
 model that adds Bob as another authorized signer, and then proves Bob-signed
 V2 updates are accepted while unsigned V2 updates are still rejected.
+
+The first-contract and contract-evolution smokes are the canonical local
+runtime workflow checkpoint. They cover create, identity setup,
+synthesis-backed witness validation, commit, status, log, rejection
+explanation, witness replacement, and accumulated-rule evolution without
+requiring hub or network services. Use the separate hub/network examples only
+when testing remote push/pull or validator behavior.

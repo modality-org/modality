@@ -94,6 +94,7 @@ fi
 "$ROOT_DIR/tests/docs/check-cli-hub-doc.sh"
 "$ROOT_DIR/tests/docs/check-cli-tutorials-doc.sh"
 "$ROOT_DIR/tests/docs/check-first-contract-doc.sh"
+"$ROOT_DIR/tests/docs/check-runtime-workflow-doc.sh"
 "$ROOT_DIR/tests/docs/check-verifier-rejections-doc.sh"
 "$ROOT_DIR/tests/docs/check-synthesis-review-doc.sh"
 "$ROOT_DIR/tests/docs/check-acme-review-crosswalk-doc.sh"

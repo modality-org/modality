@@ -69,6 +69,24 @@ preserves source clauses, extracted action and signature facts, verifier
 status, explicit external assumptions, and known gaps in a review bundle while
 guarding that the benchmark rule uses explicit Boolean syntax instead of
 implication sugar.
+
+## Runtime Workflow Checkpoint
+
+The local runtime checkpoint is intentionally file-backed and offline:
+`tests/cli/run-first-contract-cli-smoke.sh` and
+`tests/cli/run-contract-evolution-cli-smoke.sh` create a contract, install
+named identity evidence, synthesize and validate the governing witness, commit
+accepted artifacts, inspect status and log output, reject unsigned,
+wrong-signer, wrong-state, and wrong-action successors with verifier
+explanations, accept a signed witness replacement, and prove additive rule
+evolution plus bounded replacement behavior.
+
+It is the burn-down evidence for the runtime-workflow path before hub or
+network demos are treated as required. Hub, node, network, predicate, program,
+chain, and remote push/pull surfaces are outside this local checkpoint unless
+the full wrapper is explicitly requested with `MODAL_ONBOARDING_FEATURES=full`
+or with a separately built full `modal` binary.
+
 Set `MODAL_ONBOARDING_PACKAGE_CHECK=1` to also run the package-readiness probe
 for the lean wrapper. That probe runs Cargo's package preparation and reports
 the current external-package blocker when `modal` still depends on workspace
