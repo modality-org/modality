@@ -1432,6 +1432,12 @@ impl CommitFacts {
             }
         }
 
+        if let Some(detail) = external_predicate_evidence_boundary(&property.name) {
+            return format!(
+                "missing {formatted} (external evidence not available to local validator; {detail})"
+            );
+        }
+
         format!("missing {formatted}")
     }
 
@@ -1669,6 +1675,24 @@ fn format_sorted_set(items: &HashSet<String>) -> String {
     sorted.join(", ")
 }
 
+fn external_predicate_evidence_boundary(name: &str) -> Option<&'static str> {
+    match name {
+        "oracle_attests" => Some(
+            "requires a validator integration for attestation format, freshness, replay binding, and oracle signature checks",
+        ),
+        "hash_matches" => Some(
+            "requires a validator integration for hash algorithm, preimage source, and replay binding",
+        ),
+        "timestamp_valid" | "before" | "after" => {
+            Some("requires a validator integration for trusted clock source and replay binding")
+        }
+        "wasm" => Some(
+            "requires a validator integration for module identity, input binding, and deterministic execution",
+        ),
+        _ => None,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1763,6 +1787,44 @@ model Members {
         assert!(
             has_valid_transition(&model, &current_states, &facts),
             "sibling paths should not satisfy modifies(/members)"
+        );
+    }
+
+    #[test]
+    fn explains_external_predicate_missing_evidence_boundary() {
+        let model = parse_content_lalrpop(
+            r#"
+model DeliveryOracle {
+  initial active
+  active --> active: +POST +oracle_attests(/oracles/delivery.id, "delivered", "true")
+}
+            "#,
+        )
+        .unwrap();
+        let mut current_states = HashSet::new();
+        current_states.insert("active".to_string());
+
+        let mut commit = CommitFile::new();
+        commit.add_action(
+            "post".to_string(),
+            Some("/deliveries/123/status.text".to_string()),
+            Value::String("delivered".to_string()),
+        );
+        let facts = CommitFacts::from_commit(&commit, &HashMap::new());
+
+        let err = explain_no_valid_transition(&model, &current_states, &facts);
+
+        assert!(
+            err.contains("missing +oracle_attests(/oracles/delivery.id, delivered, true)"),
+            "{err}"
+        );
+        assert!(
+            err.contains("external evidence not available to local validator"),
+            "{err}"
+        );
+        assert!(
+            err.contains("attestation format, freshness, replay binding, and oracle signature"),
+            "{err}"
         );
     }
 

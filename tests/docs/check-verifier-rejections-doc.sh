@@ -3,6 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 DOC="$ROOT_DIR/docs/reference/verifier-rejections.md"
+SITE_DOC="$ROOT_DIR/sites/www.modality.org/docs/reference/verifier-rejections.md"
 FIRST_CONTRACT_SMOKE="$ROOT_DIR/tests/cli/run-first-contract-cli-smoke.sh"
 LOCAL_GOVERNANCE="$ROOT_DIR/rust/modality-common/src/model_governance.rs"
 HUB_VALIDATOR="$ROOT_DIR/rust/modality-cli-hub/src/model_validator.rs"
@@ -33,11 +34,19 @@ required_patterns=(
   "missing +signed_by(/parties/bob.id)"
   'missing +threshold("2", /treasury/signers)'
   "forbidden -modifies(/members) matched"
+  "missing +oracle_attests(/oracles/delivery.id, delivered, true) (external"
+  "evidence not available to local validator"
+  "not that an oracle claim was checked and found false"
+  "For future predicates such"
+  "as \`oracle_attests\`, \`hash_matches\`, \`timestamp_valid\`, \`before\`, \`after\`, and"
+  "\`wasm\`, diagnostics must keep the missing-external-evidence boundary explicit"
+  "replay artifact, trust root, and negative"
   "tests/cli/run-first-contract-cli-smoke.sh"
   "explains_similar_transitions_when_current_state_has_no_candidates"
   "explains_closer_similar_transition_when_current_transition_is_unrelated"
   "explains_multi_state_rejections_with_sorted_current_states"
   "explains_signed_by_identity_bootstrap_ordering"
+  "explains_external_predicate_missing_evidence_boundary"
   "explains_action_modal_rule_failure_with_transition_witness"
   "explains_lfp_rule_failure_with_unfolding_witness_set"
   "test_apply_action_advances_state"
@@ -101,6 +110,11 @@ for pattern in "${required_patterns[@]}"; do
   fi
 done
 
+if ! cmp -s "$DOC" "$SITE_DOC"; then
+  echo "verifier rejection source and site docs must stay in sync" >&2
+  exit 1
+fi
+
 first_contract_smoke_patterns=(
   'current states {"q1"}'
   "Closest candidate transition:"
@@ -134,6 +148,7 @@ local_regressions=(
   "explains_closer_similar_transition_when_current_transition_is_unrelated"
   "explains_multi_state_rejections_with_sorted_current_states"
   "explains_signed_by_identity_bootstrap_ordering"
+  "explains_external_predicate_missing_evidence_boundary"
   "explains_action_modal_rule_failure_with_transition_witness"
   "explains_lfp_rule_failure_with_unfolding_witness_set"
 )

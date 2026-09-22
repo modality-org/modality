@@ -79,9 +79,18 @@ evidence. Current first-contract-local examples include:
   signatures, and ignored unauthorized signatures.
 - `forbidden -modifies(/members) matched` when the pending commit changes a path
   that the candidate transition explicitly forbids.
+- `missing +oracle_attests(/oracles/delivery.id, delivered, true) (external
+  evidence not available to local validator; ...)` when a model uses
+  external-world vocabulary but the local validator has no replay-bound
+  attestation integration. That line means evidence was not supplied to this
+  verifier, not that an oracle claim was checked and found false.
 
 These diagnostics should stay tied to parsed commit facts, accepted state, and
-signature evidence rather than raw string guesses.
+signature evidence rather than raw string guesses. For future predicates such
+as `oracle_attests`, `hash_matches`, `timestamp_valid`, `before`, `after`, and
+`wasm`, diagnostics must keep the missing-external-evidence boundary explicit
+until a validator path documents the replay artifact, trust root, and negative
+tests for that evidence source.
 
 ## Current Executable Coverage
 
@@ -126,6 +135,9 @@ Focused local model-governance regressions cover the same explanation classes:
   current-state ordering for nondeterministic local replay.
 - `explains_signed_by_identity_bootstrap_ordering` preserves bootstrap-order
   evidence for identity paths.
+- `explains_external_predicate_missing_evidence_boundary` preserves the
+  difference between a local predicate failure and missing replay-bound external
+  evidence for future vocabulary such as oracle attestations.
 - `explains_action_modal_rule_failure_with_transition_witness` preserves
   labelled transition witnesses for action-modal failures.
 - `explains_lfp_rule_failure_with_unfolding_witness_set` preserves
