@@ -58,6 +58,7 @@ DEV_CONCEPTS_DOC="$ROOT_DIR/dev/concepts/README.md"
 DEV_MODEL_SYNTHESIS_TUTORIAL="$ROOT_DIR/dev/tutorials/MODEL_SYNTHESIS.md"
 DEV_QUICKSTART_DOC="$ROOT_DIR/dev/QUICKSTART.md"
 DEV_STANDARD_PREDICATES_DOC="$ROOT_DIR/dev/standard-predicates.md"
+DEV_BASIC_PREDICATES_TUTORIAL="$ROOT_DIR/dev/predicates/tutorials/01-basic-predicates.md"
 DEV_MULTI_PARTY_CONTRACT_TUTORIAL="$ROOT_DIR/dev/tutorials/MULTI_PARTY_CONTRACT.md"
 DEV_MULTI_PARTY_CONTRACT_HTML="$ROOT_DIR/dev/tutorials/multi-party-contract.html"
 DEV_MULTISIG_TREASURY_TUTORIAL="$ROOT_DIR/dev/tutorials/MULTISIG_TREASURY.md"
@@ -1392,6 +1393,29 @@ done
 
 if grep -Eq -- ' true[[:space:]]*->| implies ' "$DEV_STANDARD_PREDICATES_DOC"; then
   echo "developer standard predicates doc should not present formula implication sugar as the teaching path" >&2
+  exit 1
+fi
+
+dev_basic_predicates_required_patterns=(
+  "Status: archived predicate tutorial."
+  "avoid formula"
+  "implication sugar such as \`A -> B\`"
+  "explicit Boolean conditionals such as"
+  "\`!A | B\`"
+  "\`[+ACTION] true\` as a conditional antecedent"
+  "!text_equals(\$path, \\\"hello\\\") | text_length_eq(\$path, 5)"
+  "explicit Boolean form for \"if A holds, then B must"
+)
+
+for pattern in "${dev_basic_predicates_required_patterns[@]}"; do
+  if ! grep -Fq "$pattern" "$DEV_BASIC_PREDICATES_TUTORIAL"; then
+    echo "developer basic predicates tutorial is missing language-trap text: $pattern" >&2
+    exit 1
+  fi
+done
+
+if grep -Eq -- ' true[[:space:]]*->| implies |text_equals\(\$path, "hello"\)[[:space:]]*->' "$DEV_BASIC_PREDICATES_TUTORIAL"; then
+  echo "developer basic predicates tutorial should not present formula implication sugar as the teaching path" >&2
   exit 1
 fi
 

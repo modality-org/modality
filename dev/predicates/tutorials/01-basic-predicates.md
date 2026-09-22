@@ -1,5 +1,9 @@
 # Tutorial 1: Basic Predicate Usage
 
+Status: archived predicate tutorial. Current onboarding examples avoid formula
+implication sugar such as `A -> B`, use explicit Boolean conditionals such as
+`!A | B`, and avoid `[+ACTION] true` as a conditional antecedent.
+
 This tutorial shows how to use predicates to validate contract data.
 
 ## What Are Predicates?
@@ -113,14 +117,15 @@ Generates formulas when combined with other predicates:
 // Output
 {
   "formulas": [
-    "text_equals($path, \"hello\") -> text_length_eq($path, 5)"
+    "!text_equals($path, \"hello\") | text_length_eq($path, 5)"
   ],
   "satisfiable": true,
   "gas_used": 20
 }
 ```
 
-The formula `A -> B` means "if A holds, then B must also hold". Since `"hello"` has length 5, these predicates are compatible.
+The formula `!A | B` is explicit Boolean form for "if A holds, then B must
+also hold." Since `"hello"` has length 5, these predicates are compatible.
 
 ## Try It Yourself
 
