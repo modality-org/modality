@@ -2531,6 +2531,10 @@ fn write_review_checklist(
             source_fact_shape_label(&fact.value) == "review warning: malformed source fact"
         })
         .count();
+    let path_write_source_fact_count = source_facts
+        .iter()
+        .filter(|fact| source_fact_shape_label(&fact.value) == "path-write template")
+        .count();
     let source_assumptions = review_source
         .map(|source| extract_source_assumptions_with_lines(&source.content))
         .unwrap_or_default();
@@ -2563,6 +2567,10 @@ fn write_review_checklist(
     output.push_str(&format!(
         "- Malformed source facts flagged: {}\n",
         malformed_source_fact_count
+    ));
+    output.push_str(&format!(
+        "- Path-write source facts flagged: {}\n",
+        path_write_source_fact_count
     ));
     output.push_str(&format!(
         "- External assumptions preserved: {}\n",
@@ -3086,6 +3094,7 @@ rule post_requires_reviewer {
         assert!(bundle.contains("- Source facts preserved: yes"));
         assert!(bundle.contains("- Source facts preserved count: 2"));
         assert!(bundle.contains("- Malformed source facts flagged: 1"));
+        assert!(bundle.contains("- Path-write source facts flagged: 1"));
         assert!(bundle.contains("- External assumptions preserved: yes"));
         assert!(bundle.contains("- External assumptions preserved count: 1"));
         assert!(bundle.contains("- Commit evidence assumptions flagged: 1"));
@@ -3190,6 +3199,7 @@ rule impossible_contract {
         assert!(bundle.contains("- Source facts preserved: no"));
         assert!(bundle.contains("- Source facts preserved count: 0"));
         assert!(bundle.contains("- Malformed source facts flagged: 0"));
+        assert!(bundle.contains("- Path-write source facts flagged: 0"));
         assert!(bundle.contains("- External assumptions preserved: no"));
         assert!(bundle.contains("- External assumptions preserved count: 0"));
         assert!(bundle.contains("- Commit evidence assumptions flagged: 0"));

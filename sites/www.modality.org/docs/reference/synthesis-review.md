@@ -32,6 +32,7 @@ committing the result:
   formulas, verifier result, assumptions, and known gaps are present?
 - Does the Review Checklist summarize whether source facts were preserved, how
   many source facts were preserved, how many malformed source facts were flagged,
+  how many path-write source facts were flagged,
   whether external assumptions were preserved, and how many external assumptions
   were preserved, plus how many commit-evidence, external-world, and reviewer
   assumptions were flagged?
@@ -60,7 +61,8 @@ rule post_requires_reviewer {
 the bundle should include the rule source, extracted facts such as `+POST` and
 `+signed_by(/users/reviewer.id)`, a Review Checklist with `Verifier result:
 passed`, `Source facts preserved: yes`, `Malformed source facts flagged: 1`,
-`Source facts preserved count: 2`, `External assumptions preserved: yes`, and
+`Path-write source facts flagged: 1`, `Source facts preserved count: 2`,
+`External assumptions preserved: yes`, and
 `External assumptions preserved count: 1`, plus assumption label counts such as
 `Commit evidence assumptions flagged: 1`,
 `External-world assumptions flagged: 0`, and
@@ -110,7 +112,8 @@ If `--verify` rejects the synthesized candidate, the CLI should say that no sati
   their source line numbers and assumption-boundary labels.
 - A Review Checklist with `Verifier result: failed`, source-fact preservation,
   source-fact count, malformed-source-fact count, external-assumption
-  preservation, external-assumption count, and assumption label counts.
+  preservation, path-write-source-fact count, external-assumption count, and
+  assumption label counts.
 - The verifier error.
 - The candidate witness model that failed verification.
 - Assumptions and known gaps, including the bounded explicit-state μ-calculus search.
