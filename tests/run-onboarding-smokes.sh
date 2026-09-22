@@ -9,6 +9,7 @@ INSTALL_MODAL="${MODAL_ONBOARDING_INSTALL:-0}"
 PACKAGE_CHECK_MODAL="${MODAL_ONBOARDING_PACKAGE_CHECK:-0}"
 GIT_INSTALL_CHECK_MODAL="${MODAL_ONBOARDING_GIT_INSTALL_CHECK:-0}"
 ARCHIVE_CHECK_MODAL="${MODAL_ONBOARDING_ARCHIVE_CHECK:-0}"
+REQUIRE_RUNTIME_WORKFLOW="${MODAL_RUNTIME_WORKFLOW_CHECK:-0}"
 MODAL_ONBOARDING_FEATURES="${MODAL_ONBOARDING_FEATURES:-contract-onboarding}"
 MODAL_ONBOARDING_PROFILE="${MODAL_ONBOARDING_PROFILE:-debug}"
 
@@ -164,6 +165,19 @@ if [[ -x "$MODAL_BIN" ]]; then
   MODAL_BIN="$MODAL_BIN" "$ROOT_DIR/tests/cli/run-first-contract-cli-smoke.sh"
   MODAL_BIN="$MODAL_BIN" "$ROOT_DIR/tests/cli/run-contract-evolution-cli-smoke.sh"
 else
+  if [[ "$REQUIRE_RUNTIME_WORKFLOW" == "1" ]]; then
+    cat >&2 <<EOF
+runtime workflow checkpoint requested, but modal binary not found at $MODAL_BIN
+
+Build both CLIs during the smoke:
+  MODAL_RUNTIME_WORKFLOW_CHECK=1 MODALITY_ONBOARDING_BUILD=1 MODAL_ONBOARDING_BUILD=1 $0
+
+Or pass existing binaries:
+  MODAL_RUNTIME_WORKFLOW_CHECK=1 MODAL_BIN=/path/to/modal MODALITY_BIN=/path/to/modality $0
+EOF
+    exit 1
+  fi
+
   cat <<EOF
 first-contract CLI smoke skipped: modal binary not found at $MODAL_BIN
 
@@ -172,6 +186,9 @@ Build it during the smoke:
 
 Build both CLIs during the smoke, so language synthesis/lint checks cannot skip:
   MODALITY_ONBOARDING_BUILD=1 MODAL_ONBOARDING_BUILD=1 $0
+
+Require the local runtime workflow checkpoint to run instead of being skipped:
+  MODAL_RUNTIME_WORKFLOW_CHECK=1 MODALITY_ONBOARDING_BUILD=1 MODAL_ONBOARDING_BUILD=1 $0
 
 Build and smoke the release-profile onboarding wrapper:
   MODALITY_ONBOARDING_BUILD=1 MODAL_ONBOARDING_BUILD=1 MODAL_ONBOARDING_PROFILE=release $0

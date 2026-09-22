@@ -88,6 +88,10 @@ chain, and remote push/pull surfaces are outside this local checkpoint unless
 the full wrapper is explicitly requested with `MODAL_ONBOARDING_FEATURES=full`
 or with a separately built full `modal` binary.
 
+Set `MODAL_RUNTIME_WORKFLOW_CHECK=1` when the run must prove that this local
+runtime checkpoint executed. With that flag, a missing `modal` binary is a
+failure instead of a skipped first-contract and contract-evolution replay.
+
 Set `MODAL_ONBOARDING_PACKAGE_CHECK=1` to also run the package-readiness probe
 for the lean wrapper. That probe runs Cargo's package preparation and reports
 the current external-package blocker when `modal` still depends on workspace
@@ -118,6 +122,13 @@ same entry point when measuring a fresh first-contract run:
 
 ```bash
 MODALITY_ONBOARDING_BUILD=1 MODAL_ONBOARDING_BUILD=1 tests/run-onboarding-smokes.sh
+```
+
+To require that the local runtime checkpoint actually runs instead of being
+reported as skipped, add `MODAL_RUNTIME_WORKFLOW_CHECK=1`:
+
+```bash
+MODAL_RUNTIME_WORKFLOW_CHECK=1 MODALITY_ONBOARDING_BUILD=1 MODAL_ONBOARDING_BUILD=1 tests/run-onboarding-smokes.sh
 ```
 
 The smoke checks for at least 1 GiB of free disk before invoking Cargo so local
