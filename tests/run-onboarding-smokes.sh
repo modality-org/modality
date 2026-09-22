@@ -75,6 +75,19 @@ if [[ ! -x "$MODALITY_BIN" && "$BUILD_MODALITY" == "1" ]]; then
   )
 fi
 
+if [[ ! -x "$MODALITY_BIN" && "$REQUIRE_RUNTIME_WORKFLOW" == "1" ]]; then
+  cat >&2 <<EOF
+runtime workflow checkpoint requested, but modality binary not found at $MODALITY_BIN
+
+Build both CLIs during the smoke:
+  MODAL_RUNTIME_WORKFLOW_CHECK=1 MODALITY_ONBOARDING_BUILD=1 MODAL_ONBOARDING_BUILD=1 $0
+
+Or pass existing binaries:
+  MODAL_RUNTIME_WORKFLOW_CHECK=1 MODAL_BIN=/path/to/modal MODALITY_BIN=/path/to/modality $0
+EOF
+  exit 1
+fi
+
 if [[ -x "$MODALITY_BIN" ]]; then
   export MODALITY_BIN
 fi

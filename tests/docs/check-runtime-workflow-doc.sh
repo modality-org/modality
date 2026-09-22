@@ -29,8 +29,9 @@ required_test_readme_patterns=(
   "Hub, node, network, predicate, program,"
   "surfaces are outside this local checkpoint unless"
   "MODAL_RUNTIME_WORKFLOW_CHECK=1"
-  'missing `modal` binary is a'
-  "failure instead of a skipped first-contract and contract-evolution replay."
+  'missing `modality` language CLI'
+  '`modal` wrapper is a failure instead of a skipped first-contract and'
+  "contract-evolution replay."
   "MODAL_RUNTIME_WORKFLOW_CHECK=1 MODALITY_ONBOARDING_BUILD=1 MODAL_ONBOARDING_BUILD=1 tests/run-onboarding-smokes.sh"
   "tests/cli/run-first-contract-cli-smoke.sh"
   "tests/cli/run-contract-evolution-cli-smoke.sh"
@@ -69,6 +70,7 @@ required_smoke_patterns=(
   'MODAL_BIN="$MODAL_BIN" "$ROOT_DIR/tests/cli/run-first-contract-cli-smoke.sh"'
   'MODAL_BIN="$MODAL_BIN" "$ROOT_DIR/tests/cli/run-contract-evolution-cli-smoke.sh"'
   'MODAL_RUNTIME_WORKFLOW_CHECK=1'
+  'runtime workflow checkpoint requested, but modality binary not found at $MODALITY_BIN'
   'runtime workflow checkpoint requested, but modal binary not found at $MODAL_BIN'
   'MODAL_RUNTIME_WORKFLOW_CHECK=1 MODALITY_ONBOARDING_BUILD=1 MODAL_ONBOARDING_BUILD=1 $0'
   'MODAL_ONBOARDING_FEATURES=full'

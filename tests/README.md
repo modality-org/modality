@@ -89,8 +89,9 @@ the full wrapper is explicitly requested with `MODAL_ONBOARDING_FEATURES=full`
 or with a separately built full `modal` binary.
 
 Set `MODAL_RUNTIME_WORKFLOW_CHECK=1` when the run must prove that this local
-runtime checkpoint executed. With that flag, a missing `modal` binary is a
-failure instead of a skipped first-contract and contract-evolution replay.
+runtime checkpoint executed. With that flag, a missing `modality` language CLI
+or `modal` wrapper is a failure instead of a skipped first-contract and
+contract-evolution replay.
 
 Set `MODAL_ONBOARDING_PACKAGE_CHECK=1` to also run the package-readiness probe
 for the lean wrapper. That probe runs Cargo's package preparation and reports
