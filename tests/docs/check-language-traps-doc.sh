@@ -18,6 +18,7 @@ ACME_SYNTHESIS_NOTES="$ROOT_DIR/experiments/ietf-autoformalization/rfc8555-acme/
 MODELS_VS_RULES_DOC="$ROOT_DIR/docs/concepts/models-vs-rules.md"
 MODAL_LOGIC_DOC="$ROOT_DIR/docs/concepts/modal-logic.md"
 FORMULA_COOKBOOK_DOC="$ROOT_DIR/docs/language/formula-cookbook.md"
+SITE_FORMULA_COOKBOOK_DOC="$ROOT_DIR/sites/www.modality.org/docs/language/formula-cookbook.md"
 MEMBERS_ONLY_EXAMPLE="$ROOT_DIR/examples/members_only.modality"
 TREASURY_MULTISIG_EXAMPLE="$ROOT_DIR/examples/treasury_multisig.modality"
 ORACLE_ESCROW_EXAMPLE="$ROOT_DIR/examples/oracle_escrow.modality"
@@ -342,15 +343,22 @@ formula_cookbook_required_patterns=(
   "explicit Boolean form"
 )
 
-for pattern in "${formula_cookbook_required_patterns[@]}"; do
-  if ! grep -Fq "$pattern" "$FORMULA_COOKBOOK_DOC"; then
-    echo "formula cookbook is missing language-trap text: $pattern" >&2
+for formula_cookbook_doc in "$FORMULA_COOKBOOK_DOC" "$SITE_FORMULA_COOKBOOK_DOC"; do
+  for pattern in "${formula_cookbook_required_patterns[@]}"; do
+    if ! grep -Fq "$pattern" "$formula_cookbook_doc"; then
+      echo "formula cookbook is missing language-trap text: $pattern" >&2
+      exit 1
+    fi
+  done
+
+  if grep -Eq -- ' true[[:space:]]*->| implies ' "$formula_cookbook_doc"; then
+    echo "formula cookbook should not present formula implication sugar as the teaching path" >&2
     exit 1
   fi
 done
 
-if grep -Eq -- ' true[[:space:]]*->| implies ' "$FORMULA_COOKBOOK_DOC"; then
-  echo "formula cookbook should not present formula implication sugar as the teaching path" >&2
+if ! cmp -s "$FORMULA_COOKBOOK_DOC" "$SITE_FORMULA_COOKBOOK_DOC"; then
+  echo "site formula cookbook should match the source language-trap guidance" >&2
   exit 1
 fi
 
