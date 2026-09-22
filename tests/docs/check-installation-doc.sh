@@ -542,6 +542,14 @@ if ! grep -Fq "downloaded binary's version output must emit exactly one" "$ROOT_
   echo "CLI tests README is missing downloaded binary exact-line version wording" >&2
   exit 1
 fi
+if ! grep -Fq "one unambiguous line identifying the wrapper" "$ROOT_DIR/tests/README.md"; then
+  echo "tests README is missing help-surface exact-line version wording" >&2
+  exit 1
+fi
+if ! grep -Fq "emits one unambiguous line" "$ROOT_DIR/tests/cli/README.md"; then
+  echo "CLI tests README is missing help-surface exact-line version wording" >&2
+  exit 1
+fi
 if ! grep -Fq "trailing blank version lines" "$ROOT_DIR/tests/cli/README.md"; then
   echo "CLI tests README is missing trailing-blank version wording" >&2
   exit 1
@@ -646,6 +654,11 @@ fi
 if ! grep -Fq 'capture_command_output_lines "$MODAL_BIN" --version' \
   "$ROOT_DIR/tests/cli/check-modal-release-archive-readiness.sh"; then
   echo "release archive producer should capture exact modal version lines" >&2
+  exit 1
+fi
+if ! grep -Fq 'modal version output is not a single line' \
+  "$ROOT_DIR/tests/cli/check-modal-help-surface.sh"; then
+  echo "modal help-surface check should reject multi-line version output" >&2
   exit 1
 fi
 if ! grep -Fq 'release archive producer accepted modal version output with a trailing blank line' \

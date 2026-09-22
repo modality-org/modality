@@ -53,6 +53,13 @@ SUGGEST_RULE_HELP="$TMP_DIR/modal-c-ai-suggest-rule-help.txt"
 "$MODAL_BIN" ai --help >"$AI_HELP"
 "$MODAL_BIN" ai suggest-rule --help >"$SUGGEST_RULE_HELP"
 
+version_line_count="$(wc -l <"$VERSION" | tr -d '[:space:]')"
+if [[ "$version_line_count" != "1" ]]; then
+  echo "modal version output is not a single line" >&2
+  cat "$VERSION" >&2
+  exit 1
+fi
+
 require_command() {
   local command_name="$1"
   local help_file="$2"

@@ -48,11 +48,12 @@ wrapper avoid onboarding-heavy network/storage/compression deps. It also runs th
 first-contract CLI wrapper smoke when both `rust/target/debug/modal` and
 `rust/target/debug/modality` exist, or when `MODAL_BIN=/path/to/modal` and
 `MODALITY_BIN=/path/to/modality` point at built binaries. When a `modal`
-binary is present, it also checks that the real `modal --version` output
-identifies the wrapper and that the `modal --help` surface matches the selected
-onboarding shape: lean builds must expose the first-contract commands and omit
-full runtime groups, while `MODAL_ONBOARDING_FEATURES=full` expects those
-runtime groups to be present. The first-contract CLI smoke synthesizes the
+binary is present, it also checks that the real `modal --version` output emits
+one unambiguous line identifying the wrapper and that the `modal --help` surface
+matches the selected onboarding shape: lean builds must expose the
+first-contract commands and omit full runtime groups, while
+`MODAL_ONBOARDING_FEATURES=full` expects those runtime groups to be present.
+The first-contract CLI smoke synthesizes the
 governing witness with `--verify`, validates that generated model, commits it
 through `modal`, rejects unsigned and wrong-signer successors with
 current-state, closest-candidate, ranked-candidate diagnostics, rejects a
