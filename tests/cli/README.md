@@ -17,10 +17,11 @@ The smoke uses the source-built lean onboarding `modal` binary plus the
 language `modality` binary to create a contract, create Alice and Bob passfiles,
 write their `.id` files into contract state, synthesize and verify the
 governing witness model with a review bundle, commit the accepted artifacts
-without a signature, and inspect status plus log output. The status check asserts
-that both JSON and text output report the replayed governing model state as
-`q1`, while the log check asserts that the unsigned onboarding commit exposes
-the commit message in both JSON and text output. Together
+without a signature, replay accepted state with checkout, and inspect status
+plus log output. The status check asserts that both JSON and text output report
+the replayed governing model state as `q1`, while the log check asserts that
+the unsigned onboarding commit exposes the commit message in both JSON and text
+output. Together
 these cover the visible authority evidence and human-readable contract context
 a new user sees when they run `modal c status` and `modal c log`. It then
 commits a signed post-bootstrap state update, asserts that status/log now expose
@@ -35,7 +36,8 @@ candidate and must therefore show ranked similar transitions from other states,
 exercises a wrong-action `POST` fixture whose current state has only an
 unrelated transition while a closer non-current `+POST` exists, installs a
 witness with a signed Alice transition and an alternative signed Bob
-transition, and accepts Bob's signed replacement.
+transition, accepts Bob's signed replacement, and replays the accepted state
+again with checkout.
 
 To check the installed or source-built help surface before running a flow:
 
@@ -246,7 +248,7 @@ V2 updates are accepted while unsigned V2 updates are still rejected.
 
 The first-contract and contract-evolution smokes are the canonical local
 runtime workflow checkpoint. They cover create, identity setup,
-synthesis-backed witness validation, commit, status, log, rejection
-explanation, witness replacement, and accumulated-rule evolution without
-requiring hub or network services. Use the separate hub/network examples only
-when testing remote push/pull or validator behavior.
+synthesis-backed witness validation, commit, checkout replay, status, log,
+rejection explanation, witness replacement, and accumulated-rule evolution
+without requiring hub or network services. Use the separate hub/network
+examples only when testing remote push/pull or validator behavior.

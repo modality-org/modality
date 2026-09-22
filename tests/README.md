@@ -55,13 +55,14 @@ first-contract commands and omit full runtime groups, while
 `MODAL_ONBOARDING_FEATURES=full` expects those runtime groups to be present.
 The first-contract CLI smoke synthesizes the
 governing witness with `--verify`, validates that generated model, commits it
-through `modal`, rejects unsigned and wrong-signer successors with
-current-state, closest-candidate, ranked-candidate diagnostics, rejects a
-wrong-state `POST` fixture with no current-state candidates plus ranked similar
-non-current transitions, rejects a wrong-action `POST` fixture whose current
-state has only an unrelated transition while a closer non-current `+POST`
-exists, and then lets Bob replace the incomplete witness with a signed `MODEL`
-commit. The same real `modal` binary
+through `modal`, checks checkout replay after accepted and rejected commits,
+rejects unsigned and wrong-signer successors with current-state,
+closest-candidate, ranked-candidate diagnostics, rejects a wrong-state `POST`
+fixture with no current-state candidates plus ranked similar non-current
+transitions, rejects a wrong-action `POST` fixture whose current state has only
+an unrelated transition while a closer non-current `+POST` exists, and then
+lets Bob replace the incomplete witness with a signed `MODEL` commit before
+checking checkout replay again. The same real `modal` binary
 also runs the contract evolution smoke, which verifies an additive rule commit,
 rejected bad witness replacement, accepted V2 witness replacement, and
 Bob-signed successor update.
@@ -77,7 +78,8 @@ The local runtime checkpoint is intentionally file-backed and offline:
 `tests/cli/run-first-contract-cli-smoke.sh` and
 `tests/cli/run-contract-evolution-cli-smoke.sh` create a contract, install
 named identity evidence, synthesize and validate the governing witness, commit
-accepted artifacts, inspect status and log output, reject unsigned,
+accepted artifacts, replay accepted state with checkout, inspect status and
+log output, reject unsigned,
 wrong-signer, wrong-state, and wrong-action successors with verifier
 explanations, accept a signed witness replacement, and prove additive rule
 evolution plus bounded replacement behavior.

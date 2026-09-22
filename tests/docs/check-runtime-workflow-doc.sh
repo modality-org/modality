@@ -19,7 +19,9 @@ required_test_readme_patterns=(
   "synthesize and validate the governing witness"
   "commit"
   "accepted artifacts"
-  "inspect status and log output"
+  "replay accepted state with checkout"
+  "inspect status and"
+  "log output"
   "reject unsigned,"
   "wrong-signer, wrong-state, and wrong-action successors with verifier"
   "explanations"
@@ -48,10 +50,13 @@ required_cli_readme_patterns=(
   "The first-contract and contract-evolution smokes are the canonical local"
   "runtime workflow checkpoint."
   "They cover create, identity setup,"
-  "synthesis-backed witness validation, commit, status, log, rejection"
-  "explanation, witness replacement, and accumulated-rule evolution without"
+  "checkout replay"
+  "synthesis-backed witness validation, commit,"
+  "status, log,"
+  "rejection explanation, witness replacement, and accumulated-rule evolution"
   "requiring hub or network services."
-  "Use the separate hub/network examples only"
+  "Use the separate hub/network"
+  "examples only"
   "when testing remote push/pull or validator behavior."
 )
 
@@ -90,6 +95,7 @@ required_first_contract_patterns=(
   'model validate'
   'status --dir "$CONTRACT_DIR"'
   'log --dir "$CONTRACT_DIR"'
+  'checkout --dir "$CONTRACT_DIR"'
   'expected unsigned post-bootstrap commit to fail'
   'expected wrong-state post to fail with no current transition candidates'
   'expected wrong-action post to fail with a closer non-current transition'

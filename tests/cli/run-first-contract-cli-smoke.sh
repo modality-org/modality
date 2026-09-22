@@ -464,6 +464,7 @@ grep -q '"status": "committed"' "$TMP_DIR/bob-model-replacement.json"
 "$MODAL_BIN" status --dir "$CONTRACT_DIR" >"$TMP_DIR/bob-status.txt"
 "$MODAL_BIN" log --dir "$CONTRACT_DIR" --output json >"$TMP_DIR/bob-log.json"
 "$MODAL_BIN" log --dir "$CONTRACT_DIR" >"$TMP_DIR/bob-log.txt"
+"$MODAL_BIN" checkout --dir "$CONTRACT_DIR" >/dev/null
 
 grep -q '"total_commits": 4' "$TMP_DIR/bob-status.json"
 grep -q '"model_state": "q1"' "$TMP_DIR/bob-status.json"
@@ -473,6 +474,7 @@ grep -q '"message": "Let Bob replace the witness"' "$TMP_DIR/bob-log.json"
 grep -q "$BOB_ID" "$TMP_DIR/bob-log.json"
 grep -q "Message: Let Bob replace the witness" "$TMP_DIR/bob-log.txt"
 grep -q "model /model/default.modality" "$TMP_DIR/bob-log.txt"
+grep -q "signed update" "$CONTRACT_DIR/state/notes.text"
 grep -q "q1 --> q1: +signed_by(/parties/bob.id)" \
   "$CONTRACT_DIR/model/default.modality"
 if ! grep -E 'authorized\.modality|authorized\.md' "$TMP_DIR/accepted-artifacts.sha256" \
