@@ -17,7 +17,7 @@ use modality_common::model_diagnostics::{
 };
 use modality_lang::{
     parse_content_lalrpop, Formula, FormulaExpr, Model, ModelChecker, Property, PropertySign,
-    Transition,
+    PropertySource, Transition,
 };
 use serde_json::Value;
 use std::collections::HashSet;
@@ -319,10 +319,10 @@ impl ModelValidator {
             .iter()
             .filter_map(|prop| match prop.sign {
                 PropertySign::Plus if !action_set.contains(&prop.name) => {
-                    Some(format!("missing +{}", prop.name))
+                    Some(missing_predicate_message(prop))
                 }
                 PropertySign::Minus if action_set.contains(&prop.name) => {
-                    Some(format!("forbidden -{} matched", prop.name))
+                    Some(format!("forbidden {} matched", format_property(prop)))
                 }
                 _ => None,
             })
@@ -384,13 +384,7 @@ impl ModelValidator {
 
         properties
             .iter()
-            .map(|prop| {
-                let sign = match prop.sign {
-                    PropertySign::Plus => "+",
-                    PropertySign::Minus => "-",
-                };
-                format!("{}{}", sign, prop.name)
-            })
+            .map(format_property)
             .collect::<Vec<_>>()
             .join(" ")
     }
@@ -502,6 +496,71 @@ impl ModelValidator {
     #[allow(dead_code)]
     pub fn rules(&self) -> &[AnchoredRule] {
         &self.rules
+    }
+}
+
+fn missing_predicate_message(property: &Property) -> String {
+    let formatted = format_property(property);
+    if let Some(detail) = external_predicate_evidence_boundary(&property.name) {
+        return format!(
+            "missing {formatted} (external evidence not available to hub validator; {detail})"
+        );
+    }
+
+    format!("missing {formatted}")
+}
+
+fn format_property(property: &Property) -> String {
+    let sign = match property.sign {
+        PropertySign::Plus => "+",
+        PropertySign::Minus => "-",
+    };
+
+    match &property.source {
+        Some(PropertySource::Predicate { args, .. }) => {
+            format!("{}{}({})", sign, property.name, format_predicate_args(args))
+        }
+        _ => format!("{}{}", sign, property.name),
+    }
+}
+
+fn format_predicate_args(args: &Value) -> String {
+    predicate_arg_values(args)
+        .into_iter()
+        .map(|item| {
+            item.as_str()
+                .map(ToString::to_string)
+                .unwrap_or_else(|| item.to_string())
+        })
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
+fn predicate_arg_values(args: &Value) -> Vec<&Value> {
+    if let Some(arg) = args.get("arg") {
+        return vec![arg];
+    }
+
+    args.get("args")
+        .and_then(Value::as_array)
+        .or_else(|| args.as_array())
+        .map(|items| items.iter().collect())
+        .unwrap_or_default()
+}
+
+fn external_predicate_evidence_boundary(name: &str) -> Option<&'static str> {
+    match name {
+        "oracle_attests" => Some(
+            "attestation format, freshness, replay binding, and oracle signature are not integrated yet",
+        ),
+        "hash_matches" => {
+            Some("hash algorithm, payload binding, and replay artifact are not integrated yet")
+        }
+        "timestamp_valid" | "before" | "after" => Some(
+            "clock source, freshness window, and replay artifact are not integrated yet",
+        ),
+        "wasm" => Some("WASM predicate artifact, sandbox policy, and deterministic replay binding are not integrated yet"),
+        _ => None,
     }
 }
 
@@ -1346,6 +1405,42 @@ model TestModel {
             .expect_err("POST should not match either current branch");
 
         assert!(err.contains(r#"current states {"alpha", "beta"}"#), "{err}");
+    }
+
+    #[test]
+    fn test_action_rejection_explains_external_predicate_missing_evidence_boundary() {
+        let mut validator = ModelValidator::new();
+
+        let model = r#"
+model DeliveryOracle {
+    init --> active: +BOOT
+    active --> active: +POST +oracle_attests(/oracles/delivery.id, "delivered", "true")
+}
+        "#;
+
+        validator.apply_model(model, 0).unwrap();
+        validator.apply_action(&["BOOT".to_string()]).unwrap();
+
+        let err = validator
+            .apply_action(&["POST".to_string()])
+            .expect_err("hub validator should require replay-bound oracle evidence");
+
+        assert!(
+            err.contains("missing +oracle_attests(/oracles/delivery.id, delivered, true)"),
+            "{err}"
+        );
+        assert!(
+            err.contains("external evidence not available to hub validator"),
+            "{err}"
+        );
+        assert!(
+            err.contains("attestation format, freshness, replay binding, and oracle signature"),
+            "{err}"
+        );
+        assert!(
+            !err.contains("oracle claim was checked"),
+            "hub diagnostic should not imply the oracle claim was checked: {err}"
+        );
     }
 
     #[test]

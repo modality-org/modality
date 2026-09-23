@@ -84,6 +84,10 @@ evidence. Current first-contract-local examples include:
   external-world vocabulary but the local validator has no replay-bound
   attestation integration. That line means evidence was not supplied to this
   verifier, not that an oracle claim was checked and found false.
+- The hub validator uses the same missing-evidence shape for external
+  predicates, with `external evidence not available to hub validator`, so
+  server-side action rejection does not imply an oracle claim was checked and
+  found false.
 
 These diagnostics should stay tied to parsed commit facts, accepted state, and
 signature evidence rather than raw string guesses. For future predicates such
@@ -159,6 +163,9 @@ Hub-side `model_validator` regressions cover the shared server path:
   same state-mismatch hint on the shared hub validator path.
 - `test_action_rejection_sorts_multi_current_state_header` preserves stable
   current-state ordering for nondeterministic hub replay.
+- `test_action_rejection_explains_external_predicate_missing_evidence_boundary`
+  preserves the missing replay-bound external evidence boundary on hub-side
+  action rejection.
 - `test_model_replacement_rule_rejection_explains_formula_failure`,
   `test_model_replacement_rule_rejection_explains_action_modal_witness`, and
   `test_model_replacement_rule_rejection_explains_fixed_point_unfolding`
