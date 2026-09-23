@@ -24,6 +24,26 @@ cleanup() {
 }
 trap cleanup EXIT
 
+capture_command_output_lines() {
+  local output_path
+  local status
+  output_path="$(mktemp)"
+  status=0
+  "$@" >"$output_path" || status=$?
+  if [[ "$status" -ne 0 ]]; then
+    printf 'command failed while capturing output (status %s): %s\n' \
+      "$status" "$*" >&2
+    cat "$output_path" >&2 || true
+    rm -f "$output_path"
+    return "$status"
+  fi
+  mapfile -t captured_output_lines <"$output_path"
+  rm -f "$output_path"
+}
+captured_output_as_text() {
+  printf '%s\n' "${captured_output_lines[@]}"
+}
+
 VERSION="$TMP_DIR/modality-version.txt"
 HELP="$TMP_DIR/modality-help.txt"
 MODEL_HELP="$TMP_DIR/modality-model-help.txt"
@@ -32,7 +52,17 @@ VALIDATE_HELP="$TMP_DIR/modality-model-validate-help.txt"
 LINT_HELP="$TMP_DIR/modality-model-lint-help.txt"
 VIEW_HELP="$TMP_DIR/modality-model-view-help.txt"
 
-"$MODALITY_BIN" --version >"$VERSION"
+capture_command_output_lines "$MODALITY_BIN" --version
+if [[ "${#captured_output_lines[@]}" -ne 1 ]]; then
+  version_output="$(captured_output_as_text)"
+  cat >&2 <<EOF
+modality version output is not a single line
+actual version:
+$version_output
+EOF
+  exit 1
+fi
+printf '%s\n' "${captured_output_lines[0]}" >"$VERSION"
 "$MODALITY_BIN" --help >"$HELP"
 "$MODALITY_BIN" model --help >"$MODEL_HELP"
 "$MODALITY_BIN" model synthesize --help >"$SYNTHESIZE_HELP"

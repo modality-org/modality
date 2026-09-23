@@ -453,6 +453,8 @@ tests_readme_patterns=(
   "Build both CLIs from the"
   "same entry point when measuring a fresh first-contract run"
   "MODALITY_ONBOARDING_BUILD=1 MODAL_ONBOARDING_BUILD=1 tests/run-onboarding-smokes.sh"
+  "including an unambiguous one-line"
+  "\`modality --version\` output"
   "or claiming same-revision first-contract replay"
   "emitted order before producer release evidence can pass"
   "symlinked unpacked \`bin/\` directory"
@@ -659,6 +661,16 @@ fi
 if ! grep -Fq 'modal version output is not a single line' \
   "$ROOT_DIR/tests/cli/check-modal-help-surface.sh"; then
   echo "modal help-surface check should reject multi-line version output" >&2
+  exit 1
+fi
+if ! grep -Fq 'capture_command_output_lines "$MODALITY_BIN" --version' \
+  "$ROOT_DIR/tests/language/check-modality-help-surface.sh"; then
+  echo "modality help-surface check should capture exact version lines" >&2
+  exit 1
+fi
+if ! grep -Fq 'modality version output is not a single line' \
+  "$ROOT_DIR/tests/language/check-modality-help-surface.sh"; then
+  echo "modality help-surface check should reject multi-line version output" >&2
   exit 1
 fi
 if ! grep -Fq 'release archive producer accepted modal version output with a trailing blank line' \

@@ -33,7 +33,8 @@ server-start-only CLI surface, REST routes, and HTTP remote handoff, checks
 that older tutorials still use the current
 `set-named-id <path> <passfile>` and `commit --sign <passfile>` shapes, checks
 that the real `modality` model help surface matches the documented language CLI
-when a language binary is present, checks that the verifier rejection reference
+when a language binary is present, including an unambiguous one-line
+`modality --version` output, checks that the verifier rejection reference
 preserves current-state, closest-candidate, and missing-predicate diagnostics,
 checks that the synthesis review reference explains passed bundles and no-witness
 bundles, checks that the ACME review benchmark crosswalk keeps the abstract
