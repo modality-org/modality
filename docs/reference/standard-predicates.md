@@ -324,8 +324,9 @@ inside the replay bundle, signed by the key at `oracle_path`, and bound to the
 contract id or genesis hash, pending commit hash, predicate name, oracle path,
 claim, value, issuance time, and freshness or expiry policy. A validator path
 must also carry negative tests for wrong-contract, stale or future timestamp,
-missing commit-binding, argument mismatch, wrong accepted-state oracle key, and
-malformed or non-canonical artifact cases before `oracle_attests` can be
+missing commit-binding, missing or mismatched oracle path, argument mismatch,
+wrong accepted-state oracle key, and malformed or non-canonical artifact cases
+before `oracle_attests` can be
 reported as checked instead of missing external evidence.
 
 ## Hash Predicates

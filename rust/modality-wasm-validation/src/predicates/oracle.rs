@@ -18,6 +18,8 @@ use sha2::{Digest, Sha256};
 pub struct OracleAttestation {
     /// The oracle's public key (hex-encoded ed25519)
     pub oracle_pubkey: String,
+    /// Accepted-state path where this oracle key is expected to be configured
+    pub oracle_path: String,
     /// What the oracle is attesting to (e.g., "delivery_confirmed")
     pub claim: String,
     /// The value being attested (e.g., "true", "2026-02-01", "75.5")
@@ -37,6 +39,8 @@ impl OracleAttestation {
     pub fn signing_message(&self) -> Vec<u8> {
         let mut hasher = Sha256::new();
         hasher.update(self.oracle_pubkey.as_bytes());
+        hasher.update(b"|");
+        hasher.update(self.oracle_path.as_bytes());
         hasher.update(b"|");
         hasher.update(self.claim.as_bytes());
         hasher.update(b"|");
@@ -60,6 +64,8 @@ pub struct OracleAttestsInput {
     pub expected_claim: String,
     /// Expected value (must match attestation.value)  
     pub expected_value: Option<String>,
+    /// Expected accepted-state oracle key path
+    pub expected_oracle_path: String,
     /// Expected pending commit hash from the replay context
     pub expected_pending_commit_hash: String,
     /// List of trusted oracle public keys (hex-encoded)
@@ -115,6 +121,17 @@ pub fn evaluate_oracle_attests(input: &PredicateInput) -> PredicateResult {
                 )],
             );
         }
+    }
+
+    // Check oracle path matches the predicate/replay input.
+    if attestation.oracle_path != oracle_input.expected_oracle_path {
+        return PredicateResult::failure(
+            gas_used,
+            vec![format!(
+                "Oracle path mismatch: attestation for '{}', current '{}'",
+                attestation.oracle_path, oracle_input.expected_oracle_path
+            )],
+        );
     }
 
     // Check attestation age
@@ -228,6 +245,7 @@ pub fn evaluate_oracle_bool(input: &PredicateInput) -> PredicateResult {
             "attestation": oracle_input.attestation,
             "expected_claim": oracle_input.attestation.claim.clone(),
             "expected_value": "true",
+            "expected_oracle_path": oracle_input.attestation.oracle_path.clone(),
             "expected_pending_commit_hash": oracle_input.attestation.pending_commit_hash.clone(),
             "trusted_oracles": oracle_input.trusted_oracles,
             "max_age_seconds": oracle_input.max_age_seconds,
@@ -259,6 +277,7 @@ mod tests {
 
     fn create_attestation(
         oracle_pubkey: &str,
+        oracle_path: &str,
         signing_key: &SigningKey,
         claim: &str,
         value: &str,
@@ -268,6 +287,7 @@ mod tests {
     ) -> OracleAttestation {
         let mut attestation = OracleAttestation {
             oracle_pubkey: oracle_pubkey.to_string(),
+            oracle_path: oracle_path.to_string(),
             claim: claim.to_string(),
             value: value.to_string(),
             contract_id: contract_id.to_string(),
@@ -287,11 +307,13 @@ mod tests {
     fn test_oracle_attestation_valid() {
         let (oracle_pk, oracle_sk) = create_oracle();
         let contract_id = "test_contract";
+        let oracle_path = "/oracles/delivery.id";
         let pending_commit_hash = "commit_abc123";
         let timestamp = 1000;
 
         let attestation = create_attestation(
             &oracle_pk,
+            oracle_path,
             &oracle_sk,
             "delivery_confirmed",
             "true",
@@ -305,6 +327,7 @@ mod tests {
                 "attestation": attestation,
                 "expected_claim": "delivery_confirmed",
                 "expected_value": "true",
+                "expected_oracle_path": oracle_path,
                 "expected_pending_commit_hash": pending_commit_hash,
                 "trusted_oracles": [oracle_pk],
                 "max_age_seconds": 0,  // No age limit
@@ -328,6 +351,7 @@ mod tests {
 
         let attestation = create_attestation(
             &oracle_pk,
+            "/oracles/delivery.id",
             &oracle_sk,
             "delivery_confirmed",
             "true",
@@ -341,6 +365,7 @@ mod tests {
                 "attestation": attestation,
                 "expected_claim": "delivery_confirmed",
                 "expected_value": "true",
+                "expected_oracle_path": "/oracles/delivery.id",
                 "expected_pending_commit_hash": "commit_abc123",
                 "trusted_oracles": [other_pk],  // Different oracle trusted
                 "max_age_seconds": 0,
@@ -359,6 +384,7 @@ mod tests {
 
         let attestation = create_attestation(
             &oracle_pk,
+            "/oracles/delivery.id",
             &oracle_sk,
             "delivery_confirmed",
             "true",
@@ -372,6 +398,7 @@ mod tests {
                 "attestation": attestation,
                 "expected_claim": "delivery_confirmed",
                 "expected_value": "true",
+                "expected_oracle_path": "/oracles/delivery.id",
                 "expected_pending_commit_hash": "commit_abc123",
                 "trusted_oracles": [oracle_pk],
                 "max_age_seconds": 60,  // Max 60 seconds old
@@ -389,6 +416,7 @@ mod tests {
 
         let attestation = create_attestation(
             &oracle_pk,
+            "/oracles/delivery.id",
             &oracle_sk,
             "delivery_confirmed",
             "true",
@@ -402,6 +430,7 @@ mod tests {
                 "attestation": attestation,
                 "expected_claim": "delivery_confirmed",
                 "expected_value": "true",
+                "expected_oracle_path": "/oracles/delivery.id",
                 "expected_pending_commit_hash": "commit_abc123",
                 "trusted_oracles": [oracle_pk],
                 "max_age_seconds": 0,
@@ -424,6 +453,7 @@ mod tests {
 
         let attestation = create_attestation(
             &oracle_pk,
+            "/oracles/delivery.id",
             &other_sk, // Wrong signing key!
             "delivery_confirmed",
             "true",
@@ -437,6 +467,7 @@ mod tests {
                 "attestation": attestation,
                 "expected_claim": "delivery_confirmed",
                 "expected_value": "true",
+                "expected_oracle_path": "/oracles/delivery.id",
                 "expected_pending_commit_hash": "commit_abc123",
                 "trusted_oracles": [oracle_pk],
                 "max_age_seconds": 0,
@@ -455,6 +486,7 @@ mod tests {
 
         let attestation = create_attestation(
             &oracle_pk,
+            "/oracles/delivery.id",
             &oracle_sk,
             "delivery_confirmed",
             "true",
@@ -468,6 +500,7 @@ mod tests {
                 "attestation": attestation,
                 "expected_claim": "delivery_confirmed",
                 "expected_value": "true",
+                "expected_oracle_path": "/oracles/delivery.id",
                 "expected_pending_commit_hash": "commit_def456",
                 "trusted_oracles": [oracle_pk],
                 "max_age_seconds": 0,
@@ -491,11 +524,98 @@ mod tests {
     }
 
     #[test]
+    fn test_oracle_wrong_path_rejected() {
+        let (oracle_pk, oracle_sk) = create_oracle();
+        let contract_id = "test_contract";
+
+        let attestation = create_attestation(
+            &oracle_pk,
+            "/oracles/delivery.id",
+            &oracle_sk,
+            "delivery_confirmed",
+            "true",
+            contract_id,
+            "commit_abc123",
+            1000,
+        );
+
+        let input = PredicateInput {
+            data: serde_json::json!({
+                "attestation": attestation,
+                "expected_claim": "delivery_confirmed",
+                "expected_value": "true",
+                "expected_oracle_path": "/oracles/quality.id",
+                "expected_pending_commit_hash": "commit_abc123",
+                "trusted_oracles": [oracle_pk],
+                "max_age_seconds": 0,
+            }),
+            context: super::super::PredicateContext::new(contract_id.to_string(), 0, 1000),
+        };
+
+        let result = evaluate_oracle_attests(&input);
+        assert!(!result.valid, "Wrong oracle path should be rejected");
+        assert!(
+            result
+                .errors
+                .iter()
+                .any(|error| error.contains("Oracle path mismatch")),
+            "wrong oracle path should explain the replay binding failure: {:?}",
+            result.errors
+        );
+    }
+
+    #[test]
+    fn test_oracle_missing_path_rejected() {
+        let (oracle_pk, oracle_sk) = create_oracle();
+        let contract_id = "test_contract";
+        let attestation = create_attestation(
+            &oracle_pk,
+            "/oracles/delivery.id",
+            &oracle_sk,
+            "delivery_confirmed",
+            "true",
+            contract_id,
+            "commit_abc123",
+            1000,
+        );
+        let mut value = serde_json::to_value(attestation).expect("serialize attestation");
+        value
+            .as_object_mut()
+            .expect("attestation object")
+            .remove("oracle_path");
+
+        let input = PredicateInput {
+            data: serde_json::json!({
+                "attestation": value,
+                "expected_claim": "delivery_confirmed",
+                "expected_value": "true",
+                "expected_oracle_path": "/oracles/delivery.id",
+                "expected_pending_commit_hash": "commit_abc123",
+                "trusted_oracles": [oracle_pk],
+                "max_age_seconds": 0,
+            }),
+            context: super::super::PredicateContext::new(contract_id.to_string(), 0, 1000),
+        };
+
+        let result = evaluate_oracle_attests(&input);
+        assert!(!result.valid, "Missing oracle path should be rejected");
+        assert!(
+            result
+                .errors
+                .iter()
+                .any(|error| error.contains("missing field `oracle_path`")),
+            "missing oracle path should fail closed during input parsing: {:?}",
+            result.errors
+        );
+    }
+
+    #[test]
     fn test_oracle_missing_pending_commit_hash_rejected() {
         let (oracle_pk, oracle_sk) = create_oracle();
         let contract_id = "test_contract";
         let attestation = create_attestation(
             &oracle_pk,
+            "/oracles/delivery.id",
             &oracle_sk,
             "delivery_confirmed",
             "true",
@@ -514,6 +634,7 @@ mod tests {
                 "attestation": value,
                 "expected_claim": "delivery_confirmed",
                 "expected_value": "true",
+                "expected_oracle_path": "/oracles/delivery.id",
                 "expected_pending_commit_hash": "commit_abc123",
                 "trusted_oracles": [oracle_pk],
                 "max_age_seconds": 0,
