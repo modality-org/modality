@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 /// Oracle attestation structure
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct OracleAttestation {
     /// The oracle's public key (hex-encoded ed25519)
     pub oracle_pubkey: String,
@@ -55,11 +55,29 @@ impl OracleAttestation {
     }
 }
 
+/// Canonical replay-bundle envelope for oracle attestation evidence.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct OracleReplayBundle {
+    /// Predicate name this bundle is evidence for.
+    pub predicate: String,
+    /// The signed oracle attestation.
+    pub attestation: OracleAttestation,
+}
+
+fn canonical_oracle_replay_bundle_json(
+    bundle: &OracleReplayBundle,
+) -> Result<String, serde_json::Error> {
+    serde_json::to_string(bundle)
+}
+
 /// Input for oracle attestation verification
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OracleAttestsInput {
     /// The attestation from the oracle
     pub attestation: OracleAttestation,
+    /// Optional canonical replay-bundle JSON bytes carrying the same attestation
+    #[serde(default)]
+    pub replay_bundle_json: Option<String>,
     /// Expected claim type (must match attestation.claim)
     pub expected_claim: String,
     /// Expected value (must match attestation.value)  
@@ -82,6 +100,52 @@ pub fn evaluate_oracle_attests(input: &PredicateInput) -> PredicateResult {
         Ok(i) => i,
         Err(e) => return PredicateResult::error(gas_used, format!("Invalid input: {}", e)),
     };
+
+    if let Some(bundle_json) = &oracle_input.replay_bundle_json {
+        let bundle: OracleReplayBundle = match serde_json::from_str(bundle_json) {
+            Ok(bundle) => bundle,
+            Err(e) => {
+                return PredicateResult::failure(
+                    gas_used,
+                    vec![format!("Malformed oracle replay bundle: {}", e)],
+                )
+            }
+        };
+
+        if bundle.predicate != "oracle_attests" {
+            return PredicateResult::failure(
+                gas_used,
+                vec![format!(
+                    "Oracle replay bundle predicate mismatch: expected 'oracle_attests', got '{}'",
+                    bundle.predicate
+                )],
+            );
+        }
+
+        let canonical = match canonical_oracle_replay_bundle_json(&bundle) {
+            Ok(canonical) => canonical,
+            Err(e) => {
+                return PredicateResult::error(
+                    gas_used,
+                    format!("Could not canonicalize oracle replay bundle: {}", e),
+                )
+            }
+        };
+
+        if canonical != *bundle_json {
+            return PredicateResult::failure(
+                gas_used,
+                vec!["Oracle replay bundle is not canonical JSON bytes".to_string()],
+            );
+        }
+
+        if bundle.attestation != oracle_input.attestation {
+            return PredicateResult::failure(
+                gas_used,
+                vec!["Oracle replay bundle attestation does not match predicate input".to_string()],
+            );
+        }
+    }
 
     let attestation = &oracle_input.attestation;
 
@@ -339,6 +403,254 @@ mod tests {
         assert!(
             result.valid,
             "Valid attestation should pass: {:?}",
+            result.errors
+        );
+    }
+
+    #[test]
+    fn test_oracle_canonical_replay_bundle_valid() {
+        let (oracle_pk, oracle_sk) = create_oracle();
+        let contract_id = "test_contract";
+        let oracle_path = "/oracles/delivery.id";
+        let pending_commit_hash = "commit_abc123";
+        let timestamp = 1000;
+
+        let attestation = create_attestation(
+            &oracle_pk,
+            oracle_path,
+            &oracle_sk,
+            "delivery_confirmed",
+            "true",
+            contract_id,
+            pending_commit_hash,
+            timestamp,
+        );
+        let replay_bundle = OracleReplayBundle {
+            predicate: "oracle_attests".to_string(),
+            attestation: attestation.clone(),
+        };
+        let replay_bundle_json =
+            canonical_oracle_replay_bundle_json(&replay_bundle).expect("canonical bundle");
+
+        let input = PredicateInput {
+            data: serde_json::json!({
+                "attestation": attestation,
+                "replay_bundle_json": replay_bundle_json,
+                "expected_claim": "delivery_confirmed",
+                "expected_value": "true",
+                "expected_oracle_path": oracle_path,
+                "expected_pending_commit_hash": pending_commit_hash,
+                "trusted_oracles": [oracle_pk],
+                "max_age_seconds": 0,
+            }),
+            context: super::super::PredicateContext::new(contract_id.to_string(), 0, 1000),
+        };
+
+        let result = evaluate_oracle_attests(&input);
+        assert!(
+            result.valid,
+            "canonical replay bundle should pass: {:?}",
+            result.errors
+        );
+    }
+
+    #[test]
+    fn test_oracle_malformed_replay_bundle_rejected() {
+        let (oracle_pk, oracle_sk) = create_oracle();
+        let contract_id = "test_contract";
+        let attestation = create_attestation(
+            &oracle_pk,
+            "/oracles/delivery.id",
+            &oracle_sk,
+            "delivery_confirmed",
+            "true",
+            contract_id,
+            "commit_abc123",
+            1000,
+        );
+
+        let input = PredicateInput {
+            data: serde_json::json!({
+                "attestation": attestation,
+                "replay_bundle_json": "{\"predicate\":\"oracle_attests\",",
+                "expected_claim": "delivery_confirmed",
+                "expected_value": "true",
+                "expected_oracle_path": "/oracles/delivery.id",
+                "expected_pending_commit_hash": "commit_abc123",
+                "trusted_oracles": [oracle_pk],
+                "max_age_seconds": 0,
+            }),
+            context: super::super::PredicateContext::new(contract_id.to_string(), 0, 1000),
+        };
+
+        let result = evaluate_oracle_attests(&input);
+        assert!(!result.valid, "malformed replay bundle should be rejected");
+        assert!(
+            result
+                .errors
+                .iter()
+                .any(|error| error.contains("Malformed oracle replay bundle")),
+            "malformed replay bundle should explain parse failure: {:?}",
+            result.errors
+        );
+    }
+
+    #[test]
+    fn test_oracle_noncanonical_replay_bundle_rejected() {
+        let (oracle_pk, oracle_sk) = create_oracle();
+        let contract_id = "test_contract";
+        let attestation = create_attestation(
+            &oracle_pk,
+            "/oracles/delivery.id",
+            &oracle_sk,
+            "delivery_confirmed",
+            "true",
+            contract_id,
+            "commit_abc123",
+            1000,
+        );
+        let replay_bundle = OracleReplayBundle {
+            predicate: "oracle_attests".to_string(),
+            attestation: attestation.clone(),
+        };
+        let replay_bundle_json =
+            serde_json::to_string_pretty(&replay_bundle).expect("pretty bundle");
+
+        let input = PredicateInput {
+            data: serde_json::json!({
+                "attestation": attestation,
+                "replay_bundle_json": replay_bundle_json,
+                "expected_claim": "delivery_confirmed",
+                "expected_value": "true",
+                "expected_oracle_path": "/oracles/delivery.id",
+                "expected_pending_commit_hash": "commit_abc123",
+                "trusted_oracles": [oracle_pk],
+                "max_age_seconds": 0,
+            }),
+            context: super::super::PredicateContext::new(contract_id.to_string(), 0, 1000),
+        };
+
+        let result = evaluate_oracle_attests(&input);
+        assert!(
+            !result.valid,
+            "non-canonical replay bundle should be rejected"
+        );
+        assert!(
+            result
+                .errors
+                .iter()
+                .any(|error| error.contains("not canonical JSON bytes")),
+            "non-canonical replay bundle should explain canonical-byte failure: {:?}",
+            result.errors
+        );
+    }
+
+    #[test]
+    fn test_oracle_replay_bundle_attestation_mismatch_rejected() {
+        let (oracle_pk, oracle_sk) = create_oracle();
+        let contract_id = "test_contract";
+        let attestation = create_attestation(
+            &oracle_pk,
+            "/oracles/delivery.id",
+            &oracle_sk,
+            "delivery_confirmed",
+            "true",
+            contract_id,
+            "commit_abc123",
+            1000,
+        );
+        let bundle_attestation = create_attestation(
+            &oracle_pk,
+            "/oracles/delivery.id",
+            &oracle_sk,
+            "delivery_confirmed",
+            "false",
+            contract_id,
+            "commit_abc123",
+            1000,
+        );
+        let replay_bundle = OracleReplayBundle {
+            predicate: "oracle_attests".to_string(),
+            attestation: bundle_attestation,
+        };
+        let replay_bundle_json =
+            canonical_oracle_replay_bundle_json(&replay_bundle).expect("canonical bundle");
+
+        let input = PredicateInput {
+            data: serde_json::json!({
+                "attestation": attestation,
+                "replay_bundle_json": replay_bundle_json,
+                "expected_claim": "delivery_confirmed",
+                "expected_value": "true",
+                "expected_oracle_path": "/oracles/delivery.id",
+                "expected_pending_commit_hash": "commit_abc123",
+                "trusted_oracles": [oracle_pk],
+                "max_age_seconds": 0,
+            }),
+            context: super::super::PredicateContext::new(contract_id.to_string(), 0, 1000),
+        };
+
+        let result = evaluate_oracle_attests(&input);
+        assert!(
+            !result.valid,
+            "mismatched replay-bundle attestation should be rejected"
+        );
+        assert!(
+            result
+                .errors
+                .iter()
+                .any(|error| error.contains("does not match predicate input")),
+            "mismatched replay-bundle attestation should explain mismatch: {:?}",
+            result.errors
+        );
+    }
+
+    #[test]
+    fn test_oracle_replay_bundle_wrong_predicate_rejected() {
+        let (oracle_pk, oracle_sk) = create_oracle();
+        let contract_id = "test_contract";
+        let attestation = create_attestation(
+            &oracle_pk,
+            "/oracles/delivery.id",
+            &oracle_sk,
+            "delivery_confirmed",
+            "true",
+            contract_id,
+            "commit_abc123",
+            1000,
+        );
+        let replay_bundle = OracleReplayBundle {
+            predicate: "hash_matches".to_string(),
+            attestation: attestation.clone(),
+        };
+        let replay_bundle_json =
+            canonical_oracle_replay_bundle_json(&replay_bundle).expect("canonical bundle");
+
+        let input = PredicateInput {
+            data: serde_json::json!({
+                "attestation": attestation,
+                "replay_bundle_json": replay_bundle_json,
+                "expected_claim": "delivery_confirmed",
+                "expected_value": "true",
+                "expected_oracle_path": "/oracles/delivery.id",
+                "expected_pending_commit_hash": "commit_abc123",
+                "trusted_oracles": [oracle_pk],
+                "max_age_seconds": 0,
+            }),
+            context: super::super::PredicateContext::new(contract_id.to_string(), 0, 1000),
+        };
+
+        let result = evaluate_oracle_attests(&input);
+        assert!(
+            !result.valid,
+            "wrong-predicate replay bundle should be rejected"
+        );
+        assert!(
+            result
+                .errors
+                .iter()
+                .any(|error| error.contains("predicate mismatch")),
+            "wrong-predicate replay bundle should explain mismatch: {:?}",
             result.errors
         );
     }

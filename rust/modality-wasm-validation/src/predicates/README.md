@@ -172,12 +172,14 @@ Contracts can reference predicates from other contracts:
 The `oracle_attests` evaluator is unit-tested extension code, not current local
 first-contract replay evidence. Its test input now requires the attestation's
 signed payload to bind the oracle key, oracle path, claim, value, contract id,
-pending commit hash, and timestamp. The evaluator rejects missing oracle-path
-bindings, mismatched oracle paths, missing pending-commit bindings, and
-mismatched pending commit hashes before an oracle claim can pass. A contract-log
-validator still needs an explicit replay-bundle input path, an accepted-state
-oracle-key lookup, canonical artifact bytes, and freshness policy before this
-can be reported as checked validator evidence.
+pending commit hash, and timestamp. When `replay_bundle_json` is supplied, the
+evaluator parses the canonical `oracle_attests` replay-bundle envelope and
+rejects malformed JSON, non-canonical JSON bytes, wrong predicate names, and
+attestations that differ from the predicate input before an oracle claim can
+pass. The evaluator also rejects missing oracle-path bindings, mismatched oracle
+paths, missing pending-commit bindings, and mismatched pending commit hashes. A
+contract-log validator still needs an explicit accepted-state oracle-key lookup
+and freshness policy before this can be reported as checked validator evidence.
 
 ## Creating Custom Predicates
 
