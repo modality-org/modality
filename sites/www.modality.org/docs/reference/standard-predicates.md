@@ -332,12 +332,13 @@ reported as checked instead of missing external evidence.
 The `modality-wasm-validation` extension evaluator now has a unit-tested
 `replay_bundle_json` input boundary for this future artifact path. The bundle
 must be exact compact canonical JSON for an `oracle_attests` envelope carrying
-the same attestation as the predicate input; malformed JSON, pretty-printed or
-otherwise non-canonical bytes, wrong predicate names, and envelope/input
-attestation mismatches fail before signature verification. This is still
-extension-level evidence only until a contract-log validator supplies the
-bundle from replay data and looks up the accepted-state oracle key at
-`oracle_path`.
+the same attestation as the predicate input, and bundle replay must provide a
+positive `max_age_seconds` freshness policy. Missing replay-bundle freshness
+policy, malformed JSON, pretty-printed or otherwise non-canonical bytes, wrong
+predicate names, and envelope/input attestation mismatches fail before signature
+verification. This is still extension-level evidence only until a contract-log
+validator supplies the bundle from replay data and looks up the accepted-state
+oracle key at `oracle_path`.
 
 ## Hash Predicates
 

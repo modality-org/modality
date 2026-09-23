@@ -102,6 +102,16 @@ pub fn evaluate_oracle_attests(input: &PredicateInput) -> PredicateResult {
     };
 
     if let Some(bundle_json) = &oracle_input.replay_bundle_json {
+        if oracle_input.max_age_seconds <= 0 {
+            return PredicateResult::failure(
+                gas_used,
+                vec![
+                    "Oracle replay bundle requires a positive max_age_seconds freshness policy"
+                        .to_string(),
+                ],
+            );
+        }
+
         let bundle: OracleReplayBundle = match serde_json::from_str(bundle_json) {
             Ok(bundle) => bundle,
             Err(e) => {
@@ -441,6 +451,49 @@ mod tests {
                 "expected_oracle_path": oracle_path,
                 "expected_pending_commit_hash": pending_commit_hash,
                 "trusted_oracles": [oracle_pk],
+                "max_age_seconds": 60,
+            }),
+            context: super::super::PredicateContext::new(contract_id.to_string(), 0, 1030),
+        };
+
+        let result = evaluate_oracle_attests(&input);
+        assert!(
+            result.valid,
+            "canonical replay bundle should pass: {:?}",
+            result.errors
+        );
+    }
+
+    #[test]
+    fn test_oracle_replay_bundle_without_freshness_policy_rejected() {
+        let (oracle_pk, oracle_sk) = create_oracle();
+        let contract_id = "test_contract";
+        let attestation = create_attestation(
+            &oracle_pk,
+            "/oracles/delivery.id",
+            &oracle_sk,
+            "delivery_confirmed",
+            "true",
+            contract_id,
+            "commit_abc123",
+            1000,
+        );
+        let replay_bundle = OracleReplayBundle {
+            predicate: "oracle_attests".to_string(),
+            attestation: attestation.clone(),
+        };
+        let replay_bundle_json =
+            canonical_oracle_replay_bundle_json(&replay_bundle).expect("canonical bundle");
+
+        let input = PredicateInput {
+            data: serde_json::json!({
+                "attestation": attestation,
+                "replay_bundle_json": replay_bundle_json,
+                "expected_claim": "delivery_confirmed",
+                "expected_value": "true",
+                "expected_oracle_path": "/oracles/delivery.id",
+                "expected_pending_commit_hash": "commit_abc123",
+                "trusted_oracles": [oracle_pk],
                 "max_age_seconds": 0,
             }),
             context: super::super::PredicateContext::new(contract_id.to_string(), 0, 1000),
@@ -448,8 +501,15 @@ mod tests {
 
         let result = evaluate_oracle_attests(&input);
         assert!(
-            result.valid,
-            "canonical replay bundle should pass: {:?}",
+            !result.valid,
+            "replay bundle without a freshness policy should be rejected"
+        );
+        assert!(
+            result
+                .errors
+                .iter()
+                .any(|error| error.contains("positive max_age_seconds freshness policy")),
+            "missing replay-bundle freshness policy should explain the boundary: {:?}",
             result.errors
         );
     }
@@ -478,7 +538,7 @@ mod tests {
                 "expected_oracle_path": "/oracles/delivery.id",
                 "expected_pending_commit_hash": "commit_abc123",
                 "trusted_oracles": [oracle_pk],
-                "max_age_seconds": 0,
+                "max_age_seconds": 60,
             }),
             context: super::super::PredicateContext::new(contract_id.to_string(), 0, 1000),
         };
@@ -525,7 +585,7 @@ mod tests {
                 "expected_oracle_path": "/oracles/delivery.id",
                 "expected_pending_commit_hash": "commit_abc123",
                 "trusted_oracles": [oracle_pk],
-                "max_age_seconds": 0,
+                "max_age_seconds": 60,
             }),
             context: super::super::PredicateContext::new(contract_id.to_string(), 0, 1000),
         };
@@ -585,7 +645,7 @@ mod tests {
                 "expected_oracle_path": "/oracles/delivery.id",
                 "expected_pending_commit_hash": "commit_abc123",
                 "trusted_oracles": [oracle_pk],
-                "max_age_seconds": 0,
+                "max_age_seconds": 60,
             }),
             context: super::super::PredicateContext::new(contract_id.to_string(), 0, 1000),
         };
@@ -635,7 +695,7 @@ mod tests {
                 "expected_oracle_path": "/oracles/delivery.id",
                 "expected_pending_commit_hash": "commit_abc123",
                 "trusted_oracles": [oracle_pk],
-                "max_age_seconds": 0,
+                "max_age_seconds": 60,
             }),
             context: super::super::PredicateContext::new(contract_id.to_string(), 0, 1000),
         };
