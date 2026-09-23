@@ -96,6 +96,27 @@ as `oracle_attests`, `hash_matches`, `timestamp_valid`, `before`, `after`, and
 until a validator path documents the replay artifact, trust root, and negative
 tests for that evidence source.
 
+## Replay-Bound External Evidence
+
+The first external artifact format should be for `oracle_attests`, because the
+public examples already use that predicate vocabulary. Treat this as a review
+boundary, not an implemented validator feature. A future validator path may
+accept `oracle_attests(/oracles/delivery.id, "delivered", "true")` only from a
+canonical attestation artifact that is included in the replay bundle and binds:
+
+- The contract id or genesis hash.
+- The pending commit hash.
+- The predicate name, oracle path, claim, and value.
+- The oracle public-key path and signature over the canonical artifact bytes.
+- The issuance time plus a freshness or expiry policy.
+
+Before that support can count as verifier evidence, negative tests must reject
+artifacts with the wrong contract id, stale or future timestamps, missing
+pending-commit binding, mismatched predicate arguments, an oracle key that does
+not match accepted state at the oracle path, and malformed or non-canonical
+bytes. Until those tests exist, rejection output must keep saying external
+evidence is not available rather than implying an oracle claim was checked.
+
 ## Current Executable Coverage
 
 The onboarding smoke preserves the first-contract rejection surface in
