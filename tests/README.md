@@ -48,10 +48,14 @@ both the default contract CLI dependency tree and the lean `modal` onboarding
 wrapper avoid onboarding-heavy network/storage/compression deps. It also runs the
 first-contract CLI wrapper smoke when both `rust/target/debug/modal` and
 `rust/target/debug/modality` exist, or when `MODAL_BIN=/path/to/modal` and
-`MODALITY_BIN=/path/to/modality` point at built binaries. When a `modal`
-binary is present, it also checks that the real `modal --version` output emits
-one unambiguous line identifying the wrapper and that the `modal --help` surface
-matches the selected onboarding shape: lean builds must expose the
+`MODALITY_BIN=/path/to/modality` point at built binaries. Before the direct
+first-contract smoke runs any contract commands, it also requires `modal
+--version` and `modality --version` to each emit one unambiguous line
+identifying the expected CLI, so a swapped helper binary cannot anchor
+onboarding evidence. When a `modal` binary is present, it also checks that the
+real `modal --version` output emits one unambiguous line identifying the wrapper
+and that the `modal --help` surface matches the selected onboarding shape: lean
+builds must expose the
 first-contract commands and omit full runtime groups, while
 `MODAL_ONBOARDING_FEATURES=full` expects those runtime groups to be present.
 The first-contract CLI smoke synthesizes the

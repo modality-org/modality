@@ -37,6 +37,9 @@ required_test_readme_patterns=(
   "MODAL_RUNTIME_WORKFLOW_CHECK=1 MODALITY_ONBOARDING_BUILD=1 MODAL_ONBOARDING_BUILD=1 tests/run-onboarding-smokes.sh"
   "tests/cli/run-first-contract-cli-smoke.sh"
   "tests/cli/run-contract-evolution-cli-smoke.sh"
+  "Before the direct"
+  "first-contract smoke runs any contract commands"
+  "swapped helper binary cannot anchor"
 )
 
 for pattern in "${required_test_readme_patterns[@]}"; do
@@ -50,6 +53,10 @@ required_cli_readme_patterns=(
   "The first-contract and contract-evolution smokes are the canonical local"
   "runtime workflow checkpoint."
   "They cover create, identity setup,"
+  "Before contract setup starts"
+  "modal --version"
+  "modality --version"
+  "swapped binaries"
   "checkout replay"
   "synthesis-backed witness validation, commit,"
   "status, log,"
@@ -90,6 +97,8 @@ done
 
 required_first_contract_patterns=(
   'contract create'
+  'capture_version_line "$MODAL_BIN" modal modal'
+  'capture_version_line "$MODALITY_BIN" modality modality'
   'set-named-id /parties/alice.id'
   'model synthesize'
   'model validate'

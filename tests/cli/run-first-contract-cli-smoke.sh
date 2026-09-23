@@ -34,6 +34,41 @@ EOF
   exit 2
 fi
 
+capture_version_line() {
+  local binary="$1"
+  local expected_prefix="$2"
+  local label="$3"
+  local output_path
+  local status
+
+  output_path="$(mktemp)"
+  status=0
+  "$binary" --version >"$output_path" || status=$?
+  if [[ "$status" -ne 0 ]]; then
+    echo "$label --version failed with status $status" >&2
+    cat "$output_path" >&2 || true
+    rm -f "$output_path"
+    exit 1
+  fi
+
+  mapfile -t version_lines <"$output_path"
+  rm -f "$output_path"
+  if [[ "${#version_lines[@]}" -ne 1 ]]; then
+    echo "$label version output is not a single line" >&2
+    printf '%s\n' "${version_lines[@]}" >&2
+    exit 1
+  fi
+
+  if [[ ! "${version_lines[0]}" =~ ^${expected_prefix}[[:space:]][0-9] ]]; then
+    echo "$label version output does not identify $expected_prefix" >&2
+    printf '%s\n' "${version_lines[0]}" >&2
+    exit 1
+  fi
+}
+
+capture_version_line "$MODAL_BIN" modal modal
+capture_version_line "$MODALITY_BIN" modality modality
+
 TMP_DIR="$(mktemp -d)"
 cleanup() {
   rm -rf "$TMP_DIR"

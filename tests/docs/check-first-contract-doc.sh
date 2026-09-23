@@ -124,6 +124,11 @@ fi
 
 first_contract_smoke_patterns=(
   "authorized-rule-lint.out"
+  "capture_version_line"
+  'capture_version_line "$MODAL_BIN" modal modal'
+  'capture_version_line "$MODALITY_BIN" modality modality'
+  "version output is not a single line"
+  "version output does not identify"
   "1 formula(s) lint-clean"
   "# Modality Synthesis Review Bundle"
   'Status: passed (\`--verify\`)'

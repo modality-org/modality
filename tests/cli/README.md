@@ -14,11 +14,15 @@ tests/cli/run-first-contract-cli-smoke.sh
 ```
 
 The smoke uses the source-built lean onboarding `modal` binary plus the
-language `modality` binary to create a contract, create Alice and Bob passfiles,
-write their `.id` files into contract state, synthesize and verify the
-governing witness model with a review bundle, commit the accepted artifacts
-without a signature, replay accepted state with checkout, and inspect status
-plus log output. The status check asserts that both JSON and text output report
+language `modality` binary. Before contract setup starts, it requires `modal
+--version` and `modality --version` to each emit one unambiguous line
+identifying the expected CLI, so copied helper scripts or swapped binaries
+cannot anchor first-contract evidence. It then creates a contract, creates
+Alice and Bob passfiles, writes their `.id` files into contract state,
+synthesizes and verifies the governing witness model with a review bundle,
+commits the accepted artifacts without a signature, replays accepted state with
+checkout, and inspects status plus log output. The status check asserts that
+both JSON and text output report
 the replayed governing model state as `q1`, while the log check asserts that
 the unsigned onboarding commit exposes the commit message in both JSON and text
 output. Together
