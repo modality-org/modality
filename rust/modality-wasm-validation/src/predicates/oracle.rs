@@ -24,6 +24,8 @@ pub struct OracleAttestation {
     pub value: String,
     /// Contract ID this attestation applies to
     pub contract_id: String,
+    /// Pending commit hash this attestation applies to
+    pub pending_commit_hash: String,
     /// Timestamp of attestation (Unix epoch)
     pub timestamp: i64,
     /// Oracle's signature over the attestation data (hex-encoded)
@@ -42,6 +44,8 @@ impl OracleAttestation {
         hasher.update(b"|");
         hasher.update(self.contract_id.as_bytes());
         hasher.update(b"|");
+        hasher.update(self.pending_commit_hash.as_bytes());
+        hasher.update(b"|");
         hasher.update(self.timestamp.to_le_bytes());
         hasher.finalize().to_vec()
     }
@@ -56,6 +60,8 @@ pub struct OracleAttestsInput {
     pub expected_claim: String,
     /// Expected value (must match attestation.value)  
     pub expected_value: Option<String>,
+    /// Expected pending commit hash from the replay context
+    pub expected_pending_commit_hash: String,
     /// List of trusted oracle public keys (hex-encoded)
     pub trusted_oracles: Vec<String>,
     /// Maximum age of attestation in seconds (0 = no limit)
@@ -142,6 +148,17 @@ pub fn evaluate_oracle_attests(input: &PredicateInput) -> PredicateResult {
         );
     }
 
+    // Check pending commit binding matches the replay context supplied to this predicate.
+    if attestation.pending_commit_hash != oracle_input.expected_pending_commit_hash {
+        return PredicateResult::failure(
+            gas_used,
+            vec![format!(
+                "Pending commit hash mismatch: attestation for '{}', current '{}'",
+                attestation.pending_commit_hash, oracle_input.expected_pending_commit_hash
+            )],
+        );
+    }
+
     // Verify signature
     let pubkey_bytes = match hex::decode(&attestation.oracle_pubkey) {
         Ok(b) => b,
@@ -211,6 +228,7 @@ pub fn evaluate_oracle_bool(input: &PredicateInput) -> PredicateResult {
             "attestation": oracle_input.attestation,
             "expected_claim": oracle_input.attestation.claim.clone(),
             "expected_value": "true",
+            "expected_pending_commit_hash": oracle_input.attestation.pending_commit_hash.clone(),
             "trusted_oracles": oracle_input.trusted_oracles,
             "max_age_seconds": oracle_input.max_age_seconds,
         }),
@@ -245,6 +263,7 @@ mod tests {
         claim: &str,
         value: &str,
         contract_id: &str,
+        pending_commit_hash: &str,
         timestamp: i64,
     ) -> OracleAttestation {
         let mut attestation = OracleAttestation {
@@ -252,6 +271,7 @@ mod tests {
             claim: claim.to_string(),
             value: value.to_string(),
             contract_id: contract_id.to_string(),
+            pending_commit_hash: pending_commit_hash.to_string(),
             timestamp,
             signature: String::new(),
         };
@@ -267,6 +287,7 @@ mod tests {
     fn test_oracle_attestation_valid() {
         let (oracle_pk, oracle_sk) = create_oracle();
         let contract_id = "test_contract";
+        let pending_commit_hash = "commit_abc123";
         let timestamp = 1000;
 
         let attestation = create_attestation(
@@ -275,6 +296,7 @@ mod tests {
             "delivery_confirmed",
             "true",
             contract_id,
+            pending_commit_hash,
             timestamp,
         );
 
@@ -283,6 +305,7 @@ mod tests {
                 "attestation": attestation,
                 "expected_claim": "delivery_confirmed",
                 "expected_value": "true",
+                "expected_pending_commit_hash": pending_commit_hash,
                 "trusted_oracles": [oracle_pk],
                 "max_age_seconds": 0,  // No age limit
             }),
@@ -309,6 +332,7 @@ mod tests {
             "delivery_confirmed",
             "true",
             contract_id,
+            "commit_abc123",
             1000,
         );
 
@@ -317,6 +341,7 @@ mod tests {
                 "attestation": attestation,
                 "expected_claim": "delivery_confirmed",
                 "expected_value": "true",
+                "expected_pending_commit_hash": "commit_abc123",
                 "trusted_oracles": [other_pk],  // Different oracle trusted
                 "max_age_seconds": 0,
             }),
@@ -338,6 +363,7 @@ mod tests {
             "delivery_confirmed",
             "true",
             contract_id,
+            "commit_abc123",
             1000, // Old timestamp
         );
 
@@ -346,6 +372,7 @@ mod tests {
                 "attestation": attestation,
                 "expected_claim": "delivery_confirmed",
                 "expected_value": "true",
+                "expected_pending_commit_hash": "commit_abc123",
                 "trusted_oracles": [oracle_pk],
                 "max_age_seconds": 60,  // Max 60 seconds old
             }),
@@ -366,6 +393,7 @@ mod tests {
             "delivery_confirmed",
             "true",
             "contract_A", // Attestation for contract A
+            "commit_abc123",
             1000,
         );
 
@@ -374,6 +402,7 @@ mod tests {
                 "attestation": attestation,
                 "expected_claim": "delivery_confirmed",
                 "expected_value": "true",
+                "expected_pending_commit_hash": "commit_abc123",
                 "trusted_oracles": [oracle_pk],
                 "max_age_seconds": 0,
             }),
@@ -399,6 +428,7 @@ mod tests {
             "delivery_confirmed",
             "true",
             contract_id,
+            "commit_abc123",
             1000,
         );
 
@@ -407,6 +437,7 @@ mod tests {
                 "attestation": attestation,
                 "expected_claim": "delivery_confirmed",
                 "expected_value": "true",
+                "expected_pending_commit_hash": "commit_abc123",
                 "trusted_oracles": [oracle_pk],
                 "max_age_seconds": 0,
             }),
@@ -415,5 +446,93 @@ mod tests {
 
         let result = evaluate_oracle_attests(&input);
         assert!(!result.valid, "Forged signature should be rejected");
+    }
+
+    #[test]
+    fn test_oracle_wrong_pending_commit_hash_rejected() {
+        let (oracle_pk, oracle_sk) = create_oracle();
+        let contract_id = "test_contract";
+
+        let attestation = create_attestation(
+            &oracle_pk,
+            &oracle_sk,
+            "delivery_confirmed",
+            "true",
+            contract_id,
+            "commit_abc123",
+            1000,
+        );
+
+        let input = PredicateInput {
+            data: serde_json::json!({
+                "attestation": attestation,
+                "expected_claim": "delivery_confirmed",
+                "expected_value": "true",
+                "expected_pending_commit_hash": "commit_def456",
+                "trusted_oracles": [oracle_pk],
+                "max_age_seconds": 0,
+            }),
+            context: super::super::PredicateContext::new(contract_id.to_string(), 0, 1000),
+        };
+
+        let result = evaluate_oracle_attests(&input);
+        assert!(
+            !result.valid,
+            "Wrong pending commit hash should be rejected"
+        );
+        assert!(
+            result
+                .errors
+                .iter()
+                .any(|error| error.contains("Pending commit hash mismatch")),
+            "wrong pending commit hash should explain the replay binding failure: {:?}",
+            result.errors
+        );
+    }
+
+    #[test]
+    fn test_oracle_missing_pending_commit_hash_rejected() {
+        let (oracle_pk, oracle_sk) = create_oracle();
+        let contract_id = "test_contract";
+        let attestation = create_attestation(
+            &oracle_pk,
+            &oracle_sk,
+            "delivery_confirmed",
+            "true",
+            contract_id,
+            "commit_abc123",
+            1000,
+        );
+        let mut value = serde_json::to_value(attestation).expect("serialize attestation");
+        value
+            .as_object_mut()
+            .expect("attestation object")
+            .remove("pending_commit_hash");
+
+        let input = PredicateInput {
+            data: serde_json::json!({
+                "attestation": value,
+                "expected_claim": "delivery_confirmed",
+                "expected_value": "true",
+                "expected_pending_commit_hash": "commit_abc123",
+                "trusted_oracles": [oracle_pk],
+                "max_age_seconds": 0,
+            }),
+            context: super::super::PredicateContext::new(contract_id.to_string(), 0, 1000),
+        };
+
+        let result = evaluate_oracle_attests(&input);
+        assert!(
+            !result.valid,
+            "Missing pending commit hash should be rejected"
+        );
+        assert!(
+            result
+                .errors
+                .iter()
+                .any(|error| error.contains("missing field `pending_commit_hash`")),
+            "missing pending commit hash should fail closed during input parsing: {:?}",
+            result.errors
+        );
     }
 }
