@@ -264,7 +264,7 @@ fn print_report(opts: &Opts, artifact: &ReplayArtifact, report: &ReplayReport) -
 #[cfg(feature = "wasm")]
 pub(crate) struct CliWasmEngine;
 
-#[cfg(feature = "wasm")]
+#[cfg(all(feature = "wasm", feature = "model-status"))]
 pub(crate) fn prefix_from_store(store: &ContractStore) -> Result<Vec<(String, CommitFile)>> {
     let through = store
         .get_head()?
@@ -312,6 +312,7 @@ impl InvokeEngine for CliWasmEngine {
             commit_id: ctx.commit_id.clone(),
             parent_commit_id: ctx.parent_commit_id.clone(),
             state: Value::Object(ctx.state.clone()),
+            accepted_state_oracle_keys: ctx.accepted_state_oracle_keys.clone(),
         };
         let input_json = encode_program_input(args.clone(), context)?;
         let mut executor = WasmExecutor::new(wasm.gas_limit);

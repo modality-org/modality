@@ -37,6 +37,7 @@ pub fn program_context_from_frozen(ctx: &FrozenInvokeContext) -> ProgramContext 
         commit_id: ctx.commit_id.clone(),
         parent_commit_id: ctx.parent_commit_id.clone(),
         state: Value::Object(ctx.state.clone()),
+        accepted_state_oracle_keys: ctx.accepted_state_oracle_keys.clone(),
     }
 }
 
@@ -100,5 +101,46 @@ impl InvokeEngine for WasmInvokeEngine {
                 source_commit: None,
             })
             .collect())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::Map;
+    use std::collections::BTreeMap;
+
+    #[test]
+    fn program_context_preserves_replayed_oracle_key_map() {
+        let mut accepted_state_oracle_keys = BTreeMap::new();
+        accepted_state_oracle_keys.insert(
+            "/oracles/delivery.id".to_string(),
+            "delivery_oracle_key".to_string(),
+        );
+        let ctx = FrozenInvokeContext {
+            contract_id: "contract-1".to_string(),
+            commit_id: "pending".to_string(),
+            parent_commit_id: Some("accepted".to_string()),
+            block_height: 3,
+            timestamp: FROZEN_INVOKE_TIMESTAMP,
+            invoker: "alice_key".to_string(),
+            state: Map::new(),
+            accepted_state_oracle_keys,
+        };
+
+        let program_context = program_context_from_frozen(&ctx);
+
+        assert_eq!(
+            program_context
+                .accepted_state_oracle_keys
+                .get("/oracles/delivery.id")
+                .map(String::as_str),
+            Some("delivery_oracle_key")
+        );
+        assert_eq!(program_context.commit_id, "pending");
+        assert_eq!(
+            program_context.parent_commit_id.as_deref(),
+            Some("accepted")
+        );
     }
 }

@@ -342,15 +342,18 @@ the looked-up key to match the bundle attestation before signature verification.
 The `modality-common` replay helpers now derive `accepted_state_oracle_keys`
 from the actual accepted contract state by reading string values posted at
 `/oracles/**/*.id` paths, after updates and deletes are applied, before a
-pending commit is expanded or checked.
+pending commit is expanded or checked. The CLI and validator WASM program
+context now carries that derived map as `context.accepted_state_oracle_keys`,
+so replayed invoke programs can build oracle replay bundles from the same
+accepted-state key material the verifier will check.
 Missing replay-bundle freshness policy, bundle/input freshness mismatches,
 missing accepted-state oracle-key lookup maps or path entries, malformed
 accepted-state oracle-key material, scalar/key-map mismatches, accepted-state
 oracle-key mismatches, malformed JSON, pretty-printed or otherwise
 non-canonical bytes, wrong predicate names, and envelope/input attestation
 mismatches fail before signature verification. This is still extension-level
-evidence only until a contract-log validator supplies the replay-bundle and
-accepted-state oracle-key map from replayed state.
+evidence only until a contract-log validator passes the replay bundle to the
+oracle predicate evaluator.
 
 ## Hash Predicates
 

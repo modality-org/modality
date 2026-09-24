@@ -50,6 +50,7 @@ mod tests {
             commit_id: String::new(),
             parent_commit_id: None,
             state: json!({}),
+            accepted_state_oracle_keys: Default::default(),
         };
 
         let encoded = encode_program_input(args, context).unwrap();

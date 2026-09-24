@@ -2,6 +2,7 @@ pub mod bindings;
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::collections::BTreeMap;
 
 /// Input structure for WASM programs
 /// Programs receive arguments and execution context
@@ -18,8 +19,10 @@ pub struct ProgramInput {
 /// Frozen host ABI (v1): JSON input is `{ "args": ..., "context": ... }`.
 /// `timestamp` is always 0 (not wall-clock). `block_height` is the sequenced
 /// prefix length before this commit. `invoker` is the lexicographically first
-/// signature public key. `state` is accepted contract paths. No host I/O or
-/// extra host functions besides `env.abort`.
+/// signature public key. `state` is accepted contract paths.
+/// `accepted_state_oracle_keys` is derived from accepted `/oracles/**/*.id`
+/// state before the pending commit is expanded. No host I/O or extra host
+/// functions besides `env.abort`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProgramContext {
     /// Contract ID being executed
@@ -39,6 +42,9 @@ pub struct ProgramContext {
     /// Accepted contract state. Keys are `/`-prefixed paths.
     #[serde(default)]
     pub state: Value,
+    /// Accepted-state oracle keys derived from `/oracles/**/*.id` paths.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub accepted_state_oracle_keys: BTreeMap<String, String>,
 }
 
 pub const HOST_ABI_VERSION: u32 = 1;
@@ -121,6 +127,7 @@ mod tests {
                 commit_id: "c1".to_string(),
                 parent_commit_id: None,
                 state: json!({}),
+                accepted_state_oracle_keys: BTreeMap::new(),
             },
         };
 
@@ -129,6 +136,46 @@ mod tests {
 
         assert_eq!(deserialized.context.contract_id, "test_contract");
         assert_eq!(deserialized.context.block_height, 42);
+        assert!(deserialized.context.accepted_state_oracle_keys.is_empty());
+    }
+
+    #[test]
+    fn test_program_input_carries_accepted_state_oracle_keys() {
+        let mut accepted_state_oracle_keys = BTreeMap::new();
+        accepted_state_oracle_keys.insert(
+            "/oracles/delivery.id".to_string(),
+            "delivery_oracle_key".to_string(),
+        );
+        let input = ProgramInput {
+            args: json!({}),
+            context: ProgramContext {
+                contract_id: "test_contract".to_string(),
+                block_height: 7,
+                timestamp: 0,
+                invoker: "user_public_key".to_string(),
+                commit_id: "pending".to_string(),
+                parent_commit_id: Some("accepted".to_string()),
+                state: json!({
+                    "/oracles/delivery.id": "delivery_oracle_key",
+                    "/notes/status.text": "ready"
+                }),
+                accepted_state_oracle_keys,
+            },
+        };
+
+        let json_str = serde_json::to_string(&input).unwrap();
+        assert!(json_str.contains("accepted_state_oracle_keys"));
+        assert!(json_str.contains("/oracles/delivery.id"));
+
+        let deserialized: ProgramInput = serde_json::from_str(&json_str).unwrap();
+        assert_eq!(
+            deserialized
+                .context
+                .accepted_state_oracle_keys
+                .get("/oracles/delivery.id")
+                .map(String::as_str),
+            Some("delivery_oracle_key")
+        );
     }
 
     #[test]

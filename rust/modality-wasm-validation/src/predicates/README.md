@@ -184,10 +184,13 @@ requires the bundle attestation to match that looked-up key. That evaluator
 boundary is paired with `modality-common` replay helpers that derive
 `accepted_state_oracle_keys` from the actual accepted contract state by reading
 string values posted at `/oracles/**/*.id` paths, after updates and deletes are
-applied, before a pending commit is expanded or checked. This does not yet make
-`oracle_attests` first-contract-local validator evidence; local and hub replay
-still report it as missing external evidence until replay bundles are passed
-through that validator path. The evaluator
+applied, before a pending commit is expanded or checked. The CLI and validator
+WASM program context now carries that derived map as
+`context.accepted_state_oracle_keys`, so replayed invoke programs can build
+oracle replay bundles from the same accepted-state key material the verifier
+will check. This does not yet make `oracle_attests` first-contract-local
+validator evidence; local and hub replay still report it as missing external
+evidence until replay bundles are passed through that validator path. The evaluator
 rejects missing replay-bundle freshness policies, bundle/input freshness
 mismatches, missing accepted-state oracle-key lookup maps or path entries,
 malformed accepted-state oracle keys, scalar/key-map mismatches, accepted-state
@@ -195,8 +198,8 @@ oracle key mismatches, malformed JSON, non-canonical JSON bytes, wrong predicate
 names, and attestations that differ from the predicate input before an oracle
 claim can pass. The evaluator also rejects missing oracle-path bindings,
 mismatched oracle paths, missing pending-commit bindings, and mismatched pending
-commit hashes. A contract-log validator still needs to supply the accepted-state
-oracle-key map from replayed state before this can be reported as checked
+commit hashes. A contract-log validator still needs to pass the replay bundle
+to the oracle predicate evaluator before this can be reported as checked
 validator evidence.
 
 ## Creating Custom Predicates
