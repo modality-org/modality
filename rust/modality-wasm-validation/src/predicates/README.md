@@ -194,8 +194,11 @@ replay-evidence handoff that injects those replay-derived oracle keys into an
 `replay_bundle_json`, and it preserves any explicit predicate-supplied key map
 instead of overwriting it. This does not yet make `oracle_attests`
 first-contract-local validator evidence; local and hub replay still report it
-as missing external evidence until the contract-log replay path supplies and
-evaluates replay bundles through that handoff. The evaluator rejects missing
+as missing external evidence until the contract-log replay path supplies replay
+bundles end to end. The contract processor now has a replay-state-aware
+predicate evaluation entry point that derives the parent commit's accepted-state
+oracle-key map from the sequenced parent chain and routes replay-bundle
+predicate input through that handoff. The evaluator rejects missing
 replay-bundle freshness policies, bundle/input freshness
 mismatches, missing accepted-state oracle-key lookup maps or path entries,
 malformed accepted-state oracle keys, scalar/key-map mismatches, accepted-state

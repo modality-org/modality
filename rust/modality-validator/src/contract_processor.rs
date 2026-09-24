@@ -4,13 +4,15 @@ use crate::program_executor::ProgramExecutor;
 use anyhow::Result;
 use modality_common::contract_store::CommitFile;
 use modality_common::independent_replay::{
-    commit_has_invoke, expand_prefix, frozen_invoke_context, wasm_modules_from_commits, ReplayWasm,
+    accepted_state_oracle_keys_from_commits, commit_has_invoke, expand_prefix,
+    frozen_invoke_context, wasm_modules_from_commits, ReplayWasm,
 };
 use modality_datastore::models::{AssetBalance, Commit, ContractAsset, ReceivedSend, WasmModule};
 use modality_datastore::DatastoreManager;
 use modality_wasm_runtime::{WasmExecutor, DEFAULT_GAS_LIMIT};
 use modality_wasm_validation::PredicateContext;
 use serde_json::Value;
+use std::collections::BTreeMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
@@ -689,6 +691,51 @@ impl ContractProcessor {
         block_height: u64,
         timestamp: u64,
     ) -> Result<String> {
+        self.evaluate_predicate_with_accepted_state_oracle_keys(
+            contract_id,
+            predicate_path,
+            args,
+            block_height,
+            timestamp,
+            &BTreeMap::new(),
+        )
+        .await
+    }
+
+    /// Evaluate a predicate while binding replay-bundle oracle evidence to the
+    /// accepted state at the pending commit's parent.
+    pub async fn evaluate_predicate_against_parent_replay_state(
+        &self,
+        contract_id: &str,
+        parent_commit_id: Option<&str>,
+        predicate_path: &str,
+        args: Value,
+        block_height: u64,
+        timestamp: u64,
+    ) -> Result<String> {
+        let accepted_state_oracle_keys = self
+            .accepted_state_oracle_keys_for_parent_chain(contract_id, parent_commit_id)
+            .await?;
+        self.evaluate_predicate_with_accepted_state_oracle_keys(
+            contract_id,
+            predicate_path,
+            args,
+            block_height,
+            timestamp,
+            &accepted_state_oracle_keys,
+        )
+        .await
+    }
+
+    async fn evaluate_predicate_with_accepted_state_oracle_keys(
+        &self,
+        contract_id: &str,
+        predicate_path: &str,
+        args: Value,
+        block_height: u64,
+        timestamp: u64,
+        accepted_state_oracle_keys: &BTreeMap<String, String>,
+    ) -> Result<String> {
         // Extract predicate name from path for proposition
         let predicate_name = WasmModule::module_name_from_path(predicate_path)
             .ok_or_else(|| anyhow::anyhow!("Invalid predicate path: {}", predicate_path))?;
@@ -701,16 +748,42 @@ impl ContractProcessor {
         };
 
         // Execute the predicate
-        let result = self
-            .predicate_executor
-            .evaluate_predicate(contract_id, predicate_path, args, context)
-            .await?;
+        let result = if accepted_state_oracle_keys.is_empty() {
+            self.predicate_executor
+                .evaluate_predicate(contract_id, predicate_path, args, context)
+                .await?
+        } else {
+            self.predicate_executor
+                .evaluate_predicate_with_oracle_replay_evidence(
+                    contract_id,
+                    predicate_path,
+                    args,
+                    context,
+                    accepted_state_oracle_keys,
+                )
+                .await?
+        };
 
         // Convert result to proposition string
         Ok(PredicateExecutor::result_to_proposition(
             &predicate_name,
             &result,
         ))
+    }
+
+    async fn accepted_state_oracle_keys_for_parent_chain(
+        &self,
+        contract_id: &str,
+        parent_commit_id: Option<&str>,
+    ) -> Result<BTreeMap<String, String>> {
+        let accepted_raw = {
+            let ds = self.datastore.lock().await;
+            crate::sequenced_rules::load_sequenced_parent_chain(&ds, contract_id, parent_commit_id)
+                .await?
+        };
+        let accepted_files: Vec<CommitFile> =
+            accepted_raw.iter().map(|(_, file)| file.clone()).collect();
+        Ok(accepted_state_oracle_keys_from_commits(&accepted_files))
     }
 
     /// Process a POST action during consensus
@@ -1718,6 +1791,86 @@ model FirstContract {
         let mut commit = Commit::find_one_multi(&ds, keys).await.unwrap().unwrap();
         commit.in_batch = Some(batch.to_string());
         commit.save_to_final(&ds).await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn replay_predicate_state_derives_oracle_keys_from_sequenced_parent_chain() {
+        let datastore = Arc::new(Mutex::new(DatastoreManager::create_in_memory().unwrap()));
+        let processor = ContractProcessor::new(datastore.clone());
+
+        let install_oracles = serde_json::json!({
+            "body": [
+                {
+                    "method": "post",
+                    "path": "/oracles/delivery.id",
+                    "value": "delivery-key-v1"
+                },
+                {
+                    "method": "post",
+                    "path": "/oracles/backup.id",
+                    "value": "backup-key"
+                },
+                {
+                    "method": "post",
+                    "path": "/not-oracles/delivery.id",
+                    "value": "ignored-key"
+                }
+            ],
+            "head": {}
+        });
+        sequence_commit(
+            &processor,
+            &datastore,
+            "c1",
+            "oracle-install",
+            &install_oracles.to_string(),
+            "batch-1",
+        )
+        .await;
+
+        let update_oracles = serde_json::json!({
+            "body": [
+                {
+                    "method": "post",
+                    "path": "/oracles/delivery.id",
+                    "value": "delivery-key-v2"
+                },
+                {
+                    "method": "delete",
+                    "path": "/oracles/backup.id",
+                    "value": null
+                }
+            ],
+            "head": {
+                "parent": "oracle-install"
+            }
+        });
+        sequence_commit(
+            &processor,
+            &datastore,
+            "c1",
+            "oracle-update",
+            &update_oracles.to_string(),
+            "batch-2",
+        )
+        .await;
+
+        let keys = processor
+            .accepted_state_oracle_keys_for_parent_chain("c1", Some("oracle-update"))
+            .await
+            .unwrap();
+        assert_eq!(
+            keys.get("/oracles/delivery.id").map(String::as_str),
+            Some("delivery-key-v2")
+        );
+        assert!(!keys.contains_key("/oracles/backup.id"));
+        assert!(!keys.contains_key("/not-oracles/delivery.id"));
+
+        let empty = processor
+            .accepted_state_oracle_keys_for_parent_chain("c1", None)
+            .await
+            .unwrap();
+        assert!(empty.is_empty());
     }
 
     #[tokio::test]

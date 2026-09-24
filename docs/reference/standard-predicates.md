@@ -350,14 +350,17 @@ The validator predicate executor now also has an explicit replay-evidence
 handoff that injects those replay-derived oracle keys into an `oracle_attests`
 predicate input only when that input already carries `replay_bundle_json`, and
 it preserves any explicit predicate-supplied key map instead of overwriting it.
+The contract processor now has a replay-state-aware predicate evaluation entry
+point that derives the parent commit's accepted-state oracle-key map from the
+sequenced parent chain and routes replay-bundle predicate input through that
+handoff.
 Missing replay-bundle freshness policy, bundle/input freshness mismatches,
 missing accepted-state oracle-key lookup maps or path entries, malformed
 accepted-state oracle-key material, scalar/key-map mismatches, accepted-state
 oracle-key mismatches, malformed JSON, pretty-printed or otherwise
 non-canonical bytes, wrong predicate names, and envelope/input attestation
 mismatches fail before signature verification. This is still extension-level
-evidence only until a contract-log validator supplies and evaluates replay
-bundles through that handoff.
+evidence only until contract-log replay supplies replay bundles end to end.
 
 ## Hash Predicates
 
