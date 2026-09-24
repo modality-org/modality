@@ -74,7 +74,23 @@ pub async fn handler(
         to: peer_id,
         ack,
     };
-    consensus_tx.send(msg).await?;
+    // The networking task calls this while holding the datastore lock.
+    // Waiting on the bounded consensus channel deadlocks the Shoal loop,
+    // which is that channel's consumer and also needs the lock.
+    match consensus_tx.try_send(msg) {
+        Ok(()) => {}
+        Err(mpsc::error::TrySendError::Full(_)) => {
+            log::warn!("consensus channel full; dropping block ack so the node can keep serving");
+            return Ok(Response {
+                ok: false,
+                data: None,
+                errors: Some(serde_json::json!({"error": "consensus channel full"})),
+            });
+        }
+        Err(mpsc::error::TrySendError::Closed(_)) => {
+            anyhow::bail!("consensus channel closed");
+        }
+    }
 
     Ok(response)
 }

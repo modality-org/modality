@@ -137,6 +137,7 @@ async fn status_json_handler(
         "peer_id": status.peerid,
         "role": status.role_display,
         "height": status.total_miner_blocks,
+        "chain_tip": status.chain_tip,
         "epoch": status.current_epoch,
         "blocks_per_epoch": status.blocks_per_epoch,
         "peers": status.connected_peers,

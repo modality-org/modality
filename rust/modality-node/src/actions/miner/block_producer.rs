@@ -92,18 +92,20 @@ pub async fn mine_and_gossip_block(
     });
     chain.miner = custom_miner;
 
-    // Check if block already exists
-    if index < chain.height() + 1 && index < chain.blocks.len() as u64 {
+    // Tip index, not `blocks.len() - 1`. A missing earlier index makes
+    // those differ, and the miner then asks for tip+1 while this check
+    // demands len, so it retries the same mismatch forever.
+    let tip = chain.tip_index();
+    if index <= tip {
         log::warn!(
-            "⏭️  Block {} already exists in chain (height: {}), skipping mining",
+            "⏭️  Block {} already exists in chain (tip: {}), skipping mining",
             index,
-            chain.height()
+            tip
         );
         return Ok(MiningOutcome::Skipped);
     }
 
-    // Verify correct next block
-    let expected_next = chain.height() + 1;
+    let expected_next = chain.next_mine_index();
     if index != expected_next {
         log::error!(
             "Index mismatch: expected to mine block {}, but was asked to mine block {}",

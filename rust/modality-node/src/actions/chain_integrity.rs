@@ -9,6 +9,9 @@ use modality_datastore::models::MinerBlock;
 use modality_datastore::DatastoreManager;
 use std::collections::HashMap;
 
+const INTEGRITY_ORPHAN_REASON: &str =
+    "Chain integrity repair: not on the longest linked canonical spine";
+
 /// Result of a chain integrity check
 #[derive(Debug)]
 pub struct ChainIntegrityReport {
@@ -41,6 +44,10 @@ pub async fn validate_and_repair_chain(
     repair: bool,
 ) -> Result<ChainIntegrityReport> {
     log::info!("🔍 Starting chain integrity validation...");
+
+    // A previous boot orphaned the live chain because the parent walk
+    // stopped at a broken index-1 link and treated genesis as the whole spine.
+    reinstate_overpruned_blocks(mgr).await?;
 
     // Load all canonical blocks from multi-store
     let canonical_blocks = MinerBlock::find_all_canonical_multi(mgr).await?;
@@ -142,6 +149,25 @@ pub async fn validate_and_repair_chain(
         });
     }
 
+    // The parent walk only steps index+1 from genesis. A single broken
+    // link at index 1 makes the spine "genesis only" and would orphan
+    // every later block, including a chain the network has been serving.
+    if valid_blocks <= 1 && max_index > 1 && extras.len() > valid_blocks {
+        log::error!(
+            "Refusing to orphan {} block(s): linked spine is {} block(s) while the canonical tip index is {}",
+            extras.len(),
+            valid_blocks,
+            max_index
+        );
+        return Ok(ChainIntegrityReport {
+            total_blocks,
+            valid_blocks,
+            break_point,
+            orphaned_count: 0,
+            repaired: false,
+        });
+    }
+
     log::info!(
         "🔧 Repairing chain: orphaning {} block(s) not on the longest linked spine",
         extras.len()
@@ -151,10 +177,7 @@ pub async fn validate_and_repair_chain(
     for block in extras {
         if block.is_canonical && !block.is_orphaned {
             let mut orphaned_block = block.clone();
-            orphaned_block.mark_as_orphaned(
-                "Chain integrity repair: not on the longest linked canonical spine".to_string(),
-                None,
-            );
+            orphaned_block.mark_as_orphaned(INTEGRITY_ORPHAN_REASON.to_string(), None);
 
             if let Err(e) = orphaned_block.save_to_active(mgr).await {
                 log::error!(
@@ -190,6 +213,39 @@ pub async fn validate_and_repair_chain(
         orphaned_count,
         repaired: true,
     })
+}
+
+/// Put back blocks a genesis-only repair orphaned, when they reach
+/// higher than the chain that replaced them.
+async fn reinstate_overpruned_blocks(mgr: &DatastoreManager) -> Result<usize> {
+    let canonical = MinerBlock::find_all_canonical_multi(mgr).await?;
+    let canonical_tip = canonical.iter().map(|b| b.index).max().unwrap_or(0);
+    let pruned: Vec<MinerBlock> = MinerBlock::find_all_orphaned_multi(mgr)
+        .await?
+        .into_iter()
+        .filter(|b| b.orphan_reason.as_deref() == Some(INTEGRITY_ORPHAN_REASON))
+        .collect();
+    let pruned_tip = pruned.iter().map(|b| b.index).max().unwrap_or(0);
+    if pruned.is_empty() || pruned_tip <= canonical_tip {
+        return Ok(0);
+    }
+
+    log::warn!(
+        "Reinstating {} block(s) orphaned by integrity repair (pruned tip {} > canonical tip {})",
+        pruned.len(),
+        pruned_tip,
+        canonical_tip
+    );
+    let mut restored = 0usize;
+    for mut block in pruned {
+        block.is_orphaned = false;
+        block.is_canonical = true;
+        block.orphan_reason = None;
+        block.orphaned_at = None;
+        block.save_to_active(mgr).await?;
+        restored += 1;
+    }
+    Ok(restored)
 }
 
 fn select_longest_spine(by_index: &HashMap<u64, Vec<MinerBlock>>) -> Vec<MinerBlock> {
@@ -488,5 +544,106 @@ mod tests {
         assert!(hashes.contains(&"hash_0".to_string()));
         assert!(hashes.contains(&"hash_3".to_string()));
         assert!(!hashes.contains(&"stale_genesis".to_string()));
+    }
+
+    #[tokio::test]
+    async fn genesis_only_spine_does_not_orphan_the_rest_of_the_chain() {
+        let datastore = DatastoreManager::create_in_memory().unwrap();
+        let genesis = MinerBlock::new_canonical(
+            "genesis_hash".to_string(),
+            0,
+            0,
+            1,
+            "none".to_string(),
+            "g".to_string(),
+            1,
+            1,
+            "peer".to_string(),
+            1,
+        );
+        genesis.save_to_active(&datastore).await.unwrap();
+        // Index 1 does not point at genesis. Later blocks link to each other.
+        for i in 1..6 {
+            let prev = if i == 1 {
+                "unlinked".to_string()
+            } else {
+                format!("hash_{}", i - 1)
+            };
+            let block = MinerBlock::new_canonical(
+                format!("hash_{}", i),
+                i,
+                0,
+                1 + i as i64,
+                prev,
+                format!("d{i}"),
+                1,
+                1,
+                "peer".to_string(),
+                1,
+            );
+            block.save_to_active(&datastore).await.unwrap();
+        }
+
+        let report = validate_and_repair_chain(&datastore, true).await.unwrap();
+        assert!(!report.repaired);
+        assert_eq!(report.orphaned_count, 0);
+        let canonical = MinerBlock::find_all_canonical_multi(&datastore)
+            .await
+            .unwrap();
+        assert_eq!(canonical.len(), 6);
+    }
+
+    #[tokio::test]
+    async fn overpruned_integrity_orphans_are_reinstated() {
+        let datastore = DatastoreManager::create_in_memory().unwrap();
+        let genesis = MinerBlock::new_canonical(
+            "genesis_hash".to_string(),
+            0,
+            0,
+            1,
+            "none".to_string(),
+            "g".to_string(),
+            1,
+            1,
+            "peer".to_string(),
+            1,
+        );
+        genesis.save_to_active(&datastore).await.unwrap();
+
+        let kept = MinerBlock::new_canonical(
+            "short_tip".to_string(),
+            2,
+            0,
+            2,
+            "genesis_hash".to_string(),
+            "s".to_string(),
+            1,
+            1,
+            "peer".to_string(),
+            1,
+        );
+        kept.save_to_active(&datastore).await.unwrap();
+
+        let mut pruned = MinerBlock::new_canonical(
+            "long_tip".to_string(),
+            10,
+            0,
+            10,
+            "prev".to_string(),
+            "l".to_string(),
+            1,
+            1,
+            "peer".to_string(),
+            1,
+        );
+        pruned.mark_as_orphaned(INTEGRITY_ORPHAN_REASON.to_string(), None);
+        pruned.save_to_active(&datastore).await.unwrap();
+
+        let report = validate_and_repair_chain(&datastore, true).await.unwrap();
+        assert!(!report.repaired);
+        let canonical = MinerBlock::find_all_canonical_multi(&datastore)
+            .await
+            .unwrap();
+        assert!(canonical.iter().any(|b| b.hash == "long_tip"));
     }
 }

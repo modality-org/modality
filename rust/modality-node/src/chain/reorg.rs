@@ -6,7 +6,7 @@
 use anyhow::Result;
 use modality_datastore::models::MinerBlock;
 use modality_datastore::DatastoreManager;
-use std::collections::HashSet;
+use std::collections::{BTreeMap, HashSet};
 
 /// Result of an orphaning operation
 #[derive(Debug, Clone)]
@@ -203,6 +203,59 @@ pub fn find_common_ancestor_by_hash(
     None
 }
 
+/// Collapse duplicate indexes onto the parent-linked chain.
+///
+/// A peer can list two canonical blocks at the same index. Adoption then
+/// saw `330` followed by `330` and rejected it as a gap.
+pub fn select_linked_chain(blocks: &[MinerBlock]) -> Result<Vec<MinerBlock>> {
+    if blocks.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let mut by_index: BTreeMap<u64, Vec<&MinerBlock>> = BTreeMap::new();
+    for block in blocks {
+        by_index.entry(block.index).or_default().push(block);
+    }
+    let mut indexes: Vec<u64> = by_index.keys().copied().collect();
+    if let Some(gap_at) = indexes.windows(2).position(|pair| pair[1] != pair[0] + 1) {
+        log::warn!(
+            "Adopting through index {} and stopping at gap before {}",
+            indexes[gap_at],
+            indexes[gap_at + 1]
+        );
+        indexes.truncate(gap_at + 1);
+    }
+
+    let tips = &by_index[indexes.last().expect("indexes non-empty")];
+    let mut best: Vec<MinerBlock> = Vec::new();
+    for tip in tips {
+        let mut chain = vec![(*tip).clone()];
+        let mut current = *tip;
+        let mut linked = true;
+        while current.index > indexes[0] {
+            let Some(parents) = by_index.get(&(current.index - 1)) else {
+                linked = false;
+                break;
+            };
+            let Some(parent) = parents.iter().find(|b| b.hash == current.previous_hash) else {
+                linked = false;
+                break;
+            };
+            chain.push((*parent).clone());
+            current = parent;
+        }
+        if linked && chain.len() > best.len() {
+            best = chain;
+        }
+    }
+
+    if best.len() != indexes.len() {
+        anyhow::bail!("Invalid chain: duplicate indexes do not form one linked chain");
+    }
+    best.reverse();
+    Ok(best)
+}
+
 /// Prepare blocks for adoption by validating chain continuity.
 ///
 /// # Arguments
@@ -266,6 +319,34 @@ mod tests {
         ];
 
         assert!(validate_block_chain(&blocks).is_ok());
+    }
+
+    #[test]
+    fn duplicate_index_keeps_the_linked_block() {
+        let mut fork = make_test_block(1, "hash_0");
+        fork.hash = "other_1".to_string();
+        let blocks = vec![
+            make_test_block(0, "genesis"),
+            fork,
+            make_test_block(1, "hash_0"),
+            make_test_block(2, "hash_1"),
+        ];
+        let linked = select_linked_chain(&blocks).unwrap();
+        assert_eq!(linked.len(), 3);
+        assert_eq!(linked[1].hash, "hash_1");
+        assert!(validate_block_chain(&linked).is_ok());
+    }
+
+    #[test]
+    fn real_index_gap_keeps_the_contiguous_prefix() {
+        let blocks = vec![
+            make_test_block(0, "genesis"),
+            make_test_block(1, "hash_0"),
+            make_test_block(4, "hash_1"),
+        ];
+        let linked = select_linked_chain(&blocks).unwrap();
+        assert_eq!(linked.len(), 2);
+        assert_eq!(linked[1].index, 1);
     }
 
     #[test]

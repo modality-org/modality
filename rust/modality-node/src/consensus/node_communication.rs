@@ -19,6 +19,28 @@ pub struct NodeCommunication {
     pub consensus_tx: mpsc::Sender<ConsensusMessage>,
 }
 
+impl NodeCommunication {
+    /// Enqueue to the Shoal loop without waiting.
+    ///
+    /// That loop is the channel's only consumer. `send().await` from inside
+    /// the loop (or from a task that holds the datastore lock the loop needs)
+    /// deadlocks once the channel is full.
+    fn enqueue(&self, msg: ConsensusMessage) -> Result<()> {
+        match self.consensus_tx.try_send(msg) {
+            Ok(()) => Ok(()),
+            Err(mpsc::error::TrySendError::Full(_)) => {
+                log::warn!(
+                    "consensus channel full; skipped self-enqueue so the Shoal loop can drain"
+                );
+                Ok(())
+            }
+            Err(mpsc::error::TrySendError::Closed(_)) => {
+                anyhow::bail!("consensus channel closed");
+            }
+        }
+    }
+}
+
 #[async_trait::async_trait]
 impl Communication for NodeCommunication {
     async fn broadcast_draft_block(
@@ -31,7 +53,7 @@ impl Communication for NodeCommunication {
             to: String::new(),
             block: block.clone(),
         };
-        self.consensus_tx.send(msg).await?;
+        self.enqueue(msg)?;
         {
             let mut swarm = self.swarm.lock().await;
             swarm.behaviour_mut().gossipsub.publish(
@@ -52,7 +74,7 @@ impl Communication for NodeCommunication {
             to: String::new(),
             block: block.clone(),
         };
-        self.consensus_tx.send(msg).await?;
+        self.enqueue(msg)?;
         {
             let mut swarm = self.swarm.lock().await;
             swarm.behaviour_mut().gossipsub.publish(
@@ -75,7 +97,7 @@ impl Communication for NodeCommunication {
                 to: String::new(),
                 ack: ack.clone(),
             };
-            self.consensus_tx.send(msg).await?;
+            self.enqueue(msg)?;
         } else {
             let mut swarm = self.swarm.lock().await;
             let _req_id = swarm

@@ -357,6 +357,19 @@ impl Blockchain {
     pub fn height(&self) -> u64 {
         self.blocks.len() as u64 - 1
     }
+
+    /// Index of the highest stored block.
+    ///
+    /// `height()` is `len - 1`. A missing earlier index makes those differ,
+    /// and mining from `height()` then rejects the real next index forever.
+    pub fn tip_index(&self) -> u64 {
+        self.latest_block().header.index
+    }
+
+    /// Index of the next block to mine: one past the tip, not `blocks.len()`.
+    pub fn next_mine_index(&self) -> u64 {
+        self.tip_index().saturating_add(1)
+    }
     
     /// Get the current epoch
     pub fn current_epoch(&self) -> u64 {
@@ -365,7 +378,7 @@ impl Blockchain {
     
     /// Get the difficulty for the next block
     fn get_next_difficulty(&self) -> u128 {
-        let next_index = self.height() + 1;
+        let next_index = self.next_mine_index();
         self.epoch_manager
             .get_difficulty_for_block(next_index, &self.blocks)
     }
@@ -380,7 +393,7 @@ impl Blockchain {
         nominated_peer_id: String,
         miner_number: u64,
     ) -> Result<Block, MiningError> {
-        let next_index = self.height() + 1;
+        let next_index = self.next_mine_index();
         let next_difficulty = self.get_next_difficulty();
         let previous_hash = self.latest_block().header.hash.clone();
         
@@ -412,7 +425,7 @@ impl Blockchain {
         nominated_peer_id: String,
         miner_number: u64,
     ) -> Result<(Block, Option<modality_common::hash_tax::MiningResult>), MiningError> {
-        let next_index = self.height() + 1;
+        let next_index = self.next_mine_index();
         let next_difficulty = self.get_next_difficulty();
         let previous_hash = self.latest_block().header.hash.clone();
         
@@ -771,6 +784,7 @@ mod tests {
 
         assert_eq!(chain.height(), 0);
         assert_eq!(chain.blocks.len(), 1);
+        assert_eq!(chain.next_mine_index(), 1);
         assert_eq!(chain.current_epoch(), 0);
         
         // Default genesis has no peer ID
@@ -790,6 +804,28 @@ mod tests {
         );
     }
     
+    #[test]
+    fn next_mine_index_follows_tip_when_an_earlier_index_is_missing() {
+        let mut chain = Blockchain::new_with_default_genesis(ChainConfig {
+            initial_difficulty: 1000,
+            target_block_time_secs: 60,
+            mining_delay_ms: None,
+        });
+        // Genesis is index 0. A canonical tip at index 2 with no index 1
+        // makes `height()` (len - 1) say the next block is 2. The tip says 3.
+        let tip = Block::new(
+            2,
+            chain.latest_block().header.hash.clone(),
+            BlockData::new("peer".to_string(), 1),
+            chain.config.initial_difficulty,
+        );
+        chain.blocks.push(tip);
+        assert_eq!(chain.blocks.len(), 2);
+        assert_eq!(chain.height() + 1, 2);
+        assert_eq!(chain.tip_index(), 2);
+        assert_eq!(chain.next_mine_index(), 3);
+    }
+
     #[test]
     fn test_mine_block() {
         let mut chain = Blockchain::new_with_default_genesis(

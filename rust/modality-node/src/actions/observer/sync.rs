@@ -194,15 +194,14 @@ async fn request_blocks_from_peer(
 /// Adopt blocks from peer after validation
 async fn adopt_peer_blocks(
     datastore: &Arc<Mutex<DatastoreManager>>,
-    mut all_blocks: Vec<MinerBlock>,
+    all_blocks: Vec<MinerBlock>,
     peer_cumulative_difficulty: u128,
     local_cumulative_difficulty: u128,
 ) -> Result<()> {
-    // Sort blocks
-    all_blocks.sort_by_key(|b| b.index);
-
-    // Validate chain
-    use crate::chain::reorg::validate_block_chain;
+    // Peers can return two canonical rows at one index. Collapse to the
+    // parent-linked chain before the consecutive-index check.
+    use crate::chain::reorg::{select_linked_chain, validate_block_chain};
+    let all_blocks = select_linked_chain(&all_blocks)?;
     validate_block_chain(&all_blocks)?;
 
     log::info!("✓ Peer chain validation passed");
@@ -305,8 +304,9 @@ pub async fn sync_from_peers(node: &Node) -> Result<()> {
             .await
             {
                 Ok(()) => {
-                    log::info!("Successfully synced from bootstrapper");
-                    return Ok(());
+                    // Keep going. The first reachable peer may be on a
+                    // shorter fork; a later bootstrapper can still be heavier.
+                    log::info!("Sync check finished for bootstrapper {}", peer_id);
                 }
                 Err(e) => {
                     log::warn!("Failed to sync from bootstrapper: {}", e);
