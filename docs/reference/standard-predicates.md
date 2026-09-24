@@ -339,6 +339,10 @@ by path. The evaluator derives the oracle key from `expected_oracle_path`, check
 that the looked-up key is valid hex-encoded ed25519 public-key material, checks
 that any scalar `expected_oracle_pubkey` agrees with that lookup, and requires
 the looked-up key to match the bundle attestation before signature verification.
+The `modality-common` replay helpers now derive `accepted_state_oracle_keys`
+from the actual accepted contract state by reading string values posted at
+`/oracles/**/*.id` paths, after updates and deletes are applied, before a
+pending commit is expanded or checked.
 Missing replay-bundle freshness policy, bundle/input freshness mismatches,
 missing accepted-state oracle-key lookup maps or path entries, malformed
 accepted-state oracle-key material, scalar/key-map mismatches, accepted-state

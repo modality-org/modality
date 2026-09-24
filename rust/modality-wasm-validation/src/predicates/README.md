@@ -180,7 +180,14 @@ also include `accepted_state_oracle_keys`, the replayed accepted-state oracle-ke
 map keyed by path; the evaluator derives the key at `expected_oracle_path`,
 requires that looked-up key to be valid hex-encoded ed25519 public-key material,
 checks that any scalar `expected_oracle_pubkey` agrees with the map lookup, and
-requires the bundle attestation to match that looked-up key. The evaluator
+requires the bundle attestation to match that looked-up key. That evaluator
+boundary is paired with `modality-common` replay helpers that derive
+`accepted_state_oracle_keys` from the actual accepted contract state by reading
+string values posted at `/oracles/**/*.id` paths, after updates and deletes are
+applied, before a pending commit is expanded or checked. This does not yet make
+`oracle_attests` first-contract-local validator evidence; local and hub replay
+still report it as missing external evidence until replay bundles are passed
+through that validator path. The evaluator
 rejects missing replay-bundle freshness policies, bundle/input freshness
 mismatches, missing accepted-state oracle-key lookup maps or path entries,
 malformed accepted-state oracle keys, scalar/key-map mismatches, accepted-state

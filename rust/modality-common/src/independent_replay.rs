@@ -9,7 +9,7 @@ use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use sha2::{Digest, Sha256};
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 pub const REPLAY_ARTIFACT_TYPE: &str = "modality_replay_artifact";
 pub const REPLAY_ARTIFACT_VERSION: u32 = 1;
@@ -72,6 +72,9 @@ pub struct FrozenInvokeContext {
     pub invoker: String,
     /// Accepted contract state (paths with a leading `/`).
     pub state: Map<String, Value>,
+    /// Accepted-state oracle public keys, keyed by `/oracles/**/*.id` paths.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub accepted_state_oracle_keys: BTreeMap<String, String>,
 }
 
 pub trait InvokeEngine {
@@ -139,6 +142,25 @@ pub fn accepted_state_from_commits(commits: &[CommitFile]) -> Map<String, Value>
     state
 }
 
+pub fn accepted_state_oracle_keys_from_state(
+    state: &Map<String, Value>,
+) -> BTreeMap<String, String> {
+    state
+        .iter()
+        .filter_map(|(path, value)| {
+            if path.starts_with("/oracles/") && path.ends_with(".id") {
+                value.as_str().map(|key| (path.clone(), key.to_string()))
+            } else {
+                None
+            }
+        })
+        .collect()
+}
+
+pub fn accepted_state_oracle_keys_from_commits(commits: &[CommitFile]) -> BTreeMap<String, String> {
+    accepted_state_oracle_keys_from_state(&accepted_state_from_commits(commits))
+}
+
 fn apply_commit_to_host_state(commit: &CommitFile, state: &mut Map<String, Value>) {
     for action in &commit.body {
         let Some(path) = &action.path else {
@@ -171,6 +193,8 @@ pub fn frozen_invoke_context(
     pending: &CommitFile,
     accepted: &[CommitFile],
 ) -> FrozenInvokeContext {
+    let state = accepted_state_from_commits(accepted);
+    let accepted_state_oracle_keys = accepted_state_oracle_keys_from_state(&state);
     FrozenInvokeContext {
         contract_id: contract_id.to_string(),
         commit_id: commit_id.to_string(),
@@ -178,7 +202,8 @@ pub fn frozen_invoke_context(
         block_height: accepted.len() as u64,
         timestamp: FROZEN_INVOKE_TIMESTAMP,
         invoker: first_invoker(pending),
-        state: accepted_state_from_commits(accepted),
+        state,
+        accepted_state_oracle_keys,
     }
 }
 
@@ -615,6 +640,72 @@ mod tests {
             ctx.state.get("/parties/alice.id"),
             Some(&Value::String("alice_key".into()))
         );
+    }
+
+    #[test]
+    fn accepted_state_oracle_keys_are_derived_from_replayed_state() {
+        let accepted = vec![file(
+            None,
+            vec![
+                post("/oracles/delivery.id", "delivery_key"),
+                post("/oracles/weather/feed.id", "weather_key"),
+                post("/parties/alice.id", "alice_key"),
+                post("/oracles/not-key.text", "ignored"),
+                CommitAction {
+                    method: "post".to_string(),
+                    path: Some("/oracles/object.id".to_string()),
+                    value: serde_json::json!({ "key": "not-a-string" }),
+                    source_contract: None,
+                    source_path: None,
+                    source_commit: None,
+                },
+            ],
+        )];
+
+        let keys = accepted_state_oracle_keys_from_commits(&accepted);
+
+        assert_eq!(keys.len(), 2);
+        assert_eq!(
+            keys.get("/oracles/delivery.id").map(String::as_str),
+            Some("delivery_key")
+        );
+        assert_eq!(
+            keys.get("/oracles/weather/feed.id").map(String::as_str),
+            Some("weather_key")
+        );
+        assert!(!keys.contains_key("/parties/alice.id"));
+        assert!(!keys.contains_key("/oracles/object.id"));
+    }
+
+    #[test]
+    fn frozen_context_carries_replayed_oracle_key_map() {
+        let accepted = vec![
+            file(None, vec![post("/oracles/delivery.id", "old_key")]),
+            file(None, vec![post("/oracles/delivery.id", "new_key")]),
+            file(
+                None,
+                vec![CommitAction {
+                    method: "delete".to_string(),
+                    path: Some("/oracles/retired.id".to_string()),
+                    value: Value::Null,
+                    source_contract: None,
+                    source_path: None,
+                    source_commit: None,
+                }],
+            ),
+        ];
+        let pending = file(Some("g"), vec![post("/notes/x.text", "hi")]);
+        let ctx = frozen_invoke_context("c1", "c2", &pending, &accepted);
+
+        assert_eq!(
+            ctx.accepted_state_oracle_keys
+                .get("/oracles/delivery.id")
+                .map(String::as_str),
+            Some("new_key")
+        );
+        assert!(!ctx
+            .accepted_state_oracle_keys
+            .contains_key("/oracles/retired.id"));
     }
 
     #[test]
