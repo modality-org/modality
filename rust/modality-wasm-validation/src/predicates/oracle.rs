@@ -80,6 +80,9 @@ pub struct OracleAttestsInput {
     /// Optional canonical replay-bundle JSON bytes carrying the same attestation
     #[serde(default)]
     pub replay_bundle_json: Option<String>,
+    /// Oracle public key read from accepted contract state at expected_oracle_path
+    #[serde(default)]
+    pub expected_oracle_pubkey: Option<String>,
     /// Expected claim type (must match attestation.claim)
     pub expected_claim: String,
     /// Expected value (must match attestation.value)  
@@ -175,6 +178,31 @@ pub fn evaluate_oracle_attests(input: &PredicateInput) -> PredicateResult {
             return PredicateResult::failure(
                 gas_used,
                 vec!["Oracle replay bundle attestation does not match predicate input".to_string()],
+            );
+        }
+
+        let expected_oracle_pubkey = match &oracle_input.expected_oracle_pubkey {
+            Some(pubkey) => pubkey,
+            None => {
+                return PredicateResult::failure(
+                    gas_used,
+                    vec![
+                        "Oracle replay bundle requires expected_oracle_pubkey from accepted state"
+                            .to_string(),
+                    ],
+                )
+            }
+        };
+
+        if bundle.attestation.oracle_pubkey != *expected_oracle_pubkey {
+            return PredicateResult::failure(
+                gas_used,
+                vec![format!(
+                    "Oracle replay bundle accepted-state key mismatch: bundle oracle {}, accepted-state oracle {}",
+                    &bundle.attestation.oracle_pubkey
+                        [..16.min(bundle.attestation.oracle_pubkey.len())],
+                    &expected_oracle_pubkey[..16.min(expected_oracle_pubkey.len())],
+                )],
             );
         }
     }
@@ -472,6 +500,7 @@ mod tests {
                 "expected_claim": "delivery_confirmed",
                 "expected_value": "true",
                 "expected_oracle_path": oracle_path,
+                "expected_oracle_pubkey": oracle_pk,
                 "expected_pending_commit_hash": pending_commit_hash,
                 "trusted_oracles": [oracle_pk],
                 "max_age_seconds": 60,
@@ -516,6 +545,7 @@ mod tests {
                 "expected_claim": "delivery_confirmed",
                 "expected_value": "true",
                 "expected_oracle_path": "/oracles/delivery.id",
+                "expected_oracle_pubkey": oracle_pk,
                 "expected_pending_commit_hash": "commit_abc123",
                 "trusted_oracles": [oracle_pk],
                 "max_age_seconds": 0,
@@ -567,6 +597,7 @@ mod tests {
                 "expected_claim": "delivery_confirmed",
                 "expected_value": "true",
                 "expected_oracle_path": "/oracles/delivery.id",
+                "expected_oracle_pubkey": oracle_pk,
                 "expected_pending_commit_hash": "commit_abc123",
                 "trusted_oracles": [oracle_pk],
                 "max_age_seconds": 60,
@@ -611,6 +642,7 @@ mod tests {
                 "expected_claim": "delivery_confirmed",
                 "expected_value": "true",
                 "expected_oracle_path": "/oracles/delivery.id",
+                "expected_oracle_pubkey": oracle_pk,
                 "expected_pending_commit_hash": "commit_abc123",
                 "trusted_oracles": [oracle_pk],
                 "max_age_seconds": 60,
@@ -659,6 +691,7 @@ mod tests {
                 "expected_claim": "delivery_confirmed",
                 "expected_value": "true",
                 "expected_oracle_path": "/oracles/delivery.id",
+                "expected_oracle_pubkey": oracle_pk,
                 "expected_pending_commit_hash": "commit_abc123",
                 "trusted_oracles": [oracle_pk],
                 "max_age_seconds": 60,
@@ -720,6 +753,7 @@ mod tests {
                 "expected_claim": "delivery_confirmed",
                 "expected_value": "true",
                 "expected_oracle_path": "/oracles/delivery.id",
+                "expected_oracle_pubkey": oracle_pk,
                 "expected_pending_commit_hash": "commit_abc123",
                 "trusted_oracles": [oracle_pk],
                 "max_age_seconds": 60,
@@ -771,6 +805,7 @@ mod tests {
                 "expected_claim": "delivery_confirmed",
                 "expected_value": "true",
                 "expected_oracle_path": "/oracles/delivery.id",
+                "expected_oracle_pubkey": oracle_pk,
                 "expected_pending_commit_hash": "commit_abc123",
                 "trusted_oracles": [oracle_pk],
                 "max_age_seconds": 60,
@@ -789,6 +824,110 @@ mod tests {
                 .iter()
                 .any(|error| error.contains("predicate mismatch")),
             "wrong-predicate replay bundle should explain mismatch: {:?}",
+            result.errors
+        );
+    }
+
+    #[test]
+    fn test_oracle_replay_bundle_missing_accepted_state_key_rejected() {
+        let (oracle_pk, oracle_sk) = create_oracle();
+        let contract_id = "test_contract";
+        let attestation = create_attestation(
+            &oracle_pk,
+            "/oracles/delivery.id",
+            &oracle_sk,
+            "delivery_confirmed",
+            "true",
+            contract_id,
+            "commit_abc123",
+            1000,
+        );
+        let replay_bundle = OracleReplayBundle {
+            predicate: "oracle_attests".to_string(),
+            max_age_seconds: 60,
+            attestation: attestation.clone(),
+        };
+        let replay_bundle_json =
+            canonical_oracle_replay_bundle_json(&replay_bundle).expect("canonical bundle");
+
+        let input = PredicateInput {
+            data: serde_json::json!({
+                "attestation": attestation,
+                "replay_bundle_json": replay_bundle_json,
+                "expected_claim": "delivery_confirmed",
+                "expected_value": "true",
+                "expected_oracle_path": "/oracles/delivery.id",
+                "expected_pending_commit_hash": "commit_abc123",
+                "trusted_oracles": [oracle_pk],
+                "max_age_seconds": 60,
+            }),
+            context: super::super::PredicateContext::new(contract_id.to_string(), 0, 1000),
+        };
+
+        let result = evaluate_oracle_attests(&input);
+        assert!(
+            !result.valid,
+            "replay bundle without accepted-state oracle key should be rejected"
+        );
+        assert!(
+            result
+                .errors
+                .iter()
+                .any(|error| error.contains("expected_oracle_pubkey from accepted state")),
+            "missing accepted-state key should explain the replay-bundle boundary: {:?}",
+            result.errors
+        );
+    }
+
+    #[test]
+    fn test_oracle_replay_bundle_accepted_state_key_mismatch_rejected() {
+        let (oracle_pk, oracle_sk) = create_oracle();
+        let (other_pk, _) = create_oracle();
+        let contract_id = "test_contract";
+        let attestation = create_attestation(
+            &oracle_pk,
+            "/oracles/delivery.id",
+            &oracle_sk,
+            "delivery_confirmed",
+            "true",
+            contract_id,
+            "commit_abc123",
+            1000,
+        );
+        let replay_bundle = OracleReplayBundle {
+            predicate: "oracle_attests".to_string(),
+            max_age_seconds: 60,
+            attestation: attestation.clone(),
+        };
+        let replay_bundle_json =
+            canonical_oracle_replay_bundle_json(&replay_bundle).expect("canonical bundle");
+
+        let input = PredicateInput {
+            data: serde_json::json!({
+                "attestation": attestation,
+                "replay_bundle_json": replay_bundle_json,
+                "expected_claim": "delivery_confirmed",
+                "expected_value": "true",
+                "expected_oracle_path": "/oracles/delivery.id",
+                "expected_oracle_pubkey": other_pk,
+                "expected_pending_commit_hash": "commit_abc123",
+                "trusted_oracles": [oracle_pk],
+                "max_age_seconds": 60,
+            }),
+            context: super::super::PredicateContext::new(contract_id.to_string(), 0, 1000),
+        };
+
+        let result = evaluate_oracle_attests(&input);
+        assert!(
+            !result.valid,
+            "replay bundle with the wrong accepted-state oracle key should be rejected"
+        );
+        assert!(
+            result
+                .errors
+                .iter()
+                .any(|error| error.contains("accepted-state key mismatch")),
+            "wrong accepted-state key should explain the replay-bundle boundary: {:?}",
             result.errors
         );
     }

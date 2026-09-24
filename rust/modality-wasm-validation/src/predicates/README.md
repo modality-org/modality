@@ -175,14 +175,18 @@ signed payload to bind the oracle key, oracle path, claim, value, contract id,
 pending commit hash, and timestamp. When `replay_bundle_json` is supplied, the
 evaluator parses the canonical `oracle_attests` replay-bundle envelope and
 requires the bundle's positive `max_age_seconds` freshness policy to match the
-predicate input before the bundle can be accepted. It rejects missing
-replay-bundle freshness policies, bundle/input freshness mismatches, malformed
-JSON, non-canonical JSON bytes, wrong predicate names, and attestations that
-differ from the predicate input before an oracle claim can pass. The evaluator
-also rejects missing oracle-path bindings, mismatched oracle paths, missing
-pending-commit bindings, and mismatched pending commit hashes. A contract-log
-validator still needs an explicit accepted-state oracle-key lookup before this
-can be reported as checked validator evidence.
+predicate input before the bundle can be accepted. Replay-bundle inputs must
+also include `expected_oracle_pubkey`, the oracle public key read from accepted
+state at `expected_oracle_path`, and the bundle attestation must match it. The
+evaluator rejects missing replay-bundle freshness policies, bundle/input
+freshness mismatches, missing accepted-state oracle keys, accepted-state oracle
+key mismatches, malformed JSON, non-canonical JSON bytes, wrong predicate
+names, and attestations that differ from the predicate input before an oracle
+claim can pass. The evaluator also rejects missing oracle-path bindings,
+mismatched oracle paths, missing pending-commit bindings, and mismatched pending
+commit hashes. A contract-log validator still needs to supply the accepted-state
+oracle-key lookup from replayed state before this can be reported as checked
+validator evidence.
 
 ## Creating Custom Predicates
 
