@@ -101,6 +101,35 @@ fn accepted_state_oracle_pubkey<'a>(
             )
         })?;
 
+    let accepted_state_pubkey_bytes = hex::decode(accepted_state_pubkey).map_err(|err| {
+        PredicateResult::failure(
+            gas_used,
+            vec![format!(
+                "Oracle replay bundle accepted-state oracle key at {} is not valid hex: {}",
+                oracle_input.expected_oracle_path, err
+            )],
+        )
+    })?;
+    let accepted_state_pubkey_array: [u8; 32] =
+        accepted_state_pubkey_bytes.try_into().map_err(|_| {
+            PredicateResult::failure(
+                gas_used,
+                vec![format!(
+                    "Oracle replay bundle accepted-state oracle key at {} must be 32 bytes",
+                    oracle_input.expected_oracle_path
+                )],
+            )
+        })?;
+    if VerifyingKey::from_bytes(&accepted_state_pubkey_array).is_err() {
+        return Err(PredicateResult::failure(
+            gas_used,
+            vec![format!(
+                "Oracle replay bundle accepted-state oracle key at {} is not a valid ed25519 public key",
+                oracle_input.expected_oracle_path
+            )],
+        ));
+    }
+
     if let Some(expected_pubkey) = &oracle_input.expected_oracle_pubkey {
         if expected_pubkey != accepted_state_pubkey {
             return Err(PredicateResult::failure(
@@ -969,6 +998,60 @@ mod tests {
                 .iter()
                 .any(|error| error.contains("accepted-state key mismatch")),
             "wrong accepted-state key should explain the replay-bundle boundary: {:?}",
+            result.errors
+        );
+    }
+
+    #[test]
+    fn test_oracle_replay_bundle_malformed_accepted_state_key_rejected() {
+        let (oracle_pk, oracle_sk) = create_oracle();
+        let contract_id = "test_contract";
+        let oracle_path = "/oracles/delivery.id";
+        let attestation = create_attestation(
+            &oracle_pk,
+            oracle_path,
+            &oracle_sk,
+            "delivery_confirmed",
+            "true",
+            contract_id,
+            "commit_abc123",
+            1000,
+        );
+        let replay_bundle = OracleReplayBundle {
+            predicate: "oracle_attests".to_string(),
+            max_age_seconds: 60,
+            attestation: attestation.clone(),
+        };
+        let replay_bundle_json =
+            canonical_oracle_replay_bundle_json(&replay_bundle).expect("canonical bundle");
+
+        let input = PredicateInput {
+            data: serde_json::json!({
+                "attestation": attestation,
+                "replay_bundle_json": replay_bundle_json,
+                "expected_claim": "delivery_confirmed",
+                "expected_value": "true",
+                "expected_oracle_path": oracle_path,
+                "accepted_state_oracle_keys": { oracle_path: "not-hex" },
+                "expected_pending_commit_hash": "commit_abc123",
+                "trusted_oracles": [oracle_pk],
+                "max_age_seconds": 60,
+            }),
+            context: super::super::PredicateContext::new(contract_id.to_string(), 0, 1000),
+        };
+
+        let result = evaluate_oracle_attests(&input);
+        assert!(
+            !result.valid,
+            "replay bundle with malformed accepted-state key should be rejected"
+        );
+        assert!(
+            result
+                .errors
+                .iter()
+                .any(|error| error.contains("accepted-state oracle key")
+                    && error.contains("not valid hex")),
+            "malformed accepted-state key should explain the replay lookup failure: {:?}",
             result.errors
         );
     }

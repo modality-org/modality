@@ -336,15 +336,17 @@ the same attestation and positive `max_age_seconds` freshness policy as the
 predicate input. Replay-bundle inputs must also carry
 `accepted_state_oracle_keys`, the replayed accepted-state oracle-key map keyed
 by path. The evaluator derives the oracle key from `expected_oracle_path`, checks
+that the looked-up key is valid hex-encoded ed25519 public-key material, checks
 that any scalar `expected_oracle_pubkey` agrees with that lookup, and requires
 the looked-up key to match the bundle attestation before signature verification.
 Missing replay-bundle freshness policy, bundle/input freshness mismatches,
-missing accepted-state oracle-key lookup maps or path entries, scalar/key-map
-mismatches, accepted-state oracle key mismatches, malformed JSON,
-pretty-printed or otherwise non-canonical bytes, wrong predicate names, and
-envelope/input attestation mismatches fail before signature verification. This
-is still extension-level evidence only until a contract-log validator supplies
-the replay-bundle and accepted-state oracle-key map from replayed state.
+missing accepted-state oracle-key lookup maps or path entries, malformed
+accepted-state oracle-key material, scalar/key-map mismatches, accepted-state
+oracle-key mismatches, malformed JSON, pretty-printed or otherwise
+non-canonical bytes, wrong predicate names, and envelope/input attestation
+mismatches fail before signature verification. This is still extension-level
+evidence only until a contract-log validator supplies the replay-bundle and
+accepted-state oracle-key map from replayed state.
 
 ## Hash Predicates
 
