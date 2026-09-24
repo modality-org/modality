@@ -4,7 +4,8 @@ use modality_wasm_runtime::{WasmExecutor, WasmModuleCache};
 use modality_wasm_validation::{
     decode_predicate_result, encode_predicate_input, PredicateContext, PredicateResult,
 };
-use serde_json::Value;
+use serde_json::{Map, Value};
+use std::collections::BTreeMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use wasmtime::{Config, Engine, Module};
@@ -85,6 +86,28 @@ impl PredicateExecutor {
 
         // Execute the predicate
         self.execute_predicate_wasm(&wasm_module, data, context)
+            .await
+    }
+
+    /// Evaluate a predicate with replay-derived oracle evidence.
+    ///
+    /// This is the validator-side handoff for `oracle_attests` replay bundles:
+    /// when a caller has already replayed accepted state, the derived
+    /// `/oracles/**/*.id` key map is added to canonical replay-bundle predicate
+    /// input before the WASM predicate receives it. It intentionally does not
+    /// synthesize or overwrite replay-bundle fields.
+    pub async fn evaluate_predicate_with_oracle_replay_evidence(
+        &self,
+        contract_id: &str,
+        predicate_path: &str,
+        data: Value,
+        context: PredicateContext,
+        accepted_state_oracle_keys: &BTreeMap<String, String>,
+    ) -> Result<PredicateResult> {
+        let predicate_name = WasmModule::module_name_from_path(predicate_path).unwrap_or_default();
+        let data =
+            replay_oracle_evidence_input(predicate_name.as_str(), data, accepted_state_oracle_keys);
+        self.evaluate_predicate(contract_id, predicate_path, data, context)
             .await
     }
 
@@ -216,9 +239,41 @@ impl PredicateExecutor {
     }
 }
 
+pub fn replay_oracle_evidence_input(
+    predicate_name: &str,
+    data: Value,
+    accepted_state_oracle_keys: &BTreeMap<String, String>,
+) -> Value {
+    if predicate_name != "oracle_attests"
+        || accepted_state_oracle_keys.is_empty()
+        || data
+            .get("replay_bundle_json")
+            .and_then(Value::as_str)
+            .is_none()
+        || data.get("accepted_state_oracle_keys").is_some()
+    {
+        return data;
+    }
+
+    let mut object = match data {
+        Value::Object(object) => object,
+        other => return other,
+    };
+    let keys: Map<String, Value> = accepted_state_oracle_keys
+        .iter()
+        .map(|(path, key)| (path.clone(), Value::String(key.clone())))
+        .collect();
+    object.insert(
+        "accepted_state_oracle_keys".to_string(),
+        Value::Object(keys),
+    );
+    Value::Object(object)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde_json::json;
 
     #[test]
     fn test_parse_predicate_reference_local() {
@@ -271,5 +326,64 @@ mod tests {
             PredicateExecutor::result_to_proposition("signed_by", &result),
             "-signed_by"
         );
+    }
+
+    #[test]
+    fn oracle_replay_evidence_is_added_only_for_replay_bundles() {
+        let mut accepted_state_oracle_keys = BTreeMap::new();
+        accepted_state_oracle_keys.insert(
+            "/oracles/delivery.id".to_string(),
+            "delivery_oracle_key".to_string(),
+        );
+
+        let enriched = replay_oracle_evidence_input(
+            "oracle_attests",
+            json!({
+                "replay_bundle_json": "{\"predicate\":\"oracle_attests\"}",
+                "expected_oracle_path": "/oracles/delivery.id"
+            }),
+            &accepted_state_oracle_keys,
+        );
+
+        assert_eq!(
+            enriched
+                .get("accepted_state_oracle_keys")
+                .and_then(|keys| keys.get("/oracles/delivery.id"))
+                .and_then(Value::as_str),
+            Some("delivery_oracle_key")
+        );
+
+        let without_bundle = replay_oracle_evidence_input(
+            "oracle_attests",
+            json!({"expected_oracle_path": "/oracles/delivery.id"}),
+            &accepted_state_oracle_keys,
+        );
+        assert!(without_bundle.get("accepted_state_oracle_keys").is_none());
+
+        let explicit = replay_oracle_evidence_input(
+            "oracle_attests",
+            json!({
+                "replay_bundle_json": "{\"predicate\":\"oracle_attests\"}",
+                "accepted_state_oracle_keys": {"/oracles/delivery.id": "explicit_key"}
+            }),
+            &accepted_state_oracle_keys,
+        );
+        assert_eq!(
+            explicit
+                .get("accepted_state_oracle_keys")
+                .and_then(|keys| keys.get("/oracles/delivery.id"))
+                .and_then(Value::as_str),
+            Some("explicit_key")
+        );
+
+        let other_predicate = replay_oracle_evidence_input(
+            "signed_by",
+            json!({
+                "replay_bundle_json": "{\"predicate\":\"oracle_attests\"}",
+                "expected_oracle_path": "/oracles/delivery.id"
+            }),
+            &accepted_state_oracle_keys,
+        );
+        assert!(other_predicate.get("accepted_state_oracle_keys").is_none());
     }
 }

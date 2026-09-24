@@ -188,10 +188,15 @@ applied, before a pending commit is expanded or checked. The CLI and validator
 WASM program context now carries that derived map as
 `context.accepted_state_oracle_keys`, so replayed invoke programs can build
 oracle replay bundles from the same accepted-state key material the verifier
-will check. This does not yet make `oracle_attests` first-contract-local
-validator evidence; local and hub replay still report it as missing external
-evidence until replay bundles are passed through that validator path. The evaluator
-rejects missing replay-bundle freshness policies, bundle/input freshness
+will check. The validator predicate executor now also has an explicit
+replay-evidence handoff that injects those replay-derived oracle keys into an
+`oracle_attests` predicate input only when that input already carries
+`replay_bundle_json`, and it preserves any explicit predicate-supplied key map
+instead of overwriting it. This does not yet make `oracle_attests`
+first-contract-local validator evidence; local and hub replay still report it
+as missing external evidence until the contract-log replay path supplies and
+evaluates replay bundles through that handoff. The evaluator rejects missing
+replay-bundle freshness policies, bundle/input freshness
 mismatches, missing accepted-state oracle-key lookup maps or path entries,
 malformed accepted-state oracle keys, scalar/key-map mismatches, accepted-state
 oracle key mismatches, malformed JSON, non-canonical JSON bytes, wrong predicate
