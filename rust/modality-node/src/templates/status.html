@@ -20,7 +20,7 @@
                 var saved = localStorage.getItem('activeTab');
                 if (saved) tab = saved;
             }} catch (e) {{}}
-            var allowed = {{ overview: 1, nodes: 1, miners: 1, sequencers: 1, validators: 1, contracts: 1 }};
+            var allowed = {{ overview: 1, nodes: 1, miners: 1, chains: 1, sequencers: 1, validators: 1, contracts: 1 }};
             if (!allowed[tab]) tab = 'overview';
             if (explore !== 'on' && tab === 'contracts') tab = 'overview';
             if (contractPath) tab = 'contracts';
@@ -262,6 +262,7 @@
         html[data-active-tab="overview"] .tab[data-tab="overview"],
         html[data-active-tab="nodes"] .tab[data-tab="nodes"],
         html[data-active-tab="miners"] .tab[data-tab="miners"],
+        html[data-active-tab="chains"] .tab[data-tab="chains"],
         html[data-active-tab="sequencers"] .tab[data-tab="sequencers"],
         html[data-active-tab="validators"] .tab[data-tab="validators"],
         html[data-active-tab="contracts"] .tab[data-tab="contracts"] {{
@@ -324,6 +325,7 @@
         html[data-active-tab="overview"] #overview-content,
         html[data-active-tab="nodes"] #nodes-content,
         html[data-active-tab="miners"] #miners-content,
+        html[data-active-tab="chains"] #chains-content,
         html[data-active-tab="sequencers"] #sequencers-content,
         html[data-active-tab="validators"] #validators-content,
         html[data-active-tab="contracts"] #contracts-content {{
@@ -381,6 +383,110 @@
         .warn {{ color: var(--warn); }}
         .empty {{ color: var(--dim); padding: 12px 0; }}
         #err {{ color: #f87171; margin: 0 0 12px; }}
+        .miner-picks {{
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin: 0 0 16px;
+        }}
+        .miner-pick {{
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: 999px;
+            padding: 6px 12px;
+            cursor: pointer;
+            font-size: 0.85rem;
+        }}
+        .miner-pick.off {{
+            opacity: 0.45;
+            cursor: not-allowed;
+        }}
+        .lane-dot {{
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--lane, var(--dim));
+            flex: 0 0 auto;
+        }}
+        .lane-0 {{ --lane: #6c8cff; }}
+        .lane-1 {{ --lane: #ff6c8c; }}
+        .lane-2 {{ --lane: #4ade80; }}
+        .lane-3 {{ --lane: #fbbf24; }}
+        .lane-4 {{ --lane: #c084fc; }}
+        .lane-5 {{ --lane: #67e8f9; }}
+        .tip-grid {{
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 10px;
+            margin: 0 0 16px;
+        }}
+        .tip-card {{
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-top: 3px solid var(--lane, var(--accent));
+            border-radius: 8px;
+            padding: 12px 14px;
+        }}
+        .tip-card h3 {{
+            margin: 0 0 6px;
+            font-size: 0.95rem;
+            color: var(--heading);
+        }}
+        .tip-card code {{ font-size: 0.8rem; }}
+        .rel-same {{ color: var(--ok); }}
+        .rel-behind {{ color: var(--warn); }}
+        .rel-fork {{ color: #ff6c8c; }}
+        .rel-err {{ color: #f87171; }}
+        .fork-banner {{ margin: 0 0 12px; }}
+        .fork-board {{
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            max-height: 640px;
+            overflow: auto;
+            margin-bottom: 16px;
+        }}
+        .fork-row {{
+            display: grid;
+            grid-template-columns: 72px 1fr;
+            gap: 8px;
+            align-items: stretch;
+        }}
+        .fork-h {{
+            color: var(--dim);
+            font-family: 'JetBrains Mono', 'Courier New', monospace;
+            font-size: 0.8rem;
+            padding-top: 8px;
+        }}
+        .fork-cells {{
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+        }}
+        .fork-cell {{
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-left: 3px solid var(--lane, var(--line));
+            border-radius: 6px;
+            padding: 6px 8px;
+            min-width: 128px;
+            font-size: 0.8rem;
+        }}
+        .fork-cell.shared {{ border-left-color: var(--ok); }}
+        .fork-cell.missing {{ color: var(--dim); }}
+        .fork-cell .who {{
+            display: block;
+            color: var(--dim);
+            font-size: 0.75rem;
+        }}
+        .fork-gap {{
+            color: var(--dim);
+            font-size: 0.8rem;
+            padding: 6px 0 6px 80px;
+        }}
     </style>
     <script>
         function switchTab(tabName) {{
@@ -389,6 +495,7 @@
                 localStorage.setItem('activeTab', tabName);
             }} catch (e) {{}}
             if (tabName === 'contracts') loadContracts();
+            if (tabName === 'chains') loadChainCompare();
         }}
         function toggleTimestamp(element) {{
             const timestamp = parseInt(element.getAttribute('data-timestamp'));
@@ -428,7 +535,7 @@
             }}
             var scrolls = captureScroll();
             document.querySelectorAll('.tab-content').forEach(function(el) {{
-                if (el.id === 'contracts-content') return;
+                if (el.id === 'contracts-content' || el.id === 'chains-content') return;
                 var incoming = doc.getElementById(el.id);
                 if (incoming && el.innerHTML !== incoming.innerHTML) {{
                     el.innerHTML = incoming.innerHTML;
@@ -448,6 +555,7 @@
                 }})
                 .then(function(html) {{
                     applyStatusDocument(new DOMParser().parseFromString(html, 'text/html'));
+                    if (document.documentElement.getAttribute('data-active-tab') === 'chains') loadChainCompare();
                     scheduleRefresh();
                 }})
                 .catch(function() {{
@@ -658,7 +766,236 @@
                 if (document.documentElement.getAttribute('data-active-tab') === 'contracts') loadContracts();
             }});
             if (document.documentElement.getAttribute('data-active-tab') === 'contracts') loadContracts();
+            if (document.documentElement.getAttribute('data-active-tab') === 'chains') loadChainCompare();
         }});
+
+        var chainSeq = 0;
+        function isMinerRole(role) {{
+            var r = String(role || '').toLowerCase();
+            return r.indexOf('miner') !== -1 || r === 'hybrid';
+        }}
+        function chainUrl(pick) {{
+            if (!pick.status_url) return '/chain.json';
+            return String(pick.status_url).replace(/\/$/, '') + '/chain.json';
+        }}
+        function fetchJson(url) {{
+            return fetch(url, {{ cache: 'no-store' }}).then(function (r) {{
+                if (!r.ok) throw new Error('HTTP ' + r.status);
+                return r.json();
+            }});
+        }}
+        function canonBlocks(data) {{
+            return (data && data.blocks || []).filter(function (b) {{ return b.canonical && !b.orphaned; }});
+        }}
+        function blockAt(data, index) {{
+            var blocks = canonBlocks(data);
+            for (var i = 0; i < blocks.length; i++) if (blocks[i].index === index) return blocks[i];
+            return null;
+        }}
+        function hashMap(data) {{
+            var map = {{}};
+            canonBlocks(data).forEach(function (b) {{ map[b.hash] = b; }});
+            return map;
+        }}
+        function lastCommon(chains) {{
+            var live = chains.filter(function (c) {{ return c.data; }});
+            if (!live.length) return null;
+            var maps = live.map(function (c) {{ return hashMap(c.data); }});
+            var best = null;
+            Object.keys(maps[0]).forEach(function (hash) {{
+                var block = maps[0][hash];
+                var shared = maps.every(function (m) {{ return m[hash]; }});
+                if (shared && (!best || block.index > best.index)) best = block;
+            }});
+            return best;
+        }}
+        function chainsDiverge(chains, common) {{
+            if (!common) return false;
+            var hashes = {{}};
+            chains.forEach(function (c) {{
+                if (!c.data) return;
+                var next = blockAt(c.data, common.index + 1);
+                if (next) hashes[next.hash] = 1;
+            }});
+            return Object.keys(hashes).length > 1;
+        }}
+        function relationText(chain, chains, common) {{
+            if (!chain.data) return {{ cls: 'rel-err', text: chain.error || 'Unreachable' }};
+            if (!common) return {{ cls: 'rel-fork', text: 'No shared block in the recent window' }};
+            var tips = chains.filter(function (c) {{ return c.data; }});
+            var sameTip = tips.every(function (c) {{ return c.data.tip_hash === chain.data.tip_hash; }});
+            if (sameTip) return {{ cls: 'rel-same', text: 'Same tip' }};
+            if (chain.data.tip_hash === common.hash) return {{ cls: 'rel-behind', text: 'Behind, at the last shared block' }};
+            if (chainsDiverge(chains, common)) return {{ cls: 'rel-fork', text: 'Forked after #' + common.index }};
+            return {{ cls: 'rel-behind', text: 'Same chain, tip #' + chain.data.tip_index }};
+        }}
+        function heightList(from, to) {{
+            var heights = [];
+            if (to < from) return heights;
+            if (to - from > 32) {{
+                heights.push(from, from + 1, from + 2, 'gap:' + (to - from - 23));
+                for (var h = to - 20; h <= to; h++) heights.push(h);
+                return heights;
+            }}
+            for (var i = from; i <= to; i++) heights.push(i);
+            return heights;
+        }}
+        function renderFork(chains) {{
+            var live = chains.filter(function (c) {{ return c.data; }});
+            if (!live.length) {{
+                return '<p class="tab-copy">None of the selected miners answered. Check that their status URL is reachable from this browser.</p>';
+            }}
+            var common = lastCommon(live);
+            var diverged = chainsDiverge(live, common);
+            var maxTip = 0;
+            live.forEach(function (c) {{ if (c.data.tip_index > maxTip) maxTip = c.data.tip_index; }});
+            var banner;
+            if (live.length < 2 && chains.length < 2) banner = 'This chain. Tip #' + live[0].data.tip_index + ' · ' + shortId(live[0].data.tip_hash, 8) + '. Select another miner to see forks.';
+            else if (live.length < 2) banner = 'Only one selected miner answered. Tip #' + live[0].data.tip_index + ' · ' + shortId(live[0].data.tip_hash, 8) + '.';
+            else if (!common) banner = 'No block in the recent window is on every selected chain.';
+            else if (live.every(function (c) {{ return c.data.tip_hash && c.data.tip_hash === live[0].data.tip_hash; }})) banner = 'One chain. Tip #' + live[0].data.tip_index + ' · ' + shortId(live[0].data.tip_hash, 8);
+            else if (diverged) banner = 'Fork after #' + common.index + ' · ' + shortId(common.hash, 8);
+            else banner = 'Same chain. Tallest tip #' + maxTip + '. Shorter miners have not caught up.';
+            var cards = chains.map(function (c, i) {{
+                var rel = relationText(c, live, common);
+                var tip = c.data ? ('#' + c.data.tip_index + ' · <code>' + esc(shortId(c.data.tip_hash, 8)) + '</code>') : '—';
+                var diff = c.data ? c.data.cumulative_difficulty : '—';
+                return '<div class="tip-card lane-' + (i % 6) + '"><h3>' + esc(c.label) + '</h3><div>' + tip + '</div><div class="tab-copy" style="margin:4px 0 0">Difficulty ' + esc(diff) + '</div><div class="' + rel.cls + '">' + esc(rel.text) + '</div></div>';
+            }}).join('');
+            var from = common ? common.index : Math.max(0, maxTip - 24);
+            if (live.length < 2) {{
+                var only = canonBlocks(live[0].data);
+                var oldest = only.reduce(function (m, b) {{ return Math.min(m, b.index); }}, maxTip);
+                from = Math.max(oldest, maxTip - 24);
+            }}
+            var rows = heightList(from, maxTip).slice().reverse().map(function (h) {{
+                if (typeof h === 'string') return '<div class="fork-gap">' + esc(h.slice(4)) + ' blocks omitted</div>';
+                var present = live.map(function (c, i) {{ return {{ chain: c, i: i, block: blockAt(c.data, h) }}; }});
+                var hashes = {{}};
+                present.forEach(function (p) {{ if (p.block) hashes[p.block.hash] = 1; }});
+                var distinct = Object.keys(hashes);
+                if (distinct.length === 1) {{
+                    var who = present.filter(function (p) {{ return p.block; }}).map(function (p) {{ return esc(p.chain.label); }}).join(', ');
+                    var missing = present.filter(function (p) {{ return !p.block; }}).map(function (p) {{
+                        return '<div class="fork-cell missing lane-' + (p.i % 6) + '"><span class="who">' + esc(p.chain.label) + '</span>not this high</div>';
+                    }}).join('');
+                    return '<div class="fork-row"><div class="fork-h">#' + h + '</div><div class="fork-cells"><div class="fork-cell shared" title="' + esc(present.filter(function (p) {{ return p.block; }})[0].block.hash) + '"><span class="who">' + who + '</span><code>' + esc(shortId(distinct[0], 6)) + '</code></div>' + missing + '</div></div>';
+                }}
+                var cells = present.map(function (p) {{
+                    if (!p.block) return '<div class="fork-cell missing lane-' + (p.i % 6) + '"><span class="who">' + esc(p.chain.label) + '</span>not this high</div>';
+                    return '<div class="fork-cell lane-' + (p.i % 6) + '" title="' + esc(p.block.hash) + '"><span class="who">' + esc(p.chain.label) + '</span><code>' + esc(shortId(p.block.hash, 6)) + '</code></div>';
+                }}).join('');
+                return '<div class="fork-row"><div class="fork-h">#' + h + '</div><div class="fork-cells">' + cells + '</div></div>';
+            }}).join('');
+            var orphans = [];
+            chains.forEach(function (c) {{
+                if (!c.data) return;
+                (c.data.blocks || []).forEach(function (b) {{
+                    if (!b.orphaned) return;
+                    orphans.push('<tr><td>' + esc(c.label) + '</td><td>#' + b.index + '</td><td><code title="' + esc(b.hash) + '">' + esc(shortId(b.hash, 6)) + '</code></td><td><code>' + esc(shortId(b.previous_hash, 6)) + '</code></td><td><code>' + esc(shortId(b.competing_hash, 6)) + '</code></td></tr>');
+                }});
+            }});
+            var orphanHtml = orphans.length
+                ? '<div class="status-card"><h2>Orphan blocks in this window</h2><p class="tab-copy">Competing blocks these miners still store. A competing hash is the block that won that height.</p><table><thead><tr><th>Miner</th><th>Height</th><th>Block</th><th>Previous</th><th>Competing</th></tr></thead><tbody>' + orphans.join('') + '</tbody></table></div>'
+                : '';
+            return '<p class="fork-banner">' + esc(banner) + '</p><div class="tip-grid">' + cards + '</div><div class="fork-board">' + rows + '</div>' + orphanHtml;
+        }}
+        function minerChoices(status) {{
+            var selfId = status.peer_id || '';
+            var list = [{{
+                peer_id: selfId,
+                role: status.role || '',
+                status_url: '',
+                self: true,
+                label: 'This node'
+            }}];
+            (status.peer_list || []).forEach(function (peer) {{
+                if (!peer || peer.peer_id === selfId) return;
+                list.push({{
+                    peer_id: peer.peer_id,
+                    role: peer.role || '',
+                    status_url: peer.status_url || '',
+                    self: false,
+                    label: shortId(peer.peer_id, 6)
+                }});
+            }});
+            return list;
+        }}
+        function savedChainIds(choices) {{
+            var known = {{}};
+            choices.forEach(function (c) {{ known[c.peer_id] = 1; }});
+            try {{
+                var raw = localStorage.getItem('chainMiners');
+                if (raw) {{
+                    var ids = JSON.parse(raw);
+                    if (Array.isArray(ids)) return ids.filter(function (id) {{ return known[id]; }});
+                }}
+            }} catch (e) {{}}
+            return choices.filter(function (c) {{
+                return c.self || (c.status_url && isMinerRole(c.role));
+            }}).map(function (c) {{ return c.peer_id; }});
+        }}
+        function renderMinerPicks(choices) {{
+            var box = document.getElementById('chain-miners');
+            if (!box) return;
+            var key = choices.map(function (c) {{ return c.peer_id; }}).join('|');
+            if (box.getAttribute('data-picks') === key) return;
+            var selected = {{}};
+            savedChainIds(choices).forEach(function (id) {{ selected[id] = 1; }});
+            box.setAttribute('data-picks', key);
+            box.innerHTML = choices.map(function (c, i) {{
+                var disabled = !c.self && !c.status_url;
+                var checked = !disabled && selected[c.peer_id] ? ' checked' : '';
+                var off = disabled ? ' off' : '';
+                var role = c.self ? (c.role || 'this node') : (c.role || 'peer');
+                var note = disabled ? ' · no status URL' : '';
+                return '<label class="miner-pick lane-' + (i % 6) + off + '"><input type="checkbox" data-peer="' + esc(c.peer_id) + '"' + checked + (disabled ? ' disabled' : '') + '><span class="lane-dot"></span><span>' + esc(c.label) + '</span><span class="tab-copy" style="margin:0">' + esc(role) + note + '</span></label>';
+            }}).join('');
+            box.querySelectorAll('input').forEach(function (input) {{
+                input.addEventListener('change', function () {{
+                    var ids = [];
+                    box.querySelectorAll('input:checked').forEach(function (el) {{ ids.push(el.getAttribute('data-peer')); }});
+                    try {{ localStorage.setItem('chainMiners', JSON.stringify(ids)); }} catch (e) {{}}
+                    compareChains(choices);
+                }});
+            }});
+        }}
+        function compareChains(choices) {{
+            var box = document.getElementById('chain-miners');
+            var view = document.getElementById('chain-view');
+            if (!box || !view) return;
+            var chosen = {{}};
+            box.querySelectorAll('input:checked').forEach(function (el) {{ chosen[el.getAttribute('data-peer')] = 1; }});
+            var picks = choices.filter(function (c) {{ return chosen[c.peer_id]; }});
+            if (!picks.length) {{
+                view.innerHTML = '<p class="tab-copy">Select at least one miner.</p>';
+                return;
+            }}
+            var seq = ++chainSeq;
+            if (!view.querySelector('.fork-board')) view.innerHTML = '<p class="tab-copy">Reading tips…</p>';
+            Promise.all(picks.map(function (pick) {{
+                return fetchJson(chainUrl(pick)).then(function (data) {{
+                    return {{ data: data, error: '', label: pick.label, peer_id: pick.peer_id }};
+                }}).catch(function (e) {{
+                    return {{ data: null, error: e.message || 'Unreachable', label: pick.label, peer_id: pick.peer_id }};
+                }});
+            }})).then(function (chains) {{
+                if (seq !== chainSeq) return;
+                document.getElementById('chain-view').innerHTML = renderFork(chains);
+            }});
+        }}
+        function loadChainCompare() {{
+            var seq = ++chainSeq;
+            fetchJson('/status.json').then(function (status) {{
+                if (seq !== chainSeq) return;
+                var choices = minerChoices(status);
+                renderMinerPicks(choices);
+                compareChains(choices);
+            }}).catch(function (e) {{
+                var view = document.getElementById('chain-view');
+                if (view) view.innerHTML = '<p class="rel-err">' + esc(e.message || String(e)) + '</p>';
+            }});
+        }}
     </script>
 </head>
 <body>
@@ -689,6 +1026,7 @@
         <div class="tab" data-tab="overview" onclick="switchTab('overview')">Overview</div>
         <div class="tab" data-tab="nodes" onclick="switchTab('nodes')">Nodes</div>
         <div class="tab" data-tab="miners" onclick="switchTab('miners')">Miners</div>
+        <div class="tab" data-tab="chains" onclick="switchTab('chains')">Chains</div>
         <div class="tab" data-tab="sequencers" onclick="switchTab('sequencers')">Sequencers</div>
         <div class="tab" data-tab="validators" onclick="switchTab('validators')">Validators</div>
         <div class="tab" data-tab="contracts" onclick="switchTab('contracts')">Contracts</div>
@@ -938,6 +1276,12 @@
                 </table>
             </div>
         </div>
+    </div>
+
+    <div id="chains-content" class="tab-content">
+        <p class="tab-copy">Select miners to compare the chains they are extending. Each column is that miner's tip. A shared block is on every selected chain. A split row is a fork.</p>
+        <div id="chain-miners" class="miner-picks"></div>
+        <div id="chain-view"><p class="tab-copy">Select miners to compare.</p></div>
     </div>
 
     <div id="contracts-content" class="tab-content">

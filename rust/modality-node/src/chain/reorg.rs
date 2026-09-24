@@ -205,8 +205,10 @@ pub fn find_common_ancestor_by_hash(
 
 /// Collapse duplicate indexes onto the parent-linked chain.
 ///
-/// A peer can list two canonical blocks at the same index. Adoption then
-/// saw `330` followed by `330` and rejected it as a gap.
+/// A peer can list two canonical blocks at the same index, and the
+/// canonical set can skip indexes. Adoption keeps the contiguous
+/// hash-linked run that reaches the highest index, so an earlier hole
+/// does not discard the heavier tip.
 pub fn select_linked_chain(blocks: &[MinerBlock]) -> Result<Vec<MinerBlock>> {
     if blocks.is_empty() {
         return Ok(Vec::new());
@@ -216,41 +218,36 @@ pub fn select_linked_chain(blocks: &[MinerBlock]) -> Result<Vec<MinerBlock>> {
     for block in blocks {
         by_index.entry(block.index).or_default().push(block);
     }
-    let mut indexes: Vec<u64> = by_index.keys().copied().collect();
-    if let Some(gap_at) = indexes.windows(2).position(|pair| pair[1] != pair[0] + 1) {
-        log::warn!(
-            "Adopting through index {} and stopping at gap before {}",
-            indexes[gap_at],
-            indexes[gap_at + 1]
-        );
-        indexes.truncate(gap_at + 1);
-    }
-
-    let tips = &by_index[indexes.last().expect("indexes non-empty")];
+    let tip_index = *by_index.keys().next_back().expect("indexes non-empty");
     let mut best: Vec<MinerBlock> = Vec::new();
-    for tip in tips {
+    for tip in &by_index[&tip_index] {
         let mut chain = vec![(*tip).clone()];
         let mut current = *tip;
-        let mut linked = true;
-        while current.index > indexes[0] {
+        while current.index > 0 {
             let Some(parents) = by_index.get(&(current.index - 1)) else {
-                linked = false;
                 break;
             };
             let Some(parent) = parents.iter().find(|b| b.hash == current.previous_hash) else {
-                linked = false;
                 break;
             };
             chain.push((*parent).clone());
             current = parent;
         }
-        if linked && chain.len() > best.len() {
+        if chain.len() > best.len() {
             best = chain;
         }
     }
 
-    if best.len() != indexes.len() {
+    if best.is_empty() {
         anyhow::bail!("Invalid chain: duplicate indexes do not form one linked chain");
+    }
+    let start = best.last().expect("best non-empty").index;
+    let earliest = *by_index.keys().next().expect("indexes non-empty");
+    if start != earliest {
+        log::warn!(
+            "Adopting linked tip suffix {}..={} and leaving earlier indexes",
+            start, tip_index
+        );
     }
     best.reverse();
     Ok(best)
@@ -338,15 +335,18 @@ mod tests {
     }
 
     #[test]
-    fn real_index_gap_keeps_the_contiguous_prefix() {
+    fn real_index_gap_keeps_the_tip_suffix() {
         let blocks = vec![
             make_test_block(0, "genesis"),
             make_test_block(1, "hash_0"),
-            make_test_block(4, "hash_1"),
+            make_test_block(4, "hash_3"),
+            make_test_block(5, "hash_4"),
         ];
         let linked = select_linked_chain(&blocks).unwrap();
         assert_eq!(linked.len(), 2);
-        assert_eq!(linked[1].index, 1);
+        assert_eq!(linked[0].index, 4);
+        assert_eq!(linked[1].index, 5);
+        assert!(validate_block_chain(&linked).is_ok());
     }
 
     #[test]

@@ -142,7 +142,11 @@ pub async fn request_block_range(
         .get("has_more")
         .and_then(|v| v.as_bool())
         .unwrap_or(false);
-    let next_from_index = from_index + blocks.len() as u64;
+    // The server pages by index (`to_index` is the last index this page
+    // covered). Stepping by row count skips indexes when a page contains
+    // two canonical rows for one index.
+    let covered_to = data.get("to_index").and_then(|v| v.as_u64());
+    let next_from_index = next_range_index(from_index, blocks.len(), covered_to);
 
     log::info!(
         "Received {} blocks from peer (indices {}..{})",
@@ -196,7 +200,7 @@ pub async fn request_all_blocks_in_range(
         )
         .await?;
 
-        if result.blocks.is_empty() {
+        if result.blocks.is_empty() && !result.has_more {
             break;
         }
 
@@ -206,6 +210,9 @@ pub async fn request_all_blocks_in_range(
             break;
         }
 
+        if result.next_from_index <= current_from || result.next_from_index > to_index {
+            break;
+        }
         current_from = result.next_from_index;
     }
 
@@ -299,4 +306,35 @@ pub async fn save_blocks_with_fork_choice(
     }
 
     Ok(saved_count)
+}
+
+/// Next index to request after one range page.
+///
+/// `covered_to` is the server's `to_index`: the last index the page
+/// included, whether or not every index in that window had a row.
+/// Falling back to `from + row count` skips indexes when duplicate rows
+/// make the page longer than the index window.
+pub fn next_range_index(from_index: u64, block_count: usize, covered_to: Option<u64>) -> u64 {
+    match covered_to {
+        Some(to) => to.saturating_add(1),
+        None => from_index.saturating_add(block_count as u64),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::next_range_index;
+
+    #[test]
+    fn duplicate_rows_do_not_skip_the_next_index() {
+        // Page covered indexes 680..=728 and returned 55 rows because
+        // five indexes were stored twice. Stepping by row count would
+        // resume at 735 and drop 729..=734.
+        assert_eq!(next_range_index(680, 55, Some(728)), 729);
+    }
+
+    #[test]
+    fn missing_covered_to_still_advances_by_row_count() {
+        assert_eq!(next_range_index(10, 4, None), 14);
+    }
 }

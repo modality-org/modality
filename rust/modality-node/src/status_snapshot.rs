@@ -554,6 +554,61 @@ fn calculate_network_hashrate(miner_blocks: &[MinerBlock]) -> f64 {
     }
 }
 
+/// Recent canonical tip plus orphan blocks in that window, for chain comparison.
+///
+/// Canonical blocks are the chain this node is on. Orphans are competing
+/// blocks it still has, limited to the same height window.
+pub fn chain_report(
+    peer_id: &str,
+    role: &str,
+    canonical: &[MinerBlock],
+    orphans: &[MinerBlock],
+) -> serde_json::Value {
+    let mut canonical_sorted = canonical.to_vec();
+    canonical_sorted.sort_by_key(|block| block.index);
+    let tip = canonical_sorted.last();
+    let cumulative: u128 = canonical_sorted
+        .iter()
+        .filter_map(|block| block.target_difficulty.parse::<u128>().ok())
+        .sum();
+    let start = canonical_sorted.len().saturating_sub(STATUS_RECENT_BLOCKS_COUNT);
+    let window = &canonical_sorted[start..];
+    let floor = window.first().map(|block| block.index).unwrap_or(0);
+
+    let mut orphan_window: Vec<&MinerBlock> = orphans
+        .iter()
+        .filter(|block| block.index >= floor)
+        .collect();
+    orphan_window.sort_by_key(|block| std::cmp::Reverse(block.index));
+    orphan_window.truncate(STATUS_RECENT_BLOCKS_COUNT);
+
+    let mut blocks: Vec<serde_json::Value> = window.iter().rev().map(chain_block_json).collect();
+    blocks.extend(orphan_window.into_iter().map(chain_block_json));
+
+    serde_json::json!({
+        "peer_id": peer_id,
+        "role": role,
+        "tip_index": tip.map(|block| block.index).unwrap_or(0),
+        "tip_hash": tip.map(|block| block.hash.clone()).unwrap_or_default(),
+        "cumulative_difficulty": cumulative.to_string(),
+        "blocks": blocks,
+    })
+}
+
+fn chain_block_json(block: &MinerBlock) -> serde_json::Value {
+    serde_json::json!({
+        "index": block.index,
+        "hash": block.hash,
+        "previous_hash": block.previous_hash,
+        "epoch": block.epoch,
+        "canonical": block.is_canonical && !block.is_orphaned,
+        "orphaned": block.is_orphaned,
+        "nominee": block.nominated_peer_id,
+        "difficulty": block.target_difficulty,
+        "competing_hash": block.competing_hash,
+    })
+}
+
 /// Format hashrate for display (with K, M, G, T suffixes)
 pub fn format_hashrate(hashrate: f64) -> String {
     if hashrate == 0.0 {
@@ -615,6 +670,8 @@ pub(crate) fn sample_status() -> NodeStatus {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::constants::STATUS_RECENT_BLOCKS_COUNT;
+    use modality_datastore::models::miner::MinerBlock;
 
     #[test]
     fn display_node_role_maps_protocol_names() {
@@ -669,6 +726,86 @@ mod tests {
         let named = vec!["peer1".to_string()];
         let roles = derive_active_roles("miner", true, false, false, true, &named, "peer1");
         assert!(roles.contains(&"Validator"));
+    }
+
+    fn sample_block(index: u64, hash: &str, previous: &str) -> MinerBlock {
+        MinerBlock::new_canonical(
+            hash.to_string(),
+            index,
+            index / 40,
+            1_700_000_000 + index as i64,
+            previous.to_string(),
+            "data".into(),
+            1,
+            1,
+            "miner".into(),
+            0,
+        )
+    }
+
+    #[test]
+    fn chain_report_keeps_the_recent_tip_and_in_window_orphans() {
+        let mut canonical = Vec::new();
+        let mut previous = "genesis".to_string();
+        for index in 0..100 {
+            let hash = format!("h{index}");
+            canonical.push(sample_block(index, &hash, &previous));
+            previous = hash;
+        }
+        let orphan_in = MinerBlock::new_orphaned(
+            "fork50".into(),
+            50,
+            1,
+            1,
+            "h49".into(),
+            "data".into(),
+            1,
+            1,
+            "other".into(),
+            0,
+            "lost".into(),
+            Some("h50".into()),
+        );
+        let orphan_out = MinerBlock::new_orphaned(
+            "fork10".into(),
+            10,
+            0,
+            1,
+            "h9".into(),
+            "data".into(),
+            1,
+            1,
+            "other".into(),
+            0,
+            "lost".into(),
+            Some("h10".into()),
+        );
+        let report = chain_report("peer", "Miner", &canonical, &[orphan_in, orphan_out]);
+        assert_eq!(report["tip_index"], 99);
+        assert_eq!(report["tip_hash"], "h99");
+        assert_eq!(report["peer_id"], "peer");
+        let blocks = report["blocks"].as_array().expect("blocks");
+        let canonical_blocks: Vec<_> = blocks
+            .iter()
+            .filter(|block| block["canonical"] == true)
+            .collect();
+        assert_eq!(canonical_blocks.len(), STATUS_RECENT_BLOCKS_COUNT);
+        assert_eq!(canonical_blocks[0]["hash"], "h99");
+        assert_eq!(canonical_blocks[0]["previous_hash"], "h98");
+        assert_eq!(
+            canonical_blocks.last().unwrap()["index"],
+            100 - STATUS_RECENT_BLOCKS_COUNT as u64
+        );
+        assert!(blocks.iter().any(|block| block["hash"] == "fork50"));
+        assert!(blocks.iter().all(|block| block["hash"] != "fork10"));
+    }
+
+    #[test]
+    fn empty_chain_report_has_no_tip() {
+        let report = chain_report("peer", "Observer", &[], &[]);
+        assert_eq!(report["tip_index"], 0);
+        assert_eq!(report["tip_hash"], "");
+        assert_eq!(report["blocks"].as_array().unwrap().len(), 0);
     }
 
     #[test]

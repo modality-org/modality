@@ -46,7 +46,7 @@ pub async fn handler(
                             "requested_to": to,
                             "blocks": blocks,
                             "count": blocks.len(),
-                            "has_more": actual_to < to && !blocks.is_empty(),
+                            "has_more": actual_to < to,
                             "chunk_size": chunk_size,
                         })),
                         errors: None,

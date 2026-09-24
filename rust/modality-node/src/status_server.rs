@@ -6,7 +6,7 @@ use warp::Filter;
 
 use crate::constants::STATUS_PAGE_REFRESH_SECS;
 use crate::explorer;
-use crate::status_snapshot::{collect_node_status, NodeStatusSource};
+use crate::status_snapshot::{chain_report, collect_node_status, NodeStatusSource};
 use crate::templates::render_status_from_snapshot;
 
 /// Start HTTP status server on the specified port
@@ -56,6 +56,19 @@ pub async fn start_status_server(
             StatusCode::NO_CONTENT,
         ))
     });
+    let chain_get = warp::path("chain.json")
+        .and(warp::get())
+        .and(source_filter.clone())
+        .and_then(chain_json_handler);
+    let chain_head = warp::path("chain.json")
+        .and(warp::head())
+        .map(|| cors_json_reply(warp::reply::with_status(warp::reply(), StatusCode::OK)));
+    let chain_options = warp::path("chain.json").and(warp::options()).map(|| {
+        cors_json_reply(warp::reply::with_status(
+            warp::reply(),
+            StatusCode::NO_CONTENT,
+        ))
+    });
 
     let api_all = warp::path!("api" / "contracts")
         .and(warp::get())
@@ -87,6 +100,9 @@ pub async fn start_status_server(
         .or(json_get)
         .or(json_head)
         .or(json_options)
+        .or(chain_get)
+        .or(chain_head)
+        .or(chain_options)
         .or(api_replay)
         .or(api_commits)
         .or(api_one)
@@ -156,7 +172,38 @@ async fn status_json_handler(
         "validator_min_stake": status.validator_min_stake,
         "dest_apply_requires_cert": status.dest_apply_requires_cert,
         "active_roles": status.active_roles,
+        "peer_list": status
+            .peers
+            .iter()
+            .map(|peer| {
+                serde_json::json!({
+                    "peer_id": peer.peer_id,
+                    "role": peer.role,
+                    "status_url": peer.status_url,
+                })
+            })
+            .collect::<Vec<_>>(),
     });
+    Ok(cors_json_reply(warp::reply::json(&body)))
+}
+
+async fn chain_json_handler(
+    source: NodeStatusSource,
+) -> Result<impl warp::Reply, warp::Rejection> {
+    let mgr = source.datastore.lock().await;
+    let canonical = modality_datastore::models::miner::MinerBlock::find_all_canonical_multi(&mgr)
+        .await
+        .map_err(|_| warp::reject::not_found())?;
+    let orphans = modality_datastore::models::miner::MinerBlock::find_all_orphaned_multi(&mgr)
+        .await
+        .unwrap_or_default();
+    drop(mgr);
+    let body = chain_report(
+        &source.peerid.to_string(),
+        &source.role,
+        &canonical,
+        &orphans,
+    );
     Ok(cors_json_reply(warp::reply::json(&body)))
 }
 
