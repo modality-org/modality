@@ -12,6 +12,7 @@ use super::{PredicateInput, PredicateResult};
 use ed25519_dalek::{Signature, Verifier, VerifyingKey};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
+use std::collections::BTreeMap;
 
 /// Oracle attestation structure
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -72,6 +73,49 @@ fn canonical_oracle_replay_bundle_json(
     serde_json::to_string(bundle)
 }
 
+fn accepted_state_oracle_pubkey<'a>(
+    oracle_input: &'a OracleAttestsInput,
+    gas_used: u64,
+) -> Result<&'a str, PredicateResult> {
+    let accepted_state_oracle_keys = oracle_input.accepted_state_oracle_keys.as_ref().ok_or_else(
+        || {
+            PredicateResult::failure(
+                gas_used,
+                vec![
+                    "Oracle replay bundle requires accepted_state_oracle_keys from replayed accepted state"
+                        .to_string(),
+                ],
+            )
+        },
+    )?;
+
+    let accepted_state_pubkey = accepted_state_oracle_keys
+        .get(&oracle_input.expected_oracle_path)
+        .ok_or_else(|| {
+            PredicateResult::failure(
+                gas_used,
+                vec![format!(
+                    "Oracle replay bundle missing accepted-state oracle key at {}",
+                    oracle_input.expected_oracle_path
+                )],
+            )
+        })?;
+
+    if let Some(expected_pubkey) = &oracle_input.expected_oracle_pubkey {
+        if expected_pubkey != accepted_state_pubkey {
+            return Err(PredicateResult::failure(
+                gas_used,
+                vec![format!(
+                    "Oracle replay bundle expected_oracle_pubkey does not match accepted-state lookup at {}",
+                    oracle_input.expected_oracle_path
+                )],
+            ));
+        }
+    }
+
+    Ok(accepted_state_pubkey)
+}
+
 /// Input for oracle attestation verification
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OracleAttestsInput {
@@ -80,6 +124,9 @@ pub struct OracleAttestsInput {
     /// Optional canonical replay-bundle JSON bytes carrying the same attestation
     #[serde(default)]
     pub replay_bundle_json: Option<String>,
+    /// Accepted-state oracle keys from replayed contract state, keyed by path
+    #[serde(default)]
+    pub accepted_state_oracle_keys: Option<BTreeMap<String, String>>,
     /// Oracle public key read from accepted contract state at expected_oracle_path
     #[serde(default)]
     pub expected_oracle_pubkey: Option<String>,
@@ -181,20 +228,12 @@ pub fn evaluate_oracle_attests(input: &PredicateInput) -> PredicateResult {
             );
         }
 
-        let expected_oracle_pubkey = match &oracle_input.expected_oracle_pubkey {
-            Some(pubkey) => pubkey,
-            None => {
-                return PredicateResult::failure(
-                    gas_used,
-                    vec![
-                        "Oracle replay bundle requires expected_oracle_pubkey from accepted state"
-                            .to_string(),
-                    ],
-                )
-            }
+        let expected_oracle_pubkey = match accepted_state_oracle_pubkey(&oracle_input, gas_used) {
+            Ok(pubkey) => pubkey,
+            Err(result) => return result,
         };
 
-        if bundle.attestation.oracle_pubkey != *expected_oracle_pubkey {
+        if bundle.attestation.oracle_pubkey != expected_oracle_pubkey {
             return PredicateResult::failure(
                 gas_used,
                 vec![format!(
@@ -500,7 +539,8 @@ mod tests {
                 "expected_claim": "delivery_confirmed",
                 "expected_value": "true",
                 "expected_oracle_path": oracle_path,
-                "expected_oracle_pubkey": oracle_pk,
+                "accepted_state_oracle_keys": { oracle_path: oracle_pk.clone() },
+                "expected_oracle_pubkey": oracle_pk.clone(),
                 "expected_pending_commit_hash": pending_commit_hash,
                 "trusted_oracles": [oracle_pk],
                 "max_age_seconds": 60,
@@ -873,7 +913,7 @@ mod tests {
             result
                 .errors
                 .iter()
-                .any(|error| error.contains("expected_oracle_pubkey from accepted state")),
+                .any(|error| error.contains("accepted_state_oracle_keys")),
             "missing accepted-state key should explain the replay-bundle boundary: {:?}",
             result.errors
         );
@@ -909,6 +949,7 @@ mod tests {
                 "expected_claim": "delivery_confirmed",
                 "expected_value": "true",
                 "expected_oracle_path": "/oracles/delivery.id",
+                "accepted_state_oracle_keys": { "/oracles/delivery.id": other_pk.clone() },
                 "expected_oracle_pubkey": other_pk,
                 "expected_pending_commit_hash": "commit_abc123",
                 "trusted_oracles": [oracle_pk],
@@ -928,6 +969,61 @@ mod tests {
                 .iter()
                 .any(|error| error.contains("accepted-state key mismatch")),
             "wrong accepted-state key should explain the replay-bundle boundary: {:?}",
+            result.errors
+        );
+    }
+
+    #[test]
+    fn test_oracle_replay_bundle_explicit_key_must_match_accepted_state_lookup() {
+        let (oracle_pk, oracle_sk) = create_oracle();
+        let (other_pk, _) = create_oracle();
+        let contract_id = "test_contract";
+        let oracle_path = "/oracles/delivery.id";
+        let attestation = create_attestation(
+            &oracle_pk,
+            oracle_path,
+            &oracle_sk,
+            "delivery_confirmed",
+            "true",
+            contract_id,
+            "commit_abc123",
+            1000,
+        );
+        let replay_bundle = OracleReplayBundle {
+            predicate: "oracle_attests".to_string(),
+            max_age_seconds: 60,
+            attestation: attestation.clone(),
+        };
+        let replay_bundle_json =
+            canonical_oracle_replay_bundle_json(&replay_bundle).expect("canonical bundle");
+
+        let input = PredicateInput {
+            data: serde_json::json!({
+                "attestation": attestation,
+                "replay_bundle_json": replay_bundle_json,
+                "expected_claim": "delivery_confirmed",
+                "expected_value": "true",
+                "expected_oracle_path": oracle_path,
+                "accepted_state_oracle_keys": { oracle_path: oracle_pk.clone() },
+                "expected_oracle_pubkey": other_pk,
+                "expected_pending_commit_hash": "commit_abc123",
+                "trusted_oracles": [oracle_pk],
+                "max_age_seconds": 60,
+            }),
+            context: super::super::PredicateContext::new(contract_id.to_string(), 0, 1000),
+        };
+
+        let result = evaluate_oracle_attests(&input);
+        assert!(
+            !result.valid,
+            "explicit oracle key that disagrees with accepted-state lookup should be rejected"
+        );
+        assert!(
+            result
+                .errors
+                .iter()
+                .any(|error| error.contains("expected_oracle_pubkey does not match")),
+            "explicit key mismatch should explain the replay lookup failure: {:?}",
             result.errors
         );
     }
