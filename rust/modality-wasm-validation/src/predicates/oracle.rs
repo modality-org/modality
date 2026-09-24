@@ -60,6 +60,8 @@ impl OracleAttestation {
 pub struct OracleReplayBundle {
     /// Predicate name this bundle is evidence for.
     pub predicate: String,
+    /// Maximum permitted age of the attestation, in seconds.
+    pub max_age_seconds: i64,
     /// The signed oracle attestation.
     pub attestation: OracleAttestation,
 }
@@ -128,6 +130,26 @@ pub fn evaluate_oracle_attests(input: &PredicateInput) -> PredicateResult {
                 vec![format!(
                     "Oracle replay bundle predicate mismatch: expected 'oracle_attests', got '{}'",
                     bundle.predicate
+                )],
+            );
+        }
+
+        if bundle.max_age_seconds <= 0 {
+            return PredicateResult::failure(
+                gas_used,
+                vec![
+                    "Oracle replay bundle requires a positive max_age_seconds freshness policy"
+                        .to_string(),
+                ],
+            );
+        }
+
+        if bundle.max_age_seconds != oracle_input.max_age_seconds {
+            return PredicateResult::failure(
+                gas_used,
+                vec![format!(
+                    "Oracle replay bundle freshness mismatch: bundle max_age_seconds {}, input max_age_seconds {}",
+                    bundle.max_age_seconds, oracle_input.max_age_seconds
                 )],
             );
         }
@@ -437,6 +459,7 @@ mod tests {
         );
         let replay_bundle = OracleReplayBundle {
             predicate: "oracle_attests".to_string(),
+            max_age_seconds: 60,
             attestation: attestation.clone(),
         };
         let replay_bundle_json =
@@ -480,6 +503,7 @@ mod tests {
         );
         let replay_bundle = OracleReplayBundle {
             predicate: "oracle_attests".to_string(),
+            max_age_seconds: 0,
             attestation: attestation.clone(),
         };
         let replay_bundle_json =
@@ -510,6 +534,57 @@ mod tests {
                 .iter()
                 .any(|error| error.contains("positive max_age_seconds freshness policy")),
             "missing replay-bundle freshness policy should explain the boundary: {:?}",
+            result.errors
+        );
+    }
+
+    #[test]
+    fn test_oracle_replay_bundle_freshness_mismatch_rejected() {
+        let (oracle_pk, oracle_sk) = create_oracle();
+        let contract_id = "test_contract";
+        let attestation = create_attestation(
+            &oracle_pk,
+            "/oracles/delivery.id",
+            &oracle_sk,
+            "delivery_confirmed",
+            "true",
+            contract_id,
+            "commit_abc123",
+            1000,
+        );
+        let replay_bundle = OracleReplayBundle {
+            predicate: "oracle_attests".to_string(),
+            max_age_seconds: 30,
+            attestation: attestation.clone(),
+        };
+        let replay_bundle_json =
+            canonical_oracle_replay_bundle_json(&replay_bundle).expect("canonical bundle");
+
+        let input = PredicateInput {
+            data: serde_json::json!({
+                "attestation": attestation,
+                "replay_bundle_json": replay_bundle_json,
+                "expected_claim": "delivery_confirmed",
+                "expected_value": "true",
+                "expected_oracle_path": "/oracles/delivery.id",
+                "expected_pending_commit_hash": "commit_abc123",
+                "trusted_oracles": [oracle_pk],
+                "max_age_seconds": 60,
+            }),
+            context: super::super::PredicateContext::new(contract_id.to_string(), 0, 1000),
+        };
+
+        let result = evaluate_oracle_attests(&input);
+        assert!(
+            !result.valid,
+            "replay bundle freshness mismatch should be rejected"
+        );
+        assert!(
+            result
+                .errors
+                .iter()
+                .any(|error| error.contains("freshness mismatch")),
+            "freshness mismatch should explain the replay-bundle failure: {:?}",
             result.errors
         );
     }
@@ -571,6 +646,7 @@ mod tests {
         );
         let replay_bundle = OracleReplayBundle {
             predicate: "oracle_attests".to_string(),
+            max_age_seconds: 60,
             attestation: attestation.clone(),
         };
         let replay_bundle_json =
@@ -631,6 +707,7 @@ mod tests {
         );
         let replay_bundle = OracleReplayBundle {
             predicate: "oracle_attests".to_string(),
+            max_age_seconds: 60,
             attestation: bundle_attestation,
         };
         let replay_bundle_json =
@@ -681,6 +758,7 @@ mod tests {
         );
         let replay_bundle = OracleReplayBundle {
             predicate: "hash_matches".to_string(),
+            max_age_seconds: 60,
             attestation: attestation.clone(),
         };
         let replay_bundle_json =
