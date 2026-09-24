@@ -1,17 +1,29 @@
 <!DOCTYPE html>
-<html lang="en" data-active-tab="overview">
+<html lang="en" data-active-tab="overview" data-explore="{explore_default}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Modality Network Node Status</title>
+    <title>Modality Network</title>
     <script>
         (function() {{
-            var tab = 'overview';
+            var explore = '{explore_default}';
             try {{
-                tab = localStorage.getItem('activeTab') || 'overview';
+                var stored = localStorage.getItem('exploreContracts');
+                if (stored === 'on' || stored === 'off') explore = stored;
             }} catch (e) {{}}
-            var allowed = {{ overview: 1, nodes: 1, miners: 1, sequencers: 1, validators: 1 }};
+            var contractPath = /^\/contracts\/[^/]+/.test(location.pathname);
+            if (contractPath) explore = 'on';
+            document.documentElement.setAttribute('data-explore', explore);
+
+            var tab = explore === 'on' ? 'contracts' : 'overview';
+            try {{
+                var saved = localStorage.getItem('activeTab');
+                if (saved) tab = saved;
+            }} catch (e) {{}}
+            var allowed = {{ overview: 1, nodes: 1, miners: 1, sequencers: 1, validators: 1, contracts: 1 }};
             if (!allowed[tab]) tab = 'overview';
+            if (explore !== 'on' && tab === 'contracts') tab = 'overview';
+            if (contractPath) tab = 'contracts';
             document.documentElement.setAttribute('data-active-tab', tab);
         }})();
     </script>
@@ -33,16 +45,58 @@
         }}
         body {{
             font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-            max-width: 1200px;
-            margin: 40px auto;
-            padding: 20px;
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 28px 20px 48px;
             background: var(--bg);
             color: var(--text);
+            line-height: 1.5;
         }}
         h1 {{
             color: var(--heading);
-            border-bottom: 2px solid var(--accent);
-            padding-bottom: 10px;
+            font-size: 1.45rem;
+            font-weight: 650;
+            letter-spacing: -0.02em;
+            margin: 0;
+        }}
+        .kicker {{
+            color: var(--accent);
+            font-size: 0.75rem;
+            font-weight: 650;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+        }}
+        .topbar {{
+            display: flex;
+            justify-content: space-between;
+            gap: 16px;
+            align-items: flex-end;
+            flex-wrap: wrap;
+        }}
+        .topbar-meta {{
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            color: var(--dim);
+            font-size: 0.9rem;
+        }}
+        .identity {{
+            margin: 10px 0 0;
+            color: var(--dim);
+            font-size: 0.85rem;
+            word-break: break-all;
+        }}
+        .pulse {{
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px 18px;
+            margin: 14px 0 0;
+            color: var(--dim);
+            font-size: 0.9rem;
+        }}
+        .pulse strong {{
+            color: var(--text);
+            font-weight: 650;
         }}
         h2 {{
             color: var(--accent);
@@ -102,15 +156,13 @@
             font-weight: bold;
         }}
         .header {{
-            text-align: center;
-            margin-bottom: 30px;
+            margin-bottom: 22px;
         }}
         .role-chips {{
             display: flex;
-            justify-content: center;
             gap: 8px;
             flex-wrap: wrap;
-            margin: 12px 0;
+            margin: 12px 0 0;
         }}
         .role-chip {{
             border: 1px solid var(--line);
@@ -211,11 +263,60 @@
         html[data-active-tab="nodes"] .tab[data-tab="nodes"],
         html[data-active-tab="miners"] .tab[data-tab="miners"],
         html[data-active-tab="sequencers"] .tab[data-tab="sequencers"],
-        html[data-active-tab="validators"] .tab[data-tab="validators"] {{
+        html[data-active-tab="validators"] .tab[data-tab="validators"],
+        html[data-active-tab="contracts"] .tab[data-tab="contracts"] {{
             background: var(--bg);
             color: var(--accent);
             border-bottom: 2px solid var(--accent);
             margin-bottom: -2px;
+        }}
+        html[data-explore="off"] .tab[data-tab="contracts"] {{
+            display: none;
+        }}
+        .explore-switch {{
+            margin-left: auto;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--dim);
+            font-size: 0.85rem;
+            font-weight: 650;
+            cursor: pointer;
+            user-select: none;
+            padding-bottom: 8px;
+        }}
+        .explore-switch input {{
+            appearance: none;
+            width: 36px;
+            height: 20px;
+            margin: 0;
+            border-radius: 999px;
+            background: var(--panel-2);
+            border: 1px solid var(--line);
+            position: relative;
+            cursor: pointer;
+            flex: 0 0 auto;
+        }}
+        .explore-switch input::after {{
+            content: "";
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: var(--dim);
+        }}
+        .explore-switch input:checked {{
+            background: rgba(108, 140, 255, 0.28);
+            border-color: var(--accent);
+        }}
+        .explore-switch input:checked::after {{
+            left: 18px;
+            background: var(--accent);
+        }}
+        html[data-explore="on"] .explore-switch {{
+            color: var(--text);
         }}
         .tab-content {{
             display: none;
@@ -224,9 +325,62 @@
         html[data-active-tab="nodes"] #nodes-content,
         html[data-active-tab="miners"] #miners-content,
         html[data-active-tab="sequencers"] #sequencers-content,
-        html[data-active-tab="validators"] #validators-content {{
+        html[data-active-tab="validators"] #validators-content,
+        html[data-active-tab="contracts"] #contracts-content {{
             display: block;
         }}
+        html[data-explore="off"] #contracts-content {{
+            display: none;
+        }}
+        .find {{
+            display: flex;
+            gap: 8px;
+            margin: 0 0 16px;
+        }}
+        .find input {{
+            flex: 1;
+            background: var(--panel);
+            border: 1px solid var(--line);
+            color: var(--text);
+            border-radius: 6px;
+            padding: 10px 12px;
+            font: inherit;
+        }}
+        button {{
+            background: var(--accent);
+            color: #050510;
+            border: 0;
+            border-radius: 6px;
+            font-weight: 650;
+            padding: 10px 14px;
+            cursor: pointer;
+        }}
+        pre {{
+            background: var(--panel-2);
+            border: 1px solid var(--line);
+            border-radius: 6px;
+            padding: 12px 14px;
+            overflow: auto;
+            font-size: 0.82rem;
+            font-family: 'JetBrains Mono', 'Courier New', monospace;
+        }}
+        .row {{
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }}
+        .chip {{
+            background: var(--panel-2);
+            border: 1px solid var(--line);
+            border-radius: 999px;
+            padding: 2px 10px;
+            font-size: 0.85rem;
+        }}
+        .ok {{ color: var(--ok); }}
+        .bad {{ color: #f87171; }}
+        .warn {{ color: var(--warn); }}
+        .empty {{ color: var(--dim); padding: 12px 0; }}
+        #err {{ color: #f87171; margin: 0 0 12px; }}
     </style>
     <script>
         function switchTab(tabName) {{
@@ -234,6 +388,7 @@
             try {{
                 localStorage.setItem('activeTab', tabName);
             }} catch (e) {{}}
+            if (tabName === 'contracts') loadContracts();
         }}
         function toggleTimestamp(element) {{
             const timestamp = parseInt(element.getAttribute('data-timestamp'));
@@ -273,6 +428,7 @@
             }}
             var scrolls = captureScroll();
             document.querySelectorAll('.tab-content').forEach(function(el) {{
+                if (el.id === 'contracts-content') return;
                 var incoming = doc.getElementById(el.id);
                 if (incoming && el.innerHTML !== incoming.innerHTML) {{
                     el.innerHTML = incoming.innerHTML;
@@ -299,14 +455,234 @@
                 }});
         }}
         scheduleRefresh();
+
+        var loadedKey = null;
+        var loadSeq = 0;
+        function contractIdFromPath() {{
+            var m = location.pathname.match(/^\/contracts\/([^/]+)\/?$/);
+            return m ? decodeURIComponent(m[1]) : null;
+        }}
+        function shortId(v, n) {{
+            n = n || 10;
+            if (!v) return '—';
+            return v.length > n * 2 ? v.slice(0, n) + '…' + v.slice(-n) : v;
+        }}
+        function esc(s) {{
+            return String(s == null ? '' : s)
+                .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        }}
+        function jsonBlock(obj) {{
+            return '<pre>' + esc(JSON.stringify(obj, null, 2)) + '</pre>';
+        }}
+        function pathsTable(map) {{
+            var keys = Object.keys(map || {{}});
+            if (!keys.length) return '<p class="tab-copy">None on this prefix.</p>';
+            return '<table><thead><tr><th>Path</th><th>Value</th></tr></thead><tbody>' +
+                keys.map(function (k) {{
+                    var v = map[k];
+                    var shown = typeof v === 'string' ? v : JSON.stringify(v);
+                    return '<tr><td><code>' + esc(k) + '</code></td><td><code>' + esc(shown) + '</code></td></tr>';
+                }}).join('') + '</tbody></table>';
+        }}
+        function showErr(msg) {{
+            var el = document.getElementById('err');
+            if (!el) return;
+            if (!msg) {{ el.hidden = true; el.textContent = ''; return; }}
+            el.hidden = false;
+            el.textContent = msg;
+        }}
+        function api(path) {{
+            return fetch(path).then(function (r) {{
+                return r.json().catch(function () {{ return null; }}).then(function (body) {{
+                    if (r.status === 404) {{
+                        var err = new Error('not found');
+                        err.notFound = true;
+                        throw err;
+                    }}
+                    if (!r.ok) throw new Error((body && (body.error || body.message)) || ('HTTP ' + r.status));
+                    return body;
+                }});
+            }});
+        }}
+        function renderList(contracts) {{
+            document.title = 'Modality Network';
+            var app = document.getElementById('app');
+            if (!contracts.length) {{
+                app.innerHTML = '<div class="empty">This node has no sequenced contracts yet. Paste a contract ID after catch-up, or wait for certified apply.</div>';
+                return;
+            }}
+            app.innerHTML =
+                '<div class="status-card"><h2>Contracts on this node</h2><table><thead><tr><th>Contract</th><th>HEAD</th><th>Sequenced</th></tr></thead><tbody>' +
+                contracts.map(function (c) {{
+                    return '<tr><td><a href="/contracts/' + encodeURIComponent(c.contract_id) + '" data-contract="' + esc(c.contract_id) + '"><code>' + esc(c.contract_id) + '</code></a></td><td><code>' +
+                        esc(shortId(c.head, 8)) + '</code></td><td>' + c.commits_sequenced + ' / ' + c.commits_total + '</td></tr>';
+                }}).join('') + '</tbody></table></div>';
+        }}
+        function renderInspect(id, inspect, commits, replay) {{
+            document.title = 'Contract ' + shortId(id, 8);
+            var status = inspect.sequenced
+                ? '<span class="ok">sequenced</span>'
+                : '<span class="warn">not sequenced on this node</span>';
+            var replayStatus = '—';
+            if (replay && replay.report) {{
+                replayStatus = replay.report.ok
+                    ? '<span class="ok">replay ok</span> · ' + replay.report.commits_checked + ' commits'
+                    : '<span class="bad">replay failed</span> · ' + esc((replay.report.errors || []).join('; '));
+            }}
+            var commitRows = (commits || []).map(function (c) {{
+                var mark = c.sequenced ? '<span class="ok">in_batch</span>' : '<span class="warn">unsequenced</span>';
+                return '<tr id="c-' + esc(c.commit_id) + '"><td><code>' + esc(shortId(c.commit_id, 8)) +
+                    '</code></td><td><code>' + esc(shortId(c.parent, 8)) + '</code></td><td>' + esc((c.methods || []).join(', ')) +
+                    '</td><td>' + mark + '</td><td><code>' + esc(shortId(c.in_batch, 8)) + '</code></td></tr>';
+            }}).join('');
+            document.getElementById('app').innerHTML =
+                '<p class="tab-copy"><a href="/" data-contracts-home>Contracts</a></p>' +
+                '<div class="status-card"><h2>Status</h2>' +
+                '<p><code>' + esc(id) + '</code></p>' +
+                '<div class="row"><span class="chip">' + status + '</span>' +
+                '<span class="chip">HEAD <code>' + esc(shortId(inspect.head, 8)) + '</code></span>' +
+                '<span class="chip">' + replayStatus + '</span></div></div>' +
+                '<div class="status-card"><h2>State</h2>' + pathsTable(inspect.state) + '</div>' +
+                '<div class="status-card"><h2>Model</h2>' + pathsTable(inspect.model) + '</div>' +
+                '<div class="status-card"><h2>Rules</h2>' + pathsTable(inspect.rules) + '</div>' +
+                '<div class="status-card"><h2>History</h2><table><thead><tr><th>Commit</th><th>Parent</th><th>Actions</th><th>Sequenced</th><th>Batch</th></tr></thead><tbody>' +
+                (commitRows || '<tr><td colspan="5" class="tab-copy">No commits</td></tr>') +
+                '</tbody></table></div>' +
+                (replay ? '<div class="status-card"><h2>Replay artifact</h2>' + jsonBlock(replay.report || replay) + '</div>' : '');
+        }}
+        function loadContracts() {{
+            var id = contractIdFromPath();
+            var key = id || '';
+            if (loadedKey === key) return;
+            loadedKey = key;
+            var seq = ++loadSeq;
+            showErr('');
+            var app = document.getElementById('app');
+            if (app) app.innerHTML = '<p class="tab-copy">Loading…</p>';
+            var pending = id
+                ? Promise.all([
+                    api('/api/contracts/' + encodeURIComponent(id)),
+                    api('/api/contracts/' + encodeURIComponent(id) + '/commits'),
+                    api('/api/contracts/' + encodeURIComponent(id) + '/replay').catch(function (e) {{
+                        if (e.notFound) return null;
+                        return {{ report: {{ ok: false, errors: [e.message] }} }};
+                    }})
+                ]).then(function (parts) {{
+                    if (seq !== loadSeq) return;
+                    var qid = document.getElementById('qid');
+                    if (qid) qid.value = id;
+                    renderInspect(id, parts[0], parts[1], parts[2]);
+                }})
+                : api('/api/contracts').then(function (list) {{
+                    if (seq !== loadSeq) return;
+                    renderList(list);
+                }});
+            pending.catch(function (e) {{
+                if (seq !== loadSeq) return;
+                loadedKey = null;
+                if (e.notFound) {{
+                    if (app) app.innerHTML = '<div class="empty">Unknown contract on this node. Catch-up may still be pulling sequenced logs.</div>';
+                }} else {{
+                    showErr(e.message || String(e));
+                    if (app) app.innerHTML = '';
+                }}
+            }});
+        }}
+        function setExplore(mode, persist) {{
+            document.documentElement.setAttribute('data-explore', mode);
+            var box = document.getElementById('explore-toggle');
+            if (box) box.checked = mode === 'on';
+            if (persist) {{
+                try {{ localStorage.setItem('exploreContracts', mode); }} catch (e) {{}}
+            }}
+            if (mode === 'off') {{
+                if (document.documentElement.getAttribute('data-active-tab') === 'contracts') switchTab('overview');
+                return;
+            }}
+            switchTab('contracts');
+        }}
+        document.addEventListener('DOMContentLoaded', function () {{
+            var box = document.getElementById('explore-toggle');
+            if (box) {{
+                box.checked = document.documentElement.getAttribute('data-explore') === 'on';
+                box.addEventListener('change', function () {{
+                    setExplore(box.checked ? 'on' : 'off', true);
+                }});
+            }}
+            var find = document.getElementById('find');
+            if (find) {{
+                find.addEventListener('submit', function (ev) {{
+                    ev.preventDefault();
+                    var qid = document.getElementById('qid');
+                    var id = qid ? qid.value.trim() : '';
+                    if (!id) return;
+                    history.pushState({{}}, '', '/contracts/' + encodeURIComponent(id));
+                    loadedKey = null;
+                    loadContracts();
+                }});
+            }}
+            var pane = document.getElementById('contracts-content');
+            if (pane) {{
+                pane.addEventListener('click', function (ev) {{
+                    var home = ev.target.closest && ev.target.closest('[data-contracts-home]');
+                    if (home) {{
+                        ev.preventDefault();
+                        history.pushState({{}}, '', '/');
+                        var q = document.getElementById('qid');
+                        if (q) q.value = '';
+                        loadedKey = null;
+                        loadContracts();
+                        return;
+                    }}
+                    var link = ev.target.closest && ev.target.closest('[data-contract]');
+                    if (!link) return;
+                    ev.preventDefault();
+                    var cid = link.getAttribute('data-contract');
+                    history.pushState({{}}, '', '/contracts/' + encodeURIComponent(cid));
+                    var field = document.getElementById('qid');
+                    if (field) field.value = cid;
+                    loadedKey = null;
+                    loadContracts();
+                }});
+            }}
+            window.addEventListener('popstate', function () {{
+                loadedKey = null;
+                if (contractIdFromPath()) {{
+                    document.documentElement.setAttribute('data-explore', 'on');
+                    if (box) box.checked = true;
+                    if (document.documentElement.getAttribute('data-active-tab') !== 'contracts') {{
+                        switchTab('contracts');
+                        return;
+                    }}
+                }}
+                if (document.documentElement.getAttribute('data-active-tab') === 'contracts') loadContracts();
+            }});
+            if (document.documentElement.getAttribute('data-active-tab') === 'contracts') loadContracts();
+        }});
     </script>
 </head>
 <body>
     <div class="header">
-        <h1>Modality Network {network_name}</h1>
-        <p class="status-online">Status: ONLINE | Node ID: {peerid} | Role: {role_display}</p>
+        <div class="topbar">
+            <div>
+                <div class="kicker">Modality Network</div>
+                <h1>{network_name}</h1>
+            </div>
+            <div class="topbar-meta">
+                <span class="status-online">Online</span>
+                <span>{role_display}</span>
+                <a href="https://testnet.modality.network">Join</a>
+            </div>
+        </div>
+        <p class="identity"><code>{peerid}</code></p>
         <div class="role-chips">{role_chips_html}</div>
-        <p class="tab-copy">Public hybrid testnet. Not mainnet. Hybrid consensus: {hybrid_label}. <a href="/">Explorer</a> · <a href="https://testnet.modality.network">Join</a></p>
+        <p class="pulse">
+            <span>Height <strong>{total_miner_blocks}</strong></span>
+            <span>Epoch <strong>{current_epoch}</strong></span>
+            <span>Peers <strong>{connected_peers}</strong></span>
+            <span>Difficulty <strong>{current_difficulty}</strong></span>
+        </p>
+        <p class="tab-copy">Public hybrid testnet. Not mainnet. Hybrid consensus: {hybrid_label}.</p>
     </div>
 
     <div class="tabs">
@@ -315,7 +691,13 @@
         <div class="tab" data-tab="miners" onclick="switchTab('miners')">Miners</div>
         <div class="tab" data-tab="sequencers" onclick="switchTab('sequencers')">Sequencers</div>
         <div class="tab" data-tab="validators" onclick="switchTab('validators')">Validators</div>
+        <div class="tab" data-tab="contracts" onclick="switchTab('contracts')">Contracts</div>
+        <label class="explore-switch" for="explore-toggle">
+            <span>Explore contracts</span>
+            <input type="checkbox" id="explore-toggle" aria-label="Explore contracts">
+        </label>
     </div>
+    <script>document.getElementById('explore-toggle').checked = document.documentElement.getAttribute('data-explore') === 'on';</script>
 
     <div id="overview-content" class="tab-content">
         <div class="status-grid">
@@ -556,6 +938,16 @@
                 </table>
             </div>
         </div>
+    </div>
+
+    <div id="contracts-content" class="tab-content">
+        <p class="tab-copy">Sequenced contracts on this node: state, model, rules, and the append-only log. Turn exploration off to keep this page on mining and consensus.</p>
+        <form class="find" id="find">
+            <input id="qid" placeholder="Paste a contract ID" autocomplete="off" spellcheck="false">
+            <button type="submit">Find</button>
+        </form>
+        <p id="err" hidden></p>
+        <div id="app"><p class="tab-copy">Loading…</p></div>
     </div>
 
     <div class="status-card">

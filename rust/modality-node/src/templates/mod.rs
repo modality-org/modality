@@ -7,11 +7,19 @@ use crate::status_snapshot::{
     BlockStatus, EpochNominees, GenesisBlock, NodeStatus, PeerStatus, PrefixCertStatus, RoundStatus,
 };
 
-/// The main status page HTML template
+/// Miner status app. Contract exploration is a switch inside this page.
 pub const STATUS_TEMPLATE: &str = include_str!("status.html");
 
-/// Contract explorer UI (find / inspect / history / status)
-pub const EXPLORER_TEMPLATE: &str = include_str!("explorer.html");
+/// `on` for an observer (the public explorer), `off` for miners and other roles.
+pub fn explore_contracts_default(status: &NodeStatus) -> &'static str {
+    let role = status.role.to_ascii_lowercase();
+    let display = status.role_display.to_ascii_lowercase();
+    if role == "observer" || display == "observer" {
+        "on"
+    } else {
+        "off"
+    }
+}
 
 pub use crate::status_snapshot::display_node_role;
 
@@ -476,6 +484,7 @@ pub fn render_status_from_snapshot(status: &NodeStatus) -> String {
         pending_prefix_cert_requests: status.pending_prefix_cert_requests,
         named_validators_html: render_named_validators(&status.named_validators),
         prefix_certs_html: render_prefix_certs(&status.recent_prefix_certs),
+        explore_default: explore_contracts_default(status).to_string(),
     };
     render_status_page(vars)
 }
@@ -537,6 +546,7 @@ pub fn render_status_page(vars: StatusPageVars) -> String {
         )
         .replace("{named_validators_html}", &vars.named_validators_html)
         .replace("{prefix_certs_html}", &vars.prefix_certs_html)
+        .replace("{explore_default}", &vars.explore_default)
         .replace("{{", "{")
         .replace("}}", "}")
 }
@@ -576,6 +586,7 @@ pub struct StatusPageVars {
     pub pending_prefix_cert_requests: usize,
     pub named_validators_html: String,
     pub prefix_certs_html: String,
+    pub explore_default: String,
 }
 
 fn sample_vars() -> StatusPageVars {
@@ -613,6 +624,7 @@ fn sample_vars() -> StatusPageVars {
         pending_prefix_cert_requests: 0,
         named_validators_html: render_empty_validators(),
         prefix_certs_html: render_empty_prefix_certs(),
+        explore_default: "off".to_string(),
     }
 }
 
@@ -673,7 +685,30 @@ mod tests {
         assert!(html.contains("data-active-tab"));
         assert!(html.contains("refreshStatus"));
         assert!(html.contains("/status.json"));
-        assert!(html.contains("Explorer"));
+        assert!(html.contains("Explore contracts"));
+        assert!(html.contains("Paste a contract ID"));
+        assert!(html.contains("data-tab=\"contracts\""));
+        assert!(html.contains("data-explore=\"off\">"));
+        assert!(html.contains("var explore = 'off';"));
+        assert!(html.contains("id=\"explore-toggle\""));
+    }
+
+    #[test]
+    fn rendered_scripts_have_balanced_braces() {
+        let html = render_status_page(sample_vars());
+        let mut rest = html.as_str();
+        let mut found = false;
+        while let Some(start) = rest.find("<script>") {
+            found = true;
+            rest = &rest[start + "<script>".len()..];
+            let end = rest.find("</script>").expect("script should close");
+            let script = &rest[..end];
+            let open = script.matches('{').count();
+            let close = script.matches('}').count();
+            assert_eq!(open, close, "unbalanced braces:\n{script}");
+            rest = &rest[end..];
+        }
+        assert!(found);
     }
 
     #[test]
@@ -696,11 +731,31 @@ mod tests {
         status.network_name = "testnet".into();
         status.named_validators = vec![];
         let html = render_status_from_snapshot(&status);
-        assert!(html.contains("Modality Network testnet"));
+        assert!(html.contains("Modality Network"));
+        assert!(html.contains("<h1>testnet</h1>"));
         assert!(!html.contains("Modal Money"));
         assert!(html.contains("switchTab('sequencers')"));
         assert!(html.contains("switchTab('validators')"));
         assert!(html.contains("No named validators on this network"));
+    }
+
+    #[test]
+    fn miner_snapshot_leaves_contract_exploration_off() {
+        let html = render_status_from_snapshot(&sample_status());
+        assert!(html.contains("data-explore=\"off\">"));
+        assert!(html.contains("var explore = 'off';"));
+        assert!(!html.contains("{explore_default}"));
+    }
+
+    #[test]
+    fn observer_snapshot_turns_contract_exploration_on() {
+        let mut status = sample_status();
+        status.role = "observer".into();
+        status.role_display = "Observer".into();
+        status.active_roles = vec![];
+        let html = render_status_from_snapshot(&status);
+        assert!(html.contains("data-explore=\"on\">"));
+        assert!(html.contains("var explore = 'on';"));
     }
 
     #[test]

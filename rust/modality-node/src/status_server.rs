@@ -1,4 +1,4 @@
-//! HTTP status server and observer-served contract explorer.
+//! HTTP app for a node: miner status, with contract exploration optional.
 
 use std::path::PathBuf;
 use warp::http::StatusCode;
@@ -7,7 +7,7 @@ use warp::Filter;
 use crate::constants::STATUS_PAGE_REFRESH_SECS;
 use crate::explorer;
 use crate::status_snapshot::{collect_node_status, NodeStatusSource};
-use crate::templates::{render_status_from_snapshot, EXPLORER_TEMPLATE};
+use crate::templates::render_status_from_snapshot;
 
 /// Start HTTP status server on the specified port
 pub async fn start_status_server(
@@ -16,29 +16,13 @@ pub async fn start_status_server(
 ) -> Result<tokio::task::JoinHandle<()>, anyhow::Error> {
     let source_filter = warp::any().map(move || source.clone());
 
-    let explorer_get = warp::path::end()
-        .and(warp::get())
-        .map(|| warp::reply::html(EXPLORER_TEMPLATE));
-    let explorer_head = warp::path::end().and(warp::head()).map(|| {
-        warp::reply::with_header(
-            warp::reply::with_status(warp::reply(), StatusCode::OK),
-            "content-type",
-            "text/html; charset=utf-8",
+    let page_head = warp::head()
+        .and(
+            warp::path::end()
+                .or(warp::path("status").and(warp::path::end()))
+                .or(warp::path!("contracts" / String).map(|_id: String| ())),
         )
-    });
-    let explorer_contract = warp::path!("contracts" / String)
-        .and(warp::get())
-        .map(|_id: String| warp::reply::html(EXPLORER_TEMPLATE));
-
-    let status_get = warp::path("status")
-        .and(warp::path::end())
-        .and(warp::get())
-        .and(source_filter.clone())
-        .and_then(status_handler);
-    let status_head = warp::path("status")
-        .and(warp::path::end())
-        .and(warp::head())
-        .map(|| {
+        .map(|_| {
             warp::reply::with_header(
                 warp::reply::with_status(warp::reply(), StatusCode::OK),
                 "content-type",
@@ -46,6 +30,19 @@ pub async fn start_status_server(
             )
         });
 
+    let root_get = warp::path::end()
+        .and(warp::get())
+        .and(source_filter.clone())
+        .and_then(status_handler);
+    let contract_get = warp::path!("contracts" / String)
+        .and(warp::get())
+        .and(source_filter.clone())
+        .and_then(contract_page);
+    let status_get = warp::path("status")
+        .and(warp::path::end())
+        .and(warp::get())
+        .and(source_filter.clone())
+        .and_then(status_handler);
     let json_get = warp::path("status.json")
         .and(warp::get())
         .and(source_filter.clone())
@@ -83,11 +80,10 @@ pub async fn start_status_server(
         ))
     });
 
-    let status_route = explorer_get
-        .or(explorer_head)
-        .or(explorer_contract)
+    let status_route = root_get
+        .or(contract_get)
         .or(status_get)
-        .or(status_head)
+        .or(page_head)
         .or(json_get)
         .or(json_head)
         .or(json_options)
@@ -119,6 +115,13 @@ async fn status_handler(source: NodeStatusSource) -> Result<impl warp::Reply, wa
         .await
         .map_err(|_| warp::reject::not_found())?;
     Ok(warp::reply::html(html))
+}
+
+async fn contract_page(
+    _id: String,
+    source: NodeStatusSource,
+) -> Result<impl warp::Reply, warp::Rejection> {
+    status_handler(source).await
 }
 
 async fn status_json_handler(
