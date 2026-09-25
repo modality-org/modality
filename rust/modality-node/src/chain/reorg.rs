@@ -563,14 +563,14 @@ pub async fn adopt_connected_extensions(mgr: &DatastoreManager) -> Result<usize>
         if safe.is_empty() {
             let bottom = extension[0].index;
             let tip = extension[extension.len() - 1].index;
-            log::debug!("Keeping parked extension {bottom}..={tip}: nomination epoch");
+            log::info!("Keeping parked extension {bottom}..={tip}: nomination epoch");
             continue;
         }
         match decide_adoption(&local_blocks, &safe, floor, blocks_per_epoch) {
             Adoption::Refuse { reason } => {
                 let bottom = safe[0].index;
                 let tip = safe[safe.len() - 1].index;
-                log::debug!("Keeping parked extension {bottom}..={tip}: {reason}");
+                log::info!("Keeping parked extension {bottom}..={tip}: {reason}");
             }
             Adoption::Adopt {
                 ancestor_index,

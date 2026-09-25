@@ -82,7 +82,7 @@ pub async fn fetch_missing_parents(
                 continue;
             }
         };
-        match store_parent(datastore, &block).await {
+        match store_parent(datastore, &block, true).await {
             StoreParent::Stored => {
                 stored_parents += 1;
                 ended.insert(hash);
@@ -124,6 +124,7 @@ async fn follow_peer_chain(
     let mut cursor = start.to_string();
     let mut seen = HashSet::new();
     let mut stored_parents = 0usize;
+    let mut met_canonical = false;
     for _ in 0..MAX_ATTEMPTS {
         if stored_parents >= MAX_STORED_PARENTS || !seen.insert(cursor.clone()) {
             break;
@@ -134,7 +135,12 @@ async fn follow_peer_chain(
         if let Some(existing) = stored_by_hash(datastore, &cursor).await {
             if existing.is_canonical && !existing.is_orphaned {
                 let shown = cursor.len().min(16);
-                log::info!("Peer chain met local canonical block {}", &cursor[..shown]);
+                log::info!(
+                    "Peer chain met local canonical block {} at index {}",
+                    &cursor[..shown],
+                    existing.index
+                );
+                met_canonical = true;
                 break;
             }
             match parent_to_follow(existing.index, &existing.previous_hash) {
@@ -167,7 +173,7 @@ async fn follow_peer_chain(
                 break;
             }
         };
-        match store_parent(datastore, &block).await {
+        match store_parent(datastore, &block, false).await {
             StoreParent::Rejected => {
                 remember_rejected(&cursor);
                 break;
@@ -180,6 +186,12 @@ async fn follow_peer_chain(
             Some(parent) => cursor = parent.to_string(),
             None => break,
         }
+    }
+    // The blocks above the canonical ancestor may already be stored from an
+    // earlier pass. Scoring only when this call stored something left that
+    // suffix parked.
+    if stored_parents > 0 || met_canonical {
+        score_stored_chains(datastore).await;
     }
 }
 
@@ -276,7 +288,21 @@ enum StoreParent {
     Failed,
 }
 
-async fn store_parent(datastore: &Arc<Mutex<DatastoreManager>>, block: &MinerBlock) -> StoreParent {
+async fn score_stored_chains(datastore: &Arc<Mutex<DatastoreManager>>) {
+    let ds = datastore.lock().await;
+    if let Err(e) = select_best_stored_chain(&ds).await {
+        log::warn!("Failed to score stored forks: {e}");
+    }
+    if let Err(e) = adopt_connected_extensions(&ds).await {
+        log::warn!("Failed to adopt a linked extension: {e}");
+    }
+}
+
+async fn store_parent(
+    datastore: &Arc<Mutex<DatastoreManager>>,
+    block: &MinerBlock,
+    score: bool,
+) -> StoreParent {
     let ds = datastore.lock().await;
     let stored = match MinerBlock::find_all_blocks_multi(&ds).await {
         Ok(blocks) => blocks,
@@ -320,17 +346,9 @@ async fn store_parent(datastore: &Arc<Mutex<DatastoreManager>>, block: &MinerBlo
         log::warn!("Failed to store parent {}: {e}", block.hash);
         return StoreParent::Failed;
     }
-    if let Err(e) = select_best_stored_chain(&ds).await {
-        log::warn!(
-            "Failed to score stored forks after parent {}: {e}",
-            block.hash
-        );
-    }
-    if let Err(e) = adopt_connected_extensions(&ds).await {
-        log::warn!(
-            "Failed to adopt a linked extension after parent {}: {e}",
-            block.hash
-        );
+    drop(ds);
+    if score {
+        score_stored_chains(datastore).await;
     }
     StoreParent::Stored
 }
