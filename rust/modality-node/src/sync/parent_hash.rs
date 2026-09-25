@@ -36,8 +36,8 @@ pub async fn fetch_missing_parents(
         >,
     >,
 ) {
-    const MAX_STORED_PARENTS: usize = 128;
-    const MAX_ATTEMPTS: usize = 1024;
+    const MAX_STORED_PARENTS: usize = 512;
+    const MAX_ATTEMPTS: usize = 2048;
 
     let mut ended = HashSet::new();
     let mut stored_parents = 0usize;
