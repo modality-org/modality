@@ -5,7 +5,7 @@
 //!
 //! The fork choice rules in priority order are:
 //! 1. Higher cumulative difficulty wins
-//! 2. Longer chain wins (if difficulty is equal)
+//! 2. Higher tip index wins (if difficulty is equal)
 //! 3. Lower block hash wins (as final tiebreaker)
 
 use modality_datastore::models::MinerBlock;
@@ -42,13 +42,13 @@ pub struct ChainComparison {
 ///
 /// Uses fork choice rules in priority order:
 /// 1. Higher cumulative difficulty wins
-/// 2. Longer chain wins (if difficulty is equal)
+/// 2. Higher tip index wins (if difficulty is equal)
 ///
 /// # Arguments
 /// * `local_difficulty` - Cumulative difficulty of the local chain
-/// * `local_length` - Number of blocks in the local chain
+/// * `local_length` - Local tip index
 /// * `remote_difficulty` - Cumulative difficulty of the remote chain
-/// * `remote_length` - Number of blocks in the remote chain
+/// * `remote_length` - Remote tip index
 ///
 /// # Returns
 /// A `ChainComparison` with the result and reasoning
@@ -79,7 +79,7 @@ pub fn compare_chains(
         (
             ForkChoiceResult::AdoptRemote,
             format!(
-                "Equal difficulty, remote chain is longer ({} > {} blocks)",
+                "Equal difficulty, remote tip is higher ({} > {})",
                 remote_length, local_length
             ),
         )
@@ -87,7 +87,7 @@ pub fn compare_chains(
         (
             ForkChoiceResult::KeepLocal,
             format!(
-                "Equal difficulty, local chain is longer ({} > {} blocks)",
+                "Equal difficulty, local tip is higher ({} > {})",
                 local_length, remote_length
             ),
         )

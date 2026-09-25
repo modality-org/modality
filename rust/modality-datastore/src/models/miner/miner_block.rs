@@ -149,18 +149,66 @@ impl MinerBlock {
             .context("Failed to parse actualized_difficulty as u128")
     }
 
-    /// Calculate total work (cumulative actualized difficulty) for a chain of blocks
-    /// Higher cumulative difficulty means more computational work was performed
-    /// Uses actualized difficulty (based on actual hash values) not target difficulty
+    /// Work of the parent-linked chain ending at the highest index.
+    ///
+    /// One block per index. A second canonical row at an index already on
+    /// that chain is not extra work. The walk stops at the first missing
+    /// parent, so blocks below a hole are not added to this tip.
+    ///
+    /// When several blocks share the highest index, the longest parent-linked
+    /// chain wins. Equal length then prefers more work, then the lower tip hash.
     pub fn calculate_cumulative_difficulty(blocks: &[MinerBlock]) -> Result<u128> {
-        let mut total: u128 = 0;
-        for block in blocks {
-            let difficulty = block.get_actualized_difficulty_u128()?;
-            total = total
-                .checked_add(difficulty)
-                .context("Cumulative difficulty overflow")?;
+        if blocks.is_empty() {
+            return Ok(0);
         }
-        Ok(total)
+
+        let mut by_index: std::collections::BTreeMap<u64, Vec<&MinerBlock>> =
+            std::collections::BTreeMap::new();
+        for block in blocks {
+            by_index.entry(block.index).or_default().push(block);
+        }
+        let tip_index = *by_index.keys().next_back().expect("indexes non-empty");
+
+        let mut best_total: u128 = 0;
+        let mut best_len: u64 = 0;
+        let mut best_tip_hash = "";
+        let mut found = false;
+
+        for tip in &by_index[&tip_index] {
+            let mut total: u128 = 0;
+            let mut len: u64 = 0;
+            let mut current = *tip;
+            loop {
+                let difficulty = current.get_actualized_difficulty_u128()?;
+                total = total
+                    .checked_add(difficulty)
+                    .context("Cumulative difficulty overflow")?;
+                len += 1;
+                if current.index == 0 {
+                    break;
+                }
+                let Some(parents) = by_index.get(&(current.index - 1)) else {
+                    break;
+                };
+                let Some(parent) = parents.iter().find(|b| b.hash == current.previous_hash) else {
+                    break;
+                };
+                current = parent;
+            }
+
+            let better = !found
+                || len > best_len
+                || (len == best_len && total > best_total)
+                || (len == best_len && total == best_total && tip.hash.as_str() < best_tip_hash);
+            if better {
+                found = true;
+                best_total = total;
+                best_len = len;
+                best_tip_hash = tip.hash.as_str();
+            }
+        }
+
+        Ok(best_total)
     }
 }
 
@@ -451,5 +499,63 @@ mod tests {
 
         assert_eq!(block.get_nonce_u128().unwrap(), 999999999999);
         assert_eq!(block.get_target_difficulty_u128().unwrap(), 777777777777);
+    }
+
+    fn block_with_work(index: u64, hash: &str, previous_hash: &str, work: u128) -> MinerBlock {
+        let mut block = MinerBlock::new_canonical(
+            hash.to_string(),
+            index,
+            0,
+            0,
+            previous_hash.to_string(),
+            "data".to_string(),
+            0,
+            1,
+            "peer".to_string(),
+            1,
+        );
+        block.actualized_difficulty = work.to_string();
+        block
+    }
+
+    #[test]
+    fn linked_chain_sums_each_index_once() {
+        let blocks = vec![
+            block_with_work(0, "a", "genesis", 10),
+            block_with_work(1, "b", "a", 20),
+            block_with_work(2, "c", "b", 30),
+        ];
+        assert_eq!(
+            MinerBlock::calculate_cumulative_difficulty(&blocks).unwrap(),
+            60
+        );
+    }
+
+    #[test]
+    fn duplicate_row_at_the_same_index_is_not_extra_work() {
+        let blocks = vec![
+            block_with_work(0, "a", "genesis", 10),
+            block_with_work(1, "b", "a", 20),
+            block_with_work(1, "b-dup", "a", 1000),
+            block_with_work(2, "c", "b", 30),
+        ];
+        assert_eq!(
+            MinerBlock::calculate_cumulative_difficulty(&blocks).unwrap(),
+            60
+        );
+    }
+
+    #[test]
+    fn work_below_a_hole_is_not_added_to_the_tip() {
+        let blocks = vec![
+            block_with_work(0, "a", "genesis", 10),
+            block_with_work(1, "b", "a", 20),
+            block_with_work(4, "e", "missing", 40),
+            block_with_work(5, "f", "e", 50),
+        ];
+        assert_eq!(
+            MinerBlock::calculate_cumulative_difficulty(&blocks).unwrap(),
+            90
+        );
     }
 }

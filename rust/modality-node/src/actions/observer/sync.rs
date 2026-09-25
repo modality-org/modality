@@ -77,27 +77,26 @@ pub async fn request_chain_info_impl(
     };
 
     // Get local chain info
-    let (local_cumulative_difficulty, local_chain_length) = {
+    let (local_cumulative_difficulty, local_tip) = {
         let ds = datastore.lock().await;
         let blocks = MinerBlock::find_all_canonical_multi(&ds).await?;
         let local_difficulty = calculate_cumulative_difficulty(&blocks);
-        (local_difficulty, blocks.len() as u64)
+        let local_tip = blocks.iter().map(|b| b.index).max().unwrap_or(0);
+        (local_difficulty, local_tip)
     };
 
-    // Compare chains
+    // Difficulty is the parent-linked work. The tiebreak is the tip index,
+    // so a node with more duplicate rows does not win at equal work.
     let comparison = compare_chains(
         local_cumulative_difficulty,
-        local_chain_length,
+        local_tip,
         peer_cumulative_difficulty,
-        peer_chain_length,
+        peer_chain_tip,
     );
 
     log::info!(
-        "Chain comparison: Local (length: {}, difficulty: {}) vs Peer (length: {}, difficulty: {})",
-        local_chain_length,
-        local_cumulative_difficulty,
-        peer_chain_length,
-        peer_cumulative_difficulty
+        "Chain comparison: Local (tip: {}, difficulty: {}) vs Peer (tip: {}, difficulty: {})",
+        local_tip, local_cumulative_difficulty, peer_chain_tip, peer_cumulative_difficulty
     );
 
     if comparison.result != ForkChoiceResult::AdoptRemote {

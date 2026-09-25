@@ -83,25 +83,26 @@ impl SyncCoordinator {
         .await?;
 
         // Step 2: Get local chain info for comparison
-        let (local_difficulty, local_length) = {
+        let (local_difficulty, local_tip) = {
             let ds = self.datastore.lock().await;
             let blocks = MinerBlock::find_all_canonical_multi(&ds).await?;
             let difficulty = calculate_cumulative_difficulty(&blocks);
-            (difficulty, blocks.len() as u64)
+            let tip = blocks.iter().map(|b| b.index).max().unwrap_or(0);
+            (difficulty, tip)
         };
 
-        // Step 3: Compare chains
+        // Step 3: Compare chains. Tiebreak on tip index, not stored row count.
         let comparison = compare_chains(
             local_difficulty,
-            local_length,
+            local_tip,
             ancestor_result.remote_cumulative_difficulty,
-            ancestor_result.remote_chain_length,
+            ancestor_result.remote_chain_tip,
         );
 
         log::info!(
-            "Chain comparison: Local (length: {}, difficulty: {}) vs Peer (length: {}, difficulty: {})",
-            local_length, local_difficulty,
-            ancestor_result.remote_chain_length, ancestor_result.remote_cumulative_difficulty
+            "Chain comparison: Local (tip: {}, difficulty: {}) vs Peer (tip: {}, difficulty: {})",
+            local_tip, local_difficulty,
+            ancestor_result.remote_chain_tip, ancestor_result.remote_cumulative_difficulty
         );
         log::info!(
             "Decision: {} - {}",

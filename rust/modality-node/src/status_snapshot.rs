@@ -250,10 +250,8 @@ pub async fn collect_node_status(source: &NodeStatusSource) -> anyhow::Result<No
         .filter(|block| block.nominated_peer_id == peerid_str)
         .count();
 
-    let cumulative_difficulty: u128 = miner_blocks
-        .iter()
-        .filter_map(|block| block.target_difficulty.parse::<u128>().ok())
-        .sum();
+    let cumulative_difficulty =
+        MinerBlock::calculate_cumulative_difficulty(&miner_blocks).unwrap_or(0);
 
     let network_hashrate = calculate_network_hashrate(&miner_blocks);
     let miner_hashrate = {
