@@ -649,7 +649,7 @@ pub fn validate_block_chain(blocks: &[MinerBlock]) -> Result<()> {
 pub async fn select_best_stored_chain(mgr: &DatastoreManager) -> Result<bool> {
     use crate::chain::fork_choice::{
         check_expected_target, choose_verified, nomination_epoch_complete, score_canonical_chain,
-        ForkChoiceResult, RetargetParams, TargetCheck,
+        ChainWork, ForkChoiceResult, RetargetParams, TargetCheck,
     };
     use modality_datastore::models::miner::MinerCheckpoint;
 
@@ -712,10 +712,17 @@ pub async fn select_best_stored_chain(mgr: &DatastoreManager) -> Result<bool> {
         return Ok(demoted_off_spine);
     }
 
+    let local_score = score_canonical_chain(&canonical);
+    let winner_score = score_canonical_chain(&winner);
+    // A checkpoint or nomination epoch on a chain that does not reach
+    // genesis protects nothing that can be verified.
+    let local_anchored = matches!(local_score.work, ChainWork::Linked(_));
+
     if let Some(floor) = floor {
-        if canonical
-            .iter()
-            .any(|block| block.index <= floor && !winner_hashes.contains(&block.hash))
+        if local_anchored
+            && canonical
+                .iter()
+                .any(|block| block.index <= floor && !winner_hashes.contains(&block.hash))
         {
             log::warn!("Refusing to switch off the sequenced prefix through {floor}");
             return Ok(demoted_off_spine);
@@ -728,15 +735,13 @@ pub async fn select_best_stored_chain(mgr: &DatastoreManager) -> Result<bool> {
         .map(|block| block.epoch)
         .unwrap_or(0);
     let winner_epoch = winner.last().map(|block| block.epoch).unwrap_or(0);
-    if nomination_epoch_complete(&canonical, blocks_per_epoch, local_epoch)
+    if local_anchored
+        && nomination_epoch_complete(&canonical, blocks_per_epoch, local_epoch)
         && !nomination_epoch_complete(&winner, blocks_per_epoch, winner_epoch)
     {
         log::warn!("Refusing a fork that drops the nomination epoch");
         return Ok(demoted_off_spine);
     }
-
-    let local_score = score_canonical_chain(&canonical);
-    let winner_score = score_canonical_chain(&winner);
     let decision = choose_verified(
         local_score.work,
         local_score.tip,

@@ -443,6 +443,10 @@ pub fn score_canonical_chain(blocks: &[MinerBlock]) -> ScoredChain {
     }
     let mut sum = 0u128;
     for block in &spine {
+        // Genesis is not mined, so it has no proof to check and adds no work.
+        if block.index == 0 {
+            continue;
+        }
         if !proof_meets_target(block) {
             return ScoredChain {
                 work: ChainWork::Unknown,
@@ -474,6 +478,9 @@ pub fn verified_suffix_work(blocks: &[MinerBlock]) -> ChainWork {
     }
     let mut sum = 0u128;
     for block in blocks {
+        if block.index == 0 {
+            continue;
+        }
         if !proof_meets_target(block) {
             return ChainWork::Unknown;
         }
@@ -558,8 +565,16 @@ pub fn decide_adoption(
         work_above_ancestor(local_blocks, ancestor_index, &first.previous_hash)
     };
 
+    // A checkpoint or nomination epoch on a chain that does not reach
+    // genesis protects nothing that can be verified. Only an anchored
+    // local chain keeps those guards.
+    let local_anchored = matches!(
+        score_canonical_chain(local_blocks).work,
+        ChainWork::Linked(_)
+    );
     if let Some(floor) = checkpoint_floor {
-        if first.index > 0
+        if local_anchored
+            && first.index > 0
             && local_blocks
                 .iter()
                 .any(|block| block.index > ancestor_index && block.index <= floor)
@@ -580,7 +595,8 @@ pub fn decide_adoption(
         .cloned()
         .collect();
     candidate.extend(remote_blocks.iter().cloned());
-    if nomination_epoch_complete(local_blocks, blocks_per_epoch, local_epoch)
+    if local_anchored
+        && nomination_epoch_complete(local_blocks, blocks_per_epoch, local_epoch)
         && !nomination_epoch_complete(&candidate, blocks_per_epoch, remote_tip.epoch)
     {
         return Adoption::Refuse {
@@ -1089,6 +1105,42 @@ mod tests {
             check_expected_target(&renamed, &stored, params),
             TargetCheck::Reject
         );
+    }
+
+    #[test]
+    fn genesis_without_proof_still_anchors_the_chain() {
+        let mut genesis = block_at(0, "", "0");
+        genesis.target_difficulty = "1".to_string();
+        let blocks = vec![genesis, block_at(1, "hash_0", "1000")];
+        let scored = score_canonical_chain(&blocks);
+        assert_eq!(scored.work, ChainWork::Linked(1000));
+    }
+
+    #[test]
+    fn an_unanchored_checkpoint_does_not_refuse_the_anchored_chain() {
+        // Local chain hangs from a hole at index 6; the checkpoint covers it.
+        let local = vec![
+            block_at(7, "missing_6", "1000"),
+            block_at(8, "hash_7", "1000"),
+            block_at(9, "hash_8", "1000"),
+        ];
+        let mut heavier = block_at(8, "hash_7", "9000");
+        heavier.hash = "alt_8".to_string();
+        match decide_adoption(&local, &[heavier], Some(9), 2) {
+            Adoption::Adopt { ancestor_index, .. } => assert_eq!(ancestor_index, 7),
+            Adoption::Refuse { reason } => panic!("unanchored checkpoint refused: {reason}"),
+        }
+        let anchored_local = vec![
+            block_at(0, "", "1000"),
+            block_at(1, "hash_0", "1000"),
+            block_at(2, "hash_1", "1000"),
+        ];
+        let mut heavier = block_at(1, "hash_0", "5000");
+        heavier.hash = "alt_1".to_string();
+        match decide_adoption(&anchored_local, &[heavier], Some(2), 0) {
+            Adoption::Refuse { reason } => assert!(reason.contains("sequenced prefix")),
+            Adoption::Adopt { .. } => panic!("anchored checkpoint prefix was orphaned"),
+        }
     }
 
     #[test]

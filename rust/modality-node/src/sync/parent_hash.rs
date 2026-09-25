@@ -150,7 +150,16 @@ async fn follow_peer_chain(
                     cursor = parent.to_string();
                     continue;
                 }
-                None => break,
+                None => {
+                    if existing.index == 0 {
+                        log::info!(
+                            "Peer chain reaches genesis {}",
+                            &existing.hash[..16.min(existing.hash.len())]
+                        );
+                        met_canonical = true;
+                    }
+                    break;
+                }
             }
         }
         let shown = cursor.len().min(16);
@@ -186,7 +195,16 @@ async fn follow_peer_chain(
         }
         match parent_to_follow(block.index, &block.previous_hash) {
             Some(parent) => cursor = parent.to_string(),
-            None => break,
+            None => {
+                if block.index == 0 {
+                    log::info!(
+                        "Peer chain reaches genesis {}",
+                        &block.hash[..16.min(block.hash.len())]
+                    );
+                    met_canonical = true;
+                }
+                break;
+            }
         }
     }
     // The blocks above the canonical ancestor may already be stored from an
