@@ -583,6 +583,52 @@ pub fn decide_adoption(
     }
 }
 
+/// Longest prefix of `extension` that still covers a nomination epoch the
+/// local chain already completed.
+///
+/// A parked run can be longer than the prefix that is safe to adopt. Blocks
+/// past the first gap stay parked until that later window is present.
+pub fn nomination_safe_prefix(
+    local_blocks: &[MinerBlock],
+    extension: &[MinerBlock],
+    blocks_per_epoch: u64,
+) -> Vec<MinerBlock> {
+    let mut best = 0;
+    for len in 1..=extension.len() {
+        if prefix_covers_local_nomination(local_blocks, &extension[..len], blocks_per_epoch) {
+            best = len;
+        } else {
+            break;
+        }
+    }
+    extension[..best].to_vec()
+}
+
+fn prefix_covers_local_nomination(
+    local_blocks: &[MinerBlock],
+    prefix: &[MinerBlock],
+    blocks_per_epoch: u64,
+) -> bool {
+    let Some(first) = prefix.first() else {
+        return false;
+    };
+    let local_epoch = MinerBlock::verified_spine(local_blocks)
+        .last()
+        .map(|block| block.epoch)
+        .unwrap_or(0);
+    if !nomination_epoch_complete(local_blocks, blocks_per_epoch, local_epoch) {
+        return true;
+    }
+    let mut candidate: Vec<MinerBlock> = local_blocks
+        .iter()
+        .filter(|block| first.index == 0 || block.index < first.index)
+        .cloned()
+        .collect();
+    candidate.extend(prefix.iter().cloned());
+    let tip_epoch = prefix.last().map(|block| block.epoch).unwrap_or(0);
+    nomination_epoch_complete(&candidate, blocks_per_epoch, tip_epoch)
+}
+
 fn work_above_ancestor(
     blocks: &[MinerBlock],
     ancestor_index: u64,
@@ -935,6 +981,25 @@ mod tests {
             Adoption::Refuse { reason } => assert!(reason.contains("nomination")),
             Adoption::Adopt { .. } => panic!("incomplete nomination replaced a complete chain"),
         }
+    }
+
+    #[test]
+    fn a_nomination_gap_keeps_the_prefix_that_still_covers_the_epoch() {
+        let mut local = vec![
+            block_at(0, "genesis", "1000"),
+            block_at(1, "hash_0", "1000"),
+            block_at(2, "hash_1", "1000"),
+        ];
+        local[2].epoch = 2;
+        let mut same = block_at(3, "hash_2", "5000");
+        same.epoch = 2;
+        let mut later = block_at(4, "hash_3", "5000");
+        later.hash = "hash_4".to_string();
+        later.previous_hash = "hash_3".to_string();
+        later.epoch = 4;
+        let prefix = nomination_safe_prefix(&local, &[same.clone(), later], 2);
+        assert_eq!(prefix.len(), 1);
+        assert_eq!(prefix[0].hash, same.hash);
     }
 
     #[test]
