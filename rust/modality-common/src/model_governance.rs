@@ -1205,6 +1205,25 @@ enum ReplayBundleBinding {
     },
 }
 
+#[derive(serde::Serialize)]
+struct CanonicalOracleReplayBundle<'a> {
+    predicate: &'static str,
+    max_age_seconds: i64,
+    attestation: CanonicalOracleAttestation<'a>,
+}
+
+#[derive(serde::Serialize)]
+struct CanonicalOracleAttestation<'a> {
+    oracle_pubkey: &'a str,
+    oracle_path: &'a str,
+    claim: &'a str,
+    value: &'a str,
+    contract_id: &'a str,
+    pending_commit_hash: &'a str,
+    timestamp: i64,
+    signature: &'a str,
+}
+
 impl CommitFacts {
     fn from_commit(commit: &CommitFile, state: &HashMap<String, Value>) -> Self {
         Self {
@@ -1688,7 +1707,7 @@ fn replay_bundle_status(predicate_name: &str, replay_bundle_json: &str) -> Repla
     match object.get("predicate").and_then(Value::as_str) {
         Some(actual) if actual == predicate_name => {
             if predicate_name == "oracle_attests" {
-                return oracle_replay_bundle_shape_status(object);
+                return oracle_replay_bundle_shape_status(object, replay_bundle_json);
             }
             ReplayBundleStatus::Present(ReplayBundleBinding::Generic)
         }
@@ -1703,6 +1722,7 @@ fn replay_bundle_status(predicate_name: &str, replay_bundle_json: &str) -> Repla
 
 fn oracle_replay_bundle_shape_status(
     object: &serde_json::Map<String, Value>,
+    replay_bundle_json: &str,
 ) -> ReplayBundleStatus {
     match object.get("max_age_seconds").and_then(Value::as_i64) {
         Some(value) if value > 0 => {}
@@ -1739,6 +1759,54 @@ fn oracle_replay_bundle_shape_status(
     if !attestation.get("timestamp").is_some_and(Value::is_i64) {
         return ReplayBundleStatus::Invalid(
             "oracle_attests replay bundle attestation is missing integer timestamp".to_string(),
+        );
+    }
+
+    let canonical_bundle_json = serde_json::to_string(&CanonicalOracleReplayBundle {
+        predicate: "oracle_attests",
+        max_age_seconds: object
+            .get("max_age_seconds")
+            .and_then(Value::as_i64)
+            .unwrap_or_default(),
+        attestation: CanonicalOracleAttestation {
+            oracle_pubkey: attestation
+                .get("oracle_pubkey")
+                .and_then(Value::as_str)
+                .unwrap_or_default(),
+            oracle_path: attestation
+                .get("oracle_path")
+                .and_then(Value::as_str)
+                .unwrap_or_default(),
+            claim: attestation
+                .get("claim")
+                .and_then(Value::as_str)
+                .unwrap_or_default(),
+            value: attestation
+                .get("value")
+                .and_then(Value::as_str)
+                .unwrap_or_default(),
+            contract_id: attestation
+                .get("contract_id")
+                .and_then(Value::as_str)
+                .unwrap_or_default(),
+            pending_commit_hash: attestation
+                .get("pending_commit_hash")
+                .and_then(Value::as_str)
+                .unwrap_or_default(),
+            timestamp: attestation
+                .get("timestamp")
+                .and_then(Value::as_i64)
+                .unwrap_or_default(),
+            signature: attestation
+                .get("signature")
+                .and_then(Value::as_str)
+                .unwrap_or_default(),
+        },
+    })
+    .unwrap_or_default();
+    if canonical_bundle_json != replay_bundle_json {
+        return ReplayBundleStatus::Invalid(
+            "oracle_attests replay bundle is not canonical JSON bytes".to_string(),
         );
     }
 
@@ -2099,6 +2167,43 @@ model DeliveryOracle {
             err.contains(
                 "oracle_attests replay bundle attestation claim damaged does not match predicate argument delivered"
             ),
+            "{err}"
+        );
+        assert!(
+            !err.contains("not yet promoted to local transition acceptance"),
+            "{err}"
+        );
+
+        let mut noncanonical_bundle_commit = commit.clone();
+        noncanonical_bundle_commit.head.replay_bundles = Some(
+            [(
+                "oracle_attests".to_string(),
+                ReplayBundleEvidence {
+                    replay_bundle_json: r#"{
+  "predicate": "oracle_attests",
+  "max_age_seconds": 60,
+  "attestation": {
+    "oracle_pubkey": "delivery-key-v1",
+    "oracle_path": "/oracles/delivery.id",
+    "claim": "delivered",
+    "value": "true",
+    "contract_id": "c1",
+    "pending_commit_hash": "pending-1",
+    "timestamp": 1700000000,
+    "signature": "sig"
+  }
+}"#
+                    .to_string(),
+                },
+            )]
+            .into_iter()
+            .collect(),
+        );
+        let facts = CommitFacts::from_commit(&noncanonical_bundle_commit, &HashMap::new());
+        let err = explain_no_valid_transition(&model, &current_states, &facts);
+        assert!(err.contains("invalid replay bundle evidence"), "{err}");
+        assert!(
+            err.contains("oracle_attests replay bundle is not canonical JSON bytes"),
             "{err}"
         );
         assert!(
