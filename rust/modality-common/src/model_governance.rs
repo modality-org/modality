@@ -36,6 +36,15 @@ pub fn validate_pending_commit_with_history(
     accepted: &[CommitFile],
     pending: &CommitFile,
 ) -> Result<()> {
+    validate_pending_commit_with_history_and_id(fallback_model_content, accepted, pending, None)
+}
+
+pub fn validate_pending_commit_with_history_and_id(
+    fallback_model_content: &str,
+    accepted: &[CommitFile],
+    pending: &CommitFile,
+    pending_commit_id: Option<&str>,
+) -> Result<()> {
     let Some(governing_model) = governing_model_content(fallback_model_content, accepted, pending)
     else {
         return Ok(());
@@ -45,7 +54,7 @@ pub fn validate_pending_commit_with_history(
         .map_err(|err| anyhow::anyhow!("Invalid governing model syntax: {}", err))?;
     let (current_states, state, _anchored_rules) =
         replay_commits_to_current_state(&model, accepted)?;
-    let facts = CommitFacts::from_commit(pending, &state);
+    let facts = CommitFacts::from_pending_commit(pending, &state, pending_commit_id);
 
     if has_valid_transition(&model, &current_states, &facts) {
         return Ok(());
@@ -59,6 +68,14 @@ pub fn validate_pending_commit_with_history(
 
 /// Sequenced apply: skip genesis-only and contracts that never posted a model.
 pub fn validate_sequenced_commit(accepted: &[CommitFile], pending: &CommitFile) -> Result<()> {
+    validate_sequenced_commit_with_pending_id(accepted, pending, None)
+}
+
+pub fn validate_sequenced_commit_with_pending_id(
+    accepted: &[CommitFile],
+    pending: &CommitFile,
+    pending_commit_id: Option<&str>,
+) -> Result<()> {
     if is_genesis_only(pending) {
         return Ok(());
     }
@@ -67,7 +84,7 @@ pub fn validate_sequenced_commit(accepted: &[CommitFile], pending: &CommitFile) 
     {
         return Ok(());
     }
-    validate_pending_commit_with_history("", accepted, pending)
+    validate_pending_commit_with_history_and_id("", accepted, pending, pending_commit_id)
 }
 
 pub fn latest_accepted_model_content(store: &ContractStore) -> Result<Option<String>> {
@@ -1226,6 +1243,14 @@ struct CanonicalOracleAttestation<'a> {
 
 impl CommitFacts {
     fn from_commit(commit: &CommitFile, state: &HashMap<String, Value>) -> Self {
+        Self::from_pending_commit(commit, state, None)
+    }
+
+    fn from_pending_commit(
+        commit: &CommitFile,
+        state: &HashMap<String, Value>,
+        pending_commit_id: Option<&str>,
+    ) -> Self {
         Self {
             methods: commit
                 .body
@@ -1247,7 +1272,7 @@ impl CommitFacts {
                 .map(normalize_path)
                 .collect(),
             state: state.clone(),
-            replay_bundles: replay_bundle_statuses(commit),
+            replay_bundles: replay_bundle_statuses(commit, pending_commit_id),
         }
     }
 
@@ -1672,7 +1697,10 @@ impl CommitFacts {
     }
 }
 
-fn replay_bundle_statuses(commit: &CommitFile) -> HashMap<String, ReplayBundleStatus> {
+fn replay_bundle_statuses(
+    commit: &CommitFile,
+    pending_commit_id: Option<&str>,
+) -> HashMap<String, ReplayBundleStatus> {
     let mut statuses = HashMap::new();
     let Some(bundles) = commit.head.replay_bundles.as_ref() else {
         return statuses;
@@ -1681,14 +1709,22 @@ fn replay_bundle_statuses(commit: &CommitFile) -> HashMap<String, ReplayBundleSt
     for (predicate_name, bundle) in bundles {
         statuses.insert(
             predicate_name.clone(),
-            replay_bundle_status(predicate_name, &bundle.replay_bundle_json),
+            replay_bundle_status(
+                predicate_name,
+                &bundle.replay_bundle_json,
+                pending_commit_id,
+            ),
         );
     }
 
     statuses
 }
 
-fn replay_bundle_status(predicate_name: &str, replay_bundle_json: &str) -> ReplayBundleStatus {
+fn replay_bundle_status(
+    predicate_name: &str,
+    replay_bundle_json: &str,
+    pending_commit_id: Option<&str>,
+) -> ReplayBundleStatus {
     let bundle: Value = match serde_json::from_str(replay_bundle_json) {
         Ok(bundle) => bundle,
         Err(err) => {
@@ -1707,7 +1743,11 @@ fn replay_bundle_status(predicate_name: &str, replay_bundle_json: &str) -> Repla
     match object.get("predicate").and_then(Value::as_str) {
         Some(actual) if actual == predicate_name => {
             if predicate_name == "oracle_attests" {
-                return oracle_replay_bundle_shape_status(object, replay_bundle_json);
+                return oracle_replay_bundle_shape_status(
+                    object,
+                    replay_bundle_json,
+                    pending_commit_id,
+                );
             }
             ReplayBundleStatus::Present(ReplayBundleBinding::Generic)
         }
@@ -1723,6 +1763,7 @@ fn replay_bundle_status(predicate_name: &str, replay_bundle_json: &str) -> Repla
 fn oracle_replay_bundle_shape_status(
     object: &serde_json::Map<String, Value>,
     replay_bundle_json: &str,
+    pending_commit_id: Option<&str>,
 ) -> ReplayBundleStatus {
     match object.get("max_age_seconds").and_then(Value::as_i64) {
         Some(value) if value > 0 => {}
@@ -1760,6 +1801,18 @@ fn oracle_replay_bundle_shape_status(
         return ReplayBundleStatus::Invalid(
             "oracle_attests replay bundle attestation is missing integer timestamp".to_string(),
         );
+    }
+    if let (Some(expected), Some(actual)) = (
+        pending_commit_id,
+        attestation
+            .get("pending_commit_hash")
+            .and_then(Value::as_str),
+    ) {
+        if actual != expected {
+            return ReplayBundleStatus::Invalid(format!(
+                "oracle_attests replay bundle attestation pending_commit_hash {actual} does not match pending commit {expected}"
+            ));
+        }
     }
 
     let canonical_bundle_json = serde_json::to_string(&CanonicalOracleReplayBundle {

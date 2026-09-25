@@ -42,3 +42,15 @@ pub async fn load_sequenced_parent_chain(
 pub fn validate_against_local_rules(accepted: &[CommitFile], pending: &CommitFile) -> Result<()> {
     modality_common::model_governance::validate_sequenced_commit(accepted, pending)
 }
+
+pub fn validate_against_local_rules_for_commit(
+    accepted: &[CommitFile],
+    pending: &CommitFile,
+    pending_commit_id: &str,
+) -> Result<()> {
+    modality_common::model_governance::validate_sequenced_commit_with_pending_id(
+        accepted,
+        pending,
+        Some(pending_commit_id),
+    )
+}
