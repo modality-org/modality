@@ -118,125 +118,8 @@ pub async fn handler(
         }
     }
 
-    // Track if we save a new block or update the chain tip
-    let mut chain_tip_updated = false;
-    let mut new_tip_index = None;
-
-    // **FIRST**: Check if a block exists at this index (fork choice)
-    // This must happen BEFORE parent validation to handle competing blocks correctly
-    {
-        let mgr = datastore_manager.lock().await;
-        if let Some(existing) =
-            MinerBlock::find_canonical_by_index_simple(&mgr, miner_block.index).await?
-        {
-            let choice = crate::chain::fork_choice::compare_blocks(&miner_block, &existing);
-            let new_difficulty = choice.new_difficulty;
-            let existing_difficulty = choice.existing_difficulty;
-            let should_replace = choice.should_replace;
-            if should_replace {
-                log::info!("Fork choice: {}", choice.reason);
-                log::info!("Fork choice: Replacing existing block {} (difficulty: {}, hash: {}) with gossiped block (difficulty: {}, hash: {})",
-                    miner_block.index, existing_difficulty, &existing.hash[..16], new_difficulty, &miner_block.hash[..16]);
-
-                let replaced_block_hash = existing.hash.clone();
-                let replaced_block_index = existing.index;
-
-                // Mark old block as orphaned
-                let mut orphaned = existing.clone();
-                orphaned.mark_as_orphaned(
-                    format!(
-                        "Replaced by gossiped block (difficulty: {}, hash: {})",
-                        new_difficulty,
-                        &miner_block.hash[..16]
-                    ),
-                    Some(miner_block.hash.clone()),
-                );
-                orphaned.save_to_active(&mgr).await?;
-
-                // CASCADE ORPHANING: Find and orphan all canonical blocks built on the replaced block
-                let all_canonical = MinerBlock::find_all_canonical_multi(&mgr).await?;
-                let mut cascade_orphaned_count = 0;
-
-                let mut blocks_to_check: Vec<_> = all_canonical
-                    .iter()
-                    .filter(|b| b.index > replaced_block_index && b.is_canonical && !b.is_orphaned)
-                    .collect();
-
-                blocks_to_check.sort_by_key(|b| b.index);
-
-                let mut orphaned_hashes = std::collections::HashSet::new();
-                orphaned_hashes.insert(replaced_block_hash.clone());
-
-                for block in blocks_to_check {
-                    if orphaned_hashes.contains(&block.previous_hash) {
-                        log::info!(
-                            "   Cascade orphaning block {} at index {} (built on orphaned chain)",
-                            &block.hash[..16],
-                            block.index
-                        );
-
-                        let mut cascade_orphaned = block.clone();
-                        cascade_orphaned.mark_as_orphaned(
-                            format!(
-                                "Built on orphaned block {} at index {} (cascade from fork choice)",
-                                &replaced_block_hash[..16],
-                                replaced_block_index
-                            ),
-                            None,
-                        );
-                        cascade_orphaned.save_to_active(&mgr).await?;
-
-                        orphaned_hashes.insert(block.hash.clone());
-                        cascade_orphaned_count += 1;
-                    }
-                }
-
-                if cascade_orphaned_count > 0 {
-                    log::warn!(
-                        "⚠️  Cascade orphaned {} blocks built on replaced block {}",
-                        cascade_orphaned_count,
-                        replaced_block_index
-                    );
-                }
-
-                // Save new block as canonical
-                miner_block.save_to_active(&mgr).await?;
-                log::info!(
-                    "Accepted gossiped block {} at index {}",
-                    &miner_block.hash[..16],
-                    miner_block.index
-                );
-
-                // Check if this updates the chain tip
-                let current_tip =
-                    MinerBlock::verified_spine(&MinerBlock::find_all_canonical_multi(&mgr).await?)
-                        .into_iter()
-                        .last()
-                        .map(|b| b.index);
-
-                if let Some(tip) = current_tip {
-                    chain_tip_updated = true;
-                    new_tip_index = Some(tip);
-                }
-            } else {
-                log::debug!("Existing block {} wins fork choice (existing difficulty: {}, hash: {} vs new difficulty: {}, hash: {})", 
-                    miner_block.index, existing_difficulty, &existing.hash[..16], new_difficulty, &miner_block.hash[..16]);
-            }
-
-            // Fork handled - notify if needed and return
-            drop(mgr);
-            if chain_tip_updated {
-                if let Some(tip) = new_tip_index {
-                    if let Some(ref tx) = mining_update_tx {
-                        log::info!("📡 Chain tip updated to {} via gossip fork choice, notifying mining loop", tip);
-                        let _ = tx.send(tip);
-                    }
-                }
-            }
-            return Ok(());
-        }
-    }
-
+    // A block whose parent is not stored yet is parked. It stays off the
+    // canonical set until the parent arrives and the chain is scored.
     // **SECOND**: Validate we have the parent block (chain continuity)
     if miner_block.index > 0 {
         let mgr = datastore_manager.lock().await;
@@ -244,10 +127,15 @@ pub async fn handler(
         // Check if the parent exists by hash
         match MinerBlock::find_by_hash_multi(&mgr, &miner_block.previous_hash).await? {
             None => {
-                log::warn!(
-                    "Received block {} but missing parent block (prev_hash: {}). Orphan block detected!",
+                let mut parked = miner_block.clone();
+                parked.is_canonical = false;
+                parked.is_orphaned = false;
+                parked.save_to_active(&mgr).await?;
+                log::info!(
+                    "Parked block {} at index {} until parent {} arrives",
+                    &miner_block.hash[..16.min(miner_block.hash.len())],
                     miner_block.index,
-                    &miner_block.previous_hash[..16]
+                    &miner_block.previous_hash[..16.min(miner_block.previous_hash.len())]
                 );
 
                 // Check if this is a completely different chain by comparing genesis
@@ -294,14 +182,12 @@ pub async fn handler(
                 return Ok(());
             }
             Some(parent) => {
-                // Validate parent is canonical
-                if !parent.is_canonical {
+                if parent.is_orphaned {
                     log::warn!(
-                        "Parent block {} is not canonical, rejecting gossiped block {}",
+                        "Parent block {} is orphaned, parking gossiped block {} as a competing fork",
                         parent.index,
                         miner_block.index
                     );
-                    return Ok(());
                 }
 
                 // Validate parent is at expected index
@@ -315,42 +201,23 @@ pub async fn handler(
                     return Ok(());
                 }
 
-                if parent.epoch == miner_block.epoch
-                    && parent.target_difficulty != miner_block.target_difficulty
+                let stored = MinerBlock::find_all_blocks_multi(&mgr).await?;
+                let params = crate::chain::fork_choice::RetargetParams {
+                    blocks_per_epoch: mgr.epoch_config().blocks_per_epoch,
+                    target_block_time_secs: mgr.network_u64("target_block_time_secs").unwrap_or(60),
+                    initial_difficulty: mgr
+                        .network_u64("initial_difficulty")
+                        .map(|value| value as u128),
+                };
+                if crate::chain::fork_choice::check_expected_target(&miner_block, &stored, params)
+                    == crate::chain::fork_choice::TargetCheck::Reject
                 {
                     log::warn!(
-                        "Block {} target {} does not match parent target {} in epoch {}",
+                        "Block {} target {} is not the difficulty this chain expects",
                         miner_block.index,
-                        miner_block.target_difficulty,
-                        parent.target_difficulty,
-                        miner_block.epoch
+                        miner_block.target_difficulty
                     );
                     return Ok(());
-                }
-                if miner_block.epoch > parent.epoch.saturating_add(1) {
-                    log::warn!(
-                        "Block {} epoch {} skips parent epoch {}",
-                        miner_block.index,
-                        miner_block.epoch,
-                        parent.epoch
-                    );
-                    return Ok(());
-                }
-
-                // CRITICAL: Check if there's a DIFFERENT canonical block at index-1
-                if let Ok(Some(canonical_at_parent_index)) =
-                    MinerBlock::find_canonical_by_index_simple(&mgr, miner_block.index - 1).await
-                {
-                    if canonical_at_parent_index.hash != miner_block.previous_hash {
-                        log::warn!(
-                            "⚠️  Block {} builds on orphaned parent. Canonical block at index {} has hash {}, but this block expects {}. Rejecting.",
-                            miner_block.index,
-                            miner_block.index - 1,
-                            &canonical_at_parent_index.hash[..16],
-                            &miner_block.previous_hash[..16]
-                        );
-                        return Ok(());
-                    }
                 }
 
                 log::debug!("Parent block validated for block {}", miner_block.index);
@@ -392,47 +259,24 @@ pub async fn handler(
         drop(mgr);
     }
 
-    // Save block and notify the mining loop.
-    // The existence check above drops the lock before parent validation,
-    // so a second gossip of a different hash can pass it too. Recheck
-    // under the save lock and keep a single canonical block at this index.
+    // Store the block off the canonical set, then let the heaviest stored
+    // chain become canonical. The other fork stays available.
     let current_tip = {
         let mgr = datastore_manager.lock().await;
-        if let Some(existing) =
-            MinerBlock::find_canonical_by_index_simple(&mgr, miner_block.index).await?
-        {
-            if existing.hash != miner_block.hash {
-                if !crate::chain::fork_choice::should_replace_block(&miner_block, &existing) {
-                    log::debug!(
-                        "Existing block {} wins fork choice at index {}, not saving {}",
-                        &existing.hash[..16],
-                        miner_block.index,
-                        &miner_block.hash[..16]
-                    );
-                    return Ok(());
-                }
-                let mut orphaned = existing.clone();
-                orphaned.mark_as_orphaned(
-                    format!(
-                        "Replaced by gossiped block (hash: {})",
-                        &miner_block.hash[..16]
-                    ),
-                    Some(miner_block.hash.clone()),
-                );
-                orphaned.save_to_active(&mgr).await?;
-            }
-        }
+        let mut competing = miner_block.clone();
+        competing.is_canonical = false;
+        competing.is_orphaned = false;
+        competing.save_to_active(&mgr).await?;
         log::info!(
-            "Accepting new gossiped block {} at index {}",
-            &miner_block.hash[..16],
+            "Stored block {} at index {} and scoring stored forks",
+            &miner_block.hash[..16.min(miner_block.hash.len())],
             miner_block.index
         );
-        miner_block.save_to_active(&mgr).await?;
-
+        crate::chain::reorg::select_best_stored_chain(&mgr).await?;
         MinerBlock::verified_spine(&MinerBlock::find_all_canonical_multi(&mgr).await?)
             .into_iter()
             .last()
-            .map(|b| b.index)
+            .map(|block| block.index)
     };
 
     if let Some(tip) = current_tip {

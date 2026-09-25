@@ -253,6 +253,139 @@ pub fn choose_verified(
     }
 }
 
+/// Network parameters the miner already uses to retarget.
+#[derive(Debug, Clone, Copy)]
+pub struct RetargetParams {
+    pub blocks_per_epoch: u64,
+    pub target_block_time_secs: u64,
+    pub initial_difficulty: Option<u128>,
+}
+
+/// Whether a block's target is the one this chain expects at its index.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TargetCheck {
+    /// The target matches the retarget, or the same-epoch parent.
+    Matches,
+    /// The target is not the one the previous span requires.
+    Reject,
+    /// The previous span is not stored yet, so the retarget cannot be checked.
+    Unresolved,
+}
+
+/// Check the target against the miner epoch retarget.
+///
+/// Inside an epoch the target has to match the parent. At an epoch
+/// boundary it has to match `EpochManager::get_difficulty_for_block`
+/// for the previous span. A span that is not stored yet is unresolved,
+/// not a pass.
+pub fn check_expected_target(
+    block: &MinerBlock,
+    stored: &[MinerBlock],
+    params: RetargetParams,
+) -> TargetCheck {
+    let Ok(target) = block.target_difficulty.parse::<u128>() else {
+        return TargetCheck::Reject;
+    };
+    if target == 0 {
+        return TargetCheck::Reject;
+    }
+    let blocks_per_epoch = params.blocks_per_epoch.max(1);
+    let manager = modality_miner::EpochManager::new(
+        blocks_per_epoch,
+        params.target_block_time_secs.max(1),
+        params.initial_difficulty.unwrap_or(1000),
+    );
+    let epoch = manager.get_epoch(block.index);
+    if epoch == 0 {
+        return match params.initial_difficulty {
+            Some(initial) if target == initial => TargetCheck::Matches,
+            Some(_) => TargetCheck::Reject,
+            None => TargetCheck::Unresolved,
+        };
+    }
+    let ancestors = ancestors_of(block, stored);
+    if let Some(parent) = ancestors.last() {
+        if manager.get_epoch(parent.index) == epoch
+            && parent.target_difficulty != block.target_difficulty
+        {
+            return TargetCheck::Reject;
+        }
+    }
+    let prev_epoch = epoch - 1;
+    let start = manager.get_epoch_start_index(prev_epoch);
+    let end = manager.get_epoch_end_index(prev_epoch);
+    let mut span: Vec<&MinerBlock> = ancestors
+        .iter()
+        .copied()
+        .filter(|ancestor| ancestor.index >= start && ancestor.index <= end)
+        .collect();
+    span.sort_by_key(|ancestor| ancestor.index);
+    span.dedup_by_key(|ancestor| ancestor.index);
+    if span.len() != blocks_per_epoch as usize {
+        return TargetCheck::Unresolved;
+    }
+    let chain = span
+        .iter()
+        .filter_map(|ancestor| miner_block_as_chain_block(ancestor))
+        .collect::<Vec<_>>();
+    if chain.len() != span.len() {
+        return TargetCheck::Unresolved;
+    }
+    let expected = manager.get_difficulty_for_block(block.index, &chain);
+    if target == expected {
+        TargetCheck::Matches
+    } else {
+        TargetCheck::Reject
+    }
+}
+
+fn ancestors_of<'a>(block: &MinerBlock, stored: &'a [MinerBlock]) -> Vec<&'a MinerBlock> {
+    let mut by_hash: std::collections::HashMap<&str, &MinerBlock> =
+        std::collections::HashMap::new();
+    for stored_block in stored {
+        by_hash
+            .entry(stored_block.hash.as_str())
+            .or_insert(stored_block);
+    }
+    let mut chain = Vec::new();
+    let mut previous = block.previous_hash.as_str();
+    let mut index = block.index;
+    while index > 0 {
+        let Some(parent) = by_hash.get(previous).copied() else {
+            break;
+        };
+        if parent.index + 1 != index {
+            break;
+        }
+        chain.push(parent);
+        previous = parent.previous_hash.as_str();
+        index = parent.index;
+    }
+    chain.reverse();
+    chain
+}
+
+fn miner_block_as_chain_block(block: &MinerBlock) -> Option<modality_miner::Block> {
+    let difficulty = block.target_difficulty.parse::<u128>().ok()?;
+    let nonce = block.nonce.parse::<u128>().unwrap_or(0);
+    let timestamp = chrono::DateTime::from_timestamp(block.timestamp, 0)?;
+    Some(modality_miner::Block {
+        header: modality_miner::BlockHeader {
+            index: block.index,
+            timestamp,
+            previous_hash: block.previous_hash.clone(),
+            data_hash: block.data_hash.clone(),
+            nonce,
+            difficulty,
+            hash: block.hash.clone(),
+        },
+        data: modality_miner::BlockData {
+            nominated_peer_id: block.nominated_peer_id.clone(),
+            miner_number: block.miner_number,
+        },
+    })
+}
+
 /// True when the block's actualized difficulty meets the target it claims.
 pub fn proof_meets_target(block: &MinerBlock) -> bool {
     let Ok(actual) = block.get_actualized_difficulty_u128() else {
@@ -802,6 +935,33 @@ mod tests {
             Adoption::Refuse { reason } => assert!(reason.contains("nomination")),
             Adoption::Adopt { .. } => panic!("incomplete nomination replaced a complete chain"),
         }
+    }
+
+    #[test]
+    fn a_new_epoch_cannot_name_its_own_target() {
+        let mut first = block_at(1, "hash_0", "1000");
+        first.timestamp = 1_000;
+        let mut second = block_at(2, "hash_1", "1000");
+        second.timestamp = 1_001;
+        let stored = vec![block_at(0, "genesis", "1000"), first, second];
+        let params = RetargetParams {
+            blocks_per_epoch: 2,
+            target_block_time_secs: 60,
+            initial_difficulty: Some(1000),
+        };
+        let mut cheap = block_at(3, "hash_2", "1000");
+        cheap.target_difficulty = "1000".to_string();
+        assert_eq!(
+            check_expected_target(&cheap, &stored, params),
+            TargetCheck::Reject
+        );
+        let mut retargeted = cheap.clone();
+        retargeted.target_difficulty = "8000".to_string();
+        retargeted.actualized_difficulty = "8000".to_string();
+        assert_eq!(
+            check_expected_target(&retargeted, &stored, params),
+            TargetCheck::Matches
+        );
     }
 
     #[test]

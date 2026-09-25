@@ -286,7 +286,9 @@ async fn backfill_tip_parents(
 ) {
     use crate::chain::reorg::{linking_parents, tip_parent_gap};
 
-    for _ in 0..8 {
+    // Keep walking while this peer still has the missing parent. Stop when
+    // a round stores nothing or the peer does not have the hash.
+    for _ in 0..64 {
         let canonical = {
             let ds = datastore.lock().await;
             match MinerBlock::find_all_canonical_multi(&ds).await {
@@ -372,20 +374,22 @@ async fn save_linking_parents(
             MinerBlock::find_canonical_by_index_simple(&ds, block.index).await
         {
             if occupant.hash != block.hash {
-                let mut orphaned = occupant;
-                orphaned.mark_as_orphaned(
-                    "Replaced by the parent of the accepted tip".to_string(),
-                    Some(block.hash.clone()),
-                );
-                orphaned.save_to_active(&ds).await?;
+                let mut competing = occupant;
+                competing.is_canonical = false;
+                competing.is_orphaned = false;
+                competing.orphan_reason = Some("Competing fork".to_string());
+                competing.save_to_active(&ds).await?;
             }
         }
-        let mut canonical = block.clone();
-        canonical.is_canonical = true;
-        canonical.is_orphaned = false;
-        canonical.orphan_reason = None;
-        canonical.save_to_active(&ds).await?;
+        let mut stored = block.clone();
+        stored.is_canonical = false;
+        stored.is_orphaned = false;
+        stored.orphan_reason = None;
+        stored.save_to_active(&ds).await?;
         saved += 1;
+    }
+    if saved > 0 {
+        crate::chain::reorg::select_best_stored_chain(&ds).await?;
     }
     Ok(saved)
 }

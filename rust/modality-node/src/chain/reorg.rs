@@ -385,6 +385,112 @@ pub fn validate_block_chain(blocks: &[MinerBlock]) -> Result<()> {
     Ok(())
 }
 
+/// Make the heaviest stored chain canonical.
+///
+/// Canonical blocks and competing blocks (stored, not orphaned) are both
+/// candidates. The loser stays stored so a later heavier extension can
+/// win without another peer sending the whole suffix. A switch that would
+/// drop a sequencer checkpoint, or a nomination epoch the current chain
+/// already has, is refused.
+pub async fn select_best_stored_chain(mgr: &DatastoreManager) -> Result<bool> {
+    use crate::chain::fork_choice::{
+        check_expected_target, choose_verified, nomination_epoch_complete, score_canonical_chain,
+        ForkChoiceResult, RetargetParams, TargetCheck,
+    };
+    use modality_datastore::models::miner::MinerCheckpoint;
+
+    let all = MinerBlock::find_all_blocks_multi(mgr).await?;
+    let params = RetargetParams {
+        blocks_per_epoch: mgr.epoch_config().blocks_per_epoch,
+        target_block_time_secs: mgr.network_u64("target_block_time_secs").unwrap_or(60),
+        initial_difficulty: mgr
+            .network_u64("initial_difficulty")
+            .map(|value| value as u128),
+    };
+    let live: Vec<MinerBlock> = all.into_iter().filter(|block| !block.is_orphaned).collect();
+    let eligible: Vec<MinerBlock> = live
+        .iter()
+        .filter(|block| check_expected_target(block, &live, params) != TargetCheck::Reject)
+        .cloned()
+        .collect();
+    let winner = MinerBlock::verified_spine(&eligible);
+    if winner.is_empty() {
+        return Ok(false);
+    }
+    let winner_hashes: HashSet<String> = winner.iter().map(|block| block.hash.clone()).collect();
+    let canonical: Vec<MinerBlock> = live
+        .iter()
+        .filter(|block| block.is_canonical)
+        .cloned()
+        .collect();
+    let canonical_hashes: HashSet<String> =
+        canonical.iter().map(|block| block.hash.clone()).collect();
+    if winner_hashes == canonical_hashes {
+        return Ok(false);
+    }
+
+    if let Some(floor) = MinerCheckpoint::find_latest_multi(mgr)
+        .await
+        .ok()
+        .flatten()
+        .map(|checkpoint| checkpoint.last_block_index)
+    {
+        if canonical
+            .iter()
+            .any(|block| block.index <= floor && !winner_hashes.contains(&block.hash))
+        {
+            log::warn!("Refusing to switch off the sequenced prefix through {floor}");
+            return Ok(false);
+        }
+    }
+
+    let blocks_per_epoch = params.blocks_per_epoch;
+    let local_epoch = MinerBlock::verified_spine(&canonical)
+        .last()
+        .map(|block| block.epoch)
+        .unwrap_or(0);
+    let winner_epoch = winner.last().map(|block| block.epoch).unwrap_or(0);
+    if nomination_epoch_complete(&canonical, blocks_per_epoch, local_epoch)
+        && !nomination_epoch_complete(&winner, blocks_per_epoch, winner_epoch)
+    {
+        log::warn!("Refusing a fork that drops the nomination epoch");
+        return Ok(false);
+    }
+
+    let local_score = score_canonical_chain(&canonical);
+    let winner_score = score_canonical_chain(&winner);
+    let decision = choose_verified(
+        local_score.work,
+        local_score.tip,
+        &local_score.tip_hash,
+        winner_score.work,
+        winner_score.tip,
+        &winner_score.tip_hash,
+    );
+    let fills_parents = canonical_hashes.is_subset(&winner_hashes);
+    if decision.result != ForkChoiceResult::AdoptRemote && !fills_parents {
+        return Ok(false);
+    }
+
+    for block in &live {
+        let on_winner = winner_hashes.contains(&block.hash);
+        if on_winner && !block.is_canonical {
+            let mut promoted = block.clone();
+            promoted.is_canonical = true;
+            promoted.is_orphaned = false;
+            promoted.orphan_reason = None;
+            promoted.save_to_active(mgr).await?;
+        } else if block.is_canonical && !on_winner {
+            let mut competing = block.clone();
+            competing.is_canonical = false;
+            competing.is_orphaned = false;
+            competing.orphan_reason = Some("Competing fork".to_string());
+            competing.save_to_active(mgr).await?;
+        }
+    }
+    Ok(true)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -518,5 +624,70 @@ mod tests {
         ];
 
         assert!(validate_block_chain(&blocks).is_err());
+    }
+
+    #[tokio::test]
+    async fn a_heavier_competing_fork_becomes_canonical() {
+        let datastore = modality_datastore::DatastoreManager::create_in_memory().unwrap();
+        for block in [
+            make_test_block(0, "genesis"),
+            make_test_block(1, "hash_0"),
+            make_test_block(2, "hash_1"),
+        ] {
+            block.save_to_active(&datastore).await.unwrap();
+        }
+        let mut alt = make_test_block(1, "hash_0");
+        alt.hash = "alt_1".to_string();
+        alt.is_canonical = false;
+        alt.actualized_difficulty = "1000".to_string();
+        alt.save_to_active(&datastore).await.unwrap();
+        let mut heavy = make_test_block(2, "alt_1");
+        heavy.hash = "alt_2".to_string();
+        heavy.previous_hash = "alt_1".to_string();
+        heavy.is_canonical = false;
+        heavy.actualized_difficulty = "5000".to_string();
+        heavy.target_difficulty = "1000".to_string();
+        heavy.save_to_active(&datastore).await.unwrap();
+        let mut extension = make_test_block(3, "alt_2");
+        extension.hash = "alt_3".to_string();
+        extension.previous_hash = "alt_2".to_string();
+        extension.is_canonical = false;
+        extension.actualized_difficulty = "5000".to_string();
+        extension.target_difficulty = "1000".to_string();
+        extension.save_to_active(&datastore).await.unwrap();
+
+        assert!(select_best_stored_chain(&datastore).await.unwrap());
+        let canonical = MinerBlock::find_all_canonical_multi(&datastore)
+            .await
+            .unwrap();
+        let hashes: Vec<_> = canonical.iter().map(|block| block.hash.as_str()).collect();
+        assert!(hashes.contains(&"alt_1"));
+        assert!(hashes.contains(&"alt_3"));
+        assert!(!hashes.contains(&"hash_1"));
+        let parked = MinerBlock::find_by_hash_multi(&datastore, "hash_1")
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(!parked.is_canonical);
+        assert!(!parked.is_orphaned);
+    }
+
+    #[tokio::test]
+    async fn a_parked_child_links_when_its_parent_is_stored() {
+        let datastore = modality_datastore::DatastoreManager::create_in_memory().unwrap();
+        make_test_block(0, "genesis")
+            .save_to_active(&datastore)
+            .await
+            .unwrap();
+        let mut child = make_test_block(1, "hash_0");
+        child.is_canonical = false;
+        child.save_to_active(&datastore).await.unwrap();
+
+        assert!(select_best_stored_chain(&datastore).await.unwrap());
+        let stored = MinerBlock::find_by_hash_multi(&datastore, "hash_1")
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(stored.is_canonical);
     }
 }
