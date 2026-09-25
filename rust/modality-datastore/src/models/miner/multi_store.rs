@@ -34,17 +34,20 @@ impl MinerBlock {
             return Ok(Some(block));
         }
 
+        // A block promoted to MinerCanon and later orphaned into MinerForks
+        // exists in both. Listing treats the forks copy as the newer state, so
+        // the hash lookup must agree or a walk mistakes a stale canonical copy
+        // for the live chain.
+        if let Some(data) = mgr.miner_forks().get(&key)? {
+            let block: MinerBlock = serde_json::from_slice(&data)
+                .context("Failed to deserialize MinerBlock from MinerForks")?;
+            return Ok(Some(block));
+        }
+
         // Check MinerCanon for older canonical blocks
         if let Some(data) = mgr.miner_canon().get(&key)? {
             let block: MinerBlock = serde_json::from_slice(&data)
                 .context("Failed to deserialize MinerBlock from MinerCanon")?;
-            return Ok(Some(block));
-        }
-
-        // Check MinerForks for orphaned blocks
-        if let Some(data) = mgr.miner_forks().get(&key)? {
-            let block: MinerBlock = serde_json::from_slice(&data)
-                .context("Failed to deserialize MinerBlock from MinerForks")?;
             return Ok(Some(block));
         }
 
@@ -310,6 +313,12 @@ impl MinerBlock {
             let _ = mgr.miner_canon().delete(&key);
             let _ = mgr.miner_canon().delete(&height_key);
         }
+        // The same applies to an orphan archived into MinerForks that fork
+        // choice later revives or promotes.
+        if !self.is_orphaned {
+            let _ = mgr.miner_forks().delete(&key);
+            let _ = mgr.miner_forks().delete(&height_key);
+        }
 
         mgr.apply_native_mod_for_miner_block(self)?;
 
@@ -413,7 +422,21 @@ impl MinerBlock {
             let (_, value) = item?;
             let block: MinerBlock = serde_json::from_slice(&value)?;
 
-            if mgr.should_purge(block.epoch, current_epoch) {
+            if !mgr.should_purge(block.epoch, current_epoch) {
+                continue;
+            }
+            // A parked block (neither canonical nor orphaned) is only held
+            // in MinerActive. Deleting it loses a competing chain that a peer
+            // walk just fetched, so it stays until fork choice settles it.
+            let key = format!("{}/{}", MINER_BLOCK_PREFIX, block.hash);
+            let settled = if block.is_canonical && !block.is_orphaned {
+                mgr.miner_canon().get(&key)?.is_some()
+            } else if block.is_orphaned {
+                mgr.miner_forks().get(&key)?.is_some()
+            } else {
+                false
+            };
+            if settled {
                 to_purge.push(block);
             }
         }
@@ -709,6 +732,63 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn purge_keeps_a_parked_block_and_drops_settled_copies() {
+        let mut mgr = DatastoreManager::create_in_memory().unwrap();
+
+        let parked = create_test_block("parked", 300, 7, false, false);
+        parked.save_to_active(&mgr).await.unwrap();
+        let canonical = create_test_block("canon", 301, 7, true, false);
+        canonical.save_to_active(&mgr).await.unwrap();
+        canonical.promote_to_canon(&mgr).await.unwrap();
+        let unpromoted = create_test_block("fresh", 302, 7, true, false);
+        unpromoted.save_to_active(&mgr).await.unwrap();
+
+        let purged = MinerBlock::run_purge(&mgr, 40).await.unwrap();
+        assert_eq!(purged, 1);
+
+        let all = MinerBlock::find_all_blocks_multi(&mgr).await.unwrap();
+        let hashes: Vec<&str> = all.iter().map(|b| b.hash.as_str()).collect();
+        assert!(hashes.contains(&"parked"), "parked block was purged");
+        assert!(hashes.contains(&"fresh"), "unpromoted block was purged");
+        assert!(hashes.contains(&"canon"), "promoted copy was lost");
+    }
+
+    #[tokio::test]
+    async fn hash_lookup_agrees_with_listing_for_an_orphaned_promoted_block() {
+        let mut mgr = DatastoreManager::create_in_memory().unwrap();
+
+        let block = create_test_block("twice", 280, 6, true, false);
+        block.save_to_active(&mgr).await.unwrap();
+        block.promote_to_canon(&mgr).await.unwrap();
+
+        let mut orphaned = block.clone();
+        orphaned.is_canonical = false;
+        orphaned.mark_as_orphaned("test".to_string(), None);
+        orphaned.archive_to_forks(&mgr).await.unwrap();
+        orphaned.delete_from_active(&mgr).await.unwrap();
+
+        let listed = MinerBlock::find_all_blocks_multi(&mgr).await.unwrap();
+        let looked_up = MinerBlock::find_by_hash_multi(&mgr, "twice")
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(listed.len(), 1);
+        assert_eq!(listed[0].is_orphaned, looked_up.is_orphaned);
+        assert!(looked_up.is_orphaned);
+
+        // Reviving it must also clear the archived orphan copy.
+        let mut revived = looked_up.clone();
+        revived.is_orphaned = false;
+        revived.orphan_reason = None;
+        revived.save_to_active(&mgr).await.unwrap();
+        revived.delete_from_active(&mgr).await.unwrap();
+        assert!(MinerBlock::find_by_hash_multi(&mgr, "twice")
+            .await
+            .unwrap()
+            .is_none());
+    }
+
+    #[tokio::test]
     async fn test_promote_to_canon() {
         let mut mgr = DatastoreManager::create_in_memory().unwrap();
 
@@ -770,9 +850,10 @@ mod tests {
         let mut mgr = DatastoreManager::create_in_memory().unwrap();
         mgr.set_blocks_per_epoch(100);
 
-        // Create block at epoch 5
+        // Create block at epoch 5 and promote it, as the promotion task would
         let block = create_test_block("old_block", 500, 5, true, false);
         block.save_to_active(&mgr).await.unwrap();
+        block.promote_to_canon(&mgr).await.unwrap();
 
         // Current epoch 16 - not old enough (11 epochs)
         let count = MinerBlock::run_purge(&mgr, 16).await.unwrap();
@@ -782,11 +863,13 @@ mod tests {
         let count = MinerBlock::run_purge(&mgr, 17).await.unwrap();
         assert_eq!(count, 1);
 
-        // Block should no longer be in active
+        // Block should no longer be in active but still in canon
+        let key = format!("{}/{}", MINER_BLOCK_PREFIX, "old_block");
+        assert!(mgr.miner_active().get(&key).unwrap().is_none());
         let found = MinerBlock::find_by_hash_multi(&mgr, "old_block")
             .await
             .unwrap();
-        assert!(found.is_none()); // Not in any store since we didn't promote it
+        assert!(found.is_some());
     }
 
     #[tokio::test]
