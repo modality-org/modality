@@ -11,7 +11,7 @@ use tokio::sync::Mutex;
 
 use crate::chain::metrics::calculate_cumulative_difficulty;
 use crate::chain::reorg::{orphan_blocks_after, validate_block_chain};
-use crate::chain::{compare_chains, ForkChoiceResult};
+use crate::chain::{choose_chain, ForkChoiceResult};
 use crate::reqres;
 use crate::sync::block_range::request_all_blocks_in_range;
 use crate::sync::common_ancestor::find_common_ancestor_efficient;
@@ -83,20 +83,25 @@ impl SyncCoordinator {
         .await?;
 
         // Step 2: Get local chain info for comparison
-        let (local_difficulty, local_tip) = {
+        let (local_difficulty, local_tip, local_tip_hash) = {
             let ds = self.datastore.lock().await;
             let blocks = MinerBlock::find_all_canonical_multi(&ds).await?;
             let difficulty = calculate_cumulative_difficulty(&blocks);
-            let tip = blocks.iter().map(|b| b.index).max().unwrap_or(0);
-            (difficulty, tip)
+            let tip_block = blocks.iter().max_by_key(|b| b.index);
+            let tip = tip_block.map(|b| b.index).unwrap_or(0);
+            let tip_hash = tip_block.map(|b| b.hash.clone()).unwrap_or_default();
+            (difficulty, tip, tip_hash)
         };
 
-        // Step 3: Compare chains. Tiebreak on tip index, not stored row count.
-        let comparison = compare_chains(
+        // Same tip hash is equal work. A higher peer tip is fetched even when
+        // a hole makes the local suffix sum higher.
+        let comparison = choose_chain(
             local_difficulty,
             local_tip,
+            &local_tip_hash,
             ancestor_result.remote_cumulative_difficulty,
             ancestor_result.remote_chain_tip,
+            &ancestor_result.remote_tip_hash,
         );
 
         log::info!(

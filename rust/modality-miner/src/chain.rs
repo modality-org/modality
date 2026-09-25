@@ -444,7 +444,23 @@ impl Blockchain {
         let result = self.miner.mine_block_with_stats(block)?;
         let mined_block = result.block.clone();
         let mining_stats = result.mining_stats.clone();
-        
+
+        // Gossip may have extended the tip while this block was hashing.
+        // Persist and announce it only if it is still the next index.
+        if let Some(ref datastore_manager) = self.datastore_manager {
+            use crate::persistence::BlockchainPersistence;
+            let mgr = datastore_manager.lock().await;
+            let canonical = mgr.load_canonical_blocks().await?;
+            drop(mgr);
+            let tip = canonical.iter().map(|b| b.header.index).max().unwrap_or(0);
+            if mined_block.header.index <= tip {
+                return Err(MiningError::Superseded {
+                    index: mined_block.header.index,
+                    tip,
+                });
+            }
+        }
+
         // Add to chain with persistence using fork choice
         self.add_block_with_fork_choice(mined_block.clone()).await?;
         

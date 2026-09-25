@@ -16,7 +16,7 @@ use std::collections::HashSet;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
-use crate::chain::fork_choice::{compare_chains, ForkChoiceResult};
+use crate::chain::fork_choice::{choose_chain, ForkChoiceResult};
 use crate::chain::metrics::calculate_cumulative_difficulty;
 use crate::node::{IgnoredPeerInfo, Node};
 use crate::reqres;
@@ -60,7 +60,7 @@ pub async fn request_chain_info_impl(
     );
 
     // Find common ancestor
-    let (common_ancestor, peer_chain_length, peer_chain_tip, peer_cumulative_difficulty) =
+    let (common_ancestor, peer_chain_length, peer_chain_tip, peer_cumulative_difficulty, peer_tip_hash) =
         find_common_ancestor_efficient(&swarm, peer_addr.clone(), &datastore, &reqres_response_txs)
             .await?;
 
@@ -77,21 +77,25 @@ pub async fn request_chain_info_impl(
     };
 
     // Get local chain info
-    let (local_cumulative_difficulty, local_tip) = {
+    let (local_cumulative_difficulty, local_tip, local_tip_hash) = {
         let ds = datastore.lock().await;
         let blocks = MinerBlock::find_all_canonical_multi(&ds).await?;
         let local_difficulty = calculate_cumulative_difficulty(&blocks);
-        let local_tip = blocks.iter().map(|b| b.index).max().unwrap_or(0);
-        (local_difficulty, local_tip)
+        let tip_block = blocks.iter().max_by_key(|b| b.index);
+        let local_tip = tip_block.map(|b| b.index).unwrap_or(0);
+        let local_tip_hash = tip_block.map(|b| b.hash.clone()).unwrap_or_default();
+        (local_difficulty, local_tip, local_tip_hash)
     };
 
-    // Difficulty is the parent-linked work. The tiebreak is the tip index,
-    // so a node with more duplicate rows does not win at equal work.
-    let comparison = compare_chains(
+    // Same tip hash is equal work. A higher peer tip is fetched even when a
+    // hole makes this node's stored suffix sum higher.
+    let comparison = choose_chain(
         local_cumulative_difficulty,
         local_tip,
+        &local_tip_hash,
         peer_cumulative_difficulty,
         peer_chain_tip,
+        &peer_tip_hash,
     );
 
     log::info!(
@@ -149,7 +153,7 @@ pub async fn find_common_ancestor_efficient(
             >,
         >,
     >,
-) -> Result<(Option<u64>, u64, u64, u128)> {
+) -> Result<(Option<u64>, u64, u64, u128, String)> {
     // Delegate to the sync module implementation
     let result = crate::sync::common_ancestor::find_common_ancestor_efficient(
         swarm,
@@ -164,6 +168,7 @@ pub async fn find_common_ancestor_efficient(
         result.remote_chain_length,
         result.remote_chain_tip,
         result.remote_cumulative_difficulty,
+        result.remote_tip_hash,
     ))
 }
 

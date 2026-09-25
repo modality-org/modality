@@ -56,7 +56,9 @@ pub async fn handler(
     };
 
     let chain_length = canonical_blocks.len() as u64;
-    let chain_tip = canonical_blocks.iter().map(|b| b.index).max().unwrap_or(0);
+    let tip_block = canonical_blocks.iter().max_by_key(|b| b.index);
+    let chain_tip = tip_block.map(|b| b.index).unwrap_or(0);
+    let tip_hash = tip_block.map(|b| b.hash.clone()).unwrap_or_default();
 
     let cumulative_difficulty = match MinerBlock::calculate_cumulative_difficulty(&canonical_blocks)
     {
@@ -104,6 +106,7 @@ pub async fn handler(
         data: Some(serde_json::json!({
             "chain_length": chain_length,
             "chain_tip": chain_tip,
+            "tip_hash": tip_hash,
             "matches": matches,
             "highest_match": highest_match,
             "cumulative_difficulty": cumulative_difficulty,

@@ -127,9 +127,21 @@ pub async fn mine_and_gossip_block(
 
     // Mine the block
     let miner_number = rand::random::<u64>();
-    let (mined_block, mining_stats) = chain
+    let (mined_block, mining_stats) = match chain
         .mine_block_with_persistence(nominated_peer_id.clone(), miner_number)
-        .await?;
+        .await
+    {
+        Ok(mined) => mined,
+        Err(modality_miner::MiningError::Superseded { index, tip }) => {
+            log::warn!(
+                "Discarding mined block {} because the canonical tip is already {}",
+                index,
+                tip
+            );
+            return Ok(MiningOutcome::Skipped);
+        }
+        Err(e) => return Err(e.into()),
+    };
 
     // Update metrics
     if let Some(stats) = mining_stats {

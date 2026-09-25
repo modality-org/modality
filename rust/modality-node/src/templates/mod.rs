@@ -7,19 +7,8 @@ use crate::status_snapshot::{
     BlockStatus, EpochNominees, GenesisBlock, NodeStatus, PeerStatus, PrefixCertStatus, RoundStatus,
 };
 
-/// Miner status app. Contract exploration is a switch inside this page.
+/// Miner status app, including contract exploration.
 pub const STATUS_TEMPLATE: &str = include_str!("status.html");
-
-/// `on` for an observer (the public explorer), `off` for miners and other roles.
-pub fn explore_contracts_default(status: &NodeStatus) -> &'static str {
-    let role = status.role.to_ascii_lowercase();
-    let display = status.role_display.to_ascii_lowercase();
-    if role == "observer" || display == "observer" {
-        "on"
-    } else {
-        "off"
-    }
-}
 
 pub use crate::status_snapshot::display_node_role;
 
@@ -484,7 +473,6 @@ pub fn render_status_from_snapshot(status: &NodeStatus) -> String {
         pending_prefix_cert_requests: status.pending_prefix_cert_requests,
         named_validators_html: render_named_validators(&status.named_validators),
         prefix_certs_html: render_prefix_certs(&status.recent_prefix_certs),
-        explore_default: explore_contracts_default(status).to_string(),
     };
     render_status_page(vars)
 }
@@ -546,7 +534,6 @@ pub fn render_status_page(vars: StatusPageVars) -> String {
         )
         .replace("{named_validators_html}", &vars.named_validators_html)
         .replace("{prefix_certs_html}", &vars.prefix_certs_html)
-        .replace("{explore_default}", &vars.explore_default)
         .replace("{{", "{")
         .replace("}}", "}")
 }
@@ -586,7 +573,6 @@ pub struct StatusPageVars {
     pub pending_prefix_cert_requests: usize,
     pub named_validators_html: String,
     pub prefix_certs_html: String,
-    pub explore_default: String,
 }
 
 fn sample_vars() -> StatusPageVars {
@@ -624,7 +610,6 @@ fn sample_vars() -> StatusPageVars {
         pending_prefix_cert_requests: 0,
         named_validators_html: render_empty_validators(),
         prefix_certs_html: render_empty_prefix_certs(),
-        explore_default: "off".to_string(),
     }
 }
 
@@ -687,12 +672,10 @@ mod tests {
         assert!(html.contains("data-active-tab"));
         assert!(html.contains("refreshStatus"));
         assert!(html.contains("/status.json"));
-        assert!(html.contains("Explore contracts"));
         assert!(html.contains("Paste a contract ID"));
         assert!(html.contains("data-tab=\"contracts\""));
-        assert!(html.contains("data-explore=\"off\">"));
-        assert!(html.contains("var explore = 'off';"));
-        assert!(html.contains("id=\"explore-toggle\""));
+        assert!(!html.contains("explore-toggle"));
+        assert!(!html.contains("Explore contracts"));
     }
 
     #[test]
@@ -742,22 +725,11 @@ mod tests {
     }
 
     #[test]
-    fn miner_snapshot_leaves_contract_exploration_off() {
+    fn contracts_stay_in_the_sidebar() {
         let html = render_status_from_snapshot(&sample_status());
-        assert!(html.contains("data-explore=\"off\">"));
-        assert!(html.contains("var explore = 'off';"));
+        assert!(html.contains("data-tab=\"contracts\""));
+        assert!(!html.contains("explore-toggle"));
         assert!(!html.contains("{explore_default}"));
-    }
-
-    #[test]
-    fn observer_snapshot_turns_contract_exploration_on() {
-        let mut status = sample_status();
-        status.role = "observer".into();
-        status.role_display = "Observer".into();
-        status.active_roles = vec![];
-        let html = render_status_from_snapshot(&status);
-        assert!(html.contains("data-explore=\"on\">"));
-        assert!(html.contains("var explore = 'on';"));
     }
 
     #[test]

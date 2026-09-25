@@ -25,5 +25,9 @@ pub enum MiningError {
     
     #[error("Persistence error: {0}")]
     PersistenceError(String),
+
+    /// Proof of work finished after the canonical tip had already moved past this index.
+    #[error("Mined block {index} is behind the canonical tip {tip}")]
+    Superseded { index: u64, tip: u64 },
 }
 

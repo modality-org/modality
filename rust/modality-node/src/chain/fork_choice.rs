@@ -108,6 +108,57 @@ pub fn compare_chains(
     }
 }
 
+/// True when both nodes name the same tip block.
+///
+/// A hole below that tip changes how much work each node can add up. It does
+/// not make one copy of the tip heavier than the other.
+pub fn chains_share_tip_hash(local_tip_hash: &str, remote_tip_hash: &str) -> bool {
+    !local_tip_hash.is_empty() && local_tip_hash == remote_tip_hash
+}
+
+/// Choose which chain to follow.
+///
+/// The same tip hash is equal work. A higher peer tip is fetched even when
+/// this node's stored suffix sums to more, because that extra sum is history
+/// below a hole, not a heavier fork.
+pub fn choose_chain(
+    local_difficulty: u128,
+    local_tip: u64,
+    local_tip_hash: &str,
+    remote_difficulty: u128,
+    remote_tip: u64,
+    remote_tip_hash: &str,
+) -> ChainComparison {
+    if chains_share_tip_hash(local_tip_hash, remote_tip_hash) {
+        return ChainComparison {
+            result: ForkChoiceResult::Equal,
+            local_difficulty,
+            remote_difficulty,
+            local_length: local_tip,
+            remote_length: remote_tip,
+            reason: format!("Same tip hash {local_tip_hash}, equal work"),
+        };
+    }
+    if remote_tip > local_tip {
+        return ChainComparison {
+            result: ForkChoiceResult::AdoptRemote,
+            local_difficulty,
+            remote_difficulty,
+            local_length: local_tip,
+            remote_length: remote_tip,
+            reason: format!(
+                "Peer tip {remote_tip} is above local tip {local_tip} (local difficulty {local_difficulty}, peer {remote_difficulty})"
+            ),
+        };
+    }
+    compare_chains(
+        local_difficulty,
+        local_tip,
+        remote_difficulty,
+        remote_tip,
+    )
+}
+
 /// Compare two blocks at the same height for fork choice.
 ///
 /// Uses fork choice rules:
@@ -300,5 +351,23 @@ mod tests {
     fn test_compare_chains_equal() {
         let result = compare_chains(100, 10, 100, 10);
         assert_eq!(result.result, ForkChoiceResult::Equal);
+    }
+
+    #[test]
+    fn same_tip_hash_is_equal_work_despite_a_hole() {
+        let result = choose_chain(3348, 1083, "abc", 3307, 1083, "abc");
+        assert_eq!(result.result, ForkChoiceResult::Equal);
+    }
+
+    #[test]
+    fn higher_peer_tip_is_fetched_when_local_suffix_sums_higher() {
+        let result = choose_chain(3348, 1080, "local", 3307, 1083, "remote");
+        assert_eq!(result.result, ForkChoiceResult::AdoptRemote);
+    }
+
+    #[test]
+    fn lower_peer_tip_still_loses_on_difficulty() {
+        let result = choose_chain(3348, 1083, "local", 3307, 1080, "remote");
+        assert_eq!(result.result, ForkChoiceResult::KeepLocal);
     }
 }

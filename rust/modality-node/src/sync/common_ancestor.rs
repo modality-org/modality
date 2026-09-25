@@ -25,6 +25,8 @@ pub struct AncestorSearchResult {
     pub remote_chain_tip: u64,
     /// Remote chain cumulative difficulty
     pub remote_cumulative_difficulty: u128,
+    /// Hash of the remote tip. Empty when the peer omits it.
+    pub remote_tip_hash: String,
 }
 
 /// Wait for a reqres response using channels (no swarm lock contention).
@@ -98,7 +100,7 @@ pub async fn find_common_ancestor_efficient(
         log::info!("Local chain is empty, no common ancestor");
 
         // Still need to get the peer's chain info
-        let (remote_chain_length, remote_chain_tip, remote_cumulative_difficulty) =
+        let (remote_chain_length, remote_chain_tip, remote_cumulative_difficulty, remote_tip_hash) =
             get_peer_chain_info(swarm, &target_peer_id, reqres_response_txs).await?;
 
         return Ok(AncestorSearchResult {
@@ -106,6 +108,7 @@ pub async fn find_common_ancestor_efficient(
             remote_chain_length,
             remote_chain_tip,
             remote_cumulative_difficulty,
+            remote_tip_hash,
         });
     }
 
@@ -126,6 +129,7 @@ pub async fn find_common_ancestor_efficient(
         remote_chain_length,
         remote_chain_tip,
         remote_cumulative_difficulty,
+        remote_tip_hash,
     ) = send_find_ancestor_request(swarm, &target_peer_id, &checkpoints, reqres_response_txs)
         .await?;
 
@@ -144,6 +148,7 @@ pub async fn find_common_ancestor_efficient(
             remote_chain_length,
             remote_chain_tip,
             remote_cumulative_difficulty,
+            remote_tip_hash,
         });
     }
 
@@ -181,6 +186,7 @@ pub async fn find_common_ancestor_efficient(
         remote_chain_length,
         remote_chain_tip,
         remote_cumulative_difficulty,
+        remote_tip_hash,
     })
 }
 
@@ -196,7 +202,7 @@ async fn get_peer_chain_info(
             >,
         >,
     >,
-) -> Result<(u64, u64, u128)> {
+) -> Result<(u64, u64, u128, String)> {
     let request = reqres::Request {
         path: "/data/miner_block/chain_info".to_string(),
         data: None,
@@ -219,17 +225,17 @@ async fn get_peer_chain_info(
         Ok(Ok(response)) => response,
         Ok(Err(e)) => {
             log::warn!("Failed to get chain info from peer: {}", e);
-            return Ok((0, 0, 0));
+            return Ok((0, 0, 0, String::new()));
         }
         Err(_) => {
             log::warn!("Timeout waiting for chain info from peer");
-            return Ok((0, 0, 0));
+            return Ok((0, 0, 0, String::new()));
         }
     };
 
     if !response.ok {
         log::warn!("Peer returned error for chain info request");
-        return Ok((0, 0, 0));
+        return Ok((0, 0, 0, String::new()));
     }
 
     let data = response
@@ -248,6 +254,11 @@ async fn get_peer_chain_info(
         .and_then(|v| v.as_str())
         .and_then(|s| s.parse::<u128>().ok())
         .unwrap_or(0);
+    let tip_hash = data
+        .get("tip_hash")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string();
 
     log::info!(
         "Peer chain: {} blocks, tip {}, cumulative difficulty: {}",
@@ -256,7 +267,7 @@ async fn get_peer_chain_info(
         cumulative_difficulty
     );
 
-    Ok((chain_length, chain_tip, cumulative_difficulty))
+    Ok((chain_length, chain_tip, cumulative_difficulty, tip_hash))
 }
 
 /// Build exponential checkpoints for initial search.
@@ -307,7 +318,7 @@ async fn send_find_ancestor_request(
             >,
         >,
     >,
-) -> Result<(Option<u64>, Vec<serde_json::Value>, u64, u64, u128)> {
+) -> Result<(Option<u64>, Vec<serde_json::Value>, u64, u64, u128, String)> {
     let request = reqres::Request {
         path: "/data/miner_block/find_ancestor".to_string(),
         data: Some(serde_json::json!({
@@ -360,6 +371,11 @@ async fn send_find_ancestor_request(
         .and_then(|v| v.as_str())
         .and_then(|s| s.parse::<u128>().ok())
         .ok_or_else(|| anyhow::anyhow!("Missing or invalid cumulative_difficulty in response"))?;
+    let remote_tip_hash = data
+        .get("tip_hash")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string();
 
     let matches = data
         .get("matches")
@@ -373,6 +389,7 @@ async fn send_find_ancestor_request(
         remote_chain_length,
         remote_chain_tip,
         remote_cumulative_difficulty,
+        remote_tip_hash,
     ))
 }
 
@@ -441,7 +458,7 @@ async fn batched_binary_search(
         );
 
         // Send request
-        let (_, matches, _, _, _) =
+        let (_, matches, _, _, _, _) =
             send_find_ancestor_request(swarm, target_peer_id, &checkpoints, reqres_response_txs)
                 .await?;
 

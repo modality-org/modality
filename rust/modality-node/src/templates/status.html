@@ -1,28 +1,19 @@
 <!DOCTYPE html>
-<html lang="en" data-active-tab="overview" data-explore="{explore_default}">
+<html lang="en" data-active-tab="overview">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Modality Network</title>
     <script>
         (function() {{
-            var explore = '{explore_default}';
-            try {{
-                var stored = localStorage.getItem('exploreContracts');
-                if (stored === 'on' || stored === 'off') explore = stored;
-            }} catch (e) {{}}
             var contractPath = /^\/contracts\/[^/]+/.test(location.pathname);
-            if (contractPath) explore = 'on';
-            document.documentElement.setAttribute('data-explore', explore);
-
-            var tab = explore === 'on' ? 'contracts' : 'overview';
+            var tab = 'overview';
             try {{
                 var saved = localStorage.getItem('activeTab');
                 if (saved) tab = saved;
             }} catch (e) {{}}
             var allowed = {{ overview: 1, nodes: 1, miners: 1, chains: 1, sequencers: 1, validators: 1, contracts: 1 }};
             if (!allowed[tab]) tab = 'overview';
-            if (explore !== 'on' && tab === 'contracts') tab = 'overview';
             if (contractPath) tab = 'contracts';
             document.documentElement.setAttribute('data-active-tab', tab);
         }})();
@@ -126,9 +117,6 @@
             font-size: 0.75rem;
             margin: 0;
             line-height: 1.45;
-        }}
-        html[data-explore="off"] .nav-contracts {{
-            display: none;
         }}
         @media (max-width: 800px) {{
             .app {{ flex-direction: column; }}
@@ -373,56 +361,6 @@
             border: 0;
             margin: 0;
         }}
-        html[data-explore="off"] .tab[data-tab="contracts"] {{
-            display: none;
-        }}
-        .explore-switch {{
-            margin: 0 0 10px;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 8px;
-            width: 100%;
-            color: var(--dim);
-            font-size: 0.85rem;
-            font-weight: 650;
-            cursor: pointer;
-            user-select: none;
-            padding: 8px 4px;
-        }}
-        .explore-switch input {{
-            appearance: none;
-            width: 36px;
-            height: 20px;
-            margin: 0;
-            border-radius: 999px;
-            background: var(--panel-2);
-            border: 1px solid var(--line);
-            position: relative;
-            cursor: pointer;
-            flex: 0 0 auto;
-        }}
-        .explore-switch input::after {{
-            content: "";
-            position: absolute;
-            top: 2px;
-            left: 2px;
-            width: 14px;
-            height: 14px;
-            border-radius: 50%;
-            background: var(--dim);
-        }}
-        .explore-switch input:checked {{
-            background: rgba(108, 140, 255, 0.28);
-            border-color: var(--accent);
-        }}
-        .explore-switch input:checked::after {{
-            left: 18px;
-            background: var(--accent);
-        }}
-        html[data-explore="on"] .explore-switch {{
-            color: var(--text);
-        }}
         .tab-content {{
             display: none;
         }}
@@ -434,9 +372,6 @@
         html[data-active-tab="validators"] #validators-content,
         html[data-active-tab="contracts"] #contracts-content {{
             display: block;
-        }}
-        html[data-explore="off"] #contracts-content {{
-            display: none;
         }}
         .find {{
             display: flex;
@@ -798,27 +733,7 @@
                 }}
             }});
         }}
-        function setExplore(mode, persist) {{
-            document.documentElement.setAttribute('data-explore', mode);
-            var box = document.getElementById('explore-toggle');
-            if (box) box.checked = mode === 'on';
-            if (persist) {{
-                try {{ localStorage.setItem('exploreContracts', mode); }} catch (e) {{}}
-            }}
-            if (mode === 'off') {{
-                if (document.documentElement.getAttribute('data-active-tab') === 'contracts') switchTab('overview');
-                return;
-            }}
-            switchTab('contracts');
-        }}
         document.addEventListener('DOMContentLoaded', function () {{
-            var box = document.getElementById('explore-toggle');
-            if (box) {{
-                box.checked = document.documentElement.getAttribute('data-explore') === 'on';
-                box.addEventListener('change', function () {{
-                    setExplore(box.checked ? 'on' : 'off', true);
-                }});
-            }}
             var find = document.getElementById('find');
             if (find) {{
                 find.addEventListener('submit', function (ev) {{
@@ -858,8 +773,6 @@
             window.addEventListener('popstate', function () {{
                 loadedKey = null;
                 if (contractIdFromPath()) {{
-                    document.documentElement.setAttribute('data-explore', 'on');
-                    if (box) box.checked = true;
                     if (document.documentElement.getAttribute('data-active-tab') !== 'contracts') {{
                         switchTab('contracts');
                         return;
@@ -1117,20 +1030,13 @@
             <div class="tab" data-tab="chains" onclick="switchTab('chains')">Chains</div>
             <div class="tab" data-tab="sequencers" onclick="switchTab('sequencers')">Sequencers</div>
             <div class="tab" data-tab="validators" onclick="switchTab('validators')">Validators</div>
-            <div class="nav-contracts">
-                <div class="nav-label">Contracts</div>
-                <div class="tab" data-tab="contracts" onclick="switchTab('contracts')">Contracts</div>
-            </div>
+            <div class="nav-label">Contracts</div>
+            <div class="tab" data-tab="contracts" onclick="switchTab('contracts')">Contracts</div>
         </nav>
         <div class="sidebar-foot">
-            <label class="explore-switch" for="explore-toggle">
-                <span>Explore contracts</span>
-                <input type="checkbox" id="explore-toggle" aria-label="Explore contracts">
-            </label>
             <p class="side-note">Refreshes every {refresh_interval}s · <a href="/status.json">JSON</a> · <a href="https://testnet.modality.network">Join</a></p>
         </div>
     </aside>
-    <script>document.getElementById('explore-toggle').checked = document.documentElement.getAttribute('data-explore') === 'on';</script>
     <div class="main">
     <div class="header">
         <div class="header-row">
@@ -1399,7 +1305,7 @@
     </div>
 
     <div id="contracts-content" class="tab-content">
-        <p class="tab-copy">Sequenced contracts on this node: state, model, rules, and the append-only log. Turn exploration off to keep this page on mining and consensus.</p>
+        <p class="tab-copy">Sequenced contracts on this node: state, model, rules, and the append-only log.</p>
         <form class="find" id="find">
             <input id="qid" placeholder="Paste a contract ID" autocomplete="off" spellcheck="false">
             <button type="submit">Find</button>
