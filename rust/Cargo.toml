@@ -38,3 +38,8 @@ default-members = [
 [profile.release]
 strip = true
 lto = true
+
+# Testnet packages. Same settings as release, without fat link-time optimization.
+[profile.quick_release]
+inherits = "release"
+lto = false

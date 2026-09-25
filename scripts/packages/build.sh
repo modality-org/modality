@@ -204,18 +204,28 @@ build_packages() {
         fi
         
         log_info "Building for $target..."
-        
+
+        # Testnet publishes skip fat LTO. Artifacts live in target/.../quick_release/.
+        local cargo_profile_args profile_dir
+        if [[ "$GIT_BRANCH" == "testnet" ]]; then
+            cargo_profile_args=(--profile quick_release)
+            profile_dir="quick_release"
+            log_info "Testnet profile: quick_release"
+        else
+            cargo_profile_args=(--release)
+            profile_dir="release"
+        fi
+
         if [[ "$target" == "$host_target" ]]; then
-            # Host build: no --target, so artifacts live in target/release/ and
-            # subsequent package builds incrementally reuse that profile.
+            # Host build: no --target, so later package builds reuse this profile.
             MODAL_GIT_BRANCH="$GIT_BRANCH" MODAL_GIT_COMMIT="$GIT_COMMIT" \
-                cargo build --release -p modal
-            src="$PROJECT_ROOT/rust/target/release/modal"
+                cargo build "${cargo_profile_args[@]}" -p modal
+            src="$PROJECT_ROOT/rust/target/$profile_dir/modal"
         elif [[ "$target" == *"darwin"* ]] && [[ "$(uname -s)" == "Darwin" ]]; then
             rustup target add "$target" 2>/dev/null || true
             MODAL_GIT_BRANCH="$GIT_BRANCH" MODAL_GIT_COMMIT="$GIT_COMMIT" \
-                cargo build --release -p modal --target "$target"
-            src="$PROJECT_ROOT/rust/target/$target/release/modal"
+                cargo build "${cargo_profile_args[@]}" -p modal --target "$target"
+            src="$PROJECT_ROOT/rust/target/$target/$profile_dir/modal"
         else
             ensure_cross
             # include_str! in modality-cli-ai reads ../../../docs from rust/;
@@ -224,8 +234,8 @@ build_packages() {
             MODAL_GIT_BRANCH="$GIT_BRANCH" \
             MODAL_GIT_COMMIT="$GIT_COMMIT" \
             AWS_LC_SYS_CMAKE_BUILDER="1" \
-                cross build --release -p modal --target "$target"
-            src="$PROJECT_ROOT/rust/target/$target/release/modal"
+                cross build "${cargo_profile_args[@]}" -p modal --target "$target"
+            src="$PROJECT_ROOT/rust/target/$target/$profile_dir/modal"
         fi
         
         cp "$src" "$dest"

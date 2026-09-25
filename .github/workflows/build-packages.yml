@@ -88,9 +88,16 @@ jobs:
           MODAL_GIT_BRANCH: ${{ github.ref_name }}
           MODAL_GIT_COMMIT: ${{ github.sha }}
         run: |
-          cross build --release --target x86_64-unknown-linux-gnu
+          if [ "$MODAL_GIT_BRANCH" = "testnet" ]; then
+            PROFILE=(--profile quick_release)
+            PROFILE_DIR=quick_release
+          else
+            PROFILE=(--release)
+            PROFILE_DIR=release
+          fi
+          cross build "${PROFILE[@]}" --target x86_64-unknown-linux-gnu
           mkdir -p ../build/binaries/linux-x86_64
-          cp target/x86_64-unknown-linux-gnu/release/modal ../build/binaries/linux-x86_64/
+          cp "target/x86_64-unknown-linux-gnu/${PROFILE_DIR}/modal" ../build/binaries/linux-x86_64/
           strip ../build/binaries/linux-x86_64/modal || true
       
       - name: Build macOS ARM64
@@ -99,10 +106,17 @@ jobs:
           MODAL_GIT_BRANCH: ${{ github.ref_name }}
           MODAL_GIT_COMMIT: ${{ github.sha }}
         run: |
+          if [ "$MODAL_GIT_BRANCH" = "testnet" ]; then
+            PROFILE=(--profile quick_release)
+            PROFILE_DIR=quick_release
+          else
+            PROFILE=(--release)
+            PROFILE_DIR=release
+          fi
           rustup target add aarch64-apple-darwin
-          cargo build --release --target aarch64-apple-darwin
+          cargo build "${PROFILE[@]}" --target aarch64-apple-darwin
           mkdir -p ../build/binaries/darwin-aarch64
-          cp target/aarch64-apple-darwin/release/modal ../build/binaries/darwin-aarch64/
+          cp "target/aarch64-apple-darwin/${PROFILE_DIR}/modal" ../build/binaries/darwin-aarch64/
       
       - name: Build WASM - modality-lang
         working-directory: rust/modality-lang
