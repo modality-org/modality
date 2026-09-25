@@ -433,8 +433,8 @@ pub fn missing_parent_hashes(blocks: &[MinerBlock]) -> Vec<String> {
         }
         ranked.push((bottom.index, run.missing_parent));
     }
-    // The newest gap is the one under the chain we are trying to extend.
-    // Older missing parents are usually blocks no peer still has.
+    // Highest index first among gaps this node already has. A peer tip is
+    // followed by previous_hash and does not use this order.
     ranked.sort_by(|left, right| right.0.cmp(&left.0));
     ranked.into_iter().map(|(_, hash)| hash).collect()
 }

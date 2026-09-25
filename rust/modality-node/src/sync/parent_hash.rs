@@ -1,10 +1,8 @@
 //! Fetch the parent hash a parked run is waiting on.
 //!
-//! A gapped index range is not one chain. Each parked run names the
-//! missing parent hash. This asks the peer for that hash, stores the
-//! block off the canonical set, and repeats with that block's parent.
-//! A hash this peer lacks, or whose target does not match, is skipped so
-//! the next missing parent can be fetched.
+//! A peer tip is one chain: that hash, then its `previous_hash`, and so on
+//! until the hash is already canonical here. Gaps under other stored blocks
+//! are a different set and are not that chain.
 
 use modality_datastore::models::MinerBlock;
 use modality_datastore::DatastoreManager;
@@ -20,14 +18,12 @@ use crate::chain::reorg::{
 use crate::reqres;
 use crate::sync::block_range::{request_block_by_hash, HashLookup};
 
-/// Ask `peer_addr` for parked parent hashes, then for each returned block's parent.
+/// Ask `peer_addr` for parent hashes.
 ///
-/// A hash this peer does not have is skipped for ten minutes. A hash whose
-/// target does not match this chain is skipped the same way, so a competing
-/// fork does not stay at the front of the walk. When `peer_tip` is set, that
-/// hash is requested before any gap under a block this node already stored.
-/// A timeout is not recorded as missing. Successes, not refusals, count
-/// toward the cap.
+/// When `peer_tip` is set, the next hash is always that block's
+/// `previous_hash`. A timeout is not recorded as missing. A target mismatch
+/// or a peer that does not have the parent stops this chain. Successes, not
+/// refusals, count toward the cap.
 pub async fn fetch_missing_parents(
     swarm: &Arc<Mutex<crate::swarm::NodeSwarm>>,
     peer_addr: &str,
@@ -45,13 +41,14 @@ pub async fn fetch_missing_parents(
     const MAX_STORED_PARENTS: usize = 512;
     const MAX_ATTEMPTS: usize = 2048;
 
+    if let Some(tip) = peer_tip.filter(|tip| !tip.is_empty()) {
+        follow_peer_chain(swarm, peer_addr, datastore, reqres_response_txs, tip).await;
+        return;
+    }
+
     let mut ended = HashSet::new();
     let mut stored_parents = 0usize;
-    let mut missing = peer_tip_first(peer_tip, &current_missing(datastore).await);
-    if let Some(tip) = peer_tip.filter(|tip| !tip.is_empty()) {
-        let shown = tip.len().min(16);
-        log::info!("Requesting peer tip {} before stored gaps", &tip[..shown]);
-    }
+    let mut missing = current_missing(datastore).await;
     for _ in 0..MAX_ATTEMPTS {
         if stored_parents >= MAX_STORED_PARENTS {
             break;
@@ -89,7 +86,7 @@ pub async fn fetch_missing_parents(
             StoreParent::Stored => {
                 stored_parents += 1;
                 ended.insert(hash);
-                missing = peer_tip_first(peer_tip, &current_missing(datastore).await);
+                missing = current_missing(datastore).await;
             }
             StoreParent::Rejected => {
                 remember_rejected(&hash);
@@ -100,6 +97,101 @@ pub async fn fetch_missing_parents(
             }
         }
     }
+}
+
+/// Follow `start` through each block's `previous_hash`.
+///
+/// Blocks already stored are skipped locally, so a later sync resumes at the
+/// first missing parent of this chain. A higher-index gap on disk is not
+/// requested from here.
+async fn follow_peer_chain(
+    swarm: &Arc<Mutex<crate::swarm::NodeSwarm>>,
+    peer_addr: &str,
+    datastore: &Arc<Mutex<DatastoreManager>>,
+    reqres_response_txs: &Arc<
+        Mutex<
+            std::collections::HashMap<
+                libp2p::request_response::OutboundRequestId,
+                tokio::sync::oneshot::Sender<reqres::Response>,
+            >,
+        >,
+    >,
+    start: &str,
+) {
+    const MAX_STORED_PARENTS: usize = 512;
+    const MAX_ATTEMPTS: usize = 2048;
+
+    let mut cursor = start.to_string();
+    let mut seen = HashSet::new();
+    let mut stored_parents = 0usize;
+    for _ in 0..MAX_ATTEMPTS {
+        if stored_parents >= MAX_STORED_PARENTS || !seen.insert(cursor.clone()) {
+            break;
+        }
+        if still_rejected(&cursor) || still_absent(peer_addr, &cursor) {
+            break;
+        }
+        if let Some(existing) = stored_by_hash(datastore, &cursor).await {
+            if existing.is_canonical && !existing.is_orphaned {
+                let shown = cursor.len().min(16);
+                log::info!("Peer chain met local canonical block {}", &cursor[..shown]);
+                break;
+            }
+            match parent_to_follow(existing.index, &existing.previous_hash) {
+                Some(parent) => {
+                    cursor = parent.to_string();
+                    continue;
+                }
+                None => break,
+            }
+        }
+        let shown = cursor.len().min(16);
+        log::info!("Following parent {} by hash", &cursor[..shown]);
+        let fetched =
+            match request_block_by_hash(swarm, peer_addr, &cursor, reqres_response_txs).await {
+                Ok(lookup) => lookup,
+                Err(e) => {
+                    log::warn!("Failed to follow parent {}: {e}", &cursor[..shown]);
+                    break;
+                }
+            };
+        let block = match fetched {
+            HashLookup::Block(block) if block.hash == cursor => block,
+            HashLookup::Block(_) | HashLookup::NotFound => {
+                log::info!("Peer has no parent {}", &cursor[..shown]);
+                remember_absent(peer_addr, &cursor);
+                break;
+            }
+            HashLookup::Unavailable => {
+                log::info!("Parent {} was not answered in time", &cursor[..shown]);
+                break;
+            }
+        };
+        match store_parent(datastore, &block).await {
+            StoreParent::Rejected => {
+                remember_rejected(&cursor);
+                break;
+            }
+            StoreParent::Failed => break,
+            StoreParent::Stored => stored_parents += 1,
+            StoreParent::AlreadyThere => {}
+        }
+        match parent_to_follow(block.index, &block.previous_hash) {
+            Some(parent) => cursor = parent.to_string(),
+            None => break,
+        }
+    }
+}
+
+async fn stored_by_hash(
+    datastore: &Arc<Mutex<DatastoreManager>>,
+    hash: &str,
+) -> Option<MinerBlock> {
+    let ds = datastore.lock().await;
+    MinerBlock::find_by_hash_multi(&ds, hash)
+        .await
+        .ok()
+        .flatten()
 }
 
 fn absent_cache() -> &'static StdMutex<HashMap<String, Instant>> {
@@ -152,21 +244,16 @@ async fn current_missing(datastore: &Arc<Mutex<DatastoreManager>>) -> Vec<String
     missing_parent_hashes(&blocks)
 }
 
-/// The peer's advertised tip comes before gaps under blocks already stored.
+/// The next hash on this chain is `previous_hash`.
 ///
-/// Those stored gaps are often an older fork at a higher index. Following
-/// them first never asks for the chain the peer is actually on.
-pub(crate) fn peer_tip_first(peer_tip: Option<&str>, missing: &[String]) -> Vec<String> {
-    let mut ordered = Vec::new();
-    if let Some(tip) = peer_tip.filter(|tip| !tip.is_empty()) {
-        ordered.push(tip.to_string());
+/// A higher index stored from another fork is not an input. Index 0 and an
+/// empty parent end the walk.
+pub(crate) fn parent_to_follow(index: u64, previous_hash: &str) -> Option<&str> {
+    if index == 0 || previous_hash.is_empty() {
+        None
+    } else {
+        Some(previous_hash)
     }
-    for hash in missing {
-        if !ordered.iter().any(|seen| seen == hash) {
-            ordered.push(hash.clone());
-        }
-    }
-    ordered
 }
 
 /// Next parent to ask for. Hashes in `skip` were already tried this call.
@@ -277,11 +364,12 @@ mod tests {
     }
 
     #[test]
-    fn the_peer_tip_is_fetched_before_a_higher_orphan_gap() {
-        let missing = vec!["orphan-parent-at-1122".to_string(), "older-gap".to_string()];
-        let ordered = peer_tip_first(Some("sequencer-tip"), &missing);
-        let next = first_fetchable(&ordered, &HashSet::new(), "peer-a");
-        assert_eq!(next.map(String::as_str), Some("sequencer-tip"));
-        assert_eq!(ordered[1], "orphan-parent-at-1122");
+    fn the_next_fetch_is_that_blocks_parent_hash() {
+        assert_eq!(
+            parent_to_follow(1113, "00173270-parent"),
+            Some("00173270-parent")
+        );
+        assert_eq!(parent_to_follow(1113, ""), None);
+        assert_eq!(parent_to_follow(0, "genesis-parent"), None);
     }
 }
