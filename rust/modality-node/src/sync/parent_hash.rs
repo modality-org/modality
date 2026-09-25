@@ -46,7 +46,7 @@ pub async fn fetch_missing_parents(
         if stored_parents >= MAX_STORED_PARENTS {
             break;
         }
-        let Some(hash) = first_fetchable(&missing, &ended) else {
+        let Some(hash) = first_fetchable(&missing, &ended, peer_addr) else {
             break;
         };
         let hash = hash.clone();
@@ -63,7 +63,7 @@ pub async fn fetch_missing_parents(
             };
         let Some(block) = fetched.filter(|block| block.hash == hash) else {
             log::info!("Peer has no parent {}", &hash[..shown]);
-            remember_absent(&hash);
+            remember_absent(peer_addr, &hash);
             ended.insert(hash);
             continue;
         };
@@ -81,22 +81,22 @@ fn absent_cache() -> &'static StdMutex<HashMap<String, Instant>> {
     CACHE.get_or_init(|| StdMutex::new(HashMap::new()))
 }
 
-fn remember_absent(hash: &str) {
+fn remember_absent(peer: &str, hash: &str) {
     let mut cache = absent_cache()
         .lock()
         .unwrap_or_else(|poison| poison.into_inner());
-    cache.insert(hash.to_string(), Instant::now());
+    cache.insert(format!("{peer}\n{hash}"), Instant::now());
     if cache.len() > 8192 {
         cache.retain(|_, seen| seen.elapsed() < ABSENT_FOR);
     }
 }
 
-fn still_absent(hash: &str) -> bool {
+fn still_absent(peer: &str, hash: &str) -> bool {
     let cache = absent_cache()
         .lock()
         .unwrap_or_else(|poison| poison.into_inner());
     cache
-        .get(hash)
+        .get(&format!("{peer}\n{hash}"))
         .is_some_and(|seen| seen.elapsed() < ABSENT_FOR)
 }
 
@@ -115,10 +115,11 @@ async fn current_missing(datastore: &Arc<Mutex<DatastoreManager>>) -> Vec<String
 pub(crate) fn first_fetchable<'a>(
     missing: &'a [String],
     skip: &HashSet<String>,
+    peer: &str,
 ) -> Option<&'a String> {
     missing
         .iter()
-        .find(|hash| !skip.contains(*hash) && !still_absent(hash))
+        .find(|hash| !skip.contains(*hash) && !still_absent(peer, hash))
 }
 
 async fn store_parent(datastore: &Arc<Mutex<DatastoreManager>>, block: &MinerBlock) -> bool {
@@ -190,8 +191,10 @@ mod tests {
             "gone-parent-hash".to_string(),
             "live-parent-hash".to_string(),
         ];
-        remember_absent("gone-parent-hash");
-        let next = first_fetchable(&missing, &HashSet::new());
+        remember_absent("peer-a", "gone-parent-hash");
+        let next = first_fetchable(&missing, &HashSet::new(), "peer-a");
         assert_eq!(next.map(String::as_str), Some("live-parent-hash"));
+        let other_peer = first_fetchable(&missing, &HashSet::new(), "peer-b");
+        assert_eq!(other_peer.map(String::as_str), Some("gone-parent-hash"));
     }
 }
