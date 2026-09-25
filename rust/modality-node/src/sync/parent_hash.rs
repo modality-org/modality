@@ -125,6 +125,7 @@ async fn follow_peer_chain(
     let mut seen = HashSet::new();
     let mut stored_parents = 0usize;
     let mut met_canonical = false;
+    let mut walked: Vec<String> = Vec::new();
     for _ in 0..MAX_ATTEMPTS {
         if stored_parents >= MAX_STORED_PARENTS || !seen.insert(cursor.clone()) {
             break;
@@ -143,6 +144,7 @@ async fn follow_peer_chain(
                 met_canonical = true;
                 break;
             }
+            walked.push(cursor.clone());
             match parent_to_follow(existing.index, &existing.previous_hash) {
                 Some(parent) => {
                     cursor = parent.to_string();
@@ -188,10 +190,41 @@ async fn follow_peer_chain(
         }
     }
     // The blocks above the canonical ancestor may already be stored from an
-    // earlier pass. Scoring only when this call stored something left that
-    // suffix parked.
+    // earlier pass. An orphan flag on one of them hides the rest of the
+    // suffix, so adoption only saw a few blocks and kept the local chain.
+    if met_canonical {
+        revive_walked_blocks(datastore, &walked).await;
+    }
     if stored_parents > 0 || met_canonical {
         score_stored_chains(datastore).await;
+    }
+}
+
+async fn revive_walked_blocks(datastore: &Arc<Mutex<DatastoreManager>>, hashes: &[String]) {
+    let ds = datastore.lock().await;
+    for hash in hashes {
+        let Ok(Some(mut block)) = MinerBlock::find_by_hash_multi(&ds, hash).await else {
+            continue;
+        };
+        if !block.is_orphaned {
+            continue;
+        }
+        block.is_orphaned = false;
+        block.is_canonical = false;
+        block.orphan_reason = None;
+        block.competing_hash = None;
+        if let Err(e) = block.save_to_active(&ds).await {
+            log::warn!(
+                "Failed to revive parent {}: {e}",
+                &hash[..16.min(hash.len())]
+            );
+            continue;
+        }
+        log::info!(
+            "Revived parent {} at index {} so its chain can be scored",
+            &hash[..16.min(hash.len())],
+            block.index
+        );
     }
 }
 
