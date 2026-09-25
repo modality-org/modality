@@ -417,7 +417,7 @@ pub fn split_linked_runs(blocks: &[MinerBlock]) -> Vec<LinkedRun> {
 pub fn missing_parent_hashes(blocks: &[MinerBlock]) -> Vec<String> {
     let live: Vec<&MinerBlock> = blocks.iter().filter(|block| !block.is_orphaned).collect();
     let owned: Vec<MinerBlock> = live.iter().map(|block| (*block).clone()).collect();
-    let mut hashes = Vec::new();
+    let mut ranked: Vec<(u64, String)> = Vec::new();
     for run in split_linked_runs(&owned) {
         let Some(bottom) = run.blocks.first() else {
             continue;
@@ -428,11 +428,15 @@ pub fn missing_parent_hashes(blocks: &[MinerBlock]) -> Vec<String> {
         let present = live
             .iter()
             .any(|block| block.hash == run.missing_parent && block.index + 1 == bottom.index);
-        if !present && !hashes.contains(&run.missing_parent) {
-            hashes.push(run.missing_parent);
+        if present || ranked.iter().any(|(_, hash)| hash == &run.missing_parent) {
+            continue;
         }
+        ranked.push((bottom.index, run.missing_parent));
     }
-    hashes
+    // The newest gap is the one under the chain we are trying to extend.
+    // Older missing parents are usually blocks no peer still has.
+    ranked.sort_by(|left, right| right.0.cmp(&left.0));
+    ranked.into_iter().map(|(_, hash)| hash).collect()
 }
 
 /// Blocks of `run` that sit strictly above a local canonical block.
@@ -978,6 +982,17 @@ mod tests {
             .expect("high run");
         assert_eq!(parked.blocks.len(), 2);
         assert_eq!(parked.missing_parent, "absent");
+    }
+
+    #[test]
+    fn the_newest_gap_is_fetched_before_an_older_one() {
+        let old = make_test_block(4, "old_parent");
+        let new = make_test_block(900, "new_parent");
+        let hashes = missing_parent_hashes(&[old, new]);
+        assert_eq!(
+            hashes,
+            vec!["new_parent".to_string(), "old_parent".to_string()]
+        );
     }
 
     #[test]
