@@ -1191,8 +1191,18 @@ struct CommitFacts {
 
 #[derive(Debug)]
 enum ReplayBundleStatus {
-    Present,
+    Present(ReplayBundleBinding),
     Invalid(String),
+}
+
+#[derive(Debug)]
+enum ReplayBundleBinding {
+    Generic,
+    OracleAttests {
+        oracle_path: String,
+        claim: String,
+        value: String,
+    },
 }
 
 impl CommitFacts {
@@ -1443,10 +1453,18 @@ impl CommitFacts {
         if let Some(detail) = external_predicate_evidence_boundary(&property.name) {
             if let Some(status) = self.replay_bundles.get(&property.name) {
                 return match status {
-                    ReplayBundleStatus::Present => format!(
-                        "missing {formatted} (replay bundle evidence is present, but {property_name} is not yet promoted to local transition acceptance; {detail})",
-                        property_name = property.name
-                    ),
+                    ReplayBundleStatus::Present(binding) => {
+                        if let Some(reason) = replay_bundle_binding_mismatch(property, binding) {
+                            format!(
+                                "missing {formatted} (invalid replay bundle evidence: {reason})"
+                            )
+                        } else {
+                            format!(
+                                "missing {formatted} (replay bundle evidence is present, but {property_name} is not yet promoted to local transition acceptance; {detail})",
+                                property_name = property.name
+                            )
+                        }
+                    }
                     ReplayBundleStatus::Invalid(reason) => {
                         format!("missing {formatted} (invalid replay bundle evidence: {reason})")
                     }
@@ -1672,7 +1690,7 @@ fn replay_bundle_status(predicate_name: &str, replay_bundle_json: &str) -> Repla
             if predicate_name == "oracle_attests" {
                 return oracle_replay_bundle_shape_status(object);
             }
-            ReplayBundleStatus::Present
+            ReplayBundleStatus::Present(ReplayBundleBinding::Generic)
         }
         Some(actual) => ReplayBundleStatus::Invalid(format!(
             "predicate mismatch for {predicate_name}: bundle declares {actual}"
@@ -1724,7 +1742,63 @@ fn oracle_replay_bundle_shape_status(
         );
     }
 
-    ReplayBundleStatus::Present
+    ReplayBundleStatus::Present(ReplayBundleBinding::OracleAttests {
+        oracle_path: attestation
+            .get("oracle_path")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string(),
+        claim: attestation
+            .get("claim")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string(),
+        value: attestation
+            .get("value")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string(),
+    })
+}
+
+fn replay_bundle_binding_mismatch(
+    property: &Property,
+    binding: &ReplayBundleBinding,
+) -> Option<String> {
+    let ReplayBundleBinding::OracleAttests {
+        oracle_path,
+        claim,
+        value,
+    } = binding
+    else {
+        return None;
+    };
+    if property.name != "oracle_attests" {
+        return None;
+    }
+
+    let args = predicate_args(property);
+    let expected_oracle_path = args.first()?;
+    let expected_claim = args.get(1)?;
+    let expected_value = args.get(2)?;
+
+    if oracle_path != expected_oracle_path {
+        return Some(format!(
+            "oracle_attests replay bundle attestation oracle_path {oracle_path} does not match predicate argument {expected_oracle_path}"
+        ));
+    }
+    if claim != expected_claim {
+        return Some(format!(
+            "oracle_attests replay bundle attestation claim {claim} does not match predicate argument {expected_claim}"
+        ));
+    }
+    if value != expected_value {
+        return Some(format!(
+            "oracle_attests replay bundle attestation value {value} does not match predicate argument {expected_value}"
+        ));
+    }
+
+    None
 }
 
 fn predicate_args(property: &Property) -> Vec<String> {
@@ -2004,6 +2078,31 @@ model DeliveryOracle {
         assert!(err.contains("replay bundle evidence is present"), "{err}");
         assert!(
             err.contains("not yet promoted to local transition acceptance"),
+            "{err}"
+        );
+
+        let mut mismatched_claim_commit = commit.clone();
+        mismatched_claim_commit.head.replay_bundles = Some(
+            [(
+                "oracle_attests".to_string(),
+                ReplayBundleEvidence {
+                    replay_bundle_json: r#"{"predicate":"oracle_attests","max_age_seconds":60,"attestation":{"oracle_pubkey":"delivery-key-v1","oracle_path":"/oracles/delivery.id","claim":"damaged","value":"true","contract_id":"c1","pending_commit_hash":"pending-1","timestamp":1700000000,"signature":"sig"}}"#.to_string(),
+                },
+            )]
+            .into_iter()
+            .collect(),
+        );
+        let facts = CommitFacts::from_commit(&mismatched_claim_commit, &HashMap::new());
+        let err = explain_no_valid_transition(&model, &current_states, &facts);
+        assert!(err.contains("invalid replay bundle evidence"), "{err}");
+        assert!(
+            err.contains(
+                "oracle_attests replay bundle attestation claim damaged does not match predicate argument delivered"
+            ),
+            "{err}"
+        );
+        assert!(
+            !err.contains("not yet promoted to local transition acceptance"),
             "{err}"
         );
 
