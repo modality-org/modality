@@ -1668,7 +1668,12 @@ fn replay_bundle_status(predicate_name: &str, replay_bundle_json: &str) -> Repla
     };
 
     match object.get("predicate").and_then(Value::as_str) {
-        Some(actual) if actual == predicate_name => ReplayBundleStatus::Present,
+        Some(actual) if actual == predicate_name => {
+            if predicate_name == "oracle_attests" {
+                return oracle_replay_bundle_shape_status(object);
+            }
+            ReplayBundleStatus::Present
+        }
         Some(actual) => ReplayBundleStatus::Invalid(format!(
             "predicate mismatch for {predicate_name}: bundle declares {actual}"
         )),
@@ -1676,6 +1681,50 @@ fn replay_bundle_status(predicate_name: &str, replay_bundle_json: &str) -> Repla
             "{predicate_name} replay bundle is missing string predicate"
         )),
     }
+}
+
+fn oracle_replay_bundle_shape_status(
+    object: &serde_json::Map<String, Value>,
+) -> ReplayBundleStatus {
+    match object.get("max_age_seconds").and_then(Value::as_i64) {
+        Some(value) if value > 0 => {}
+        _ => {
+            return ReplayBundleStatus::Invalid(
+                "oracle_attests replay bundle is missing positive integer max_age_seconds"
+                    .to_string(),
+            )
+        }
+    }
+
+    let Some(attestation) = object.get("attestation").and_then(Value::as_object) else {
+        return ReplayBundleStatus::Invalid(
+            "oracle_attests replay bundle is missing object attestation".to_string(),
+        );
+    };
+
+    for field in [
+        "oracle_pubkey",
+        "oracle_path",
+        "claim",
+        "value",
+        "contract_id",
+        "pending_commit_hash",
+        "signature",
+    ] {
+        if !attestation.get(field).is_some_and(Value::is_string) {
+            return ReplayBundleStatus::Invalid(format!(
+                "oracle_attests replay bundle attestation is missing string {field}"
+            ));
+        }
+    }
+
+    if !attestation.get("timestamp").is_some_and(Value::is_i64) {
+        return ReplayBundleStatus::Invalid(
+            "oracle_attests replay bundle attestation is missing integer timestamp".to_string(),
+        );
+    }
+
+    ReplayBundleStatus::Present
 }
 
 fn predicate_args(property: &Property) -> Vec<String> {
@@ -1944,7 +1993,7 @@ model DeliveryOracle {
             [(
                 "oracle_attests".to_string(),
                 ReplayBundleEvidence {
-                    replay_bundle_json: "{\"predicate\":\"oracle_attests\"}".to_string(),
+                    replay_bundle_json: r#"{"predicate":"oracle_attests","max_age_seconds":60,"attestation":{"oracle_pubkey":"delivery-key-v1","oracle_path":"/oracles/delivery.id","claim":"delivered","value":"true","contract_id":"c1","pending_commit_hash":"pending-1","timestamp":1700000000,"signature":"sig"}}"#.to_string(),
                 },
             )]
             .into_iter()
@@ -1955,6 +2004,27 @@ model DeliveryOracle {
         assert!(err.contains("replay bundle evidence is present"), "{err}");
         assert!(
             err.contains("not yet promoted to local transition acceptance"),
+            "{err}"
+        );
+
+        let mut incomplete_bundle_commit = commit.clone();
+        incomplete_bundle_commit.head.replay_bundles = Some(
+            [(
+                "oracle_attests".to_string(),
+                ReplayBundleEvidence {
+                    replay_bundle_json: "{\"predicate\":\"oracle_attests\"}".to_string(),
+                },
+            )]
+            .into_iter()
+            .collect(),
+        );
+        let facts = CommitFacts::from_commit(&incomplete_bundle_commit, &HashMap::new());
+        let err = explain_no_valid_transition(&model, &current_states, &facts);
+        assert!(err.contains("invalid replay bundle evidence"), "{err}");
+        assert!(
+            err.contains(
+                "oracle_attests replay bundle is missing positive integer max_age_seconds"
+            ),
             "{err}"
         );
     }
