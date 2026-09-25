@@ -6,7 +6,7 @@
 
 use anyhow::Result;
 use modality_datastore::models::MinerBlock;
-use modality_datastore::DatastoreManager;
+use modality_datastore::{DatastoreManager, Store};
 use std::collections::HashMap;
 
 const INTEGRITY_ORPHAN_REASON: &str =
@@ -47,6 +47,7 @@ pub async fn validate_and_repair_chain(
 
     // A previous boot orphaned the live chain because the parent walk
     // stopped at a broken index-1 link and treated genesis as the whole spine.
+    drop_promoted_copies_of_active_orphans(mgr).await?;
     reinstate_overpruned_blocks(mgr).await?;
 
     // Load all canonical blocks from multi-store
@@ -92,7 +93,8 @@ pub async fn validate_and_repair_chain(
 
     // Prefer the longest prev_hash-linked spine. A leftover genesis from an
     // earlier wipe must not last-write-win and cause repair to orphan the live chain.
-    let spine = select_longest_spine(&by_index);
+    let spine =
+        MinerBlock::longest_linked_spine(&by_index.values().flatten().cloned().collect::<Vec<_>>());
     let valid_blocks = spine.len();
     let spine_hashes: std::collections::HashSet<String> =
         spine.iter().map(|b| b.hash.clone()).collect();
@@ -215,29 +217,49 @@ pub async fn validate_and_repair_chain(
     })
 }
 
-/// Put back blocks a genesis-only repair orphaned, when they reach
-/// higher than the chain that replaced them.
+/// Delete MinerCanon copies whose MinerActive record is already an orphan.
+///
+/// Promotion writes the canonical bytes into MinerCanon and leaves them
+/// there. Orphaning used to update only MinerActive, so the promoted copy
+/// came back as canonical after the active row was purged.
+async fn drop_promoted_copies_of_active_orphans(mgr: &DatastoreManager) -> Result<()> {
+    for item in mgr.miner_active().iterator("/miner_blocks/hash") {
+        let (_, value) = item?;
+        let block: MinerBlock = serde_json::from_slice(&value)?;
+        if block.is_canonical && !block.is_orphaned {
+            continue;
+        }
+        let key = format!("/miner_blocks/hash/{}", block.hash);
+        let height_key = format!("/miner_blocks/index/{}/hash/{}", block.index, block.hash);
+        let _ = mgr.miner_canon().delete(&key);
+        let _ = mgr.miner_canon().delete(&height_key);
+    }
+    Ok(())
+}
+
+/// Put back a pruned spine when it is a longer linked chain than the
+/// canonical spine. A disconnected higher tip is left orphaned.
 async fn reinstate_overpruned_blocks(mgr: &DatastoreManager) -> Result<usize> {
     let canonical = MinerBlock::find_all_canonical_multi(mgr).await?;
-    let canonical_tip = canonical.iter().map(|b| b.index).max().unwrap_or(0);
+    let canonical_spine = MinerBlock::longest_linked_spine(&canonical);
     let pruned: Vec<MinerBlock> = MinerBlock::find_all_orphaned_multi(mgr)
         .await?
         .into_iter()
         .filter(|b| b.orphan_reason.as_deref() == Some(INTEGRITY_ORPHAN_REASON))
         .collect();
-    let pruned_tip = pruned.iter().map(|b| b.index).max().unwrap_or(0);
-    if pruned.is_empty() || pruned_tip <= canonical_tip {
+    let pruned_spine = MinerBlock::longest_linked_spine(&pruned);
+    if pruned_spine.len() <= canonical_spine.len() {
         return Ok(0);
     }
 
     log::warn!(
-        "Reinstating {} block(s) orphaned by integrity repair (pruned tip {} > canonical tip {})",
-        pruned.len(),
-        pruned_tip,
-        canonical_tip
+        "Reinstating {} block(s) orphaned by integrity repair (pruned spine {} > canonical spine {})",
+        pruned_spine.len(),
+        pruned_spine.len(),
+        canonical_spine.len()
     );
     let mut restored = 0usize;
-    for mut block in pruned {
+    for mut block in pruned_spine {
         block.is_orphaned = false;
         block.is_canonical = true;
         block.orphan_reason = None;
@@ -246,55 +268,6 @@ async fn reinstate_overpruned_blocks(mgr: &DatastoreManager) -> Result<usize> {
         restored += 1;
     }
     Ok(restored)
-}
-
-fn select_longest_spine(by_index: &HashMap<u64, Vec<MinerBlock>>) -> Vec<MinerBlock> {
-    let starts = by_index.get(&0).cloned().unwrap_or_else(|| {
-        by_index
-            .keys()
-            .min()
-            .and_then(|min| by_index.get(min).cloned())
-            .unwrap_or_default()
-    });
-    let mut best: Vec<MinerBlock> = Vec::new();
-    for start in starts {
-        let chain = walk_forward(&start, by_index);
-        if chain.len() > best.len() {
-            best = chain;
-        }
-    }
-    best
-}
-
-fn walk_forward(start: &MinerBlock, by_index: &HashMap<u64, Vec<MinerBlock>>) -> Vec<MinerBlock> {
-    let mut chain = vec![start.clone()];
-    let mut current_hash = start.hash.clone();
-    let mut index = start.index;
-    loop {
-        let Some(cands) = by_index.get(&(index + 1)) else {
-            break;
-        };
-        let children: Vec<&MinerBlock> = cands
-            .iter()
-            .filter(|b| b.previous_hash == current_hash)
-            .collect();
-        if children.is_empty() {
-            break;
-        }
-        let child = if children.len() == 1 {
-            children[0].clone()
-        } else {
-            children
-                .into_iter()
-                .max_by_key(|c| walk_forward(c, by_index).len())
-                .expect("children non-empty")
-                .clone()
-        };
-        current_hash = child.hash.clone();
-        index = child.index;
-        chain.push(child);
-    }
-    chain
 }
 
 /// Quick check if the chain has integrity issues (doesn't repair)
@@ -309,7 +282,8 @@ pub async fn check_chain_integrity(mgr: &DatastoreManager) -> Result<bool> {
     for block in canonical_blocks {
         by_index.entry(block.index).or_default().push(block);
     }
-    let spine = select_longest_spine(&by_index);
+    let spine =
+        MinerBlock::longest_linked_spine(&by_index.values().flatten().cloned().collect::<Vec<_>>());
     let max_all = by_index.keys().copied().max().unwrap_or(0);
     let spine_tip = spine.last().map(|b| b.index).unwrap_or(0);
     Ok(spine_tip == max_all)
@@ -481,17 +455,18 @@ mod tests {
             block.save_to_active(&datastore).await.unwrap();
         }
 
-        // Repair the chain
+        // The continuation after the bad link is longer than the prefix,
+        // so repair keeps that run and orphans the shorter prefix.
         let report = validate_and_repair_chain(&datastore, true).await.unwrap();
-        assert_eq!(report.break_point, Some(2));
-        assert_eq!(report.orphaned_count, 3); // Blocks 2, 3, 4 orphaned
+        assert_eq!(report.break_point, None);
+        assert_eq!(report.orphaned_count, 2);
         assert!(report.repaired);
 
-        // Verify only blocks 0, 1 are still canonical
         let canonical = MinerBlock::find_all_canonical_multi(&datastore)
             .await
             .unwrap();
-        assert_eq!(canonical.len(), 2);
+        let hashes: Vec<_> = canonical.iter().map(|b| b.hash.as_str()).collect();
+        assert_eq!(hashes, vec!["hash_2", "hash_3", "hash_4"]);
     }
 
     #[tokio::test]
@@ -585,12 +560,14 @@ mod tests {
         }
 
         let report = validate_and_repair_chain(&datastore, true).await.unwrap();
-        assert!(!report.repaired);
-        assert_eq!(report.orphaned_count, 0);
+        assert!(report.repaired);
+        assert_eq!(report.orphaned_count, 1);
         let canonical = MinerBlock::find_all_canonical_multi(&datastore)
             .await
             .unwrap();
-        assert_eq!(canonical.len(), 6);
+        assert_eq!(canonical.len(), 5);
+        assert!(canonical.iter().all(|b| b.hash != "genesis_hash"));
+        assert!(canonical.iter().any(|b| b.hash == "hash_5"));
     }
 
     #[tokio::test]
@@ -610,40 +587,90 @@ mod tests {
         );
         genesis.save_to_active(&datastore).await.unwrap();
 
-        let kept = MinerBlock::new_canonical(
-            "short_tip".to_string(),
-            2,
-            0,
-            2,
-            "genesis_hash".to_string(),
-            "s".to_string(),
-            1,
-            1,
-            "peer".to_string(),
-            1,
-        );
-        kept.save_to_active(&datastore).await.unwrap();
-
-        let mut pruned = MinerBlock::new_canonical(
-            "long_tip".to_string(),
-            10,
-            0,
-            10,
-            "prev".to_string(),
-            "l".to_string(),
-            1,
-            1,
-            "peer".to_string(),
-            1,
-        );
-        pruned.mark_as_orphaned(INTEGRITY_ORPHAN_REASON.to_string(), None);
-        pruned.save_to_active(&datastore).await.unwrap();
+        for i in 1..4 {
+            let mut block = MinerBlock::new_canonical(
+                format!("hash_{i}"),
+                i,
+                0,
+                1 + i as i64,
+                if i == 1 {
+                    "genesis_hash".to_string()
+                } else {
+                    format!("hash_{}", i - 1)
+                },
+                format!("d{i}"),
+                1,
+                1,
+                "peer".to_string(),
+                1,
+            );
+            block.mark_as_orphaned(INTEGRITY_ORPHAN_REASON.to_string(), None);
+            block.save_to_active(&datastore).await.unwrap();
+        }
 
         let report = validate_and_repair_chain(&datastore, true).await.unwrap();
         assert!(!report.repaired);
         let canonical = MinerBlock::find_all_canonical_multi(&datastore)
             .await
             .unwrap();
-        assert!(canonical.iter().any(|b| b.hash == "long_tip"));
+        assert!(canonical.iter().any(|b| b.hash == "hash_3"));
+        assert_eq!(canonical.len(), 4);
+    }
+
+    #[tokio::test]
+    async fn disconnected_higher_suffix_stays_orphaned() {
+        let datastore = DatastoreManager::create_in_memory().unwrap();
+        for i in 0..6 {
+            let block = MinerBlock::new_canonical(
+                format!("hash_{i}"),
+                i,
+                0,
+                1 + i as i64,
+                if i == 0 {
+                    "genesis".to_string()
+                } else {
+                    format!("hash_{}", i - 1)
+                },
+                format!("d{i}"),
+                1,
+                1,
+                "peer".to_string(),
+                1,
+            );
+            block.save_to_active(&datastore).await.unwrap();
+        }
+        for i in 8..11 {
+            let prev = if i == 8 {
+                "missing".to_string()
+            } else {
+                format!("suffix_{}", i - 1)
+            };
+            let block = MinerBlock::new_canonical(
+                format!("suffix_{i}"),
+                i,
+                0,
+                20 + i as i64,
+                prev,
+                format!("s{i}"),
+                1,
+                1,
+                "peer".to_string(),
+                1,
+            );
+            block.save_to_active(&datastore).await.unwrap();
+            block.promote_to_canon(&datastore).await.unwrap();
+        }
+
+        let report = validate_and_repair_chain(&datastore, true).await.unwrap();
+        assert!(report.repaired);
+        assert_eq!(report.orphaned_count, 3);
+
+        let again = validate_and_repair_chain(&datastore, true).await.unwrap();
+        assert_eq!(again.orphaned_count, 0);
+        let canonical = MinerBlock::find_all_canonical_multi(&datastore)
+            .await
+            .unwrap();
+        assert_eq!(canonical.len(), 6);
+        assert!(canonical.iter().all(|b| b.index < 6));
     }
 }

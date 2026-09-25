@@ -70,13 +70,22 @@ pub async fn generate_validator_set_from_epoch_multi(
     epoch: u64,
 ) -> Result<ValidatorSet> {
     let all_blocks = MinerBlock::find_all_canonical_multi(mgr).await?;
-    let epoch_blocks: Vec<_> = all_blocks
+    let spine = MinerBlock::longest_linked_spine(&all_blocks);
+    let blocks_per_epoch = mgr.epoch_config().blocks_per_epoch.max(1);
+    let start = epoch.saturating_mul(blocks_per_epoch);
+    let end = start + blocks_per_epoch;
+    let epoch_blocks: Vec<_> = spine
         .into_iter()
-        .filter(|b| b.epoch == epoch)
+        .filter(|b| b.index >= start && b.index < end)
         .collect();
 
-    if epoch_blocks.is_empty() {
-        anyhow::bail!("No blocks found for epoch {}", epoch);
+    if epoch_blocks.len() != blocks_per_epoch as usize {
+        anyhow::bail!(
+            "Nomination epoch {} is incomplete on the linked chain ({} of {} blocks)",
+            epoch,
+            epoch_blocks.len(),
+            blocks_per_epoch
+        );
     }
 
     // Count nominations for each peer ID (for stakes)
@@ -264,5 +273,78 @@ mod tests {
         // This should fail since there are no blocks for dynamic selection
         let result = get_validator_set_for_epoch_multi(&datastore, 0).await;
         assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn partial_linked_epoch_is_not_a_committee() {
+        let mut datastore = DatastoreManager::create_in_memory().unwrap();
+        datastore.set_blocks_per_epoch(4);
+        for i in 0..2 {
+            let block = MinerBlock::new_canonical(
+                format!("hash_{i}"),
+                i,
+                0,
+                i as i64,
+                if i == 0 {
+                    "genesis".to_string()
+                } else {
+                    format!("hash_{}", i - 1)
+                },
+                format!("d{i}"),
+                1,
+                1,
+                format!("peer_{i}"),
+                1,
+            );
+            block.save_to_active(&datastore).await.unwrap();
+        }
+        let err = generate_validator_set_from_epoch_multi(&datastore, 0)
+            .await
+            .unwrap_err();
+        assert!(err.to_string().contains("incomplete"));
+    }
+
+    #[tokio::test]
+    async fn complete_linked_epoch_counts_each_index_once() {
+        let mut datastore = DatastoreManager::create_in_memory().unwrap();
+        datastore.set_blocks_per_epoch(4);
+        for i in 0..4 {
+            let block = MinerBlock::new_canonical(
+                format!("hash_{i}"),
+                i,
+                0,
+                i as i64,
+                if i == 0 {
+                    "genesis".to_string()
+                } else {
+                    format!("hash_{}", i - 1)
+                },
+                format!("d{i}"),
+                1,
+                1,
+                "peer_a".to_string(),
+                1,
+            );
+            block.save_to_active(&datastore).await.unwrap();
+        }
+        let extra = MinerBlock::new_canonical(
+            "other_tip".to_string(),
+            6,
+            0,
+            6,
+            "missing".to_string(),
+            "x".to_string(),
+            9,
+            1,
+            "peer_b".to_string(),
+            1,
+        );
+        extra.save_to_active(&datastore).await.unwrap();
+
+        let set = generate_validator_set_from_epoch_multi(&datastore, 0)
+            .await
+            .unwrap();
+        assert_eq!(set.validator_stakes.get("peer_a"), Some(&4));
+        assert!(!set.validator_stakes.contains_key("peer_b"));
     }
 }

@@ -212,6 +212,105 @@ pub fn adoption_lowers_tip(local_tip: u64, adopted_tip: u64) -> bool {
     adopted_tip < local_tip
 }
 
+/// Indexes under the accepted tip that the parent walk could not cross.
+///
+/// `to_index` is the missing parent of the linked suffix. `expected_hash` is
+/// the hash that parent must have. `from_index` is the first index after the
+/// highest stored block below that suffix, so one request covers the hole.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ParentGap {
+    pub from_index: u64,
+    pub to_index: u64,
+    pub expected_hash: String,
+}
+
+pub fn tip_parent_gap(blocks: &[MinerBlock]) -> Option<ParentGap> {
+    if blocks.is_empty() {
+        return None;
+    }
+
+    let mut by_index: BTreeMap<u64, Vec<&MinerBlock>> = BTreeMap::new();
+    for block in blocks {
+        by_index.entry(block.index).or_default().push(block);
+    }
+    let tip_index = *by_index.keys().next_back()?;
+    let mut best_len = 0u64;
+    let mut best_start = tip_index;
+    let mut expected_hash = String::new();
+    let mut found = false;
+
+    for tip in &by_index[&tip_index] {
+        let mut len = 1u64;
+        let mut current = *tip;
+        while current.index > 0 {
+            let Some(parents) = by_index.get(&(current.index - 1)) else {
+                break;
+            };
+            let Some(parent) = parents.iter().find(|b| b.hash == current.previous_hash) else {
+                break;
+            };
+            current = parent;
+            len += 1;
+        }
+        if !found || len > best_len {
+            found = true;
+            best_len = len;
+            best_start = current.index;
+            expected_hash = current.previous_hash.clone();
+        }
+    }
+
+    if !found || best_start == 0 {
+        return None;
+    }
+
+    let to_index = best_start - 1;
+    let from_index = by_index
+        .range(..best_start)
+        .next_back()
+        .map(|(index, _)| index + 1)
+        .unwrap_or(0);
+    Some(ParentGap {
+        from_index: from_index.min(to_index),
+        to_index,
+        expected_hash,
+    })
+}
+
+/// Blocks from `blocks` that end at `expected_hash` on `to_index` and follow
+/// `previous_hash` downward. The tip above this gap is not included.
+pub fn linking_parents(
+    blocks: &[MinerBlock],
+    to_index: u64,
+    expected_hash: &str,
+) -> Vec<MinerBlock> {
+    let mut by_index: BTreeMap<u64, Vec<&MinerBlock>> = BTreeMap::new();
+    for block in blocks {
+        by_index.entry(block.index).or_default().push(block);
+    }
+    let Some(end) = by_index
+        .get(&to_index)
+        .and_then(|at| at.iter().find(|b| b.hash == expected_hash))
+    else {
+        return Vec::new();
+    };
+
+    let mut chain = vec![(*end).clone()];
+    let mut current = *end;
+    while current.index > 0 {
+        let Some(parents) = by_index.get(&(current.index - 1)) else {
+            break;
+        };
+        let Some(parent) = parents.iter().find(|b| b.hash == current.previous_hash) else {
+            break;
+        };
+        chain.push((*parent).clone());
+        current = parent;
+    }
+    chain.reverse();
+    chain
+}
+
 /// Collapse duplicate indexes onto the parent-linked chain.
 ///
 /// A peer can list two canonical blocks at the same index, and the
@@ -255,7 +354,8 @@ pub fn select_linked_chain(blocks: &[MinerBlock]) -> Result<Vec<MinerBlock>> {
     if start != earliest {
         log::warn!(
             "Adopting linked tip suffix {}..={} and leaving earlier indexes",
-            start, tip_index
+            start,
+            tip_index
         );
     }
     best.reverse();
@@ -314,6 +414,63 @@ mod tests {
             "peer_id".to_string(),
             1,
         )
+    }
+
+    #[test]
+    fn tip_parent_gap_is_the_hole_under_the_linked_suffix() {
+        let blocks = vec![
+            make_test_block(0, "genesis"),
+            make_test_block(1, "hash_0"),
+            make_test_block(4, "hash_3"),
+            make_test_block(5, "hash_4"),
+        ];
+        let gap = tip_parent_gap(&blocks).expect("gap");
+        assert_eq!(gap.from_index, 2);
+        assert_eq!(gap.to_index, 3);
+        assert_eq!(gap.expected_hash, "hash_3");
+    }
+
+    #[test]
+    fn wrong_block_at_the_parent_index_requests_that_index() {
+        let mut decoy = make_test_block(3, "hash_2");
+        decoy.hash = "other_3".to_string();
+        let blocks = vec![
+            make_test_block(0, "genesis"),
+            make_test_block(1, "hash_0"),
+            decoy,
+            make_test_block(4, "hash_3"),
+            make_test_block(5, "hash_4"),
+        ];
+        let gap = tip_parent_gap(&blocks).expect("gap");
+        assert_eq!(gap.from_index, 3);
+        assert_eq!(gap.to_index, 3);
+        assert_eq!(gap.expected_hash, "hash_3");
+    }
+
+    #[test]
+    fn contiguous_tip_has_no_parent_gap() {
+        let blocks = vec![
+            make_test_block(0, "genesis"),
+            make_test_block(1, "hash_0"),
+            make_test_block(2, "hash_1"),
+        ];
+        assert!(tip_parent_gap(&blocks).is_none());
+    }
+
+    #[test]
+    fn linking_parents_follow_the_expected_hash_only() {
+        let mut decoy = make_test_block(3, "hash_2");
+        decoy.hash = "other_3".to_string();
+        let fetched = vec![
+            make_test_block(2, "hash_1"),
+            decoy,
+            make_test_block(3, "hash_2"),
+        ];
+        let linked = linking_parents(&fetched, 3, "hash_3");
+        assert_eq!(
+            linked.iter().map(|b| b.hash.as_str()).collect::<Vec<_>>(),
+            vec!["hash_2", "hash_3"]
+        );
     }
 
     #[test]

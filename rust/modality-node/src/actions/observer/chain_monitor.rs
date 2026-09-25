@@ -80,7 +80,10 @@ pub fn start_chain_monitor(
 pub async fn get_chain_tip_index(datastore: &Arc<Mutex<DatastoreManager>>) -> u64 {
     let ds = datastore.lock().await;
     match MinerBlock::find_all_canonical_multi(&ds).await {
-        Ok(blocks) if !blocks.is_empty() => blocks.iter().map(|b| b.index).max().unwrap_or(0),
+        Ok(blocks) if !blocks.is_empty() => MinerBlock::longest_linked_spine(&blocks)
+            .last()
+            .map(|b| b.index)
+            .unwrap_or(0),
         _ => 0,
     }
 }

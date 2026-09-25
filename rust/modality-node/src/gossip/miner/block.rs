@@ -249,11 +249,12 @@ pub async fn handler(
                 );
 
                 // Check if this updates the chain tip
-                let current_tip = MinerBlock::find_all_canonical_multi(&mgr)
-                    .await?
-                    .into_iter()
-                    .max_by_key(|b| b.index)
-                    .map(|b| b.index);
+                let current_tip = MinerBlock::longest_linked_spine(
+                    &MinerBlock::find_all_canonical_multi(&mgr).await?,
+                )
+                .into_iter()
+                .last()
+                .map(|b| b.index);
 
                 if let Some(tip) = current_tip {
                     chain_tip_updated = true;
@@ -411,21 +412,46 @@ pub async fn handler(
         drop(mgr);
     }
 
-    // Save block and notify the mining loop
-    log::info!(
-        "Accepting new gossiped block {} at index {}",
-        &miner_block.hash[..16],
-        miner_block.index
-    );
-
+    // Save block and notify the mining loop.
+    // The existence check above drops the lock before parent validation,
+    // so a second gossip of a different hash can pass it too. Recheck
+    // under the save lock and keep a single canonical block at this index.
     let current_tip = {
         let mgr = datastore_manager.lock().await;
+        if let Some(existing) =
+            MinerBlock::find_canonical_by_index_simple(&mgr, miner_block.index).await?
+        {
+            if existing.hash != miner_block.hash {
+                if !crate::chain::fork_choice::should_replace_block(&miner_block, &existing) {
+                    log::debug!(
+                        "Existing block {} wins fork choice at index {}, not saving {}",
+                        &existing.hash[..16],
+                        miner_block.index,
+                        &miner_block.hash[..16]
+                    );
+                    return Ok(());
+                }
+                let mut orphaned = existing.clone();
+                orphaned.mark_as_orphaned(
+                    format!(
+                        "Replaced by gossiped block (hash: {})",
+                        &miner_block.hash[..16]
+                    ),
+                    Some(miner_block.hash.clone()),
+                );
+                orphaned.save_to_active(&mgr).await?;
+            }
+        }
+        log::info!(
+            "Accepting new gossiped block {} at index {}",
+            &miner_block.hash[..16],
+            miner_block.index
+        );
         miner_block.save_to_active(&mgr).await?;
 
-        MinerBlock::find_all_canonical_multi(&mgr)
-            .await?
+        MinerBlock::longest_linked_spine(&MinerBlock::find_all_canonical_multi(&mgr).await?)
             .into_iter()
-            .max_by_key(|b| b.index)
+            .last()
             .map(|b| b.index)
     };
 

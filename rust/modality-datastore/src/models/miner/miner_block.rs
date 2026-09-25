@@ -210,6 +210,83 @@ impl MinerBlock {
 
         Ok(best_total)
     }
+
+    /// Longest parent-linked run in `blocks`.
+    ///
+    /// The run does not have to start at genesis. A stored genesis whose
+    /// child does not link must not beat a longer chain that begins later.
+    /// Equal length prefers the higher tip index, then the lower tip hash.
+    pub fn longest_linked_spine(blocks: &[MinerBlock]) -> Vec<MinerBlock> {
+        let mut by_hash: std::collections::HashMap<&str, &MinerBlock> =
+            std::collections::HashMap::new();
+        for block in blocks {
+            by_hash.entry(block.hash.as_str()).or_insert(block);
+        }
+        let mut best: Option<&MinerBlock> = None;
+        let mut best_len: usize = 0;
+        let mut memo: std::collections::HashMap<&str, usize> = std::collections::HashMap::new();
+        for block in by_hash.values() {
+            let len = linked_prefix_len(block, &by_hash, &mut memo);
+            let replace = match best {
+                None => true,
+                Some(current) => {
+                    len > best_len
+                        || (len == best_len && block.index > current.index)
+                        || (len == best_len
+                            && block.index == current.index
+                            && block.hash < current.hash)
+                }
+            };
+            if replace {
+                best = Some(*block);
+                best_len = len;
+            }
+        }
+        let Some(tip) = best else {
+            return Vec::new();
+        };
+        let mut chain = Vec::with_capacity(best_len);
+        let mut current = tip;
+        loop {
+            chain.push((*current).clone());
+            let Some(parent) = linked_parent(current, &by_hash) else {
+                break;
+            };
+            current = parent;
+        }
+        chain.reverse();
+        chain
+    }
+}
+
+fn linked_parent<'a>(
+    block: &'a MinerBlock,
+    by_hash: &std::collections::HashMap<&str, &'a MinerBlock>,
+) -> Option<&'a MinerBlock> {
+    if block.index == 0 {
+        return None;
+    }
+    let parent = by_hash.get(block.previous_hash.as_str()).copied()?;
+    if parent.index + 1 == block.index {
+        Some(parent)
+    } else {
+        None
+    }
+}
+
+fn linked_prefix_len<'a>(
+    block: &'a MinerBlock,
+    by_hash: &std::collections::HashMap<&str, &'a MinerBlock>,
+    memo: &mut std::collections::HashMap<&'a str, usize>,
+) -> usize {
+    if let Some(len) = memo.get(block.hash.as_str()) {
+        return *len;
+    }
+    let len = 1 + linked_parent(block, by_hash)
+        .map(|parent| linked_prefix_len(parent, by_hash, memo))
+        .unwrap_or(0);
+    memo.insert(block.hash.as_str(), len);
+    len
 }
 
 #[async_trait]

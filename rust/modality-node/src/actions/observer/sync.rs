@@ -60,9 +60,14 @@ pub async fn request_chain_info_impl(
     );
 
     // Find common ancestor
-    let (common_ancestor, peer_chain_length, peer_chain_tip, peer_cumulative_difficulty, peer_tip_hash) =
-        find_common_ancestor_efficient(&swarm, peer_addr.clone(), &datastore, &reqres_response_txs)
-            .await?;
+    let (
+        common_ancestor,
+        peer_chain_length,
+        peer_chain_tip,
+        peer_cumulative_difficulty,
+        peer_tip_hash,
+    ) = find_common_ancestor_efficient(&swarm, peer_addr.clone(), &datastore, &reqres_response_txs)
+        .await?;
 
     // Determine blocks to request
     let from_index = match common_ancestor {
@@ -100,13 +105,19 @@ pub async fn request_chain_info_impl(
 
     log::info!(
         "Chain comparison: Local (tip: {}, difficulty: {}) vs Peer (tip: {}, difficulty: {})",
-        local_tip, local_cumulative_difficulty, peer_chain_tip, peer_cumulative_difficulty
+        local_tip,
+        local_cumulative_difficulty,
+        peer_chain_tip,
+        peer_cumulative_difficulty
     );
 
     if comparison.result != ForkChoiceResult::AdoptRemote {
         log::info!("Keeping local chain: {}", comparison.reason);
-        let ds = datastore.lock().await;
-        let _ = MinerBlock::delete_all_pending_multi(&ds).await;
+        {
+            let ds = datastore.lock().await;
+            let _ = MinerBlock::delete_all_pending_multi(&ds).await;
+        }
+        backfill_tip_parents(&swarm, &peer_addr, &datastore, &reqres_response_txs).await;
         return Ok(());
     }
 
@@ -136,6 +147,8 @@ pub async fn request_chain_info_impl(
         local_cumulative_difficulty,
     )
     .await?;
+
+    backfill_tip_parents(&swarm, &peer_addr, &datastore, &reqres_response_txs).await;
 
     Ok(())
 }
@@ -234,6 +247,33 @@ async fn adopt_peer_blocks(
             return Ok(());
         }
 
+        if let Some(first) = all_blocks.first() {
+            if first.index > 0 {
+                match MinerBlock::find_canonical_by_index_simple(&ds, first.index - 1).await? {
+                    Some(parent) if parent.hash == first.previous_hash => {}
+                    Some(parent) => {
+                        log::warn!(
+                            "Refusing to adopt suffix {}..={} because it does not link to local block {} (prev {}, local {})",
+                            first.index,
+                            adopted_tip,
+                            parent.index,
+                            &first.previous_hash[..16.min(first.previous_hash.len())],
+                            &parent.hash[..16.min(parent.hash.len())]
+                        );
+                        return Ok(());
+                    }
+                    None => {
+                        log::warn!(
+                            "Refusing to adopt suffix starting at {} because local block {} is missing",
+                            first.index,
+                            first.index - 1
+                        );
+                        return Ok(());
+                    }
+                }
+            }
+        }
+
         for local in &local_blocks {
             if local.index > ancestor_index {
                 let competing_hash = all_blocks
@@ -270,6 +310,128 @@ async fn adopt_peer_blocks(
     );
 
     Ok(())
+}
+
+/// Ask this peer for the indexes the parent walk could not cross under the
+/// accepted tip. Only blocks that hash-link to that tip are stored. Indexes
+/// above the gap are left alone.
+async fn backfill_tip_parents(
+    swarm: &Arc<Mutex<crate::swarm::NodeSwarm>>,
+    peer_addr: &str,
+    datastore: &Arc<Mutex<DatastoreManager>>,
+    reqres_response_txs: &Arc<
+        Mutex<
+            std::collections::HashMap<
+                libp2p::request_response::OutboundRequestId,
+                tokio::sync::oneshot::Sender<reqres::Response>,
+            >,
+        >,
+    >,
+) {
+    use crate::chain::reorg::{linking_parents, tip_parent_gap};
+
+    for _ in 0..8 {
+        let canonical = {
+            let ds = datastore.lock().await;
+            match MinerBlock::find_all_canonical_multi(&ds).await {
+                Ok(blocks) => blocks,
+                Err(e) => {
+                    log::warn!("Could not load canonical blocks to backfill: {}", e);
+                    return;
+                }
+            }
+        };
+        let Some(gap) = tip_parent_gap(&canonical) else {
+            return;
+        };
+        let shown = gap.expected_hash.len().min(16);
+        log::info!(
+            "Backfilling indexes {}..={} under the accepted tip; index {} must be {}",
+            gap.from_index,
+            gap.to_index,
+            gap.to_index,
+            &gap.expected_hash[..shown]
+        );
+        let fetched = match request_blocks_from_peer(
+            swarm,
+            peer_addr,
+            gap.from_index,
+            gap.to_index,
+            reqres_response_txs,
+        )
+        .await
+        {
+            Ok(blocks) => blocks,
+            Err(e) => {
+                log::warn!(
+                    "Failed to request parent gap {}..={}: {}",
+                    gap.from_index,
+                    gap.to_index,
+                    e
+                );
+                return;
+            }
+        };
+        let linking = linking_parents(&fetched, gap.to_index, &gap.expected_hash);
+        if linking.is_empty() {
+            log::info!(
+                "Peer has no parent {} at index {}",
+                &gap.expected_hash[..shown],
+                gap.to_index
+            );
+            return;
+        }
+        match save_linking_parents(datastore, &linking).await {
+            Ok(0) => return,
+            Ok(saved) => log::info!(
+                "Stored {} parent block(s) {}..={} under the accepted tip",
+                saved,
+                linking.first().map(|b| b.index).unwrap_or(gap.from_index),
+                linking.last().map(|b| b.index).unwrap_or(gap.to_index)
+            ),
+            Err(e) => {
+                log::warn!(
+                    "Failed to store parent blocks under the accepted tip: {}",
+                    e
+                );
+                return;
+            }
+        }
+    }
+}
+
+async fn save_linking_parents(
+    datastore: &Arc<Mutex<DatastoreManager>>,
+    linking: &[MinerBlock],
+) -> Result<usize> {
+    let ds = datastore.lock().await;
+    let mut saved = 0usize;
+    for block in linking {
+        if let Ok(Some(existing)) = MinerBlock::find_by_hash_multi(&ds, &block.hash).await {
+            if existing.is_canonical {
+                continue;
+            }
+        }
+        if let Ok(Some(occupant)) =
+            MinerBlock::find_canonical_by_index_simple(&ds, block.index).await
+        {
+            if occupant.hash != block.hash {
+                let mut orphaned = occupant;
+                orphaned.mark_as_orphaned(
+                    "Replaced by the parent of the accepted tip".to_string(),
+                    Some(block.hash.clone()),
+                );
+                orphaned.save_to_active(&ds).await?;
+            }
+        }
+        let mut canonical = block.clone();
+        canonical.is_canonical = true;
+        canonical.is_orphaned = false;
+        canonical.orphan_reason = None;
+        canonical.save_to_active(&ds).await?;
+        saved += 1;
+    }
+    Ok(saved)
 }
 
 /// Sync blockchain state from peers on startup

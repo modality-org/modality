@@ -94,6 +94,14 @@ pub async fn run(node: &mut Node) -> Result<()> {
         return Ok(());
     }
 
+    {
+        let mgr = node.datastore_manager.lock().await;
+        if let Err(e) = crate::actions::chain_integrity::validate_and_repair_chain(&mgr, true).await
+        {
+            log::warn!("Chain integrity repair failed: {}", e);
+        }
+    }
+
     // Sync from peers on startup if bootstrappers are configured
     if !node.bootstrappers.is_empty() {
         log::info!("Syncing blockchain state from peers...");
