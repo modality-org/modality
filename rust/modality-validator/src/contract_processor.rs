@@ -1874,6 +1874,54 @@ model FirstContract {
     }
 
     #[tokio::test]
+    async fn parent_replay_state_rejects_malformed_oracle_bundle_input_before_wasm_lookup() {
+        let datastore = Arc::new(Mutex::new(DatastoreManager::create_in_memory().unwrap()));
+        let processor = ContractProcessor::new(datastore.clone());
+
+        let install_oracle = serde_json::json!({
+            "body": [
+                {
+                    "method": "post",
+                    "path": "/oracles/delivery.id",
+                    "value": "delivery-key-v1"
+                }
+            ],
+            "head": {}
+        });
+        sequence_commit(
+            &processor,
+            &datastore,
+            "c1",
+            "oracle-install",
+            &install_oracle.to_string(),
+            "batch-1",
+        )
+        .await;
+
+        let err = processor
+            .evaluate_predicate_against_parent_replay_state(
+                "c1",
+                Some("oracle-install"),
+                "/_code/oracle_attests.wasm",
+                Value::String("not an object".to_string()),
+                7,
+                1700000000,
+            )
+            .await
+            .expect_err("replay-bound oracle predicate input must fail closed");
+
+        assert!(
+            err.to_string()
+                .contains("oracle_attests replay evidence requires object predicate input"),
+            "unexpected error: {err}"
+        );
+        assert!(
+            !err.to_string().contains("WASM module not found"),
+            "malformed replay input should fail before WASM lookup: {err}"
+        );
+    }
+
+    #[tokio::test]
     async fn sequenced_apply_rejects_unsigned_commit_local_verify_would_reject() {
         let datastore = Arc::new(Mutex::new(DatastoreManager::create_in_memory().unwrap()));
         let processor = ContractProcessor::new(datastore.clone());
