@@ -3,7 +3,8 @@
 //! A gapped index range is not one chain. Each parked run names the
 //! missing parent hash. This asks the peer for that hash, stores the
 //! block off the canonical set, and repeats with that block's parent.
-//! A peer that does not have the hash ends the walk for that run.
+//! A hash this peer lacks, or whose target does not match, is skipped so
+//! the next missing parent can be fetched.
 
 use modality_datastore::models::MinerBlock;
 use modality_datastore::DatastoreManager;
@@ -17,12 +18,14 @@ use crate::chain::reorg::{
     adopt_connected_extensions, missing_parent_hashes, select_best_stored_chain,
 };
 use crate::reqres;
-use crate::sync::block_range::request_block_by_hash;
+use crate::sync::block_range::{request_block_by_hash, HashLookup};
 
 /// Ask `peer_addr` for parked parent hashes, then for each returned block's parent.
 ///
-/// A hash no peer has is skipped for ten minutes so the walk can spend its
-/// budget on the newest gap. Successes, not refusals, count toward the cap.
+/// A hash this peer does not have is skipped for ten minutes. A hash whose
+/// target does not match this chain is skipped the same way, so a competing
+/// fork does not stay at the front of the walk. A timeout is not recorded as
+/// missing. Successes, not refusals, count toward the cap.
 pub async fn fetch_missing_parents(
     swarm: &Arc<Mutex<crate::swarm::NodeSwarm>>,
     peer_addr: &str,
@@ -54,24 +57,39 @@ pub async fn fetch_missing_parents(
         log::info!("Requesting parent {} by hash", &hash[..shown]);
         let fetched =
             match request_block_by_hash(swarm, peer_addr, &hash, reqres_response_txs).await {
-                Ok(block) => block,
+                Ok(lookup) => lookup,
                 Err(e) => {
                     log::warn!("Failed to request parent {}: {e}", &hash[..shown]);
                     ended.insert(hash);
                     continue;
                 }
             };
-        let Some(block) = fetched.filter(|block| block.hash == hash) else {
-            log::info!("Peer has no parent {}", &hash[..shown]);
-            remember_absent(peer_addr, &hash);
-            ended.insert(hash);
-            continue;
+        let block = match fetched {
+            HashLookup::Block(block) => block,
+            HashLookup::NotFound => {
+                log::info!("Peer has no parent {}", &hash[..shown]);
+                remember_absent(peer_addr, &hash);
+                ended.insert(hash);
+                continue;
+            }
+            HashLookup::Unavailable => {
+                log::info!("Parent {} was not answered in time", &hash[..shown]);
+                ended.insert(hash);
+                continue;
+            }
         };
-        if store_parent(datastore, &block).await {
-            stored_parents += 1;
-            missing = current_missing(datastore).await;
-        } else {
-            ended.insert(hash);
+        match store_parent(datastore, &block).await {
+            StoreParent::Stored => {
+                stored_parents += 1;
+                missing = current_missing(datastore).await;
+            }
+            StoreParent::Rejected => {
+                remember_rejected(&hash);
+                ended.insert(hash);
+            }
+            StoreParent::AlreadyThere | StoreParent::Failed => {
+                ended.insert(hash);
+            }
         }
     }
 }
@@ -89,6 +107,22 @@ fn remember_absent(peer: &str, hash: &str) {
     if cache.len() > 8192 {
         cache.retain(|_, seen| seen.elapsed() < ABSENT_FOR);
     }
+}
+
+fn remember_rejected(hash: &str) {
+    let mut cache = absent_cache()
+        .lock()
+        .unwrap_or_else(|poison| poison.into_inner());
+    cache.insert(format!("reject\n{hash}"), Instant::now());
+}
+
+fn still_rejected(hash: &str) -> bool {
+    let cache = absent_cache()
+        .lock()
+        .unwrap_or_else(|poison| poison.into_inner());
+    cache
+        .get(&format!("reject\n{hash}"))
+        .is_some_and(|seen| seen.elapsed() < ABSENT_FOR)
 }
 
 fn still_absent(peer: &str, hash: &str) -> bool {
@@ -110,8 +144,9 @@ async fn current_missing(datastore: &Arc<Mutex<DatastoreManager>>) -> Vec<String
     missing_parent_hashes(&blocks)
 }
 
-/// Next parent to ask for. Hashes in `skip` were already tried this call,
-/// and hashes peers recently lacked stay skipped.
+/// Next parent to ask for. Hashes in `skip` were already tried this call.
+/// A peer that recently lacked a hash stays skipped for that peer, and a
+/// hash whose target does not match this chain stays skipped for every peer.
 pub(crate) fn first_fetchable<'a>(
     missing: &'a [String],
     skip: &HashSet<String>,
@@ -119,16 +154,23 @@ pub(crate) fn first_fetchable<'a>(
 ) -> Option<&'a String> {
     missing
         .iter()
-        .find(|hash| !skip.contains(*hash) && !still_absent(peer, hash))
+        .find(|hash| !skip.contains(*hash) && !still_absent(peer, hash) && !still_rejected(hash))
 }
 
-async fn store_parent(datastore: &Arc<Mutex<DatastoreManager>>, block: &MinerBlock) -> bool {
+enum StoreParent {
+    Stored,
+    AlreadyThere,
+    Rejected,
+    Failed,
+}
+
+async fn store_parent(datastore: &Arc<Mutex<DatastoreManager>>, block: &MinerBlock) -> StoreParent {
     let ds = datastore.lock().await;
     let stored = match MinerBlock::find_all_blocks_multi(&ds).await {
         Ok(blocks) => blocks,
         Err(e) => {
             log::warn!("Could not load blocks to store parent {}: {e}", block.hash);
-            return false;
+            return StoreParent::Failed;
         }
     };
     let live: Vec<MinerBlock> = stored
@@ -148,7 +190,7 @@ async fn store_parent(datastore: &Arc<Mutex<DatastoreManager>>, block: &MinerBlo
         .flatten()
         .is_some()
     {
-        return false;
+        return StoreParent::AlreadyThere;
     }
     if check_expected_target(block, &live, params) == TargetCheck::Reject {
         log::warn!(
@@ -156,7 +198,7 @@ async fn store_parent(datastore: &Arc<Mutex<DatastoreManager>>, block: &MinerBlo
             &block.hash[..16.min(block.hash.len())],
             block.index
         );
-        return false;
+        return StoreParent::Rejected;
     }
     let mut parked = block.clone();
     parked.is_canonical = false;
@@ -164,7 +206,7 @@ async fn store_parent(datastore: &Arc<Mutex<DatastoreManager>>, block: &MinerBlo
     parked.orphan_reason = None;
     if let Err(e) = parked.save_to_active(&ds).await {
         log::warn!("Failed to store parent {}: {e}", block.hash);
-        return false;
+        return StoreParent::Failed;
     }
     if let Err(e) = select_best_stored_chain(&ds).await {
         log::warn!(
@@ -178,7 +220,7 @@ async fn store_parent(datastore: &Arc<Mutex<DatastoreManager>>, block: &MinerBlo
             block.hash
         );
     }
-    true
+    StoreParent::Stored
 }
 
 #[cfg(test)]
@@ -196,5 +238,16 @@ mod tests {
         assert_eq!(next.map(String::as_str), Some("live-parent-hash"));
         let other_peer = first_fetchable(&missing, &HashSet::new(), "peer-b");
         assert_eq!(other_peer.map(String::as_str), Some("gone-parent-hash"));
+    }
+
+    #[test]
+    fn a_rejected_target_is_skipped_for_every_peer() {
+        let missing = vec![
+            "wrong-target-parent".to_string(),
+            "canonical-parent".to_string(),
+        ];
+        remember_rejected("wrong-target-parent");
+        let next = first_fetchable(&missing, &HashSet::new(), "peer-a");
+        assert_eq!(next.map(String::as_str), Some("canonical-parent"));
     }
 }

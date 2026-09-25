@@ -324,10 +324,18 @@ pub fn sync_fetch_end(row_count: u64, chain_tip: u64) -> u64 {
     row_count.max(chain_tip)
 }
 
+/// Outcome of one hash lookup. A timeout is not the same as a peer that
+/// does not store the block: the next pass can ask again.
+pub enum HashLookup {
+    Block(MinerBlock),
+    NotFound,
+    Unavailable,
+}
+
 /// Request one block by hash.
 ///
-/// `Ok(None)` means this peer does not have that hash. The caller keeps
-/// the parked run and can ask another peer.
+/// The parent walk issues many of these, so a slow peer fails this one
+/// request in a few seconds instead of holding the walk for a minute.
 pub async fn request_block_by_hash(
     swarm: &Arc<Mutex<crate::swarm::NodeSwarm>>,
     peer_addr: &str,
@@ -340,8 +348,10 @@ pub async fn request_block_by_hash(
             >,
         >,
     >,
-) -> Result<Option<MinerBlock>> {
+) -> Result<HashLookup> {
     use libp2p::multiaddr::Multiaddr;
+
+    const PARENT_LOOKUP_TIMEOUT_SECS: u64 = 5;
 
     let ma: Multiaddr = peer_addr.parse()?;
     let Some(libp2p::multiaddr::Protocol::P2p(target_peer_id)) = ma.iter().last() else {
@@ -360,7 +370,7 @@ pub async fn request_block_by_hash(
             .send_request(&target_peer_id, request)
     };
     let response = match tokio::time::timeout(
-        std::time::Duration::from_secs(REQRES_TIMEOUT_SECS),
+        std::time::Duration::from_secs(PARENT_LOOKUP_TIMEOUT_SECS),
         wait_for_reqres_response(reqres_response_txs, request_id),
     )
     .await
@@ -368,24 +378,25 @@ pub async fn request_block_by_hash(
         Ok(Ok(resp)) => resp,
         Ok(Err(e)) => {
             log::warn!("Failed to get block {hash}: {e}");
-            return Ok(None);
+            return Ok(HashLookup::Unavailable);
         }
         Err(_) => {
             log::warn!("Block request for {hash} timed out");
-            return Ok(None);
+            return Ok(HashLookup::Unavailable);
         }
     };
     if !response.ok {
-        return Ok(None);
+        return Ok(HashLookup::NotFound);
     }
     let Some(data) = response.data else {
-        return Ok(None);
+        return Ok(HashLookup::NotFound);
     };
-    match serde_json::from_value(data) {
-        Ok(block) => Ok(Some(block)),
+    match serde_json::from_value::<MinerBlock>(data) {
+        Ok(block) if block.hash == hash => Ok(HashLookup::Block(block)),
+        Ok(_) => Ok(HashLookup::NotFound),
         Err(e) => {
             log::warn!("Failed to parse block {hash}: {e}");
-            Ok(None)
+            Ok(HashLookup::Unavailable)
         }
     }
 }
