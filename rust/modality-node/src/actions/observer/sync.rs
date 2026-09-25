@@ -99,13 +99,14 @@ pub async fn request_chain_info_impl(
 
     if common_ancestor.is_none() && !local_empty {
         log::info!(
-            "No index ancestor with peer tip {peer_chain_tip}; fetching missing parents by hash"
+            "No index ancestor with peer tip {peer_chain_tip}; fetching peer tip {peer_tip_hash} by hash"
         );
         crate::sync::parent_hash::fetch_missing_parents(
             &swarm,
             &peer_addr,
             &datastore,
             &reqres_response_txs,
+            Some(peer_tip_hash.as_str()),
         )
         .await;
         return Ok(());
@@ -308,6 +309,7 @@ async fn backfill_tip_parents(
         peer_addr,
         datastore,
         reqres_response_txs,
+        None,
     )
     .await;
 }

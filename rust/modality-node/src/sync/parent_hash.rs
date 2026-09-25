@@ -24,8 +24,10 @@ use crate::sync::block_range::{request_block_by_hash, HashLookup};
 ///
 /// A hash this peer does not have is skipped for ten minutes. A hash whose
 /// target does not match this chain is skipped the same way, so a competing
-/// fork does not stay at the front of the walk. A timeout is not recorded as
-/// missing. Successes, not refusals, count toward the cap.
+/// fork does not stay at the front of the walk. When `peer_tip` is set, that
+/// hash is requested before any gap under a block this node already stored.
+/// A timeout is not recorded as missing. Successes, not refusals, count
+/// toward the cap.
 pub async fn fetch_missing_parents(
     swarm: &Arc<Mutex<crate::swarm::NodeSwarm>>,
     peer_addr: &str,
@@ -38,13 +40,18 @@ pub async fn fetch_missing_parents(
             >,
         >,
     >,
+    peer_tip: Option<&str>,
 ) {
     const MAX_STORED_PARENTS: usize = 512;
     const MAX_ATTEMPTS: usize = 2048;
 
     let mut ended = HashSet::new();
     let mut stored_parents = 0usize;
-    let mut missing = current_missing(datastore).await;
+    let mut missing = peer_tip_first(peer_tip, &current_missing(datastore).await);
+    if let Some(tip) = peer_tip.filter(|tip| !tip.is_empty()) {
+        let shown = tip.len().min(16);
+        log::info!("Requesting peer tip {} before stored gaps", &tip[..shown]);
+    }
     for _ in 0..MAX_ATTEMPTS {
         if stored_parents >= MAX_STORED_PARENTS {
             break;
@@ -81,7 +88,8 @@ pub async fn fetch_missing_parents(
         match store_parent(datastore, &block).await {
             StoreParent::Stored => {
                 stored_parents += 1;
-                missing = current_missing(datastore).await;
+                ended.insert(hash);
+                missing = peer_tip_first(peer_tip, &current_missing(datastore).await);
             }
             StoreParent::Rejected => {
                 remember_rejected(&hash);
@@ -142,6 +150,23 @@ async fn current_missing(datastore: &Arc<Mutex<DatastoreManager>>) -> Vec<String
         return Vec::new();
     };
     missing_parent_hashes(&blocks)
+}
+
+/// The peer's advertised tip comes before gaps under blocks already stored.
+///
+/// Those stored gaps are often an older fork at a higher index. Following
+/// them first never asks for the chain the peer is actually on.
+pub(crate) fn peer_tip_first(peer_tip: Option<&str>, missing: &[String]) -> Vec<String> {
+    let mut ordered = Vec::new();
+    if let Some(tip) = peer_tip.filter(|tip| !tip.is_empty()) {
+        ordered.push(tip.to_string());
+    }
+    for hash in missing {
+        if !ordered.iter().any(|seen| seen == hash) {
+            ordered.push(hash.clone());
+        }
+    }
+    ordered
 }
 
 /// Next parent to ask for. Hashes in `skip` were already tried this call.
@@ -249,5 +274,14 @@ mod tests {
         remember_rejected("wrong-target-parent");
         let next = first_fetchable(&missing, &HashSet::new(), "peer-a");
         assert_eq!(next.map(String::as_str), Some("canonical-parent"));
+    }
+
+    #[test]
+    fn the_peer_tip_is_fetched_before_a_higher_orphan_gap() {
+        let missing = vec!["orphan-parent-at-1122".to_string(), "older-gap".to_string()];
+        let ordered = peer_tip_first(Some("sequencer-tip"), &missing);
+        let next = first_fetchable(&ordered, &HashSet::new(), "peer-a");
+        assert_eq!(next.map(String::as_str), Some("sequencer-tip"));
+        assert_eq!(ordered[1], "orphan-parent-at-1122");
     }
 }

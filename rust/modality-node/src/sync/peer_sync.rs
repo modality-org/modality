@@ -94,6 +94,7 @@ impl SyncCoordinator {
                 peer_addr,
                 &self.datastore,
                 &self.reqres_response_txs,
+                None,
             )
             .await;
             return Ok(SyncResult::NoSyncNeeded {
@@ -106,10 +107,11 @@ impl SyncCoordinator {
                 peer_addr,
                 &self.datastore,
                 &self.reqres_response_txs,
+                Some(&ancestor_result.remote_tip_hash),
             )
             .await;
             return Ok(SyncResult::NoSyncNeeded {
-                reason: "No index ancestor yet; fetching missing parents by hash".to_string(),
+                reason: "No index ancestor yet; fetching the peer tip by hash".to_string(),
             });
         }
 
@@ -151,6 +153,7 @@ impl SyncCoordinator {
             peer_addr,
             &self.datastore,
             &self.reqres_response_txs,
+            None,
         )
         .await;
 
