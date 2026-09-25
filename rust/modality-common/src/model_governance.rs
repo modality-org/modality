@@ -1186,6 +1186,13 @@ struct CommitFacts {
     modified_paths: Vec<String>,
     post_paths: Vec<String>,
     state: HashMap<String, Value>,
+    replay_bundles: HashMap<String, ReplayBundleStatus>,
+}
+
+#[derive(Debug)]
+enum ReplayBundleStatus {
+    Present,
+    Invalid(String),
 }
 
 impl CommitFacts {
@@ -1211,6 +1218,7 @@ impl CommitFacts {
                 .map(normalize_path)
                 .collect(),
             state: state.clone(),
+            replay_bundles: replay_bundle_statuses(commit),
         }
     }
 
@@ -1433,6 +1441,17 @@ impl CommitFacts {
         }
 
         if let Some(detail) = external_predicate_evidence_boundary(&property.name) {
+            if let Some(status) = self.replay_bundles.get(&property.name) {
+                return match status {
+                    ReplayBundleStatus::Present => format!(
+                        "missing {formatted} (replay bundle evidence is present, but {property_name} is not yet promoted to local transition acceptance; {detail})",
+                        property_name = property.name
+                    ),
+                    ReplayBundleStatus::Invalid(reason) => {
+                        format!("missing {formatted} (invalid replay bundle evidence: {reason})")
+                    }
+                };
+            }
             return format!(
                 "missing {formatted} (external evidence not available to local validator; {detail})"
             );
@@ -1616,6 +1635,49 @@ impl CommitFacts {
     }
 }
 
+fn replay_bundle_statuses(commit: &CommitFile) -> HashMap<String, ReplayBundleStatus> {
+    let mut statuses = HashMap::new();
+    let Some(bundles) = commit.head.replay_bundles.as_ref() else {
+        return statuses;
+    };
+
+    for (predicate_name, bundle) in bundles {
+        statuses.insert(
+            predicate_name.clone(),
+            replay_bundle_status(predicate_name, &bundle.replay_bundle_json),
+        );
+    }
+
+    statuses
+}
+
+fn replay_bundle_status(predicate_name: &str, replay_bundle_json: &str) -> ReplayBundleStatus {
+    let bundle: Value = match serde_json::from_str(replay_bundle_json) {
+        Ok(bundle) => bundle,
+        Err(err) => {
+            return ReplayBundleStatus::Invalid(format!(
+                "malformed JSON for {predicate_name}: {err}"
+            ))
+        }
+    };
+
+    let Some(object) = bundle.as_object() else {
+        return ReplayBundleStatus::Invalid(format!(
+            "{predicate_name} replay bundle must be a JSON object"
+        ));
+    };
+
+    match object.get("predicate").and_then(Value::as_str) {
+        Some(actual) if actual == predicate_name => ReplayBundleStatus::Present,
+        Some(actual) => ReplayBundleStatus::Invalid(format!(
+            "predicate mismatch for {predicate_name}: bundle declares {actual}"
+        )),
+        None => ReplayBundleStatus::Invalid(format!(
+            "{predicate_name} replay bundle is missing string predicate"
+        )),
+    }
+}
+
 fn predicate_args(property: &Property) -> Vec<String> {
     match &property.source {
         Some(PropertySource::Predicate { args, .. }) => predicate_arg_values(args)
@@ -1696,6 +1758,7 @@ fn external_predicate_evidence_boundary(name: &str) -> Option<&'static str> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::contract_store::commit_file::ReplayBundleEvidence;
     use tempfile::TempDir;
 
     #[test]
@@ -1824,6 +1887,74 @@ model DeliveryOracle {
         );
         assert!(
             err.contains("attestation format, freshness, replay binding, and oracle signature"),
+            "{err}"
+        );
+    }
+
+    #[test]
+    fn explains_pending_replay_bundle_evidence_boundary() {
+        let model = parse_content_lalrpop(
+            r#"
+model DeliveryOracle {
+  initial active
+  active --> active: +POST +oracle_attests(/oracles/delivery.id, "delivered", "true")
+}
+            "#,
+        )
+        .unwrap();
+        let mut current_states = HashSet::new();
+        current_states.insert("active".to_string());
+
+        let mut commit = CommitFile::new();
+        commit.add_action(
+            "post".to_string(),
+            Some("/deliveries/123/status.text".to_string()),
+            Value::String("delivered".to_string()),
+        );
+        commit.head.replay_bundles = Some(
+            [(
+                "oracle_attests".to_string(),
+                ReplayBundleEvidence {
+                    replay_bundle_json: "{\"predicate\":\"hash_matches\"}".to_string(),
+                },
+            )]
+            .into_iter()
+            .collect(),
+        );
+        let facts = CommitFacts::from_commit(&commit, &HashMap::new());
+
+        let err = explain_no_valid_transition(&model, &current_states, &facts);
+
+        assert!(
+            err.contains("missing +oracle_attests(/oracles/delivery.id, delivered, true)"),
+            "{err}"
+        );
+        assert!(err.contains("invalid replay bundle evidence"), "{err}");
+        assert!(
+            err.contains("predicate mismatch for oracle_attests: bundle declares hash_matches"),
+            "{err}"
+        );
+        assert!(
+            !err.contains("external evidence not available to local validator"),
+            "{err}"
+        );
+
+        let mut valid_shape_commit = commit.clone();
+        valid_shape_commit.head.replay_bundles = Some(
+            [(
+                "oracle_attests".to_string(),
+                ReplayBundleEvidence {
+                    replay_bundle_json: "{\"predicate\":\"oracle_attests\"}".to_string(),
+                },
+            )]
+            .into_iter()
+            .collect(),
+        );
+        let facts = CommitFacts::from_commit(&valid_shape_commit, &HashMap::new());
+        let err = explain_no_valid_transition(&model, &current_states, &facts);
+        assert!(err.contains("replay bundle evidence is present"), "{err}");
+        assert!(
+            err.contains("not yet promoted to local transition acceptance"),
             "{err}"
         );
     }
