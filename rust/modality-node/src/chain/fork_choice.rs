@@ -304,11 +304,24 @@ pub fn check_expected_target(
         };
     }
     let ancestors = ancestors_of(block, stored);
+    // `ancestors_of` reverses the walk, so the immediate parent is last.
+    // Difficulty is chosen at the epoch boundary. A later block in that
+    // epoch must keep its parent's target; running the formula again can
+    // disagree with the target this chain already accepted.
     if let Some(parent) = ancestors.last() {
-        if manager.get_epoch(parent.index) == epoch
-            && parent.target_difficulty != block.target_difficulty
-        {
-            return TargetCheck::Reject;
+        if manager.get_epoch(parent.index) == epoch {
+            if parent.target_difficulty != block.target_difficulty {
+                log::warn!(
+                    "Block {} at index {} target {} does not match parent {} target {}",
+                    &block.hash[..16.min(block.hash.len())],
+                    block.index,
+                    block.target_difficulty,
+                    parent.index,
+                    parent.target_difficulty
+                );
+                return TargetCheck::Reject;
+            }
+            return TargetCheck::Matches;
         }
     }
     let prev_epoch = epoch - 1;
@@ -335,6 +348,11 @@ pub fn check_expected_target(
     if target == expected {
         TargetCheck::Matches
     } else {
+        log::warn!(
+            "Block {} at index {} target {target} does not match the difficulty this epoch expects ({expected})",
+            &block.hash[..16.min(block.hash.len())],
+            block.index
+        );
         TargetCheck::Reject
     }
 }
@@ -1026,6 +1044,37 @@ mod tests {
         assert_eq!(
             check_expected_target(&retargeted, &stored, params),
             TargetCheck::Matches
+        );
+    }
+
+    #[test]
+    fn a_later_block_keeps_the_target_its_epoch_already_accepted() {
+        let mut first = block_at(1, "hash_0", "1000");
+        first.timestamp = 1_000;
+        let mut second = block_at(2, "hash_1", "1000");
+        second.timestamp = 1_001;
+        // Epoch 1's formula wants 8000, but this chain already accepted 1000.
+        let mut boundary = block_at(3, "hash_2", "1000");
+        boundary.target_difficulty = "1000".to_string();
+        let stored = vec![block_at(0, "genesis", "1000"), first, second, boundary];
+        let params = RetargetParams {
+            blocks_per_epoch: 2,
+            target_block_time_secs: 60,
+            initial_difficulty: Some(1000),
+        };
+        let mut continuation = block_at(4, "hash_3", "1000");
+        continuation.hash = "later".to_string();
+        continuation.previous_hash = "hash_3".to_string();
+        continuation.target_difficulty = "1000".to_string();
+        assert_eq!(
+            check_expected_target(&continuation, &stored, params),
+            TargetCheck::Matches
+        );
+        let mut renamed = continuation.clone();
+        renamed.target_difficulty = "8000".to_string();
+        assert_eq!(
+            check_expected_target(&renamed, &stored, params),
+            TargetCheck::Reject
         );
     }
 
