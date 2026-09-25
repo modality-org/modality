@@ -46,11 +46,20 @@ pub async fn fetch_missing_parents(
         return;
     }
 
+    // Each unanswered request costs the full timeout. A peer that stays
+    // silent would hold this sync for hours and starve the other peers.
+    const MAX_CONSECUTIVE_TIMEOUTS: usize = 3;
+
     let mut ended = HashSet::new();
     let mut stored_parents = 0usize;
+    let mut timeouts = 0usize;
     let mut missing = current_missing(datastore).await;
     for _ in 0..MAX_ATTEMPTS {
         if stored_parents >= MAX_STORED_PARENTS {
+            break;
+        }
+        if timeouts >= MAX_CONSECUTIVE_TIMEOUTS {
+            log::info!("Peer {peer_addr} is not answering parent requests; moving on");
             break;
         }
         let Some(hash) = first_fetchable(&missing, &ended, peer_addr) else {
@@ -69,14 +78,19 @@ pub async fn fetch_missing_parents(
                 }
             };
         let block = match fetched {
-            HashLookup::Block(block) => block,
+            HashLookup::Block(block) => {
+                timeouts = 0;
+                block
+            }
             HashLookup::NotFound => {
+                timeouts = 0;
                 log::info!("Peer has no parent {}", &hash[..shown]);
                 remember_absent(peer_addr, &hash);
                 ended.insert(hash);
                 continue;
             }
             HashLookup::Unavailable => {
+                timeouts += 1;
                 log::info!("Parent {} was not answered in time", &hash[..shown]);
                 ended.insert(hash);
                 continue;
