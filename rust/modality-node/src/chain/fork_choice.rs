@@ -323,6 +323,13 @@ pub fn check_expected_target(
             }
             return TargetCheck::Matches;
         }
+        // `EpochManager::calculate_next_difficulty` keeps the current
+        // difficulty when the miner's view of the previous epoch is not
+        // full. A boundary block that carries its parent's target is that
+        // branch, and every host sees it the same way.
+        if parent.target_difficulty == block.target_difficulty {
+            return TargetCheck::Matches;
+        }
     }
     let prev_epoch = epoch - 1;
     let start = manager.get_epoch_start_index(prev_epoch);
@@ -1021,7 +1028,7 @@ mod tests {
     }
 
     #[test]
-    fn a_new_epoch_cannot_name_its_own_target() {
+    fn a_new_epoch_names_the_formula_target_or_carries_its_parent() {
         let mut first = block_at(1, "hash_0", "1000");
         first.timestamp = 1_000;
         let mut second = block_at(2, "hash_1", "1000");
@@ -1032,17 +1039,23 @@ mod tests {
             target_block_time_secs: 60,
             initial_difficulty: Some(1000),
         };
-        let mut cheap = block_at(3, "hash_2", "1000");
-        cheap.target_difficulty = "1000".to_string();
+        let mut invented = block_at(3, "hash_2", "3000");
+        invented.target_difficulty = "3000".to_string();
         assert_eq!(
-            check_expected_target(&cheap, &stored, params),
+            check_expected_target(&invented, &stored, params),
             TargetCheck::Reject
         );
-        let mut retargeted = cheap.clone();
+        let mut retargeted = invented.clone();
         retargeted.target_difficulty = "8000".to_string();
         retargeted.actualized_difficulty = "8000".to_string();
         assert_eq!(
             check_expected_target(&retargeted, &stored, params),
+            TargetCheck::Matches
+        );
+        let mut carried = invented.clone();
+        carried.target_difficulty = "1000".to_string();
+        assert_eq!(
+            check_expected_target(&carried, &stored, params),
             TargetCheck::Matches
         );
     }
