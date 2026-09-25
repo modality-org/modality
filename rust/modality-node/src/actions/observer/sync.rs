@@ -193,84 +193,22 @@ async fn request_blocks_from_peer(
     request_all_blocks_in_range(swarm, peer_addr, from_index, to_index, reqres_response_txs).await
 }
 
-/// Adopt blocks from peer after validation
+/// Park every run in the reply. Adopt a run only after it links to the
+/// local canonical chain and wins verified work above that ancestor.
 async fn adopt_peer_blocks(
     datastore: &Arc<Mutex<DatastoreManager>>,
     all_blocks: Vec<MinerBlock>,
 ) -> Result<()> {
-    use crate::chain::fork_choice::{decide_adoption, Adoption};
-    use crate::chain::reorg::{select_linked_chain, validate_block_chain};
-    use modality_datastore::models::miner::checkpoint::MinerCheckpoint;
-
-    let all_blocks = match select_linked_chain(&all_blocks) {
-        Ok(blocks) => blocks,
-        Err(err) => {
-            log::warn!("Refusing peer batch: {err}");
-            return Ok(());
-        }
-    };
-    validate_block_chain(&all_blocks)?;
-
-    log::info!("✓ Peer chain validation passed");
-
-    {
-        let ds = datastore.lock().await;
-        let local_blocks = MinerBlock::find_all_canonical_multi(&ds).await?;
-        let floor = MinerCheckpoint::find_latest_multi(&ds)
-            .await
-            .ok()
-            .flatten()
-            .map(|checkpoint| checkpoint.last_block_index);
-        let blocks_per_epoch = ds.epoch_config().blocks_per_epoch;
-        let decision = decide_adoption(&local_blocks, &all_blocks, floor, blocks_per_epoch);
-        let (ancestor_index, reason) = match decision {
-            Adoption::Refuse { reason } => {
-                log::warn!("Refusing peer chain: {reason}");
-                return Ok(());
-            }
-            Adoption::Adopt {
-                ancestor_index,
-                reason,
-            } => (ancestor_index, reason),
-        };
-        log::info!("Adopting peer chain: {reason}");
-
-        for local in &local_blocks {
-            if all_blocks.first().is_some_and(|first| first.index == 0) {
-                break;
-            }
-            if local.index > ancestor_index {
-                let competing_hash = all_blocks
-                    .iter()
-                    .find(|block| block.index == local.index)
-                    .map(|block| block.hash.clone());
-                log::info!(
-                    "Orphaning local block {} at index {}",
-                    &local.hash[..16.min(local.hash.len())],
-                    local.index
-                );
-                let mut orphaned = local.clone();
-                orphaned.mark_as_orphaned(reason.clone(), competing_hash);
-                orphaned.save_to_active(&ds).await?;
-            }
-        }
-
-        for block in &all_blocks {
-            block.save_to_active(&ds).await?;
-        }
+    let ds = datastore.lock().await;
+    let adopted = crate::chain::reorg::store_peer_batch(&ds, &all_blocks).await?;
+    if adopted > 0 {
+        log::info!("Adopted {adopted} blocks from a linked peer run");
     }
-
-    log::info!(
-        "🎉 Successfully adopted peer's chain with {} blocks!",
-        all_blocks.len()
-    );
-
     Ok(())
 }
 
-/// Ask this peer for the indexes the parent walk could not cross under the
-/// accepted tip. Only blocks that hash-link to that tip are stored. Indexes
-/// above the gap are left alone.
+/// Ask this peer for parents under the accepted tip, then for the parent
+/// hash of each parked run.
 async fn backfill_tip_parents(
     swarm: &Arc<Mutex<crate::swarm::NodeSwarm>>,
     peer_addr: &str,
@@ -295,12 +233,12 @@ async fn backfill_tip_parents(
                 Ok(blocks) => blocks,
                 Err(e) => {
                     log::warn!("Could not load canonical blocks to backfill: {}", e);
-                    return;
+                    break;
                 }
             }
         };
         let Some(gap) = tip_parent_gap(&canonical) else {
-            return;
+            break;
         };
         let shown = gap.expected_hash.len().min(16);
         log::info!(
@@ -327,7 +265,7 @@ async fn backfill_tip_parents(
                     gap.to_index,
                     e
                 );
-                return;
+                break;
             }
         };
         let linking = linking_parents(&fetched, gap.to_index, &gap.expected_hash);
@@ -337,10 +275,10 @@ async fn backfill_tip_parents(
                 &gap.expected_hash[..shown],
                 gap.to_index
             );
-            return;
+            break;
         }
         match save_linking_parents(datastore, &linking).await {
-            Ok(0) => return,
+            Ok(0) => break,
             Ok(saved) => log::info!(
                 "Stored {} parent block(s) {}..={} under the accepted tip",
                 saved,
@@ -352,10 +290,17 @@ async fn backfill_tip_parents(
                     "Failed to store parent blocks under the accepted tip: {}",
                     e
                 );
-                return;
+                break;
             }
         }
     }
+    crate::sync::parent_hash::fetch_missing_parents(
+        swarm,
+        peer_addr,
+        datastore,
+        reqres_response_txs,
+    )
+    .await;
 }
 
 async fn save_linking_parents(

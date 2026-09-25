@@ -324,6 +324,72 @@ pub fn sync_fetch_end(row_count: u64, chain_tip: u64) -> u64 {
     row_count.max(chain_tip)
 }
 
+/// Request one block by hash.
+///
+/// `Ok(None)` means this peer does not have that hash. The caller keeps
+/// the parked run and can ask another peer.
+pub async fn request_block_by_hash(
+    swarm: &Arc<Mutex<crate::swarm::NodeSwarm>>,
+    peer_addr: &str,
+    hash: &str,
+    reqres_response_txs: &Arc<
+        Mutex<
+            std::collections::HashMap<
+                libp2p::request_response::OutboundRequestId,
+                tokio::sync::oneshot::Sender<reqres::Response>,
+            >,
+        >,
+    >,
+) -> Result<Option<MinerBlock>> {
+    use libp2p::multiaddr::Multiaddr;
+
+    let ma: Multiaddr = peer_addr.parse()?;
+    let Some(libp2p::multiaddr::Protocol::P2p(target_peer_id)) = ma.iter().last() else {
+        anyhow::bail!("Invalid peer address - missing PeerID");
+    };
+
+    let request = reqres::Request {
+        path: "/data/miner_block/get".to_string(),
+        data: Some(serde_json::json!({ "hash": hash })),
+    };
+    let request_id = {
+        let mut swarm_lock = swarm.lock().await;
+        swarm_lock
+            .behaviour_mut()
+            .reqres
+            .send_request(&target_peer_id, request)
+    };
+    let response = match tokio::time::timeout(
+        std::time::Duration::from_secs(REQRES_TIMEOUT_SECS),
+        wait_for_reqres_response(reqres_response_txs, request_id),
+    )
+    .await
+    {
+        Ok(Ok(resp)) => resp,
+        Ok(Err(e)) => {
+            log::warn!("Failed to get block {hash}: {e}");
+            return Ok(None);
+        }
+        Err(_) => {
+            log::warn!("Block request for {hash} timed out");
+            return Ok(None);
+        }
+    };
+    if !response.ok {
+        return Ok(None);
+    }
+    let Some(data) = response.data else {
+        return Ok(None);
+    };
+    match serde_json::from_value(data) {
+        Ok(block) => Ok(Some(block)),
+        Err(e) => {
+            log::warn!("Failed to parse block {hash}: {e}");
+            Ok(None)
+        }
+    }
+}
+
 pub fn next_range_index(from_index: u64, block_count: usize, covered_to: Option<u64>) -> u64 {
     match covered_to {
         Some(to) => to.saturating_add(1),

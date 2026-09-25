@@ -273,6 +273,7 @@ pub async fn handler(
             miner_block.index
         );
         crate::chain::reorg::select_best_stored_chain(&mgr).await?;
+        crate::chain::reorg::adopt_connected_extensions(&mgr).await?;
         MinerBlock::verified_spine(&MinerBlock::find_all_canonical_multi(&mgr).await?)
             .into_iter()
             .last()

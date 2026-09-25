@@ -9,14 +9,11 @@ use modality_datastore::DatastoreManager;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
-use crate::chain::fork_choice::{
-    chains_share_tip_hash, decide_adoption, score_canonical_chain, Adoption,
-};
-use crate::chain::reorg::{orphan_blocks_after, select_linked_chain, validate_block_chain};
+use crate::chain::fork_choice::{chains_share_tip_hash, score_canonical_chain};
 use crate::reqres;
 use crate::sync::block_range::request_all_blocks_in_range;
 use crate::sync::common_ancestor::find_common_ancestor_efficient;
-use modality_datastore::models::miner::MinerCheckpoint;
+use crate::sync::parent_hash::fetch_missing_parents;
 
 /// Result of a sync operation
 #[derive(Debug, Clone)]
@@ -92,6 +89,13 @@ impl SyncCoordinator {
         };
 
         if chains_share_tip_hash(&local_scored.tip_hash, &ancestor_result.remote_tip_hash) {
+            fetch_missing_parents(
+                &self.swarm,
+                peer_addr,
+                &self.datastore,
+                &self.reqres_response_txs,
+            )
+            .await;
             return Ok(SyncResult::NoSyncNeeded {
                 reason: format!("Same tip hash {}", local_scored.tip_hash),
             });
@@ -131,84 +135,39 @@ impl SyncCoordinator {
             });
         }
 
-        let mut sorted_blocks = peer_blocks;
-        sorted_blocks.sort_by_key(|b| b.index);
-        let sorted_blocks = match select_linked_chain(&sorted_blocks) {
-            Ok(blocks) => blocks,
-            Err(err) => {
-                return Ok(SyncResult::Failed {
-                    reason: format!("Peer batch is not one linked chain: {err}"),
-                });
-            }
-        };
-        if let Err(e) = validate_block_chain(&sorted_blocks) {
-            return Ok(SyncResult::Failed {
-                reason: format!("Invalid peer chain: {e}"),
-            });
-        }
-
-        let (ancestor_index, reason, orphan_above) = {
-            let ds = self.datastore.lock().await;
-            let local_blocks = MinerBlock::find_all_canonical_multi(&ds).await?;
-            let floor = MinerCheckpoint::find_latest_multi(&ds)
-                .await
-                .ok()
-                .flatten()
-                .map(|checkpoint| checkpoint.last_block_index);
-            let blocks_per_epoch = ds.epoch_config().blocks_per_epoch;
-            match decide_adoption(&local_blocks, &sorted_blocks, floor, blocks_per_epoch) {
-                Adoption::Refuse { reason } => {
-                    return Ok(SyncResult::NoSyncNeeded { reason });
-                }
-                Adoption::Adopt {
-                    ancestor_index,
-                    reason,
-                } => {
-                    let starts_at_genesis =
-                        sorted_blocks.first().is_some_and(|block| block.index == 0);
-                    (ancestor_index, reason, !starts_at_genesis)
-                }
-            }
-        };
-
-        let orphan_result = if orphan_above {
-            let ds = self.datastore.lock().await;
-            orphan_blocks_after(&ds, ancestor_index, &reason).await?
-        } else {
-            crate::chain::reorg::OrphanResult {
-                orphaned_count: 0,
-                orphaned_hashes: Vec::new(),
-                start_index: 0,
-            }
-        };
-
         let blocks_adopted = {
             let ds = self.datastore.lock().await;
-            let mut count = 0;
-            for block in &sorted_blocks {
-                block.save_to_active(&ds).await?;
-                count += 1;
-            }
-            count
+            crate::chain::reorg::store_peer_batch(&ds, &peer_blocks).await?
         };
+        fetch_missing_parents(
+            &self.swarm,
+            peer_addr,
+            &self.datastore,
+            &self.reqres_response_txs,
+        )
+        .await;
 
-        // Get new chain tip
         let new_chain_tip = {
             let ds = self.datastore.lock().await;
             let blocks = MinerBlock::find_all_canonical_multi(&ds).await?;
             score_canonical_chain(&blocks).tip
         };
 
+        if blocks_adopted == 0 {
+            return Ok(SyncResult::NoSyncNeeded {
+                reason: "Parked peer runs that do not yet link to the local chain".to_string(),
+            });
+        }
+
         log::info!(
-            "🎉 Successfully synced: adopted {} blocks, orphaned {}, new tip: {}",
+            "Successfully synced: adopted {} blocks, new tip: {}",
             blocks_adopted,
-            orphan_result.orphaned_count,
             new_chain_tip
         );
 
         Ok(SyncResult::Synced {
             blocks_adopted,
-            blocks_orphaned: orphan_result.orphaned_count,
+            blocks_orphaned: 0,
             new_chain_tip,
         })
     }

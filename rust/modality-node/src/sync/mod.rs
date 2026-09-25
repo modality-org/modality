@@ -7,6 +7,7 @@
 
 pub mod block_range;
 pub mod common_ancestor;
+pub mod parent_hash;
 pub mod peer_sync;
 
 // Re-export commonly used items

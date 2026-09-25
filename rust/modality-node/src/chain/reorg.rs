@@ -350,6 +350,243 @@ pub fn select_linked_chain(blocks: &[MinerBlock]) -> Result<Vec<MinerBlock>> {
     Ok(best)
 }
 
+/// One parent-linked run taken from a peer reply that may contain holes.
+///
+/// `missing_parent` is the `previous_hash` of the lowest block. That hash
+/// is the next block to fetch. The run stays off the canonical chain until
+/// a walk through stored blocks reaches a canonical ancestor.
+#[derive(Debug, Clone)]
+pub struct LinkedRun {
+    pub blocks: Vec<MinerBlock>,
+    pub missing_parent: String,
+}
+
+/// Split a batch into maximal parent-linked runs.
+///
+/// A hole starts a new run. The higher run is kept, named by the parent
+/// hash it is waiting on.
+pub fn split_linked_runs(blocks: &[MinerBlock]) -> Vec<LinkedRun> {
+    let mut by_hash: BTreeMap<&str, &MinerBlock> = BTreeMap::new();
+    for block in blocks {
+        by_hash.entry(block.hash.as_str()).or_insert(block);
+    }
+    let mut children: BTreeMap<&str, Vec<&MinerBlock>> = BTreeMap::new();
+    for block in blocks {
+        if let Some(parent) = by_hash.get(block.previous_hash.as_str()) {
+            if parent.index + 1 == block.index {
+                children
+                    .entry(parent.hash.as_str())
+                    .or_default()
+                    .push(block);
+            }
+        }
+    }
+    let mut seen_bottoms = HashSet::new();
+    let mut runs = Vec::new();
+    for bottom in blocks {
+        let parent_in_batch = by_hash
+            .get(bottom.previous_hash.as_str())
+            .is_some_and(|parent| parent.index + 1 == bottom.index);
+        if parent_in_batch || !seen_bottoms.insert(bottom.hash.as_str()) {
+            continue;
+        }
+        let mut stack = vec![vec![bottom]];
+        while let Some(path) = stack.pop() {
+            let tip = path[path.len() - 1];
+            let kids = children.get(tip.hash.as_str()).cloned().unwrap_or_default();
+            if kids.is_empty() {
+                runs.push(LinkedRun {
+                    missing_parent: path[0].previous_hash.clone(),
+                    blocks: path.into_iter().cloned().collect(),
+                });
+            } else {
+                for kid in kids {
+                    let mut next = path.clone();
+                    next.push(kid);
+                    stack.push(next);
+                }
+            }
+        }
+    }
+    runs
+}
+
+/// Parent hashes of runs whose parent block is not stored at the previous index.
+///
+/// A contiguous chain that starts at index 0 has nothing to fetch.
+pub fn missing_parent_hashes(blocks: &[MinerBlock]) -> Vec<String> {
+    let live: Vec<&MinerBlock> = blocks.iter().filter(|block| !block.is_orphaned).collect();
+    let owned: Vec<MinerBlock> = live.iter().map(|block| (*block).clone()).collect();
+    let mut hashes = Vec::new();
+    for run in split_linked_runs(&owned) {
+        let Some(bottom) = run.blocks.first() else {
+            continue;
+        };
+        if bottom.index == 0 {
+            continue;
+        }
+        let present = live
+            .iter()
+            .any(|block| block.hash == run.missing_parent && block.index + 1 == bottom.index);
+        if !present && !hashes.contains(&run.missing_parent) {
+            hashes.push(run.missing_parent);
+        }
+    }
+    hashes
+}
+
+/// Blocks of `run` that sit strictly above a local canonical block.
+///
+/// The walk has to reach a canonical ancestor. A run whose parent is only
+/// another parked block is not an extension yet.
+pub fn extension_from_local(run: &LinkedRun, stored: &[MinerBlock]) -> Option<Vec<MinerBlock>> {
+    let bottom = run.blocks.first()?;
+    let local_canonical = |hash: &str| {
+        stored
+            .iter()
+            .any(|block| block.hash == hash && block.is_canonical && !block.is_orphaned)
+    };
+    if let Some(pos) = run
+        .blocks
+        .iter()
+        .rposition(|block| local_canonical(&block.hash))
+    {
+        if pos + 1 >= run.blocks.len() {
+            return None;
+        }
+        return Some(run.blocks[pos + 1..].to_vec());
+    }
+    let links = stored.iter().any(|block| {
+        block.is_canonical
+            && !block.is_orphaned
+            && block.index + 1 == bottom.index
+            && block.hash == bottom.previous_hash
+    });
+    if links {
+        Some(run.blocks.clone())
+    } else {
+        None
+    }
+}
+
+async fn save_parked_block(mgr: &DatastoreManager, block: &MinerBlock) -> Result<bool> {
+    if let Ok(Some(_)) = MinerBlock::find_by_hash_multi(mgr, &block.hash).await {
+        return Ok(false);
+    }
+    let mut parked = block.clone();
+    parked.is_canonical = false;
+    parked.is_orphaned = false;
+    parked.orphan_reason = None;
+    parked.save_to_active(mgr).await?;
+    Ok(true)
+}
+
+/// Save every block in the reply off the canonical set, then adopt a run
+/// only when it links to a local canonical block and wins verified work.
+pub async fn store_peer_batch(mgr: &DatastoreManager, peer_blocks: &[MinerBlock]) -> Result<usize> {
+    if peer_blocks.is_empty() {
+        return Ok(0);
+    }
+    let stored = MinerBlock::find_all_blocks_multi(mgr).await?;
+    let live: Vec<MinerBlock> = stored
+        .into_iter()
+        .filter(|block| !block.is_orphaned)
+        .collect();
+    for run in split_linked_runs(peer_blocks) {
+        if extension_from_local(&run, &live).is_none() {
+            let bottom = &run.blocks[0];
+            let tip = &run.blocks[run.blocks.len() - 1];
+            let parent = &run.missing_parent;
+            log::info!(
+                "Parked blocks {}..={} until parent {} arrives",
+                bottom.index,
+                tip.index,
+                &parent[..16.min(parent.len())]
+            );
+        }
+    }
+    for block in peer_blocks {
+        save_parked_block(mgr, block).await?;
+    }
+    let switched = select_best_stored_chain(mgr).await?;
+    let adopted = adopt_connected_extensions(mgr).await?;
+    Ok(adopted + usize::from(switched))
+}
+
+/// Promote parked runs whose parent walk now reaches the canonical chain
+/// and whose verified work above that ancestor wins.
+pub async fn adopt_connected_extensions(mgr: &DatastoreManager) -> Result<usize> {
+    use crate::chain::fork_choice::{decide_adoption, Adoption};
+    use modality_datastore::models::miner::MinerCheckpoint;
+
+    let stored = MinerBlock::find_all_blocks_multi(mgr).await?;
+    let live: Vec<MinerBlock> = stored
+        .into_iter()
+        .filter(|block| !block.is_orphaned)
+        .collect();
+    let extensions: Vec<Vec<MinerBlock>> = split_linked_runs(&live)
+        .iter()
+        .filter_map(|run| extension_from_local(run, &live))
+        .filter(|extension| {
+            extension.iter().any(|block| {
+                live.iter()
+                    .any(|stored| stored.hash == block.hash && !stored.is_canonical)
+            })
+        })
+        .collect();
+
+    let mut adopted = 0usize;
+    for extension in extensions {
+        let local_blocks = MinerBlock::find_all_canonical_multi(mgr).await?;
+        if extension.iter().all(|block| {
+            local_blocks
+                .iter()
+                .any(|canonical| canonical.hash == block.hash)
+        }) {
+            continue;
+        }
+        let floor = MinerCheckpoint::find_latest_multi(mgr)
+            .await
+            .ok()
+            .flatten()
+            .map(|checkpoint| checkpoint.last_block_index);
+        let blocks_per_epoch = mgr.epoch_config().blocks_per_epoch;
+        match decide_adoption(&local_blocks, &extension, floor, blocks_per_epoch) {
+            Adoption::Refuse { reason } => {
+                log::info!("Keeping parked extension: {reason}");
+            }
+            Adoption::Adopt {
+                ancestor_index,
+                reason,
+            } => {
+                log::info!("Adopting linked extension: {reason}");
+                if extension.first().is_none_or(|block| block.index != 0) {
+                    for local in &local_blocks {
+                        if local.index > ancestor_index {
+                            let competing_hash = extension
+                                .iter()
+                                .find(|block| block.index == local.index)
+                                .map(|block| block.hash.clone());
+                            let mut orphaned = local.clone();
+                            orphaned.mark_as_orphaned(reason.clone(), competing_hash);
+                            orphaned.save_to_active(mgr).await?;
+                        }
+                    }
+                }
+                for block in &extension {
+                    let mut stored = block.clone();
+                    stored.is_canonical = true;
+                    stored.is_orphaned = false;
+                    stored.orphan_reason = None;
+                    stored.save_to_active(mgr).await?;
+                }
+                adopted += extension.len();
+            }
+        }
+    }
+    Ok(adopted)
+}
+
 /// Prepare blocks for adoption by validating chain continuity.
 ///
 /// # Arguments
@@ -689,5 +926,75 @@ mod tests {
             .unwrap()
             .unwrap();
         assert!(stored.is_canonical);
+    }
+
+    #[test]
+    fn a_gapped_reply_keeps_the_disconnected_suffix() {
+        let low = make_test_block(1, "hash_0");
+        let high = make_test_block(4, "absent");
+        let next = make_test_block(5, "hash_4");
+        let runs = split_linked_runs(&[low, high, next]);
+        assert_eq!(runs.len(), 2);
+        let parked = runs
+            .iter()
+            .find(|run| run.blocks[0].index == 4)
+            .expect("high run");
+        assert_eq!(parked.blocks.len(), 2);
+        assert_eq!(parked.missing_parent, "absent");
+    }
+
+    #[test]
+    fn a_contiguous_chain_has_no_missing_parent() {
+        let blocks = vec![
+            make_test_block(0, "genesis"),
+            make_test_block(1, "hash_0"),
+            make_test_block(2, "hash_1"),
+        ];
+        assert!(missing_parent_hashes(&blocks).is_empty());
+    }
+
+    #[tokio::test]
+    async fn a_disconnected_suffix_stays_parked_until_its_parent_arrives() {
+        let datastore = modality_datastore::DatastoreManager::create_in_memory().unwrap();
+        for block in [
+            make_test_block(0, "genesis"),
+            make_test_block(1, "hash_0"),
+            make_test_block(2, "hash_1"),
+        ] {
+            block.save_to_active(&datastore).await.unwrap();
+        }
+        let high = make_test_block(4, "absent");
+        let next = make_test_block(5, "hash_4");
+        store_peer_batch(&datastore, &[high, next]).await.unwrap();
+
+        let canonical = MinerBlock::find_all_canonical_multi(&datastore)
+            .await
+            .unwrap();
+        let hashes: Vec<_> = canonical.iter().map(|block| block.hash.as_str()).collect();
+        assert!(hashes.contains(&"hash_2"));
+        assert!(!hashes.contains(&"hash_4"));
+        let parked = MinerBlock::find_by_hash_multi(&datastore, "hash_4")
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(!parked.is_canonical);
+        assert!(!parked.is_orphaned);
+        assert_eq!(
+            missing_parent_hashes(&MinerBlock::find_all_blocks_multi(&datastore).await.unwrap()),
+            vec!["absent".to_string()]
+        );
+
+        let mut parent = make_test_block(3, "hash_2");
+        parent.hash = "absent".to_string();
+        parent.is_canonical = false;
+        parent.save_to_active(&datastore).await.unwrap();
+        select_best_stored_chain(&datastore).await.unwrap();
+
+        let canonical = MinerBlock::find_all_canonical_multi(&datastore)
+            .await
+            .unwrap();
+        let hashes: Vec<_> = canonical.iter().map(|block| block.hash.as_str()).collect();
+        assert!(hashes.contains(&"hash_2"));
+        assert!(hashes.contains(&"hash_5"));
     }
 }
