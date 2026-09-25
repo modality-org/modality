@@ -5,7 +5,8 @@ use anyhow::Result;
 use modality_common::contract_store::CommitFile;
 use modality_common::independent_replay::{
     accepted_state_oracle_keys_from_commits, commit_has_invoke, expand_prefix,
-    frozen_invoke_context, wasm_modules_from_commits, ReplayWasm,
+    frozen_invoke_context, predicate_input_with_commit_replay_bundle, wasm_modules_from_commits,
+    ReplayWasm,
 };
 use modality_datastore::models::{AssetBalance, Commit, ContractAsset, ReceivedSend, WasmModule};
 use modality_datastore::DatastoreManager;
@@ -723,6 +724,31 @@ impl ContractProcessor {
             block_height,
             timestamp,
             &accepted_state_oracle_keys,
+        )
+        .await
+    }
+
+    /// Evaluate a predicate using replay-bundle evidence carried by the pending
+    /// commit head plus accepted oracle keys from that commit's parent chain.
+    pub async fn evaluate_predicate_against_pending_commit_evidence(
+        &self,
+        contract_id: &str,
+        pending: &CommitFile,
+        predicate_path: &str,
+        args: Value,
+        block_height: u64,
+        timestamp: u64,
+    ) -> Result<String> {
+        let predicate_name = WasmModule::module_name_from_path(predicate_path)
+            .ok_or_else(|| anyhow::anyhow!("Invalid predicate path: {}", predicate_path))?;
+        let args = predicate_input_with_commit_replay_bundle(pending, &predicate_name, args)?;
+        self.evaluate_predicate_against_parent_replay_state(
+            contract_id,
+            pending.head.parent.as_deref(),
+            predicate_path,
+            args,
+            block_height,
+            timestamp,
         )
         .await
     }
@@ -1913,6 +1939,49 @@ model FirstContract {
         assert!(
             err.to_string()
                 .contains("oracle_attests replay evidence requires object predicate input"),
+            "unexpected error: {err}"
+        );
+        assert!(
+            !err.to_string().contains("WASM module not found"),
+            "malformed replay input should fail before WASM lookup: {err}"
+        );
+    }
+
+    #[tokio::test]
+    async fn pending_commit_replay_bundle_input_is_bound_before_wasm_lookup() {
+        let datastore = Arc::new(Mutex::new(DatastoreManager::create_in_memory().unwrap()));
+        let processor = ContractProcessor::new(datastore.clone());
+
+        let pending = crate::sequenced_rules::parse_commit_file(
+            &serde_json::json!({
+                "body": [],
+                "head": {
+                    "replay_bundles": {
+                        "oracle_attests": {
+                            "replay_bundle_json": "{\"predicate\":\"oracle_attests\"}"
+                        }
+                    }
+                }
+            })
+            .to_string(),
+        )
+        .unwrap();
+
+        let err = processor
+            .evaluate_predicate_against_pending_commit_evidence(
+                "c1",
+                &pending,
+                "/_code/oracle_attests.wasm",
+                Value::String("not an object".to_string()),
+                7,
+                1700000000,
+            )
+            .await
+            .expect_err("replay-bundle predicate input must fail closed");
+
+        assert!(
+            err.to_string()
+                .contains("oracle_attests replay bundle evidence requires object predicate input"),
             "unexpected error: {err}"
         );
         assert!(

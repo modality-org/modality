@@ -2,6 +2,7 @@ use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
+use std::collections::BTreeMap;
 use std::path::Path;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -36,9 +37,17 @@ pub struct CommitHead {
     pub signatures: Option<Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub evolution: Option<Value>,
+    /// Replay-bound predicate evidence, keyed by predicate name.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub replay_bundles: Option<BTreeMap<String, ReplayBundleEvidence>>,
     /// Rule that applies only to this commit, not accumulated into contract ruleset
     #[serde(skip_serializing_if = "Option::is_none")]
     pub rule_for_this_commit: Option<RuleForThisCommit>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ReplayBundleEvidence {
+    pub replay_bundle_json: String,
 }
 
 /// A rule that applies only to the commit it's attached to
@@ -57,6 +66,7 @@ impl CommitFile {
                 message: None,
                 signatures: None,
                 evolution: None,
+                replay_bundles: None,
                 rule_for_this_commit: None,
             },
         }
@@ -70,6 +80,7 @@ impl CommitFile {
                 message: None,
                 signatures: None,
                 evolution: None,
+                replay_bundles: None,
                 rule_for_this_commit: None,
             },
         }

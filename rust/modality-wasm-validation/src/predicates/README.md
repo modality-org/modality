@@ -193,6 +193,11 @@ replay-evidence handoff that injects those replay-derived oracle keys into an
 `oracle_attests` predicate input only when that input already carries
 `replay_bundle_json`, requires that replay-bound input to be a JSON object, and
 preserves any explicit predicate-supplied key map instead of overwriting it.
+Pending commits now have a typed replay-bundle evidence carrier at
+`head.replay_bundles.oracle_attests.replay_bundle_json`; malformed non-string
+bundle entries are rejected during commit parsing, and the validator's
+replay-state-aware predicate entry point can merge that commit-carried bundle
+into object predicate input before WASM module lookup.
 This does not yet make `oracle_attests`
 first-contract-local validator evidence; local and hub replay still report it
 as missing external evidence until the contract-log replay path supplies replay

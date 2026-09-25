@@ -122,6 +122,36 @@ pub fn commit_file_from_replay(commit: &ReplayCommit) -> Result<CommitFile> {
     parse_commit_value(&mut value)
 }
 
+pub fn replay_bundle_json_for_predicate<'a>(
+    commit: &'a CommitFile,
+    predicate_name: &str,
+) -> Option<&'a str> {
+    commit
+        .head
+        .replay_bundles
+        .as_ref()
+        .and_then(|bundles| bundles.get(predicate_name))
+        .map(|bundle| bundle.replay_bundle_json.as_str())
+}
+
+pub fn predicate_input_with_commit_replay_bundle(
+    commit: &CommitFile,
+    predicate_name: &str,
+    data: Value,
+) -> Result<Value> {
+    let Some(replay_bundle_json) = replay_bundle_json_for_predicate(commit, predicate_name) else {
+        return Ok(data);
+    };
+
+    let Value::Object(mut object) = data else {
+        anyhow::bail!("{predicate_name} replay bundle evidence requires object predicate input");
+    };
+    object
+        .entry("replay_bundle_json".to_string())
+        .or_insert_with(|| Value::String(replay_bundle_json.to_string()));
+    Ok(Value::Object(object))
+}
+
 pub fn first_invoker(commit: &CommitFile) -> String {
     let mut keys: Vec<String> = commit
         .head
@@ -706,6 +736,66 @@ mod tests {
         assert!(!ctx
             .accepted_state_oracle_keys
             .contains_key("/oracles/retired.id"));
+    }
+
+    #[test]
+    fn commit_head_carries_typed_replay_bundle_evidence() {
+        let commit = parse_commit_file(
+            r#"{
+  "body": [{"method": "post", "path": "/claims/delivery.text", "value": "delivered"}],
+  "head": {
+    "replay_bundles": {
+      "oracle_attests": {
+        "replay_bundle_json": "{\"predicate\":\"oracle_attests\"}"
+      }
+    }
+  }
+}"#,
+        )
+        .expect("typed replay bundle evidence");
+
+        assert_eq!(
+            replay_bundle_json_for_predicate(&commit, "oracle_attests"),
+            Some("{\"predicate\":\"oracle_attests\"}")
+        );
+
+        let enriched = predicate_input_with_commit_replay_bundle(
+            &commit,
+            "oracle_attests",
+            serde_json::json!({"expected_oracle_path": "/oracles/delivery.id"}),
+        )
+        .expect("object predicate input");
+        assert_eq!(
+            enriched.get("replay_bundle_json").and_then(Value::as_str),
+            Some("{\"predicate\":\"oracle_attests\"}")
+        );
+
+        let explicit = predicate_input_with_commit_replay_bundle(
+            &commit,
+            "oracle_attests",
+            serde_json::json!({"replay_bundle_json": "explicit"}),
+        )
+        .expect("explicit bundle is preserved");
+        assert_eq!(
+            explicit.get("replay_bundle_json").and_then(Value::as_str),
+            Some("explicit")
+        );
+
+        let err = parse_commit_file(
+            r#"{
+  "body": [],
+  "head": {
+    "replay_bundles": {
+      "oracle_attests": {"replay_bundle_json": 7}
+    }
+  }
+}"#,
+        )
+        .expect_err("replay_bundle_json must be a string");
+        assert!(
+            err.to_string().contains("expected a string"),
+            "unexpected error: {err}"
+        );
     }
 
     #[test]
