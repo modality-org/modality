@@ -105,8 +105,11 @@ impl PredicateExecutor {
         accepted_state_oracle_keys: &BTreeMap<String, String>,
     ) -> Result<PredicateResult> {
         let predicate_name = WasmModule::module_name_from_path(predicate_path).unwrap_or_default();
-        let data =
-            replay_oracle_evidence_input(predicate_name.as_str(), data, accepted_state_oracle_keys);
+        let data = replay_oracle_evidence_input(
+            predicate_name.as_str(),
+            data,
+            accepted_state_oracle_keys,
+        )?;
         self.evaluate_predicate(contract_id, predicate_path, data, context)
             .await
     }
@@ -243,22 +246,26 @@ pub fn replay_oracle_evidence_input(
     predicate_name: &str,
     data: Value,
     accepted_state_oracle_keys: &BTreeMap<String, String>,
-) -> Value {
-    if predicate_name != "oracle_attests"
-        || accepted_state_oracle_keys.is_empty()
-        || data
-            .get("replay_bundle_json")
-            .and_then(Value::as_str)
-            .is_none()
-        || data.get("accepted_state_oracle_keys").is_some()
-    {
-        return data;
+) -> Result<Value> {
+    if predicate_name != "oracle_attests" || accepted_state_oracle_keys.is_empty() {
+        return Ok(data);
     }
 
-    let mut object = match data {
-        Value::Object(object) => object,
-        other => return other,
+    let Value::Object(mut object) = data else {
+        return Err(anyhow!(
+            "oracle_attests replay evidence requires object predicate input"
+        ));
     };
+
+    if object
+        .get("replay_bundle_json")
+        .and_then(Value::as_str)
+        .is_none()
+        || object.get("accepted_state_oracle_keys").is_some()
+    {
+        return Ok(Value::Object(object));
+    }
+
     let keys: Map<String, Value> = accepted_state_oracle_keys
         .iter()
         .map(|(path, key)| (path.clone(), Value::String(key.clone())))
@@ -267,7 +274,7 @@ pub fn replay_oracle_evidence_input(
         "accepted_state_oracle_keys".to_string(),
         Value::Object(keys),
     );
-    Value::Object(object)
+    Ok(Value::Object(object))
 }
 
 #[cfg(test)]
@@ -343,7 +350,8 @@ mod tests {
                 "expected_oracle_path": "/oracles/delivery.id"
             }),
             &accepted_state_oracle_keys,
-        );
+        )
+        .expect("object replay evidence input");
 
         assert_eq!(
             enriched
@@ -357,7 +365,8 @@ mod tests {
             "oracle_attests",
             json!({"expected_oracle_path": "/oracles/delivery.id"}),
             &accepted_state_oracle_keys,
-        );
+        )
+        .expect("object input without replay bundle");
         assert!(without_bundle.get("accepted_state_oracle_keys").is_none());
 
         let explicit = replay_oracle_evidence_input(
@@ -367,7 +376,8 @@ mod tests {
                 "accepted_state_oracle_keys": {"/oracles/delivery.id": "explicit_key"}
             }),
             &accepted_state_oracle_keys,
-        );
+        )
+        .expect("object input with explicit key map");
         assert_eq!(
             explicit
                 .get("accepted_state_oracle_keys")
@@ -383,7 +393,21 @@ mod tests {
                 "expected_oracle_path": "/oracles/delivery.id"
             }),
             &accepted_state_oracle_keys,
-        );
+        )
+        .expect("non-oracle predicates skip replay evidence");
         assert!(other_predicate.get("accepted_state_oracle_keys").is_none());
+
+        let non_object = replay_oracle_evidence_input(
+            "oracle_attests",
+            json!("not an object"),
+            &accepted_state_oracle_keys,
+        )
+        .expect_err("oracle replay evidence requires object input");
+        assert!(
+            non_object
+                .to_string()
+                .contains("requires object predicate input"),
+            "unexpected error: {non_object}"
+        );
     }
 }

@@ -349,7 +349,8 @@ accepted-state key material the verifier will check.
 The validator predicate executor now also has an explicit replay-evidence
 handoff that injects those replay-derived oracle keys into an `oracle_attests`
 predicate input only when that input already carries `replay_bundle_json`, and
-it preserves any explicit predicate-supplied key map instead of overwriting it.
+requires that replay-bound input to be a JSON object, and it preserves any
+explicit predicate-supplied key map instead of overwriting it.
 The contract processor now has a replay-state-aware predicate evaluation entry
 point that derives the parent commit's accepted-state oracle-key map from the
 sequenced parent chain and routes replay-bundle predicate input through that

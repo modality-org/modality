@@ -191,8 +191,9 @@ oracle replay bundles from the same accepted-state key material the verifier
 will check. The validator predicate executor now also has an explicit
 replay-evidence handoff that injects those replay-derived oracle keys into an
 `oracle_attests` predicate input only when that input already carries
-`replay_bundle_json`, and it preserves any explicit predicate-supplied key map
-instead of overwriting it. This does not yet make `oracle_attests`
+`replay_bundle_json`, requires that replay-bound input to be a JSON object, and
+preserves any explicit predicate-supplied key map instead of overwriting it.
+This does not yet make `oracle_attests`
 first-contract-local validator evidence; local and hub replay still report it
 as missing external evidence until the contract-log replay path supplies replay
 bundles end to end. The contract processor now has a replay-state-aware
