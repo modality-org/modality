@@ -7,8 +7,9 @@
 
 use modality_datastore::models::MinerBlock;
 use modality_datastore::DatastoreManager;
-use std::collections::HashSet;
-use std::sync::Arc;
+use std::collections::{HashMap, HashSet};
+use std::sync::{Arc, Mutex as StdMutex, OnceLock};
+use std::time::{Duration, Instant};
 use tokio::sync::Mutex;
 
 use crate::chain::fork_choice::{check_expected_target, RetargetParams, TargetCheck};
@@ -19,6 +20,9 @@ use crate::reqres;
 use crate::sync::block_range::request_block_by_hash;
 
 /// Ask `peer_addr` for parked parent hashes, then for each returned block's parent.
+///
+/// A hash no peer has is skipped for ten minutes so the walk can spend its
+/// budget on the newest gap. Successes, not refusals, count toward the cap.
 pub async fn fetch_missing_parents(
     swarm: &Arc<Mutex<crate::swarm::NodeSwarm>>,
     peer_addr: &str,
@@ -32,11 +36,20 @@ pub async fn fetch_missing_parents(
         >,
     >,
 ) {
+    const MAX_STORED_PARENTS: usize = 128;
+    const MAX_ATTEMPTS: usize = 1024;
+
     let mut ended = HashSet::new();
-    for _ in 0..64 {
-        let Some(hash) = next_missing_hash(datastore, &ended).await else {
-            return;
+    let mut stored_parents = 0usize;
+    let mut missing = current_missing(datastore).await;
+    for _ in 0..MAX_ATTEMPTS {
+        if stored_parents >= MAX_STORED_PARENTS {
+            break;
+        }
+        let Some(hash) = first_fetchable(&missing, &ended) else {
+            break;
         };
+        let hash = hash.clone();
         let shown = hash.len().min(16);
         log::info!("Requesting parent {} by hash", &hash[..shown]);
         let fetched =
@@ -50,24 +63,62 @@ pub async fn fetch_missing_parents(
             };
         let Some(block) = fetched.filter(|block| block.hash == hash) else {
             log::info!("Peer has no parent {}", &hash[..shown]);
+            remember_absent(&hash);
             ended.insert(hash);
             continue;
         };
-        if !store_parent(datastore, &block).await {
+        if store_parent(datastore, &block).await {
+            stored_parents += 1;
+            missing = current_missing(datastore).await;
+        } else {
             ended.insert(hash);
         }
     }
 }
 
-async fn next_missing_hash(
-    datastore: &Arc<Mutex<DatastoreManager>>,
-    ended: &HashSet<String>,
-) -> Option<String> {
+fn absent_cache() -> &'static StdMutex<HashMap<String, Instant>> {
+    static CACHE: OnceLock<StdMutex<HashMap<String, Instant>>> = OnceLock::new();
+    CACHE.get_or_init(|| StdMutex::new(HashMap::new()))
+}
+
+fn remember_absent(hash: &str) {
+    let mut cache = absent_cache()
+        .lock()
+        .unwrap_or_else(|poison| poison.into_inner());
+    cache.insert(hash.to_string(), Instant::now());
+    if cache.len() > 8192 {
+        cache.retain(|_, seen| seen.elapsed() < ABSENT_FOR);
+    }
+}
+
+fn still_absent(hash: &str) -> bool {
+    let cache = absent_cache()
+        .lock()
+        .unwrap_or_else(|poison| poison.into_inner());
+    cache
+        .get(hash)
+        .is_some_and(|seen| seen.elapsed() < ABSENT_FOR)
+}
+
+const ABSENT_FOR: Duration = Duration::from_secs(600);
+
+async fn current_missing(datastore: &Arc<Mutex<DatastoreManager>>) -> Vec<String> {
     let ds = datastore.lock().await;
-    let blocks = MinerBlock::find_all_blocks_multi(&ds).await.ok()?;
+    let Ok(blocks) = MinerBlock::find_all_blocks_multi(&ds).await else {
+        return Vec::new();
+    };
     missing_parent_hashes(&blocks)
-        .into_iter()
-        .find(|hash| !ended.contains(hash))
+}
+
+/// Next parent to ask for. Hashes in `skip` were already tried this call,
+/// and hashes peers recently lacked stay skipped.
+pub(crate) fn first_fetchable<'a>(
+    missing: &'a [String],
+    skip: &HashSet<String>,
+) -> Option<&'a String> {
+    missing
+        .iter()
+        .find(|hash| !skip.contains(*hash) && !still_absent(hash))
 }
 
 async fn store_parent(datastore: &Arc<Mutex<DatastoreManager>>, block: &MinerBlock) -> bool {
@@ -127,4 +178,20 @@ async fn store_parent(datastore: &Arc<Mutex<DatastoreManager>>, block: &MinerBlo
         );
     }
     true
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_recently_missing_hash_is_skipped() {
+        let missing = vec![
+            "gone-parent-hash".to_string(),
+            "live-parent-hash".to_string(),
+        ];
+        remember_absent("gone-parent-hash");
+        let next = first_fetchable(&missing, &HashSet::new());
+        assert_eq!(next.map(String::as_str), Some("live-parent-hash"));
+    }
 }
