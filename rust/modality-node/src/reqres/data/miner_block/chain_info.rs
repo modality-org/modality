@@ -61,6 +61,7 @@ pub async fn handler(
             };
 
             let chain_length = all_blocks.len() as u64;
+            let chain_tip = all_blocks.iter().map(|b| b.index).max().unwrap_or(0);
 
             let (tip_hash, tip_epoch) = all_blocks
                 .iter()
@@ -98,6 +99,7 @@ pub async fn handler(
                 data: Some(serde_json::json!({
                     "cumulative_difficulty": cumulative_difficulty.to_string(),
                     "chain_length": chain_length,
+                    "chain_tip": chain_tip,
                     "chain_height": chain_length.saturating_sub(1),
                     "tip_hash": tip_hash,
                     "tip_epoch": tip_epoch,

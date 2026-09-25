@@ -130,11 +130,15 @@ impl SyncCoordinator {
             from_index
         );
 
+        let fetch_end = crate::sync::block_range::sync_fetch_end(
+            ancestor_result.remote_chain_length,
+            ancestor_result.remote_chain_tip,
+        );
         let peer_blocks = request_all_blocks_in_range(
             &self.swarm,
             peer_addr,
             from_index,
-            ancestor_result.remote_chain_length,
+            fetch_end,
             &self.reqres_response_txs,
         )
         .await?;
@@ -185,6 +189,24 @@ impl SyncCoordinator {
         }
 
         log::info!("✅ Peer chain validation passed");
+
+        let adopted_tip = sorted_blocks.iter().map(|b| b.index).max().unwrap_or(0);
+        let local_tip = {
+            let ds = self.datastore.lock().await;
+            MinerBlock::find_all_canonical_multi(&ds)
+                .await?
+                .iter()
+                .map(|b| b.index)
+                .max()
+                .unwrap_or(0)
+        };
+        if crate::chain::reorg::adoption_lowers_tip(local_tip, adopted_tip) {
+            return Ok(SyncResult::NoSyncNeeded {
+                reason: format!(
+                    "Refusing suffix ending at {adopted_tip} because the local tip is {local_tip}"
+                ),
+            });
+        }
 
         // Step 7: Orphan local blocks after ancestor and adopt peer blocks
         let ancestor_index = ancestor_result.ancestor_index.unwrap_or(0);

@@ -18,8 +18,11 @@ use crate::reqres;
 pub struct AncestorSearchResult {
     /// Index of the common ancestor (None if no common ancestor)
     pub ancestor_index: Option<u64>,
-    /// Remote chain length
+    /// Remote chain length (canonical row count)
     pub remote_chain_length: u64,
+    /// Highest remote canonical index. Equals `remote_chain_length - 1`
+    /// only when every index from genesis through the tip has one row.
+    pub remote_chain_tip: u64,
     /// Remote chain cumulative difficulty
     pub remote_cumulative_difficulty: u128,
 }
@@ -95,12 +98,13 @@ pub async fn find_common_ancestor_efficient(
         log::info!("Local chain is empty, no common ancestor");
 
         // Still need to get the peer's chain info
-        let (remote_chain_length, remote_cumulative_difficulty) =
+        let (remote_chain_length, remote_chain_tip, remote_cumulative_difficulty) =
             get_peer_chain_info(swarm, &target_peer_id, reqres_response_txs).await?;
 
         return Ok(AncestorSearchResult {
             ancestor_index: None,
             remote_chain_length,
+            remote_chain_tip,
             remote_cumulative_difficulty,
         });
     }
@@ -116,9 +120,14 @@ pub async fn find_common_ancestor_efficient(
     );
 
     // Make the initial request
-    let (highest_match, matches, remote_chain_length, remote_cumulative_difficulty) =
-        send_find_ancestor_request(swarm, &target_peer_id, &checkpoints, reqres_response_txs)
-            .await?;
+    let (
+        highest_match,
+        matches,
+        remote_chain_length,
+        remote_chain_tip,
+        remote_cumulative_difficulty,
+    ) = send_find_ancestor_request(swarm, &target_peer_id, &checkpoints, reqres_response_txs)
+        .await?;
 
     log::info!(
         "Remote chain length: {}, cumulative difficulty: {}, Initial highest match: {:?}",
@@ -133,6 +142,7 @@ pub async fn find_common_ancestor_efficient(
         return Ok(AncestorSearchResult {
             ancestor_index: None,
             remote_chain_length,
+            remote_chain_tip,
             remote_cumulative_difficulty,
         });
     }
@@ -169,6 +179,7 @@ pub async fn find_common_ancestor_efficient(
     Ok(AncestorSearchResult {
         ancestor_index: Some(highest_match_idx),
         remote_chain_length,
+        remote_chain_tip,
         remote_cumulative_difficulty,
     })
 }
@@ -185,7 +196,7 @@ async fn get_peer_chain_info(
             >,
         >,
     >,
-) -> Result<(u64, u128)> {
+) -> Result<(u64, u64, u128)> {
     let request = reqres::Request {
         path: "/data/miner_block/chain_info".to_string(),
         data: None,
@@ -208,17 +219,17 @@ async fn get_peer_chain_info(
         Ok(Ok(response)) => response,
         Ok(Err(e)) => {
             log::warn!("Failed to get chain info from peer: {}", e);
-            return Ok((0, 0));
+            return Ok((0, 0, 0));
         }
         Err(_) => {
             log::warn!("Timeout waiting for chain info from peer");
-            return Ok((0, 0));
+            return Ok((0, 0, 0));
         }
     };
 
     if !response.ok {
         log::warn!("Peer returned error for chain info request");
-        return Ok((0, 0));
+        return Ok((0, 0, 0));
     }
 
     let data = response
@@ -228,6 +239,10 @@ async fn get_peer_chain_info(
         .get("chain_length")
         .and_then(|v| v.as_u64())
         .unwrap_or(0);
+    let chain_tip = data
+        .get("chain_tip")
+        .and_then(|v| v.as_u64())
+        .unwrap_or(chain_length.saturating_sub(1));
     let cumulative_difficulty = data
         .get("cumulative_difficulty")
         .and_then(|v| v.as_str())
@@ -235,12 +250,13 @@ async fn get_peer_chain_info(
         .unwrap_or(0);
 
     log::info!(
-        "Peer chain: {} blocks, cumulative difficulty: {}",
+        "Peer chain: {} blocks, tip {}, cumulative difficulty: {}",
         chain_length,
+        chain_tip,
         cumulative_difficulty
     );
 
-    Ok((chain_length, cumulative_difficulty))
+    Ok((chain_length, chain_tip, cumulative_difficulty))
 }
 
 /// Build exponential checkpoints for initial search.
@@ -291,7 +307,7 @@ async fn send_find_ancestor_request(
             >,
         >,
     >,
-) -> Result<(Option<u64>, Vec<serde_json::Value>, u64, u128)> {
+) -> Result<(Option<u64>, Vec<serde_json::Value>, u64, u64, u128)> {
     let request = reqres::Request {
         path: "/data/miner_block/find_ancestor".to_string(),
         data: Some(serde_json::json!({
@@ -335,6 +351,10 @@ async fn send_find_ancestor_request(
         .get("chain_length")
         .and_then(|v| v.as_u64())
         .ok_or_else(|| anyhow::anyhow!("Missing chain_length in response"))?;
+    let remote_chain_tip = data
+        .get("chain_tip")
+        .and_then(|v| v.as_u64())
+        .unwrap_or(remote_chain_length.saturating_sub(1));
     let remote_cumulative_difficulty = data
         .get("cumulative_difficulty")
         .and_then(|v| v.as_str())
@@ -351,6 +371,7 @@ async fn send_find_ancestor_request(
         highest_match,
         matches,
         remote_chain_length,
+        remote_chain_tip,
         remote_cumulative_difficulty,
     ))
 }
@@ -420,7 +441,7 @@ async fn batched_binary_search(
         );
 
         // Send request
-        let (_, matches, _, _) =
+        let (_, matches, _, _, _) =
             send_find_ancestor_request(swarm, target_peer_id, &checkpoints, reqres_response_txs)
                 .await?;
 

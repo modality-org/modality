@@ -314,6 +314,16 @@ pub async fn save_blocks_with_fork_choice(
 /// included, whether or not every index in that window had a row.
 /// Falling back to `from + row count` skips indexes when duplicate rows
 /// make the page longer than the index window.
+/// Last index a sync request must cover.
+///
+/// `row_count` is how many canonical rows the peer stored.
+/// `chain_tip` is the highest index. Holes make the tip larger than
+/// the row count; duplicate rows make the row count larger than the
+/// tip. The request has to reach whichever is higher.
+pub fn sync_fetch_end(row_count: u64, chain_tip: u64) -> u64 {
+    row_count.max(chain_tip)
+}
+
 pub fn next_range_index(from_index: u64, block_count: usize, covered_to: Option<u64>) -> u64 {
     match covered_to {
         Some(to) => to.saturating_add(1),
@@ -323,7 +333,7 @@ pub fn next_range_index(from_index: u64, block_count: usize, covered_to: Option<
 
 #[cfg(test)]
 mod tests {
-    use super::next_range_index;
+    use super::{next_range_index, sync_fetch_end};
 
     #[test]
     fn duplicate_rows_do_not_skip_the_next_index() {
@@ -336,5 +346,11 @@ mod tests {
     #[test]
     fn missing_covered_to_still_advances_by_row_count() {
         assert_eq!(next_range_index(10, 4, None), 14);
+    }
+
+    #[test]
+    fn fetch_covers_a_tip_above_the_row_count() {
+        assert_eq!(sync_fetch_end(804, 984), 984);
+        assert_eq!(sync_fetch_end(1087, 978), 1087);
     }
 }

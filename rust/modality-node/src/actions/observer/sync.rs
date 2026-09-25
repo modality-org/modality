@@ -60,7 +60,7 @@ pub async fn request_chain_info_impl(
     );
 
     // Find common ancestor
-    let (common_ancestor, peer_chain_length, peer_cumulative_difficulty) =
+    let (common_ancestor, peer_chain_length, peer_chain_tip, peer_cumulative_difficulty) =
         find_common_ancestor_efficient(&swarm, peer_addr.clone(), &datastore, &reqres_response_txs)
             .await?;
 
@@ -110,11 +110,12 @@ pub async fn request_chain_info_impl(
     log::info!("✅ Peer chain has higher cumulative difficulty - adopting it");
 
     // Request blocks from peer
+    let fetch_end = crate::sync::block_range::sync_fetch_end(peer_chain_length, peer_chain_tip);
     let all_blocks = request_blocks_from_peer(
         &swarm,
         &peer_addr,
         from_index,
-        peer_chain_length,
+        fetch_end,
         &reqres_response_txs,
     )
     .await?;
@@ -149,7 +150,7 @@ pub async fn find_common_ancestor_efficient(
             >,
         >,
     >,
-) -> Result<(Option<u64>, u64, u128)> {
+) -> Result<(Option<u64>, u64, u64, u128)> {
     // Delegate to the sync module implementation
     let result = crate::sync::common_ancestor::find_common_ancestor_efficient(
         swarm,
@@ -162,6 +163,7 @@ pub async fn find_common_ancestor_efficient(
     Ok((
         result.ancestor_index,
         result.remote_chain_length,
+        result.remote_chain_tip,
         result.remote_cumulative_difficulty,
     ))
 }
@@ -211,12 +213,22 @@ async fn adopt_peer_blocks(
         .first()
         .map(|b| b.index.saturating_sub(1))
         .unwrap_or(0);
+    let adopted_tip = all_blocks.iter().map(|b| b.index).max().unwrap_or(0);
 
     {
         let ds = datastore.lock().await;
 
         // Orphan local blocks after ancestor
         let local_blocks = MinerBlock::find_all_canonical_multi(&ds).await?;
+        let local_tip = local_blocks.iter().map(|b| b.index).max().unwrap_or(0);
+        if crate::chain::reorg::adoption_lowers_tip(local_tip, adopted_tip) {
+            log::warn!(
+                "Refusing to adopt suffix ending at {} because the local tip is {}",
+                adopted_tip,
+                local_tip
+            );
+            return Ok(());
+        }
 
         for local in &local_blocks {
             if local.index > ancestor_index {

@@ -203,6 +203,15 @@ pub fn find_common_ancestor_by_hash(
     None
 }
 
+/// Adopting a fetched suffix must not replace a higher local tip.
+///
+/// A peer whose row count is below its tip used to be asked only for
+/// the row count. The suffix that came back ended below the local tip,
+/// and applying it orphaned that tip.
+pub fn adoption_lowers_tip(local_tip: u64, adopted_tip: u64) -> bool {
+    adopted_tip < local_tip
+}
+
 /// Collapse duplicate indexes onto the parent-linked chain.
 ///
 /// A peer can list two canonical blocks at the same index, and the
@@ -332,6 +341,13 @@ mod tests {
         assert_eq!(linked.len(), 3);
         assert_eq!(linked[1].hash, "hash_1");
         assert!(validate_block_chain(&linked).is_ok());
+    }
+
+    #[test]
+    fn shorter_suffix_does_not_replace_a_higher_tip() {
+        assert!(adoption_lowers_tip(926, 804));
+        assert!(!adoption_lowers_tip(804, 840));
+        assert!(!adoption_lowers_tip(840, 840));
     }
 
     #[test]
