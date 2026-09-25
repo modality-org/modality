@@ -151,14 +151,15 @@ pub async fn validate_and_repair_chain(
         });
     }
 
-    // The parent walk only steps index+1 from genesis. A single broken
-    // link at index 1 makes the spine "genesis only" and would orphan
-    // every later block, including a chain the network has been serving.
-    if valid_blocks <= 1 && max_index > 1 && extras.len() > valid_blocks {
+    // A longer linked run that ends below the highest stored index is
+    // not a reason to drop that tip. The public chain has already lost
+    // a higher tip this way, including when index 1 does not link to
+    // genesis and some other run is longer.
+    if spine_tip.is_some_and(|tip| tip < max_index) {
         log::error!(
-            "Refusing to orphan {} block(s): linked spine is {} block(s) while the canonical tip index is {}",
+            "Refusing to orphan {} block(s): linked spine ends at {} while the canonical tip index is {}",
             extras.len(),
-            valid_blocks,
+            spine_tip.unwrap_or(0),
             max_index
         );
         return Ok(ChainIntegrityReport {
@@ -618,7 +619,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn disconnected_higher_suffix_stays_orphaned() {
+    async fn longer_lower_spine_does_not_orphan_the_higher_tip() {
         let datastore = DatastoreManager::create_in_memory().unwrap();
         for i in 0..6 {
             let block = MinerBlock::new_canonical(
@@ -662,15 +663,14 @@ mod tests {
         }
 
         let report = validate_and_repair_chain(&datastore, true).await.unwrap();
-        assert!(report.repaired);
-        assert_eq!(report.orphaned_count, 3);
-
-        let again = validate_and_repair_chain(&datastore, true).await.unwrap();
-        assert_eq!(again.orphaned_count, 0);
+        assert!(!report.repaired);
+        assert_eq!(report.orphaned_count, 0);
         let canonical = MinerBlock::find_all_canonical_multi(&datastore)
             .await
             .unwrap();
-        assert_eq!(canonical.len(), 6);
-        assert!(canonical.iter().all(|b| b.index < 6));
+        assert_eq!(canonical.iter().map(|block| block.index).max(), Some(10));
+        assert!(canonical.iter().any(|block| block.hash == "suffix_10"));
+        assert!(canonical.iter().any(|block| block.hash == "hash_5"));
     }
+
 }

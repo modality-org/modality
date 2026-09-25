@@ -169,7 +169,8 @@ pub async fn sync_missing_blocks(
     target_index: u64,
     update_tx: &tokio::sync::mpsc::UnboundedSender<u64>,
 ) {
-    // Determine blocks needed
+    // Fill only above the highest stored index. A lower linked spine
+    // must not make this pull a peer's earlier range in beside the tip.
     let first_index = get_chain_tip_index(datastore).await + 1;
 
     if first_index > target_index {
