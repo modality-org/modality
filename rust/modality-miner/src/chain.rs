@@ -440,8 +440,13 @@ impl Blockchain {
             next_difficulty,
         );
         
-        // Mine the block with stats
-        let result = self.miner.mine_block_with_stats(block)?;
+        // Hashing is CPU-bound and can run for minutes. On the async runtime it
+        // pins a worker thread, and on a small host that silences gossip,
+        // sync, and the status endpoint until the block is found.
+        let miner = self.miner.clone();
+        let result = tokio::task::spawn_blocking(move || miner.mine_block_with_stats(block))
+            .await
+            .map_err(|e| MiningError::MiningFailed(format!("mining task failed: {e}")))??;
         let mined_block = result.block.clone();
         let mining_stats = result.mining_stats.clone();
 
