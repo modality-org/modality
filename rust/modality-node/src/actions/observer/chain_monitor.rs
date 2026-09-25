@@ -81,7 +81,7 @@ pub async fn get_chain_tip_index(datastore: &Arc<Mutex<DatastoreManager>>) -> u6
     let ds = datastore.lock().await;
     match MinerBlock::find_all_canonical_multi(&ds).await {
         Ok(blocks) if !blocks.is_empty() => {
-            blocks.iter().map(|block| block.index).max().unwrap_or(0)
+            crate::chain::fork_choice::score_canonical_chain(&blocks).tip
         }
         _ => 0,
     }

@@ -203,15 +203,6 @@ pub fn find_common_ancestor_by_hash(
     None
 }
 
-/// Adopting a fetched suffix must not replace a higher local tip.
-///
-/// A peer whose row count is below its tip used to be asked only for
-/// the row count. The suffix that came back ended below the local tip,
-/// and applying it orphaned that tip.
-pub fn adoption_lowers_tip(local_tip: u64, adopted_tip: u64) -> bool {
-    adopted_tip < local_tip
-}
-
 /// Indexes under the accepted tip that the parent walk could not cross.
 ///
 /// `to_index` is the missing parent of the linked suffix. `expected_hash` is
@@ -313,10 +304,9 @@ pub fn linking_parents(
 
 /// Collapse duplicate indexes onto the parent-linked chain.
 ///
-/// A peer can list two canonical blocks at the same index, and the
-/// canonical set can skip indexes. Adoption keeps the contiguous
-/// hash-linked run that reaches the highest index, so an earlier hole
-/// does not discard the heavier tip.
+/// A peer can list two canonical blocks at the same index. The returned
+/// chain has to start at the earliest index in the batch. A higher run
+/// that does not link back to that start is not a chain to adopt.
 pub fn select_linked_chain(blocks: &[MinerBlock]) -> Result<Vec<MinerBlock>> {
     if blocks.is_empty() {
         return Ok(Vec::new());
@@ -352,10 +342,8 @@ pub fn select_linked_chain(blocks: &[MinerBlock]) -> Result<Vec<MinerBlock>> {
     let start = best.last().expect("best non-empty").index;
     let earliest = *by_index.keys().next().expect("indexes non-empty");
     if start != earliest {
-        log::warn!(
-            "Adopting linked tip suffix {}..={} and leaving earlier indexes",
-            start,
-            tip_index
+        anyhow::bail!(
+            "disconnected suffix {start}..={tip_index} is not a chain (batch starts at {earliest})"
         );
     }
     best.reverse();
@@ -501,25 +489,15 @@ mod tests {
     }
 
     #[test]
-    fn shorter_suffix_does_not_replace_a_higher_tip() {
-        assert!(adoption_lowers_tip(926, 804));
-        assert!(!adoption_lowers_tip(804, 840));
-        assert!(!adoption_lowers_tip(840, 840));
-    }
-
-    #[test]
-    fn real_index_gap_keeps_the_tip_suffix() {
+    fn real_index_gap_is_not_adoptable() {
         let blocks = vec![
             make_test_block(0, "genesis"),
             make_test_block(1, "hash_0"),
             make_test_block(4, "hash_3"),
             make_test_block(5, "hash_4"),
         ];
-        let linked = select_linked_chain(&blocks).unwrap();
-        assert_eq!(linked.len(), 2);
-        assert_eq!(linked[0].index, 4);
-        assert_eq!(linked[1].index, 5);
-        assert!(validate_block_chain(&linked).is_ok());
+        let err = select_linked_chain(&blocks).unwrap_err();
+        assert!(err.to_string().contains("disconnected suffix"));
     }
 
     #[test]

@@ -9,6 +9,7 @@
 //! 3. Lower block hash wins (as final tiebreaker)
 
 use modality_datastore::models::MinerBlock;
+use std::collections::BTreeMap;
 
 /// Result of comparing two chains or blocks
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -116,11 +117,37 @@ pub fn chains_share_tip_hash(local_tip_hash: &str, remote_tip_hash: &str) -> boo
     !local_tip_hash.is_empty() && local_tip_hash == remote_tip_hash
 }
 
-/// Choose which chain to follow.
+/// Work that fork choice is allowed to compare.
 ///
-/// The same tip hash is equal work. A higher peer tip is fetched even when
-/// this node's stored suffix sums to more, because that extra sum is history
-/// below a hole, not a heavier fork.
+/// `Linked` is the sum of a parent-linked walk. `Unknown` is a walk that
+/// stopped at a hole or a proof that did not meet its target. Unknown is
+/// not zero: it loses to any linked chain, and two unknown chains stay
+/// with the local node.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ChainWork {
+    Linked(u128),
+    Unknown,
+}
+
+/// Tip and work of the chain this node should advertise and mine on.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ScoredChain {
+    pub work: ChainWork,
+    pub tip: u64,
+    pub tip_hash: String,
+}
+
+/// Whether a fetched peer chain replaces the local one.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Adoption {
+    Adopt { ancestor_index: u64, reason: String },
+    Refuse { reason: String },
+}
+
+/// Choose which chain to follow from two linked totals.
+///
+/// The same tip hash is equal work. A higher tip does not beat more
+/// verified work.
 pub fn choose_chain(
     local_difficulty: u128,
     local_tip: u64,
@@ -129,6 +156,33 @@ pub fn choose_chain(
     remote_tip: u64,
     remote_tip_hash: &str,
 ) -> ChainComparison {
+    choose_verified(
+        ChainWork::Linked(local_difficulty),
+        local_tip,
+        local_tip_hash,
+        ChainWork::Linked(remote_difficulty),
+        remote_tip,
+        remote_tip_hash,
+    )
+}
+
+/// Choose which chain to follow when one or both totals may be unknown.
+pub fn choose_verified(
+    local: ChainWork,
+    local_tip: u64,
+    local_tip_hash: &str,
+    remote: ChainWork,
+    remote_tip: u64,
+    remote_tip_hash: &str,
+) -> ChainComparison {
+    let local_difficulty = match local {
+        ChainWork::Linked(work) => work,
+        ChainWork::Unknown => 0,
+    };
+    let remote_difficulty = match remote {
+        ChainWork::Linked(work) => work,
+        ChainWork::Unknown => 0,
+    };
     if chains_share_tip_hash(local_tip_hash, remote_tip_hash) {
         return ChainComparison {
             result: ForkChoiceResult::Equal,
@@ -139,91 +193,335 @@ pub fn choose_chain(
             reason: format!("Same tip hash {local_tip_hash}, equal work"),
         };
     }
-    if remote_tip > local_tip {
-        return ChainComparison {
-            result: ForkChoiceResult::AdoptRemote,
-            local_difficulty,
-            remote_difficulty,
-            local_length: local_tip,
-            remote_length: remote_tip,
+    let (result, reason) = match (local, remote) {
+        (ChainWork::Unknown, ChainWork::Unknown) => (
+            ForkChoiceResult::KeepLocal,
+            "Neither chain's work reaches its anchor".to_string(),
+        ),
+        (ChainWork::Unknown, ChainWork::Linked(work)) => (
+            ForkChoiceResult::AdoptRemote,
+            format!("Peer work {work} is linked and local work stopped at a hole"),
+        ),
+        (ChainWork::Linked(work), ChainWork::Unknown) => (
+            ForkChoiceResult::KeepLocal,
+            format!("Local work {work} is linked and peer work stopped at a hole"),
+        ),
+        (ChainWork::Linked(local_work), ChainWork::Linked(remote_work))
+            if remote_work > local_work =>
+        {
+            (
+                ForkChoiceResult::AdoptRemote,
+                format!("Peer linked work {remote_work} is higher than local {local_work}"),
+            )
+        }
+        (ChainWork::Linked(local_work), ChainWork::Linked(remote_work))
+            if remote_work < local_work =>
+        {
+            (
+                ForkChoiceResult::KeepLocal,
+                format!("Local linked work {local_work} is higher than peer {remote_work}"),
+            )
+        }
+        (ChainWork::Linked(_), ChainWork::Linked(_)) if remote_tip > local_tip => (
+            ForkChoiceResult::AdoptRemote,
+            format!("Equal linked work, peer tip {remote_tip} is higher than {local_tip}"),
+        ),
+        (ChainWork::Linked(_), ChainWork::Linked(_)) if remote_tip < local_tip => (
+            ForkChoiceResult::KeepLocal,
+            format!("Equal linked work, local tip {local_tip} is higher than {remote_tip}"),
+        ),
+        (ChainWork::Linked(_), ChainWork::Linked(_)) if remote_tip_hash < local_tip_hash => (
+            ForkChoiceResult::AdoptRemote,
+            "Equal linked work and tip, peer hash is lower".to_string(),
+        ),
+        (ChainWork::Linked(_), ChainWork::Linked(_)) if remote_tip_hash > local_tip_hash => (
+            ForkChoiceResult::KeepLocal,
+            "Equal linked work and tip, local hash is lower".to_string(),
+        ),
+        _ => (
+            ForkChoiceResult::Equal,
+            "Chains have equal linked work, tip, and hash".to_string(),
+        ),
+    };
+    ChainComparison {
+        result,
+        local_difficulty,
+        remote_difficulty,
+        local_length: local_tip,
+        remote_length: remote_tip,
+        reason,
+    }
+}
+
+/// True when the block's actualized difficulty meets the target it claims.
+pub fn proof_meets_target(block: &MinerBlock) -> bool {
+    let Ok(actual) = block.get_actualized_difficulty_u128() else {
+        return false;
+    };
+    let Ok(target) = block.target_difficulty.parse::<u128>() else {
+        return false;
+    };
+    target > 0 && actual >= target
+}
+
+/// Score the canonical set. A walk that reaches index 0 is linked work.
+/// Anything else is unknown, and the tip is that fallback spine.
+pub fn score_canonical_chain(blocks: &[MinerBlock]) -> ScoredChain {
+    let spine = MinerBlock::verified_spine(blocks);
+    let Some(tip) = spine.last() else {
+        return ScoredChain {
+            work: ChainWork::Unknown,
+            tip: 0,
+            tip_hash: String::new(),
+        };
+    };
+    let reaches_genesis = spine.first().is_some_and(|block| block.index == 0);
+    if !reaches_genesis {
+        return ScoredChain {
+            work: ChainWork::Unknown,
+            tip: tip.index,
+            tip_hash: tip.hash.clone(),
+        };
+    }
+    let mut sum = 0u128;
+    for block in &spine {
+        if !proof_meets_target(block) {
+            return ScoredChain {
+                work: ChainWork::Unknown,
+                tip: tip.index,
+                tip_hash: tip.hash.clone(),
+            };
+        }
+        let Ok(difficulty) = block.get_actualized_difficulty_u128() else {
+            return ScoredChain {
+                work: ChainWork::Unknown,
+                tip: tip.index,
+                tip_hash: tip.hash.clone(),
+            };
+        };
+        sum = sum.saturating_add(difficulty);
+    }
+    ScoredChain {
+        work: ChainWork::Linked(sum),
+        tip: tip.index,
+        tip_hash: tip.hash.clone(),
+    }
+}
+
+/// Sum of a parent-linked batch. One block that misses its target makes
+/// the whole suffix unknown.
+pub fn verified_suffix_work(blocks: &[MinerBlock]) -> ChainWork {
+    if blocks.is_empty() {
+        return ChainWork::Unknown;
+    }
+    let mut sum = 0u128;
+    for block in blocks {
+        if !proof_meets_target(block) {
+            return ChainWork::Unknown;
+        }
+        let Ok(difficulty) = block.get_actualized_difficulty_u128() else {
+            return ChainWork::Unknown;
+        };
+        sum = sum.saturating_add(difficulty);
+    }
+    ChainWork::Linked(sum)
+}
+
+/// True when the linked spine has every block of the nomination epoch.
+///
+/// An epoch below 2 has no nomination yet, so this does not block adoption.
+pub fn nomination_epoch_complete(
+    blocks: &[MinerBlock],
+    blocks_per_epoch: u64,
+    mining_epoch: u64,
+) -> bool {
+    if mining_epoch < 2 || blocks_per_epoch == 0 {
+        return true;
+    }
+    let nomination_epoch = mining_epoch - 2;
+    let spine = MinerBlock::verified_spine(blocks);
+    let start = nomination_epoch.saturating_mul(blocks_per_epoch);
+    let end = start + blocks_per_epoch;
+    let count = spine
+        .iter()
+        .filter(|block| block.index >= start && block.index < end)
+        .count();
+    count == blocks_per_epoch as usize
+}
+
+/// Decide whether a validated peer chain replaces the local canonical set.
+///
+/// `checkpoint_floor` is the last miner index the sequencers have committed.
+/// An adoption that would orphan that prefix is refused. A peer chain that
+/// drops a nomination epoch the local chain already has is refused.
+pub fn decide_adoption(
+    local_blocks: &[MinerBlock],
+    remote_blocks: &[MinerBlock],
+    checkpoint_floor: Option<u64>,
+    blocks_per_epoch: u64,
+) -> Adoption {
+    let Some(first) = remote_blocks.first() else {
+        return Adoption::Refuse {
+            reason: "Peer batch is empty".to_string(),
+        };
+    };
+    let linked = remote_blocks
+        .windows(2)
+        .all(|pair| pair[1].index == pair[0].index + 1 && pair[1].previous_hash == pair[0].hash);
+    if !linked {
+        return Adoption::Refuse {
+            reason: "Peer batch is not one parent-linked chain".to_string(),
+        };
+    }
+    if first.index == 0 {
+        if !local_blocks.is_empty() {
+            return Adoption::Refuse {
+                reason: "No common ancestor with the local chain".to_string(),
+            };
+        }
+    } else if !local_blocks
+        .iter()
+        .any(|block| block.index == first.index - 1 && block.hash == first.previous_hash)
+    {
+        return Adoption::Refuse {
             reason: format!(
-                "Peer tip {remote_tip} is above local tip {local_tip} (local difficulty {local_difficulty}, peer {remote_difficulty})"
+                "Peer chain does not link to a stored block at {}",
+                first.index - 1
             ),
         };
     }
-    compare_chains(
-        local_difficulty,
+
+    let ancestor_index = first.index.saturating_sub(1);
+    let remote_tip = remote_blocks.last().expect("remote batch is non-empty");
+    let remote_work = verified_suffix_work(remote_blocks);
+    let (local_work, local_tip, local_hash) = if first.index == 0 || local_blocks.is_empty() {
+        (ChainWork::Unknown, 0, String::new())
+    } else {
+        work_above_ancestor(local_blocks, ancestor_index, &first.previous_hash)
+    };
+
+    if let Some(floor) = checkpoint_floor {
+        if first.index > 0
+            && local_blocks
+                .iter()
+                .any(|block| block.index > ancestor_index && block.index <= floor)
+        {
+            return Adoption::Refuse {
+                reason: format!("Refusing to orphan the sequenced prefix through {floor}"),
+            };
+        }
+    }
+
+    let local_epoch = MinerBlock::verified_spine(local_blocks)
+        .last()
+        .map(|block| block.epoch)
+        .unwrap_or(0);
+    let mut candidate: Vec<MinerBlock> = local_blocks
+        .iter()
+        .filter(|block| first.index == 0 || block.index <= ancestor_index)
+        .cloned()
+        .collect();
+    candidate.extend(remote_blocks.iter().cloned());
+    if nomination_epoch_complete(local_blocks, blocks_per_epoch, local_epoch)
+        && !nomination_epoch_complete(&candidate, blocks_per_epoch, remote_tip.epoch)
+    {
+        return Adoption::Refuse {
+            reason: "Peer chain does not cover the nomination epoch the local chain already has"
+                .to_string(),
+        };
+    }
+
+    let comparison = choose_verified(
+        local_work,
         local_tip,
-        remote_difficulty,
-        remote_tip,
-    )
+        &local_hash,
+        remote_work,
+        remote_tip.index,
+        &remote_tip.hash,
+    );
+    if comparison.result != ForkChoiceResult::AdoptRemote {
+        return Adoption::Refuse {
+            reason: comparison.reason,
+        };
+    }
+    Adoption::Adopt {
+        ancestor_index,
+        reason: comparison.reason,
+    }
+}
+
+fn work_above_ancestor(
+    blocks: &[MinerBlock],
+    ancestor_index: u64,
+    ancestor_hash: &str,
+) -> (ChainWork, u64, String) {
+    let mut by_index: BTreeMap<u64, Vec<&MinerBlock>> = BTreeMap::new();
+    for block in blocks {
+        by_index.entry(block.index).or_default().push(block);
+    }
+    let mut best: Option<(u128, u64, String)> = None;
+    for block in blocks.iter().filter(|block| block.index > ancestor_index) {
+        let mut sum = 0u128;
+        let mut current = block;
+        let mut reached = false;
+        loop {
+            if !proof_meets_target(current) {
+                break;
+            }
+            let Ok(difficulty) = current.get_actualized_difficulty_u128() else {
+                break;
+            };
+            sum = sum.saturating_add(difficulty);
+            if current.index == ancestor_index + 1 {
+                reached = current.previous_hash == ancestor_hash;
+                break;
+            }
+            let Some(parents) = by_index.get(&(current.index - 1)) else {
+                break;
+            };
+            let Some(parent) = parents
+                .iter()
+                .copied()
+                .find(|parent| parent.hash == current.previous_hash)
+            else {
+                break;
+            };
+            current = parent;
+        }
+        if !reached {
+            continue;
+        }
+        let better = match &best {
+            None => true,
+            Some((work, tip, hash)) => {
+                sum > *work
+                    || (sum == *work && block.index > *tip)
+                    || (sum == *work && block.index == *tip && block.hash < *hash)
+            }
+        };
+        if better {
+            best = Some((sum, block.index, block.hash.clone()));
+        }
+    }
+    match best {
+        Some((sum, tip, hash)) => (ChainWork::Linked(sum), tip, hash),
+        None => {
+            let tip = blocks.iter().max_by_key(|block| block.index);
+            (
+                ChainWork::Unknown,
+                tip.map(|block| block.index).unwrap_or(0),
+                tip.map(|block| block.hash.clone()).unwrap_or_default(),
+            )
+        }
+    }
 }
 
 /// Compare two blocks at the same height for fork choice.
 ///
-/// Uses fork choice rules:
-/// 1. Higher difficulty wins
-/// 2. Earlier seen_at timestamp wins (first-seen rule)
-/// 3. Lower hash wins (final tiebreaker)
-///
-/// # Arguments
-/// * `new_block` - The new/incoming block
-/// * `existing_block` - The existing canonical block
-///
-/// # Returns
-/// `true` if the new block should replace the existing block
+/// Higher verified difficulty wins. Equal verified difficulty keeps the
+/// block already stored. A difficulty that cannot be read does not win.
 pub fn should_replace_block(new_block: &MinerBlock, existing_block: &MinerBlock) -> bool {
-    let new_difficulty = new_block.get_actualized_difficulty_u128().unwrap_or(0);
-    let existing_difficulty = existing_block.get_actualized_difficulty_u128().unwrap_or(0);
-
-    if new_difficulty > existing_difficulty {
-        // Rule 1: Higher actualized difficulty wins
-        log::info!(
-            "Fork choice: new block has higher actualized difficulty ({} > {})",
-            new_difficulty,
-            existing_difficulty
-        );
-        return true;
-    }
-
-    if new_difficulty < existing_difficulty {
-        return false;
-    }
-
-    // Equal difficulty - check first-seen (seen_at timestamp)
-    match (&new_block.seen_at, &existing_block.seen_at) {
-        (Some(new_seen), Some(existing_seen)) => {
-            if new_seen < existing_seen {
-                log::info!(
-                    "Fork choice: equal difficulty, new block seen earlier ({} < {})",
-                    new_seen,
-                    existing_seen
-                );
-                return true;
-            }
-            if new_seen > existing_seen {
-                return false;
-            }
-            // Same seen_at - use hash as tiebreaker
-            if new_block.hash < existing_block.hash {
-                log::info!("Fork choice: equal difficulty and time, new block has lower hash");
-                return true;
-            }
-            false
-        }
-        (Some(_), None) => true,
-        (None, Some(_)) => false,
-        (None, None) => {
-            // No timestamps - use hash as tiebreaker
-            if new_block.hash < existing_block.hash {
-                log::info!(
-                    "Fork choice: equal difficulty, no timestamps, new block has lower hash"
-                );
-                return true;
-            }
-            false
-        }
-    }
+    compare_blocks(new_block, existing_block).should_replace
 }
 
 /// Detailed fork choice result for block comparison
@@ -251,76 +549,43 @@ pub fn compare_blocks(
     new_block: &MinerBlock,
     existing_block: &MinerBlock,
 ) -> BlockForkChoiceResult {
-    let new_difficulty = new_block.get_actualized_difficulty_u128().unwrap_or(0);
-    let existing_difficulty = existing_block.get_actualized_difficulty_u128().unwrap_or(0);
-
-    let (should_replace, reason) = if new_difficulty > existing_difficulty {
-        (
-            true,
-            format!(
-                "Higher actualized difficulty ({} > {})",
-                new_difficulty, existing_difficulty
-            ),
-        )
-    } else if new_difficulty < existing_difficulty {
-        (
-            false,
-            format!(
-                "Lower actualized difficulty ({} < {})",
-                new_difficulty, existing_difficulty
-            ),
-        )
-    } else {
-        // Equal difficulty - check timestamps then hash
-        match (&new_block.seen_at, &existing_block.seen_at) {
-            (Some(new_seen), Some(existing_seen)) if new_seen < existing_seen => (
+    let new_difficulty = new_block.get_actualized_difficulty_u128().ok();
+    let existing_difficulty = existing_block.get_actualized_difficulty_u128().ok();
+    let (should_replace, reason) = match (new_difficulty, existing_difficulty) {
+        (Some(new_work), Some(existing_work))
+            if new_work > existing_work && proof_meets_target(new_block) =>
+        {
+            (
                 true,
-                format!(
-                    "Equal difficulty, seen earlier ({} < {})",
-                    new_seen, existing_seen
-                ),
-            ),
-            (Some(new_seen), Some(existing_seen)) if new_seen > existing_seen => (
-                false,
-                format!(
-                    "Equal difficulty, seen later ({} > {})",
-                    new_seen, existing_seen
-                ),
-            ),
-            (Some(_), None) => (true, "Equal difficulty, has timestamp vs none".to_string()),
-            (None, Some(_)) => (
-                false,
-                "Equal difficulty, no timestamp vs has one".to_string(),
-            ),
-            _ => {
-                // Same timestamps or both none - use hash
-                if new_block.hash < existing_block.hash {
-                    (
-                        true,
-                        format!(
-                            "Equal difficulty, lower hash ({} < {})",
-                            &new_block.hash[..16],
-                            &existing_block.hash[..16]
-                        ),
-                    )
-                } else {
-                    (
-                        false,
-                        format!(
-                            "Equal difficulty, higher/equal hash ({} >= {})",
-                            &new_block.hash[..16],
-                            &existing_block.hash[..16]
-                        ),
-                    )
-                }
-            }
+                format!("Higher actualized difficulty ({new_work} > {existing_work})"),
+            )
         }
+        (Some(new_work), Some(existing_work)) if new_work > existing_work => (
+            false,
+            format!("Higher actualized difficulty ({new_work}) does not meet its target"),
+        ),
+        (Some(new_work), Some(existing_work)) if new_work < existing_work => (
+            false,
+            format!("Lower actualized difficulty ({new_work} < {existing_work})"),
+        ),
+        (Some(_), Some(_)) => (
+            false,
+            "Equal verified difficulty keeps the stored block".to_string(),
+        ),
+        (None, _) => (false, "Incoming difficulty cannot be read".to_string()),
+        (Some(new_work), None) if proof_meets_target(new_block) => (
+            true,
+            format!("Stored difficulty cannot be read and incoming work is {new_work}"),
+        ),
+        (Some(_), None) => (
+            false,
+            "Incoming difficulty does not meet its target".to_string(),
+        ),
     };
-
     BlockForkChoiceResult {
         should_replace,
-        new_difficulty,
-        existing_difficulty,
+        new_difficulty: new_difficulty.unwrap_or(0),
+        existing_difficulty: existing_difficulty.unwrap_or(0),
         reason,
     }
 }
@@ -360,9 +625,183 @@ mod tests {
     }
 
     #[test]
-    fn higher_peer_tip_is_fetched_when_local_suffix_sums_higher() {
+    fn higher_peer_tip_does_not_beat_more_linked_work() {
         let result = choose_chain(3348, 1080, "local", 3307, 1083, "remote");
+        assert_eq!(result.result, ForkChoiceResult::KeepLocal);
+    }
+
+    #[test]
+    fn unknown_work_loses_to_a_linked_chain() {
+        let result = choose_verified(
+            ChainWork::Unknown,
+            500,
+            "local",
+            ChainWork::Linked(10),
+            20,
+            "remote",
+        );
         assert_eq!(result.result, ForkChoiceResult::AdoptRemote);
+        let result = choose_verified(
+            ChainWork::Linked(10),
+            20,
+            "local",
+            ChainWork::Unknown,
+            500,
+            "remote",
+        );
+        assert_eq!(result.result, ForkChoiceResult::KeepLocal);
+    }
+
+    #[test]
+    fn two_unknown_chains_stay_local() {
+        let result = choose_verified(
+            ChainWork::Unknown,
+            10,
+            "local",
+            ChainWork::Unknown,
+            800,
+            "remote",
+        );
+        assert_eq!(result.result, ForkChoiceResult::KeepLocal);
+    }
+
+    #[test]
+    fn equal_linked_work_prefers_the_higher_tip() {
+        let result = choose_verified(
+            ChainWork::Linked(100),
+            4,
+            "local",
+            ChainWork::Linked(100),
+            6,
+            "remote",
+        );
+        assert_eq!(result.result, ForkChoiceResult::AdoptRemote);
+    }
+
+    fn block_at(index: u64, prev: &str, work: &str) -> MinerBlock {
+        let mut block = MinerBlock::new_canonical(
+            format!("hash_{index}"),
+            index,
+            0,
+            1_700_000_000 + index as i64,
+            prev.to_string(),
+            format!("data_{index}"),
+            1,
+            1000,
+            "peer".to_string(),
+            1,
+        );
+        block.actualized_difficulty = work.to_string();
+        block.target_difficulty = "1000".to_string();
+        block
+    }
+
+    #[test]
+    fn unreadable_difficulty_does_not_replace_the_stored_block() {
+        let existing = block_at(1, "hash_0", "2000");
+        let mut incoming = block_at(1, "hash_0", "9999");
+        incoming.hash = "other".to_string();
+        incoming.actualized_difficulty = "nope".to_string();
+        incoming.seen_at = Some(1);
+        existing_keeps(&existing, &incoming);
+    }
+
+    fn existing_keeps(existing: &MinerBlock, incoming: &MinerBlock) {
+        assert!(!should_replace_block(incoming, existing));
+    }
+
+    #[test]
+    fn equal_work_keeps_the_stored_block() {
+        let mut existing = block_at(1, "hash_0", "2000");
+        existing.seen_at = Some(100);
+        let mut incoming = block_at(1, "hash_0", "2000");
+        incoming.hash = "aaa".to_string();
+        incoming.seen_at = Some(1);
+        assert!(!should_replace_block(&incoming, &existing));
+    }
+
+    #[test]
+    fn lower_index_with_more_verified_work_wins() {
+        let local = vec![
+            block_at(0, "genesis", "1000"),
+            block_at(1, "hash_0", "1000"),
+            block_at(2, "hash_1", "1000"),
+        ];
+        let mut remote = block_at(1, "hash_0", "5000");
+        remote.hash = "heavier".to_string();
+        match decide_adoption(&local, &[remote], None, 0) {
+            Adoption::Adopt { ancestor_index, .. } => assert_eq!(ancestor_index, 0),
+            Adoption::Refuse { reason } => panic!("expected adopt, got {reason}"),
+        }
+    }
+
+    #[test]
+    fn adopt_does_not_orphan_a_checkpoint_prefix() {
+        let local = vec![
+            block_at(0, "genesis", "1000"),
+            block_at(1, "hash_0", "1000"),
+            block_at(2, "hash_1", "1000"),
+            block_at(3, "hash_2", "1000"),
+            block_at(4, "hash_3", "1000"),
+        ];
+        let remote = vec![block_at(3, "hash_2", "9000"), {
+            let mut block = block_at(4, "hash_3", "9000");
+            block.hash = "alt_4".to_string();
+            block.previous_hash = "hash_3".to_string();
+            block
+        }];
+        match decide_adoption(&local, &remote, Some(4), 0) {
+            Adoption::Refuse { reason } => assert!(reason.contains("sequenced prefix")),
+            Adoption::Adopt { .. } => panic!("checkpoint prefix was orphaned"),
+        }
+    }
+
+    #[test]
+    fn a_hole_does_not_make_the_higher_index_the_verified_tip() {
+        let blocks = vec![
+            block_at(0, "genesis", "1000"),
+            block_at(1, "hash_0", "1000"),
+            block_at(4, "hash_3", "1000"),
+            block_at(5, "hash_4", "1000"),
+        ];
+        let scored = score_canonical_chain(&blocks);
+        assert_eq!(scored.tip, 1);
+        assert!(matches!(scored.work, ChainWork::Linked(_)));
+    }
+
+    #[test]
+    fn gapped_local_suffix_loses_to_a_linked_peer_block() {
+        let local = vec![
+            block_at(0, "genesis", "1000"),
+            block_at(8, "missing", "1000"),
+            block_at(9, "hash_8", "1000"),
+        ];
+        let remote = vec![block_at(1, "hash_0", "1000")];
+        match decide_adoption(&local, &remote, None, 0) {
+            Adoption::Adopt { ancestor_index, .. } => assert_eq!(ancestor_index, 0),
+            Adoption::Refuse { reason } => panic!("linked peer block should win: {reason}"),
+        }
+    }
+
+    #[test]
+    fn incomplete_nomination_epoch_does_not_replace_a_complete_one() {
+        let mut local = vec![
+            block_at(0, "genesis", "1000"),
+            block_at(1, "hash_0", "1000"),
+            block_at(2, "hash_1", "1000"),
+        ];
+        local[2].epoch = 2;
+        let mut remote = block_at(3, "hash_2", "9000");
+        remote.hash = "alt_3".to_string();
+        remote.epoch = 4;
+        let mut remote_next = block_at(4, "alt_3", "9000");
+        remote_next.hash = "alt_4".to_string();
+        remote_next.previous_hash = "alt_3".to_string();
+        remote_next.epoch = 4;
+        match decide_adoption(&local, &[remote, remote_next], None, 2) {
+            Adoption::Refuse { reason } => assert!(reason.contains("nomination")),
+            Adoption::Adopt { .. } => panic!("incomplete nomination replaced a complete chain"),
+        }
     }
 
     #[test]

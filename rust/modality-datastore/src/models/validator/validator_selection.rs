@@ -70,7 +70,7 @@ pub async fn generate_validator_set_from_epoch_multi(
     epoch: u64,
 ) -> Result<ValidatorSet> {
     let all_blocks = MinerBlock::find_all_canonical_multi(mgr).await?;
-    let spine = MinerBlock::longest_linked_spine(&all_blocks);
+    let spine = MinerBlock::verified_spine(&all_blocks);
     let blocks_per_epoch = mgr.epoch_config().blocks_per_epoch.max(1);
     let start = epoch.saturating_mul(blocks_per_epoch);
     let end = start + blocks_per_epoch;

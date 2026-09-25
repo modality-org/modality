@@ -257,6 +257,95 @@ impl MinerBlock {
         chain.reverse();
         chain
     }
+
+    /// Spine fork choice, mining, status, and committee share.
+    ///
+    /// A parent-linked walk that reaches index 0 wins over a longer run
+    /// that does not. Among those walks, more work wins, then the higher
+    /// tip, then the lower tip hash. If nothing reaches index 0, the
+    /// longest linked run is the spine.
+    pub fn verified_spine(blocks: &[MinerBlock]) -> Vec<MinerBlock> {
+        if blocks.is_empty() {
+            return Vec::new();
+        }
+        let mut by_index: std::collections::BTreeMap<u64, Vec<&MinerBlock>> =
+            std::collections::BTreeMap::new();
+        for block in blocks {
+            by_index.entry(block.index).or_default().push(block);
+        }
+        let mut best_tip: Option<&MinerBlock> = None;
+        let mut best_work: u128 = 0;
+        for block in blocks {
+            let Some(work) = genesis_walk_work(&by_index, block) else {
+                continue;
+            };
+            let replace = match best_tip {
+                None => true,
+                Some(current) => {
+                    work > best_work
+                        || (work == best_work && block.index > current.index)
+                        || (work == best_work
+                            && block.index == current.index
+                            && block.hash < current.hash)
+                }
+            };
+            if replace {
+                best_tip = Some(block);
+                best_work = work;
+            }
+        }
+        if let Some(tip) = best_tip {
+            return collect_index_walk(&by_index, tip);
+        }
+        Self::longest_linked_spine(blocks)
+    }
+}
+
+fn genesis_walk_work<'a>(
+    by_index: &std::collections::BTreeMap<u64, Vec<&'a MinerBlock>>,
+    tip: &'a MinerBlock,
+) -> Option<u128> {
+    let mut sum = 0u128;
+    let mut current = tip;
+    loop {
+        let difficulty = current.get_actualized_difficulty_u128().ok()?;
+        sum = sum.checked_add(difficulty)?;
+        if current.index == 0 {
+            return Some(sum);
+        }
+        let parents = by_index.get(&(current.index - 1))?;
+        current = parents
+            .iter()
+            .copied()
+            .find(|parent| parent.hash == current.previous_hash)?;
+    }
+}
+
+fn collect_index_walk(
+    by_index: &std::collections::BTreeMap<u64, Vec<&MinerBlock>>,
+    tip: &MinerBlock,
+) -> Vec<MinerBlock> {
+    let mut chain = Vec::new();
+    let mut current = tip;
+    loop {
+        chain.push(current.clone());
+        if current.index == 0 {
+            break;
+        }
+        let Some(parents) = by_index.get(&(current.index - 1)) else {
+            break;
+        };
+        let Some(parent) = parents
+            .iter()
+            .copied()
+            .find(|parent| parent.hash == current.previous_hash)
+        else {
+            break;
+        };
+        current = parent;
+    }
+    chain.reverse();
+    chain
 }
 
 fn linked_parent<'a>(

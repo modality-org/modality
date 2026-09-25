@@ -672,5 +672,4 @@ mod tests {
         assert!(canonical.iter().any(|block| block.hash == "suffix_10"));
         assert!(canonical.iter().any(|block| block.hash == "hash_5"));
     }
-
 }

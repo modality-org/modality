@@ -34,6 +34,8 @@ pub use sync::{
 };
 
 use anyhow::Result;
+use std::sync::atomic::AtomicBool;
+use std::sync::Arc;
 
 use crate::gossip;
 use crate::node::Node;
@@ -66,7 +68,25 @@ pub async fn run(node: &mut Node) -> Result<()> {
         node.swarm.clone(),
         node.ignored_peers.clone(),
         node.reqres_response_txs.clone(),
+        mining_update_tx.clone(),
+    );
+
+    let shutdown = node
+        .mining_shutdown
+        .clone()
+        .unwrap_or_else(|| Arc::new(AtomicBool::new(false)));
+    node.mining_shutdown = Some(shutdown.clone());
+    crate::actions::miner::start_auto_healing_task(
+        node.datastore_manager.clone(),
+        node.swarm.clone(),
+        node.reqres_response_txs.clone(),
+        node.ignored_peers.clone(),
+        node.bootstrappers.clone(),
+        shutdown,
+        Arc::new(AtomicBool::new(false)),
         mining_update_tx,
+        node.fork_config.fork_recovery_min_peers.unwrap_or(1),
+        node.fork_config.fork_recovery_epoch_threshold.unwrap_or(2),
     );
 
     // Subscribe to mining block gossip

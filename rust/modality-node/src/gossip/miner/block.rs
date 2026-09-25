@@ -97,6 +97,15 @@ pub async fn handler(
         }
     }
 
+    if !crate::chain::fork_choice::proof_meets_target(&miner_block) {
+        log::warn!(
+            "Block {} at index {} rejected: proof does not meet its target",
+            &miner_block.hash[..16.min(miner_block.hash.len())],
+            miner_block.index
+        );
+        return Ok(());
+    }
+
     // Check if we already have this exact block (by hash)
     {
         let mgr = datastore_manager.lock().await;
@@ -120,62 +129,12 @@ pub async fn handler(
         if let Some(existing) =
             MinerBlock::find_canonical_by_index_simple(&mgr, miner_block.index).await?
         {
-            // We have a different block at the same index - this is a fork!
-            // Apply fork choice rules in priority order:
-            // 1. Actualized difficulty (highest wins - based on actual hash value)
-            // 2. First-seen (earliest seen_at wins)
-            // 3. Hash (smallest/lexicographically lowest wins)
-            let new_difficulty = miner_block.get_actualized_difficulty_u128()?;
-            let existing_difficulty = existing.get_actualized_difficulty_u128()?;
-
-            let should_replace = if new_difficulty > existing_difficulty {
-                // Rule 1: Higher actualized difficulty wins
-                log::info!(
-                    "Fork choice: new block has higher actualized difficulty ({} > {})",
-                    new_difficulty,
-                    existing_difficulty
-                );
-                true
-            } else if new_difficulty < existing_difficulty {
-                // Existing block has higher difficulty
-                false
-            } else {
-                // Rule 2: Equal difficulty - check first-seen (seen_at timestamp)
-                match (&miner_block.seen_at, &existing.seen_at) {
-                    (Some(new_seen), Some(existing_seen)) => {
-                        if new_seen < existing_seen {
-                            log::info!(
-                                "Fork choice: equal difficulty, new block seen earlier ({} < {})",
-                                new_seen,
-                                existing_seen
-                            );
-                            true
-                        } else if new_seen > existing_seen {
-                            false
-                        } else {
-                            // Rule 3: Both seen at same time - use hash as tie-breaker
-                            if miner_block.hash < existing.hash {
-                                log::info!("Fork choice: equal difficulty and time, new block has lower hash");
-                                true
-                            } else {
-                                false
-                            }
-                        }
-                    }
-                    (Some(_), None) => true,
-                    (None, Some(_)) => false,
-                    (None, None) => {
-                        if miner_block.hash < existing.hash {
-                            log::info!("Fork choice: equal difficulty, no timestamps, new block has lower hash");
-                            true
-                        } else {
-                            false
-                        }
-                    }
-                }
-            };
-
+            let choice = crate::chain::fork_choice::compare_blocks(&miner_block, &existing);
+            let new_difficulty = choice.new_difficulty;
+            let existing_difficulty = choice.existing_difficulty;
+            let should_replace = choice.should_replace;
             if should_replace {
+                log::info!("Fork choice: {}", choice.reason);
                 log::info!("Fork choice: Replacing existing block {} (difficulty: {}, hash: {}) with gossiped block (difficulty: {}, hash: {})",
                     miner_block.index, existing_difficulty, &existing.hash[..16], new_difficulty, &miner_block.hash[..16]);
 
@@ -249,12 +208,11 @@ pub async fn handler(
                 );
 
                 // Check if this updates the chain tip
-                let current_tip = MinerBlock::longest_linked_spine(
-                    &MinerBlock::find_all_canonical_multi(&mgr).await?,
-                )
-                .into_iter()
-                .last()
-                .map(|b| b.index);
+                let current_tip =
+                    MinerBlock::verified_spine(&MinerBlock::find_all_canonical_multi(&mgr).await?)
+                        .into_iter()
+                        .last()
+                        .map(|b| b.index);
 
                 if let Some(tip) = current_tip {
                     chain_tip_updated = true;
@@ -288,7 +246,7 @@ pub async fn handler(
             None => {
                 log::warn!(
                     "Received block {} but missing parent block (prev_hash: {}). Orphan block detected!",
-                    miner_block.index, 
+                    miner_block.index,
                     &miner_block.previous_hash[..16]
                 );
 
@@ -353,6 +311,28 @@ pub async fn handler(
                         miner_block.index - 1,
                         parent.index,
                         miner_block.index
+                    );
+                    return Ok(());
+                }
+
+                if parent.epoch == miner_block.epoch
+                    && parent.target_difficulty != miner_block.target_difficulty
+                {
+                    log::warn!(
+                        "Block {} target {} does not match parent target {} in epoch {}",
+                        miner_block.index,
+                        miner_block.target_difficulty,
+                        parent.target_difficulty,
+                        miner_block.epoch
+                    );
+                    return Ok(());
+                }
+                if miner_block.epoch > parent.epoch.saturating_add(1) {
+                    log::warn!(
+                        "Block {} epoch {} skips parent epoch {}",
+                        miner_block.index,
+                        miner_block.epoch,
+                        parent.epoch
                     );
                     return Ok(());
                 }
@@ -449,7 +429,7 @@ pub async fn handler(
         );
         miner_block.save_to_active(&mgr).await?;
 
-        MinerBlock::longest_linked_spine(&MinerBlock::find_all_canonical_multi(&mgr).await?)
+        MinerBlock::verified_spine(&MinerBlock::find_all_canonical_multi(&mgr).await?)
             .into_iter()
             .last()
             .map(|b| b.index)

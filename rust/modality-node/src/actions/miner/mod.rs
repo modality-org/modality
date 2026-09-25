@@ -16,6 +16,8 @@
 //! - Adds announce_chain_tip for miner-specific chain announcement
 
 mod background_tasks;
+
+pub use background_tasks::start_auto_healing_task;
 mod block_producer;
 mod mining_loop;
 mod sync_helpers;

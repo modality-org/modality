@@ -9,12 +9,14 @@ use modality_datastore::DatastoreManager;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
-use crate::chain::metrics::calculate_cumulative_difficulty;
-use crate::chain::reorg::{orphan_blocks_after, validate_block_chain};
-use crate::chain::{choose_chain, ForkChoiceResult};
+use crate::chain::fork_choice::{
+    chains_share_tip_hash, decide_adoption, score_canonical_chain, Adoption,
+};
+use crate::chain::reorg::{orphan_blocks_after, select_linked_chain, validate_block_chain};
 use crate::reqres;
 use crate::sync::block_range::request_all_blocks_in_range;
 use crate::sync::common_ancestor::find_common_ancestor_efficient;
+use modality_datastore::models::miner::MinerCheckpoint;
 
 /// Result of a sync operation
 #[derive(Debug, Clone)]
@@ -82,57 +84,31 @@ impl SyncCoordinator {
         )
         .await?;
 
-        // Step 2: Get local chain info for comparison
-        let (local_difficulty, local_tip, local_tip_hash) = {
+        let (local_scored, local_empty) = {
             let ds = self.datastore.lock().await;
             let blocks = MinerBlock::find_all_canonical_multi(&ds).await?;
-            let difficulty = calculate_cumulative_difficulty(&blocks);
-            let tip_block = blocks.iter().max_by_key(|b| b.index);
-            let tip = tip_block.map(|b| b.index).unwrap_or(0);
-            let tip_hash = tip_block.map(|b| b.hash.clone()).unwrap_or_default();
-            (difficulty, tip, tip_hash)
+            let empty = blocks.is_empty();
+            (score_canonical_chain(&blocks), empty)
         };
 
-        // Same tip hash is equal work. A higher peer tip is fetched even when
-        // a hole makes the local suffix sum higher.
-        let comparison = choose_chain(
-            local_difficulty,
-            local_tip,
-            &local_tip_hash,
-            ancestor_result.remote_cumulative_difficulty,
-            ancestor_result.remote_chain_tip,
-            &ancestor_result.remote_tip_hash,
-        );
-
-        log::info!(
-            "Chain comparison: Local (tip: {}, difficulty: {}) vs Peer (tip: {}, difficulty: {})",
-            local_tip, local_difficulty,
-            ancestor_result.remote_chain_tip, ancestor_result.remote_cumulative_difficulty
-        );
-        log::info!(
-            "Decision: {} - {}",
-            match comparison.result {
-                ForkChoiceResult::KeepLocal => "Keep local",
-                ForkChoiceResult::AdoptRemote => "Adopt remote",
-                ForkChoiceResult::Equal => "Equal",
-            },
-            comparison.reason
-        );
-
-        if comparison.result != ForkChoiceResult::AdoptRemote {
+        if chains_share_tip_hash(&local_scored.tip_hash, &ancestor_result.remote_tip_hash) {
             return Ok(SyncResult::NoSyncNeeded {
-                reason: comparison.reason,
+                reason: format!("Same tip hash {}", local_scored.tip_hash),
+            });
+        }
+        if ancestor_result.ancestor_index.is_none() && !local_empty {
+            return Ok(SyncResult::NoSyncNeeded {
+                reason: "No common ancestor with the local chain".to_string(),
             });
         }
 
-        // Step 4: Request blocks from peer starting from divergence point
         let from_index = match ancestor_result.ancestor_index {
             Some(idx) => idx + 1,
             None => 0,
         };
 
         log::info!(
-            "📥 Requesting blocks from index {} onwards from peer",
+            "Requesting blocks from index {} onwards from peer",
             from_index
         );
 
@@ -155,81 +131,57 @@ impl SyncCoordinator {
             });
         }
 
-        // Step 5: Validate received blocks
         let mut sorted_blocks = peer_blocks;
         sorted_blocks.sort_by_key(|b| b.index);
-
+        let sorted_blocks = match select_linked_chain(&sorted_blocks) {
+            Ok(blocks) => blocks,
+            Err(err) => {
+                return Ok(SyncResult::Failed {
+                    reason: format!("Peer batch is not one linked chain: {err}"),
+                });
+            }
+        };
         if let Err(e) = validate_block_chain(&sorted_blocks) {
             return Ok(SyncResult::Failed {
-                reason: format!("Invalid peer chain: {}", e),
+                reason: format!("Invalid peer chain: {e}"),
             });
         }
 
-        // Step 6: Verify connection to local chain
-        if let Some(first_block) = sorted_blocks.first() {
-            if first_block.index > 0 {
-                let ds = self.datastore.lock().await;
-                let ancestor =
-                    MinerBlock::find_canonical_by_index_simple(&ds, first_block.index - 1).await?;
-
-                if let Some(ancestor) = ancestor {
-                    if ancestor.hash != first_block.previous_hash {
-                        return Ok(SyncResult::Failed {
-                            reason: format!(
-                                "First peer block {} doesn't connect to local chain (expected prev_hash: {}, got: {})",
-                                first_block.index,
-                                &ancestor.hash[..16],
-                                &first_block.previous_hash[..16]
-                            ),
-                        });
-                    }
-                } else if ancestor_result.ancestor_index.is_some() {
-                    return Ok(SyncResult::Failed {
-                        reason: format!(
-                            "Missing local ancestor at index {}",
-                            first_block.index - 1
-                        ),
-                    });
+        let (ancestor_index, reason, orphan_above) = {
+            let ds = self.datastore.lock().await;
+            let local_blocks = MinerBlock::find_all_canonical_multi(&ds).await?;
+            let floor = MinerCheckpoint::find_latest_multi(&ds)
+                .await
+                .ok()
+                .flatten()
+                .map(|checkpoint| checkpoint.last_block_index);
+            let blocks_per_epoch = ds.epoch_config().blocks_per_epoch;
+            match decide_adoption(&local_blocks, &sorted_blocks, floor, blocks_per_epoch) {
+                Adoption::Refuse { reason } => {
+                    return Ok(SyncResult::NoSyncNeeded { reason });
+                }
+                Adoption::Adopt {
+                    ancestor_index,
+                    reason,
+                } => {
+                    let starts_at_genesis =
+                        sorted_blocks.first().is_some_and(|block| block.index == 0);
+                    (ancestor_index, reason, !starts_at_genesis)
                 }
             }
-        }
-
-        log::info!("✅ Peer chain validation passed");
-
-        let adopted_tip = sorted_blocks.iter().map(|b| b.index).max().unwrap_or(0);
-        let local_tip = {
-            let ds = self.datastore.lock().await;
-            MinerBlock::find_all_canonical_multi(&ds)
-                .await?
-                .iter()
-                .map(|b| b.index)
-                .max()
-                .unwrap_or(0)
-        };
-        if crate::chain::reorg::adoption_lowers_tip(local_tip, adopted_tip) {
-            return Ok(SyncResult::NoSyncNeeded {
-                reason: format!(
-                    "Refusing suffix ending at {adopted_tip} because the local tip is {local_tip}"
-                ),
-            });
-        }
-
-        // Step 7: Orphan local blocks after ancestor and adopt peer blocks
-        let ancestor_index = ancestor_result.ancestor_index.unwrap_or(0);
-        let orphan_result = {
-            let ds = self.datastore.lock().await;
-            orphan_blocks_after(
-                &ds,
-                ancestor_index,
-                &format!(
-                    "Replaced by peer chain with higher cumulative difficulty ({} vs {})",
-                    ancestor_result.remote_cumulative_difficulty, local_difficulty
-                ),
-            )
-            .await?
         };
 
-        // Step 8: Save peer blocks
+        let orphan_result = if orphan_above {
+            let ds = self.datastore.lock().await;
+            orphan_blocks_after(&ds, ancestor_index, &reason).await?
+        } else {
+            crate::chain::reorg::OrphanResult {
+                orphaned_count: 0,
+                orphaned_hashes: Vec::new(),
+                start_index: 0,
+            }
+        };
+
         let blocks_adopted = {
             let ds = self.datastore.lock().await;
             let mut count = 0;
@@ -243,12 +195,8 @@ impl SyncCoordinator {
         // Get new chain tip
         let new_chain_tip = {
             let ds = self.datastore.lock().await;
-            MinerBlock::find_all_canonical_multi(&ds)
-                .await?
-                .into_iter()
-                .map(|b| b.index)
-                .max()
-                .unwrap_or(0)
+            let blocks = MinerBlock::find_all_canonical_multi(&ds).await?;
+            score_canonical_chain(&blocks).tip
         };
 
         log::info!(
@@ -288,7 +236,10 @@ impl SyncCoordinator {
 pub async fn get_sync_status(datastore: &Arc<Mutex<DatastoreManager>>) -> Result<(u64, u128)> {
     let ds = datastore.lock().await;
     let blocks = MinerBlock::find_all_canonical_multi(&ds).await?;
-    let length = blocks.len() as u64;
-    let difficulty = calculate_cumulative_difficulty(&blocks);
-    Ok((length, difficulty))
+    let scored = score_canonical_chain(&blocks);
+    let difficulty = match scored.work {
+        crate::chain::fork_choice::ChainWork::Linked(work) => work,
+        crate::chain::fork_choice::ChainWork::Unknown => 0,
+    };
+    Ok((scored.tip, difficulty))
 }

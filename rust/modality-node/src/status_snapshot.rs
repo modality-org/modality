@@ -237,12 +237,15 @@ pub async fn collect_node_status(source: &NodeStatusSource) -> anyhow::Result<No
         .await
         .unwrap_or_default();
 
-    let latest_block = miner_blocks.iter().max_by_key(|b| b.index);
+    let scored = crate::chain::fork_choice::score_canonical_chain(&miner_blocks);
+    let latest_block = miner_blocks
+        .iter()
+        .find(|block| block.hash == scored.tip_hash);
     let current_difficulty = latest_block
         .map(|b| b.target_difficulty.clone())
         .unwrap_or_else(|| "0".to_string());
     let current_epoch = latest_block.map(|b| b.epoch).unwrap_or(0);
-    let chain_tip = latest_block.map(|b| b.index).unwrap_or(0);
+    let chain_tip = scored.tip;
 
     let peerid_str = source.peerid.to_string();
     let blocks_mined_by_node = miner_blocks
@@ -250,8 +253,10 @@ pub async fn collect_node_status(source: &NodeStatusSource) -> anyhow::Result<No
         .filter(|block| block.nominated_peer_id == peerid_str)
         .count();
 
-    let cumulative_difficulty =
-        MinerBlock::calculate_cumulative_difficulty(&miner_blocks).unwrap_or(0);
+    let cumulative_difficulty = match scored.work {
+        crate::chain::fork_choice::ChainWork::Linked(work) => work,
+        crate::chain::fork_choice::ChainWork::Unknown => 0,
+    };
 
     let network_hashrate = calculate_network_hashrate(&miner_blocks);
     let miner_hashrate = {
@@ -569,7 +574,9 @@ pub fn chain_report(
         .iter()
         .filter_map(|block| block.target_difficulty.parse::<u128>().ok())
         .sum();
-    let start = canonical_sorted.len().saturating_sub(STATUS_RECENT_BLOCKS_COUNT);
+    let start = canonical_sorted
+        .len()
+        .saturating_sub(STATUS_RECENT_BLOCKS_COUNT);
     let window = &canonical_sorted[start..];
     let floor = window.first().map(|block| block.index).unwrap_or(0);
 

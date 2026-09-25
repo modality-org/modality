@@ -198,10 +198,60 @@ pub async fn sync_missing_blocks(
             Ok(result) if !result.blocks.is_empty() => {
                 log::info!("✓ Received {} blocks from peer", result.blocks.len());
 
-                // Save blocks
                 {
                     let ds = datastore.lock().await;
                     for block in &result.blocks {
+                        if !crate::chain::fork_choice::proof_meets_target(block) {
+                            log::warn!(
+                                "Skipping block {} whose proof does not meet its target",
+                                block.index
+                            );
+                            continue;
+                        }
+                        if block.index > 0 {
+                            match MinerBlock::find_canonical_by_index_simple(&ds, block.index - 1)
+                                .await
+                            {
+                                Ok(Some(parent)) if parent.hash == block.previous_hash => {}
+                                _ => {
+                                    log::warn!(
+                                        "Skipping block {} because its parent is not stored at {}",
+                                        block.index,
+                                        block.index - 1
+                                    );
+                                    continue;
+                                }
+                            }
+                        }
+                        if let Ok(Some(existing)) =
+                            MinerBlock::find_canonical_by_index_simple(&ds, block.index).await
+                        {
+                            if existing.hash == block.hash {
+                                continue;
+                            }
+                            if !crate::chain::fork_choice::should_replace_block(block, &existing) {
+                                log::warn!(
+                                    "Skipping block {} at index {} because the stored block wins",
+                                    &block.hash[..16.min(block.hash.len())],
+                                    block.index
+                                );
+                                continue;
+                            }
+                            let mut orphaned = existing.clone();
+                            orphaned.mark_as_orphaned(
+                                "Replaced by a heavier linked block".to_string(),
+                                Some(block.hash.clone()),
+                            );
+                            if let Err(e) = orphaned.save_to_active(&ds).await {
+                                log::warn!(
+                                    "Failed to orphan block {} at index {}: {}",
+                                    &existing.hash[..16.min(existing.hash.len())],
+                                    existing.index,
+                                    e
+                                );
+                                continue;
+                            }
+                        }
                         if let Err(e) = block.save_to_active(&ds).await {
                             log::warn!("Failed to save block {}: {}", block.index, e);
                         }

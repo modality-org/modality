@@ -16,8 +16,7 @@ use std::collections::HashSet;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
-use crate::chain::fork_choice::{choose_chain, ForkChoiceResult};
-use crate::chain::metrics::calculate_cumulative_difficulty;
+use crate::chain::fork_choice::{chains_share_tip_hash, score_canonical_chain};
 use crate::node::{IgnoredPeerInfo, Node};
 use crate::reqres;
 
@@ -69,50 +68,27 @@ pub async fn request_chain_info_impl(
     ) = find_common_ancestor_efficient(&swarm, peer_addr.clone(), &datastore, &reqres_response_txs)
         .await?;
 
-    // Determine blocks to request
-    let from_index = match common_ancestor {
-        Some(ancestor_index) => {
-            log::info!("✓ Found common ancestor at index {}", ancestor_index);
-            ancestor_index + 1
-        }
-        None => {
-            log::warn!("⚠️  No common ancestor found - chains completely diverged");
-            0
-        }
-    };
-
-    // Get local chain info
-    let (local_cumulative_difficulty, local_tip, local_tip_hash) = {
+    let (local_scored, local_empty) = {
         let ds = datastore.lock().await;
         let blocks = MinerBlock::find_all_canonical_multi(&ds).await?;
-        let local_difficulty = calculate_cumulative_difficulty(&blocks);
-        let tip_block = blocks.iter().max_by_key(|b| b.index);
-        let local_tip = tip_block.map(|b| b.index).unwrap_or(0);
-        let local_tip_hash = tip_block.map(|b| b.hash.clone()).unwrap_or_default();
-        (local_difficulty, local_tip, local_tip_hash)
+        let empty = blocks.is_empty();
+        (score_canonical_chain(&blocks), empty)
     };
 
-    // Same tip hash is equal work. A higher peer tip is fetched even when a
-    // hole makes this node's stored suffix sum higher.
-    let comparison = choose_chain(
-        local_cumulative_difficulty,
-        local_tip,
-        &local_tip_hash,
-        peer_cumulative_difficulty,
-        peer_chain_tip,
-        &peer_tip_hash,
-    );
-
     log::info!(
-        "Chain comparison: Local (tip: {}, difficulty: {}) vs Peer (tip: {}, difficulty: {})",
-        local_tip,
-        local_cumulative_difficulty,
+        "Chain comparison: Local (tip: {}, hash: {}) vs Peer (tip: {}, hash: {}, advertised difficulty: {})",
+        local_scored.tip,
+        local_scored.tip_hash,
         peer_chain_tip,
+        peer_tip_hash,
         peer_cumulative_difficulty
     );
 
-    if comparison.result != ForkChoiceResult::AdoptRemote {
-        log::info!("Keeping local chain: {}", comparison.reason);
+    if chains_share_tip_hash(&local_scored.tip_hash, &peer_tip_hash) {
+        log::info!(
+            "Same tip hash {}, asking for missing parents",
+            local_scored.tip_hash
+        );
         {
             let ds = datastore.lock().await;
             let _ = MinerBlock::delete_all_pending_multi(&ds).await;
@@ -121,7 +97,20 @@ pub async fn request_chain_info_impl(
         return Ok(());
     }
 
-    log::info!("✅ Peer chain has higher cumulative difficulty - adopting it");
+    if common_ancestor.is_none() && !local_empty {
+        log::warn!("No common ancestor with this chain; not adopting peer tip {peer_chain_tip}");
+        return Ok(());
+    }
+
+    let from_index = match common_ancestor {
+        Some(ancestor_index) => {
+            log::info!("Found common ancestor at index {}", ancestor_index);
+            ancestor_index + 1
+        }
+        None => 0,
+    };
+
+    log::info!("Fetching peer blocks to score verified work");
 
     // Request blocks from peer
     let fetch_end = crate::sync::block_range::sync_fetch_end(peer_chain_length, peer_chain_tip);
@@ -140,13 +129,7 @@ pub async fn request_chain_info_impl(
     }
 
     // Validate and adopt blocks
-    adopt_peer_blocks(
-        &datastore,
-        all_blocks,
-        peer_cumulative_difficulty,
-        local_cumulative_difficulty,
-    )
-    .await?;
+    adopt_peer_blocks(&datastore, all_blocks).await?;
 
     backfill_tip_parents(&swarm, &peer_addr, &datastore, &reqres_response_txs).await;
 
@@ -214,91 +197,64 @@ async fn request_blocks_from_peer(
 async fn adopt_peer_blocks(
     datastore: &Arc<Mutex<DatastoreManager>>,
     all_blocks: Vec<MinerBlock>,
-    peer_cumulative_difficulty: u128,
-    local_cumulative_difficulty: u128,
 ) -> Result<()> {
-    // Peers can return two canonical rows at one index. Collapse to the
-    // parent-linked chain before the consecutive-index check.
+    use crate::chain::fork_choice::{decide_adoption, Adoption};
     use crate::chain::reorg::{select_linked_chain, validate_block_chain};
-    let all_blocks = select_linked_chain(&all_blocks)?;
+    use modality_datastore::models::miner::checkpoint::MinerCheckpoint;
+
+    let all_blocks = match select_linked_chain(&all_blocks) {
+        Ok(blocks) => blocks,
+        Err(err) => {
+            log::warn!("Refusing peer batch: {err}");
+            return Ok(());
+        }
+    };
     validate_block_chain(&all_blocks)?;
 
     log::info!("✓ Peer chain validation passed");
 
-    // Orphan local blocks after ancestor and adopt peer blocks
-    let ancestor_index = all_blocks
-        .first()
-        .map(|b| b.index.saturating_sub(1))
-        .unwrap_or(0);
-    let adopted_tip = all_blocks.iter().map(|b| b.index).max().unwrap_or(0);
-
     {
         let ds = datastore.lock().await;
-
-        // Orphan local blocks after ancestor
         let local_blocks = MinerBlock::find_all_canonical_multi(&ds).await?;
-        let local_tip = local_blocks.iter().map(|b| b.index).max().unwrap_or(0);
-        if crate::chain::reorg::adoption_lowers_tip(local_tip, adopted_tip) {
-            log::warn!(
-                "Refusing to adopt suffix ending at {} because the local tip is {}",
-                adopted_tip,
-                local_tip
-            );
-            return Ok(());
-        }
-
-        if let Some(first) = all_blocks.first() {
-            if first.index > 0 {
-                match MinerBlock::find_canonical_by_index_simple(&ds, first.index - 1).await? {
-                    Some(parent) if parent.hash == first.previous_hash => {}
-                    Some(parent) => {
-                        log::warn!(
-                            "Refusing to adopt suffix {}..={} because it does not link to local block {} (prev {}, local {})",
-                            first.index,
-                            adopted_tip,
-                            parent.index,
-                            &first.previous_hash[..16.min(first.previous_hash.len())],
-                            &parent.hash[..16.min(parent.hash.len())]
-                        );
-                        return Ok(());
-                    }
-                    None => {
-                        log::warn!(
-                            "Refusing to adopt suffix starting at {} because local block {} is missing",
-                            first.index,
-                            first.index - 1
-                        );
-                        return Ok(());
-                    }
-                }
+        let floor = MinerCheckpoint::find_latest_multi(&ds)
+            .await
+            .ok()
+            .flatten()
+            .map(|checkpoint| checkpoint.last_block_index);
+        let blocks_per_epoch = ds.epoch_config().blocks_per_epoch;
+        let decision = decide_adoption(&local_blocks, &all_blocks, floor, blocks_per_epoch);
+        let (ancestor_index, reason) = match decision {
+            Adoption::Refuse { reason } => {
+                log::warn!("Refusing peer chain: {reason}");
+                return Ok(());
             }
-        }
+            Adoption::Adopt {
+                ancestor_index,
+                reason,
+            } => (ancestor_index, reason),
+        };
+        log::info!("Adopting peer chain: {reason}");
 
         for local in &local_blocks {
+            if all_blocks.first().is_some_and(|first| first.index == 0) {
+                break;
+            }
             if local.index > ancestor_index {
                 let competing_hash = all_blocks
                     .iter()
-                    .find(|b| b.index == local.index)
-                    .map(|b| b.hash.clone());
-
+                    .find(|block| block.index == local.index)
+                    .map(|block| block.hash.clone());
                 log::info!(
                     "Orphaning local block {} at index {}",
-                    &local.hash[..16],
+                    &local.hash[..16.min(local.hash.len())],
                     local.index
                 );
                 let mut orphaned = local.clone();
-                orphaned.mark_as_orphaned(
-                    format!(
-                        "Replaced by peer chain with higher cumulative difficulty ({} vs {})",
-                        peer_cumulative_difficulty, local_cumulative_difficulty
-                    ),
-                    competing_hash,
-                );
+                orphaned.mark_as_orphaned(reason.clone(), competing_hash);
                 orphaned.save_to_active(&ds).await?;
             }
         }
 
-        // Save peer blocks
         for block in &all_blocks {
             block.save_to_active(&ds).await?;
         }

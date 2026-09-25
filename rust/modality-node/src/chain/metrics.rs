@@ -93,7 +93,7 @@ pub async fn get_chain_metrics(mgr: &DatastoreManager) -> Result<ChainMetrics> {
 /// The highest canonical block, if any
 pub async fn get_chain_tip(mgr: &DatastoreManager) -> Result<Option<MinerBlock>> {
     let blocks = MinerBlock::find_all_canonical_multi(mgr).await?;
-    Ok(MinerBlock::longest_linked_spine(&blocks).into_iter().last())
+    Ok(MinerBlock::verified_spine(&blocks).into_iter().last())
 }
 
 /// Get the chain tip index (height) from datastore.
@@ -105,9 +105,7 @@ pub async fn get_chain_tip(mgr: &DatastoreManager) -> Result<Option<MinerBlock>>
 /// The index of the highest canonical block, or None if chain is empty
 pub async fn get_chain_tip_index(mgr: &DatastoreManager) -> Result<Option<u64>> {
     let blocks = MinerBlock::find_all_canonical_multi(mgr).await?;
-    Ok(MinerBlock::longest_linked_spine(&blocks)
-        .last()
-        .map(|b| b.index))
+    Ok(MinerBlock::verified_spine(&blocks).last().map(|b| b.index))
 }
 
 /// Get the next block index to mine.
