@@ -101,8 +101,15 @@ impl SyncCoordinator {
             });
         }
         if ancestor_result.ancestor_index.is_none() && !local_empty {
+            fetch_missing_parents(
+                &self.swarm,
+                peer_addr,
+                &self.datastore,
+                &self.reqres_response_txs,
+            )
+            .await;
             return Ok(SyncResult::NoSyncNeeded {
-                reason: "No common ancestor with the local chain".to_string(),
+                reason: "No index ancestor yet; fetching missing parents by hash".to_string(),
             });
         }
 

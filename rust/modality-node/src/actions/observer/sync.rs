@@ -98,7 +98,10 @@ pub async fn request_chain_info_impl(
     }
 
     if common_ancestor.is_none() && !local_empty {
-        log::warn!("No common ancestor with this chain; not adopting peer tip {peer_chain_tip}");
+        log::info!(
+            "No index ancestor with peer tip {peer_chain_tip}; fetching missing parents by hash"
+        );
+        backfill_tip_parents(&swarm, &peer_addr, &datastore, &reqres_response_txs).await;
         return Ok(());
     }
 
