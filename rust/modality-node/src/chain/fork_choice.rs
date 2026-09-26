@@ -283,6 +283,29 @@ pub fn check_expected_target(
     stored: &[MinerBlock],
     params: RetargetParams,
 ) -> TargetCheck {
+    check_expected_target_indexed(block, &index_by_hash(stored), params)
+}
+
+/// Blocks keyed by hash, so one scoring pass over a store builds the
+/// lookup once instead of once per block.
+pub type BlocksByHash<'a> = std::collections::HashMap<&'a str, &'a MinerBlock>;
+
+pub fn index_by_hash(stored: &[MinerBlock]) -> BlocksByHash<'_> {
+    let mut by_hash: BlocksByHash<'_> = std::collections::HashMap::with_capacity(stored.len());
+    for stored_block in stored {
+        by_hash
+            .entry(stored_block.hash.as_str())
+            .or_insert(stored_block);
+    }
+    by_hash
+}
+
+/// `check_expected_target` against a prebuilt hash index.
+pub fn check_expected_target_indexed(
+    block: &MinerBlock,
+    by_hash: &BlocksByHash<'_>,
+    params: RetargetParams,
+) -> TargetCheck {
     let Ok(target) = block.target_difficulty.parse::<u128>() else {
         return TargetCheck::Reject;
     };
@@ -303,7 +326,7 @@ pub fn check_expected_target(
             None => TargetCheck::Unresolved,
         };
     }
-    let ancestors = ancestors_of(block, stored);
+    let ancestors = ancestors_of(block, by_hash);
     // `ancestors_of` reverses the walk, so the immediate parent is last.
     // The check guards against a block naming an easier target than its
     // chain established. A harder target only costs the miner more work,
@@ -377,14 +400,7 @@ pub fn check_expected_target(
     }
 }
 
-fn ancestors_of<'a>(block: &MinerBlock, stored: &'a [MinerBlock]) -> Vec<&'a MinerBlock> {
-    let mut by_hash: std::collections::HashMap<&str, &MinerBlock> =
-        std::collections::HashMap::new();
-    for stored_block in stored {
-        by_hash
-            .entry(stored_block.hash.as_str())
-            .or_insert(stored_block);
-    }
+fn ancestors_of<'a>(block: &MinerBlock, by_hash: &BlocksByHash<'a>) -> Vec<&'a MinerBlock> {
     let mut chain = Vec::new();
     let mut previous = block.previous_hash.as_str();
     let mut index = block.index;

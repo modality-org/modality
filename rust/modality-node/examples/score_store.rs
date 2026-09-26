@@ -6,7 +6,8 @@
 use modality_datastore::models::MinerBlock;
 use modality_datastore::DatastoreManager;
 use modality_node::chain::fork_choice::{
-    check_expected_target, score_canonical_chain, RetargetParams, TargetCheck,
+    check_expected_target_indexed, index_by_hash, score_canonical_chain, RetargetParams,
+    TargetCheck,
 };
 
 #[tokio::main]
@@ -23,11 +24,15 @@ async fn main() -> anyhow::Result<()> {
             .map(|value| value as u128),
     };
     println!("params: {params:?}");
+    let t0 = std::time::Instant::now();
     let all = MinerBlock::find_all_blocks_multi(&mgr).await?;
+    println!("load {} blocks: {:?}", all.len(), t0.elapsed());
+    let t1 = std::time::Instant::now();
     let live: Vec<MinerBlock> = all.into_iter().filter(|b| !b.is_orphaned).collect();
     let mut eligible = Vec::new();
+    let by_hash = index_by_hash(&live);
     for block in &live {
-        match check_expected_target(block, &live, params) {
+        match check_expected_target_indexed(block, &by_hash, params) {
             TargetCheck::Reject => println!(
                 "REJECT {} {} target {}",
                 block.index,
@@ -46,7 +51,10 @@ async fn main() -> anyhow::Result<()> {
             TargetCheck::Matches => eligible.push(block.clone()),
         }
     }
+    println!("target checks over {} live: {:?}", live.len(), t1.elapsed());
+    let t2 = std::time::Instant::now();
     let winner = MinerBlock::verified_spine(&eligible);
+    println!("verified_spine: {:?}", t2.elapsed());
     let canonical: Vec<MinerBlock> = live.iter().filter(|b| b.is_canonical).cloned().collect();
     let ws = score_canonical_chain(&winner);
     let ls = score_canonical_chain(&canonical);

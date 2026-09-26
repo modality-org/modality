@@ -658,8 +658,8 @@ pub fn validate_block_chain(blocks: &[MinerBlock]) -> Result<()> {
 /// already has, is refused.
 pub async fn select_best_stored_chain(mgr: &DatastoreManager) -> Result<bool> {
     use crate::chain::fork_choice::{
-        check_expected_target, choose_verified, nomination_epoch_complete, score_canonical_chain,
-        ChainWork, ForkChoiceResult, RetargetParams, TargetCheck,
+        check_expected_target_indexed, choose_verified, index_by_hash, nomination_epoch_complete,
+        score_canonical_chain, ChainWork, ForkChoiceResult, RetargetParams, TargetCheck,
     };
     use modality_datastore::models::miner::MinerCheckpoint;
 
@@ -672,11 +672,15 @@ pub async fn select_best_stored_chain(mgr: &DatastoreManager) -> Result<bool> {
             .map(|value| value as u128),
     };
     let live: Vec<MinerBlock> = all.into_iter().filter(|block| !block.is_orphaned).collect();
+    let by_hash = index_by_hash(&live);
     let eligible: Vec<MinerBlock> = live
         .iter()
-        .filter(|block| check_expected_target(block, &live, params) != TargetCheck::Reject)
+        .filter(|block| {
+            check_expected_target_indexed(block, &by_hash, params) != TargetCheck::Reject
+        })
         .cloned()
         .collect();
+    drop(by_hash);
     let winner = MinerBlock::verified_spine(&eligible);
     if winner.is_empty() {
         return Ok(false);
