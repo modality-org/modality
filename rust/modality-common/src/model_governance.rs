@@ -1216,6 +1216,7 @@ enum ReplayBundleStatus {
 enum ReplayBundleBinding {
     Generic,
     OracleAttests {
+        oracle_pubkey: String,
         oracle_path: String,
         claim: String,
         value: String,
@@ -1498,7 +1499,9 @@ impl CommitFacts {
             if let Some(status) = self.replay_bundles.get(&property.name) {
                 return match status {
                     ReplayBundleStatus::Present(binding) => {
-                        if let Some(reason) = replay_bundle_binding_mismatch(property, binding) {
+                        if let Some(reason) =
+                            replay_bundle_binding_mismatch(property, binding, &self.state)
+                        {
                             format!(
                                 "missing {formatted} (invalid replay bundle evidence: {reason})"
                             )
@@ -1864,6 +1867,11 @@ fn oracle_replay_bundle_shape_status(
     }
 
     ReplayBundleStatus::Present(ReplayBundleBinding::OracleAttests {
+        oracle_pubkey: attestation
+            .get("oracle_pubkey")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string(),
         oracle_path: attestation
             .get("oracle_path")
             .and_then(Value::as_str)
@@ -1885,8 +1893,10 @@ fn oracle_replay_bundle_shape_status(
 fn replay_bundle_binding_mismatch(
     property: &Property,
     binding: &ReplayBundleBinding,
+    state: &HashMap<String, Value>,
 ) -> Option<String> {
     let ReplayBundleBinding::OracleAttests {
+        oracle_pubkey,
         oracle_path,
         claim,
         value,
@@ -1907,6 +1917,22 @@ fn replay_bundle_binding_mismatch(
         return Some(format!(
             "oracle_attests replay bundle attestation oracle_path {oracle_path} does not match predicate argument {expected_oracle_path}"
         ));
+    }
+    match state
+        .get(&normalize_path(oracle_path))
+        .and_then(Value::as_str)
+    {
+        Some(accepted_oracle_pubkey) if accepted_oracle_pubkey == oracle_pubkey => {}
+        Some(accepted_oracle_pubkey) => {
+            return Some(format!(
+                "oracle_attests replay bundle attestation oracle_pubkey {oracle_pubkey} does not match accepted state at {oracle_path} ({accepted_oracle_pubkey})"
+            ));
+        }
+        None => {
+            return Some(format!(
+                "oracle_attests replay bundle attestation oracle_path {oracle_path} is not present in accepted state"
+            ));
+        }
     }
     if claim != expected_claim {
         return Some(format!(
@@ -2148,6 +2174,12 @@ model DeliveryOracle {
         .unwrap();
         let mut current_states = HashSet::new();
         current_states.insert("active".to_string());
+        let state = [(
+            "oracles/delivery.id".to_string(),
+            Value::String("delivery-key-v1".to_string()),
+        )]
+        .into_iter()
+        .collect::<HashMap<_, _>>();
 
         let mut commit = CommitFile::new();
         commit.add_action(
@@ -2194,11 +2226,36 @@ model DeliveryOracle {
             .into_iter()
             .collect(),
         );
-        let facts = CommitFacts::from_commit(&valid_shape_commit, &HashMap::new());
+        let facts = CommitFacts::from_commit(&valid_shape_commit, &state);
         let err = explain_no_valid_transition(&model, &current_states, &facts);
         assert!(err.contains("replay bundle evidence is present"), "{err}");
         assert!(
             err.contains("not yet promoted to local transition acceptance"),
+            "{err}"
+        );
+
+        let mut stale_oracle_key_commit = commit.clone();
+        stale_oracle_key_commit.head.replay_bundles = Some(
+            [(
+                "oracle_attests".to_string(),
+                ReplayBundleEvidence {
+                    replay_bundle_json: r#"{"predicate":"oracle_attests","max_age_seconds":60,"attestation":{"oracle_pubkey":"delivery-key-v0","oracle_path":"/oracles/delivery.id","claim":"delivered","value":"true","contract_id":"c1","pending_commit_hash":"pending-1","timestamp":1700000000,"signature":"sig"}}"#.to_string(),
+                },
+            )]
+            .into_iter()
+            .collect(),
+        );
+        let facts = CommitFacts::from_commit(&stale_oracle_key_commit, &state);
+        let err = explain_no_valid_transition(&model, &current_states, &facts);
+        assert!(err.contains("invalid replay bundle evidence"), "{err}");
+        assert!(
+            err.contains(
+                "oracle_attests replay bundle attestation oracle_pubkey delivery-key-v0 does not match accepted state at /oracles/delivery.id (delivery-key-v1)"
+            ),
+            "{err}"
+        );
+        assert!(
+            !err.contains("not yet promoted to local transition acceptance"),
             "{err}"
         );
 
@@ -2213,7 +2270,7 @@ model DeliveryOracle {
             .into_iter()
             .collect(),
         );
-        let facts = CommitFacts::from_commit(&mismatched_claim_commit, &HashMap::new());
+        let facts = CommitFacts::from_commit(&mismatched_claim_commit, &state);
         let err = explain_no_valid_transition(&model, &current_states, &facts);
         assert!(err.contains("invalid replay bundle evidence"), "{err}");
         assert!(
