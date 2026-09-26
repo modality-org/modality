@@ -1866,6 +1866,14 @@ fn oracle_replay_bundle_shape_status(
     expected_contract_id: Option<&str>,
     evaluation_timestamp: Option<u64>,
 ) -> ReplayBundleStatus {
+    if let Some(field) =
+        unexpected_json_field(object, &["predicate", "max_age_seconds", "attestation"])
+    {
+        return ReplayBundleStatus::Invalid(format!(
+            "oracle_attests replay bundle has unexpected field {field}"
+        ));
+    }
+
     match object.get("max_age_seconds").and_then(Value::as_i64) {
         Some(value) if value > 0 => {}
         _ => {
@@ -1881,6 +1889,24 @@ fn oracle_replay_bundle_shape_status(
             "oracle_attests replay bundle is missing object attestation".to_string(),
         );
     };
+
+    if let Some(field) = unexpected_json_field(
+        attestation,
+        &[
+            "oracle_pubkey",
+            "oracle_path",
+            "claim",
+            "value",
+            "contract_id",
+            "pending_commit_hash",
+            "timestamp",
+            "signature",
+        ],
+    ) {
+        return ReplayBundleStatus::Invalid(format!(
+            "oracle_attests replay bundle attestation has unexpected field {field}"
+        ));
+    }
 
     for field in [
         "oracle_pubkey",
@@ -2027,6 +2053,16 @@ fn oracle_replay_bundle_shape_status(
             .unwrap_or_default()
             .to_string(),
     })
+}
+
+fn unexpected_json_field<'a>(
+    object: &'a serde_json::Map<String, Value>,
+    allowed_fields: &[&str],
+) -> Option<&'a str> {
+    object
+        .keys()
+        .find(|field| !allowed_fields.contains(&field.as_str()))
+        .map(String::as_str)
 }
 
 fn replay_bundle_binding_mismatch(
@@ -2466,6 +2502,29 @@ model DeliveryOracle {
             err.contains(
                 "oracle_attests replay bundle attestation is missing non-empty string signature"
             ),
+            "{err}"
+        );
+        assert!(
+            !err.contains("not yet promoted to local transition acceptance"),
+            "{err}"
+        );
+
+        let mut extra_attestation_field_commit = commit.clone();
+        extra_attestation_field_commit.head.replay_bundles = Some(
+            [(
+                "oracle_attests".to_string(),
+                ReplayBundleEvidence {
+                    replay_bundle_json: r#"{"predicate":"oracle_attests","max_age_seconds":60,"attestation":{"oracle_pubkey":"delivery-key-v1","oracle_path":"/oracles/delivery.id","claim":"delivered","value":"true","contract_id":"c1","pending_commit_hash":"pending-1","timestamp":1700000000,"signature":"sig","source":"sensor-1"}}"#.to_string(),
+                },
+            )]
+            .into_iter()
+            .collect(),
+        );
+        let facts = CommitFacts::from_commit(&extra_attestation_field_commit, &state);
+        let err = explain_no_valid_transition(&model, &current_states, &facts);
+        assert!(err.contains("invalid replay bundle evidence"), "{err}");
+        assert!(
+            err.contains("oracle_attests replay bundle attestation has unexpected field source"),
             "{err}"
         );
         assert!(
