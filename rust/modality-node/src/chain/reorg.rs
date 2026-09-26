@@ -474,8 +474,18 @@ pub fn extension_from_local(run: &LinkedRun, stored: &[MinerBlock]) -> Option<Ve
 }
 
 async fn save_parked_block(mgr: &DatastoreManager, block: &MinerBlock) -> Result<bool> {
-    if let Ok(Some(_)) = MinerBlock::find_by_hash_multi(mgr, &block.hash).await {
-        return Ok(false);
+    if let Ok(Some(existing)) = MinerBlock::find_by_hash_multi(mgr, &block.hash).await {
+        if !existing.is_orphaned {
+            return Ok(false);
+        }
+        // An earlier fork choice orphaned this block, and a peer now serves
+        // a chain built on it. The flag would hide every block above it
+        // from scoring, so the peer chain could never win.
+        log::info!(
+            "Reviving orphaned block {} at index {} that a peer chain builds on",
+            &existing.hash[..16.min(existing.hash.len())],
+            existing.index
+        );
     }
     let mut parked = block.clone();
     parked.is_canonical = false;
@@ -968,6 +978,50 @@ mod tests {
             .unwrap();
         assert!(!parked.is_canonical);
         assert!(!parked.is_orphaned);
+    }
+
+    #[tokio::test]
+    async fn a_peer_batch_revives_an_orphan_the_heavier_chain_builds_on() {
+        let datastore = modality_datastore::DatastoreManager::create_in_memory().unwrap();
+        for block in [
+            make_test_block(0, "genesis"),
+            make_test_block(1, "hash_0"),
+            make_test_block(2, "hash_1"),
+        ] {
+            block.save_to_active(&datastore).await.unwrap();
+        }
+        // An earlier fork choice orphaned alt_1 in favor of hash_1.
+        let mut alt = make_test_block(1, "hash_0");
+        alt.hash = "alt_1".to_string();
+        alt.is_canonical = false;
+        alt.mark_as_orphaned("Competing fork".to_string(), None);
+        alt.save_to_active(&datastore).await.unwrap();
+
+        // A peer now serves a heavier chain built on alt_1.
+        let mut peer_alt = alt.clone();
+        peer_alt.is_orphaned = false;
+        peer_alt.orphan_reason = None;
+        peer_alt.is_canonical = true;
+        let mut heavy = make_test_block(2, "alt_1");
+        heavy.hash = "alt_2".to_string();
+        heavy.actualized_difficulty = "5000".to_string();
+        heavy.target_difficulty = "1000".to_string();
+        let mut heavier = make_test_block(3, "alt_2");
+        heavier.hash = "alt_3".to_string();
+        heavier.actualized_difficulty = "5000".to_string();
+        heavier.target_difficulty = "1000".to_string();
+
+        let adopted = store_peer_batch(&datastore, &[peer_alt, heavy, heavier])
+            .await
+            .unwrap();
+        assert!(adopted > 0, "the heavier peer chain was not adopted");
+        let canonical = MinerBlock::find_all_canonical_multi(&datastore)
+            .await
+            .unwrap();
+        let hashes: Vec<_> = canonical.iter().map(|block| block.hash.as_str()).collect();
+        assert!(hashes.contains(&"alt_1"), "{hashes:?}");
+        assert!(hashes.contains(&"alt_3"), "{hashes:?}");
+        assert!(!hashes.contains(&"hash_2"), "{hashes:?}");
     }
 
     #[tokio::test]
