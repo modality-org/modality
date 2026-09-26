@@ -1838,10 +1838,14 @@ fn oracle_replay_bundle_shape_status(
         }
     }
 
-    if !attestation.get("timestamp").is_some_and(Value::is_i64) {
-        return ReplayBundleStatus::Invalid(
-            "oracle_attests replay bundle attestation is missing integer timestamp".to_string(),
-        );
+    match attestation.get("timestamp").and_then(Value::as_i64) {
+        Some(value) if value > 0 => {}
+        _ => {
+            return ReplayBundleStatus::Invalid(
+                "oracle_attests replay bundle attestation is missing positive integer timestamp"
+                    .to_string(),
+            )
+        }
     }
     if let (Some(expected), Some(actual)) = (
         pending_commit_id,
@@ -2299,6 +2303,31 @@ model DeliveryOracle {
         assert!(
             err.contains(
                 "oracle_attests replay bundle attestation oracle_pubkey delivery-key-v0 does not match accepted state at /oracles/delivery.id (delivery-key-v1)"
+            ),
+            "{err}"
+        );
+        assert!(
+            !err.contains("not yet promoted to local transition acceptance"),
+            "{err}"
+        );
+
+        let mut nonpositive_timestamp_commit = commit.clone();
+        nonpositive_timestamp_commit.head.replay_bundles = Some(
+            [(
+                "oracle_attests".to_string(),
+                ReplayBundleEvidence {
+                    replay_bundle_json: r#"{"predicate":"oracle_attests","max_age_seconds":60,"attestation":{"oracle_pubkey":"delivery-key-v1","oracle_path":"/oracles/delivery.id","claim":"delivered","value":"true","contract_id":"c1","pending_commit_hash":"pending-1","timestamp":0,"signature":"sig"}}"#.to_string(),
+                },
+            )]
+            .into_iter()
+            .collect(),
+        );
+        let facts = CommitFacts::from_commit(&nonpositive_timestamp_commit, &state);
+        let err = explain_no_valid_transition(&model, &current_states, &facts);
+        assert!(err.contains("invalid replay bundle evidence"), "{err}");
+        assert!(
+            err.contains(
+                "oracle_attests replay bundle attestation is missing positive integer timestamp"
             ),
             "{err}"
         );
