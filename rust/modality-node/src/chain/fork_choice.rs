@@ -305,14 +305,26 @@ pub fn check_expected_target(
     }
     let ancestors = ancestors_of(block, stored);
     // `ancestors_of` reverses the walk, so the immediate parent is last.
-    // Difficulty is chosen at the epoch boundary. A later block in that
-    // epoch must keep its parent's target; running the formula again can
-    // disagree with the target this chain already accepted.
+    // The check guards against a block naming an easier target than its
+    // chain established. A harder target only costs the miner more work,
+    // and the public chain already holds blocks that raised the target
+    // mid-epoch and then returned to the epoch's opening target.
     if let Some(parent) = ancestors.last() {
+        let parent_target = parent.target_difficulty.parse::<u128>().ok();
         if manager.get_epoch(parent.index) == epoch {
-            if parent.target_difficulty != block.target_difficulty {
+            let opening = ancestors
+                .iter()
+                .filter(|ancestor| manager.get_epoch(ancestor.index) == epoch)
+                .min_by_key(|ancestor| ancestor.index)
+                .and_then(|ancestor| ancestor.target_difficulty.parse::<u128>().ok());
+            let floor = match (parent_target, opening) {
+                (Some(parent), Some(opening)) => parent.min(opening),
+                (Some(parent), None) => parent,
+                _ => return TargetCheck::Unresolved,
+            };
+            if target < floor {
                 log::warn!(
-                    "Block {} at index {} target {} does not match parent {} target {}",
+                    "Block {} at index {} target {} is easier than parent {} target {} and the epoch opening",
                     &block.hash[..16.min(block.hash.len())],
                     block.index,
                     block.target_difficulty,
@@ -326,8 +338,9 @@ pub fn check_expected_target(
         // `EpochManager::calculate_next_difficulty` keeps the current
         // difficulty when the miner's view of the previous epoch is not
         // full. A boundary block that carries its parent's target is that
-        // branch, and every host sees it the same way.
-        if parent.target_difficulty == block.target_difficulty {
+        // branch, and every host sees it the same way. A harder target than
+        // that is also acceptable.
+        if parent_target.is_some_and(|parent| target >= parent) {
             return TargetCheck::Matches;
         }
     }
@@ -352,11 +365,11 @@ pub fn check_expected_target(
         return TargetCheck::Unresolved;
     }
     let expected = manager.get_difficulty_for_block(block.index, &chain);
-    if target == expected {
+    if target >= expected {
         TargetCheck::Matches
     } else {
         log::warn!(
-            "Block {} at index {} target {target} does not match the difficulty this epoch expects ({expected})",
+            "Block {} at index {} target {target} is easier than the difficulty this epoch expects ({expected})",
             &block.hash[..16.min(block.hash.len())],
             block.index
         );
@@ -1055,11 +1068,19 @@ mod tests {
             target_block_time_secs: 60,
             initial_difficulty: Some(1000),
         };
-        let mut invented = block_at(3, "hash_2", "3000");
-        invented.target_difficulty = "3000".to_string();
+        // Easier than both the carried target and the formula: refused.
+        let mut invented = block_at(3, "hash_2", "500");
+        invented.target_difficulty = "500".to_string();
         assert_eq!(
             check_expected_target(&invented, &stored, params),
             TargetCheck::Reject
+        );
+        // Harder than the carried target is only more work.
+        let mut harder = invented.clone();
+        harder.target_difficulty = "3000".to_string();
+        assert_eq!(
+            check_expected_target(&harder, &stored, params),
+            TargetCheck::Matches
         );
         let mut retargeted = invented.clone();
         retargeted.target_difficulty = "8000".to_string();
@@ -1078,31 +1099,62 @@ mod tests {
 
     #[test]
     fn a_later_block_keeps_the_target_its_epoch_already_accepted() {
+        // Three blocks per epoch: epoch 0 is 1..=3, epoch 1 is 4..=6.
         let mut first = block_at(1, "hash_0", "1000");
         first.timestamp = 1_000;
         let mut second = block_at(2, "hash_1", "1000");
         second.timestamp = 1_001;
-        // Epoch 1's formula wants 8000, but this chain already accepted 1000.
-        let mut boundary = block_at(3, "hash_2", "1000");
+        let mut third = block_at(3, "hash_2", "1000");
+        third.timestamp = 1_002;
+        // Epoch 1's formula wants more, but this chain carried 1000.
+        let mut boundary = block_at(4, "hash_3", "1000");
         boundary.target_difficulty = "1000".to_string();
-        let stored = vec![block_at(0, "genesis", "1000"), first, second, boundary];
+        let stored = vec![
+            block_at(0, "genesis", "1000"),
+            first,
+            second,
+            third,
+            boundary,
+        ];
         let params = RetargetParams {
-            blocks_per_epoch: 2,
+            blocks_per_epoch: 3,
             target_block_time_secs: 60,
             initial_difficulty: Some(1000),
         };
-        let mut continuation = block_at(4, "hash_3", "1000");
+        let mut continuation = block_at(5, "hash_4", "1000");
         continuation.hash = "later".to_string();
-        continuation.previous_hash = "hash_3".to_string();
         continuation.target_difficulty = "1000".to_string();
         assert_eq!(
             check_expected_target(&continuation, &stored, params),
             TargetCheck::Matches
         );
-        let mut renamed = continuation.clone();
-        renamed.target_difficulty = "8000".to_string();
+        // Easier than the epoch's opening target is refused.
+        let mut eased = continuation.clone();
+        eased.target_difficulty = "500".to_string();
         assert_eq!(
-            check_expected_target(&renamed, &stored, params),
+            check_expected_target(&eased, &stored, params),
+            TargetCheck::Reject
+        );
+        // Harder mid-epoch is accepted, and the next block may return to the
+        // epoch's opening target, as the public chain did at 373 and 385.
+        let mut raised = continuation.clone();
+        raised.target_difficulty = "8000".to_string();
+        assert_eq!(
+            check_expected_target(&raised, &stored, params),
+            TargetCheck::Matches
+        );
+        let mut with_raised = stored.clone();
+        with_raised.push(raised.clone());
+        let mut returned = block_at(6, "later", "1000");
+        returned.target_difficulty = "1000".to_string();
+        assert_eq!(
+            check_expected_target(&returned, &with_raised, params),
+            TargetCheck::Matches
+        );
+        let mut below_opening = returned.clone();
+        below_opening.target_difficulty = "900".to_string();
+        assert_eq!(
+            check_expected_target(&below_opening, &with_raised, params),
             TargetCheck::Reject
         );
     }

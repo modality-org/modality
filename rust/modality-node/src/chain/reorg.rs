@@ -752,8 +752,23 @@ pub async fn select_best_stored_chain(mgr: &DatastoreManager) -> Result<bool> {
     );
     let fills_parents = canonical_hashes.is_subset(&winner_hashes);
     if decision.result != ForkChoiceResult::AdoptRemote && !fills_parents {
+        log::info!(
+            "Keeping local chain at {} ({:?}) over stored spine at {} ({:?}): {}",
+            local_score.tip,
+            local_score.work,
+            winner_score.tip,
+            winner_score.work,
+            decision.reason
+        );
         return Ok(demoted_off_spine);
     }
+    log::info!(
+        "Switching to stored spine at {} ({:?}) from local {} ({:?})",
+        winner_score.tip,
+        winner_score.work,
+        local_score.tip,
+        local_score.work
+    );
 
     for block in &live {
         let on_winner = winner_hashes.contains(&block.hash);
