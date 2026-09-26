@@ -49,10 +49,27 @@ pub fn validate_against_local_rules_for_commit(
     pending_commit_id: &str,
     contract_id: &str,
 ) -> Result<()> {
-    modality_common::model_governance::validate_sequenced_commit_with_ids(
+    validate_against_local_rules_for_commit_at(
+        accepted,
+        pending,
+        pending_commit_id,
+        contract_id,
+        None,
+    )
+}
+
+pub fn validate_against_local_rules_for_commit_at(
+    accepted: &[CommitFile],
+    pending: &CommitFile,
+    pending_commit_id: &str,
+    contract_id: &str,
+    evaluation_timestamp: Option<u64>,
+) -> Result<()> {
+    modality_common::model_governance::validate_sequenced_commit_with_ids_at(
         accepted,
         pending,
         Some(pending_commit_id),
         Some(contract_id),
+        evaluation_timestamp,
     )
 }

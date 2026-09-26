@@ -61,6 +61,24 @@ pub fn validate_pending_commit_with_history_and_ids(
     pending_commit_id: Option<&str>,
     expected_contract_id: Option<&str>,
 ) -> Result<()> {
+    validate_pending_commit_with_history_and_ids_at(
+        fallback_model_content,
+        accepted,
+        pending,
+        pending_commit_id,
+        expected_contract_id,
+        None,
+    )
+}
+
+fn validate_pending_commit_with_history_and_ids_at(
+    fallback_model_content: &str,
+    accepted: &[CommitFile],
+    pending: &CommitFile,
+    pending_commit_id: Option<&str>,
+    expected_contract_id: Option<&str>,
+    evaluation_timestamp: Option<u64>,
+) -> Result<()> {
     let Some(governing_model) = governing_model_content(fallback_model_content, accepted, pending)
     else {
         return Ok(());
@@ -70,8 +88,13 @@ pub fn validate_pending_commit_with_history_and_ids(
         .map_err(|err| anyhow::anyhow!("Invalid governing model syntax: {}", err))?;
     let (current_states, state, _anchored_rules) =
         replay_commits_to_current_state(&model, accepted)?;
-    let facts =
-        CommitFacts::from_pending_commit(pending, &state, pending_commit_id, expected_contract_id);
+    let facts = CommitFacts::from_pending_commit_at(
+        pending,
+        &state,
+        pending_commit_id,
+        expected_contract_id,
+        evaluation_timestamp,
+    );
 
     if has_valid_transition(&model, &current_states, &facts) {
         return Ok(());
@@ -102,6 +125,22 @@ pub fn validate_sequenced_commit_with_ids(
     pending_commit_id: Option<&str>,
     expected_contract_id: Option<&str>,
 ) -> Result<()> {
+    validate_sequenced_commit_with_ids_at(
+        accepted,
+        pending,
+        pending_commit_id,
+        expected_contract_id,
+        None,
+    )
+}
+
+pub fn validate_sequenced_commit_with_ids_at(
+    accepted: &[CommitFile],
+    pending: &CommitFile,
+    pending_commit_id: Option<&str>,
+    expected_contract_id: Option<&str>,
+    evaluation_timestamp: Option<u64>,
+) -> Result<()> {
     if is_genesis_only(pending) {
         return Ok(());
     }
@@ -110,12 +149,13 @@ pub fn validate_sequenced_commit_with_ids(
     {
         return Ok(());
     }
-    validate_pending_commit_with_history_and_ids(
+    validate_pending_commit_with_history_and_ids_at(
         "",
         accepted,
         pending,
         pending_commit_id,
         expected_contract_id,
+        evaluation_timestamp,
     )
 }
 
@@ -1285,6 +1325,16 @@ impl CommitFacts {
         pending_commit_id: Option<&str>,
         expected_contract_id: Option<&str>,
     ) -> Self {
+        Self::from_pending_commit_at(commit, state, pending_commit_id, expected_contract_id, None)
+    }
+
+    fn from_pending_commit_at(
+        commit: &CommitFile,
+        state: &HashMap<String, Value>,
+        pending_commit_id: Option<&str>,
+        expected_contract_id: Option<&str>,
+        evaluation_timestamp: Option<u64>,
+    ) -> Self {
         Self {
             methods: commit
                 .body
@@ -1306,7 +1356,12 @@ impl CommitFacts {
                 .map(normalize_path)
                 .collect(),
             state: state.clone(),
-            replay_bundles: replay_bundle_statuses(commit, pending_commit_id, expected_contract_id),
+            replay_bundles: replay_bundle_statuses(
+                commit,
+                pending_commit_id,
+                expected_contract_id,
+                evaluation_timestamp,
+            ),
         }
     }
 
@@ -1737,6 +1792,7 @@ fn replay_bundle_statuses(
     commit: &CommitFile,
     pending_commit_id: Option<&str>,
     expected_contract_id: Option<&str>,
+    evaluation_timestamp: Option<u64>,
 ) -> HashMap<String, ReplayBundleStatus> {
     let mut statuses = HashMap::new();
     let Some(bundles) = commit.head.replay_bundles.as_ref() else {
@@ -1751,6 +1807,7 @@ fn replay_bundle_statuses(
                 &bundle.replay_bundle_json,
                 pending_commit_id,
                 expected_contract_id,
+                evaluation_timestamp,
             ),
         );
     }
@@ -1763,6 +1820,7 @@ fn replay_bundle_status(
     replay_bundle_json: &str,
     pending_commit_id: Option<&str>,
     expected_contract_id: Option<&str>,
+    evaluation_timestamp: Option<u64>,
 ) -> ReplayBundleStatus {
     let bundle: Value = match serde_json::from_str(replay_bundle_json) {
         Ok(bundle) => bundle,
@@ -1787,6 +1845,7 @@ fn replay_bundle_status(
                     replay_bundle_json,
                     pending_commit_id,
                     expected_contract_id,
+                    evaluation_timestamp,
                 );
             }
             ReplayBundleStatus::Present(ReplayBundleBinding::Generic)
@@ -1805,6 +1864,7 @@ fn oracle_replay_bundle_shape_status(
     replay_bundle_json: &str,
     pending_commit_id: Option<&str>,
     expected_contract_id: Option<&str>,
+    evaluation_timestamp: Option<u64>,
 ) -> ReplayBundleStatus {
     match object.get("max_age_seconds").and_then(Value::as_i64) {
         Some(value) if value > 0 => {}
@@ -1843,7 +1903,20 @@ fn oracle_replay_bundle_shape_status(
     }
 
     match attestation.get("timestamp").and_then(Value::as_i64) {
-        Some(value) if value > 0 => {}
+        Some(value) if value > 0 => {
+            if let Some(evaluation_timestamp) = evaluation_timestamp {
+                let Ok(evaluation_timestamp) = i64::try_from(evaluation_timestamp) else {
+                    return ReplayBundleStatus::Invalid(
+                        "oracle_attests replay bundle validator timestamp is too large".to_string(),
+                    );
+                };
+                if value > evaluation_timestamp {
+                    return ReplayBundleStatus::Invalid(format!(
+                        "oracle_attests replay bundle attestation timestamp {value} is in the future relative to validator timestamp {evaluation_timestamp}"
+                    ));
+                }
+            }
+        }
         _ => {
             return ReplayBundleStatus::Invalid(
                 "oracle_attests replay bundle attestation is missing positive integer timestamp"
@@ -2357,6 +2430,37 @@ model DeliveryOracle {
         assert!(
             err.contains(
                 "oracle_attests replay bundle attestation is missing non-empty string signature"
+            ),
+            "{err}"
+        );
+        assert!(
+            !err.contains("not yet promoted to local transition acceptance"),
+            "{err}"
+        );
+
+        let mut future_timestamp_commit = commit.clone();
+        future_timestamp_commit.head.replay_bundles = Some(
+            [(
+                "oracle_attests".to_string(),
+                ReplayBundleEvidence {
+                    replay_bundle_json: r#"{"predicate":"oracle_attests","max_age_seconds":60,"attestation":{"oracle_pubkey":"delivery-key-v1","oracle_path":"/oracles/delivery.id","claim":"delivered","value":"true","contract_id":"c1","pending_commit_hash":"pending-1","timestamp":1700000061,"signature":"sig"}}"#.to_string(),
+                },
+            )]
+            .into_iter()
+            .collect(),
+        );
+        let facts = CommitFacts::from_pending_commit_at(
+            &future_timestamp_commit,
+            &state,
+            Some("pending-1"),
+            Some("c1"),
+            Some(1_700_000_000),
+        );
+        let err = explain_no_valid_transition(&model, &current_states, &facts);
+        assert!(err.contains("invalid replay bundle evidence"), "{err}");
+        assert!(
+            err.contains(
+                "oracle_attests replay bundle attestation timestamp 1700000061 is in the future relative to validator timestamp 1700000000"
             ),
             "{err}"
         );

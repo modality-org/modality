@@ -190,23 +190,28 @@ impl ContractProcessor {
         commit_id: &str,
         commit_data: &str,
     ) -> Result<Vec<StateChange>> {
+        let validation_timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)?
+            .as_secs();
         let pending = crate::sequenced_rules::parse_commit_file(commit_data)?;
         let expanded = self
-            .assert_same_rules_as_local_verify(contract_id, commit_id, &pending)
+            .assert_same_rules_as_local_verify(
+                contract_id,
+                commit_id,
+                &pending,
+                validation_timestamp,
+            )
             .await?;
 
         // Save the original posted commit so a stranger can replay invoke + rules.
         {
             let ds = self.datastore.lock().await;
-            let timestamp = std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)?
-                .as_secs();
 
             let commit = Commit {
                 contract_id: contract_id.to_string(),
                 commit_id: commit_id.to_string(),
                 commit_data: commit_data.to_string(),
-                timestamp,
+                timestamp: validation_timestamp,
                 in_batch: None,
             };
             commit.save_to_final(&ds).await?;
@@ -285,6 +290,7 @@ impl ContractProcessor {
         contract_id: &str,
         commit_id: &str,
         pending: &CommitFile,
+        validation_timestamp: u64,
     ) -> Result<CommitFile> {
         let accepted_raw = {
             let ds = self.datastore.lock().await;
@@ -324,11 +330,12 @@ impl ContractProcessor {
         } else {
             pending.clone()
         };
-        crate::sequenced_rules::validate_against_local_rules_for_commit(
+        crate::sequenced_rules::validate_against_local_rules_for_commit_at(
             &accepted_expanded,
             &pending_expanded,
             commit_id,
             contract_id,
+            Some(validation_timestamp),
         )?;
         Ok(pending_expanded)
     }
@@ -2524,6 +2531,82 @@ model DeliveryOracle {
             !err.to_string()
                 .contains("not yet promoted to local transition acceptance"),
             "empty-signature evidence must not be reported as merely unpromoted: {err}"
+        );
+    }
+
+    #[tokio::test]
+    async fn process_commit_rejects_oracle_replay_bundle_future_timestamp() {
+        let datastore = Arc::new(Mutex::new(DatastoreManager::create_in_memory().unwrap()));
+        let processor = ContractProcessor::new(datastore.clone());
+
+        let model = r#"
+model DeliveryOracle {
+  initial q0
+  q0 --> active: +POST
+  active --> active: +POST +oracle_attests(/oracles/delivery.id, "delivered", "true")
+}
+"#;
+        let bootstrap = serde_json::json!({
+            "body": [
+                {
+                    "method": "post",
+                    "path": "/oracles/delivery.id",
+                    "value": "delivery-key-v1"
+                },
+                {
+                    "method": "model",
+                    "path": "/model/default.modality",
+                    "value": model
+                }
+            ],
+            "head": {}
+        });
+        sequence_commit(
+            &processor,
+            &datastore,
+            "c1",
+            "bootstrap",
+            &bootstrap.to_string(),
+            "batch-1",
+        )
+        .await;
+
+        let pending = serde_json::json!({
+            "body": [
+                {
+                    "method": "post",
+                    "path": "/deliveries/123/status.text",
+                    "value": "delivered"
+                }
+            ],
+            "head": {
+                "parent": "bootstrap",
+                "replay_bundles": {
+                    "oracle_attests": {
+                        "replay_bundle_json": "{\"predicate\":\"oracle_attests\",\"max_age_seconds\":60,\"attestation\":{\"oracle_pubkey\":\"delivery-key-v1\",\"oracle_path\":\"/oracles/delivery.id\",\"claim\":\"delivered\",\"value\":\"true\",\"contract_id\":\"c1\",\"pending_commit_hash\":\"delivery-pending\",\"timestamp\":4102444800,\"signature\":\"sig\"}}"
+                    }
+                }
+            }
+        });
+
+        let err = processor
+            .process_commit("c1", "delivery-pending", &pending.to_string())
+            .await
+            .expect_err("future-timestamp replay bundle must not satisfy transition predicate");
+
+        assert!(
+            err.to_string().contains("invalid replay bundle evidence"),
+            "unexpected error: {err}"
+        );
+        assert!(
+            err.to_string()
+                .contains("oracle_attests replay bundle attestation timestamp 4102444800 is in the future relative to validator timestamp"),
+            "unexpected error: {err}"
+        );
+        assert!(
+            !err.to_string()
+                .contains("not yet promoted to local transition acceptance"),
+            "future-timestamp evidence must not be reported as merely unpromoted: {err}"
         );
     }
 
