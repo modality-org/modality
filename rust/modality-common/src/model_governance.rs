@@ -1831,9 +1831,13 @@ fn oracle_replay_bundle_shape_status(
         "pending_commit_hash",
         "signature",
     ] {
-        if !attestation.get(field).is_some_and(Value::is_string) {
+        if !attestation
+            .get(field)
+            .and_then(Value::as_str)
+            .is_some_and(|value| !value.is_empty())
+        {
             return ReplayBundleStatus::Invalid(format!(
-                "oracle_attests replay bundle attestation is missing string {field}"
+                "oracle_attests replay bundle attestation is missing non-empty string {field}"
             ));
         }
     }
@@ -2328,6 +2332,31 @@ model DeliveryOracle {
         assert!(
             err.contains(
                 "oracle_attests replay bundle attestation is missing positive integer timestamp"
+            ),
+            "{err}"
+        );
+        assert!(
+            !err.contains("not yet promoted to local transition acceptance"),
+            "{err}"
+        );
+
+        let mut empty_signature_commit = commit.clone();
+        empty_signature_commit.head.replay_bundles = Some(
+            [(
+                "oracle_attests".to_string(),
+                ReplayBundleEvidence {
+                    replay_bundle_json: r#"{"predicate":"oracle_attests","max_age_seconds":60,"attestation":{"oracle_pubkey":"delivery-key-v1","oracle_path":"/oracles/delivery.id","claim":"delivered","value":"true","contract_id":"c1","pending_commit_hash":"pending-1","timestamp":1700000000,"signature":""}}"#.to_string(),
+                },
+            )]
+            .into_iter()
+            .collect(),
+        );
+        let facts = CommitFacts::from_commit(&empty_signature_commit, &state);
+        let err = explain_no_valid_transition(&model, &current_states, &facts);
+        assert!(err.contains("invalid replay bundle evidence"), "{err}");
+        assert!(
+            err.contains(
+                "oracle_attests replay bundle attestation is missing non-empty string signature"
             ),
             "{err}"
         );
