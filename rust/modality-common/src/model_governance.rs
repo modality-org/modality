@@ -1902,6 +1902,10 @@ fn oracle_replay_bundle_shape_status(
         }
     }
 
+    let max_age_seconds = object
+        .get("max_age_seconds")
+        .and_then(Value::as_i64)
+        .unwrap_or_default();
     match attestation.get("timestamp").and_then(Value::as_i64) {
         Some(value) if value > 0 => {
             if let Some(evaluation_timestamp) = evaluation_timestamp {
@@ -1913,6 +1917,12 @@ fn oracle_replay_bundle_shape_status(
                 if value > evaluation_timestamp {
                     return ReplayBundleStatus::Invalid(format!(
                         "oracle_attests replay bundle attestation timestamp {value} is in the future relative to validator timestamp {evaluation_timestamp}"
+                    ));
+                }
+                let age = evaluation_timestamp - value;
+                if age > max_age_seconds {
+                    return ReplayBundleStatus::Invalid(format!(
+                        "oracle_attests replay bundle attestation is too old: {age} seconds (max {max_age_seconds})"
                     ));
                 }
             }
@@ -2461,6 +2471,37 @@ model DeliveryOracle {
         assert!(
             err.contains(
                 "oracle_attests replay bundle attestation timestamp 1700000061 is in the future relative to validator timestamp 1700000000"
+            ),
+            "{err}"
+        );
+        assert!(
+            !err.contains("not yet promoted to local transition acceptance"),
+            "{err}"
+        );
+
+        let mut stale_timestamp_commit = commit.clone();
+        stale_timestamp_commit.head.replay_bundles = Some(
+            [(
+                "oracle_attests".to_string(),
+                ReplayBundleEvidence {
+                    replay_bundle_json: r#"{"predicate":"oracle_attests","max_age_seconds":60,"attestation":{"oracle_pubkey":"delivery-key-v1","oracle_path":"/oracles/delivery.id","claim":"delivered","value":"true","contract_id":"c1","pending_commit_hash":"pending-1","timestamp":1699999939,"signature":"sig"}}"#.to_string(),
+                },
+            )]
+            .into_iter()
+            .collect(),
+        );
+        let facts = CommitFacts::from_pending_commit_at(
+            &stale_timestamp_commit,
+            &state,
+            Some("pending-1"),
+            Some("c1"),
+            Some(1_700_000_000),
+        );
+        let err = explain_no_valid_transition(&model, &current_states, &facts);
+        assert!(err.contains("invalid replay bundle evidence"), "{err}");
+        assert!(
+            err.contains(
+                "oracle_attests replay bundle attestation is too old: 61 seconds (max 60)"
             ),
             "{err}"
         );
