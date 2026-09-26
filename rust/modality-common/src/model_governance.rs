@@ -45,6 +45,22 @@ pub fn validate_pending_commit_with_history_and_id(
     pending: &CommitFile,
     pending_commit_id: Option<&str>,
 ) -> Result<()> {
+    validate_pending_commit_with_history_and_ids(
+        fallback_model_content,
+        accepted,
+        pending,
+        pending_commit_id,
+        None,
+    )
+}
+
+pub fn validate_pending_commit_with_history_and_ids(
+    fallback_model_content: &str,
+    accepted: &[CommitFile],
+    pending: &CommitFile,
+    pending_commit_id: Option<&str>,
+    expected_contract_id: Option<&str>,
+) -> Result<()> {
     let Some(governing_model) = governing_model_content(fallback_model_content, accepted, pending)
     else {
         return Ok(());
@@ -54,7 +70,8 @@ pub fn validate_pending_commit_with_history_and_id(
         .map_err(|err| anyhow::anyhow!("Invalid governing model syntax: {}", err))?;
     let (current_states, state, _anchored_rules) =
         replay_commits_to_current_state(&model, accepted)?;
-    let facts = CommitFacts::from_pending_commit(pending, &state, pending_commit_id);
+    let facts =
+        CommitFacts::from_pending_commit(pending, &state, pending_commit_id, expected_contract_id);
 
     if has_valid_transition(&model, &current_states, &facts) {
         return Ok(());
@@ -76,6 +93,15 @@ pub fn validate_sequenced_commit_with_pending_id(
     pending: &CommitFile,
     pending_commit_id: Option<&str>,
 ) -> Result<()> {
+    validate_sequenced_commit_with_ids(accepted, pending, pending_commit_id, None)
+}
+
+pub fn validate_sequenced_commit_with_ids(
+    accepted: &[CommitFile],
+    pending: &CommitFile,
+    pending_commit_id: Option<&str>,
+    expected_contract_id: Option<&str>,
+) -> Result<()> {
     if is_genesis_only(pending) {
         return Ok(());
     }
@@ -84,7 +110,13 @@ pub fn validate_sequenced_commit_with_pending_id(
     {
         return Ok(());
     }
-    validate_pending_commit_with_history_and_id("", accepted, pending, pending_commit_id)
+    validate_pending_commit_with_history_and_ids(
+        "",
+        accepted,
+        pending,
+        pending_commit_id,
+        expected_contract_id,
+    )
 }
 
 pub fn latest_accepted_model_content(store: &ContractStore) -> Result<Option<String>> {
@@ -1244,13 +1276,14 @@ struct CanonicalOracleAttestation<'a> {
 
 impl CommitFacts {
     fn from_commit(commit: &CommitFile, state: &HashMap<String, Value>) -> Self {
-        Self::from_pending_commit(commit, state, None)
+        Self::from_pending_commit(commit, state, None, None)
     }
 
     fn from_pending_commit(
         commit: &CommitFile,
         state: &HashMap<String, Value>,
         pending_commit_id: Option<&str>,
+        expected_contract_id: Option<&str>,
     ) -> Self {
         Self {
             methods: commit
@@ -1273,7 +1306,7 @@ impl CommitFacts {
                 .map(normalize_path)
                 .collect(),
             state: state.clone(),
-            replay_bundles: replay_bundle_statuses(commit, pending_commit_id),
+            replay_bundles: replay_bundle_statuses(commit, pending_commit_id, expected_contract_id),
         }
     }
 
@@ -1703,6 +1736,7 @@ impl CommitFacts {
 fn replay_bundle_statuses(
     commit: &CommitFile,
     pending_commit_id: Option<&str>,
+    expected_contract_id: Option<&str>,
 ) -> HashMap<String, ReplayBundleStatus> {
     let mut statuses = HashMap::new();
     let Some(bundles) = commit.head.replay_bundles.as_ref() else {
@@ -1716,6 +1750,7 @@ fn replay_bundle_statuses(
                 predicate_name,
                 &bundle.replay_bundle_json,
                 pending_commit_id,
+                expected_contract_id,
             ),
         );
     }
@@ -1727,6 +1762,7 @@ fn replay_bundle_status(
     predicate_name: &str,
     replay_bundle_json: &str,
     pending_commit_id: Option<&str>,
+    expected_contract_id: Option<&str>,
 ) -> ReplayBundleStatus {
     let bundle: Value = match serde_json::from_str(replay_bundle_json) {
         Ok(bundle) => bundle,
@@ -1750,6 +1786,7 @@ fn replay_bundle_status(
                     object,
                     replay_bundle_json,
                     pending_commit_id,
+                    expected_contract_id,
                 );
             }
             ReplayBundleStatus::Present(ReplayBundleBinding::Generic)
@@ -1767,6 +1804,7 @@ fn oracle_replay_bundle_shape_status(
     object: &serde_json::Map<String, Value>,
     replay_bundle_json: &str,
     pending_commit_id: Option<&str>,
+    expected_contract_id: Option<&str>,
 ) -> ReplayBundleStatus {
     match object.get("max_age_seconds").and_then(Value::as_i64) {
         Some(value) if value > 0 => {}
@@ -1814,6 +1852,16 @@ fn oracle_replay_bundle_shape_status(
         if actual != expected {
             return ReplayBundleStatus::Invalid(format!(
                 "oracle_attests replay bundle attestation pending_commit_hash {actual} does not match pending commit {expected}"
+            ));
+        }
+    }
+    if let (Some(expected), Some(actual)) = (
+        expected_contract_id,
+        attestation.get("contract_id").and_then(Value::as_str),
+    ) {
+        if actual != expected {
+            return ReplayBundleStatus::Invalid(format!(
+                "oracle_attests replay bundle attestation contract_id {actual} does not match contract {expected}"
             ));
         }
     }
@@ -2251,6 +2299,32 @@ model DeliveryOracle {
         assert!(
             err.contains(
                 "oracle_attests replay bundle attestation oracle_pubkey delivery-key-v0 does not match accepted state at /oracles/delivery.id (delivery-key-v1)"
+            ),
+            "{err}"
+        );
+        assert!(
+            !err.contains("not yet promoted to local transition acceptance"),
+            "{err}"
+        );
+
+        let mut wrong_contract_commit = commit.clone();
+        wrong_contract_commit.head.replay_bundles = Some(
+            [(
+                "oracle_attests".to_string(),
+                ReplayBundleEvidence {
+                    replay_bundle_json: r#"{"predicate":"oracle_attests","max_age_seconds":60,"attestation":{"oracle_pubkey":"delivery-key-v1","oracle_path":"/oracles/delivery.id","claim":"delivered","value":"true","contract_id":"other-contract","pending_commit_hash":"pending-1","timestamp":1700000000,"signature":"sig"}}"#.to_string(),
+                },
+            )]
+            .into_iter()
+            .collect(),
+        );
+        let facts =
+            CommitFacts::from_pending_commit(&wrong_contract_commit, &state, None, Some("c1"));
+        let err = explain_no_valid_transition(&model, &current_states, &facts);
+        assert!(err.contains("invalid replay bundle evidence"), "{err}");
+        assert!(
+            err.contains(
+                "oracle_attests replay bundle attestation contract_id other-contract does not match contract c1"
             ),
             "{err}"
         );
