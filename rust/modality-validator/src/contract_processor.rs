@@ -2080,6 +2080,89 @@ model DeliveryOracle {
     }
 
     #[tokio::test]
+    async fn process_commit_rejects_oracle_replay_bundle_forged_signature() {
+        const ORACLE_PUBKEY: &str =
+            "0309b225437690232614050126094fe8138366408ca8426464e35ca3e21803b3";
+        const FORGED_ORACLE_SIGNATURE: &str =
+            "bdb980e233e510acbbafa86d6f469dc2aa85b6177228f38511ed1a97e0e96869b7aa8d0a62ab616a182a6cfec7b80f070069ee4b1a454f405634dad2f7a26a09";
+        let datastore = Arc::new(Mutex::new(DatastoreManager::create_in_memory().unwrap()));
+        let processor = ContractProcessor::new(datastore.clone());
+
+        let model = r#"
+model DeliveryOracle {
+  initial q0
+  q0 --> active: +POST
+  active --> active: +POST +oracle_attests(/oracles/delivery.id, "delivered", "true")
+}
+"#;
+        let bootstrap = serde_json::json!({
+            "body": [
+                {
+                    "method": "post",
+                    "path": "/oracles/delivery.id",
+                    "value": ORACLE_PUBKEY
+                },
+                {
+                    "method": "model",
+                    "path": "/model/default.modality",
+                    "value": model
+                }
+            ],
+            "head": {}
+        });
+        sequence_commit(
+            &processor,
+            &datastore,
+            "c1",
+            "bootstrap",
+            &bootstrap.to_string(),
+            "batch-1",
+        )
+        .await;
+
+        let replay_bundle_json = format!(
+            "{{\"predicate\":\"oracle_attests\",\"max_age_seconds\":1000000000,\"attestation\":{{\"oracle_pubkey\":\"{ORACLE_PUBKEY}\",\"oracle_path\":\"/oracles/delivery.id\",\"claim\":\"delivered\",\"value\":\"true\",\"contract_id\":\"c1\",\"pending_commit_hash\":\"delivery-pending\",\"timestamp\":1700000000,\"signature\":\"{FORGED_ORACLE_SIGNATURE}\"}}}}"
+        );
+        let pending = serde_json::json!({
+            "body": [
+                {
+                    "method": "post",
+                    "path": "/deliveries/123/status.text",
+                    "value": "delivered"
+                }
+            ],
+            "head": {
+                "parent": "bootstrap",
+                "replay_bundles": {
+                    "oracle_attests": {
+                        "replay_bundle_json": replay_bundle_json
+                    }
+                }
+            }
+        });
+
+        let err = processor
+            .process_commit("c1", "delivery-pending", &pending.to_string())
+            .await
+            .expect_err("forged oracle signature must not satisfy transition predicate");
+
+        assert!(
+            err.to_string().contains("invalid replay bundle evidence"),
+            "unexpected error: {err}"
+        );
+        assert!(
+            err.to_string()
+                .contains("oracle_attests replay bundle attestation signature does not verify"),
+            "unexpected error: {err}"
+        );
+        assert!(
+            !err.to_string()
+                .contains("not yet promoted to local transition acceptance"),
+            "forged-signature evidence must not be reported as merely unpromoted: {err}"
+        );
+    }
+
+    #[tokio::test]
     async fn process_commit_reports_pending_oracle_replay_bundle_transition_evidence() {
         let datastore = Arc::new(Mutex::new(DatastoreManager::create_in_memory().unwrap()));
         let processor = ContractProcessor::new(datastore.clone());
