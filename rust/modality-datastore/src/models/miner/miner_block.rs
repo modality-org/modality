@@ -273,10 +273,37 @@ impl MinerBlock {
         for block in blocks {
             by_index.entry(block.index).or_default().push(block);
         }
+        // Work reaching genesis, built parent-first so each block costs one
+        // lookup instead of a walk to index 0.
+        let mut work_by_hash: std::collections::HashMap<&str, u128> =
+            std::collections::HashMap::with_capacity(blocks.len());
+        for (index, at_index) in &by_index {
+            for block in at_index {
+                let Ok(difficulty) = block.get_actualized_difficulty_u128() else {
+                    continue;
+                };
+                let work = if *index == 0 {
+                    Some(difficulty)
+                } else {
+                    by_index
+                        .get(&(index - 1))
+                        .and_then(|parents| {
+                            parents
+                                .iter()
+                                .find(|parent| parent.hash == block.previous_hash)
+                        })
+                        .and_then(|parent| work_by_hash.get(parent.hash.as_str()))
+                        .and_then(|parent_work| parent_work.checked_add(difficulty))
+                };
+                if let Some(work) = work {
+                    work_by_hash.entry(block.hash.as_str()).or_insert(work);
+                }
+            }
+        }
         let mut best_tip: Option<&MinerBlock> = None;
         let mut best_work: u128 = 0;
         for block in blocks {
-            let Some(work) = genesis_walk_work(&by_index, block) else {
+            let Some(work) = work_by_hash.get(block.hash.as_str()).copied() else {
                 continue;
             };
             let replace = match best_tip {
@@ -298,26 +325,6 @@ impl MinerBlock {
             return collect_index_walk(&by_index, tip);
         }
         Self::longest_linked_spine(blocks)
-    }
-}
-
-fn genesis_walk_work<'a>(
-    by_index: &std::collections::BTreeMap<u64, Vec<&'a MinerBlock>>,
-    tip: &'a MinerBlock,
-) -> Option<u128> {
-    let mut sum = 0u128;
-    let mut current = tip;
-    loop {
-        let difficulty = current.get_actualized_difficulty_u128().ok()?;
-        sum = sum.checked_add(difficulty)?;
-        if current.index == 0 {
-            return Some(sum);
-        }
-        let parents = by_index.get(&(current.index - 1))?;
-        current = parents
-            .iter()
-            .copied()
-            .find(|parent| parent.hash == current.previous_hash)?;
     }
 }
 

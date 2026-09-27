@@ -527,7 +527,7 @@ pub async fn store_peer_batch(mgr: &DatastoreManager, peer_blocks: &[MinerBlock]
     Ok(adopted + usize::from(switched))
 }
 
-/// A refused parked run whose tip is this many epochs under the local tip
+/// A refused parked run that forks this many epochs under the local tip
 /// is archived instead of being scored on every pass.
 const STALE_FORK_EPOCHS: u64 = 2;
 
@@ -587,12 +587,13 @@ pub async fn adopt_connected_extensions(mgr: &DatastoreManager) -> Result<usize>
                 log::info!("Keeping parked extension {bottom}..={tip}: {reason}");
                 let local_tip = crate::chain::fork_choice::score_canonical_chain(&local_blocks).tip;
                 let run_tip = extension[extension.len() - 1].index;
-                if run_tip.saturating_add(STALE_FORK_EPOCHS.saturating_mul(blocks_per_epoch))
+                let run_bottom = extension[0].index;
+                if run_bottom.saturating_add(STALE_FORK_EPOCHS.saturating_mul(blocks_per_epoch))
                     <= local_tip
                 {
-                    // A refused run this far under the tip is scored again on
-                    // every pass and never wins. Archive it; a peer batch that
-                    // builds on it revives it.
+                    // A refused run that forked this far under the tip is
+                    // scored again on every pass and keeps losing. Archive it;
+                    // a peer batch that builds on it revives it.
                     for block in &extension {
                         let mut stale = block.clone();
                         stale.mark_as_orphaned(
@@ -602,9 +603,7 @@ pub async fn adopt_connected_extensions(mgr: &DatastoreManager) -> Result<usize>
                         stale.save_to_active(mgr).await?;
                     }
                     log::info!(
-                        "Archived stale fork {}..={} under local tip {local_tip}",
-                        extension[0].index,
-                        run_tip
+                        "Archived stale fork {run_bottom}..={run_tip} under local tip {local_tip}"
                     );
                 }
             }
