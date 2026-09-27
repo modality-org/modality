@@ -329,25 +329,30 @@ wrong accepted-state oracle key, and malformed or non-canonical artifact cases
 before `oracle_attests` can be
 reported as checked instead of missing external evidence.
 
-The `modality-wasm-validation` extension evaluator now has a unit-tested
-`replay_bundle_json` input boundary for this future artifact path. The bundle
-must be exact compact canonical JSON for an `oracle_attests` envelope carrying
-the same attestation and positive `max_age_seconds` freshness policy as the
+The `modality-wasm-validation` extension evaluator has a unit-tested
+`replay_bundle_json` input boundary for this artifact path, and sequenced
+contract-log replay now has a checked local acceptance path for canonical signed
+`oracle_attests` replay bundles. The bundle must be exact compact canonical JSON
+for an `oracle_attests` envelope carrying the same attestation and positive `max_age_seconds` freshness policy as the
 predicate input. Replay-bundle inputs must also carry
-`accepted_state_oracle_keys`, the replayed accepted-state oracle-key map keyed
-by path. The evaluator derives the oracle key from `expected_oracle_path`, checks
+`accepted_state_oracle_keys`, the replayed accepted-state oracle-key map keyed by
+path. The evaluator derives the oracle key from `expected_oracle_path`, checks
 that the looked-up key is valid hex-encoded ed25519 public-key material, checks
 that any scalar `expected_oracle_pubkey` agrees with that lookup, and requires
-the looked-up key to match the bundle attestation before signature verification.
+the looked-up key to match the bundle
+attestation before signature verification.
 The `modality-common` replay helpers now derive `accepted_state_oracle_keys`
 from the actual accepted contract state by reading string values posted at
 `/oracles/**/*.id` paths, after updates and deletes are applied, before a
 pending commit is expanded or checked. Replay bundles whose attestation
 `oracle_path` falls outside that `/oracles/**/*.id` namespace are rejected
-before they can be reported as present-but-unpromoted evidence, and sequenced
-validator replay rejects bundles whose in-namespace `oracle_path` is missing
-from accepted state before treating them as merely unpromoted evidence. The CLI
-and validator WASM program
+before local acceptance, and sequenced validator replay rejects bundles whose
+in-namespace `oracle_path` is missing from accepted state before the transition
+can be accepted. Bundles whose
+accepted-state oracle key, predicate oracle path, claim, value, contract id,
+pending commit hash, canonical bytes, freshness window, or ed25519 signature do
+not check are reported as invalid replay evidence instead of satisfying
+`oracle_attests`. The CLI and validator WASM program
 context now carries that derived map as `context.accepted_state_oracle_keys`,
 so replayed invoke programs can build oracle replay bundles from the same
 accepted-state key material the verifier will check.
@@ -370,8 +375,9 @@ missing accepted-state oracle-key lookup maps or path entries, malformed
 accepted-state oracle-key material, scalar/key-map mismatches, accepted-state
 oracle-key mismatches, malformed JSON, pretty-printed or otherwise
 non-canonical bytes, wrong predicate names, and envelope/input attestation
-mismatches fail before signature verification. This is still extension-level
-evidence only until contract-log replay supplies replay bundles end to end.
+mismatches fail before signature verification. When those checks pass and the
+signature verifies against the accepted oracle key, the sequenced validator can
+use the replay bundle as local transition evidence for `oracle_attests`.
 
 ## Hash Predicates
 

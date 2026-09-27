@@ -5,11 +5,13 @@ use crate::model_diagnostics::{
     TransitionDiagnosticInput,
 };
 use anyhow::Result;
+use ed25519_dalek::{PublicKey, Signature, Verifier};
 use modality_lang::{
     parse_content_lalrpop, Formula, FormulaExpr, Model, ModelChecker, Part, Property, PropertySign,
     PropertySource, Transition,
 };
 use serde_json::Value;
+use sha2::{Digest, Sha256};
 use std::collections::{HashMap, HashSet};
 
 struct AnchoredRule {
@@ -1292,6 +1294,10 @@ enum ReplayBundleBinding {
         oracle_path: String,
         claim: String,
         value: String,
+        contract_id: String,
+        pending_commit_hash: String,
+        timestamp: i64,
+        signature: String,
     },
 }
 
@@ -1465,6 +1471,15 @@ impl CommitFacts {
                 .first()
                 .map(|path| self.state_bool(path) == Some(false))
                 .unwrap_or(false),
+            "oracle_attests" => self
+                .replay_bundles
+                .get("oracle_attests")
+                .is_some_and(|status| match status {
+                    ReplayBundleStatus::Present(binding) => {
+                        replay_bundle_binding_mismatch(property, binding, &self.state).is_none()
+                    }
+                    ReplayBundleStatus::Invalid(_) => false,
+                }),
             _ => false,
         }
     }
@@ -2060,7 +2075,119 @@ fn oracle_replay_bundle_shape_status(
             .and_then(Value::as_str)
             .unwrap_or_default()
             .to_string(),
+        contract_id: attestation
+            .get("contract_id")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string(),
+        pending_commit_hash: attestation
+            .get("pending_commit_hash")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string(),
+        timestamp: attestation
+            .get("timestamp")
+            .and_then(Value::as_i64)
+            .unwrap_or_default(),
+        signature: attestation
+            .get("signature")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string(),
     })
+}
+
+fn oracle_attestation_signature_mismatch(
+    oracle_pubkey: &str,
+    oracle_path: &str,
+    claim: &str,
+    value: &str,
+    contract_id: &str,
+    pending_commit_hash: &str,
+    timestamp: i64,
+    signature: &str,
+) -> Option<String> {
+    let public_key_bytes = match hex::decode(oracle_pubkey) {
+        Ok(bytes) => bytes,
+        Err(err) => {
+            return Some(format!(
+                "oracle_attests replay bundle attestation oracle_pubkey is not valid hex: {err}"
+            ))
+        }
+    };
+    let public_key = match PublicKey::from_bytes(&public_key_bytes) {
+        Ok(public_key) => public_key,
+        Err(_) => {
+            return Some(
+                "oracle_attests replay bundle attestation oracle_pubkey is not a valid ed25519 public key"
+                    .to_string(),
+            )
+        }
+    };
+
+    let signature_bytes = match hex::decode(signature) {
+        Ok(bytes) => bytes,
+        Err(err) => {
+            return Some(format!(
+                "oracle_attests replay bundle attestation signature is not valid hex: {err}"
+            ))
+        }
+    };
+    let signature = match Signature::from_bytes(&signature_bytes) {
+        Ok(signature) => signature,
+        Err(_) => return Some(
+            "oracle_attests replay bundle attestation signature is not a valid ed25519 signature"
+                .to_string(),
+        ),
+    };
+
+    let signing_message = oracle_attestation_signing_message(
+        oracle_pubkey,
+        oracle_path,
+        claim,
+        value,
+        contract_id,
+        pending_commit_hash,
+        timestamp,
+    );
+    if public_key.verify(&signing_message, &signature).is_err() {
+        return Some(
+            "oracle_attests replay bundle attestation signature does not verify".to_string(),
+        );
+    }
+
+    None
+}
+
+fn oracle_attestation_signing_message(
+    oracle_pubkey: &str,
+    oracle_path: &str,
+    claim: &str,
+    value: &str,
+    contract_id: &str,
+    pending_commit_hash: &str,
+    timestamp: i64,
+) -> Vec<u8> {
+    let mut hasher = Sha256::new();
+    for (index, field) in [
+        oracle_pubkey,
+        oracle_path,
+        claim,
+        value,
+        contract_id,
+        pending_commit_hash,
+    ]
+    .iter()
+    .enumerate()
+    {
+        if index > 0 {
+            hasher.update(b"|");
+        }
+        hasher.update(field.as_bytes());
+    }
+    hasher.update(b"|");
+    hasher.update(timestamp.to_le_bytes());
+    hasher.finalize().to_vec()
 }
 
 fn unexpected_json_field<'a>(
@@ -2087,6 +2214,10 @@ fn replay_bundle_binding_mismatch(
         oracle_path,
         claim,
         value,
+        contract_id,
+        pending_commit_hash,
+        timestamp,
+        signature,
     } = binding
     else {
         return None;
@@ -2130,6 +2261,18 @@ fn replay_bundle_binding_mismatch(
         return Some(format!(
             "oracle_attests replay bundle attestation value {value} does not match predicate argument {expected_value}"
         ));
+    }
+    if let Some(reason) = oracle_attestation_signature_mismatch(
+        oracle_pubkey,
+        oracle_path,
+        claim,
+        value,
+        contract_id,
+        pending_commit_hash,
+        *timestamp,
+        signature,
+    ) {
+        return Some(reason);
     }
 
     None
@@ -2350,6 +2493,10 @@ model DeliveryOracle {
 
     #[test]
     fn explains_pending_replay_bundle_evidence_boundary() {
+        const VALID_ORACLE_PUBKEY: &str =
+            "0309b225437690232614050126094fe8138366408ca8426464e35ca3e21803b3";
+        const VALID_ORACLE_SIGNATURE_FOR_PENDING_1: &str =
+            "78a2a7923cb6bdb878e67088dc2acf0449560d5ea216358be5642b4f8bcfd1cad53f0828e841ea4154bbfc580ab1781f0aaba2d156dcafb7c026328155b4ab0f";
         let model = parse_content_lalrpop(
             r#"
 model DeliveryOracle {
@@ -2413,12 +2560,34 @@ model DeliveryOracle {
             .into_iter()
             .collect(),
         );
-        let facts = CommitFacts::from_commit(&valid_shape_commit, &state);
-        let err = explain_no_valid_transition(&model, &current_states, &facts);
-        assert!(err.contains("replay bundle evidence is present"), "{err}");
+        let valid_state = [(
+            "oracles/delivery.id".to_string(),
+            Value::String(VALID_ORACLE_PUBKEY.to_string()),
+        )]
+        .into_iter()
+        .collect::<HashMap<_, _>>();
+        valid_shape_commit.head.replay_bundles = Some(
+            [(
+                "oracle_attests".to_string(),
+                ReplayBundleEvidence {
+                    replay_bundle_json: format!(
+                        "{{\"predicate\":\"oracle_attests\",\"max_age_seconds\":60,\"attestation\":{{\"oracle_pubkey\":\"{VALID_ORACLE_PUBKEY}\",\"oracle_path\":\"/oracles/delivery.id\",\"claim\":\"delivered\",\"value\":\"true\",\"contract_id\":\"c1\",\"pending_commit_hash\":\"pending-1\",\"timestamp\":1700000000,\"signature\":\"{VALID_ORACLE_SIGNATURE_FOR_PENDING_1}\"}}}}"
+                    ),
+                },
+            )]
+            .into_iter()
+            .collect(),
+        );
+        let facts = CommitFacts::from_pending_commit_at(
+            &valid_shape_commit,
+            &valid_state,
+            Some("pending-1"),
+            Some("c1"),
+            Some(1_700_000_030),
+        );
         assert!(
-            err.contains("not yet promoted to local transition acceptance"),
-            "{err}"
+            has_valid_transition(&model, &current_states, &facts),
+            "valid signed replay bundle should satisfy oracle_attests"
         );
 
         let mut stale_oracle_key_commit = commit.clone();
