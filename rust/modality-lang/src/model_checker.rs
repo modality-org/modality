@@ -1,4 +1,5 @@
 use crate::ast::{Formula, FormulaExpr, Model, Part, Property, PropertySign, Transition};
+use crate::theory::{standard, NoState, Registry, StateView, Theory, TheoryVersion, Tri};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 
@@ -20,15 +21,217 @@ pub struct ModelCheckResult {
     pub is_satisfied: bool,
 }
 
+/// A transition whose own label set cannot hold on one edge, per the theory.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct DeadEdge {
+    pub part_name: String,
+    pub from: String,
+    pub to: String,
+    pub properties: Vec<Property>,
+    /// Offending literals, sorted; from `Verdict::explain`.
+    pub offending: Vec<String>,
+}
+
+/// Runtime status of one outgoing move, from accepted state.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum MoveStatus {
+    /// Nothing in accepted state rules the edge out.
+    Open,
+    /// Some literal on the edge is false now.
+    Blocked,
+    /// The only open edge out of a node that has more than one.
+    Forced,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Move {
+    pub part_name: String,
+    pub from: String,
+    pub to: String,
+    pub properties: Vec<Property>,
+    pub status: MoveStatus,
+    /// Literals that block the move, when `Blocked`.
+    pub offending: Vec<String>,
+}
+
 /// Model checker for temporal modal formulas
 pub struct ModelChecker {
     model: Model,
+    version: TheoryVersion,
+    registry: Option<Box<dyn Registry + Send + Sync>>,
+    state: Option<Box<dyn StateView + Send + Sync>>,
+    /// `(part index, transition index)` of edges the theory proved dead.
+    dead: HashSet<(usize, usize)>,
 }
 
 impl ModelChecker {
-    /// Create a new model checker for the given model
+    /// Create a new model checker for the given model.
+    ///
+    /// Uses `TheoryVersion::V0`: atoms are opaque, matching is structural,
+    /// no edge is pruned. This is the behaviour every existing caller
+    /// relies on.
     pub fn new(model: Model) -> Self {
-        Self { model }
+        Self::with_theory(model, TheoryVersion::V0, None, None)
+    }
+
+    /// Model checker under a theory version with the standard registry and
+    /// no state view.
+    pub fn with_version(model: Model, version: TheoryVersion) -> Self {
+        Self::with_theory(model, version, None, None)
+    }
+
+    /// Model checker under a theory version. `None` registry means the
+    /// standard declarations; `None` state means nothing is known about
+    /// accepted state (structural queries only).
+    pub fn with_theory(
+        model: Model,
+        version: TheoryVersion,
+        registry: Option<Box<dyn Registry + Send + Sync>>,
+        state: Option<Box<dyn StateView + Send + Sync>>,
+    ) -> Self {
+        let mut checker = Self {
+            model,
+            version,
+            registry,
+            state,
+            dead: HashSet::new(),
+        };
+        checker.dead = checker.compute_dead();
+        checker
+    }
+
+    pub fn theory_version(&self) -> TheoryVersion {
+        self.version
+    }
+
+    fn theory(&self) -> Theory<'_> {
+        let registry: &dyn Registry = match &self.registry {
+            Some(r) => r.as_ref(),
+            None => standard(),
+        };
+        let state: &dyn StateView = match &self.state {
+            Some(s) => s.as_ref(),
+            None => &NoState,
+        };
+        Theory::new(self.version, registry, state)
+    }
+
+    /// Edges whose label set is provably unsatisfiable. Empty under `V0`.
+    /// Dead edges are computed without state: they are dead in every
+    /// state, which is what makes pruning them sound for a MODEL commit.
+    fn compute_dead(&self) -> HashSet<(usize, usize)> {
+        let mut dead = HashSet::new();
+        if self.version == TheoryVersion::V0 {
+            return dead;
+        }
+        let registry: &dyn Registry = match &self.registry {
+            Some(r) => r.as_ref(),
+            None => standard(),
+        };
+        let theory = Theory::new(self.version, registry, &NoState);
+        for (pi, part) in self.model.parts.iter().enumerate() {
+            for (ti, transition) in part.transitions.iter().enumerate() {
+                if theory.consistent(&transition.properties).tri == Tri::False {
+                    dead.insert((pi, ti));
+                }
+            }
+        }
+        dead
+    }
+
+    fn part_index(&self, part: &Part) -> Option<usize> {
+        self.model.parts.iter().position(|p| std::ptr::eq(p, part))
+    }
+
+    /// Transitions of a part that the theory has not proved dead.
+    fn live_transitions<'a>(&self, part: &'a Part) -> Vec<&'a Transition> {
+        if self.dead.is_empty() {
+            return part.transitions.iter().collect();
+        }
+        let pi = self.part_index(part);
+        part.transitions
+            .iter()
+            .enumerate()
+            .filter(|(ti, _)| pi.is_none_or(|pi| !self.dead.contains(&(pi, *ti))))
+            .map(|(_, t)| t)
+            .collect()
+    }
+
+    /// Every dead edge, with the literals that kill it. Sorted by part,
+    /// then by position in the part.
+    pub fn dead_transitions(&self) -> Vec<DeadEdge> {
+        let theory = Theory::new(
+            self.version,
+            match &self.registry {
+                Some(r) => r.as_ref(),
+                None => standard(),
+            },
+            &NoState,
+        );
+        let mut keys: Vec<&(usize, usize)> = self.dead.iter().collect();
+        keys.sort();
+        keys.into_iter()
+            .map(|(pi, ti)| {
+                let part = &self.model.parts[*pi];
+                let t = &part.transitions[*ti];
+                DeadEdge {
+                    part_name: part.name.clone(),
+                    from: t.from.clone(),
+                    to: t.to.clone(),
+                    properties: t.properties.clone(),
+                    offending: theory.consistent(&t.properties).explain(),
+                }
+            })
+            .collect()
+    }
+
+    /// Runtime necessity: classify every outgoing edge of `node` (in every
+    /// part that has it) against the state view. Under `V0`, or with no
+    /// state view, every live edge is `Open`.
+    pub fn classify_moves(&self, node: &str) -> Vec<Move> {
+        let theory = self.theory();
+        let mut out = Vec::new();
+        for part in &self.model.parts {
+            let edges: Vec<&Transition> = self
+                .live_transitions(part)
+                .into_iter()
+                .filter(|t| t.from == node)
+                .collect();
+            let mut moves: Vec<Move> = edges
+                .iter()
+                .map(|t| {
+                    let v = theory.consistent(&t.properties);
+                    let (status, offending) = if v.tri == Tri::False {
+                        (MoveStatus::Blocked, v.explain())
+                    } else {
+                        (MoveStatus::Open, Vec::new())
+                    };
+                    Move {
+                        part_name: part.name.clone(),
+                        from: t.from.clone(),
+                        to: t.to.clone(),
+                        properties: t.properties.clone(),
+                        status,
+                        offending,
+                    }
+                })
+                .collect();
+            if moves.len() > 1
+                && moves
+                    .iter()
+                    .filter(|m| m.status == MoveStatus::Open)
+                    .count()
+                    == 1
+            {
+                for m in &mut moves {
+                    if m.status == MoveStatus::Open {
+                        m.status = MoveStatus::Forced;
+                    }
+                }
+            }
+            out.extend(moves);
+        }
+        out
     }
 
     /// Check if a formula is satisfied by the model (requires at least one state from each graph)
@@ -170,7 +373,7 @@ impl ModelChecker {
             let current_result = result.clone();
 
             for part in &self.model.parts {
-                for transition in &part.transitions {
+                for transition in self.live_transitions(part) {
                     let from_state = State {
                         part_name: part.name.clone(),
                         node_name: transition.from.clone(),
@@ -219,7 +422,7 @@ impl ModelChecker {
                 // Check if any outgoing transition leads to a state not in result
                 let part = self.model.parts.iter().find(|p| p.name == state.part_name);
                 if let Some(part) = part {
-                    for transition in &part.transitions {
+                    for transition in self.live_transitions(part) {
                         if transition.from == state.node_name {
                             let to_state = State {
                                 part_name: part.name.clone(),
@@ -256,7 +459,7 @@ impl ModelChecker {
             let current_result = result.clone();
 
             for part in &self.model.parts {
-                for transition in &part.transitions {
+                for transition in self.live_transitions(part) {
                     let from_state = State {
                         part_name: part.name.clone(),
                         node_name: transition.from.clone(),
@@ -287,7 +490,7 @@ impl ModelChecker {
         let mut result = Vec::new();
 
         for part in &self.model.parts {
-            for transition in &part.transitions {
+            for transition in self.live_transitions(part) {
                 let from_state = State {
                     part_name: part.name.clone(),
                     node_name: transition.from.clone(),
@@ -429,7 +632,7 @@ impl ModelChecker {
         let mut result = Vec::new();
 
         for part in &self.model.parts {
-            for transition in &part.transitions {
+            for transition in self.live_transitions(part) {
                 // Check if this transition has all the required properties
                 if self.transition_satisfies_properties(transition, properties) {
                     // Check if the target state satisfies the inner formula
@@ -513,16 +716,39 @@ impl ModelChecker {
     /// A transition satisfies a property if:
     /// - For +property: transition explicitly has +property OR doesn't mention property at all
     /// - For -property: transition explicitly has -property OR doesn't mention property at all
+    ///
+    /// Under a theory version above `V0`, two steps come first:
+    /// - the edge's atoms entail the property → usable (`x>7` for `x>5`)
+    /// - the edge's atoms plus the property are inconsistent → not usable
+    ///
+    /// and the structural rule above decides the rest.
     fn transition_satisfies_properties(
         &self,
         transition: &Transition,
         properties: &[Property],
     ) -> bool {
+        let theory = if self.version == TheoryVersion::V0 {
+            None
+        } else {
+            Some(self.theory())
+        };
         properties.iter().all(|property| {
             // Check if transition explicitly has this property
             let has_explicit = transition.properties.iter().any(|p| p == property);
             if has_explicit {
                 return true;
+            }
+
+            if let Some(theory) = &theory {
+                match theory.entails(&transition.properties, property) {
+                    Tri::True => return true,
+                    Tri::False | Tri::Unknown => {}
+                }
+                let mut with = transition.properties.clone();
+                with.push(property.clone());
+                if theory.consistent(&with).tri == Tri::False {
+                    return false;
+                }
             }
 
             // If transition doesn't mention this property at all, it's usable
@@ -547,7 +773,10 @@ impl ModelChecker {
 
     /// Get all transitions from a specific node in a part
     fn get_transitions_from_node<'a>(&self, part: &'a Part, node: &str) -> Vec<&'a Transition> {
-        part.transitions.iter().filter(|t| t.from == node).collect()
+        self.live_transitions(part)
+            .into_iter()
+            .filter(|t| t.from == node)
+            .collect()
     }
 
     /// Get all states in the model

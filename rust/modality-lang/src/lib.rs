@@ -22,6 +22,7 @@ pub mod patterns;
 pub mod printer;
 pub mod runtime;
 pub mod synthesis;
+pub mod theory;
 pub mod validation;
 #[cfg(target_arch = "wasm32")]
 pub mod wasm;
@@ -54,7 +55,8 @@ pub use mermaid::{
     generate_mermaid_diagram, generate_mermaid_diagram_with_state,
     generate_mermaid_diagram_with_styling, generate_mermaid_diagrams,
 };
-pub use model_checker::{ModelCheckResult, ModelChecker, State};
+pub use model_checker::{DeadEdge, ModelCheckResult, ModelChecker, Move, MoveStatus, State};
+pub use theory::{Theory, TheoryVersion, Tri, Verdict};
 pub use printer::print_model;
 pub use runtime::negotiation::{
     CounterProposal, Proposal as NegotiationProposal, ProposalStatus as NegotiationStatus,
