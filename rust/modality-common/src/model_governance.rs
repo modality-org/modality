@@ -1928,6 +1928,14 @@ fn oracle_replay_bundle_shape_status(
         }
     }
 
+    if let Some(oracle_path) = attestation.get("oracle_path").and_then(Value::as_str) {
+        if !is_accepted_state_oracle_key_path(oracle_path) {
+            return ReplayBundleStatus::Invalid(format!(
+                "oracle_attests replay bundle attestation oracle_path {oracle_path} is outside the /oracles/**/*.id accepted-state oracle key namespace"
+            ));
+        }
+    }
+
     let max_age_seconds = object
         .get("max_age_seconds")
         .and_then(Value::as_i64)
@@ -2063,6 +2071,10 @@ fn unexpected_json_field<'a>(
         .keys()
         .find(|field| !allowed_fields.contains(&field.as_str()))
         .map(String::as_str)
+}
+
+fn is_accepted_state_oracle_key_path(path: &str) -> bool {
+    path.starts_with("/oracles/") && path.ends_with(".id")
 }
 
 fn replay_bundle_binding_mismatch(
@@ -2426,6 +2438,31 @@ model DeliveryOracle {
         assert!(
             err.contains(
                 "oracle_attests replay bundle attestation oracle_pubkey delivery-key-v0 does not match accepted state at /oracles/delivery.id (delivery-key-v1)"
+            ),
+            "{err}"
+        );
+        assert!(
+            !err.contains("not yet promoted to local transition acceptance"),
+            "{err}"
+        );
+
+        let mut wrong_oracle_namespace_commit = commit.clone();
+        wrong_oracle_namespace_commit.head.replay_bundles = Some(
+            [(
+                "oracle_attests".to_string(),
+                ReplayBundleEvidence {
+                    replay_bundle_json: r#"{"predicate":"oracle_attests","max_age_seconds":60,"attestation":{"oracle_pubkey":"delivery-key-v1","oracle_path":"/not-oracles/delivery.id","claim":"delivered","value":"true","contract_id":"c1","pending_commit_hash":"pending-1","timestamp":1700000000,"signature":"sig"}}"#.to_string(),
+                },
+            )]
+            .into_iter()
+            .collect(),
+        );
+        let facts = CommitFacts::from_commit(&wrong_oracle_namespace_commit, &state);
+        let err = explain_no_valid_transition(&model, &current_states, &facts);
+        assert!(err.contains("invalid replay bundle evidence"), "{err}");
+        assert!(
+            err.contains(
+                "oracle_attests replay bundle attestation oracle_path /not-oracles/delivery.id is outside the /oracles/**/*.id accepted-state oracle key namespace"
             ),
             "{err}"
         );

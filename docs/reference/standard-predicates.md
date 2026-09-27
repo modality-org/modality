@@ -342,7 +342,10 @@ the looked-up key to match the bundle attestation before signature verification.
 The `modality-common` replay helpers now derive `accepted_state_oracle_keys`
 from the actual accepted contract state by reading string values posted at
 `/oracles/**/*.id` paths, after updates and deletes are applied, before a
-pending commit is expanded or checked. The CLI and validator WASM program
+pending commit is expanded or checked. Replay bundles whose attestation
+`oracle_path` falls outside that `/oracles/**/*.id` namespace are rejected
+before they can be reported as present-but-unpromoted evidence. The CLI and
+validator WASM program
 context now carries that derived map as `context.accepted_state_oracle_keys`,
 so replayed invoke programs can build oracle replay bundles from the same
 accepted-state key material the verifier will check.
