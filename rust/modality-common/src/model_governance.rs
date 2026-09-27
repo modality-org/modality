@@ -90,19 +90,63 @@ fn validate_pending_commit_with_history_and_ids_at(
         pending_commit_id,
         expected_contract_id,
         evaluation_timestamp,
-        TheoryVersion::V0,
+        TheoryActivation::V0,
     )
 }
 
-/// Pending-commit validation under a predicate theory version.
+/// Which predicate theory version governs each commit of a contract log.
 ///
-/// `V0` is exactly the check every other entry point runs. Above `V0`:
-/// - accepted rules are re-checked with entailment-aware matching and
-///   dead-edge pruning (so replay uses the same version throughout; the
-///   version is not yet height-anchored);
+/// Commits before `from_commit` (an index into the log, oldest first) were
+/// accepted under `V0`; the rest, and the pending commit, under `version`.
+/// A rule is re-checked on replay under the version in force when it or the
+/// governing model was admitted, whichever is later, so a log accepted
+/// under `V0` replays the same after the switch.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TheoryActivation {
+    pub version: TheoryVersion,
+    pub from_commit: usize,
+}
+
+impl TheoryActivation {
+    pub const V0: Self = Self {
+        version: TheoryVersion::V0,
+        from_commit: 0,
+    };
+
+    /// `version` for the whole log.
+    pub fn always(version: TheoryVersion) -> Self {
+        Self {
+            version,
+            from_commit: 0,
+        }
+    }
+
+    /// `version` from the commit at `from_commit` on.
+    pub fn from_commit(version: TheoryVersion, from_commit: usize) -> Self {
+        Self {
+            version,
+            from_commit,
+        }
+    }
+
+    fn at(&self, commit_index: usize) -> TheoryVersion {
+        if commit_index >= self.from_commit {
+            self.version
+        } else {
+            TheoryVersion::V0
+        }
+    }
+}
+
+/// Pending-commit validation under a predicate theory activation.
+///
+/// [`TheoryActivation::V0`] is exactly the check every other entry point
+/// runs. Where the pending commit is under a version above `V0`:
 /// - a commit that posts a `MODEL` with a dead edge is refused;
 /// - a `RULE` in the pending commit is checked against the governing
-///   model from the states the commit reaches.
+///   model from the states the commit reaches (today it is checked only
+///   when a later commit replays it);
+/// - rule checks use entailment-aware edge matching and dead-edge pruning.
 pub fn validate_pending_commit_with_theory(
     fallback_model_content: &str,
     accepted: &[CommitFile],
@@ -110,7 +154,7 @@ pub fn validate_pending_commit_with_theory(
     pending_commit_id: Option<&str>,
     expected_contract_id: Option<&str>,
     evaluation_timestamp: Option<u64>,
-    theory: TheoryVersion,
+    activation: TheoryActivation,
 ) -> Result<()> {
     let Some(governing_model) = governing_model_content(fallback_model_content, accepted, pending)
     else {
@@ -119,8 +163,9 @@ pub fn validate_pending_commit_with_theory(
 
     let model = parse_content_lalrpop(&governing_model)
         .map_err(|err| anyhow::anyhow!("Invalid governing model syntax: {}", err))?;
+    let model_index = governing_model_index(accepted, pending);
     let (current_states, state, _anchored_rules) =
-        replay_commits_to_current_state_with(&model, accepted, theory)?;
+        replay_commits_to_current_state_with(&model, model_index, accepted, activation)?;
     let facts = CommitFacts::from_pending_commit_at(
         pending,
         &state,
@@ -129,6 +174,7 @@ pub fn validate_pending_commit_with_theory(
         evaluation_timestamp,
     );
 
+    let theory = activation.at(accepted.len());
     if theory != TheoryVersion::V0 {
         let mut after = state.clone();
         apply_commit_to_state(pending, &mut after);
@@ -156,15 +202,15 @@ pub fn validate_pending_commit_with_theory(
     )
 }
 
-/// Sequenced apply under a predicate theory version; `V0` is
-/// [`validate_sequenced_commit_with_ids_at`].
+/// Sequenced apply under a predicate theory activation;
+/// [`TheoryActivation::V0`] is [`validate_sequenced_commit_with_ids_at`].
 pub fn validate_sequenced_commit_with_theory(
     accepted: &[CommitFile],
     pending: &CommitFile,
     pending_commit_id: Option<&str>,
     expected_contract_id: Option<&str>,
     evaluation_timestamp: Option<u64>,
-    theory: TheoryVersion,
+    activation: TheoryActivation,
 ) -> Result<()> {
     if is_genesis_only(pending) {
         return Ok(());
@@ -181,8 +227,20 @@ pub fn validate_sequenced_commit_with_theory(
         pending_commit_id,
         expected_contract_id,
         evaluation_timestamp,
-        theory,
+        activation,
     )
+}
+
+/// Log index of the commit that posted the governing model: the pending
+/// commit, the latest accepted `MODEL`, or 0 for a fallback model.
+fn governing_model_index(accepted: &[CommitFile], pending: &CommitFile) -> usize {
+    if pending_model_content(pending).is_some() {
+        return accepted.len();
+    }
+    accepted
+        .iter()
+        .rposition(|commit| pending_model_content(commit).is_some())
+        .unwrap_or(0)
 }
 
 /// The check replay runs on a commit's rules once the commit is accepted,
@@ -283,8 +341,8 @@ pub enum TheoryFinding {
     ReplayWouldFail { reason: String },
 }
 
-/// Shadow mode: the `V0` outcome, and what `theory` would change about it.
-/// Findings never change the outcome.
+/// Shadow mode: the `V0` outcome, and what switching `theory` on at the
+/// pending commit would change about it. Findings never change the outcome.
 #[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct ShadowReport {
     pub theory: String,
@@ -298,24 +356,19 @@ pub fn shadow_findings(
     pending: &CommitFile,
     theory: TheoryVersion,
 ) -> ShadowReport {
-    let today = validate_pending_commit_with_theory(
-        fallback_model_content,
-        accepted,
-        pending,
-        None,
-        None,
-        None,
-        TheoryVersion::V0,
-    );
-    let shadow = validate_pending_commit_with_theory(
-        fallback_model_content,
-        accepted,
-        pending,
-        None,
-        None,
-        None,
-        theory,
-    );
+    let validate = |activation| {
+        validate_pending_commit_with_theory(
+            fallback_model_content,
+            accepted,
+            pending,
+            None,
+            None,
+            None,
+            activation,
+        )
+    };
+    let today = validate(TheoryActivation::V0);
+    let shadow = validate(TheoryActivation::from_commit(theory, accepted.len()));
 
     let mut findings = Vec::new();
     if let Some(model) = governing_model_content(fallback_model_content, accepted, pending)
@@ -375,8 +428,8 @@ pub fn shadow_findings(
 }
 
 /// Runtime necessity from accepted state: which moves out of the current
-/// states are open, blocked, or forced. Replay uses today's rules (`V0`);
-/// classification uses `theory`. A pure function of the accepted prefix.
+/// states are open, blocked, or forced, under `activation.version`. Replay
+/// follows `activation`. A pure function of the accepted prefix.
 #[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct NecessityView {
     pub theory: String,
@@ -387,15 +440,20 @@ pub struct NecessityView {
 pub fn necessity_view(
     fallback_model_content: &str,
     accepted: &[CommitFile],
-    theory: TheoryVersion,
+    activation: TheoryActivation,
 ) -> Result<NecessityView> {
     let governing_model = latest_accepted_model_from_commits(accepted)
         .unwrap_or_else(|| fallback_model_content.to_string());
     let model = parse_content_lalrpop(&governing_model)
         .map_err(|err| anyhow::anyhow!("Invalid governing model syntax: {}", err))?;
+    let model_index = accepted
+        .iter()
+        .rposition(|commit| pending_model_content(commit).is_some())
+        .unwrap_or(0);
     let (current_states, state, _rules) =
-        replay_commits_to_current_state_with(&model, accepted, TheoryVersion::V0)?;
+        replay_commits_to_current_state_with(&model, model_index, accepted, activation)?;
 
+    let theory = activation.version;
     let checker = ModelChecker::with_theory(
         model_for_rule_checking(&model),
         theory,
@@ -549,13 +607,16 @@ fn pending_model_content(commit: &CommitFile) -> Option<&str> {
 }
 
 fn replay_commits_to_current_state(model: &Model, commits: &[CommitFile]) -> Result<ReplayState> {
-    replay_commits_to_current_state_with(model, commits, TheoryVersion::V0)
+    replay_commits_to_current_state_with(model, 0, commits, TheoryActivation::V0)
 }
 
+/// `model_index`: log index of the commit that posted `model` (see
+/// [`TheoryActivation`] for which version re-checks each rule).
 fn replay_commits_to_current_state_with(
     model: &Model,
+    model_index: usize,
     commits: &[CommitFile],
-    theory: TheoryVersion,
+    activation: TheoryActivation,
 ) -> Result<ReplayState> {
     let mut current_states = initial_states(model);
     let mut state = HashMap::new();
@@ -580,6 +641,7 @@ fn replay_commits_to_current_state_with(
         let new_rules = anchored_rules_from_commit(commit, commit_index, &next_states)?;
         current_states = next_states;
         apply_commit_to_state(commit, &mut state);
+        let theory = activation.at(commit_index.max(model_index));
         for rule in &new_rules {
             validate_anchored_rule(model, rule, theory, &state)?;
         }

@@ -39,7 +39,15 @@ fn note() -> CommitFile {
 }
 
 fn validate(accepted: &[CommitFile], pending: &CommitFile, theory: TheoryVersion) -> Result<()> {
-    validate_pending_commit_with_theory("", accepted, pending, None, None, None, theory)
+    validate_at(accepted, pending, TheoryActivation::always(theory))
+}
+
+fn validate_at(
+    accepted: &[CommitFile],
+    pending: &CommitFile,
+    activation: TheoryActivation,
+) -> Result<()> {
+    validate_pending_commit_with_theory("", accepted, pending, None, None, None, activation)
 }
 
 fn then(accepted: &[CommitFile], pending: &CommitFile) -> Vec<CommitFile> {
@@ -156,6 +164,28 @@ fn g2_v1_refuses_a_rule_satisfiable_only_through_a_dead_edge() {
     assert!(err.contains("Model violates rule"), "{err}");
     assert!(err.contains("pruned transitions"), "{err}");
     assert!(err.contains("q1 --> q2"), "{err}");
+}
+
+/// A rule accepted under `V0` through a dead edge (G2) fails under `V1`.
+/// Replaying a `V0` log entirely under `V1` would refuse every later
+/// commit; with the switch anchored after it, the log replays as accepted.
+#[test]
+fn a_v0_log_replays_the_same_after_the_switch() {
+    let accepted = vec![
+        model_commit(LIVE_AND_DEAD, vec![]),
+        rule_commit(r#"<+num_gt(/x.num,"5")> true"#),
+    ];
+    validate(&accepted, &note(), V0).expect("V0");
+    validate(&accepted, &note(), V1).expect_err("the whole log under V1");
+    validate_at(&accepted, &note(), TheoryActivation::from_commit(V1, 2))
+        .expect("V1 from the pending commit on");
+
+    // A new MODEL is admitted under V1, so every accepted rule is
+    // re-checked against it under V1.
+    let replacement = model_commit(LIVE_AND_DEAD.replace("Contract", "Replaced").as_str(), vec![]);
+    let err = validate_at(&accepted, &replacement, TheoryActivation::from_commit(V1, 2))
+        .expect_err("V1 refuses the dead edge and the rule it carries");
+    assert!(err.to_string().contains("q1 --> q2"), "{err}");
 }
 
 #[test]
@@ -323,7 +353,12 @@ fn moves(
     posts: Vec<(&str, Value)>,
     theory: TheoryVersion,
 ) -> Vec<(String, MoveStatus)> {
-    let view = necessity_view("", &[model_commit(model, posts)], theory).unwrap();
+    let view = necessity_view(
+        "",
+        &[model_commit(model, posts)],
+        TheoryActivation::always(theory),
+    )
+    .unwrap();
     assert_eq!(view.current_states, vec!["q1".to_string()]);
     view.moves.into_iter().map(|m| (m.to, m.status)).collect()
 }
