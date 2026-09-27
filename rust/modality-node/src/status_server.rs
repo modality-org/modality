@@ -20,7 +20,11 @@ pub async fn start_status_server(
         .and(
             warp::path::end()
                 .or(warp::path("status").and(warp::path::end()))
-                .or(warp::path!("contracts" / String).map(|_id: String| ())),
+                .or(warp::path!("contracts" / String).map(|_id: String| ()))
+                .or(warp::path::param::<String>()
+                    .and(warp::path::end())
+                    .and_then(tab_path)
+                    .untuple_one()),
         )
         .map(|_| {
             warp::reply::with_header(
@@ -38,6 +42,16 @@ pub async fn start_status_server(
         .and(warp::get())
         .and(source_filter.clone())
         .and_then(contract_page);
+    // Each explorer tab has its own path, so a tab is a URL the page can
+    // be opened or reloaded on. The same document is served for every tab;
+    // the client reads the path to pick the tab.
+    let tab_get = warp::path::param::<String>()
+        .and(warp::path::end())
+        .and_then(tab_path)
+        .untuple_one()
+        .and(warp::get())
+        .and(source_filter.clone())
+        .and_then(status_handler);
     let status_get = warp::path("status")
         .and(warp::path::end())
         .and(warp::get())
@@ -96,6 +110,7 @@ pub async fn start_status_server(
     let status_route = root_get
         .or(contract_get)
         .or(status_get)
+        .or(tab_get)
         .or(page_head)
         .or(json_get)
         .or(json_head)
@@ -131,6 +146,26 @@ async fn status_handler(source: NodeStatusSource) -> Result<impl warp::Reply, wa
         .await
         .map_err(|_| warp::reject::not_found())?;
     Ok(warp::reply::html(html))
+}
+
+/// Explorer tabs that own a top-level path. `status.html` keeps the same
+/// list in its `allowed` map.
+pub const EXPLORER_TABS: [&str; 7] = [
+    "overview",
+    "nodes",
+    "miners",
+    "chains",
+    "sequencers",
+    "validators",
+    "contracts",
+];
+
+async fn tab_path(segment: String) -> Result<(), warp::Rejection> {
+    if EXPLORER_TABS.contains(&segment.as_str()) {
+        Ok(())
+    } else {
+        Err(warp::reject::not_found())
+    }
 }
 
 async fn contract_page(
@@ -187,9 +222,7 @@ async fn status_json_handler(
     Ok(cors_json_reply(warp::reply::json(&body)))
 }
 
-async fn chain_json_handler(
-    source: NodeStatusSource,
-) -> Result<impl warp::Reply, warp::Rejection> {
+async fn chain_json_handler(source: NodeStatusSource) -> Result<impl warp::Reply, warp::Rejection> {
     let mgr = source.datastore.lock().await;
     let canonical = modality_datastore::models::miner::MinerBlock::find_all_canonical_multi(&mgr)
         .await
@@ -324,4 +357,18 @@ pub async fn start_status_html_writer(
     });
 
     Ok(handle)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn tab_paths_name_the_explorer_tabs() {
+        for tab in EXPLORER_TABS {
+            assert!(tab_path(tab.to_string()).await.is_ok(), "{tab}");
+        }
+        assert!(tab_path("status.json".to_string()).await.is_err());
+        assert!(tab_path("blocks".to_string()).await.is_err());
+    }
 }

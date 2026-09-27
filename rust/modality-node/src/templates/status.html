@@ -5,17 +5,24 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Modality Network</title>
     <script>
+        // The path names the tab: `/` is the overview, `/nodes`, `/miners`,
+        // `/chains`, `/sequencers`, `/validators`, `/contracts`, and
+        // `/contracts/<id>` open the matching tab. The server returns this
+        // document for each of those paths.
+        var TAB_PATHS = {{ overview: 1, nodes: 1, miners: 1, chains: 1, sequencers: 1, validators: 1, contracts: 1 }};
+        function tabFromPath(pathname) {{
+            var m = String(pathname || '/').match(/^\/([^/]*)/);
+            var first = m ? decodeURIComponent(m[1]) : '';
+            if (first === '' || first === 'status') return 'overview';
+            return TAB_PATHS[first] ? first : 'overview';
+        }}
+        function pathForTab(tabName) {{
+            if (tabName === 'overview') return '/';
+            if (tabName === 'contracts' && /^\/contracts\/[^/]+/.test(location.pathname)) return location.pathname;
+            return '/' + tabName;
+        }}
         (function() {{
-            var contractPath = /^\/contracts\/[^/]+/.test(location.pathname);
-            var tab = 'overview';
-            try {{
-                var saved = localStorage.getItem('activeTab');
-                if (saved) tab = saved;
-            }} catch (e) {{}}
-            var allowed = {{ overview: 1, nodes: 1, miners: 1, chains: 1, sequencers: 1, validators: 1, contracts: 1 }};
-            if (!allowed[tab]) tab = 'overview';
-            if (contractPath) tab = 'contracts';
-            document.documentElement.setAttribute('data-active-tab', tab);
+            document.documentElement.setAttribute('data-active-tab', tabFromPath(location.pathname));
         }})();
     </script>
     <style>
@@ -336,6 +343,7 @@
             flex: 1;
         }}
         .tab {{
+            display: block;
             padding: 8px 12px;
             background: transparent;
             border: 0;
@@ -344,6 +352,7 @@
             color: var(--dim);
             font-weight: 600;
             text-align: left;
+            text-decoration: none;
         }}
         .tab:hover {{
             background: var(--panel-2);
@@ -526,13 +535,25 @@
         }}
     </style>
     <script>
-        function switchTab(tabName) {{
+        function showTab(tabName) {{
             document.documentElement.setAttribute('data-active-tab', tabName);
-            try {{
-                localStorage.setItem('activeTab', tabName);
-            }} catch (e) {{}}
             if (tabName === 'contracts') loadContracts();
             if (tabName === 'chains') loadChainCompare();
+        }}
+        function tabClick(ev, tabName) {{
+            // Plain clicks switch in place; modified clicks keep the link's
+            // default so the tab can open in a new window.
+            if (ev.metaKey || ev.ctrlKey || ev.shiftKey || ev.altKey || ev.button !== 0) return true;
+            ev.preventDefault();
+            switchTab(tabName);
+            return false;
+        }}
+        function switchTab(tabName) {{
+            var path = pathForTab(tabName);
+            if (path !== location.pathname) {{
+                history.pushState({{}}, '', path);
+            }}
+            showTab(tabName);
         }}
         function toggleTimestamp(element) {{
             const timestamp = parseInt(element.getAttribute('data-timestamp'));
@@ -681,7 +702,7 @@
                     '</td><td>' + mark + '</td><td><code>' + esc(shortId(c.in_batch, 8)) + '</code></td></tr>';
             }}).join('');
             document.getElementById('app').innerHTML =
-                '<p class="tab-copy"><a href="/" data-contracts-home>Contracts</a></p>' +
+                '<p class="tab-copy"><a href="/contracts" data-contracts-home>Contracts</a></p>' +
                 '<div class="status-card"><h2>Status</h2>' +
                 '<p><code>' + esc(id) + '</code></p>' +
                 '<div class="row"><span class="chip">' + status + '</span>' +
@@ -752,7 +773,7 @@
                     var home = ev.target.closest && ev.target.closest('[data-contracts-home]');
                     if (home) {{
                         ev.preventDefault();
-                        history.pushState({{}}, '', '/');
+                        history.pushState({{}}, '', '/contracts');
                         var q = document.getElementById('qid');
                         if (q) q.value = '';
                         loadedKey = null;
@@ -771,17 +792,12 @@
                 }});
             }}
             window.addEventListener('popstate', function () {{
+                // Back and forward move between tab paths; follow the path
+                // without pushing a new entry.
                 loadedKey = null;
-                if (contractIdFromPath()) {{
-                    if (document.documentElement.getAttribute('data-active-tab') !== 'contracts') {{
-                        switchTab('contracts');
-                        return;
-                    }}
-                }}
-                if (document.documentElement.getAttribute('data-active-tab') === 'contracts') loadContracts();
+                showTab(tabFromPath(location.pathname));
             }});
-            if (document.documentElement.getAttribute('data-active-tab') === 'contracts') loadContracts();
-            if (document.documentElement.getAttribute('data-active-tab') === 'chains') loadChainCompare();
+            showTab(tabFromPath(location.pathname));
         }});
 
         var chainSeq = 0;
@@ -1023,15 +1039,15 @@
         </div>
         <nav class="tabs" aria-label="Sections">
             <div class="nav-label">Network</div>
-            <div class="tab" data-tab="overview" onclick="switchTab('overview')">Overview</div>
-            <div class="tab" data-tab="nodes" onclick="switchTab('nodes')">Nodes</div>
+            <a class="tab" data-tab="overview" href="/" onclick="return tabClick(event, 'overview')">Overview</a>
+            <a class="tab" data-tab="nodes" href="/nodes" onclick="return tabClick(event, 'nodes')">Nodes</a>
             <div class="nav-label">Chain</div>
-            <div class="tab" data-tab="miners" onclick="switchTab('miners')">Miners</div>
-            <div class="tab" data-tab="chains" onclick="switchTab('chains')">Chains</div>
-            <div class="tab" data-tab="sequencers" onclick="switchTab('sequencers')">Sequencers</div>
-            <div class="tab" data-tab="validators" onclick="switchTab('validators')">Validators</div>
+            <a class="tab" data-tab="miners" href="/miners" onclick="return tabClick(event, 'miners')">Miners</a>
+            <a class="tab" data-tab="chains" href="/chains" onclick="return tabClick(event, 'chains')">Chains</a>
+            <a class="tab" data-tab="sequencers" href="/sequencers" onclick="return tabClick(event, 'sequencers')">Sequencers</a>
+            <a class="tab" data-tab="validators" href="/validators" onclick="return tabClick(event, 'validators')">Validators</a>
             <div class="nav-label">Contracts</div>
-            <div class="tab" data-tab="contracts" onclick="switchTab('contracts')">Contracts</div>
+            <a class="tab" data-tab="contracts" href="/contracts" onclick="return tabClick(event, 'contracts')">Contracts</a>
         </nav>
         <div class="sidebar-foot">
             <p class="side-note">Refreshes every {refresh_interval}s · <a href="/status.json">JSON</a> · <a href="https://testnet.modality.network">Join</a></p>

@@ -719,9 +719,22 @@ mod tests {
         assert!(html.contains("Modality Network"));
         assert!(html.contains("<h1>testnet</h1>"));
         assert!(!html.contains("Modal Money"));
-        assert!(html.contains("switchTab('sequencers')"));
-        assert!(html.contains("switchTab('validators')"));
+        assert!(html.contains("tabClick(event, 'sequencers')"));
+        assert!(html.contains("tabClick(event, 'validators')"));
         assert!(html.contains("No named validators on this network"));
+    }
+
+    #[test]
+    fn each_tab_is_a_link_to_its_own_path() {
+        let html = render_status_from_snapshot(&sample_status());
+        assert!(html.contains("data-tab=\"overview\" href=\"/\""));
+        for tab in crate::status_server::EXPLORER_TABS.iter().skip(1) {
+            let link = format!("data-tab=\"{tab}\" href=\"/{tab}\"");
+            assert!(html.contains(&link), "missing {link}");
+        }
+        assert!(html.contains("history.pushState({}, '', path)"));
+        assert!(html.contains("tabFromPath(location.pathname)"));
+        assert!(!html.contains("localStorage.getItem('activeTab')"));
     }
 
     #[test]
