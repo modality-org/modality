@@ -728,10 +728,16 @@ mod tests {
     fn each_tab_is_a_link_to_its_own_path() {
         let html = render_status_from_snapshot(&sample_status());
         assert!(html.contains("data-tab=\"overview\" href=\"/\""));
+        let mut last = 0;
         for tab in crate::status_server::EXPLORER_TABS.iter().skip(1) {
             let link = format!("data-tab=\"{tab}\" href=\"/{tab}\"");
-            assert!(html.contains(&link), "missing {link}");
+            let at = html.find(&link).unwrap_or_else(|| panic!("missing {link}"));
+            assert!(at > last, "{tab} is out of sidebar order");
+            last = at;
         }
+        let chains = html.find("data-tab=\"chains\" href").unwrap();
+        let miners = html.find("data-tab=\"miners\" href").unwrap();
+        assert!(chains < miners, "Chains sits above Miners in the sidebar");
         assert!(html.contains("history.pushState({}, '', path)"));
         assert!(html.contains("tabFromPath(location.pathname)"));
         assert!(!html.contains("localStorage.getItem('activeTab')"));

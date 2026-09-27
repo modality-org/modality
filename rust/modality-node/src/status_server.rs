@@ -149,12 +149,12 @@ async fn status_handler(source: NodeStatusSource) -> Result<impl warp::Reply, wa
 }
 
 /// Explorer tabs that own a top-level path. `status.html` keeps the same
-/// list in its `allowed` map.
+/// list in its `TAB_PATHS` map. Order matches the sidebar.
 pub const EXPLORER_TABS: [&str; 7] = [
     "overview",
     "nodes",
-    "miners",
     "chains",
+    "miners",
     "sequencers",
     "validators",
     "contracts",
