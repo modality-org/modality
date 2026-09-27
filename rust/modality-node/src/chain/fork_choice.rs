@@ -532,15 +532,8 @@ pub fn nomination_epoch_complete(
     if mining_epoch < 2 || blocks_per_epoch == 0 {
         return true;
     }
-    let nomination_epoch = mining_epoch - 2;
     let spine = MinerBlock::verified_spine(blocks);
-    let start = nomination_epoch.saturating_mul(blocks_per_epoch);
-    let end = start + blocks_per_epoch;
-    let count = spine
-        .iter()
-        .filter(|block| block.index >= start && block.index < end)
-        .count();
-    count == blocks_per_epoch as usize
+    spine_covers_nomination_epoch(&spine, blocks_per_epoch, mining_epoch)
 }
 
 /// Decide whether a validated peer chain replaces the local canonical set.
@@ -663,9 +656,41 @@ pub fn nomination_safe_prefix(
     extension: &[MinerBlock],
     blocks_per_epoch: u64,
 ) -> Vec<MinerBlock> {
+    let Some(first) = extension.first() else {
+        return Vec::new();
+    };
+    let local_spine = MinerBlock::verified_spine(local_blocks);
+    let local_epoch = local_spine.last().map(|block| block.epoch).unwrap_or(0);
+    if !spine_covers_nomination_epoch(&local_spine, blocks_per_epoch, local_epoch) {
+        return extension.to_vec();
+    }
+    // The local blocks under the extension's bottom are the same for every
+    // prefix, so build them once. When the extension continues that trunk's
+    // spine, the candidate spine is the trunk spine plus the prefix, and
+    // each prefix costs one count instead of a fresh spine walk.
+    let trunk: Vec<MinerBlock> = local_blocks
+        .iter()
+        .filter(|block| first.index == 0 || block.index < first.index)
+        .cloned()
+        .collect();
+    let trunk_spine = MinerBlock::verified_spine(&trunk);
+    let continues_trunk = first.index > 0
+        && trunk_spine
+            .last()
+            .is_some_and(|tip| tip.index + 1 == first.index && tip.hash == first.previous_hash);
     let mut best = 0;
     for len in 1..=extension.len() {
-        if prefix_covers_local_nomination(local_blocks, &extension[..len], blocks_per_epoch) {
+        let prefix = &extension[..len];
+        let tip_epoch = prefix[len - 1].epoch;
+        let covers = if continues_trunk {
+            let spine: Vec<&MinerBlock> = trunk_spine.iter().chain(prefix.iter()).collect();
+            spine_refs_cover_nomination_epoch(&spine, blocks_per_epoch, tip_epoch)
+        } else {
+            let mut candidate = trunk.clone();
+            candidate.extend(prefix.iter().cloned());
+            nomination_epoch_complete(&candidate, blocks_per_epoch, tip_epoch)
+        };
+        if covers {
             best = len;
         } else {
             break;
@@ -674,29 +699,31 @@ pub fn nomination_safe_prefix(
     extension[..best].to_vec()
 }
 
-fn prefix_covers_local_nomination(
-    local_blocks: &[MinerBlock],
-    prefix: &[MinerBlock],
+fn spine_covers_nomination_epoch(
+    spine: &[MinerBlock],
     blocks_per_epoch: u64,
+    mining_epoch: u64,
 ) -> bool {
-    let Some(first) = prefix.first() else {
-        return false;
-    };
-    let local_epoch = MinerBlock::verified_spine(local_blocks)
-        .last()
-        .map(|block| block.epoch)
-        .unwrap_or(0);
-    if !nomination_epoch_complete(local_blocks, blocks_per_epoch, local_epoch) {
+    let refs: Vec<&MinerBlock> = spine.iter().collect();
+    spine_refs_cover_nomination_epoch(&refs, blocks_per_epoch, mining_epoch)
+}
+
+fn spine_refs_cover_nomination_epoch(
+    spine: &[&MinerBlock],
+    blocks_per_epoch: u64,
+    mining_epoch: u64,
+) -> bool {
+    if mining_epoch < 2 || blocks_per_epoch == 0 {
         return true;
     }
-    let mut candidate: Vec<MinerBlock> = local_blocks
+    let nomination_epoch = mining_epoch - 2;
+    let start = nomination_epoch.saturating_mul(blocks_per_epoch);
+    let end = start + blocks_per_epoch;
+    let count = spine
         .iter()
-        .filter(|block| first.index == 0 || block.index < first.index)
-        .cloned()
-        .collect();
-    candidate.extend(prefix.iter().cloned());
-    let tip_epoch = prefix.last().map(|block| block.epoch).unwrap_or(0);
-    nomination_epoch_complete(&candidate, blocks_per_epoch, tip_epoch)
+        .filter(|block| block.index >= start && block.index < end)
+        .count();
+    count == blocks_per_epoch as usize
 }
 
 fn work_above_ancestor(

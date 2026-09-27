@@ -1,5 +1,5 @@
 //! Persistence layer for blockchain data
-//! 
+//!
 //! This module provides functionality to save and load blockchain data
 //! to/from the DatastoreManager.
 
@@ -10,7 +10,7 @@ use crate::error::MiningError;
 #[cfg(feature = "persistence")]
 use async_trait::async_trait;
 #[cfg(feature = "persistence")]
-use modality_datastore::{DatastoreManager, models::MinerBlock};
+use modality_datastore::{models::MinerBlock, DatastoreManager};
 
 #[cfg(feature = "persistence")]
 /// Trait for blockchain persistence operations
@@ -18,13 +18,13 @@ use modality_datastore::{DatastoreManager, models::MinerBlock};
 pub trait BlockchainPersistence {
     /// Save a block to the datastore
     async fn save_block(&mut self, block: &Block, epoch: u64) -> Result<(), MiningError>;
-    
+
     /// Load all canonical blocks from the datastore
     async fn load_canonical_blocks(&self) -> Result<Vec<Block>, MiningError>;
-    
+
     /// Load blocks for a specific epoch
     async fn load_epoch_blocks(&self, epoch: u64) -> Result<Vec<Block>, MiningError>;
-    
+
     /// Mark a block as orphaned
     async fn mark_block_orphaned(
         &mut self,
@@ -50,43 +50,43 @@ impl BlockchainPersistence for DatastoreManager {
             block.data.nominated_peer_id.clone(),
             block.data.miner_number,
         );
-        
+
         miner_block
             .save_to_active(self)
             .await
             .map_err(|e| MiningError::PersistenceError(e.to_string()))?;
-        
+
         Ok(())
     }
-    
+
     async fn load_canonical_blocks(&self) -> Result<Vec<Block>, MiningError> {
         let miner_blocks = MinerBlock::find_all_canonical_multi(self)
             .await
             .map_err(|e| MiningError::PersistenceError(e.to_string()))?;
-        
-        miner_blocks
+
+        // Mine on the verified spine. A canonical row above a hole would
+        // otherwise become the parent, and every block mined on it hangs
+        // from a chain no peer can link to genesis.
+        MinerBlock::verified_spine(&miner_blocks)
             .into_iter()
             .map(|mb| miner_block_to_block(&mb))
             .collect()
     }
-    
+
     async fn load_epoch_blocks(&self, epoch: u64) -> Result<Vec<Block>, MiningError> {
         // Get all canonical blocks and filter by epoch
         let all_blocks = MinerBlock::find_all_canonical_multi(self)
             .await
             .map_err(|e| MiningError::PersistenceError(e.to_string()))?;
-        
+
         let miner_blocks: Vec<_> = all_blocks
             .into_iter()
             .filter(|b| b.epoch == epoch)
             .collect();
-        
-        miner_blocks
-            .iter()
-            .map(miner_block_to_block)
-            .collect()
+
+        miner_blocks.iter().map(miner_block_to_block).collect()
     }
-    
+
     async fn mark_block_orphaned(
         &mut self,
         block_hash: &str,
@@ -103,7 +103,7 @@ impl BlockchainPersistence for DatastoreManager {
                 .await
                 .map_err(|e| MiningError::PersistenceError(e.to_string()))?;
         }
-        
+
         Ok(())
     }
 }
@@ -113,28 +113,27 @@ impl BlockchainPersistence for DatastoreManager {
 fn miner_block_to_block(mb: &MinerBlock) -> Result<Block, MiningError> {
     use crate::block::{BlockData, BlockHeader};
     use chrono::{DateTime, Utc};
-    use sha2::{Sha256, Digest};
-    
-    let nonce = mb.get_nonce_u128()
+    use sha2::{Digest, Sha256};
+
+    let nonce = mb
+        .get_nonce_u128()
         .map_err(|e| MiningError::PersistenceError(format!("Invalid nonce: {}", e)))?;
-    
-    let difficulty = mb.get_target_difficulty_u128()
+
+    let difficulty = mb
+        .get_target_difficulty_u128()
         .map_err(|e| MiningError::PersistenceError(format!("Invalid difficulty: {}", e)))?;
-    
+
     let timestamp = DateTime::<Utc>::from_timestamp(mb.timestamp, 0)
         .ok_or_else(|| MiningError::PersistenceError("Invalid timestamp".to_string()))?;
-    
-    let data = BlockData::new(
-        mb.nominated_peer_id.clone(),
-        mb.miner_number,
-    );
-    
+
+    let data = BlockData::new(mb.nominated_peer_id.clone(), mb.miner_number);
+
     // Recalculate data_hash from the BlockData instead of using stored value
     // This is necessary because gossip doesn't include data_hash
     let mut hasher = Sha256::new();
     hasher.update(data.to_hash_string().as_bytes());
     let data_hash = format!("{:x}", hasher.finalize());
-    
+
     let header = BlockHeader {
         index: mb.index,
         timestamp,
@@ -144,7 +143,7 @@ fn miner_block_to_block(mb: &MinerBlock) -> Result<Block, MiningError> {
         difficulty,
         hash: mb.hash.clone(),
     };
-    
+
     Ok(Block { header, data })
 }
 
@@ -153,28 +152,28 @@ fn miner_block_to_block(mb: &MinerBlock) -> Result<Block, MiningError> {
 mod tests {
     use super::*;
     use crate::block::{Block, BlockData};
-    
+
     #[tokio::test]
     async fn test_save_and_load_block() {
         let mut datastore = DatastoreManager::create_in_memory().unwrap();
-        
+
         let data = BlockData::new("peer_id_123".to_string(), 42);
         let block = Block::new(1, "prev_hash".to_string(), data, 1000);
-        
+
         // Save block
         datastore.save_block(&block, 0).await.unwrap();
-        
+
         // Load blocks
         let loaded = datastore.load_canonical_blocks().await.unwrap();
         assert_eq!(loaded.len(), 1);
         assert_eq!(loaded[0].header.index, 1);
         assert_eq!(loaded[0].data.miner_number, 42);
     }
-    
+
     #[tokio::test]
     async fn test_load_epoch_blocks() {
         let datastore = DatastoreManager::create_in_memory().unwrap();
-        
+
         // Save blocks directly using MinerBlock model for testing
         for i in 0..5 {
             let block = MinerBlock::new_canonical(
@@ -191,7 +190,7 @@ mod tests {
             );
             block.save_to_active(&datastore).await.unwrap();
         }
-        
+
         for i in 40..43 {
             let block = MinerBlock::new_canonical(
                 format!("hash_{}", i),
@@ -207,14 +206,13 @@ mod tests {
             );
             block.save_to_active(&datastore).await.unwrap();
         }
-        
+
         // Load epoch 0
         let epoch_0 = datastore.load_epoch_blocks(0).await.unwrap();
         assert_eq!(epoch_0.len(), 5);
-        
+
         // Load epoch 1
         let epoch_1 = datastore.load_epoch_blocks(1).await.unwrap();
         assert_eq!(epoch_1.len(), 3);
     }
 }
-

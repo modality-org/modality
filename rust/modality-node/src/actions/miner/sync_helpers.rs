@@ -20,10 +20,9 @@ pub use crate::actions::observer::{
 pub async fn announce_chain_tip(node: &Node) -> Result<()> {
     let tip_block = {
         let mgr = node.datastore_manager.lock().await;
-        MinerBlock::find_all_canonical_multi(&mgr)
-            .await?
+        MinerBlock::verified_spine(&MinerBlock::find_all_canonical_multi(&mgr).await?)
             .into_iter()
-            .max_by_key(|b| b.index)
+            .last()
     };
 
     if let Some(block) = tip_block {

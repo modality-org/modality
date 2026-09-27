@@ -622,33 +622,39 @@ impl Node {
                             request, channel, ..
                         } => {
                             log::info!("reqres request");
-                            let res = {
-                                let mgr = datastore_manager.lock().await;
-                                match reqres::handle_request(request, &mgr, consensus_tx.clone())
-                                    .await
-                                {
-                                    Ok(res) => res,
-                                    Err(e) => {
-                                        log::error!("reqres handler failed: {}", e);
-                                        reqres::Response {
-                                            ok: false,
-                                            data: None,
-                                            errors: Some(
-                                                serde_json::json!({"error": e.to_string()}),
-                                            ),
+                            // Answer off the networking task so the swarm keeps
+                            // polling while the handler waits for the datastore.
+                            let datastore_manager = datastore_manager.clone();
+                            let consensus_tx = consensus_tx.clone();
+                            let swarm = swarm.clone();
+                            tokio::spawn(async move {
+                                let res = {
+                                    let mgr = datastore_manager.lock().await;
+                                    match reqres::handle_request(request, &mgr, consensus_tx).await
+                                    {
+                                        Ok(res) => res,
+                                        Err(e) => {
+                                            log::error!("reqres handler failed: {}", e);
+                                            reqres::Response {
+                                                ok: false,
+                                                data: None,
+                                                errors: Some(
+                                                    serde_json::json!({"error": e.to_string()}),
+                                                ),
+                                            }
                                         }
                                     }
+                                };
+                                let mut swarm_lock = swarm.lock().await;
+                                if swarm_lock
+                                    .behaviour_mut()
+                                    .reqres
+                                    .send_response(channel, res)
+                                    .is_err()
+                                {
+                                    log::error!("failed to send reqres response");
                                 }
-                            };
-                            let mut swarm_lock = swarm.lock().await;
-                            if swarm_lock
-                                .behaviour_mut()
-                                .reqres
-                                .send_response(channel, res)
-                                .is_err()
-                            {
-                                log::error!("failed to send reqres response");
-                            }
+                            });
                         }
                         request_response::Message::Response {
                             request_id,
@@ -675,19 +681,29 @@ impl Node {
                         },
                     )) => {
                         log::info!("Gossip received {:?}", message.topic.to_string());
-                        if let Err(e) = gossip::handle_event(
-                            message,
-                            datastore_manager.clone(),
-                            consensus_tx.clone(),
-                            sync_request_tx.clone(),
-                            mining_update_tx.clone(),
-                            bootstrappers.clone(),
-                            minimum_block_timestamp,
-                        )
-                        .await
-                        {
-                            log::error!("gossip handler failed: {}", e);
-                        }
+                        // Handle off the networking task. A block handler scores
+                        // the store under the datastore lock, and while it ran
+                        // inline the swarm sent and received nothing.
+                        let datastore_manager = datastore_manager.clone();
+                        let consensus_tx = consensus_tx.clone();
+                        let sync_request_tx = sync_request_tx.clone();
+                        let mining_update_tx = mining_update_tx.clone();
+                        let bootstrappers = bootstrappers.clone();
+                        tokio::spawn(async move {
+                            if let Err(e) = gossip::handle_event(
+                                message,
+                                datastore_manager,
+                                consensus_tx,
+                                sync_request_tx,
+                                mining_update_tx,
+                                bootstrappers,
+                                minimum_block_timestamp,
+                            )
+                            .await
+                            {
+                                log::error!("gossip handler failed: {}", e);
+                            }
+                        });
                     }
                     SwarmEvent::Behaviour(swarm::NodeBehaviourEvent::Identify(
                         libp2p::identify::Event::Received { peer_id, info, .. },
