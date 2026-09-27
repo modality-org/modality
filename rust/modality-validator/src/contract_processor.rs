@@ -2547,6 +2547,90 @@ model DeliveryOracle {
     }
 
     #[tokio::test]
+    async fn process_commit_rejects_oracle_replay_bundle_missing_accepted_oracle_key() {
+        let datastore = Arc::new(Mutex::new(DatastoreManager::create_in_memory().unwrap()));
+        let processor = ContractProcessor::new(datastore.clone());
+
+        let model = r#"
+model DeliveryOracle {
+  initial q0
+  q0 --> active: +POST
+  active --> active: +POST +oracle_attests(/oracles/delivery.id, "delivered", "true")
+}
+"#;
+        let bootstrap = serde_json::json!({
+            "body": [
+                {
+                    "method": "post",
+                    "path": "/setup/ready",
+                    "value": true
+                },
+                {
+                    "method": "model",
+                    "path": "/model/default.modality",
+                    "value": model
+                }
+            ],
+            "head": {}
+        });
+        sequence_commit(
+            &processor,
+            &datastore,
+            "c1",
+            "bootstrap",
+            &bootstrap.to_string(),
+            "batch-1",
+        )
+        .await;
+
+        let timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+        let replay_bundle_json = format!(
+            "{{\"predicate\":\"oracle_attests\",\"max_age_seconds\":60,\"attestation\":{{\"oracle_pubkey\":\"delivery-key-v1\",\"oracle_path\":\"/oracles/delivery.id\",\"claim\":\"delivered\",\"value\":\"true\",\"contract_id\":\"c1\",\"pending_commit_hash\":\"delivery-pending\",\"timestamp\":{timestamp},\"signature\":\"sig\"}}}}"
+        );
+        let pending = serde_json::json!({
+            "body": [
+                {
+                    "method": "post",
+                    "path": "/deliveries/123/status.text",
+                    "value": "delivered"
+                }
+            ],
+            "head": {
+                "parent": "bootstrap",
+                "replay_bundles": {
+                    "oracle_attests": {
+                        "replay_bundle_json": replay_bundle_json
+                    }
+                }
+            }
+        });
+
+        let err = processor
+            .process_commit("c1", "delivery-pending", &pending.to_string())
+            .await
+            .expect_err("missing accepted oracle key must not satisfy transition predicate");
+
+        assert!(
+            err.to_string().contains("invalid replay bundle evidence"),
+            "unexpected error: {err}"
+        );
+        assert!(
+            err.to_string().contains(
+                "oracle_attests replay bundle attestation oracle_path /oracles/delivery.id is not present in accepted state"
+            ),
+            "unexpected error: {err}"
+        );
+        assert!(
+            !err.to_string()
+                .contains("not yet promoted to local transition acceptance"),
+            "missing accepted oracle key must not be reported as merely unpromoted: {err}"
+        );
+    }
+
+    #[tokio::test]
     async fn process_commit_rejects_oracle_replay_bundle_wrong_contract_id() {
         let datastore = Arc::new(Mutex::new(DatastoreManager::create_in_memory().unwrap()));
         let processor = ContractProcessor::new(datastore.clone());

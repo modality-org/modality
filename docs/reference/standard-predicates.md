@@ -344,8 +344,10 @@ from the actual accepted contract state by reading string values posted at
 `/oracles/**/*.id` paths, after updates and deletes are applied, before a
 pending commit is expanded or checked. Replay bundles whose attestation
 `oracle_path` falls outside that `/oracles/**/*.id` namespace are rejected
-before they can be reported as present-but-unpromoted evidence. The CLI and
-validator WASM program
+before they can be reported as present-but-unpromoted evidence, and sequenced
+validator replay rejects bundles whose in-namespace `oracle_path` is missing
+from accepted state before treating them as merely unpromoted evidence. The CLI
+and validator WASM program
 context now carries that derived map as `context.accepted_state_oracle_keys`,
 so replayed invoke programs can build oracle replay bundles from the same
 accepted-state key material the verifier will check.
