@@ -179,17 +179,29 @@ impl<'a> Theory<'a> {
                 return Verdict::no(vec![lit.clone()]);
             }
         }
-        // 3. Existence forced by positive value constraints or by state.
-        let mut forced = literals::forced_paths(lits);
+        // 3. What is forced, by positive literals or by state. Existence and
+        //    type are separate: a present `.num` path may hold a string.
+        let mut exists = literals::forced_paths(lits);
+        let mut numeric = literals::forced_numeric(lits);
+        let mut members = BTreeSet::new();
         for lit in lits {
             for p in constraint_paths(&lit.c) {
-                if matches!(self.state.value_at(&p), Lookup::Present(_)) {
-                    forced.insert(p);
+                if let Lookup::Present(v) = self.state.value_at(&p) {
+                    exists.insert(p.clone());
+                    match v {
+                        StateValue::Num(_) => {
+                            numeric.insert(p);
+                        }
+                        StateValue::Text(_) if sort::ext(&p) == Some("id") => {
+                            members.insert(p);
+                        }
+                        _ => {}
+                    }
                 }
             }
         }
         // 4. Per-sort procedures.
-        if let Some(why) = literals::check(lits, &forced) {
+        if let Some(why) = literals::check(lits, &exists) {
             return Verdict::no(why);
         }
         if let Some(why) = paths::check(lits) {
@@ -197,7 +209,7 @@ impl<'a> Theory<'a> {
         }
         if let Some(why) = signers::check(&signers::Ctx {
             lits,
-            forced: &forced,
+            members: &members,
             state: self.state,
         }) {
             return Verdict::no(why);
@@ -205,7 +217,7 @@ impl<'a> Theory<'a> {
         let mut unknown = false;
         match order::check(&order::Ctx {
             lits,
-            forced: &forced,
+            numeric: &numeric,
         }) {
             Ok(Some(why)) => return Verdict::no(why),
             Ok(None) => {}
@@ -235,7 +247,7 @@ impl<'a> Theory<'a> {
         let decl = if goal.is_static() {
             None
         } else {
-            self.registry.declaration(&key)
+            self.registry.declaration(&key).filter(|d| d.accepts(&args))
         };
         let Some(decl) = decl else {
             return Tri::Unknown;
@@ -310,27 +322,35 @@ impl<'a> Theory<'a> {
         }
     }
 
-    fn num_at(&self, t: &Term) -> Result<Option<Rational>, ()> {
-        // Ok(Some) known value; Ok(None) absent (predicate false); Err unknown
+    /// Typed read of a number: `Some(Some(v))` a number, `Some(None)` no
+    /// number there (absent or another type; the predicate is false),
+    /// `None` unknown.
+    fn num_at(&self, t: &Term) -> Option<Option<Rational>> {
         match t {
-            Term::Const(c) => Ok(Some(*c)),
+            Term::Const(c) => Some(Some(*c)),
             Term::Path(p) => match self.state.value_at(p) {
-                Lookup::Unknown => Err(()),
-                Lookup::Absent => Ok(None),
-                Lookup::Present(StateValue::Num(v)) => Ok(Some(v)),
-                Lookup::Present(_) => Err(()),
+                Lookup::Present(StateValue::Num(v)) => Some(Some(v)),
+                other => typed_miss(other),
             },
+        }
+    }
+
+    fn text_at(&self, p: &str) -> Option<Option<String>> {
+        match self.state.value_at(p) {
+            Lookup::Present(StateValue::Text(v)) => Some(Some(v)),
+            other => typed_miss(other),
         }
     }
 
     fn eval_constraint(&self, c: &Constraint) -> Tri {
         match c {
             Constraint::Order { lhs, op, rhs } => {
-                let (Ok(l), Ok(r)) = (self.num_at(lhs), self.num_at(rhs)) else {
-                    return Tri::Unknown;
-                };
-                let (Some(l), Some(r)) = (l, r) else {
+                let (l, r) = (self.num_at(lhs), self.num_at(rhs));
+                if matches!(l, Some(None)) || matches!(r, Some(None)) {
                     return Tri::False;
+                }
+                let (Some(Some(l)), Some(Some(r))) = (l, r) else {
+                    return Tri::Unknown;
                 };
                 let Some(ord) = l.try_cmp(&r) else {
                     return Tri::Unknown;
@@ -346,44 +366,42 @@ impl<'a> Theory<'a> {
                     Tri::False
                 }
             }
-            Constraint::Eq { path, lit } => match self.state.value_at(path) {
-                Lookup::Unknown => Tri::Unknown,
-                Lookup::Absent => Tri::False,
-                Lookup::Present(StateValue::Text(v)) => tri(v == *lit),
-                Lookup::Present(_) => Tri::Unknown,
+            Constraint::Eq { path, lit } => match self.text_at(path) {
+                None => Tri::Unknown,
+                Some(None) => Tri::False,
+                Some(Some(v)) => tri(v == *lit),
             },
-            Constraint::Eq2 { a, b } => match (self.state.value_at(a), self.state.value_at(b)) {
-                (Lookup::Unknown, _) | (_, Lookup::Unknown) => Tri::Unknown,
-                (Lookup::Absent, _) | (_, Lookup::Absent) => Tri::False,
-                (Lookup::Present(StateValue::Text(x)), Lookup::Present(StateValue::Text(y))) => {
-                    tri(x == y)
-                }
+            Constraint::Eq2 { a, b } => match (self.text_at(a), self.text_at(b)) {
+                (Some(None), _) | (_, Some(None)) => Tri::False,
+                (Some(Some(x)), Some(Some(y))) => tri(x == y),
                 _ => Tri::Unknown,
             },
-            Constraint::Text { path, op, needle } => match self.state.value_at(path) {
-                Lookup::Unknown => Tri::Unknown,
-                Lookup::Absent => Tri::False,
-                Lookup::Present(StateValue::Text(v)) => tri(match op {
-                    TextOp::Contains => v.contains(needle),
-                    TextOp::StartsWith => v.starts_with(needle),
-                    TextOp::EndsWith => v.ends_with(needle),
+            Constraint::Text { path, op, needle } => match self.text_at(path) {
+                None => Tri::Unknown,
+                Some(None) => Tri::False,
+                Some(Some(v)) => tri(match op {
+                    TextOp::Contains => v.contains(needle.as_str()),
+                    TextOp::StartsWith => v.starts_with(needle.as_str()),
+                    TextOp::EndsWith => v.ends_with(needle.as_str()),
                 }),
-                Lookup::Present(_) => Tri::Unknown,
             },
             Constraint::Is { path, value } => match self.state.value_at(path) {
-                Lookup::Unknown => Tri::Unknown,
-                Lookup::Absent => Tri::False,
                 Lookup::Present(StateValue::Bool(b)) => tri(b == *value),
-                Lookup::Present(_) => Tri::Unknown,
+                other => match typed_miss::<bool>(other) {
+                    Some(_) => Tri::False,
+                    None => Tri::Unknown,
+                },
             },
             Constraint::Exists { path } => match self.state.value_at(path) {
                 Lookup::Unknown => Tri::Unknown,
                 Lookup::Absent => Tri::False,
                 Lookup::Present(_) => Tri::True,
             },
-            Constraint::Signer { id } => match self.state.value_at(id) {
-                Lookup::Absent => Tri::False,
-                _ => Tri::Unknown, // signing is pending-body
+            // Whether the key signed is pending-body; only "no key there"
+            // is known from state.
+            Constraint::Signer { id } => match self.text_at(id) {
+                Some(None) => Tri::False,
+                _ => Tri::Unknown,
             },
             Constraint::SignerCount { prefix, at_least } => {
                 if *at_least == 0 {
@@ -398,10 +416,23 @@ impl<'a> Theory<'a> {
                 Some(keys) if keys.is_empty() => Tri::False,
                 _ => Tri::Unknown,
             },
-            Constraint::Writes { .. } | Constraint::Posts { .. } | Constraint::Opaque { .. } => {
-                Tri::Unknown
-            }
+            Constraint::Writes { .. }
+            | Constraint::Posts { .. }
+            | Constraint::Label { .. }
+            | Constraint::Opaque { .. } => Tri::Unknown,
         }
+    }
+}
+
+/// A typed read that did not find its type: `Some(None)` when the path is
+/// absent or holds a value of another known type, `None` when unknown.
+fn typed_miss<T>(l: Lookup) -> Option<Option<T>> {
+    match l {
+        Lookup::Absent
+        | Lookup::Present(
+            StateValue::Num(_) | StateValue::Bool(_) | StateValue::Text(_) | StateValue::Structured,
+        ) => Some(None),
+        Lookup::Unknown | Lookup::Present(StateValue::Other) => None,
     }
 }
 

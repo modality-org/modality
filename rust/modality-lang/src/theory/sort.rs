@@ -62,6 +62,8 @@ pub enum Constraint {
     /// The commit posts at or under this path.
     Posts { path: String },
     // --- nothing known ----------------------------------------------------
+    /// A static label (`+POST`, `+APPROVE`). Only identity is known.
+    Label { name: String },
     /// A predicate with no usable declaration. Only identity is known.
     Opaque { name: String, args: Vec<String> },
 }
@@ -88,23 +90,25 @@ impl Lit {
     }
 
     /// Can the theory decide this literal completely (so a `consistent =
-    /// True` claim is a real model)? `Text` and `Opaque` cannot.
+    /// True` claim is a real model)? `Text`, `Label`, and `Opaque` cannot.
     pub fn decidable(&self) -> bool {
-        !matches!(self.c, Constraint::Text { .. } | Constraint::Opaque { .. })
+        !matches!(
+            self.c,
+            Constraint::Text { .. } | Constraint::Label { .. } | Constraint::Opaque { .. }
+        )
     }
 }
 
-/// Normalise a path: strip leading slashes, collapse trailing slash.
+/// Normalise a path exactly as the evaluator keys accepted state: strip
+/// leading slashes, nothing else.
 pub fn norm_path(p: &str) -> String {
-    p.trim()
-        .trim_start_matches('/')
-        .trim_end_matches('/')
-        .to_string()
+    p.trim_start_matches('/').to_string()
 }
 
-/// `path` is `prefix` or lies under it (both normalised).
+/// `path` is `prefix` or lies under it (both normalised). Same relation as
+/// the evaluator's prefix match: the empty prefix contains only itself.
 pub fn under(path: &str, prefix: &str) -> bool {
-    prefix.is_empty() || path == prefix || path.starts_with(&format!("{prefix}/"))
+    path == prefix || path.starts_with(&format!("{prefix}/"))
 }
 
 /// Extension of a normalised path (`num`, `bool`, `text`, `id`, …), if any.
@@ -158,6 +162,7 @@ impl fmt::Display for Constraint {
             Constraint::SignerAll { prefix } => write!(f, "(all-signed /{prefix})"),
             Constraint::Writes { path } => write!(f, "(writes /{path})"),
             Constraint::Posts { path } => write!(f, "(posts /{path})"),
+            Constraint::Label { name } => write!(f, "{name}"),
             Constraint::Opaque { name, args } => {
                 write!(f, "{name}(")?;
                 for (i, a) in args.iter().enumerate() {

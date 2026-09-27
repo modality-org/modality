@@ -18,3 +18,5 @@ pub mod model_governance;
 pub mod multiaddr_list;
 pub mod passfile;
 pub mod shuffle;
+#[cfg(feature = "model-governance")]
+pub mod theory_state;

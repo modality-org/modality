@@ -6,6 +6,10 @@
 use std::cmp::Ordering;
 use std::fmt;
 
+/// `DBL_DIG`: decimals with this many significant digits survive a round
+/// trip through `f64`.
+pub const MAX_SIGNIFICANT_DIGITS: usize = 15;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Rational {
     num: i128,
@@ -46,9 +50,15 @@ impl Rational {
     }
 
     /// Parse a decimal literal: optional sign, digits, optional fraction.
-    /// Anything else (exponents, hex, words) is `None`.
+    /// Anything else (whitespace, exponents, hex, words) is `None`.
+    ///
+    /// At most 15 significant digits. Accepted-state numbers are compared
+    /// as `f64` by the evaluator; two decimals of at most 15 significant
+    /// digits round to distinct doubles in the same order, so within this
+    /// domain exact comparison and the evaluator agree. Longer literals are
+    /// `None` (the predicate stays opaque).
     pub fn parse(text: &str) -> Option<Self> {
-        let s = text.trim();
+        let s = text;
         if s.is_empty() {
             return None;
         }
@@ -69,6 +79,11 @@ impl Rational {
         if !int_part.chars().all(|c| c.is_ascii_digit())
             || !frac_part.chars().all(|c| c.is_ascii_digit())
         {
+            return None;
+        }
+        let digits: String = int_part.chars().chain(frac_part.chars()).collect();
+        let significant = digits.trim_start_matches('0').trim_end_matches('0');
+        if significant.len() > MAX_SIGNIFICANT_DIGITS {
             return None;
         }
         let mut num: i128 = 0;
@@ -140,6 +155,18 @@ mod tests {
         assert!(Rational::parse("five").is_none());
         assert!(Rational::parse("1e5").is_none());
         assert!(Rational::parse("").is_none());
+        assert!(Rational::parse("5 ").is_none());
+        assert!(Rational::parse(" 5").is_none());
         assert!(Rational::parse("170141183460469231731687303715884105728").is_none());
+    }
+
+    #[test]
+    fn at_most_fifteen_significant_digits() {
+        assert!(Rational::parse("123456789012345").is_some());
+        assert!(Rational::parse("1234567890123456").is_none());
+        assert!(Rational::parse("0.000000000000000000001").is_some());
+        assert!(Rational::parse("1000000000000000000000").is_some());
+        assert!(Rational::parse("0.10000000000000000001").is_none());
+        assert!(Rational::parse("9007199254740993").is_none());
     }
 }

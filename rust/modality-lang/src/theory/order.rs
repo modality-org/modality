@@ -6,7 +6,8 @@
 //! disequality joins one class. Constants are pre-ordered among themselves.
 //!
 //! Negative literals flip only when every path they mention is forced to
-//! exist (`-num_gt(x,5)` alone is "x ≤ 5 or x absent"; case A13).
+//! hold a number (`-num_gt(x,5)` alone is "x ≤ 5, or x absent, or x not a
+//! number"; case A13).
 //!
 //! Returns the offending literals, or `None` if consistent, or
 //! `Err(Overflow)` when an overflow made the answer unknowable.
@@ -18,8 +19,8 @@ use std::collections::{BTreeMap, BTreeSet};
 
 pub struct Ctx<'a> {
     pub lits: &'a [Lit],
-    /// Paths known to exist (from positive value constraints or state).
-    pub forced: &'a BTreeSet<String>,
+    /// Paths known to hold a number (positive order literals, or state).
+    pub numeric: &'a BTreeSet<String>,
 }
 
 struct Uf {
@@ -64,10 +65,10 @@ struct Edge {
     why: Vec<Lit>,
 }
 
-fn term_forced(t: &Term, forced: &BTreeSet<String>) -> bool {
+fn term_numeric(t: &Term, numeric: &BTreeSet<String>) -> bool {
     match t {
         Term::Const(_) => true,
-        Term::Path(p) => forced.contains(p),
+        Term::Path(p) => numeric.contains(p),
     }
 }
 
@@ -83,7 +84,8 @@ pub fn check(ctx: &Ctx) -> Result<Option<Vec<Lit>>, Overflow> {
     let mut used: Vec<(&Lit, &Term, Op, &Term, bool)> = Vec::new(); // (lit, lhs, op, rhs, negated)
     for lit in ctx.lits {
         if let Constraint::Order { lhs, op, rhs } = &lit.c {
-            if !(lit.positive || (term_forced(lhs, ctx.forced) && term_forced(rhs, ctx.forced))) {
+            if !(lit.positive || (term_numeric(lhs, ctx.numeric) && term_numeric(rhs, ctx.numeric)))
+            {
                 continue; // may be satisfied by absence
             }
             terms.insert(lhs.clone());

@@ -10,14 +10,84 @@
 //! predicates commit theirs next to the module.
 
 use super::fragment::Template;
-use super::sort::{Constraint, Lit};
+use super::rational::Rational;
+use super::sort::{ext, norm_path, Constraint, Lit};
 use crate::ast::{Property, PropertySource};
+use serde_json::Value;
 use std::collections::BTreeMap;
+
+/// What the evaluator reads at one argument position. A predicate whose
+/// arguments do not fit its signature is opaque: the declaration describes
+/// the evaluator only on arguments of these kinds.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Param {
+    /// `/path`, any extension.
+    Path,
+    /// `/path.num`.
+    NumPath,
+    /// `/path.text` or `/path.id`.
+    TextPath,
+    /// `/path.bool`.
+    BoolPath,
+    /// `/path.id`.
+    IdPath,
+    /// `/path.num` or a decimal literal.
+    Num,
+    /// `/path.text`, `/path.id`, or a literal not starting with `/`.
+    Text,
+    /// A literal not starting with `/` (read as-is, never as a path).
+    Needle,
+    /// A natural-number literal.
+    Nat,
+    /// Anything.
+    Any,
+}
+
+impl Param {
+    fn parse(word: &str) -> Option<Self> {
+        Some(match word {
+            "path" => Param::Path,
+            "num-path" => Param::NumPath,
+            "text-path" => Param::TextPath,
+            "bool-path" => Param::BoolPath,
+            "id-path" => Param::IdPath,
+            "num" => Param::Num,
+            "text" => Param::Text,
+            "needle" => Param::Needle,
+            "nat" => Param::Nat,
+            "any" => Param::Any,
+            _ => return None,
+        })
+    }
+
+    pub fn fits(self, arg: &str) -> bool {
+        let path_ext = |allowed: &[&str]| {
+            arg.starts_with('/') && ext(&norm_path(arg)).is_some_and(|e| allowed.contains(&e))
+        };
+        match self {
+            Param::Path => arg.starts_with('/'),
+            Param::NumPath => path_ext(&["num"]),
+            Param::TextPath => path_ext(&["text", "id"]),
+            Param::BoolPath => path_ext(&["bool"]),
+            Param::IdPath => path_ext(&["id"]),
+            Param::Num => {
+                path_ext(&["num"]) || (!arg.starts_with('/') && Rational::parse(arg).is_some())
+            }
+            Param::Text => path_ext(&["text", "id"]) || !arg.starts_with('/'),
+            Param::Needle => !arg.starts_with('/'),
+            Param::Nat => arg.parse::<u32>().is_ok(),
+            Param::Any => true,
+        }
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Declaration {
     pub necessary: Option<Template>,
     pub sufficient: Option<Template>,
+    /// Argument kinds, when the declaration is only valid for some. `None`
+    /// means every argument is accepted as the fragment types it.
+    pub params: Option<Vec<Param>>,
 }
 
 impl Declaration {
@@ -28,6 +98,7 @@ impl Declaration {
         Self {
             necessary: necessary.and_then(Template::parse),
             sufficient: sufficient.and_then(Template::parse),
+            params: None,
         }
     }
 
@@ -37,11 +108,40 @@ impl Declaration {
         Self {
             necessary: t.clone(),
             sufficient: t,
+            params: None,
         }
+    }
+
+    /// Restrict to arguments of these kinds (space-separated, e.g.
+    /// `"num-path num"`). An unknown kind drops the whole declaration.
+    pub fn with_params(mut self, signature: &str) -> Self {
+        match signature
+            .split_whitespace()
+            .map(Param::parse)
+            .collect::<Option<Vec<_>>>()
+        {
+            Some(params) => self.params = Some(params),
+            None => {
+                self.necessary = None;
+                self.sufficient = None;
+            }
+        }
+        self
     }
 
     pub fn is_empty(&self) -> bool {
         self.necessary.is_none() && self.sufficient.is_none()
+    }
+
+    /// Does the declaration describe the evaluator on these arguments?
+    pub fn accepts(&self, args: &[String]) -> bool {
+        match &self.params {
+            None => true,
+            Some(params) => params
+                .iter()
+                .enumerate()
+                .all(|(i, p)| args.get(i).is_some_and(|a| p.fits(a))),
+        }
     }
 }
 
@@ -52,26 +152,35 @@ pub trait Registry {
     fn declaration(&self, key: &str) -> Option<&Declaration>;
 }
 
-/// Arguments of a predicate property as plain strings, in order.
+/// Arguments of a predicate property as plain strings, in order. Same
+/// extraction as the evaluator: `{"arg": a}`, `{"args": [..]}`, or a bare
+/// array; strings, numbers, and booleans only (anything else is dropped).
 pub fn property_args(p: &Property) -> Vec<String> {
     match &p.source {
         Some(PropertySource::Predicate { args, .. }) => {
-            if let Some(a) = args.get("arg") {
-                return vec![json_text(a)];
-            }
-            args.get("args")
-                .and_then(|v| v.as_array())
-                .map(|items| items.iter().map(json_text).collect())
-                .unwrap_or_default()
+            arg_values(args).into_iter().filter_map(arg_text).collect()
         }
         _ => Vec::new(),
     }
 }
 
-fn json_text(v: &serde_json::Value) -> String {
+fn arg_values(args: &Value) -> Vec<&Value> {
+    if let Some(arg) = args.get("arg") {
+        return vec![arg];
+    }
+    args.get("args")
+        .and_then(Value::as_array)
+        .or_else(|| args.as_array())
+        .map(|items| items.iter().collect())
+        .unwrap_or_default()
+}
+
+fn arg_text(v: &Value) -> Option<String> {
     match v {
-        serde_json::Value::String(s) => s.clone(),
-        other => other.to_string(),
+        Value::String(s) => Some(s.clone()),
+        Value::Number(n) => Some(n.to_string()),
+        Value::Bool(b) => Some(b.to_string()),
+        _ => None,
     }
 }
 
@@ -119,9 +228,17 @@ pub fn expand(reg: &dyn Registry, p: &Property) -> Expansion {
 
     // Static labels (`+APPROVE`) have no declaration by construction.
     if p.is_static() {
-        return opaque();
+        return Expansion {
+            lits: vec![Lit {
+                c: Constraint::Label {
+                    name: p.name.clone(),
+                },
+                positive,
+            }],
+            exact: false,
+        };
     }
-    let Some(decl) = reg.declaration(&key) else {
+    let Some(decl) = reg.declaration(&key).filter(|d| d.accepts(&args)) else {
         return opaque();
     };
 

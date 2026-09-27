@@ -56,7 +56,6 @@ pub use mermaid::{
     generate_mermaid_diagram_with_styling, generate_mermaid_diagrams,
 };
 pub use model_checker::{DeadEdge, ModelCheckResult, ModelChecker, Move, MoveStatus, State};
-pub use theory::{Theory, TheoryVersion, Tri, Verdict};
 pub use printer::print_model;
 pub use runtime::negotiation::{
     CounterProposal, Proposal as NegotiationProposal, ProposalStatus as NegotiationStatus,
@@ -68,6 +67,7 @@ pub use runtime::{
 pub use synthesis::{
     identify_pattern, synthesize, synthesize_from_pattern, RulePattern, SynthesisResult,
 };
+pub use theory::{Theory, TheoryVersion, Tri, Verdict};
 pub use validation::{
     plus_sets_path_value, sets_path_value, suggest_predicate, validate_no_raw_propositions,
     validate_sets_one_of, ValidationError, KNOWN_PREDICATES,

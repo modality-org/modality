@@ -10,13 +10,19 @@ use super::rational::Rational;
 use super::sort::{ext, norm_path, under};
 use std::collections::BTreeMap;
 
+/// A present value, as the evaluator's typed reads see it. Typed reads are
+/// by value, not by path extension: a `.num` path holding a string is
+/// present, and every numeric predicate on it is false.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum StateValue {
     Num(Rational),
     Bool(bool),
     Text(String),
-    /// Present, but not a value the theory reasons about (json, wasm, …),
-    /// or a `.num` that did not parse as a decimal.
+    /// Present, and not a number, boolean, or string (object, array,
+    /// null). Every typed read is empty.
+    Structured,
+    /// Present, but the view cannot say what a typed read returns (a
+    /// number outside the exact domain, or an unparsed raw value).
     Other,
 }
 

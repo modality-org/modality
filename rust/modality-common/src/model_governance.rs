@@ -4,11 +4,13 @@ use crate::model_diagnostics::{
     FixedPointUnfoldingDiagnostic, FixedPointUnfoldingOutcome, FormulaFailureDiagnostic,
     TransitionDiagnosticInput,
 };
+use crate::theory_state::{contract_registry, AcceptedState};
 use anyhow::Result;
 use ed25519_dalek::{PublicKey, Signature, Verifier};
+use modality_lang::theory::{Lookup, StateView};
 use modality_lang::{
-    parse_content_lalrpop, Formula, FormulaExpr, Model, ModelChecker, Part, Property, PropertySign,
-    PropertySource, Transition,
+    parse_content_lalrpop, DeadEdge, Formula, FormulaExpr, Model, ModelChecker, Move, Part,
+    Property, PropertySign, PropertySource, TheoryVersion, Transition,
 };
 use serde_json::Value;
 use sha2::{Digest, Sha256};
@@ -81,6 +83,35 @@ fn validate_pending_commit_with_history_and_ids_at(
     expected_contract_id: Option<&str>,
     evaluation_timestamp: Option<u64>,
 ) -> Result<()> {
+    validate_pending_commit_with_theory(
+        fallback_model_content,
+        accepted,
+        pending,
+        pending_commit_id,
+        expected_contract_id,
+        evaluation_timestamp,
+        TheoryVersion::V0,
+    )
+}
+
+/// Pending-commit validation under a predicate theory version.
+///
+/// `V0` is exactly the check every other entry point runs. Above `V0`:
+/// - accepted rules are re-checked with entailment-aware matching and
+///   dead-edge pruning (so replay uses the same version throughout; the
+///   version is not yet height-anchored);
+/// - a commit that posts a `MODEL` with a dead edge is refused;
+/// - a `RULE` in the pending commit is checked against the governing
+///   model from the states the commit reaches.
+pub fn validate_pending_commit_with_theory(
+    fallback_model_content: &str,
+    accepted: &[CommitFile],
+    pending: &CommitFile,
+    pending_commit_id: Option<&str>,
+    expected_contract_id: Option<&str>,
+    evaluation_timestamp: Option<u64>,
+    theory: TheoryVersion,
+) -> Result<()> {
     let Some(governing_model) = governing_model_content(fallback_model_content, accepted, pending)
     else {
         return Ok(());
@@ -89,7 +120,7 @@ fn validate_pending_commit_with_history_and_ids_at(
     let model = parse_content_lalrpop(&governing_model)
         .map_err(|err| anyhow::anyhow!("Invalid governing model syntax: {}", err))?;
     let (current_states, state, _anchored_rules) =
-        replay_commits_to_current_state(&model, accepted)?;
+        replay_commits_to_current_state_with(&model, accepted, theory)?;
     let facts = CommitFacts::from_pending_commit_at(
         pending,
         &state,
@@ -97,6 +128,23 @@ fn validate_pending_commit_with_history_and_ids_at(
         expected_contract_id,
         evaluation_timestamp,
     );
+
+    if theory != TheoryVersion::V0 {
+        let mut after = state.clone();
+        apply_commit_to_state(pending, &mut after);
+        if pending_model_content(pending).is_some() {
+            refuse_dead_edges(&model, &after, theory)?;
+        }
+        check_pending_rules(
+            &model,
+            accepted.len(),
+            &current_states,
+            &facts,
+            pending,
+            &after,
+            theory,
+        )?;
+    }
 
     if has_valid_transition(&model, &current_states, &facts) {
         return Ok(());
@@ -106,6 +154,279 @@ fn validate_pending_commit_with_history_and_ids_at(
         "{}",
         explain_no_valid_transition(&model, &current_states, &facts)
     )
+}
+
+/// Sequenced apply under a predicate theory version; `V0` is
+/// [`validate_sequenced_commit_with_ids_at`].
+pub fn validate_sequenced_commit_with_theory(
+    accepted: &[CommitFile],
+    pending: &CommitFile,
+    pending_commit_id: Option<&str>,
+    expected_contract_id: Option<&str>,
+    evaluation_timestamp: Option<u64>,
+    theory: TheoryVersion,
+) -> Result<()> {
+    if is_genesis_only(pending) {
+        return Ok(());
+    }
+    if pending_model_content(pending).is_none()
+        && latest_accepted_model_from_commits(accepted).is_none()
+    {
+        return Ok(());
+    }
+    validate_pending_commit_with_theory(
+        "",
+        accepted,
+        pending,
+        pending_commit_id,
+        expected_contract_id,
+        evaluation_timestamp,
+        theory,
+    )
+}
+
+/// The check replay runs on a commit's rules once the commit is accepted,
+/// run on the pending commit instead.
+fn check_pending_rules(
+    model: &Model,
+    commit_index: usize,
+    current_states: &HashSet<String>,
+    facts: &CommitFacts,
+    pending: &CommitFile,
+    after: &HashMap<String, Value>,
+    theory: TheoryVersion,
+) -> Result<()> {
+    if !commit_contains_rule(pending) {
+        return Ok(());
+    }
+    let next_states = next_states_for_commit(model, current_states, facts)
+        .unwrap_or_else(|| current_states.clone());
+    for rule in anchored_rules_from_commit(pending, commit_index, &next_states)? {
+        validate_anchored_rule(model, &rule, theory, after)?;
+    }
+    Ok(())
+}
+
+/// A checker for rule witness checks: the model with top-level transitions
+/// folded into a part, the contract's declarations, and no state (a rule
+/// constrains every future, not the current one).
+fn rule_checker(
+    model: &Model,
+    theory: TheoryVersion,
+    state: &HashMap<String, Value>,
+) -> ModelChecker {
+    let model = model_for_rule_checking(model);
+    if theory == TheoryVersion::V0 {
+        return ModelChecker::new(model);
+    }
+    ModelChecker::with_theory(
+        model,
+        theory,
+        Some(Box::new(contract_registry(state))),
+        None,
+    )
+}
+
+fn refuse_dead_edges(
+    model: &Model,
+    state: &HashMap<String, Value>,
+    theory: TheoryVersion,
+) -> Result<()> {
+    let dead = rule_checker(model, theory, state).dead_transitions();
+    if dead.is_empty() {
+        return Ok(());
+    }
+    anyhow::bail!(
+        "Model has transitions no commit can take (predicate theory {:?}): {}",
+        theory,
+        format_dead_edges(&dead)
+    )
+}
+
+fn format_dead_edges(dead: &[DeadEdge]) -> String {
+    dead.iter()
+        .map(|edge| {
+            format!(
+                "{}: {} --> {} [{}] cannot hold together: {}",
+                edge.part_name,
+                edge.from,
+                edge.to,
+                format_properties(&edge.properties),
+                edge.offending.join(", ")
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("; ")
+}
+
+/// What the predicate theory would change about one pending commit.
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum TheoryFinding {
+    /// A transition of the governing model whose labels cannot hold together.
+    DeadEdge {
+        part: String,
+        from: String,
+        to: String,
+        offending: Vec<String>,
+    },
+    /// Accepted today, refused under the theory version.
+    WouldRefuse { reason: String },
+    /// Refused today, accepted under the theory version (a box over a dead
+    /// edge goes vacuous; an edge matches by entailment).
+    WouldAccept { refused_today_because: String },
+    /// A committed declaration outside the fragment; its predicate is opaque.
+    DeclarationUnparsed { module: String },
+    /// Accepted today, but a rule in the commit fails today's rule check,
+    /// so replay of any later commit that keeps the governing model fails.
+    /// (Today the pending commit's own rules are checked only on replay.)
+    ReplayWouldFail { reason: String },
+}
+
+/// Shadow mode: the `V0` outcome, and what `theory` would change about it.
+/// Findings never change the outcome.
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
+pub struct ShadowReport {
+    pub theory: String,
+    pub accepted_today: bool,
+    pub findings: Vec<TheoryFinding>,
+}
+
+pub fn shadow_findings(
+    fallback_model_content: &str,
+    accepted: &[CommitFile],
+    pending: &CommitFile,
+    theory: TheoryVersion,
+) -> ShadowReport {
+    let today = validate_pending_commit_with_theory(
+        fallback_model_content,
+        accepted,
+        pending,
+        None,
+        None,
+        None,
+        TheoryVersion::V0,
+    );
+    let shadow = validate_pending_commit_with_theory(
+        fallback_model_content,
+        accepted,
+        pending,
+        None,
+        None,
+        None,
+        theory,
+    );
+
+    let mut findings = Vec::new();
+    if let Some(model) = governing_model_content(fallback_model_content, accepted, pending)
+        .and_then(|content| parse_content_lalrpop(&content).ok())
+    {
+        let mut after = HashMap::new();
+        for commit in accepted.iter().chain(std::iter::once(pending)) {
+            apply_commit_to_state(commit, &mut after);
+        }
+        for edge in rule_checker(&model, theory, &after).dead_transitions() {
+            findings.push(TheoryFinding::DeadEdge {
+                part: edge.part_name,
+                from: edge.from,
+                to: edge.to,
+                offending: edge.offending,
+            });
+        }
+        for module in contract_registry(&after).unparsed() {
+            findings.push(TheoryFinding::DeclarationUnparsed { module });
+        }
+        if today.is_ok() {
+            if let Ok((current_states, state, _rules)) =
+                replay_commits_to_current_state(&model, accepted)
+            {
+                let facts = CommitFacts::from_commit(pending, &state);
+                if let Err(err) = check_pending_rules(
+                    &model,
+                    accepted.len(),
+                    &current_states,
+                    &facts,
+                    pending,
+                    &after,
+                    TheoryVersion::V0,
+                ) {
+                    findings.push(TheoryFinding::ReplayWouldFail {
+                        reason: err.to_string(),
+                    });
+                }
+            }
+        }
+    }
+    match (&today, &shadow) {
+        (Ok(()), Err(err)) => findings.push(TheoryFinding::WouldRefuse {
+            reason: err.to_string(),
+        }),
+        (Err(err), Ok(())) => findings.push(TheoryFinding::WouldAccept {
+            refused_today_because: err.to_string(),
+        }),
+        _ => {}
+    }
+
+    ShadowReport {
+        theory: format!("{theory:?}"),
+        accepted_today: today.is_ok(),
+        findings,
+    }
+}
+
+/// Runtime necessity from accepted state: which moves out of the current
+/// states are open, blocked, or forced. Replay uses today's rules (`V0`);
+/// classification uses `theory`. A pure function of the accepted prefix.
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
+pub struct NecessityView {
+    pub theory: String,
+    pub current_states: Vec<String>,
+    pub moves: Vec<Move>,
+}
+
+pub fn necessity_view(
+    fallback_model_content: &str,
+    accepted: &[CommitFile],
+    theory: TheoryVersion,
+) -> Result<NecessityView> {
+    let governing_model = latest_accepted_model_from_commits(accepted)
+        .unwrap_or_else(|| fallback_model_content.to_string());
+    let model = parse_content_lalrpop(&governing_model)
+        .map_err(|err| anyhow::anyhow!("Invalid governing model syntax: {}", err))?;
+    let (current_states, state, _rules) =
+        replay_commits_to_current_state_with(&model, accepted, TheoryVersion::V0)?;
+
+    let checker = ModelChecker::with_theory(
+        model_for_rule_checking(&model),
+        theory,
+        Some(Box::new(contract_registry(&state))),
+        Some(Box::new(OwnedAcceptedState(state))),
+    );
+    let mut current: Vec<String> = current_states.into_iter().collect();
+    current.sort();
+    let moves = current
+        .iter()
+        .flat_map(|node| checker.classify_moves(node))
+        .collect();
+
+    Ok(NecessityView {
+        theory: format!("{theory:?}"),
+        current_states: current,
+        moves,
+    })
+}
+
+/// [`AcceptedState`] over an owned map, for a checker that outlives the
+/// replay.
+struct OwnedAcceptedState(HashMap<String, Value>);
+
+impl StateView for OwnedAcceptedState {
+    fn value_at(&self, path: &str) -> Lookup {
+        AcceptedState::new(&self.0).value_at(path)
+    }
+    fn keys_under(&self, prefix: &str) -> Option<Vec<String>> {
+        AcceptedState::new(&self.0).keys_under(prefix)
+    }
 }
 
 /// Sequenced apply: skip genesis-only and contracts that never posted a model.
@@ -228,6 +549,14 @@ fn pending_model_content(commit: &CommitFile) -> Option<&str> {
 }
 
 fn replay_commits_to_current_state(model: &Model, commits: &[CommitFile]) -> Result<ReplayState> {
+    replay_commits_to_current_state_with(model, commits, TheoryVersion::V0)
+}
+
+fn replay_commits_to_current_state_with(
+    model: &Model,
+    commits: &[CommitFile],
+    theory: TheoryVersion,
+) -> Result<ReplayState> {
     let mut current_states = initial_states(model);
     let mut state = HashMap::new();
     let mut anchored_rules = Vec::new();
@@ -249,13 +578,12 @@ fn replay_commits_to_current_state(model: &Model, commits: &[CommitFile]) -> Res
             })?;
 
         let new_rules = anchored_rules_from_commit(commit, commit_index, &next_states)?;
-        for rule in &new_rules {
-            validate_anchored_rule(model, rule)?;
-        }
-        anchored_rules.extend(new_rules);
-
         current_states = next_states;
         apply_commit_to_state(commit, &mut state);
+        for rule in &new_rules {
+            validate_anchored_rule(model, rule, theory, &state)?;
+        }
+        anchored_rules.extend(new_rules);
     }
 
     Ok((current_states, state, anchored_rules))
@@ -346,21 +674,39 @@ fn anchored_rules_from_commit(
     Ok(rules)
 }
 
-fn validate_anchored_rule(model: &Model, rule: &AnchoredRule) -> Result<()> {
-    let checker = ModelChecker::new(model_for_rule_checking(model));
+/// `state` is accepted state after the anchoring commit; it supplies the
+/// contract's committed declarations under a theory version above `V0`.
+fn validate_anchored_rule(
+    model: &Model,
+    rule: &AnchoredRule,
+    theory: TheoryVersion,
+    state: &HashMap<String, Value>,
+) -> Result<()> {
+    let checker = rule_checker(model, theory, state);
 
-    for state in &rule.anchor_states {
-        let result = checker.check_formula_at_state(&rule.formula, state);
+    for anchor in &rule.anchor_states {
+        let result = checker.check_formula_at_state(&rule.formula, anchor);
         if !result.is_satisfied {
+            let dead = checker.dead_transitions();
+            let theory_note = if dead.is_empty() {
+                String::new()
+            } else {
+                format!(
+                    "; predicate theory {:?} pruned transitions no commit can take: {}",
+                    theory,
+                    format_dead_edges(&dead)
+                )
+            };
             anyhow::bail!(
-                "Model violates rule '{}' anchored at accepted commit {} from states {:?}; failed anchor state: {}; satisfying states in replacement model: {}; formula: {}; counterexample: {}",
+                "Model violates rule '{}' anchored at accepted commit {} from states {:?}; failed anchor state: {}; satisfying states in replacement model: {}; formula: {}; counterexample: {}{}",
                 rule.formula.name,
                 rule.anchor_commit,
                 rule.anchor_states,
-                state,
+                anchor,
                 format_satisfying_states(&result.satisfying_states),
                 rule.formula_source,
-                explain_formula_failure(model, &rule.formula.expression, state)
+                explain_formula_failure(model, &rule.formula.expression, anchor),
+                theory_note
             );
         }
     }
@@ -2354,6 +2700,10 @@ fn external_predicate_evidence_boundary(name: &str) -> Option<&'static str> {
         _ => None,
     }
 }
+
+#[cfg(test)]
+#[path = "model_governance_theory_tests.rs"]
+mod theory_tests;
 
 #[cfg(test)]
 mod tests {

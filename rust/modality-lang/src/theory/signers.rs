@@ -17,11 +17,14 @@ use std::collections::BTreeSet;
 
 pub struct Ctx<'a> {
     pub lits: &'a [Lit],
-    pub forced: &'a BTreeSet<String>,
+    /// `.id` paths known (from state) to hold a key string, so the key is
+    /// a member of every prefix above it.
+    pub members: &'a BTreeSet<String>,
     pub state: &'a dyn StateView,
 }
 
-/// Lower bound on `card(q)` derivable from positive literals, with the
+/// Lower bound on `card(q)` derivable from positive literals (and, for
+/// `all-signed` over a prefix of `q`, from the posted keys), with the
 /// literals that give it.
 fn lower_bound(ctx: &Ctx, q: &str) -> (u32, Vec<Lit>) {
     let mut best = 0u32;
@@ -30,6 +33,10 @@ fn lower_bound(ctx: &Ctx, q: &str) -> (u32, Vec<Lit>) {
         let n = match &lit.c {
             Constraint::SignerCount { prefix, at_least } if under(prefix, q) => *at_least,
             Constraint::SignerAll { prefix } if under(prefix, q) => 1,
+            Constraint::SignerAll { prefix } if under(q, prefix) => ctx
+                .state
+                .keys_under(q)
+                .map_or(0, |k| u32::try_from(k.len()).unwrap_or(u32::MAX)),
             Constraint::Signer { id } if under(id, q) => 1,
             _ => continue,
         };
@@ -79,9 +86,10 @@ pub fn check(ctx: &Ctx) -> Option<Vec<Lit>> {
                     }
                 }
             }
-            // -signed(id) with +all-signed(p), id under p, id forced to exist.
+            // -signed(id) with +all-signed(p), id under p, and the key at id
+            // posted (so it is a member of p).
             (Constraint::Signer { id }, false) => {
-                if ctx.forced.contains(id) {
+                if ctx.members.contains(id) {
                     if let Some(q) = ctx.lits.iter().find(|l| {
                         l.positive
                             && matches!(&l.c, Constraint::SignerAll { prefix } if under(id, prefix))

@@ -168,14 +168,113 @@ fn a13_negation_is_not_classical_unless_existence_is_forced() {
         th.entails(&alone, &n("state_exists", &["/x.num"])),
         Tri::False
     );
+    // Existence is not enough: `.num` is not type-checked on write, so the
+    // path may hold a string, and then `num_lte` is false too.
     let with_exists = [
         n("num_gt", &["/x.num", "5"]),
         p("state_exists", &["/x.num"]),
     ];
     assert_eq!(
         th.entails(&with_exists, &p("num_lte", &["/x.num", "5"])),
+        Tri::False
+    );
+    // A positive numeric literal forces a number; then the bound flips.
+    let with_number = [
+        n("num_gt", &["/x.num", "5"]),
+        p("num_gte", &["/x.num", "0"]),
+    ];
+    assert_eq!(
+        th.entails(&with_number, &p("num_lte", &["/x.num", "5"])),
         Tri::True
     );
+}
+
+// --- agreement with the evaluator (predicate_holds) -------------------------
+
+#[test]
+fn signatures_follow_what_the_evaluator_reads() {
+    let th = v1();
+    // num_* reads its first argument from state only.
+    let lits = [n("num_gt", &["5", "/x.num"]), p("num_lt", &["/x.num", "3"])];
+    unknown(&th.consistent(&lits));
+    // text_eq reads a string; on a .num path it is not numeric equality.
+    let lits = [
+        n("text_eq", &["/x.num", "5"]),
+        p("num_eq", &["/x.num", "5"]),
+    ];
+    unknown(&th.consistent(&lits));
+    // num_eq on a .text path is always false in the evaluator, not text equality.
+    let lits = [
+        n("num_eq", &["/p.text", "a"]),
+        p("text_eq", &["/p.text", "a"]),
+    ];
+    unknown(&th.consistent(&lits));
+    // A needle is read literally even when it starts with a slash.
+    let e = th.expand(&p("text_contains", &["/p.text", "/x"]));
+    assert!(matches!(e.lits[0].c, Constraint::Opaque { .. }));
+}
+
+#[test]
+fn existence_is_not_type() {
+    let th = v1();
+    // The path may exist and hold a non-number or a non-boolean.
+    yes(&th.consistent(&[
+        p("state_exists", &["/x.num"]),
+        n("num_gt", &["/x.num", "5"]),
+        n("num_lte", &["/x.num", "5"]),
+    ]));
+    yes(&th.consistent(&[
+        p("state_exists", &["/f.bool"]),
+        n("bool_true", &["/f.bool"]),
+        n("bool_false", &["/f.bool"]),
+    ]));
+}
+
+#[test]
+fn text_equality_is_not_reflexive_on_a_missing_string() {
+    let th = v1();
+    // `text_eq(/t.text, /t.text)` is false when /t.text holds no string.
+    yes(&th.consistent(&[n("text_eq", &["/t.text", "/t.text"])]));
+    no(&th.consistent(&[
+        n("text_eq", &["/t.text", "/t.text"]),
+        p("text_contains", &["/t.text", "a"]),
+    ]));
+    no(&th.consistent(&[
+        n("text_eq", &["/t.text", "/u.text"]),
+        p("text_eq", &["/t.text", "/u.text"]),
+    ]));
+}
+
+#[test]
+fn prefixes_match_the_evaluator() {
+    let th = v1();
+    // `/` is the empty prefix, which contains only itself in the evaluator.
+    yes(&th.consistent(&[p("signed_by", &["/a.id"]), n("any_signed", &["/"])]));
+    // A trailing slash is part of the key, not collapsed.
+    yes(&th.consistent(&[p("signed_by", &["/m/a.id"]), n("any_signed", &["/m/"])]));
+    no(&th.consistent(&[p("signed_by", &["/m/a.id"]), n("any_signed", &["/m"])]));
+}
+
+#[test]
+fn literals_outside_the_exact_domain_are_opaque() {
+    let th = v1();
+    // "5 " does not parse as f64 in the evaluator: always false there.
+    unknown(&th.consistent(&[
+        n("num_gt", &["/x.num", "5 "]),
+        p("num_gt", &["/x.num", "7"]),
+    ]));
+    // These two differ as rationals but are the same double.
+    unknown(&th.consistent(&[
+        p("num_eq", &["/x.num", "0.1"]),
+        p("num_eq", &["/x.num", "0.10000000000000000001"]),
+    ]));
+}
+
+#[test]
+fn a_label_is_not_a_zero_argument_predicate() {
+    let label = Property::new(PropertySign::Plus, "POST".into());
+    let pred = Property::new_predicate_from_call_args_negated("POST".into(), vec![]);
+    unknown(&v1().consistent(&[label, pred]));
 }
 
 // --- B. relations between paths ---------------------------------------------

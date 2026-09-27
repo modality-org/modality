@@ -2,8 +2,7 @@
 //!
 //! - Every positive value constraint on `p` forces `p` to exist; `-exists(p)`
 //!   then contradicts (cases E3, C6).
-//! - A `.bool` path is `true` or `false`, not both, and (if it exists) not
-//!   neither.
+//! - A path is not `true` and `false` at once.
 //! - Text paths form equality classes via `(= a b)`; a class holds at most
 //!   one literal (case E1). Substring predicates are checked only against a
 //!   class literal (case E5); otherwise they are left alone.
@@ -42,6 +41,24 @@ pub fn forced_paths(lits: &[Lit]) -> BTreeSet<String> {
     out
 }
 
+/// Paths forced to hold a number: those in a positive order literal. Not
+/// `exists`: path extensions are not type-checked on write, so a present
+/// `.num` path may hold a string, and then every numeric predicate on it is
+/// false (case A13).
+pub fn forced_numeric(lits: &[Lit]) -> BTreeSet<String> {
+    let mut out = BTreeSet::new();
+    for lit in lits.iter().filter(|l| l.positive) {
+        if let Constraint::Order { lhs, rhs, .. } = &lit.c {
+            for t in [lhs, rhs] {
+                if let super::sort::Term::Path(p) = t {
+                    out.insert(p.clone());
+                }
+            }
+        }
+    }
+    out
+}
+
 fn text_holds(op: TextOp, value: &str, needle: &str) -> bool {
     match op {
         TextOp::Contains => value.contains(needle),
@@ -67,39 +84,24 @@ pub fn check(lits: &[Lit], forced: &BTreeSet<String>) -> Option<Vec<Lit>> {
         }
     }
 
-    // Booleans.
+    // Booleans: `true` and `false` at once. (`-bool_true` with `-bool_false`
+    // is satisfiable even when the path exists: it may hold a non-boolean.)
     let mut bool_pos: BTreeMap<&str, Vec<(bool, &Lit)>> = BTreeMap::new();
-    let mut bool_neg: BTreeMap<&str, Vec<(bool, &Lit)>> = BTreeMap::new();
-    for lit in lits {
+    for lit in lits.iter().filter(|l| l.positive) {
         if let Constraint::Is { path, value } = &lit.c {
-            let m = if lit.positive {
-                &mut bool_pos
-            } else {
-                &mut bool_neg
-            };
-            m.entry(path.as_str()).or_default().push((*value, lit));
+            bool_pos
+                .entry(path.as_str())
+                .or_default()
+                .push((*value, lit));
         }
     }
-    for (path, pos) in &bool_pos {
+    for pos in bool_pos.values() {
         let has_t = pos.iter().find(|(v, _)| *v);
         let has_f = pos.iter().find(|(v, _)| !*v);
         if let (Some((_, t)), Some((_, f))) = (has_t, has_f) {
             let mut why = vec![(*t).clone(), (*f).clone()];
             why.sort();
             return Some(why);
-        }
-        // +Is(p,v) with -Is(p,v) is syntactic; +Is(p,v) with -Is(p,!v) is fine.
-        let _ = path;
-    }
-    for (path, neg) in &bool_neg {
-        if forced.contains(*path) {
-            let nt = neg.iter().find(|(v, _)| *v);
-            let nf = neg.iter().find(|(v, _)| !*v);
-            if let (Some((_, a)), Some((_, b))) = (nt, nf) {
-                let mut why = vec![(*a).clone(), (*b).clone()];
-                why.sort();
-                return Some(why);
-            }
         }
     }
 
@@ -177,17 +179,38 @@ pub fn check(lits: &[Lit], forced: &BTreeSet<String>) -> Option<Vec<Lit>> {
                     }
                 }
             }
+            // `(= a a)` is false when `a` holds no string, so `-(= a a)`
+            // contradicts only when a positive literal makes `a` a string.
+            // Distinct paths share a class only through positive `(= a b)`,
+            // which does.
             Constraint::Eq2 { a, b } => {
-                if find(&mut parent, idx[a.as_str()]) == find(&mut parent, idx[b.as_str()]) {
-                    let mut why: Vec<Lit> = lits
-                        .iter()
+                if find(&mut parent, idx[a.as_str()]) != find(&mut parent, idx[b.as_str()]) {
+                    continue;
+                }
+                let texts_a = |l: &&Lit| {
+                    l.positive
+                        && match &l.c {
+                            Constraint::Eq { path, .. } | Constraint::Text { path, .. } => {
+                                path == a
+                            }
+                            Constraint::Eq2 { a: x, b: y } => x == a || y == a,
+                            _ => false,
+                        }
+                };
+                let mut why: Vec<Lit> = if a == b {
+                    lits.iter().filter(texts_a).cloned().collect()
+                } else {
+                    lits.iter()
                         .filter(|l| l.positive && matches!(l.c, Constraint::Eq2 { .. }))
                         .cloned()
-                        .collect();
-                    why.push(lit.clone());
-                    why.sort();
-                    return Some(why);
+                        .collect()
+                };
+                if why.is_empty() {
+                    continue;
                 }
+                why.push(lit.clone());
+                why.sort();
+                return Some(why);
             }
             _ => {}
         }
