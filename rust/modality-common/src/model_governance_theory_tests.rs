@@ -182,9 +182,16 @@ fn a_v0_log_replays_the_same_after_the_switch() {
 
     // A new MODEL is admitted under V1, so every accepted rule is
     // re-checked against it under V1.
-    let replacement = model_commit(LIVE_AND_DEAD.replace("Contract", "Replaced").as_str(), vec![]);
-    let err = validate_at(&accepted, &replacement, TheoryActivation::from_commit(V1, 2))
-        .expect_err("V1 refuses the dead edge and the rule it carries");
+    let replacement = model_commit(
+        LIVE_AND_DEAD.replace("Contract", "Replaced").as_str(),
+        vec![],
+    );
+    let err = validate_at(
+        &accepted,
+        &replacement,
+        TheoryActivation::from_commit(V1, 2),
+    )
+    .expect_err("V1 refuses the dead edge and the rule it carries");
     assert!(err.to_string().contains("q1 --> q2"), "{err}");
 }
 
@@ -226,6 +233,48 @@ fn g7_v1_refuses_the_model_with_the_three_literal_edge() {
         .expect_err("V1 refuses")
         .to_string();
     assert!(err.contains("q1 --> q1"), "{err}");
+}
+
+/// Bob's refund edge was copied from Alice's release edge and still
+/// carries `num_gte(paid, 100)`. Today the model is accepted; under `V1`
+/// it is refused, naming the edge and the two literals.
+#[test]
+fn escrow_refund_edge_that_can_never_fire() {
+    let escrow = |refund: &str| {
+        format!(
+            r#"
+model Escrow {{
+  part flow {{
+    start --> open
+    open --> open: +post_to_path(/escrow/paid.num)
+    open --> released: +signed_by(/parties/alice.id) +num_gte(/escrow/paid.num,"100")
+    open --> refunded: {refund}
+  }}
+}}
+"#
+        )
+    };
+    let slipped = model_commit(
+        &escrow(
+            r#"+signed_by(/parties/bob.id) +num_lt(/escrow/paid.num,"100") +num_gte(/escrow/paid.num,"100")"#,
+        ),
+        vec![],
+    );
+    let fixed = model_commit(
+        &escrow(r#"+signed_by(/parties/bob.id) +num_lt(/escrow/paid.num,"100")"#),
+        vec![],
+    );
+
+    validate(&[], &slipped, V0).expect("accepted today");
+    let err = validate(&[], &slipped, V1).expect_err("refused under V1");
+    println!("V1: {err}");
+    assert!(err.to_string().contains("open --> refunded"), "{err}");
+
+    validate(&[], &fixed, V1).expect("the fixed model is accepted");
+
+    let report = shadow_findings("", &[], &slipped, V1);
+    println!("shadow: {}", serde_json::to_string_pretty(&report).unwrap());
+    assert!(report.accepted_today);
 }
 
 #[test]

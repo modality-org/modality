@@ -230,6 +230,33 @@ fn existence_is_not_type() {
     ]));
 }
 
+/// The cases proved in `experiments/predicate-theory/lean/PredicateTheory/Cases.lean`.
+#[test]
+fn the_lean_escrow_cases_agree() {
+    let th = v1();
+    let paid = "/escrow/paid.num";
+    // refund_edge_is_dead
+    no(&th.consistent(&[p("num_lt", &[paid, "100"]), p("num_gte", &[paid, "100"])]));
+    // release_edge_is_live
+    yes(&th.consistent(&[p("num_gte", &[paid, "100"])]));
+    // stricter_release_meets_the_rule
+    assert_eq!(
+        th.entails(
+            &[p("num_gte", &[paid, "120"])],
+            &p("num_gte", &[paid, "100"])
+        ),
+        Tri::True
+    );
+    // not_a_number_is_live: no number is forced, so the negations do not flip
+    yes(&th.consistent(&[n("num_lt", &[paid, "100"]), n("num_gte", &[paid, "100"])]));
+    // ...and with a number forced, they do
+    no(&th.consistent(&[
+        p("num_lte", &[paid, "1000"]),
+        n("num_lt", &[paid, "100"]),
+        n("num_gte", &[paid, "100"]),
+    ]));
+}
+
 #[test]
 fn text_equality_is_not_reflexive_on_a_missing_string() {
     let th = v1();
