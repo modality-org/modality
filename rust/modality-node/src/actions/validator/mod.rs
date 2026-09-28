@@ -134,16 +134,23 @@ pub async fn start_sequencing(node: &mut Node) {
 
     let swarm = node.swarm.clone();
     let consensus_tx = node.get_consensus_tx();
-
-    if static_or_hybrid(node).await {
-        cert_sync::start_pull(
-            node.peerid.to_string(),
-            swarm.clone(),
-            node.reqres_response_txs.clone(),
-            node.datastore_manager.clone(),
-            consensus_tx.clone(),
-        );
-    }
+    let start_pull = {
+        let peer_id = node.peerid.to_string();
+        let swarm = swarm.clone();
+        let reqres_txs = node.reqres_response_txs.clone();
+        let datastore = node.datastore_manager.clone();
+        let consensus_tx = consensus_tx.clone();
+        move |control: &consensus::SequencingControl| {
+            cert_sync::start_pull(
+                peer_id,
+                swarm,
+                reqres_txs,
+                datastore,
+                consensus_tx,
+                control.clone(),
+            );
+        }
+    };
 
     let static_validators = {
         let ds = node.datastore_manager.lock().await;
@@ -163,6 +170,8 @@ pub async fn start_sequencing(node: &mut Node) {
                 node.datastore_manager.clone(),
                 node.epoch_transition_tx.clone(),
             );
+            let control = consensus::SequencingControl::static_committee(&validators);
+            start_pull(&control);
             consensus::start_static_validator_consensus(
                 &node_peer_id_str,
                 &validators,
@@ -171,6 +180,7 @@ pub async fn start_sequencing(node: &mut Node) {
                 swarm,
                 consensus_tx,
                 consensus_rx,
+                control,
             )
             .await;
         } else {
@@ -189,6 +199,8 @@ pub async fn start_sequencing(node: &mut Node) {
             node.datastore_manager.clone(),
             node.epoch_transition_tx.clone(),
         );
+        let control = consensus::SequencingControl::hybrid();
+        start_pull(&control);
         hybrid::start_hybrid_consensus_monitor(
             node.datastore_manager.clone(),
             node.peerid.to_string(),
@@ -197,16 +209,9 @@ pub async fn start_sequencing(node: &mut Node) {
             swarm,
             consensus_tx,
             consensus_rx,
+            control,
         );
     } else {
         log::info!("Consensus not enabled (no static validators and hybrid consensus is off)");
     }
-}
-
-async fn static_or_hybrid(node: &Node) -> bool {
-    if node.hybrid_consensus {
-        return true;
-    }
-    let ds = node.datastore_manager.lock().await;
-    ds.get_static_validators().await.ok().flatten().is_some()
 }

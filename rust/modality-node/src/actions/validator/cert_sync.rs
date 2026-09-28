@@ -10,15 +10,16 @@ use libp2p_identity::PeerId;
 use serde_json::json;
 use std::collections::HashMap;
 use std::str::FromStr;
+use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::{mpsc, oneshot, Mutex};
 
-use modality_datastore::models::validator::get_validator_set_for_mining_epoch_hybrid_multi;
 use modality_datastore::models::ValidatorBlock;
 use modality_datastore::{DatastoreManager, Store};
 use modality_validator_consensus::communication::Message as ConsensusMessage;
 
+use super::consensus::SequencingControl;
 use crate::reqres;
 use crate::reqres::consensus::block::certified_since;
 use crate::swarm::NodeSwarm;
@@ -77,24 +78,6 @@ pub fn last_cert_rounds(mgr: &DatastoreManager) -> Vec<(String, u64)> {
     out
 }
 
-async fn current_committee(datastore: &Arc<Mutex<DatastoreManager>>) -> Vec<String> {
-    {
-        let mgr = datastore.lock().await;
-        if let Ok(Some(validators)) = mgr.get_static_validators().await {
-            return validators;
-        }
-    }
-    let epoch = super::hybrid::get_current_epoch(datastore).await;
-    if epoch < 2 {
-        return Vec::new();
-    }
-    let mgr = datastore.lock().await;
-    match get_validator_set_for_mining_epoch_hybrid_multi(&mgr, epoch).await {
-        Ok(Some(set)) => set.get_active_validators(),
-        _ => Vec::new(),
-    }
-}
-
 /// Every few seconds, pull each committee peer's certified blocks we have not seen.
 pub fn start_pull(
     own_peer_id: String,
@@ -102,13 +85,17 @@ pub fn start_pull(
     reqres_txs: ReqresTxs,
     datastore: Arc<Mutex<DatastoreManager>>,
     consensus_tx: mpsc::Sender<ConsensusMessage>,
+    control: SequencingControl,
 ) {
     tokio::spawn(async move {
         let mut interval = tokio::time::interval(Duration::from_secs(PULL_INTERVAL_SECS));
         interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
         loop {
             interval.tick().await;
-            let committee = current_committee(&datastore).await;
+            if !control.participate.load(Ordering::Relaxed) {
+                continue;
+            }
+            let committee = control.committee();
             if !committee.contains(&own_peer_id) {
                 continue;
             }

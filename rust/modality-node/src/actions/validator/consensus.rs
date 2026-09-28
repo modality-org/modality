@@ -34,15 +34,39 @@ pub(crate) struct SequencingControl {
     pub participate: Arc<AtomicBool>,
     pub committee_size: Arc<AtomicUsize>,
     pub started: Arc<AtomicBool>,
+    /// Current committee peer ids. Computing it scans the whole miner chain
+    /// under the datastore lock, so it is set once per epoch and read here.
+    pub committee: Arc<std::sync::RwLock<Vec<String>>>,
 }
 
 impl SequencingControl {
-    pub(crate) fn static_committee(size: usize) -> Self {
+    pub(crate) fn static_committee(validators: &[String]) -> Self {
         Self {
             participate: Arc::new(AtomicBool::new(true)),
-            committee_size: Arc::new(AtomicUsize::new(size)),
+            committee_size: Arc::new(AtomicUsize::new(validators.len())),
             started: Arc::new(AtomicBool::new(false)),
+            committee: Arc::new(std::sync::RwLock::new(validators.to_vec())),
         }
+    }
+
+    pub(crate) fn hybrid() -> Self {
+        Self {
+            participate: Arc::new(AtomicBool::new(false)),
+            committee_size: Arc::new(AtomicUsize::new(0)),
+            started: Arc::new(AtomicBool::new(false)),
+            committee: Arc::new(std::sync::RwLock::new(Vec::new())),
+        }
+    }
+
+    pub(crate) fn set_committee(&self, validators: &[String]) {
+        self.committee_size.store(validators.len(), Ordering::SeqCst);
+        if let Ok(mut committee) = self.committee.write() {
+            *committee = validators.to_vec();
+        }
+    }
+
+    pub(crate) fn committee(&self) -> Vec<String> {
+        self.committee.read().map(|c| c.clone()).unwrap_or_default()
     }
 }
 
@@ -55,6 +79,7 @@ pub async fn start_static_validator_consensus(
     swarm: Arc<Mutex<NodeSwarm>>,
     consensus_tx: mpsc::Sender<ConsensusMessage>,
     consensus_rx: mpsc::Receiver<ConsensusMessage>,
+    control: SequencingControl,
 ) {
     let my_index = validators
         .iter()
@@ -63,8 +88,6 @@ pub async fn start_static_validator_consensus(
 
     log::info!("📋 Validator index: {}/{}", my_index, validators.len());
     log::info!("📋 Static validators: {:?}", validators);
-
-    let control = SequencingControl::static_committee(validators.len());
 
     match create_and_start_shoal_validator(
         validators.to_vec(),
@@ -152,9 +175,7 @@ pub async fn create_and_start_shoal_validator_weighted_with_epoch(
 ) -> Result<()> {
     let datastore_for_loop = datastore.clone();
     let committee_size = validators.len();
-    control
-        .committee_size
-        .store(committee_size, Ordering::SeqCst);
+    control.set_committee(&validators);
     control.participate.store(true, Ordering::SeqCst);
 
     let blocks_per_epoch = {

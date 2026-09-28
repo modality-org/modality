@@ -10,7 +10,7 @@ use modality_datastore::models::validator::get_validator_set_for_mining_epoch_hy
 use modality_datastore::DatastoreManager;
 use modality_networks::CheckpointMode;
 use modality_validator_consensus::communication::Message as ConsensusMessage;
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use tokio::sync::{broadcast, mpsc, Mutex};
 
@@ -63,6 +63,7 @@ pub fn start_hybrid_consensus_monitor(
     swarm: Arc<Mutex<NodeSwarm>>,
     consensus_tx: mpsc::Sender<ConsensusMessage>,
     consensus_rx: mpsc::Receiver<ConsensusMessage>,
+    control: SequencingControl,
 ) {
     start_hybrid_consensus_monitor_with_checkpoints(
         datastore,
@@ -72,6 +73,7 @@ pub fn start_hybrid_consensus_monitor(
         swarm,
         consensus_tx,
         consensus_rx,
+        control,
         CheckpointMode::None,
     )
 }
@@ -85,14 +87,10 @@ pub fn start_hybrid_consensus_monitor_with_checkpoints(
     swarm: Arc<Mutex<NodeSwarm>>,
     consensus_tx: mpsc::Sender<ConsensusMessage>,
     consensus_rx: mpsc::Receiver<ConsensusMessage>,
+    control: SequencingControl,
     checkpoint_mode: CheckpointMode,
 ) {
     let consensus_rx = Arc::new(Mutex::new(Some(consensus_rx)));
-    let control = SequencingControl {
-        participate: Arc::new(AtomicBool::new(false)),
-        committee_size: Arc::new(AtomicUsize::new(0)),
-        started: Arc::new(AtomicBool::new(false)),
-    };
 
     tokio::spawn(async move {
         log::info!("Hybrid consensus coordinator started, waiting for epoch >= 2...");
@@ -146,7 +144,7 @@ pub fn start_hybrid_consensus_monitor_with_checkpoints(
 }
 
 /// Get the current mining epoch from the canonical chain tip.
-pub(super) async fn get_current_epoch(datastore: &Arc<Mutex<DatastoreManager>>) -> u64 {
+async fn get_current_epoch(datastore: &Arc<Mutex<DatastoreManager>>) -> u64 {
     let blocks_per_epoch = {
         let ds = datastore.lock().await;
         ds.epoch_config().blocks_per_epoch.max(1)
@@ -213,9 +211,7 @@ async fn check_and_start_validator(
         .collect();
     let stakes: Vec<u64> = validators_with_stakes.iter().map(|(_, s)| *s).collect();
 
-    control
-        .committee_size
-        .store(validators.len(), Ordering::SeqCst);
+    control.set_committee(&validators);
 
     if !validators.contains(&node_peer_id.to_string()) {
         control.participate.store(false, Ordering::SeqCst);
