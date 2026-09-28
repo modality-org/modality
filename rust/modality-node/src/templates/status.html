@@ -1,28 +1,43 @@
 <!DOCTYPE html>
-<html lang="en" data-active-tab="overview">
+<html lang="en" data-active-tab="overview" data-scope="node">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Modality Network</title>
     <script>
         // The path names the tab: `/` is the overview, `/nodes`, `/miners`,
-        // `/chains`, `/sequencers`, `/validators`, `/contracts`, and
-        // `/contracts/<id>` open the matching tab. The server returns this
-        // document for each of those paths.
-        var TAB_PATHS = {{ overview: 1, nodes: 1, miners: 1, chains: 1, sequencers: 1, validators: 1, contracts: 1 }};
+        // `/sequencers`, `/validators`, `/contracts`, and `/contracts/<id>`
+        // open the matching tab. `/chains` is Miners → All Nodes.
+        // `?scope=all` opens All Nodes on Sequencers and Validators.
+        // The server returns this document for each of those paths.
+        var TAB_PATHS = {{ overview: 1, nodes: 1, miners: 1, sequencers: 1, validators: 1, contracts: 1 }};
         function tabFromPath(pathname) {{
             var m = String(pathname || '/').match(/^\/([^/]*)/);
             var first = m ? decodeURIComponent(m[1]) : '';
             if (first === '' || first === 'status') return 'overview';
+            if (first === 'chains') return 'miners';
             return TAB_PATHS[first] ? first : 'overview';
+        }}
+        function scopeFromLocation() {{
+            if (/^\/chains\/?$/.test(location.pathname)) return 'all';
+            var q = new URLSearchParams(location.search || '');
+            return q.get('scope') === 'all' ? 'all' : 'node';
         }}
         function pathForTab(tabName) {{
             if (tabName === 'overview') return '/';
             if (tabName === 'contracts' && /^\/contracts\/[^/]+/.test(location.pathname)) return location.pathname;
             return '/' + tabName;
         }}
+        function pathForScope(tabName, scope) {{
+            if (scope === 'all' && tabName === 'miners') return '/chains';
+            if (scope === 'all' && (tabName === 'sequencers' || tabName === 'validators')) {{
+                return '/' + tabName + '?scope=all';
+            }}
+            return pathForTab(tabName);
+        }}
         (function() {{
             document.documentElement.setAttribute('data-active-tab', tabFromPath(location.pathname));
+            document.documentElement.setAttribute('data-scope', scopeFromLocation());
         }})();
     </script>
     <style>
@@ -102,7 +117,6 @@
         html[data-active-tab="overview"] .section-title::before {{ content: "Overview"; }}
         html[data-active-tab="nodes"] .section-title::before {{ content: "Nodes"; }}
         html[data-active-tab="miners"] .section-title::before {{ content: "Miners"; }}
-        html[data-active-tab="chains"] .section-title::before {{ content: "Chains"; }}
         html[data-active-tab="sequencers"] .section-title::before {{ content: "Sequencers"; }}
         html[data-active-tab="validators"] .section-title::before {{ content: "Validators"; }}
         html[data-active-tab="contracts"] .section-title::before {{ content: "Contracts"; }}
@@ -361,7 +375,6 @@
         html[data-active-tab="overview"] .tab[data-tab="overview"],
         html[data-active-tab="nodes"] .tab[data-tab="nodes"],
         html[data-active-tab="miners"] .tab[data-tab="miners"],
-        html[data-active-tab="chains"] .tab[data-tab="chains"],
         html[data-active-tab="sequencers"] .tab[data-tab="sequencers"],
         html[data-active-tab="validators"] .tab[data-tab="validators"],
         html[data-active-tab="contracts"] .tab[data-tab="contracts"] {{
@@ -370,15 +383,47 @@
             border: 0;
             margin: 0;
         }}
+        .scope-nav {{
+            display: none;
+            gap: 8px;
+            margin: 0 0 16px;
+            flex-wrap: wrap;
+        }}
+        html[data-active-tab="miners"] .scope-nav[data-for="miners"],
+        html[data-active-tab="sequencers"] .scope-nav[data-for="sequencers"],
+        html[data-active-tab="validators"] .scope-nav[data-for="validators"] {{
+            display: flex;
+        }}
+        .scope-tab {{
+            display: inline-block;
+            padding: 6px 14px;
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: 999px;
+            color: var(--dim);
+            font-weight: 650;
+            text-decoration: none;
+        }}
+        .scope-tab:hover {{
+            color: var(--text);
+        }}
+        html[data-scope="node"] .scope-tab[data-scope="node"],
+        html[data-scope="all"] .scope-tab[data-scope="all"] {{
+            background: rgba(108, 140, 255, 0.14);
+            border-color: transparent;
+            color: var(--accent);
+        }}
         .tab-content {{
             display: none;
         }}
         html[data-active-tab="overview"] #overview-content,
         html[data-active-tab="nodes"] #nodes-content,
-        html[data-active-tab="miners"] #miners-content,
-        html[data-active-tab="chains"] #chains-content,
-        html[data-active-tab="sequencers"] #sequencers-content,
-        html[data-active-tab="validators"] #validators-content,
+        html[data-active-tab="miners"][data-scope="node"] #miners-content,
+        html[data-active-tab="miners"][data-scope="all"] #chains-content,
+        html[data-active-tab="sequencers"][data-scope="node"] #sequencers-content,
+        html[data-active-tab="sequencers"][data-scope="all"] #sequencers-all,
+        html[data-active-tab="validators"][data-scope="node"] #validators-content,
+        html[data-active-tab="validators"][data-scope="all"] #validators-all,
         html[data-active-tab="contracts"] #contracts-content {{
             display: block;
         }}
@@ -536,9 +581,23 @@
     </style>
     <script>
         function showTab(tabName) {{
+            var scope = scopeFromLocation();
             document.documentElement.setAttribute('data-active-tab', tabName);
+            document.documentElement.setAttribute('data-scope', scope);
             if (tabName === 'contracts') loadContracts();
-            if (tabName === 'chains') loadChainCompare();
+            if (tabName === 'miners' && scope === 'all') loadChainCompare();
+            if (tabName === 'sequencers' && scope === 'all') loadSequencerCompare();
+            if (tabName === 'validators' && scope === 'all') loadValidatorCompare();
+        }}
+        function scopeClick(ev, scope) {{
+            if (ev.metaKey || ev.ctrlKey || ev.shiftKey || ev.altKey || ev.button !== 0) return true;
+            ev.preventDefault();
+            var tabName = document.documentElement.getAttribute('data-active-tab') || 'overview';
+            var path = pathForScope(tabName, scope);
+            var current = location.pathname + location.search;
+            if (path !== current) history.pushState({{}}, '', path);
+            showTab(tabName);
+            return false;
         }}
         function tabClick(ev, tabName) {{
             // Plain clicks switch in place; modified clicks keep the link's
@@ -593,7 +652,7 @@
             }}
             var scrolls = captureScroll();
             document.querySelectorAll('.tab-content').forEach(function(el) {{
-                if (el.id === 'contracts-content' || el.id === 'chains-content') return;
+                if (el.id === 'contracts-content' || el.id === 'chains-content' || el.id === 'sequencers-all' || el.id === 'validators-all') return;
                 var incoming = doc.getElementById(el.id);
                 if (incoming && el.innerHTML !== incoming.innerHTML) {{
                     el.innerHTML = incoming.innerHTML;
@@ -613,7 +672,11 @@
                 }})
                 .then(function(html) {{
                     applyStatusDocument(new DOMParser().parseFromString(html, 'text/html'));
-                    if (document.documentElement.getAttribute('data-active-tab') === 'chains') loadChainCompare();
+                    var active = document.documentElement.getAttribute('data-active-tab');
+                    var scope = document.documentElement.getAttribute('data-scope');
+                    if (active === 'miners' && scope === 'all') loadChainCompare();
+                    if (active === 'sequencers' && scope === 'all') loadSequencerCompare();
+                    if (active === 'validators' && scope === 'all') loadValidatorCompare();
                     scheduleRefresh();
                 }})
                 .catch(function() {{
@@ -1027,6 +1090,151 @@
                 if (view) view.innerHTML = '<p class="rel-err">' + esc(e.message || String(e)) + '</p>';
             }});
         }}
+        var sequencerSeq = 0;
+        var validatorSeq = 0;
+        function statusUrl(pick) {{
+            if (!pick.status_url) return '/status.json';
+            return String(pick.status_url).replace(/\/$/, '') + '/status.json';
+        }}
+        function idKey(list) {{
+            return (list || []).map(String).sort().join('\n');
+        }}
+        function memberCell(ids, size) {{
+            if (Array.isArray(ids)) {{
+                if (!ids.length) return 'none';
+                return ids.length + ' · ' + ids.map(function (id) {{ return shortId(id, 4); }}).join(' ');
+            }}
+            if (size == null) return '—';
+            return String(size);
+        }}
+        function loadNodeStatuses() {{
+            return fetchJson('/status.json').then(function (status) {{
+                var choices = minerChoices(status);
+                return Promise.all(choices.map(function (pick) {{
+                    if (!pick.self && !pick.status_url) {{
+                        return Promise.resolve({{ pick: pick, data: null, error: 'No status URL' }});
+                    }}
+                    return fetchJson(statusUrl(pick)).then(function (data) {{
+                        return {{ pick: pick, data: data, error: '' }};
+                    }}).catch(function (e) {{
+                        return {{ pick: pick, data: null, error: e.message || 'Unreachable' }};
+                    }});
+                }}));
+            }});
+        }}
+        function countLabel(n, singular, plural) {{
+            return n + ' ' + (n === 1 ? singular : plural);
+        }}
+        function renderSequencerCompare(rows) {{
+            var self = null;
+            rows.forEach(function (row) {{ if (row.pick.self && row.data) self = row; }});
+            var selfKey = self ? idKey(self.data.sequencer_committee) : '';
+            var selfEpoch = self ? self.data.epoch : null;
+            var answered = rows.filter(function (row) {{ return row.data; }});
+            var differed = 0;
+            var epochDrift = 0;
+            answered.forEach(function (row) {{
+                if (Array.isArray(row.data.sequencer_committee) && idKey(row.data.sequencer_committee) !== selfKey) differed++;
+                if (selfEpoch != null && row.data.epoch !== selfEpoch) epochDrift++;
+            }});
+            var banner;
+            if (!answered.length) banner = 'No node answered.';
+            else if (answered.length < 2) banner = 'Only this node answered. Epoch ' + (selfEpoch == null ? '—' : selfEpoch) + '.';
+            else if (differed) banner = countLabel(differed, 'node names', 'nodes name') + ' a different sequencer committee.';
+            else if (epochDrift) banner = 'Same committee names. Epoch differs on ' + countLabel(epochDrift, 'node', 'nodes') + '.';
+            else banner = 'Same sequencer committee on every node that answered.';
+            var body = rows.map(function (row) {{
+                var agree;
+                if (!row.data) agree = {{ cls: 'rel-err', text: row.error || 'Unreachable' }};
+                else if (!Array.isArray(row.data.sequencer_committee)) agree = {{ cls: 'rel-behind', text: 'Size only' }};
+                else if (idKey(row.data.sequencer_committee) === selfKey) agree = {{ cls: 'rel-same', text: 'Same set' }};
+                else agree = {{ cls: 'rel-fork', text: 'Different set' }};
+                var epoch = row.data ? row.data.epoch : '—';
+                var round = row.data ? row.data.round : '—';
+                var nom = row.data ? row.data.sequencer_nomination_epoch : '—';
+                var members = row.data ? memberCell(row.data.sequencer_committee, row.data.sequencer_committee_size) : '—';
+                return '<tr><td>' + esc(row.pick.label) + '</td><td>' + esc(row.pick.role || '—') + '</td><td>' + esc(epoch) + '</td><td>' + esc(round) + '</td><td>' + esc(nom) + '</td><td><code>' + esc(members) + '</code></td><td class="' + agree.cls + '">' + esc(agree.text) + '</td></tr>';
+            }}).join('');
+            var lists = '';
+            if (self && Array.isArray(self.data.sequencer_committee)) {{
+                var items = self.data.sequencer_committee.map(function (id) {{
+                    return '<li><code>' + esc(id) + '</code></li>';
+                }}).join('');
+                lists = '<div class="status-card"><h2>This node\'s committee</h2>' +
+                    (items ? '<ul class="listeners">' + items + '</ul>' : '<p class="tab-copy">No sequencers named for this epoch.</p>') +
+                    '</div>';
+            }}
+            return '<p class="fork-banner">' + esc(banner) + '</p>' +
+                '<div class="status-card"><h2>Sequencer view by node</h2><div class="blocks-container"><table><thead><tr><th>Node</th><th>Role</th><th>Epoch</th><th>Round</th><th>Nomination epoch</th><th>Committee</th><th>Agreement</th></tr></thead><tbody>' +
+                body + '</tbody></table></div></div>' + lists;
+        }}
+        function validatorViewKey(data) {{
+            return [
+                idKey(data.named_validators),
+                data.validator_min_stake,
+                data.validator_qc_numerator,
+                data.validator_qc_denominator,
+                data.dest_apply_requires_cert
+            ].join('\n');
+        }}
+        function qcLabel(data) {{
+            if (!data || data.validator_qc_numerator == null || data.validator_qc_denominator == null) return '—';
+            return '⌈' + data.validator_qc_numerator + 'n/' + data.validator_qc_denominator + '⌉';
+        }}
+        function renderValidatorCompare(rows) {{
+            var self = null;
+            rows.forEach(function (row) {{ if (row.pick.self && row.data) self = row; }});
+            var selfKey = self ? validatorViewKey(self.data) : '';
+            var answered = rows.filter(function (row) {{ return row.data && Array.isArray(row.data.named_validators); }});
+            var differed = answered.filter(function (row) {{ return validatorViewKey(row.data) !== selfKey; }}).length;
+            var banner;
+            if (!answered.length) banner = 'No node published a validator set.';
+            else if (answered.length < 2) banner = 'Only this node answered. ' + (self.data.named_validators || []).length + ' named validators.';
+            else if (differed) banner = countLabel(differed, 'node reports', 'nodes report') + ' a different validator set, stake floor, or cert rule.';
+            else banner = 'Same validator view on every node that answered.';
+            var body = rows.map(function (row) {{
+                var agree;
+                if (!row.data) agree = {{ cls: 'rel-err', text: row.error || 'Unreachable' }};
+                else if (!Array.isArray(row.data.named_validators)) agree = {{ cls: 'rel-behind', text: 'Set not published' }};
+                else if (validatorViewKey(row.data) === selfKey) agree = {{ cls: 'rel-same', text: 'Same view' }};
+                else agree = {{ cls: 'rel-fork', text: 'Different view' }};
+                var members = row.data ? memberCell(row.data.named_validators, row.data.named_validator_count) : '—';
+                var stake = row.data && row.data.validator_min_stake != null ? row.data.validator_min_stake : '—';
+                var dest = !row.data || row.data.dest_apply_requires_cert == null ? '—' : (row.data.dest_apply_requires_cert ? 'required' : 'not required');
+                var pending = row.data && row.data.pending_prefix_cert_requests != null ? row.data.pending_prefix_cert_requests : '—';
+                return '<tr><td>' + esc(row.pick.label) + '</td><td>' + esc(row.pick.role || '—') + '</td><td><code>' + esc(members) + '</code></td><td>' + esc(stake) + '</td><td>' + esc(row.data ? qcLabel(row.data) : '—') + '</td><td>' + esc(dest) + '</td><td>' + esc(pending) + '</td><td class="' + agree.cls + '">' + esc(agree.text) + '</td></tr>';
+            }}).join('');
+            var lists = '';
+            if (self && Array.isArray(self.data.named_validators)) {{
+                var items = self.data.named_validators.map(function (id) {{
+                    return '<li><code>' + esc(id) + '</code></li>';
+                }}).join('');
+                lists = '<div class="status-card"><h2>This node\'s named validators</h2>' +
+                    (items ? '<ul class="listeners">' + items + '</ul>' : '<p class="tab-copy">No named validators on this network.</p>') +
+                    '</div>';
+            }}
+            return '<p class="fork-banner">' + esc(banner) + '</p>' +
+                '<div class="status-card"><h2>Validator view by node</h2><div class="blocks-container"><table><thead><tr><th>Node</th><th>Role</th><th>Named validators</th><th>Min stake</th><th>QC</th><th>Dest prefix cert</th><th>Pending certs</th><th>Agreement</th></tr></thead><tbody>' +
+                body + '</tbody></table></div></div>' + lists;
+        }}
+        function loadRoleCompare(kind) {{
+            var viewId = kind === 'sequencers' ? 'sequencer-view' : 'validator-view';
+            var seq = kind === 'sequencers' ? ++sequencerSeq : ++validatorSeq;
+            var view = document.getElementById(viewId);
+            if (view && !view.querySelector('table')) view.innerHTML = '<p class="tab-copy">Reading nodes…</p>';
+            loadNodeStatuses().then(function (rows) {{
+                if (kind === 'sequencers' && seq !== sequencerSeq) return;
+                if (kind === 'validators' && seq !== validatorSeq) return;
+                var el = document.getElementById(viewId);
+                if (!el) return;
+                el.innerHTML = kind === 'sequencers' ? renderSequencerCompare(rows) : renderValidatorCompare(rows);
+            }}).catch(function (e) {{
+                var el = document.getElementById(viewId);
+                if (el) el.innerHTML = '<p class="rel-err">' + esc(e.message || String(e)) + '</p>';
+            }});
+        }}
+        function loadSequencerCompare() {{ loadRoleCompare('sequencers'); }}
+        function loadValidatorCompare() {{ loadRoleCompare('validators'); }}
     </script>
 </head>
 <body>
@@ -1042,7 +1250,6 @@
             <a class="tab" data-tab="overview" href="/" onclick="return tabClick(event, 'overview')">Overview</a>
             <a class="tab" data-tab="nodes" href="/nodes" onclick="return tabClick(event, 'nodes')">Nodes</a>
             <div class="nav-label">Chain</div>
-            <a class="tab" data-tab="chains" href="/chains" onclick="return tabClick(event, 'chains')">Chains</a>
             <a class="tab" data-tab="miners" href="/miners" onclick="return tabClick(event, 'miners')">Miners</a>
             <a class="tab" data-tab="sequencers" href="/sequencers" onclick="return tabClick(event, 'sequencers')">Sequencers</a>
             <a class="tab" data-tab="validators" href="/validators" onclick="return tabClick(event, 'validators')">Validators</a>
@@ -1150,6 +1357,10 @@
         </div>
     </div>
 
+    <nav class="scope-nav" data-for="miners" aria-label="Miner scope">
+        <a class="scope-tab" data-scope="node" href="/miners" onclick="return scopeClick(event, 'node')">This Node</a>
+        <a class="scope-tab" data-scope="all" href="/chains" onclick="return scopeClick(event, 'all')">All Nodes</a>
+    </nav>
     <div id="miners-content" class="tab-content">
         <p class="tab-copy">Miners extend the PoW index and nominate sequencers. Entry is hashpower, not a permission list.</p>
         <div class="status-grid">
@@ -1223,6 +1434,10 @@
         </div>
     </div>
 
+    <nav class="scope-nav" data-for="sequencers" aria-label="Sequencer scope">
+        <a class="scope-tab" data-scope="node" href="/sequencers" onclick="return scopeClick(event, 'node')">This Node</a>
+        <a class="scope-tab" data-scope="all" href="/sequencers?scope=all" onclick="return scopeClick(event, 'all')">All Nodes</a>
+    </nav>
     <div id="sequencers-content" class="tab-content">
         <p class="tab-copy">Sequencers order contract bytes for fast finality. They are miner-nominated from epoch N−2. They are not validators and not the language verifier.</p>
         <div class="status-grid">
@@ -1261,6 +1476,15 @@
         {epoch_nominees_sections}
     </div>
 
+    <div id="sequencers-all" class="tab-content">
+        <p class="tab-copy">Each row is one node's view of the sequencer committee for its current epoch. Same set means that node names the same sequencers as this node.</p>
+        <div id="sequencer-view"><p class="tab-copy">Reading nodes…</p></div>
+    </div>
+
+    <nav class="scope-nav" data-for="validators" aria-label="Validator scope">
+        <a class="scope-tab" data-scope="node" href="/validators" onclick="return scopeClick(event, 'node')">This Node</a>
+        <a class="scope-tab" data-scope="all" href="/validators?scope=all" onclick="return scopeClick(event, 'all')">All Nodes</a>
+    </nav>
     <div id="validators-content" class="tab-content">
         <p class="tab-copy">Validators attest that a contract prefix through a named commit is valid Modality. Dest REPOST and dest RECV consume a quorum certificate. This is not the language verifier and not the sequencer set.</p>
         <div class="status-grid">
@@ -1312,6 +1536,11 @@
                 </table>
             </div>
         </div>
+    </div>
+
+    <div id="validators-all" class="tab-content">
+        <p class="tab-copy">Each row is one node's named validator set, stake floor, quorum threshold, and whether dest apply requires a prefix-cert. Same view means those match this node.</p>
+        <div id="validator-view"><p class="tab-copy">Reading nodes…</p></div>
     </div>
 
     <div id="chains-content" class="tab-content">

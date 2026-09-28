@@ -18,7 +18,10 @@ pub const MAX_BLOCKS: usize = 16;
 ///
 /// Empty blocks change no contract state, so only blocks with events are
 /// returned. `scanned_through` tells the caller where to resume.
-pub async fn handler(data: Option<Value>, datastore_manager: &DatastoreManager) -> Result<Response> {
+pub async fn handler(
+    data: Option<Value>,
+    datastore_manager: &DatastoreManager,
+) -> Result<Response> {
     let data = data.unwrap_or_default();
     let Some(author) = data.get("author").and_then(|v| v.as_str()) else {
         return Ok(Response {
@@ -27,7 +30,10 @@ pub async fn handler(data: Option<Value>, datastore_manager: &DatastoreManager) 
             errors: Some(json!({"error": "certified_since requires author"})),
         });
     };
-    let since = data.get("since_round").and_then(|v| v.as_u64()).unwrap_or(0);
+    let since = data
+        .get("since_round")
+        .and_then(|v| v.as_u64())
+        .unwrap_or(0);
     let limit = data
         .get("limit")
         .and_then(|v| v.as_u64())

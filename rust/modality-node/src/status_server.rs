@@ -150,18 +150,20 @@ async fn status_handler(source: NodeStatusSource) -> Result<impl warp::Reply, wa
 
 /// Explorer tabs that own a top-level path. `status.html` keeps the same
 /// list in its `TAB_PATHS` map. Order matches the sidebar.
-pub const EXPLORER_TABS: [&str; 7] = [
+pub const EXPLORER_TABS: [&str; 6] = [
     "overview",
     "nodes",
-    "chains",
     "miners",
     "sequencers",
     "validators",
     "contracts",
 ];
 
+/// `/chains` is Miners → All Nodes, not its own sidebar tab.
+const TAB_ALIASES: [&str; 1] = ["chains"];
+
 async fn tab_path(segment: String) -> Result<(), warp::Rejection> {
-    if EXPLORER_TABS.contains(&segment.as_str()) {
+    if EXPLORER_TABS.contains(&segment.as_str()) || TAB_ALIASES.contains(&segment.as_str()) {
         Ok(())
     } else {
         Err(warp::reject::not_found())
@@ -201,7 +203,11 @@ async fn status_json_handler(
         "hybrid": status.hybrid_consensus,
         "genesis_hash": genesis_hash,
         "sequencer_nomination_epoch": status.sequencer_nomination_epoch,
+        "sequencer_committee": status.sequencer_committee,
         "sequencer_committee_size": status.sequencer_committee.len(),
+        "validator_qc_numerator": status.validator_qc_numerator,
+        "validator_qc_denominator": status.validator_qc_denominator,
+        "pending_prefix_cert_requests": status.pending_prefix_cert_requests,
         "last_cert_round_by_author": status
             .last_cert_round_by_author
             .iter()
@@ -373,6 +379,7 @@ mod tests {
         for tab in EXPLORER_TABS {
             assert!(tab_path(tab.to_string()).await.is_ok(), "{tab}");
         }
+        assert!(tab_path("chains".to_string()).await.is_ok());
         assert!(tab_path("status.json".to_string()).await.is_err());
         assert!(tab_path("blocks".to_string()).await.is_err());
     }

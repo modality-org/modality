@@ -30,7 +30,7 @@ use modality_validator_consensus::communication::Message as ConsensusMessage;
 use crate::config::Config;
 use crate::consensus::net_comm::NetComm;
 use crate::constants::{
-    CONNECTION_WAIT_INTERVAL_SECS, NETWORKING_TICK_INTERVAL_SECS, PEER_IGNORE_INITIAL_SECS,
+    CONNECTION_WAIT_INTERVAL_SECS, NETWORKING_TICK_INTERVAL_MS, PEER_IGNORE_INITIAL_SECS,
     PEER_IGNORE_MAX_EXPONENT, SHUTDOWN_WAIT_MS,
 };
 use crate::gossip;
@@ -562,7 +562,7 @@ impl Node {
         let swarm = self.swarm.clone();
         let peerid = self.peerid;
 
-        let tick_interval = Duration::from_secs(NETWORKING_TICK_INTERVAL_SECS);
+        let tick_interval = Duration::from_millis(NETWORKING_TICK_INTERVAL_MS);
         let mut tick = futures_timer::Delay::new(tick_interval);
 
         let datastore_manager = self.datastore_manager.clone();

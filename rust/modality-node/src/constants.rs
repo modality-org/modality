@@ -21,8 +21,9 @@ pub const AUTO_HEALING_INTERVAL_SECS: u64 = 60;
 /// Interval for block promotion/purge checks in seconds
 pub const PROMOTION_CHECK_INTERVAL_SECS: u64 = 60;
 
-/// Tick interval for networking loop in seconds
-pub const NETWORKING_TICK_INTERVAL_SECS: u64 = 15;
+/// How long the networking loop holds the swarm lock waiting for an event, in ms.
+/// Acks and gossip publishes wait on that lock, so it must be released often.
+pub const NETWORKING_TICK_INTERVAL_MS: u64 = 50;
 
 /// Maximum checkpoints per find_ancestor request
 pub const MAX_CHECKPOINTS_PER_REQUEST: usize = 50;

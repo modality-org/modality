@@ -667,7 +667,9 @@ mod tests {
         assert!(html.contains("data-tab=\"sequencers\""));
         assert!(html.contains("data-tab=\"validators\""));
         assert!(html.contains("data-tab=\"miners\""));
-        assert!(html.contains("data-tab=\"chains\""));
+        assert!(html.contains("This Node"));
+        assert!(html.contains("All Nodes"));
+        assert!(html.contains("data-scope=\"all\" href=\"/chains\""));
         assert!(html.contains("/chain.json"));
         assert!(html.contains("data-active-tab"));
         assert!(html.contains("refreshStatus"));
@@ -735,9 +737,11 @@ mod tests {
             assert!(at > last, "{tab} is out of sidebar order");
             last = at;
         }
-        let chains = html.find("data-tab=\"chains\" href").unwrap();
-        let miners = html.find("data-tab=\"miners\" href").unwrap();
-        assert!(chains < miners, "Chains sits above Miners in the sidebar");
+        assert!(html.contains("data-scope=\"all\" href=\"/chains\""));
+        assert!(html.contains("data-scope=\"node\" href=\"/miners\""));
+        assert!(html.contains("data-scope=\"all\" href=\"/sequencers?scope=all\""));
+        assert!(html.contains("data-scope=\"all\" href=\"/validators?scope=all\""));
+        assert!(!html.contains("data-tab=\"chains\""));
         assert!(html.contains("history.pushState({}, '', path)"));
         assert!(html.contains("tabFromPath(location.pathname)"));
         assert!(!html.contains("localStorage.getItem('activeTab')"));
