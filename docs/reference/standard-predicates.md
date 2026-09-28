@@ -411,6 +411,11 @@ export default rule {
 }
 ```
 
+Path arguments may hold variables (`/claimants/$k.id`). A variable means every
+name in a rule and one name the commit picks on a model edge. Holes
+(`/claimants/!$k`) go on model edges. See
+[variables](../language/path-types.md#variables).
+
 Transition predicates use the same predicate names inside governing models:
 
 ```modality

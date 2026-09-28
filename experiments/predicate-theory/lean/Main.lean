@@ -12,12 +12,16 @@ One JSON object per line on stdin, one per line on stdout.
   → {"verdict": "dead" | "live" | "unknown", "witness": true | false | null}
 {"labels": [LABEL...], "decls": [[MODULE, NEC | null, SUF | null]...], "lits": [LIT...]}
   → {"verdict": ..., "exact": BOOL, "same": BOOL}
+{"edge": [LIT...], "world": WORLD}
+  → {"takes": BOOL}
 ```
 
 `verdict` is Lean's on the literals (with `state`, the runtime view).
 `witness` is whether the given world satisfies every literal. With
 `labels`, Lean elaborates them itself; `same` says its literals are the
-given ones (as sets), and `verdict` is on its own.
+given ones (as sets), and `verdict` is on its own. With `edge`, paths may
+hold variables (`c/$k.id`) and holes (`c/$!k`), and `takes` is `takesB`:
+whether the commit takes the edge for some names.
 
 ```
 LIT    := {"pos": BOOL, "atom": ATOM}
@@ -158,6 +162,10 @@ def sameSet (a b : List Lit) : Bool :=
 
 def answer (line : String) : Except String Json := do
   let j ← Json.parse line
+  if let .ok edge := j.getObjVal? "edge" then
+    let e ← (← edge.getArr?).toList.mapM getLit
+    let w ← getWorld (← j.getObjVal? "world")
+    return Json.mkObj [("takes", Json.bool (takesB (fun _ _ _ => false) w e))]
   match j.getObjVal? "labels" with
   | .ok labels => do
     let labels ← (← labels.getArr?).toList.mapM getLabel

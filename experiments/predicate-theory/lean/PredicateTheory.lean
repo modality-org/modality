@@ -5,6 +5,7 @@ import PredicateTheory.Decide
 import PredicateTheory.Witness
 import PredicateTheory.Sound
 import PredicateTheory.Runtime
+import PredicateTheory.Vars
 import PredicateTheory.Elab
 import PredicateTheory.Spec
 import PredicateTheory.Cases
@@ -31,6 +32,10 @@ Modality's predicate theory, stated and proved in Lean (4.14, no Mathlib):
   live edge), `live_not_dead`, `not_entails_of_live`.
 - `Runtime`: the same with accepted state known (`deadIn_sound`,
   `liveIn_sound`).
+- `Vars`: variables over names (`$k`, and the hole `$!k`: every other
+  slot). `takesB_iff`: trying each prefix of a world segment plus one
+  fresh name decides exactly whether a commit takes an edge with
+  variables.
 - `Spec`: the verdicts the model checker asks for (`consistent`,
   `entailsV`, `runtime`) on labels as written, and what they mean.
 - `Cases`: an escrow edge with a copy-paste slip, decided by the proven

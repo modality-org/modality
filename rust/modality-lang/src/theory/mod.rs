@@ -113,7 +113,7 @@ pub struct Verdict {
 }
 
 impl Verdict {
-    fn unknown() -> Self {
+    pub(crate) fn unknown() -> Self {
         Self {
             tri: Tri::Unknown,
             offending: Vec::new(),

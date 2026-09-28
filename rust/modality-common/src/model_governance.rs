@@ -8,6 +8,7 @@ use crate::theory_state::{contract_registry, AcceptedState};
 use anyhow::Result;
 use ed25519_dalek::{PublicKey, Signature, Verifier};
 use modality_lang::theory::{Lookup, StateView};
+use modality_lang::vars;
 use modality_lang::{
     parse_content_lalrpop, DeadEdge, Formula, FormulaExpr, Model, ModelChecker, Move, Part,
     Property, PropertySign, PropertySource, TheoryVersion, Transition,
@@ -177,8 +178,11 @@ pub fn validate_pending_commit_with_theory(
     let theory = activation.at(accepted.len());
     let mut after = state.clone();
     apply_commit_to_state(pending, &mut after);
-    if theory != TheoryVersion::V0 && pending_model_content(pending).is_some() {
-        refuse_dead_edges(&model, &after, theory)?;
+    if pending_model_content(pending).is_some() {
+        vars::check_model(&model).map_err(|err| anyhow::anyhow!("Invalid model: {err}"))?;
+        if theory != TheoryVersion::V0 {
+            refuse_dead_edges(&model, &after, theory)?;
+        }
     }
     check_pending_rules(
         &model,
@@ -813,10 +817,11 @@ fn parse_rule_formula(rule_content: &str) -> Result<Option<(Formula, String)>> {
         .join(" ");
     let formula_decl = format!("formula local_rule {{\n{}\n}}", formula_body);
     let parser = modality_lang::grammar::FormulaParser::new();
-    parser
+    let formula = parser
         .parse(&formula_decl)
-        .map(|formula| Some((formula, formula_source)))
-        .map_err(|err| anyhow::anyhow!("Invalid rule formula syntax: {:?}", err))
+        .map_err(|err| anyhow::anyhow!("Invalid rule formula syntax: {:?}", err))?;
+    vars::check_formula(&formula).map_err(|err| anyhow::anyhow!("Invalid rule formula: {err}"))?;
+    Ok(Some((formula, formula_source)))
 }
 
 fn format_satisfying_states(states: &[modality_lang::State]) -> String {
@@ -1602,7 +1607,42 @@ fn all_transitions(model: &Model) -> Vec<(Option<&str>, &Transition)> {
     transitions
 }
 
+/// Why a commit does not take an edge; empty when it does. An edge with
+/// variables is taken when some names make every label hold.
 fn transition_failures(properties: &[Property], facts: &CommitFacts) -> Vec<String> {
+    if !vars::any_vars(properties) {
+        return ground_failures(properties, facts);
+    }
+    let state: Vec<String> = facts.state.keys().map(|k| normalize_path(k)).collect();
+    let body: Vec<String> = facts
+        .modified_paths
+        .iter()
+        .chain(facts.post_paths.iter())
+        .map(|k| normalize_path(k))
+        .collect();
+    let paths = vars::Paths {
+        state: state.iter().map(String::as_str).collect(),
+        body: body.iter().map(String::as_str).collect(),
+    };
+    let mut holds = |p: &Property| facts.predicate_holds(p) == vars::is_positive(p);
+    match vars::search(properties, &paths, &mut holds) {
+        vars::Search::Takes(_) => Vec::new(),
+        vars::Search::Fails(env, failing) => {
+            let names = env
+                .iter()
+                .filter(|(k, _)| !k.starts_with('!'))
+                .map(|(k, v)| format!("${k} = {v}"))
+                .collect::<Vec<_>>()
+                .join(", ");
+            ground_failures(&failing, facts)
+                .into_iter()
+                .map(|f| format!("{f} (closest: {names})"))
+                .collect()
+        }
+    }
+}
+
+fn ground_failures(properties: &[Property], facts: &CommitFacts) -> Vec<String> {
     properties
         .iter()
         .filter_map(|property| {
@@ -3968,6 +4008,140 @@ model PostPath {
         let err = explain_no_valid_transition(&model, &current_states, &other_facts);
 
         assert!(err.contains("missing +post_to_path(/config)"), "{err}");
+    }
+
+    #[test]
+    fn variables_bind_each_write_to_the_slot_owner_that_signed() {
+        // Own slot; register a fresh slot's key alone; stay out of the registry.
+        let model = parse_content_lalrpop(
+            r#"
+model Own {
+  initial active
+  active --> active: +signed_by(/claimants/$k.id) -modifies(/claimants/!$k)
+  active --> active: -state_exists(/claimants/$k.id) +post_to_path(/claimants/$k.id) -modifies(/claimants/$k) -modifies(/claimants/!$k)
+  active --> active: -modifies(/claimants)
+}
+            "#,
+        )
+        .unwrap();
+        let mut current_states = HashSet::new();
+        current_states.insert("active".to_string());
+        let mut state = HashMap::new();
+        state.insert(
+            "claimants/alice.id".to_string(),
+            Value::String("alice_key".to_string()),
+        );
+        state.insert(
+            "claimants/bob.id".to_string(),
+            Value::String("bob_key".to_string()),
+        );
+
+        let facts = |writes: &[(&str, &str, Value)], signers: &[&str]| {
+            let mut commit = CommitFile::new();
+            for (method, path, value) in writes {
+                commit.add_action(method.to_string(), Some(path.to_string()), value.clone());
+            }
+            let sigs: serde_json::Map<String, Value> = signers
+                .iter()
+                .map(|k| (k.to_string(), Value::String("sig".to_string())))
+                .collect();
+            commit.head.signatures = Some(Value::Object(sigs));
+            CommitFacts::from_commit(&commit, &state)
+        };
+        let accepts = |f: &CommitFacts| has_valid_transition(&model, &current_states, f);
+        let refusal = |f: &CommitFacts| explain_no_valid_transition(&model, &current_states, f);
+        let t = Value::Bool(true);
+        let key = |k: &str| Value::String(k.to_string());
+
+        for (writes, signers) in [
+            // Own slot, own leaf, own key rotation.
+            (
+                vec![("post", "/claimants/alice/claimed.bool", t.clone())],
+                vec!["alice_key"],
+            ),
+            (
+                vec![("post", "/claimants/alice.bool", t.clone())],
+                vec!["alice_key"],
+            ),
+            (
+                vec![("post", "/claimants/alice.id", key("alice_new"))],
+                vec!["alice_key"],
+            ),
+            // Open registration of a fresh slot.
+            (
+                vec![("post", "/claimants/carol.id", key("carol_key"))],
+                vec!["carol_key"],
+            ),
+            // Nothing under the prefix, including a sibling that shares text.
+            (
+                vec![("post", "/claimants-old/alice/claimed.bool", t.clone())],
+                vec![],
+            ),
+            (vec![("post", "/notes/a.text", key("a"))], vec![]),
+            // Labels read the accepted key, not the one being posted, so
+            // registration cannot demand that the posted key signed.
+            (
+                vec![("post", "/claimants/carol.id", key("carol_key"))],
+                vec!["mallory_key"],
+            ),
+        ] {
+            let f = facts(&writes, &signers);
+            assert!(
+                accepts(&f),
+                "{writes:?} signed by {signers:?}: {}",
+                refusal(&f)
+            );
+        }
+
+        for (writes, signers, reason) in [
+            (
+                vec![("post", "/claimants/alice/claimed.bool", t.clone())],
+                vec!["bob_key"],
+                "forbidden -modifies(/claimants/alice) matched",
+            ),
+            (
+                vec![("post", "/claimants/alice.bool", t.clone())],
+                vec!["bob_key"],
+                "forbidden -modifies(/claimants/alice.bool) matched",
+            ),
+            (
+                vec![("post", "/claimants/alice.id", key("mallory_key"))],
+                vec!["mallory_key"],
+                "forbidden -state_exists(/claimants/alice.id) matched",
+            ),
+            // Same-commit registration is not ownership of the slot's contents.
+            (
+                vec![
+                    ("post", "/claimants/carol.id", key("carol_key")),
+                    ("post", "/claimants/carol/claimed.bool", t.clone()),
+                ],
+                vec!["carol_key"],
+                "forbidden -modifies(/claimants/carol) matched",
+            ),
+            // One foreign write spoils an otherwise own commit.
+            (
+                vec![
+                    ("post", "/claimants/bob/claimed.bool", t.clone()),
+                    ("post", "/claimants/alice/claimed.bool", t.clone()),
+                ],
+                vec!["bob_key"],
+                "forbidden -modifies(/claimants/alice) matched",
+            ),
+            // One commit, one slot: co-signers write their slots separately.
+            (
+                vec![
+                    ("post", "/claimants/alice/claimed.bool", t.clone()),
+                    ("post", "/claimants/bob/claimed.bool", t.clone()),
+                ],
+                vec!["alice_key", "bob_key"],
+                "(closest: $k = ",
+            ),
+        ] {
+            let f = facts(&writes, &signers);
+            assert!(!accepts(&f), "{writes:?} signed by {signers:?}");
+            let err = refusal(&f);
+            assert!(err.contains(reason), "{err}");
+        }
     }
 
     #[test]

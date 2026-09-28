@@ -1,7 +1,9 @@
 use crate::ast::{Formula, FormulaExpr, Model, Part, Property, PropertySign, Transition};
 use crate::theory::{standard, NoState, Registry, StateView, Theory, TheoryVersion, Tri};
+use crate::vars;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
+use std::sync::Arc;
 
 /// Represents an internal LTS witness node (part name and node id).
 ///
@@ -58,8 +60,8 @@ pub struct Move {
 pub struct ModelChecker {
     model: Model,
     version: TheoryVersion,
-    registry: Option<Box<dyn Registry + Send + Sync>>,
-    state: Option<Box<dyn StateView + Send + Sync>>,
+    registry: Option<Arc<dyn Registry + Send + Sync>>,
+    state: Option<Arc<dyn StateView + Send + Sync>>,
     /// `(part index, transition index)` of edges the theory proved dead.
     dead: HashSet<(usize, usize)>,
 }
@@ -88,6 +90,20 @@ impl ModelChecker {
         version: TheoryVersion,
         registry: Option<Box<dyn Registry + Send + Sync>>,
         state: Option<Box<dyn StateView + Send + Sync>>,
+    ) -> Self {
+        Self::with_shared(
+            model,
+            version,
+            registry.map(Arc::from),
+            state.map(Arc::from),
+        )
+    }
+
+    fn with_shared(
+        model: Model,
+        version: TheoryVersion,
+        registry: Option<Arc<dyn Registry + Send + Sync>>,
+        state: Option<Arc<dyn StateView + Send + Sync>>,
     ) -> Self {
         let mut checker = Self {
             model,
@@ -131,12 +147,115 @@ impl ModelChecker {
         let theory = Theory::new(self.version, registry, &NoState);
         for (pi, part) in self.model.parts.iter().enumerate() {
             for (ti, transition) in part.transitions.iter().enumerate() {
-                if theory.consistent(&transition.properties).tri == Tri::False {
+                if self
+                    .edge_instances(transition)
+                    .iter()
+                    .all(|props| theory.consistent(props).tri == Tri::False)
+                {
                     dead.insert((pi, ti));
                 }
             }
         }
         dead
+    }
+
+    /// The label sets an edge stands for: itself, or with variables, one per
+    /// assignment of the model's names plus fresh ones.
+    fn edge_instances(&self, transition: &Transition) -> Vec<Vec<Property>> {
+        if !vars::any_vars(&transition.properties) {
+            return vec![transition.properties.clone()];
+        }
+        let props = vars::model_props(&self.model);
+        let segments = vars::segments(props.iter().copied());
+        let edge_vars: Vec<String> = vars::vars_of(&transition.properties).into_iter().collect();
+        let names = vars::universe(&segments, edge_vars.len());
+        let fill = Self::fill_segments(segments, &names, props.iter().copied());
+        vars::assignments(&edge_vars, &names)
+            .iter()
+            .map(|env| {
+                transition
+                    .properties
+                    .iter()
+                    .flat_map(|p| vars::expand(p, env, &fill))
+                    .collect()
+            })
+            .collect()
+    }
+
+    /// Segments to fill holes with: every mentioned one, and every name
+    /// with every suffix a variable carries.
+    fn fill_segments<'a>(
+        mut segments: std::collections::BTreeSet<String>,
+        names: &[String],
+        props: impl IntoIterator<Item = &'a Property>,
+    ) -> std::collections::BTreeSet<String> {
+        let suffixes = vars::var_suffixes(props);
+        for n in names {
+            for suf in &suffixes {
+                segments.insert(format!("{n}{suf}"));
+            }
+        }
+        segments
+    }
+
+    /// With variables in the model or the formula: a checker for the model
+    /// instantiated over every name it and the formula mention, plus one
+    /// fresh name per variable, and the formula once per assignment of
+    /// those names to its variables. `None` without variables.
+    fn instances(&self, expr: &FormulaExpr) -> Option<(ModelChecker, Vec<FormulaExpr>)> {
+        let fprops = vars::formula_props(expr);
+        let mprops = vars::model_props(&self.model);
+        if !vars::any_vars(fprops.iter().copied()) && !vars::any_vars(mprops.iter().copied()) {
+            return None;
+        }
+        let rule_vars: Vec<String> = vars::vars_of(fprops.iter().copied()).into_iter().collect();
+        let edge_vars = self
+            .model
+            .parts
+            .iter()
+            .flat_map(|p| p.transitions.iter())
+            .chain(self.model.transitions.iter())
+            .map(|t| vars::vars_of(&t.properties).len())
+            .max()
+            .unwrap_or(0);
+        let segments = vars::segments(fprops.iter().copied().chain(mprops.iter().copied()));
+        let names = vars::universe(&segments, rule_vars.len() + edge_vars);
+        let fill = Self::fill_segments(
+            segments,
+            &names,
+            fprops.iter().copied().chain(mprops.iter().copied()),
+        );
+        let ground = ModelChecker::with_shared(
+            vars::ground_model(&self.model, &names, &fill),
+            self.version,
+            self.registry.clone(),
+            self.state.clone(),
+        );
+        let formulas = vars::assignments(&rule_vars, &names)
+            .iter()
+            .map(|env| vars::substitute_formula(expr, env))
+            .collect();
+        Some((ground, formulas))
+    }
+
+    /// States satisfying the formula; with variables, every instance of it.
+    /// A rule with a hole is not decided and satisfies nothing.
+    fn satisfying(&self, expr: &FormulaExpr) -> Vec<State> {
+        if vars::formula_props(expr).into_iter().any(vars::has_holes) {
+            return Vec::new();
+        }
+        let Some((ground, formulas)) = self.instances(expr) else {
+            return self.evaluate_formula(expr);
+        };
+        let mut out: Option<Vec<State>> = None;
+        for f in &formulas {
+            let states = ground.evaluate_formula(f);
+            out = Some(match out {
+                None => states,
+                Some(prev) => ground.intersect_states(&prev, &states),
+            });
+        }
+        out.unwrap_or_default()
     }
 
     fn part_index(&self, part: &Part) -> Option<usize> {
@@ -179,7 +298,11 @@ impl ModelChecker {
                     from: t.from.clone(),
                     to: t.to.clone(),
                     properties: t.properties.clone(),
-                    offending: theory.consistent(&t.properties).explain(),
+                    offending: self
+                        .edge_instances(t)
+                        .first()
+                        .map(|props| theory.consistent(props).explain())
+                        .unwrap_or_default(),
                 }
             })
             .collect()
@@ -200,7 +323,13 @@ impl ModelChecker {
             let mut moves: Vec<Move> = edges
                 .iter()
                 .map(|t| {
-                    let v = theory.consistent(&t.properties);
+                    // An edge with variables needs the names in state to
+                    // classify; it is reported open.
+                    let v = if vars::any_vars(&t.properties) {
+                        crate::theory::Verdict::unknown()
+                    } else {
+                        theory.consistent(&t.properties)
+                    };
                     let (status, offending) = if v.tri == Tri::False {
                         (MoveStatus::Blocked, v.explain())
                     } else {
@@ -236,7 +365,7 @@ impl ModelChecker {
 
     /// Check if a formula is satisfied by the model (requires at least one state from each graph)
     pub fn check_formula(&self, formula: &Formula) -> ModelCheckResult {
-        let satisfying_states = self.evaluate_formula(&formula.expression);
+        let satisfying_states = self.satisfying(&formula.expression);
 
         // Check if at least one state from each part satisfies the formula
         let is_satisfied = self.check_satisfaction_per_part(&satisfying_states);
@@ -250,7 +379,7 @@ impl ModelChecker {
 
     /// Check if any witness node satisfies the formula (original behavior)
     pub fn check_formula_any_state(&self, formula: &Formula) -> ModelCheckResult {
-        let satisfying_states = self.evaluate_formula(&formula.expression);
+        let satisfying_states = self.satisfying(&formula.expression);
 
         ModelCheckResult {
             formula: formula.clone(),
@@ -263,7 +392,7 @@ impl ModelChecker {
     ///
     /// Returns satisfied if the named witness node is among the nodes that satisfy the formula
     pub fn check_formula_at_state(&self, formula: &Formula, state_name: &str) -> ModelCheckResult {
-        let satisfying_states = self.evaluate_formula(&formula.expression);
+        let satisfying_states = self.satisfying(&formula.expression);
 
         // Check if any satisfying state has this node name
         let is_satisfied = satisfying_states.iter().any(|s| s.node_name == state_name);

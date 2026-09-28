@@ -1450,6 +1450,51 @@ fn verdict_word(t: Tri) -> &'static str {
     }
 }
 
+/// The Lean checker (`PT_CHECK`), the round count (`PT_ROUNDS`, else
+/// `default`), and a seeded generator (`PT_SEED`).
+fn harness(default: usize) -> (String, usize, impl FnMut() -> u64) {
+    let bin = std::env::var("PT_CHECK").expect("PT_CHECK: path to pt-check");
+    let rounds: usize = std::env::var("PT_ROUNDS")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(default);
+    let mut seed: u64 = std::env::var("PT_SEED")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(0x9e37_79b9_7f4a_7c15);
+    let next = move || {
+        seed ^= seed << 13;
+        seed ^= seed >> 7;
+        seed ^= seed << 17;
+        seed
+    };
+    (bin, rounds, next)
+}
+
+/// One pt-check answer per request line.
+fn ask_lean<'a>(bin: &str, lines: impl Iterator<Item = &'a String>) -> Vec<serde_json::Value> {
+    use std::io::Write;
+    use std::process::{Command, Stdio};
+    let input: String = lines.map(|line| format!("{line}\n")).collect();
+    let sent = input.lines().count();
+    let mut child = Command::new(bin)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()
+        .unwrap_or_else(|e| panic!("cannot run {bin}: {e}"));
+    let mut stdin = child.stdin.take().unwrap();
+    let writer = std::thread::spawn(move || stdin.write_all(input.as_bytes()));
+    let output = child.wait_with_output().unwrap();
+    writer.join().unwrap().unwrap();
+    let answers: Vec<serde_json::Value> = std::str::from_utf8(&output.stdout)
+        .unwrap()
+        .lines()
+        .map(|l| serde_json::from_str(l).expect("pt-check answers JSON"))
+        .collect();
+    assert_eq!(answers.len(), sent, "pt-check answered every line");
+    answers
+}
+
 /// Random label sets decided by the Rust theory and by the Lean checker
 /// proved sound in `experiments/predicate-theory/lean`. For every set Lean
 /// elaborates the labels itself and must get Rust's literals and
@@ -1461,24 +1506,7 @@ fn verdict_word(t: Tri) -> &'static str {
 #[test]
 #[ignore = "needs the Lean checker; set PT_CHECK"]
 fn rust_and_lean_agree() {
-    use std::io::Write;
-    use std::process::{Command, Stdio};
-
-    let bin = std::env::var("PT_CHECK").expect("PT_CHECK: path to pt-check");
-    let rounds: usize = std::env::var("PT_ROUNDS")
-        .ok()
-        .and_then(|s| s.parse().ok())
-        .unwrap_or(20_000);
-    let mut seed: u64 = std::env::var("PT_SEED")
-        .ok()
-        .and_then(|s| s.parse().ok())
-        .unwrap_or(0x9e37_79b9_7f4a_7c15);
-    let mut next = move || {
-        seed ^= seed << 13;
-        seed ^= seed >> 7;
-        seed ^= seed << 17;
-        seed
-    };
+    let (bin, rounds, mut next) = harness(20_000);
 
     // Each request: its line, and what Rust expects back.
     enum Expect {
@@ -1569,29 +1597,7 @@ fn rust_and_lean_agree() {
         }
     }
 
-    let mut child = Command::new(&bin)
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .spawn()
-        .unwrap_or_else(|e| panic!("cannot run {bin}: {e}"));
-    let input: String = requests
-        .iter()
-        .map(|(line, _)| format!("{line}\n"))
-        .collect();
-    let mut stdin = child.stdin.take().unwrap();
-    let writer = std::thread::spawn(move || stdin.write_all(input.as_bytes()));
-    let output = child.wait_with_output().unwrap();
-    writer.join().unwrap().unwrap();
-    let answers: Vec<serde_json::Value> = std::str::from_utf8(&output.stdout)
-        .unwrap()
-        .lines()
-        .map(|l| serde_json::from_str(l).expect("pt-check answers JSON"))
-        .collect();
-    assert_eq!(
-        answers.len(),
-        requests.len(),
-        "pt-check answered every line"
-    );
+    let answers = ask_lean(&bin, requests.iter().map(|(line, _)| line));
 
     let mut runtime = 0;
     let mut disagreements = Vec::new();
@@ -1661,6 +1667,155 @@ fn rust_and_lean_agree() {
         gaps.is_empty(),
         "exact, opaque-free label sets left unknown:\n{}",
         gaps.iter().take(12).cloned().collect::<Vec<_>>().join("\n")
+    );
+    assert!(
+        disagreements.is_empty(),
+        "Rust and Lean disagree:\n{}",
+        disagreements
+            .iter()
+            .take(12)
+            .cloned()
+            .collect::<Vec<_>>()
+            .join("\n")
+    );
+}
+
+/// A random edge over claimant slots under `/c` (and one under `/d`), with
+/// variables `$k` and `$j` and holes `!$k`, and a random commit on a random
+/// accepted state.
+fn random_var_case(next: &mut impl FnMut() -> u64) -> (Vec<Property>, World) {
+    const LABELS: [(&str, &[&str]); 16] = [
+        ("signed_by", &["/c/$k.id"]),
+        ("signed_by", &["/c/$j.id"]),
+        ("signed_by", &["/c/!$k.id"]),
+        ("signed_by", &["/c/alice.id"]),
+        ("modifies", &["/c/$k"]),
+        ("modifies", &["/c/!$k"]),
+        ("modifies", &["/c/$k.id"]),
+        ("modifies", &["/d/$j"]),
+        ("post_to_path", &["/c/$k/claimed.bool"]),
+        ("post_to_path", &["/c/!$k.id"]),
+        ("state_exists", &["/c/$k.id"]),
+        ("bool_true", &["/c/$k/claimed.bool"]),
+        ("bool_true", &["/c/!$k.bool"]),
+        ("text_eq", &["/c/$k.id", "ka"]),
+        ("any_signed", &["/c/$j"]),
+        ("modifies", &["/c"]),
+    ];
+    const NAMES: [&str; 4] = ["alice", "bob", "carol", "al"];
+    const KEYS: [&str; 3] = ["ka", "kb", "kc"];
+    let mut pick = |n: usize| (next() % n as u64) as usize;
+    let props = (0..1 + pick(4))
+        .map(|_| {
+            let (name, args) = LABELS[pick(LABELS.len())];
+            if pick(3) == 0 {
+                n(name, args)
+            } else {
+                p(name, args)
+            }
+        })
+        .collect();
+    let mut w = World::default();
+    for name in NAMES {
+        if pick(2) == 0 {
+            w.state.push((
+                format!("c/{name}.id"),
+                witness::Value::Text(KEYS[pick(3)].into()),
+            ));
+        }
+        if pick(3) == 0 {
+            w.state.push((
+                format!("c/{name}/claimed.bool"),
+                witness::Value::Bool(pick(2) == 0),
+            ));
+        }
+        if pick(4) == 0 {
+            w.state
+                .push((format!("c/{name}.bool"), witness::Value::Bool(true)));
+        }
+    }
+    w.signed = KEYS
+        .iter()
+        .filter(|_| pick(2) == 0)
+        .map(|k| k.to_string())
+        .collect();
+    for _ in 0..pick(3) {
+        let name = NAMES[pick(4)];
+        let path = match pick(6) {
+            0 => format!("c/{name}/claimed.bool"),
+            1 => format!("c/{name}.id"),
+            2 => format!("c/{name}.bool"),
+            3 => format!("d/{name}"),
+            4 => "c".to_string(),
+            _ => format!("c/{name}/x/y.text"),
+        };
+        w.body.push(witness::Action {
+            method: "POST".into(),
+            path: Some(path),
+        });
+    }
+    (props, w)
+}
+
+/// Random edges with variables: `vars::search`, reading each instance
+/// through the Rust theory on the world, against Lean's `takesB`, which is
+/// proved to decide whether some names make every label hold. Run by
+/// `experiments/predicate-theory/lean/agree.sh`.
+#[test]
+#[ignore = "needs the Lean checker; set PT_CHECK"]
+fn rust_and_lean_agree_on_variable_edges() {
+    let (bin, rounds, mut next) = harness(5_000);
+    let th = v1();
+    let mut requests = Vec::new();
+    let mut expected = Vec::new();
+    for _ in 0..rounds {
+        let (props, w) = random_var_case(&mut next);
+        let (lits, exact) = th.expand_all(&props);
+        assert!(exact && !lits.iter().any(Lit::is_opaque), "{lits:?}");
+        let edge: Vec<_> = lits
+            .iter()
+            .map(|l| {
+                let j = lit_json(l).to_string();
+                serde_json::from_str::<serde_json::Value>(&j.replace("!$", "$!")).unwrap()
+            })
+            .collect();
+        let body: Vec<&str> = w.body.iter().filter_map(|a| a.path.as_deref()).collect();
+        let search = crate::vars::search(
+            &props,
+            &crate::vars::Paths {
+                state: w.state.iter().map(|(k, _)| k.as_str()).collect(),
+                body,
+            },
+            &mut |g| {
+                let (lits, _) = th.expand_all(std::slice::from_ref(g));
+                w.check(&lits)
+            },
+        );
+        let takes = matches!(search, crate::vars::Search::Takes(_));
+        requests
+            .push(serde_json::json!({ "edge": edge, "world": world_json(&w, &[]) }).to_string());
+        expected.push((takes, props));
+    }
+    let answers = ask_lean(&bin, requests.iter());
+    let mut taken = 0;
+    let mut disagreements = Vec::new();
+    for ((line, (takes, props)), got) in requests.iter().zip(&expected).zip(&answers) {
+        assert!(
+            got.get("error").is_none(),
+            "pt-check could not read: {line}: {got}"
+        );
+        taken += usize::from(*takes);
+        if got["takes"] != *takes {
+            let labels: Vec<String> = props.iter().map(|p| label_json(p).to_string()).collect();
+            disagreements.push(format!(
+                "rust takes {takes}; lean {got}\n  {}\n  {line}",
+                labels.join(" ")
+            ));
+        }
+    }
+    eprintln!(
+        "{rounds} edges with variables ({taken} taken), {} disagreements",
+        disagreements.len()
     );
     assert!(
         disagreements.is_empty(),

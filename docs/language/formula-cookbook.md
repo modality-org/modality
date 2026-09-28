@@ -40,6 +40,7 @@ typical first contract that is `/parties/alice.id` and `/parties/bob.id`.
 | After this commit Alice must sign | `[] always([-signed_by(/parties/alice.id)] false)` |
 | After this commit either Alice or Bob must sign in alternating turns | `[] always(([-signed_by(/parties/alice.id) -signed_by(/parties/bob.id)] false) & ([+signed_by(/parties/alice.id)] [-signed_by(/parties/bob.id)] false) & ([+signed_by(/parties/bob.id)] [-signed_by(/parties/alice.id)] false))` |
 | Named action `X` requires Alice's signature | `always(!<+X> true \| <+X +signed_by(/parties/alice.id)> true)` |
+| After this commit nothing under a claimant's slot changes without that claimant's key (any number of claimants) | `[] always([+modifies(/claimants/$k) -signed_by(/claimants/$k.id)] false)` |
 
 Use the named-action row **only** when the user named an action. The
 alternating-turns row still requires a signer on every later step, then forbids
@@ -55,5 +56,9 @@ That invents `+SIGN`, does not skip the bootstrap commit, and should not be
 used unless the contract actually has a `+SIGN` transition. When a named
 action is real, bind required signature evidence to the same transition label
 with explicit Boolean form.
+
+Do not put a hole (`!$k`) in a rule. In a rule, `$k` already means every
+name. Holes are for model edges (see
+[variables](path-types.md#variables)).
 
 Do not prefix formulas with `F1:`. Do not wrap them in markdown fences.

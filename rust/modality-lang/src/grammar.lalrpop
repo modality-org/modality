@@ -142,9 +142,9 @@ PredicateArg: String = {
     <p:PathLiteral> => p
 };
 
-// Path literal like /users/alice.id
+// Path literal like /users/alice.id; `$k` and `!$k` are variables and holes (`vars.rs`)
 PathLiteral: String = {
-    r#"/[a-zA-Z0-9_./]+"# => <>.to_string()
+    r#"/[a-zA-Z0-9_./$!]+"# => <>.to_string()
 };
 
 // Action parsing

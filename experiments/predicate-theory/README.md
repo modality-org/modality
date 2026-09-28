@@ -57,6 +57,7 @@ Lean proves the same edge dead in `Cases.lean`.
 | `lean/PredicateTheory/Witness.lean` | `live`: build a world from the labels and check it |
 | `lean/PredicateTheory/Sound.lean` | `dead_sound`, `entails_sound`, `live_sound` |
 | `lean/PredicateTheory/Runtime.lean` | The same with accepted state known: `deadIn_sound`, `liveIn_sound` |
+| `lean/PredicateTheory/Vars.lean` | Edges with variables (`$k`) and holes (`!$k`): what taking one means, and `takesB`, which decides it from the commit's own paths |
 | `lean/PredicateTheory/Spec.lean` | The verdicts on labels as written, and what each one means |
 | `lean/PredicateTheory/Cases.lean` | The escrow, decided by the proven checker; a flawed checker refuted |
 | `lean/PredicateTheory/Generated.lean` | Every case in `cases.json`, as a theorem or checked example; written by `gen_cases.py` |
@@ -108,6 +109,16 @@ When the construction fails, the verdict is `unknown`, never `live`.
 is not. What the state says about each path becomes literals, and the
 posted keys become a closed set. `live` then builds only the commit.
 
+**Variables.** A path segment `$k.id` is a variable `k` (a name with no
+dot) followed by a suffix. A hole `!$k.id` is every segment whose stem is
+not `k`'s, followed by the suffix. A commit takes an edge when some names
+for its variables make every label hold, each label with a hole for every
+value of the hole. Labels only compare a label path with a world path, so
+a name that is not a prefix of any segment in the world behaves like any
+other such name. `takesB` therefore tries the prefixes of the world's
+segments plus one fresh name, and skips the fresh name in a hole's
+excluded slot.
+
 ## Checked claims
 
 - `dead_sound`: if `dead` says the labels cannot hold together, no world
@@ -123,6 +134,9 @@ posted keys become a closed set. `live` then builds only the commit.
   `stricter_release_meets_the_rule`, `not_a_number_is_live`: the escrow
 - `deadNaive_is_unsound`: a checker that always flips negated order
   literals would refuse an edge a commit can take
+- `takesB_iff`: `takesB` is true exactly when some names take the edge;
+  the faucet examples in `Vars.lean` (own slot yes, a neighbour's slot
+  no) are decided by the kernel
 - `Generated.lean`: all 62 cases in `cases.json`, as 71 theorems and 15
   checked examples (each `unknown` is checked to stay `unknown`)
 
@@ -164,8 +178,21 @@ runtime verdicts must match. It also fails if a set with no opaque
 label and an exact elaboration is left `unknown`. Eight seeds of 200,000
 sets gave no disagreement and no such set.
 
+`rust_and_lean_agree_on_variable_edges` draws edges over claimant slots
+with variables and holes in `signed_by`, `modifies`, `post_to_path`,
+`state_exists`, `bool_true`, `text_eq`, and `any_signed`, and a random
+state and commit. The Rust search (`rust/modality-lang/src/vars.rs`)
+tries fewer names than `takesB`: only segments at the position where the
+variable sits, in the paths that predicate reads. Its answer must match
+`takesB`. It runs 5,000 edges by default (`PT_ROUNDS` sets both
+harnesses); three seeds of 20,000 gave no disagreement.
+
 ## What this does not claim
 
+- That model checking with variables is exact. The Rust checks a rule
+  with variables against the model instantiated over the names the model
+  and rule mention, plus one fresh name per variable. That rests on
+  names being interchangeable, which is tested and not proved in Lean.
 - That the Rust is verified. The harness samples; it does not prove the
   Rust follows the Lean. `pt-check` is compiled, so its answers trust
   Lean's compiler as well as the kernel.

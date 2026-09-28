@@ -743,6 +743,145 @@ fn faucet_v1_rules_hold_together_and_block_the_second_drip() {
     );
 }
 
+/// The faucet for any number of claimants. Anyone may register a fresh slot;
+/// a claimant drips once, alone, marks her own flag, and writes nothing
+/// in anyone else's slot; other commits stay out of `/claimants`.
+const FAUCET_VARS: &str = r#"
+model Faucet {
+  part flow {
+    q0 --> q1
+    q1 --> q1: +POST -SEND -CREATE -modifies(/claimants)
+    q1 --> q1: +POST -SEND -CREATE -state_exists(/claimants/$k.id) +post_to_path(/claimants/$k.id) -modifies(/claimants/$k) -modifies(/claimants/!$k)
+    q1 --> q1: +SEND +POST -CREATE +signed_by(/claimants/$k.id) -signed_by(/claimants/!$k.id) -bool_true(/claimants/$k/claimed.bool) +post_to_path(/claimants/$k/claimed.bool) -modifies(/claimants/!$k)
+  }
+}
+"#;
+
+/// Nothing under a claimant's slot is written without her key.
+const OWN_SLOT: &str = "[] always([+modifies(/claimants/$k) -signed_by(/claimants/$k.id)] false)";
+/// A registered key is replaced only by its holder.
+const OWN_KEY: &str = "[] always([+modifies(/claimants/$k.id) +state_exists(/claimants/$k.id) -signed_by(/claimants/$k.id)] false)";
+/// Every claimant drips at most once.
+const EACH_ONCE: &str =
+    "[] always([+SEND +signed_by(/claimants/$k.id) +bool_true(/claimants/$k/claimed.bool)] false)";
+/// Every claimant's drip marks her own flag.
+const EACH_MARKS: &str =
+    "[] always([+SEND +signed_by(/claimants/$k.id) -post_to_path(/claimants/$k/claimed.bool)] false)";
+
+fn faucet_vars_bootstrap(model: &str) -> CommitFile {
+    let mut c = faucet_bootstrap();
+    c.body[0].value = json!(model);
+    c
+}
+
+#[test]
+fn faucet_with_variables_serves_new_claimants_and_keeps_slots_owned() {
+    // The literal faucet's register edge posts anywhere: a stranger can
+    // replace Alice's key and drip as her.
+    let err = validate(&[faucet_bootstrap()], &rule_commit(OWN_KEY), V1)
+        .expect_err("the register edge admits a key takeover");
+    assert!(err.to_string().contains("Model violates rule"), "{err}");
+
+    // Without `-signed_by(/claimants/!$k.id)`, Alice co-signs Bob's drip
+    // after her own: some claimant drips twice.
+    let cosign = FAUCET_VARS.replace(" -signed_by(/claimants/!$k.id)", "");
+    let err = validate(
+        &[faucet_vars_bootstrap(&cosign)],
+        &rule_commit(EACH_ONCE),
+        V1,
+    )
+    .expect_err("a co-signer drips again");
+    assert!(err.to_string().contains("Model violates rule"), "{err}");
+
+    let mut accepted = vec![faucet_vars_bootstrap(FAUCET_VARS)];
+    for rule in [
+        FAUCET_NO_CREATE,
+        FAUCET_SIGNED,
+        OWN_SLOT,
+        OWN_KEY,
+        EACH_ONCE,
+        EACH_MARKS,
+    ] {
+        let pending = rule_commit(rule);
+        validate(&accepted, &pending, V1).unwrap_or_else(|e| panic!("{rule}: {e}"));
+        accepted.push(pending);
+    }
+    let view = derived_view("", &accepted, TheoryActivation::always(V1)).unwrap();
+    assert!(view.dead_edges.is_empty(), "{:?}", view.dead_edges);
+
+    let register = |slot: &str, key: &str, signer: &str| {
+        signed(
+            commit(vec![("post", &format!("/claimants/{slot}.id"), json!(key))]),
+            &[signer],
+        )
+    };
+    // Carol joins without a model change, and drips once.
+    let carol = register("carol", "KEY_C", "KEY_C");
+    validate(&accepted, &carol, V1).expect("a stranger registers herself");
+    accepted.push(carol);
+    let first = drip("carol", Some("carol"), &["KEY_C"]);
+    validate(&accepted, &first, V1).expect("Carol's first drip");
+    accepted.push(first);
+    let err = validate(&accepted, &drip("carol", Some("carol"), &["KEY_C"]), V1)
+        .expect_err("second drip refused");
+    assert!(
+        err.to_string()
+            .contains("forbidden -bool_true(/claimants/carol/claimed.bool) matched"),
+        "{err}"
+    );
+
+    for bad in [
+        register("alice", "KEY_M", "KEY_M"),
+        register("carol", "KEY_M", "KEY_M"),
+        drip("alice", Some("bob"), &["KEY_A"]),
+        drip("alice", Some("alice"), &["KEY_A", "KEY_B"]),
+        drip("alice", None, &["KEY_A"]),
+        signed(
+            commit(vec![("post", "/claimants/bob/note.text", json!("x"))]),
+            &["KEY_A"],
+        ),
+    ] {
+        validate(&accepted, &bad, V1).expect_err("not a move the model allows");
+    }
+    validate(&accepted, &drip("alice", Some("alice"), &["KEY_A"]), V1).expect("Alice drips");
+    validate(&accepted, &note(), V1).expect("notes stay open");
+
+    // The rules outlive the model: a replacement that lets a drip write
+    // other slots is refused.
+    let sloppy = FAUCET_VARS.replacen(
+        " +post_to_path(/claimants/$k/claimed.bool) -modifies(/claimants/!$k)",
+        " +post_to_path(/claimants/$k/claimed.bool)",
+        1,
+    );
+    let replace = model_commit(&sloppy, vec![("/notes/c.text", json!("c"))]);
+    let err = validate(&accepted, &replace, V1).expect_err("rules still bind");
+    assert!(err.to_string().contains("Model violates rule"), "{err}");
+}
+
+#[test]
+fn malformed_variables_are_refused_when_posted() {
+    let accepted = vec![faucet_vars_bootstrap(FAUCET_VARS)];
+    for (rule, why) in [
+        (
+            "[] always([+modifies(/claimants/!$k)] false)",
+            "a hole (`!$k`) is for model edges",
+        ),
+        (
+            "[] always([+is_even(/c/$k.num)] false)",
+            "only read by the standard path predicates",
+        ),
+    ] {
+        let err = validate(&accepted, &rule_commit(rule), V1).expect_err(rule);
+        assert!(err.to_string().contains(why), "{err}");
+    }
+    let bare = FAUCET_VARS.replace(
+        "-bool_true(/claimants/$k/claimed.bool)",
+        "-bool_true(/claimants/!$k)",
+    );
+    let err = validate(&accepted, &model_commit(&bare, vec![]), V1).expect_err("typed hole");
+    assert!(err.to_string().contains("Invalid model"), "{err}");
+}
+
 /// A contract accepted under `V0` with a dead edge and an unreadable
 /// declaration: the view names both, and leaves the dead edge out of the
 /// moves.

@@ -24,6 +24,7 @@ pub mod runtime;
 pub mod synthesis;
 pub mod theory;
 pub mod validation;
+pub mod vars;
 #[cfg(target_arch = "wasm32")]
 pub mod wasm;
 
