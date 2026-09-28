@@ -698,6 +698,7 @@ pub struct StatusPageVars {
     pub prefix_certs_html: String,
 }
 
+#[cfg(test)]
 fn sample_vars() -> StatusPageVars {
     StatusPageVars {
         refresh_interval: 10,

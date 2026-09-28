@@ -2353,10 +2353,10 @@ fn oracle_replay_bundle_shape_status(
         "pending_commit_hash",
         "signature",
     ] {
-        if !attestation
+        if attestation
             .get(field)
             .and_then(Value::as_str)
-            .is_some_and(|value| !value.trim().is_empty())
+            .is_none_or(|value| value.trim().is_empty())
         {
             return ReplayBundleStatus::Invalid(format!(
                 "oracle_attests replay bundle attestation is missing non-empty string {field}"

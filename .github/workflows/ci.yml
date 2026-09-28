@@ -152,7 +152,7 @@ jobs:
           
       - name: Run Clippy
         working-directory: rust
-        run: cargo clippy --all -- -D warnings
+        run: cargo clippy --all -- -D warnings -A clippy::too_many_arguments
 
   build-release:
     name: Build (Release Mode)

@@ -370,6 +370,7 @@ pub(crate) enum ReceivedCert {
 /// Validate a peer's certified block and store it the first time it is seen.
 ///
 /// The same block arrives by gossip and again by the certified-block pull.
+#[cfg(test)]
 pub(crate) async fn accept_received_certified_block(
     block: &SequencerBlock,
     own_peer_id: &str,
@@ -383,7 +384,7 @@ pub(crate) async fn accept_received_certified_block(
     store_received_certified_block(block, &mgr).await
 }
 
-/// The part of [`accept_received_certified_block`] that needs no datastore.
+/// Validate the certificate without accessing the datastore.
 fn check_received_certificate(
     block: &SequencerBlock,
     own_peer_id: &str,
