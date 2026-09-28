@@ -73,6 +73,10 @@ Use the operator that matches the claim you want the contract to make:
 
 `PAY` is committed: it is enabled and its refusal edge is unavailable.
 
+With several labels, `[<+PAY +signed_by(/parties/alice.id)>] true` refuses
+each one: no commit may move without `PAY`, and none without Alice's
+signature.
+
 ```modality
 [+PAY] +signed_by(/parties/alice.id)
 ```

@@ -185,26 +185,17 @@ impl FormulaExpr {
                     return FormulaExpr::Diamond(Vec::new(), Box::new(phi.expand_diamond_box()));
                 }
 
-                // Negate the properties for the box part
-                let negated_props: Vec<Property> = props
+                // [-P1] false & ... & [-Pn] false & <+P1 ... +Pn> φ: every
+                // commit has every label, and one that does can move on. A
+                // single box over all the negated labels would refuse only
+                // commits that lack all of them.
+                let refusals = props
                     .iter()
-                    .map(|p| {
-                        Property::new(
-                            match p.sign {
-                                PropertySign::Plus => PropertySign::Minus,
-                                PropertySign::Minus => PropertySign::Plus,
-                            },
-                            p.name.clone(),
-                        )
-                    })
-                    .collect();
-
-                // [-P] false & <+P> φ
+                    .map(|p| FormulaExpr::Box(vec![p.negated()], Box::new(FormulaExpr::False)))
+                    .reduce(|acc, b| FormulaExpr::And(Box::new(acc), Box::new(b)))
+                    .expect("labels are not empty");
                 FormulaExpr::And(
-                    Box::new(FormulaExpr::Box(
-                        negated_props,
-                        Box::new(FormulaExpr::False),
-                    )),
+                    Box::new(refusals),
                     Box::new(FormulaExpr::Diamond(
                         props.clone(),
                         Box::new(phi.expand_diamond_box()),
@@ -426,6 +417,16 @@ impl Transition {
 }
 
 impl Property {
+    /// The same atom with the other sign.
+    pub fn negated(&self) -> Self {
+        let mut p = self.clone();
+        p.sign = match p.sign {
+            PropertySign::Plus => PropertySign::Minus,
+            PropertySign::Minus => PropertySign::Plus,
+        };
+        p
+    }
+
     /// Create a new static property
     pub fn new(sign: PropertySign, name: String) -> Self {
         Self {

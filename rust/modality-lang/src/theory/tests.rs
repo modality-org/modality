@@ -1038,6 +1038,64 @@ model Contract {
     );
 }
 
+#[test]
+fn g17_a_negated_box_is_judged_like_the_diamond_it_means() {
+    let m = r#"
+model Contract {
+  part flow {
+    q0 --> q0: +num_eq(/x.num,/y.num)
+  }
+}
+"#;
+    let labels = r#"+num_gt(/x.num,"5") +num_lt(/y.num,"3")"#;
+    for rule in [
+        format!("<{labels}> true"),
+        format!("![{labels}] false"),
+        format!("([{labels}] false) -> false"),
+        format!("!always([{labels}] false)"),
+        format!("!gfp(X, [{labels}] false & []X)"),
+    ] {
+        assert!(!rule_accepted(m, &rule, TheoryVersion::V1), "{rule}");
+    }
+    // The dual stays accepted: no commit takes the edge with those labels.
+    assert!(rule_accepted(
+        m,
+        &format!("!<{labels}> true"),
+        TheoryVersion::V1
+    ));
+}
+
+#[test]
+fn g18_a_committed_diamond_requires_every_label() {
+    let m = |edge: &str| {
+        format!(
+            r#"
+model Contract {{
+  part flow {{
+    q0 --> q1: {edge}
+  }}
+}}
+"#
+        )
+    };
+    // A commit that posts without Alice's signature takes the edge.
+    let both = r#"[<+POST +signed_by(/parties/alice.id)>] true"#;
+    for v in [TheoryVersion::V0, TheoryVersion::V1] {
+        assert!(!rule_accepted(&m("+POST"), both, v), "{v:?}");
+        assert!(rule_accepted(
+            &m("+POST +signed_by(/parties/alice.id)"),
+            both,
+            v
+        ));
+    }
+    // Refusals keep the predicate's arguments.
+    let alice = r#"[<+signed_by(/parties/alice.id)>] true"#;
+    for v in [TheoryVersion::V0, TheoryVersion::V1] {
+        assert!(rule_accepted(&m("+signed_by(/parties/alice.id)"), alice, v));
+        assert!(!rule_accepted(&m("+signed_by(/parties/bob.id)"), alice, v));
+    }
+}
+
 const G_FLAG: &str = r#"
 model Contract {
   part flow {
@@ -1123,8 +1181,10 @@ model Contract {
     let rule = r#"<+num_gt(/x.num,"5") +num_lt(/x.num,"3")> true"#;
     assert!(rule_accepted(m, rule, TheoryVersion::V0));
     assert!(!rule_accepted(m, rule, TheoryVersion::V1));
+    // No commit carries both labels, so the box ranges over nothing.
     let boxed = r#"[+num_gt(/x.num,"5") +num_lt(/x.num,"3")] false"#;
-    assert!(!rule_accepted(m, boxed, TheoryVersion::V1));
+    assert!(!rule_accepted(m, boxed, TheoryVersion::V0));
+    assert!(rule_accepted(m, boxed, TheoryVersion::V1));
 }
 
 const G_TWO_STEP_RULE: &str = r#"[-num_gt(/x.num,"5")] false & [-num_lt(/y.num,"3")] false & [] [-num_gt(/y.num,/x.num)] false"#;

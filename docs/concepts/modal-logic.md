@@ -23,6 +23,9 @@ The diamondbox operator `[<+A>]` means:
 - The agent CANNOT refuse action A
 - After A, the formula φ holds
 
+With several labels, `[<+A +B>] φ` commits to all of them: no commit may
+move without A, and none without B.
+
 This is the key operator for expressing commitments.
 
 ## Temporal Operators (Sugar)

@@ -83,6 +83,99 @@ pub fn merged_model(model: &Model) -> Model {
     merged
 }
 
+/// `expr` with every negation pushed down to propositions, so each box and
+/// diamond is evaluated where the formula asserts it. Edge matching errs in
+/// one direction per operator: a box counts every edge a commit might take,
+/// a diamond only edges the theory cannot rule out. Each is safe only
+/// un-negated; under a negation it would err the wrong way.
+fn negation_normal_form(expr: &FormulaExpr) -> FormulaExpr {
+    Nnf::default().go(expr, false)
+}
+
+#[derive(Default)]
+struct Nnf {
+    /// Fixed-point variables in scope, each with whether its binder was
+    /// negated: `!lfp(X, φ)` is `gfp(X, !φ[!X/X])`, so an occurrence of `X`
+    /// under a negated binder flips back.
+    binders: Vec<(String, bool)>,
+    fresh: usize,
+}
+
+impl Nnf {
+    fn sub(&mut self, e: &FormulaExpr, neg: bool) -> Box<FormulaExpr> {
+        Box::new(self.go(e, neg))
+    }
+
+    fn go(&mut self, expr: &FormulaExpr, neg: bool) -> FormulaExpr {
+        use FormulaExpr as F;
+        match expr {
+            F::True | F::False => {
+                if neg == matches!(expr, F::True) {
+                    F::False
+                } else {
+                    F::True
+                }
+            }
+            F::Prop(name) | F::Var(name) => {
+                let flip = self
+                    .binders
+                    .iter()
+                    .rev()
+                    .find(|(v, _)| v == name)
+                    .is_some_and(|(_, f)| *f);
+                if neg != flip {
+                    F::Not(Box::new(expr.clone()))
+                } else {
+                    expr.clone()
+                }
+            }
+            F::Not(e) => self.go(e, !neg),
+            F::Paren(e) => self.go(e, neg),
+            F::And(l, r) if neg => F::Or(self.sub(l, true), self.sub(r, true)),
+            F::And(l, r) => F::And(self.sub(l, false), self.sub(r, false)),
+            F::Or(l, r) if neg => F::And(self.sub(l, true), self.sub(r, true)),
+            F::Or(l, r) => F::Or(self.sub(l, false), self.sub(r, false)),
+            F::Implies(l, r) if neg => F::And(self.sub(l, false), self.sub(r, true)),
+            F::Implies(l, r) => F::Or(self.sub(l, true), self.sub(r, false)),
+            F::Diamond(ps, e) if neg => F::Box(ps.clone(), self.sub(e, true)),
+            F::Diamond(ps, e) => F::Diamond(ps.clone(), self.sub(e, false)),
+            F::Box(ps, e) if neg => F::Diamond(ps.clone(), self.sub(e, true)),
+            F::Box(ps, e) => F::Box(ps.clone(), self.sub(e, false)),
+            F::DiamondBox(..) => self.go(&expr.expand_diamond_box(), neg),
+            F::Eventually(e) if neg => F::Always(self.sub(e, true)),
+            F::Eventually(e) => F::Eventually(self.sub(e, false)),
+            F::Always(e) if neg => F::Eventually(self.sub(e, true)),
+            F::Always(e) => F::Always(self.sub(e, false)),
+            F::Next(e) if neg => F::Box(Vec::new(), self.sub(e, true)),
+            F::Next(e) => F::Next(self.sub(e, false)),
+            // !until(l, r) = gfp(X, !r & (!l | []X)). `#` keeps X apart from
+            // every name a rule can write.
+            F::Until(l, r) if neg => {
+                let x = format!("#until{}", self.fresh);
+                self.fresh += 1;
+                let not_r = self.sub(r, true);
+                let not_l = self.sub(l, true);
+                let step = F::Box(Vec::new(), Box::new(F::Var(x.clone())));
+                F::Gfp(
+                    x,
+                    Box::new(F::And(not_r, Box::new(F::Or(not_l, Box::new(step))))),
+                )
+            }
+            F::Until(l, r) => F::Until(self.sub(l, false), self.sub(r, false)),
+            F::Lfp(x, e) | F::Gfp(x, e) => {
+                self.binders.push((x.clone(), neg));
+                let body = self.sub(e, neg);
+                self.binders.pop();
+                if matches!(expr, F::Lfp(..)) != neg {
+                    F::Lfp(x.clone(), body)
+                } else {
+                    F::Gfp(x.clone(), body)
+                }
+            }
+        }
+    }
+}
+
 /// Model checker for temporal modal formulas
 pub struct ModelChecker {
     model: Model,
@@ -283,6 +376,7 @@ impl ModelChecker {
     /// States satisfying the formula; with variables, every instance of it.
     /// A rule with a hole is not decided and satisfies nothing.
     fn satisfying(&self, expr: &FormulaExpr) -> Vec<State> {
+        let expr = &negation_normal_form(expr);
         if vars::formula_props(expr).into_iter().any(vars::has_holes) {
             return Vec::new();
         }
@@ -946,9 +1040,9 @@ impl ModelChecker {
     /// - the edge's atoms entail the property → usable (`x>7` for `x>5`)
     /// - the edge's atoms plus the property are inconsistent → not usable
     ///
-    /// and the structural rule above decides the rest. For a diamond the edge
-    /// is also not usable when its atoms and all the labels together are
-    /// inconsistent: one commit has to meet every label at once.
+    /// and the structural rule above decides the rest. The edge is also not
+    /// usable when its atoms and all the labels together are inconsistent:
+    /// one commit has to meet every label at once.
     ///
     /// `whole_atom` is set for boxes: "mentions" then means the same predicate
     /// with the same arguments. A box has to range over every edge a commit
@@ -966,7 +1060,7 @@ impl ModelChecker {
         } else {
             Some(self.theory())
         };
-        if let Some(theory) = theory.as_ref().filter(|_| !whole_atom) {
+        if let Some(theory) = &theory {
             let mut with = transition.properties.clone();
             with.extend(properties.iter().cloned());
             if theory.consistent(&with).tri == Tri::False {
@@ -1389,5 +1483,111 @@ mod tests {
         assert!(result.satisfying_states.iter().any(|s| s.node_name == "n1"));
         assert!(result.satisfying_states.iter().any(|s| s.node_name == "n2"));
         assert!(result.satisfying_states.iter().any(|s| s.node_name == "n3"));
+    }
+
+    /// A label-free formula whose fixed-point variables occur only
+    /// positively. `binders` holds each variable in scope with the polarity
+    /// it was bound at.
+    fn random_formula(
+        next: &mut impl FnMut() -> u64,
+        depth: u32,
+        pos: bool,
+        binders: &mut Vec<(String, bool)>,
+    ) -> FormulaExpr {
+        use FormulaExpr as F;
+        let node = |n: u64| F::Prop(format!("q{}", n % 4));
+        if depth == 0 {
+            return match next() % 4 {
+                0 => F::True,
+                1 => F::False,
+                2 => node(next()),
+                _ => match binders.iter().rev().find(|(_, p)| *p == pos) {
+                    Some((v, _)) => F::Var(v.clone()),
+                    None => node(next()),
+                },
+            };
+        }
+        let pick = next() % 14;
+        let least = next().is_multiple_of(2);
+        if pick >= 12 {
+            return random_formula(next, 0, pos, binders);
+        }
+        let mut sub = |pos: bool, binders: &mut Vec<(String, bool)>| {
+            Box::new(random_formula(next, depth - 1, pos, binders))
+        };
+        match pick {
+            0 => F::Not(sub(!pos, binders)),
+            1 => F::And(sub(pos, binders), sub(pos, binders)),
+            2 => F::Or(sub(pos, binders), sub(pos, binders)),
+            3 => F::Implies(sub(!pos, binders), sub(pos, binders)),
+            4 => F::Diamond(Vec::new(), sub(pos, binders)),
+            5 => F::Box(Vec::new(), sub(pos, binders)),
+            6 => F::Eventually(sub(pos, binders)),
+            7 => F::Always(sub(pos, binders)),
+            8 => F::Until(sub(pos, binders), sub(pos, binders)),
+            9 => F::Next(sub(pos, binders)),
+            _ => {
+                let x = format!("X{}", binders.len());
+                binders.push((x.clone(), pos));
+                let body = sub(pos, binders);
+                binders.pop();
+                if least {
+                    F::Lfp(x, body)
+                } else {
+                    F::Gfp(x, body)
+                }
+            }
+        }
+    }
+
+    /// With no labels edge matching is exact, so pushing negation inward
+    /// must not change a formula's states, and a negated formula must hold
+    /// exactly where the formula does not.
+    #[test]
+    fn negation_normal_form_keeps_meaning_where_matching_is_exact() {
+        let mut seed: u64 = 0x2545_f491_4f6c_dd1d;
+        let mut next = move || {
+            seed ^= seed << 13;
+            seed ^= seed >> 7;
+            seed ^= seed << 17;
+            seed
+        };
+        let names = |states: Vec<State>| {
+            let mut v: Vec<String> = states.into_iter().map(|s| s.node_name).collect();
+            v.sort();
+            v.dedup();
+            v
+        };
+        for round in 0..3000 {
+            let mut part = Part::new("p".to_string());
+            for _ in 0..1 + next() % 6 {
+                part.add_transition(Transition::new(
+                    format!("q{}", next() % 4),
+                    format!("q{}", next() % 4),
+                ));
+            }
+            let mut model = Model::new("M".to_string());
+            model.add_part(part);
+            let checker = ModelChecker::new(model);
+            let f = random_formula(&mut next, 4, true, &mut Vec::new());
+            let direct = names(checker.evaluate_formula(&f));
+            assert_eq!(
+                names(checker.satisfying(&f)),
+                direct,
+                "round {round}: {f:?}"
+            );
+            let not = FormulaExpr::Not(Box::new(f.clone()));
+            let all = names(checker.all_states());
+            let complement: Vec<String> = all
+                .iter()
+                .filter(|n| !direct.contains(n))
+                .cloned()
+                .collect();
+            assert_eq!(
+                names(checker.satisfying(&not)),
+                complement,
+                "round {round}: {f:?}"
+            );
+        }
     }
 }
