@@ -1,4 +1,5 @@
 {
+  "config_version": 2,
   "id": "12D3KooWSB2d9ddmQkvwpPWFXVJrgnDqEiaRTQXguTacwnxL6MrE",
   "passfile_path": "./node.modal_passfile",
   "data_dir": "./data",
@@ -18,7 +19,7 @@
   "network_config_path": "modality-networks://testnet",
   "run_miner": false,
   "run_sequencer": false,
-  "run_contract_validator": false,
+  "run_validator": false,
   "hybrid_consensus": true,
   "initial_difficulty": 1,
   "status_port": 1337,

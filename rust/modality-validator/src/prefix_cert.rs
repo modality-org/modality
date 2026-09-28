@@ -106,8 +106,8 @@ pub fn verify_cert_signature(cert: &PrefixCert) -> Result<bool> {
     verifier.verify_json(sig, &payload)
 }
 
-pub fn signer_is_named(cert: &PrefixCert, contract_validators: &[String]) -> bool {
-    contract_validators
+pub fn signer_is_named(cert: &PrefixCert, validators: &[String]) -> bool {
+    validators
         .iter()
         .any(|id| id == &cert.validator_peer_id)
 }
@@ -115,15 +115,15 @@ pub fn signer_is_named(cert: &PrefixCert, contract_validators: &[String]) -> boo
 /// Cheap inclusion check: well-formed, named signer, signature. No model replay.
 pub fn cheap_include_prefix_cert(
     event: &serde_json::Value,
-    contract_validators: &[String],
+    validators: &[String],
 ) -> Result<()> {
     let cert: PrefixCert = serde_json::from_value(event.clone())?;
     if cert.event_type != PREFIX_CERT_TYPE {
         anyhow::bail!("not a prefix_cert");
     }
-    if contract_validators.is_empty() || !signer_is_named(&cert, contract_validators) {
+    if validators.is_empty() || !signer_is_named(&cert, validators) {
         anyhow::bail!(
-            "prefix_cert signer {} is not a named contract validator",
+            "prefix_cert signer {} is not a named validator",
             cert.validator_peer_id
         );
     }
@@ -135,12 +135,12 @@ pub fn cheap_include_prefix_cert(
 
 pub fn filter_includable_events(
     events: Vec<serde_json::Value>,
-    contract_validators: &[String],
+    validators: &[String],
 ) -> Vec<serde_json::Value> {
     events
         .into_iter()
         .filter(|event| match event.get("type").and_then(|v| v.as_str()) {
-            Some(PREFIX_CERT_TYPE) => cheap_include_prefix_cert(event, contract_validators).is_ok(),
+            Some(PREFIX_CERT_TYPE) => cheap_include_prefix_cert(event, validators).is_ok(),
             _ => true,
         })
         .collect()
@@ -227,7 +227,7 @@ pub fn qc_threshold(n: usize, numerator: u64, denominator: u64) -> usize {
 /// Distinct named signers whose cert matches dest's pin and the rebuilt digest.
 pub fn matching_qc_signers(
     certs: &[serde_json::Value],
-    contract_validators: &[String],
+    validators: &[String],
     expected_digest: &str,
     source_contract: &str,
     source_commit: &str,
@@ -242,7 +242,7 @@ pub fn matching_qc_signers(
         if cert.prefix_digest != expected_digest {
             continue;
         }
-        if !signer_is_named(&cert, contract_validators) {
+        if !signer_is_named(&cert, validators) {
             continue;
         }
         if !cert_matches_source(

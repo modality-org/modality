@@ -10,13 +10,13 @@ This directory contains dual-purpose examples that serve as:
 | Example | Description | Category | Features Tested |
 |---------|-------------|----------|-----------------|
 | [01-ping-node](./01-ping-node/) | Basic node connectivity | Quick | Node startup, ping command |
-| [02-run-devnet1](./02-run-devnet1/) | Single-validator static network | Quick | Single validator, Shoal consensus |
-| [02-run-devnet2](./02-run-devnet2/) | Two-validator static network | Quick | Multi-validator consensus |
-| [03-run-devnet3](./03-run-devnet3/) | Three-validator static network | Normal | Multi-node mesh network |
+| [02-run-devnet1](./02-run-devnet1/) | Single-sequencer static network | Quick | Single sequencer, Shoal consensus |
+| [02-run-devnet2](./02-run-devnet2/) | Two-sequencer static network | Quick | Multi-sequencer consensus |
+| [03-run-devnet3](./03-run-devnet3/) | Three-sequencer static network | Normal | Multi-node mesh network |
 | [04-sync-miner-blocks](./04-sync-miner-blocks/) | Block synchronization | Quick | Sync modes, persistence, idempotency |
 | [05-mining](./05-mining/) | Mining with difficulty adjustment | Slow | Mining, difficulty, persistence |
 | [06-contract-lifecycle](./06-contract-lifecycle/) | Contract creation and management | Quick | Create, commit, status, push, pull |
-| [06-static-validators](./06-static-validators/) | Static validator set | Slow | Validator connections, genesis round |
+| [06-static-sequencers](./06-static-sequencers/) | Static sequencer set | Slow | Sequencer connections, genesis round |
 
 ## Quick Start
 
@@ -293,7 +293,7 @@ Each example uses specific ports:
 - 03-run-devnet3: 10301-10303
 - 04-sync-miner-blocks: 10201-10202
 - 05-mining: 10301
-- 06-static-validators: 10601-10603
+- 06-static-sequencers: 10601-10603
 
 Check for conflicts:
 ```bash
@@ -359,7 +359,7 @@ LOG_DIR=/tmp/network-test-logs ./run-tests.sh --quick
 - [CLI Documentation](../../rust/modality/docs/)
 - [Network Node Documentation](../../rust/modality-node/docs/)
 - [Mining Documentation](../../rust/modality-miner/README.md)
-- [Validator Documentation](../../rust/modality-validator/README.md)
+- [Sequencer Documentation](../../rust/modality-sequencer/README.md)
 
 ## Contributing
 

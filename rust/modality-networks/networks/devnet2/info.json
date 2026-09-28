@@ -1,4 +1,5 @@
 {
+  "config_version": 2,
   "name": "devnet2",
   "description": "a dev network controlled by 2 nodes on localhost",
   "bootstrappers": [

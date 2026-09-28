@@ -15,5 +15,5 @@ if [ ! -f "./tmp/node3/config.json" ]; then
 fi
 
 modal node clear-storage --dir ./tmp/node3 --yes
-modal node run-validator --dir ./tmp/node3
+modal node run-sequencer --dir ./tmp/node3
 

@@ -145,7 +145,7 @@ console.log(`Cached modules: ${stats.entries}`);
 const otherContractId = "abc123...";
 const result = await executor.evaluate_predicate(
   "current_contract",
-  `@${otherContractId}/_code/custom_validator.wasm`,
+  `@${otherContractId}/_code/custom_sequencer.wasm`,
   { /* data */ },
   context
 );

@@ -40,13 +40,13 @@ echo "Querying Alice's balance..."
 modal contract assets balance --asset-id my_token
 
 echo ""
-echo "💾 Pushing commits to validator..."
+echo "💾 Pushing commits to sequencer..."
 echo ""
 
 # Only push if SKIP_PUSH is not set (for network tests)
 if [ -z "$SKIP_PUSH" ]; then
-    # Push to validator (note: /ws for WebSocket protocol)
-    # Don't use --node-dir to avoid peer ID conflict with validator
+    # Push to sequencer (note: /ws for WebSocket protocol)
+    # Don't use --node-dir to avoid peer ID conflict with sequencer
     modal contract push \
       --remote /ip4/127.0.0.1/tcp/10101/ws/p2p/12D3KooW9pte76rpnggcLYkFaawuTEs5DC5axHkg3cK3cewGxxHd \
       --remote-name origin

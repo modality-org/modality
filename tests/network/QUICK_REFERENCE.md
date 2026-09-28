@@ -18,12 +18,12 @@ cd 05-mining
 ./01-mine-blocks.sh            # Mines continuously
 ./02-inspect-blocks.sh         # Check blocks (separate terminal)
 
-# Validators example
-cd 06-static-validators
-./01-run-validator1.sh         # Terminal 1
-./02-run-validator2.sh         # Terminal 2
-./03-run-validator3.sh         # Terminal 3
-# Or: ./06-run-all-validators.sh (runs all in background)
+# Sequencers example
+cd 06-static-sequencers
+./01-run-sequencer1.sh         # Terminal 1
+./02-run-sequencer2.sh         # Terminal 2
+./03-run-sequencer3.sh         # Terminal 3
+# Or: ./06-run-all-sequencers.sh (runs all in background)
 ```
 
 ## Run as Integration Tests
@@ -98,7 +98,7 @@ docker run --rm tests --quick
 | 03 | run-devnet3 | Three-node network |
 | 04 | sync-miner-blocks | Block sync (all modes) |
 | 05 | mining | Mining & difficulty |
-| 06 | static-validators | Validator setup |
+| 06 | static-sequencers | Sequencer setup |
 
 ## Common Commands
 

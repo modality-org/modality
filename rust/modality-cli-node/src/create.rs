@@ -444,9 +444,15 @@ pub async fn run(opts: &Opts) -> Result<()> {
         let config_content = std::fs::read_to_string(from_config_path).with_context(|| {
             format!("Failed to read config from {}", from_config_path.display())
         })?;
-        serde_json::from_str(&config_content).with_context(|| {
-            format!("Failed to parse config from {}", from_config_path.display())
-        })?
+        let imported: serde_json::Value =
+            serde_json::from_str(&config_content).with_context(|| {
+                format!("Failed to parse config from {}", from_config_path.display())
+            })?;
+        modality_node::config::check_config_version(
+            &imported,
+            &format!("imported config {}", from_config_path.display()),
+        )?;
+        imported
     } else {
         // Start with default config
         json!({
@@ -466,6 +472,10 @@ pub async fn run(opts: &Opts) -> Result<()> {
 
     // Override/merge with command line options
     if let Some(obj) = config.as_object_mut() {
+        obj.insert(
+            "config_version".to_string(),
+            json!(modality_node::config::CONFIG_VERSION),
+        );
         // Always update the ID to match the keypair
         obj.insert("id".to_string(), json!(peer_id));
         obj.insert("passfile_path".to_string(), json!("./node.modal_passfile"));

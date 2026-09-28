@@ -307,7 +307,7 @@ impl NetworkDatastore {
             sequencers,
             miner_hash_func: miner_hash_func.unwrap_or_else(|| "randomx".to_string()),
             mining_hash_params,
-            contract_validators: Vec::new(),
+            validators: Vec::new(),
             validator_min_stake: 0,
             validation_fees: crate::ValidationFees::default(),
             repost_requires_validator_cert: false,

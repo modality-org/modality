@@ -55,7 +55,7 @@ validate() {
 cleanup() {
     echo ""
     echo "Cleaning up..."
-    ./07-stop-validator.sh || true
+    ./07-stop-sequencer.sh || true
 }
 
 # Set trap to cleanup on exit
@@ -68,13 +68,13 @@ echo ""
 # Step 0: Setup
 run_step "Step 0: Setup devnet1" "./00-setup-devnet1.sh" || exit 1
 
-# Step 0.5: Start validator
-run_step "Step 0.5: Start Validator" "./00b-start-validator.sh" || exit 1
-validate "Validator is running on port 10101" "lsof -i :10101 -sTCP:LISTEN -t >/dev/null 2>&1"
+# Step 0.5: Start sequencer
+run_step "Step 0.5: Start Sequencer" "./00b-start-sequencer.sh" || exit 1
+validate "Sequencer is running on port 10101" "lsof -i :10101 -sTCP:LISTEN -t >/dev/null 2>&1"
 
-# Give validator time to fully initialize consensus
+# Give sequencer time to fully initialize consensus
 echo ""
-echo "⏳ Waiting for validator consensus to initialize..."
+echo "⏳ Waiting for sequencer consensus to initialize..."
 sleep 5
 echo ""
 
@@ -115,11 +115,11 @@ sleep 2
 # Step 6: Query balances
 run_step "Step 6: Query Balances" "./06-query-balances.sh" || exit 1
 
-# Check validator logs for asset processing
+# Check sequencer logs for asset processing
 echo ""
-echo "Checking validator logs for asset processing..."
-if grep -q "Processed commit" tmp/test-logs/validator.log 2>/dev/null; then
-    echo "${GREEN}✓ Validator processed commits${NC}"
+echo "Checking sequencer logs for asset processing..."
+if grep -q "Processed commit" tmp/test-logs/sequencer.log 2>/dev/null; then
+    echo "${GREEN}✓ Sequencer processed commits${NC}"
     TESTS_PASSED=$((TESTS_PASSED + 1))
 else
     echo "${YELLOW}⚠ Could not verify commit processing in logs${NC}"

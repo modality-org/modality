@@ -19,8 +19,8 @@ modal node --dir ./tmp/node1
 ```
 
 With no subcommand, `modal node` opens a **terminal UI** to pick an action: run
-from config, hybrid, miner, sequencer, validator (sequencing alias),
-contract validator, observer, create, start, stop, info, or logs. Arrow keys move, `Enter` runs the highlighted action, and `q`, Esc, or
+from config, hybrid, miner, sequencer, validator, observer, create, start,
+stop, info, or logs. Arrow keys move, `Enter` runs the highlighted action, and `q`, Esc, or
 Ctrl-C quits the picker. Requires a TTY. Background scripts should keep using an
 explicit subcommand such as `run-hybrid`.
 
@@ -81,6 +81,13 @@ node/
 
 After `--testnet`, run `modal node run-miner --dir <dir>` or `modal node run-hybrid --dir <dir>`.
 
+`create` writes `"config_version": 2`. A node refuses a `config.json` or network
+config file without it, because before version 2 `run_validator` meant the
+sequencer. Recreate the node from a current template, or rename `run_validator`
+to `run_sequencer` and `run_contract_validator` to `run_validator` (network
+files: `validators` to `sequencers` and `contract_validators` to `validators`),
+then add the version.
+
 Build the full CLI from `rust/` (`cargo build -p modal`). A `modality` binary already on `PATH` may be an old language-only CLI with no `node` commands.
 
 ## Lifecycle
@@ -99,7 +106,7 @@ directory.
 |--------|-------------|
 | `--config <CONFIG>` | Path to `config.json` |
 | `--dir <DIR>` | Node directory containing `config.json` |
-| `--node-type <TYPE>` | `miner`, `hybrid`, `observer`, `sequencer`, `validator`, `contract-validator`, or `server`; otherwise resolved from config |
+| `--node-type <TYPE>` | `miner`, `hybrid`, `observer`, `sequencer`, `validator`, or `server`; otherwise resolved from config |
 
 ### Stop, Restart, Kill, and PID
 
@@ -128,15 +135,13 @@ modal node run-miner [OPTIONS]
 modal node run-hybrid [OPTIONS]
 modal node run-sequencer [OPTIONS]
 modal node run-validator [OPTIONS]
-modal node run-contract-validator [OPTIONS]
 modal node run-observer [OPTIONS]
 modal node run-noop [OPTIONS]
 ```
 
-`run-sequencer` is the preferred sequencing command. `run-validator` is an
-alias of `run-sequencer` (Shoal ordering). `run-contract-validator` is a
+`run-sequencer` runs the ordering committee (Shoal). `run-validator` is the
 separate third role: it issues prefix certificates and does not mine or
-sequence. A single process may still run miner + sequencer + contract-validator
+sequence. A single process may still run miner + sequencer + validator
 together (hybrid/dev).
 
 All foreground run commands accept:
@@ -160,25 +165,25 @@ modal run miner --dir ./my-node
 modal run hybrid --dir ./my-node
 modal run sequencer --dir ./my-node
 modal run validator --dir ./my-node
-modal run contract-validator --dir ./my-node
 modal run observer --dir ./my-node
 ```
 
-Network `info.json` may include, besides the sequencer committee `validators`:
+Network `info.json` may include, besides the static sequencer committee `sequencers`:
 
 | Field | Default | Meaning |
 |-------|---------|---------|
-| `contract_validators` | omitted / empty | Peer IDs allowed to sign prefix certificates |
+| `validators` | omitted / empty | Peer IDs allowed to sign prefix certificates |
 | `validator_min_stake` | `0` | Minimum stake to validate; `0` on testnet/dev |
 | `validation_fees` | `{ "nominal": 0, "meter_coefficient": 0 }` | Quoted as `nominal + meter_coefficient * gas_used` (recorded, not transferred) |
 | `repost_requires_validator_cert` | `false` | When `true`, dest REPOST and dest RECV apply need a validator supermajority (`⌈2n/3⌉` named `prefix_cert` signatures on the same digest through the source commit), not one signature |
+| `predicate_theory_version` | `v0` | Predicate theory validators enforce on every contract, from network genesis. `v1` refuses a `MODEL` whose edge labels cannot hold together (a dead edge) and matches rule labels by entailment. A node refuses every commit on a network whose version it does not know. Changing it on a running network re-judges accepted logs: a hard fork |
 | `emission` | omitted (no mint) | Native MOD mint for this network. `block_subsidy` is credited to the peer nominated in each canonical miner block after index 0. Optional `halving_interval_blocks` (0 = never), `cap` (0 = none), and `genesis_allocations` (`[{ "account": "<peer id>", "amount": n }]`) applied once on first config load. Distinct from contract-asset CREATE/SEND/RECV |
 
 Omitted fields keep existing networks unchanged. Local `devnet1` names the
-single node as a contract validator and sets
+single node as a validator and sets
 `repost_requires_validator_cert` so dest REPOST and dest RECV wait for that
 node's prefix cert. The public `testnet` network names the three Foundation
-bootstrappers as `contract_validators` with `validator_min_stake` 0 and
+bootstrappers as `validators` with `validator_min_stake` 0 and
 `repost_requires_validator_cert` true. That is a named bootstrap set, not
 stake-gated mainnet membership. Request a certificate with `/contract/prefix_cert`
 (`source_contract`, `through_commit`). Local devnets also set

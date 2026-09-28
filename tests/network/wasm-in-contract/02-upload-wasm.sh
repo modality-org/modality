@@ -37,7 +37,7 @@ echo "Uploading WASM module via modal contract wasm-upload..."
 modal contract wasm-upload \
     --dir "$CONTRACT_DIR" \
     --wasm-file "$WASM_FILE" \
-    --module-name "validator" \
+    --module-name "sequencer" \
     --output json > "$TMP_DIR/wasm-upload-output.json"
 
 cat "$TMP_DIR/wasm-upload-output.json"
@@ -47,8 +47,8 @@ COMMIT_ID=$(cat "$TMP_DIR/wasm-upload-output.json" | grep -o '"commit_id":"[^"]*
 
 echo "✓ WASM module uploaded"
 echo "  Commit ID: $COMMIT_ID"
-echo "  Module: validator"
-echo "  Path: /validator.wasm"
+echo "  Module: sequencer"
+echo "  Path: /sequencer.wasm"
 echo ""
 
 echo "=== WASM Upload Complete ==="

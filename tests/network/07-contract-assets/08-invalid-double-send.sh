@@ -5,7 +5,7 @@ echo "================================================"
 echo "Example: Invalid Double-Send (Insufficient Balance)"
 echo "================================================"
 echo ""
-echo "This example demonstrates that validators reject"
+echo "This example demonstrates that sequencers reject"
 echo "SEND commits when the sender lacks sufficient balance."
 echo ""
 
@@ -35,7 +35,7 @@ set -e
 
 if [ $EXIT_CODE -eq 0 ]; then
     echo "⚠️  WARNING: SEND was accepted locally!"
-    echo "   (It will be rejected by validators during consensus)"
+    echo "   (It will be rejected by sequencers during consensus)"
     COMMIT_ID=$(echo "$RESULT" | grep "Commit ID:" | awk '{print $3}')
     echo ""
     echo "   Commit ID: $COMMIT_ID"
@@ -46,7 +46,7 @@ if [ $EXIT_CODE -eq 0 ]; then
     if [ -n "$SKIP_PUSH" ]; then
         echo ""
         echo "   ⚠️  Skipping push (local mode)"
-        echo "   In network mode, the validator would reject this commit"
+        echo "   In network mode, the sequencer would reject this commit"
         echo "   with error: 'Insufficient balance: have 990000, need 1500000'"
     else
         set +e
@@ -58,7 +58,7 @@ if [ $EXIT_CODE -eq 0 ]; then
         
         if [ $PUSH_CODE -ne 0 ]; then
             echo ""
-            echo "   ✅ VALIDATOR REJECTED THE COMMIT!"
+            echo "   ✅ SEQUENCER REJECTED THE COMMIT!"
             echo "   Error: $PUSH_RESULT"
         else
             echo ""
@@ -78,7 +78,7 @@ echo "Key Points:"
 echo "================================================"
 echo ""
 echo "1. Local validation may allow the commit to be created"
-echo "2. Validators enforce balance checks at consensus level"
+echo "2. Sequencers enforce balance checks at consensus level"
 echo "3. Invalid SEND commits are rejected with clear errors"
 echo "4. Balance protection prevents double-spending"
 echo ""

@@ -188,7 +188,7 @@ export async function handler({ passfile, dir }) {
     }
   }
 
-  let network_config = { rounds: {} };
+  let network_config = { config_version: 2, rounds: {} };
   const rounds = fs.readdirSync(`${dir}/setup/rounds/`);
   let all_blocks_have_certs = true;
   for (const round_id of rounds) {

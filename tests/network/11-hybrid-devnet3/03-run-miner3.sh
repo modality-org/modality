@@ -27,7 +27,7 @@ c["miner_nominees"] = [
     "12D3KooW9qGaMuW7k2a5iEQ37gWgtjfFC4B3j5R1kKJPZofS62Se",
 ]
 c["hybrid_consensus"] = True
-c["run_validator"] = True
+c["run_sequencer"] = True
 c["initial_difficulty"] = 1
 c["status_port"] = 3313
 with open(path, "w") as f:

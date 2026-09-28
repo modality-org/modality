@@ -58,21 +58,21 @@ BOOTSTRAP_HEAD=$(cat "$CONTRACT_DIR/.contract/HEAD")
 
 assert_success \
     "modal node create --dir $NODE_DIR --from-template devnet1/node1" \
-    "Should create validator node"
+    "Should create sequencer node"
 modal node clear-storage --dir "$NODE_DIR" --yes >/dev/null 2>&1 || true
-NODE_PID=$(test_start_process "cd $NODE_DIR && modal node run-validator" "validator")
-assert_success "test_wait_for_port 10101" "Validator should listen on 10101"
+NODE_PID=$(test_start_process "cd $NODE_DIR && modal node run-sequencer" "sequencer")
+assert_success "test_wait_for_port 10101" "Sequencer should listen on 10101"
 sleep 3
 
 PUSH_BOOT=$(modal contract push --dir "$CONTRACT_DIR" --remote "$REMOTE" --remote-name origin --output json)
 echo "$PUSH_BOOT" >> "$CURRENT_LOG"
-VALIDATOR_LOG="$LOG_DIR/${CURRENT_TEST}_validator.log"
+SEQUENCER_LOG="$LOG_DIR/${CURRENT_TEST}_sequencer.log"
 
 expect_log() {
     local pattern="$1"
     local desc="$2"
     TESTS_RUN=$((TESTS_RUN + 1))
-    if test_wait_for_log "$VALIDATOR_LOG" "$pattern" 40; then
+    if test_wait_for_log "$SEQUENCER_LOG" "$pattern" 40; then
         TESTS_PASSED=$((TESTS_PASSED + 1))
         echo -e "  ${GREEN}✓${NC} $desc"
         return 0

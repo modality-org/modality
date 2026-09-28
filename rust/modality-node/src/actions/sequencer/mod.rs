@@ -28,7 +28,7 @@ use super::observer::{
 /// without mining blocks itself.
 pub async fn run(node: &mut Node) -> Result<()> {
     log::info!("Starting sequencer node");
-    super::contract_validator::maybe_start_worker(node);
+    super::validator::maybe_start_worker(node);
 
     // Create a channel to receive mining chain updates
     let (mining_update_tx, mining_update_rx) = tokio::sync::mpsc::unbounded_channel::<u64>();

@@ -1,4 +1,5 @@
 {
+  "config_version": 2,
   "id": "12D3KooW9qGaMuW7k2a5iEQ37gWgtjfFC4B3j5R1kKJPZofS62Se",
   "passfile_path": "./node.modal_passfile",
   "data_dir": "./data",

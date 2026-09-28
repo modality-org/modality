@@ -37,7 +37,7 @@ else
 fi
 
 echo ""
-echo "Two nodes partitioned. Network now has only 2 validators."
-echo "With n=4, f=1, we need quorum of 2f+1 = 3 validators."
+echo "Two nodes partitioned. Network now has only 2 sequencers."
+echo "With n=4, f=1, we need quorum of 2f+1 = 3 sequencers."
 echo "Consensus CANNOT continue - this demonstrates Byzantine threshold."
 

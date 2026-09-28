@@ -49,10 +49,10 @@ else
     echo -e "  ${RED}✗${NC} Config should use port 10101"
 fi
 
-# Test 5: Start node1 as validator
+# Test 5: Start node1 as sequencer
 echo ""
-echo "Test 5: Starting node1 as validator..."
-NODE1_PID=$(test_start_process "cd ./tmp/node1 && modal node run-validator" "node1")
+echo "Test 5: Starting node1 as sequencer..."
+NODE1_PID=$(test_start_process "cd ./tmp/node1 && modal node run-sequencer" "node1")
 
 # Wait for node1 to be ready on port 10101
 assert_success "test_wait_for_port 10101" "Node1 should start on port 10101"
@@ -63,19 +63,19 @@ echo ""
 echo "Test 6: Verifying node1 is running..."
 assert_success "kill -0 $NODE1_PID" "Node1 should still be running"
 
-# Test 7: Verify node is a static validator
+# Test 7: Verify node is a static sequencer
 echo ""
-echo "Test 7: Verifying node1 is running as a static validator..."
-sleep 3  # Wait for validator to start
-if grep -q "Found 1 static validators" ./tmp/test-logs/02-run-devnet1_node1.log && \
-   grep -q "Starting validator node" ./tmp/test-logs/02-run-devnet1_node1.log; then
+echo "Test 7: Verifying node1 is running as a static sequencer..."
+sleep 3  # Wait for sequencer to start
+if grep -q "Found 1 static sequencers" ./tmp/test-logs/02-run-devnet1_node1.log && \
+   grep -q "Starting sequencer node" ./tmp/test-logs/02-run-devnet1_node1.log; then
     TESTS_RUN=$((TESTS_RUN + 1))
     TESTS_PASSED=$((TESTS_PASSED + 1))
-    echo -e "  ${GREEN}✓${NC} Node1 should be running as a static validator"
+    echo -e "  ${GREEN}✓${NC} Node1 should be running as a static sequencer"
 else
     TESTS_RUN=$((TESTS_RUN + 1))
     TESTS_FAILED=$((TESTS_FAILED + 1))
-    echo -e "  ${RED}✗${NC} Node1 should be running as a static validator"
+    echo -e "  ${RED}✗${NC} Node1 should be running as a static sequencer"
 fi
 
 echo ""

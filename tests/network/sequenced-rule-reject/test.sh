@@ -73,15 +73,15 @@ grep -q "missing +signed_by(/parties/alice.id)" ./tmp/local-unsigned.err
 assert_file_exists ./tmp/local-unsigned.err "Unsigned local rejection should write diagnostics"
 
 echo ""
-echo "Starting sequencer (run-validator)..."
+echo "Starting sequencer (run-sequencer)..."
 assert_success \
     "modal node create --dir $NODE_DIR --from-template devnet1/node1" \
-    "Should create validator node"
+    "Should create sequencer node"
 modal node clear-storage --dir "$NODE_DIR" --yes >/dev/null 2>&1 || true
-NODE_PID=$(test_start_process "cd $NODE_DIR && modal node run-validator" "validator")
+NODE_PID=$(test_start_process "cd $NODE_DIR && modal node run-sequencer" "sequencer")
 # test_start_process runs in a subshell here, so track the PID for cleanup.
 PIDS+=("$NODE_PID")
-assert_success "test_wait_for_port 10101" "Validator should listen on 10101"
+assert_success "test_wait_for_port 10101" "Sequencer should listen on 10101"
 sleep 3
 
 echo ""
@@ -99,22 +99,22 @@ else
     echo "$PUSH_BOOT"
 fi
 
-VALIDATOR_LOG="$LOG_DIR/${CURRENT_TEST}_validator.log"
+SEQUENCER_LOG="$LOG_DIR/${CURRENT_TEST}_sequencer.log"
 expect_log() {
     local pattern="$1"
     local desc="$2"
     TESTS_RUN=$((TESTS_RUN + 1))
-    if test_wait_for_log "$VALIDATOR_LOG" "$pattern" 40; then
+    if test_wait_for_log "$SEQUENCER_LOG" "$pattern" 40; then
         TESTS_PASSED=$((TESTS_PASSED + 1))
         echo -e "  ${GREEN}✓${NC} $desc"
         return 0
     fi
     TESTS_FAILED=$((TESTS_FAILED + 1))
     echo -e "  ${RED}✗${NC} $desc"
-    if [ -f "$VALIDATOR_LOG" ]; then
-        echo "Last 40 lines of validator log:" >> "$CURRENT_LOG"
-        tail -40 "$VALIDATOR_LOG" >> "$CURRENT_LOG"
-        tail -20 "$VALIDATOR_LOG"
+    if [ -f "$SEQUENCER_LOG" ]; then
+        echo "Last 40 lines of sequencer log:" >> "$CURRENT_LOG"
+        tail -40 "$SEQUENCER_LOG" >> "$CURRENT_LOG"
+        tail -20 "$SEQUENCER_LOG"
     fi
     return 1
 }

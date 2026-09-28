@@ -23,8 +23,8 @@ echo "Network Partition and Recovery Test Suite"
 echo "=========================================="
 echo ""
 echo "This test demonstrates Byzantine-like resilience:"
-echo "  - n=4 validators (can tolerate f=1 Byzantine)"
-echo "  - Quorum threshold = 2f+1 = 3 validators"
+echo "  - n=4 sequencers (can tolerate f=1 Byzantine)"
+echo "  - Quorum threshold = 2f+1 = 3 sequencers"
 echo "  - Single node partition: consensus continues"
 echo "  - Two node partition: consensus halts (safety)"
 echo "  - Node recovery: automatic catch-up and rejoin"
@@ -33,7 +33,7 @@ echo ""
 # Test 1: Create and start all 4 nodes
 echo ""
 echo "=========================================="
-echo "Test 1: Starting 4-validator network"
+echo "Test 1: Starting 4-sequencer network"
 echo "=========================================="
 
 # Create all nodes first
@@ -57,19 +57,19 @@ done
 # Start all nodes
 echo ""
 echo "Starting node1..."
-NODE1_PID=$(test_start_process "cd $(pwd)/tmp/node1 && modal node run-validator" "node1")
+NODE1_PID=$(test_start_process "cd $(pwd)/tmp/node1 && modal node run-sequencer" "node1")
 assert_success "test_wait_for_port 10301" "Node1 should start on port 10301"
 
 echo "Starting node2..."
-NODE2_PID=$(test_start_process "cd $(pwd)/tmp/node2 && modal node run-validator" "node2")
+NODE2_PID=$(test_start_process "cd $(pwd)/tmp/node2 && modal node run-sequencer" "node2")
 assert_success "test_wait_for_port 10302" "Node2 should start on port 10302"
 
 echo "Starting node3..."
-NODE3_PID=$(test_start_process "cd $(pwd)/tmp/node3 && modal node run-validator" "node3")
+NODE3_PID=$(test_start_process "cd $(pwd)/tmp/node3 && modal node run-sequencer" "node3")
 assert_success "test_wait_for_port 10303" "Node3 should start on port 10303"
 
 echo "Starting node4..."
-NODE4_PID=$(test_start_process "cd $(pwd)/tmp/node4 && modal node run-validator" "node4")
+NODE4_PID=$(test_start_process "cd $(pwd)/tmp/node4 && modal node run-sequencer" "node4")
 
 # Wait for network to stabilize
 echo "Waiting for network to stabilize..."
@@ -93,7 +93,7 @@ assert_success "kill -0 $NODE3_PID" "Node3 should be running"
 assert_success "kill -0 $NODE4_PID" "Node4 should be running"
 
 echo ""
-echo "✓ All 4 validators are running and healthy"
+echo "✓ All 4 sequencers are running and healthy"
 
 # Test 3: Single node partition (Byzantine tolerance f=1)
 echo ""
@@ -102,7 +102,7 @@ echo "Test 3: Single node partition (f=1)"
 echo "=========================================="
 echo ""
 echo "Simulating network partition by killing node4..."
-echo "With n=4 validators, losing 1 node leaves 3 active."
+echo "With n=4 sequencers, losing 1 node leaves 3 active."
 echo "Quorum = 2f+1 = 3, so consensus CAN continue."
 echo ""
 
@@ -140,7 +140,7 @@ assert_success "kill -0 $NODE2_PID" "Node2 should still be running"
 assert_success "kill -0 $NODE3_PID" "Node3 should still be running"
 
 echo ""
-echo "✓ Network has 3 active validators (meets quorum of 3)"
+echo "✓ Network has 3 active sequencers (meets quorum of 3)"
 echo "  Consensus can continue despite single node partition"
 
 # Test 4: Node recovery
@@ -154,7 +154,7 @@ echo "Node should sync with network and rejoin consensus."
 echo ""
 
 # Restart node4 (without clearing storage to allow catch-up)
-NODE4_RECOVERED_PID=$(test_start_process "cd $(pwd)/tmp/node4 && modal node run-validator" "node4-recovered")
+NODE4_RECOVERED_PID=$(test_start_process "cd $(pwd)/tmp/node4 && modal node run-sequencer" "node4-recovered")
 
 # Wait for node to rejoin
 sleep 10
@@ -164,7 +164,7 @@ assert_success "kill -0 $NODE4_RECOVERED_PID" "Node4 should be running after rec
 
 echo ""
 echo "✓ Node4 successfully recovered and rejoined the network"
-echo "  All 4 validators are active again"
+echo "  All 4 sequencers are active again"
 
 # Test 5: Two-node partition (exceeds Byzantine threshold)
 echo ""
@@ -173,7 +173,7 @@ echo "Test 5: Two-node partition (exceeds f=1)"
 echo "=========================================="
 echo ""
 echo "Simulating severe partition by killing node3 and node4..."
-echo "With n=4 validators, losing 2 nodes leaves only 2 active."
+echo "With n=4 sequencers, losing 2 nodes leaves only 2 active."
 echo "Quorum = 2f+1 = 3, so consensus CANNOT continue."
 echo "This demonstrates the Byzantine threshold."
 echo ""
@@ -230,7 +230,7 @@ assert_success "kill -0 $NODE1_PID" "Node1 should still be running"
 assert_success "kill -0 $NODE2_PID" "Node2 should still be running"
 
 echo ""
-echo "✗ Network has only 2 active validators (below quorum of 3)"
+echo "✗ Network has only 2 active sequencers (below quorum of 3)"
 echo "  Consensus CANNOT continue - this demonstrates safety"
 echo "  System will not commit incorrect state without quorum"
 
@@ -244,11 +244,11 @@ echo "Recovering node3 and node4 to restore quorum..."
 echo ""
 
 # Restart node3
-NODE3_RECOVERED_PID=$(test_start_process "cd $(pwd)/tmp/node3 && modal node run-validator" "node3-recovered")
+NODE3_RECOVERED_PID=$(test_start_process "cd $(pwd)/tmp/node3 && modal node run-sequencer" "node3-recovered")
 assert_success "test_wait_for_port 10303" "Node3 should restart on port 10303"
 
 # Restart node4
-NODE4_FINAL_PID=$(test_start_process "cd $(pwd)/tmp/node4 && modal node run-validator" "node4-final")
+NODE4_FINAL_PID=$(test_start_process "cd $(pwd)/tmp/node4 && modal node run-sequencer" "node4-final")
 
 # Wait for network to stabilize
 sleep 10
@@ -265,7 +265,7 @@ assert_success "lsof -i :10302 -sTCP:LISTEN -t" "Node2 port should be listening"
 assert_success "lsof -i :10303 -sTCP:LISTEN -t" "Node3 port should be listening"
 
 echo ""
-echo "✓ All 4 validators recovered and operational"
+echo "✓ All 4 sequencers recovered and operational"
 echo "  Network has full quorum and can continue consensus"
 
 # Summary
@@ -275,17 +275,17 @@ echo "Test Summary"
 echo "=========================================="
 echo ""
 echo "Demonstrated network partition resilience:"
-echo "  ✓ 4-validator network with f=1 Byzantine tolerance"
+echo "  ✓ 4-sequencer network with f=1 Byzantine tolerance"
 echo "  ✓ Single node partition: consensus continues (3 >= 3 quorum)"
 echo "  ✓ Node recovery: automatic catch-up and rejoin"
 echo "  ✓ Two-node partition: consensus halts (2 < 3 quorum, safety)"
 echo "  ✓ Full recovery: network resumes normal operation"
 echo ""
 echo "Key insights:"
-echo "  - System tolerates up to f=1 validator failures"
+echo "  - System tolerates up to f=1 sequencer failures"
 echo "  - Safety is maintained: no commits without quorum"
 echo "  - Liveness resumes when quorum is restored"
-echo "  - Validators can rejoin and sync after network healing"
+echo "  - Sequencers can rejoin and sync after network healing"
 echo ""
 
 # Finalize test

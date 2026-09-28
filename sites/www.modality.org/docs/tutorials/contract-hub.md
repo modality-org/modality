@@ -16,7 +16,7 @@ or a **chain** remote (decentralized). A JavaScript hub remains under
 | URL format | `http://...` | `/ip4/.../p2p/...` |
 | Validation | Server-side (`modality-lang`) | Consensus |
 | Speed | Fast | Depends on network |
-| Trust | Hub operator | Validators |
+| Trust | Hub operator | Network consensus |
 
 ## Quick Start
 
@@ -74,7 +74,7 @@ modal c push origin
 For trustless operation, sync to the chain instead:
 
 ```bash
-modal c remote add chain /ip4/validator.modality.network/tcp/4001/p2p/12D3KooW...
+modal c remote add chain /ip4/sequencer.modality.network/tcp/4001/p2p/12D3KooW...
 modal c push chain
 ```
 

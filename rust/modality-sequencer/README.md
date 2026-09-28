@@ -1,18 +1,18 @@
-# modality-validator
+# modality-sequencer
 
-Blockchain sequencer for Modality - provides consensus for transaction ordering.
+Shoal/Narwhal sequencer for Modality: the ordering committee that turns
+certified DAG rounds into a total order of contract commits.
 
 ## Overview
 
-This package provides sequencer implementations for Modality nodes:
+`ShoalSequencer` is a Byzantine Fault Tolerant (BFT) sequencer built on:
+- **Narwhal**: certified DAG-based mempool for transaction dissemination
+  (`modality-sequencer-consensus`)
+- **Shoal**: pipelined consensus with leader reputation
 
-### Observer-based Sequencer (Legacy)
-The original implementation that wraps `modality-observer` functionality to track the canonical mining chain without participating in mining itself.
-
-### Shoal Consensus Sequencer (New)
-A high-performance Byzantine Fault Tolerant (BFT) consensus implementation based on the Shoal protocol, which combines:
-- **Narwhal**: Certified DAG-based mempool for transaction dissemination
-- **Shoal**: Pipelined consensus with leader reputation
+Ordered commits are applied with the `ContractProcessor` from
+`modality-validator`. Issuing prefix certificates is the separate validator
+role (`modality node run-validator`); a sequencer does not do it.
 
 ## Shoal Consensus Features
 
@@ -26,55 +26,26 @@ A high-performance Byzantine Fault Tolerant (BFT) consensus implementation based
 
 ## Usage
 
-### Observer-based Sequencer
-
 ```rust
-use modality_validator::{Sequencer, SequencerConfig};
-use modality_datastore::NetworkDatastore;
-use std::sync::Arc;
-use tokio::sync::Mutex;
-
-// Create datastore
-let datastore = Arc::new(Mutex::new(NetworkDatastore::new(storage_path).await?));
-
-// Create and initialize sequencer
-let sequencer = Sequencer::new_default(datastore).await?;
-sequencer.initialize().await?;
-
-// Get current chain tip
-let tip = sequencer.get_chain_tip().await;
-```
-
-### Shoal Consensus Sequencer
-
-```rust
-use modality_validator::{ShoalSequencer, ShoalSequencerConfig};
+use modality_sequencer::{ShoalSequencer, ShoalSequencerConfig};
 use modality_sequencer_consensus::narwhal::Transaction;
-use modality_datastore::NetworkDatastore;
+use modality_datastore::DatastoreManager;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
-// Create datastore
-let datastore = Arc::new(Mutex::new(NetworkDatastore::new(storage_path)?));
+let datastore = Arc::new(Mutex::new(DatastoreManager::open(data_dir)?));
 
-// Create configuration (4 sequencers, this is sequencer #0)
+// 4-sequencer committee; this node is sequencer #0
 let config = ShoalSequencerConfig::new_test(4, 0);
 
-// Create and initialize sequencer
 let sequencer = ShoalSequencer::new(datastore, config).await?;
 sequencer.initialize().await?;
 
-// Submit transactions
-let tx = Transaction {
-    data: vec![1, 2, 3],
-    timestamp: 1000,
-};
-sequencer.submit_transaction(tx).await?;
-
-// Propose batch and form certificate
+sequencer
+    .submit_transaction(Transaction { data: vec![1, 2, 3], timestamp: 1000 })
+    .await?;
 sequencer.propose_batch().await?;
 
-// Get consensus state
 let current_round = sequencer.get_current_round().await;
 let committed_round = sequencer.get_chain_tip().await;
 ```
@@ -158,7 +129,7 @@ See [BENCHMARKING_GUIDE.md](./docs/BENCHMARKING_GUIDE.md) for complete benchmark
 - ✅ Shoal consensus engine with pipelining
 - ✅ Leader reputation system with adaptive selection
 - ✅ Transaction ordering via topological sort
-- ✅ Full integration with `modality-validator`
+- ✅ Applies ordered commits with `modality-validator`'s contract processor
 - ✅ 50 unit tests + 10 integration tests (100% passing)
 - ✅ 9 comprehensive benchmark suites
 - ✅ Complete documentation (5 specification documents)

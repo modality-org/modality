@@ -219,7 +219,7 @@ pub async fn create_and_start_shoal_sequencer_weighted_with_epoch(
         sequencers, stakes, my_index,
     ) {
         Ok(config) => {
-            let validator_peer_id = config.sequencer_key.to_string();
+            let sequencer_peer_id = config.sequencer_key.to_string();
 
             match modality_sequencer::ShoalSequencer::new(datastore, config).await {
                 Ok(mut shoal_sequencer) => {
@@ -232,7 +232,7 @@ pub async fn create_and_start_shoal_sequencer_weighted_with_epoch(
                             spawn_consensus_loop_with_checkpoints(
                                 shoal_sequencer,
                                 datastore_for_loop,
-                                validator_peer_id,
+                                sequencer_peer_id,
                                 committee_size,
                                 keypair,
                                 swarm,
@@ -327,7 +327,7 @@ async fn ingest_into_shoal(
     }
 }
 
-/// Ask our contract-validator worker to certify REPOST/RECV sources a peer is sequencing.
+/// Ask our validator worker to certify REPOST/RECV sources a peer is sequencing.
 ///
 /// A dest commit pushed to one sequencer needs prefix certs from the other
 /// named validators too, and they only learn of it from that sequencer's blocks.
@@ -339,7 +339,7 @@ async fn queue_peer_prefix_cert_requests(
     if block.peer_id == own_peer_id || block.events.is_empty() {
         return;
     }
-    match crate::actions::contract_validator::queue_requests_for_events(
+    match crate::actions::validator::queue_requests_for_events(
         mgr,
         own_peer_id,
         &block.events,
@@ -912,7 +912,7 @@ async fn on_certificate_formed(
     shoal_sequencer: &modality_sequencer::ShoalSequencer,
     datastore: &Arc<Mutex<DatastoreManager>>,
     communication: &mut NodeCommunication,
-    validator_peer_id: &str,
+    sequencer_peer_id: &str,
     checkpoint_tracker: &mut CheckpointTracker,
     blocks_per_epoch: u64,
     store_tx: &mpsc::UnboundedSender<StoreJob>,
@@ -925,7 +925,7 @@ async fn on_certificate_formed(
     hand_off(
         store_tx,
         StoreJob::OwnCert(certified_block.clone()),
-        validator_peer_id,
+        sequencer_peer_id,
         datastore,
     )
     .await;
@@ -959,7 +959,7 @@ async fn on_certificate_formed(
     }
 
     if let Err(e) = communication
-        .broadcast_certified_block(validator_peer_id, certified_block)
+        .broadcast_certified_block(sequencer_peer_id, certified_block)
         .await
     {
         log::warn!("Failed to broadcast certified block: {}", e);
@@ -970,7 +970,7 @@ async fn on_certificate_formed(
 pub async fn spawn_consensus_loop_with_checkpoints(
     shoal_sequencer: modality_sequencer::ShoalSequencer,
     datastore: Arc<Mutex<DatastoreManager>>,
-    validator_peer_id: String,
+    sequencer_peer_id: String,
     committee_size: usize,
     keypair: Keypair,
     swarm: Arc<Mutex<NodeSwarm>>,
@@ -1000,14 +1000,14 @@ pub async fn spawn_consensus_loop_with_checkpoints(
         };
 
         let mut ack_collector =
-            AckCollector::new(validator_peer_id.clone(), keypair.clone(), committee_size);
+            AckCollector::new(sequencer_peer_id.clone(), keypair.clone(), committee_size);
 
         let mut checkpoint_tracker = CheckpointTracker::new(checkpoint_mode, blocks_per_epoch);
         checkpoint_tracker.on_epoch_change(sequencer_epoch);
 
         let (store_tx, mut store_rx) = mpsc::unbounded_channel::<StoreJob>();
         let store_datastore = datastore.clone();
-        let store_peer_id = validator_peer_id.clone();
+        let store_peer_id = sequencer_peer_id.clone();
         tokio::spawn(async move {
             while let Some(job) = store_rx.recv().await {
                 let mut jobs = vec![job];
@@ -1070,14 +1070,14 @@ pub async fn spawn_consensus_loop_with_checkpoints(
                             match ack_collector.handle_incoming_block(&block) {
                                 Ok(Some(ack)) => {
                                     if let Err(e) = communication.send_block_ack(
-                                        &validator_peer_id,
+                                        &sequencer_peer_id,
                                         &block.peer_id,
                                         &ack,
                                     ).await {
                                         log::warn!("Failed to send ack: {}", e);
                                     }
 
-                                    hand_off(&store_tx, StoreJob::PeerDraft(block), &validator_peer_id, &datastore).await;
+                                    hand_off(&store_tx, StoreJob::PeerDraft(block), &sequencer_peer_id, &datastore).await;
                                 }
                                 Ok(None) => {}
                                 Err(e) => {
@@ -1101,7 +1101,7 @@ pub async fn spawn_consensus_loop_with_checkpoints(
                                             &shoal_sequencer,
                                             &datastore,
                                             &mut communication,
-                                            &validator_peer_id,
+                                            &sequencer_peer_id,
                                             &mut checkpoint_tracker,
                                             blocks_per_epoch,
                                             &store_tx,
@@ -1119,7 +1119,7 @@ pub async fn spawn_consensus_loop_with_checkpoints(
                             log::debug!("Received certified block from {} for round {}",
                                 &from[..16.min(from.len())], block.round_id);
 
-                            if block.peer_id == validator_peer_id {
+                            if block.peer_id == sequencer_peer_id {
                                 continue;
                             }
                             let n = control.committee_size.load(Ordering::Relaxed).max(1);
@@ -1147,7 +1147,7 @@ pub async fn spawn_consensus_loop_with_checkpoints(
                             hand_off(
                                 &store_tx,
                                 StoreJob::PeerCert { block, committee_size: n },
-                                &validator_peer_id,
+                                &sequencer_peer_id,
                                 &datastore,
                             ).await;
                         }
@@ -1175,7 +1175,7 @@ pub async fn spawn_consensus_loop_with_checkpoints(
                     if round > DRAFT_ACK_WINDOW_ROUNDS {
                         let restored = ack_collector.cleanup_round(round - DRAFT_ACK_WINDOW_ROUNDS);
                         if !restored.is_empty() {
-                            hand_off(&store_tx, StoreJob::RestoreEvents(restored), &validator_peer_id, &datastore).await;
+                            hand_off(&store_tx, StoreJob::RestoreEvents(restored), &sequencer_peer_id, &datastore).await;
                         }
                     }
                     recent_certs.forget_before(round.saturating_sub(RECENT_CERT_ROUNDS));
@@ -1192,7 +1192,7 @@ pub async fn spawn_consensus_loop_with_checkpoints(
                             .cloned();
                         if let Some(stale) = stale {
                             log::debug!("Re-broadcasting uncertified draft for round {}", stale_round);
-                            if let Err(e) = communication.broadcast_draft_block(&validator_peer_id, &stale).await {
+                            if let Err(e) = communication.broadcast_draft_block(&sequencer_peer_id, &stale).await {
                                 log::warn!("Failed to re-broadcast draft for round {}: {}", stale_round, e);
                             }
                         }
@@ -1217,7 +1217,7 @@ pub async fn spawn_consensus_loop_with_checkpoints(
                                     Vec::new()
                                 }
                             };
-                            let named = mgr.contract_validators().unwrap_or_default();
+                            let named = mgr.validators().unwrap_or_default();
                             prefix_cert::filter_includable_events(raw, &named)
                         }
                         None => Vec::new(),
@@ -1225,7 +1225,7 @@ pub async fn spawn_consensus_loop_with_checkpoints(
                     drop(mgr);
 
                     let block = match create_sequencer_block(
-                        &validator_peer_id,
+                        &sequencer_peer_id,
                         round,
                         prev_round_certs.clone(),
                         &keypair,
@@ -1239,9 +1239,9 @@ pub async fn spawn_consensus_loop_with_checkpoints(
                     };
 
                     ack_collector.register_our_block(block.clone());
-                    hand_off(&store_tx, StoreJob::OwnDraft(block.clone()), &validator_peer_id, &datastore).await;
+                    hand_off(&store_tx, StoreJob::OwnDraft(block.clone()), &sequencer_peer_id, &datastore).await;
 
-                    if let Err(e) = communication.broadcast_draft_block(&validator_peer_id, &block).await {
+                    if let Err(e) = communication.broadcast_draft_block(&sequencer_peer_id, &block).await {
                         log::warn!("Failed to broadcast draft block for round {}: {}", round, e);
                     }
 
@@ -1254,7 +1254,7 @@ pub async fn spawn_consensus_loop_with_checkpoints(
                                     &shoal_sequencer,
                                     &datastore,
                                     &mut communication,
-                                    &validator_peer_id,
+                                    &sequencer_peer_id,
                                     &mut checkpoint_tracker,
                                     blocks_per_epoch,
                                     &store_tx,
@@ -1268,19 +1268,19 @@ pub async fn spawn_consensus_loop_with_checkpoints(
                         }
                     }
 
-                    hand_off(&store_tx, StoreJob::Round(round), &validator_peer_id, &datastore).await;
+                    hand_off(&store_tx, StoreJob::Round(round), &sequencer_peer_id, &datastore).await;
 
                     if round.is_multiple_of(10) {
                         log::info!("📦 Round {} block created (sequencer: {}, committee: {}, prev_certs: {})",
                             round,
-                            &validator_peer_id[..16.min(validator_peer_id.len())],
+                            &sequencer_peer_id[..16.min(sequencer_peer_id.len())],
                             ack_collector.committee_size,
                             prev_round_certs.len()
                         );
                     }
 
                     if round.is_multiple_of(5) {
-                        hand_off(&store_tx, StoreJob::Finalize(round), &validator_peer_id, &datastore).await;
+                        hand_off(&store_tx, StoreJob::Finalize(round), &sequencer_peer_id, &datastore).await;
                     }
                 }
             }
@@ -1365,7 +1365,7 @@ mod tests {
             let mgr = ds.lock().await;
             mgr.load_network_config(&json!({
                 "repost_requires_validator_cert": require_cert,
-                "contract_validators": named
+                "validators": named
             }))
             .await
             .unwrap();
@@ -1443,7 +1443,7 @@ mod tests {
             let mgr = ds.lock().await;
             mgr.load_network_config(&json!({
                 "repost_requires_validator_cert": require_cert,
-                "contract_validators": ["peer1"]
+                "validators": ["peer1"]
             }))
             .await
             .unwrap();

@@ -277,9 +277,9 @@ enum NodeCommands {
     RunSequencer(modality_cli_node::run_sequencer::Opts),
 
     #[command(
-        about = "Run a contract-validator node (prefix certificates; does not mine or sequence)"
+        about = "Run a validator node (prefix certificates; does not mine or sequence)"
     )]
-    RunContractValidator(modality_cli_node::run_contract_validator::Opts),
+    RunValidator(modality_cli_node::run_validator::Opts),
 
     #[command(about = "Run an observer node (observes mining, does not mine)")]
     RunObserver(modality_cli_node::run_observer::Opts),
@@ -408,8 +408,8 @@ enum RunCommands {
     #[command(about = "Run a sequencer node (orders events; does not mine)")]
     Sequencer(modality_cli_node::run_sequencer::Opts),
 
-    #[command(about = "Run a contract-validator node (prefix certificates)")]
-    ContractValidator(modality_cli_node::run_contract_validator::Opts),
+    #[command(about = "Run a validator node (prefix certificates)")]
+    Validator(modality_cli_node::run_validator::Opts),
 
     #[command(about = "Run an observer node (observes mining, does not mine)")]
     Observer(modality_cli_node::run_observer::Opts),
@@ -613,8 +613,8 @@ pub async fn run() -> Result<()> {
                 NodeCommands::RunSequencer(opts) => {
                     modality_cli_node::run_sequencer::run(opts).await?
                 }
-                NodeCommands::RunContractValidator(opts) => {
-                    modality_cli_node::run_contract_validator::run(opts).await?
+                NodeCommands::RunValidator(opts) => {
+                    modality_cli_node::run_validator::run(opts).await?
                 }
                 NodeCommands::RunObserver(opts) => {
                     modality_cli_node::run_observer::run(opts).await?
@@ -688,8 +688,8 @@ pub async fn run() -> Result<()> {
             RunCommands::Miner(opts) => modality_cli_node::run_miner::run(opts).await?,
             RunCommands::Hybrid(opts) => modality_cli_node::run_hybrid::run(opts).await?,
             RunCommands::Sequencer(opts) => modality_cli_node::run_sequencer::run(opts).await?,
-            RunCommands::ContractValidator(opts) => {
-                modality_cli_node::run_contract_validator::run(opts).await?
+            RunCommands::Validator(opts) => {
+                modality_cli_node::run_validator::run(opts).await?
             }
             RunCommands::Observer(opts) => modality_cli_node::run_observer::run(opts).await?,
         },
@@ -811,19 +811,19 @@ mod tests {
 
     #[cfg(feature = "full")]
     #[test]
-    fn node_run_contract_validator_parses() {
+    fn node_run_validator_parses() {
         use clap::Parser;
         let cli = Cli::try_parse_from([
             "modality",
             "node",
-            "run-contract-validator",
+            "run-validator",
             "--dir",
             "./tmp/node1",
         ])
         .unwrap();
         match cli.command {
             Commands::Node {
-                command: Some(NodeCommands::RunContractValidator(opts)),
+                command: Some(NodeCommands::RunValidator(opts)),
                 ..
             } => {
                 assert_eq!(
@@ -831,7 +831,7 @@ mod tests {
                     Some(std::path::Path::new("./tmp/node1"))
                 );
             }
-            _ => panic!("expected `node run-contract-validator`"),
+            _ => panic!("expected `node run-validator`"),
         }
     }
 

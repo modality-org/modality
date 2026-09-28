@@ -1,10 +1,10 @@
 # Network Partition and Recovery Example
 
-This example demonstrates how the Modality network handles network partitions and recovers from validator failures, showcasing Byzantine Fault Tolerance (BFT) resilience properties.
+This example demonstrates how the Modality network handles network partitions and recovers from sequencer failures, showcasing Byzantine Fault Tolerance (BFT) resilience properties.
 
 ## Overview
 
-Network partitions occur when validators become temporarily unreachable due to:
+Network partitions occur when sequencers become temporarily unreachable due to:
 - Network failures or connectivity issues
 - Node crashes or restarts
 - Hardware failures
@@ -16,60 +16,60 @@ This example simulates these scenarios and demonstrates how the consensus protoc
 
 ### Key Concepts
 
-**Byzantine Fault Tolerance (BFT)**: A system's ability to continue operating correctly even when some validators behave maliciously or fail arbitrarily.
+**Byzantine Fault Tolerance (BFT)**: A system's ability to continue operating correctly even when some sequencers behave maliciously or fail arbitrarily.
 
-**Safety**: The system never commits incorrect state or violates consensus rules. All honest validators agree on the same transaction order.
+**Safety**: The system never commits incorrect state or violates consensus rules. All honest sequencers agree on the same transaction order.
 
 **Liveness**: The system continues to make progress and commit new transactions when possible.
 
-**Byzantine Threshold**: Maximum number of faulty validators the system can tolerate:
-- Formula: `f = (n - 1) / 3` where `n` is total validators
-- For n=4: f=1 (can tolerate 1 Byzantine validator)
-- For n=7: f=2 (can tolerate 2 Byzantine validators)
+**Byzantine Threshold**: Maximum number of faulty sequencers the system can tolerate:
+- Formula: `f = (n - 1) / 3` where `n` is total sequencers
+- For n=4: f=1 (can tolerate 1 Byzantine sequencer)
+- For n=7: f=2 (can tolerate 2 Byzantine sequencers)
 
-**Quorum**: Minimum validators needed for consensus decisions:
+**Quorum**: Minimum sequencers needed for consensus decisions:
 - Formula: `quorum = 2f + 1`
-- For n=4, f=1: quorum = 3 validators
-- This ensures at least `f+1` honest validators participate
+- For n=4, f=1: quorum = 3 sequencers
+- This ensures at least `f+1` honest sequencers participate
 
 ### Why These Numbers?
 
 The requirement of `n ≥ 3f + 1` comes from the need to:
-1. Have enough honest validators to form quorum: `2f + 1`
-2. Ensure quorum always contains `f + 1` honest validators
-3. Tolerate up to `f` Byzantine validators
+1. Have enough honest sequencers to form quorum: `2f + 1`
+2. Ensure quorum always contains `f + 1` honest sequencers
+3. Tolerate up to `f` Byzantine sequencers
 
 Example with n=4, f=1:
-- Total validators: 4
-- Byzantine validators: ≤1
-- Honest validators: ≥3
+- Total sequencers: 4
+- Byzantine sequencers: ≤1
+- Honest sequencers: ≥3
 - Quorum requirement: 3
-- Result: Quorum is guaranteed to have at least 2 honest validators
+- Result: Quorum is guaranteed to have at least 2 honest sequencers
 
 ## Test Scenarios
 
 ### Network Configuration
 
-This example uses a 4-validator network:
-- **n = 4** validators (node1, node2, node3, node4)
+This example uses a 4-sequencer network:
+- **n = 4** sequencers (node1, node2, node3, node4)
 - **f = 1** Byzantine tolerance
-- **Quorum = 2f + 1 = 3** validators required
+- **Quorum = 2f + 1 = 3** sequencers required
 
 ### Scenario 1: Single Node Partition (Within Tolerance)
 
 **What happens:**
-- One validator (node4) is killed to simulate network partition
-- Three validators remain active
-- Network has exactly the quorum requirement (3 validators)
+- One sequencer (node4) is killed to simulate network partition
+- Three sequencers remain active
+- Network has exactly the quorum requirement (3 sequencers)
 
 **Expected behavior:**
-- ✓ Consensus continues with 3 validators
+- ✓ Consensus continues with 3 sequencers
 - ✓ Transactions can still be committed
 - ✓ System demonstrates liveness
-- ✓ Remaining validators maintain consistent state
+- ✓ Remaining sequencers maintain consistent state
 
 **Why it works:**
-With 3 active validators and quorum = 3, the network has exactly enough validators to continue consensus. This demonstrates tolerance of `f=1` failures.
+With 3 active sequencers and quorum = 3, the network has exactly enough sequencers to continue consensus. This demonstrates tolerance of `f=1` failures.
 
 ### Scenario 2: Node Recovery and Catch-up
 
@@ -80,18 +80,18 @@ With 3 active validators and quorum = 3, the network has exactly enough validato
 
 **Expected behavior:**
 - ✓ Node successfully reconnects to peers
-- ✓ Node syncs blocks and state from active validators
+- ✓ Node syncs blocks and state from active sequencers
 - ✓ Node resumes participation in consensus
-- ✓ Network returns to full strength (4 validators)
+- ✓ Network returns to full strength (4 sequencers)
 
 **Why it matters:**
-This demonstrates the network's self-healing properties. Validators can temporarily fail and recover without manual intervention or state corruption.
+This demonstrates the network's self-healing properties. Sequencers can temporarily fail and recover without manual intervention or state corruption.
 
 ### Scenario 3: Two-Node Partition (Exceeds Threshold)
 
 **What happens:**
-- Two validators (node3 and node4) are killed
-- Only two validators remain active
+- Two sequencers (node3 and node4) are killed
+- Only two sequencers remain active
 - Network has fewer than quorum requirement (2 < 3)
 
 **Expected behavior:**
@@ -101,13 +101,13 @@ This demonstrates the network's self-healing properties. Validators can temporar
 - ✓ Demonstrates Byzantine threshold enforcement
 
 **Why it fails safely:**
-With only 2 validators, the network cannot form a quorum of 3. This is **correct behavior** - the system prioritizes safety over liveness. It's better to halt than to risk committing inconsistent state.
+With only 2 sequencers, the network cannot form a quorum of 3. This is **correct behavior** - the system prioritizes safety over liveness. It's better to halt than to risk committing inconsistent state.
 
 ### Scenario 4: Full Network Recovery
 
 **What happens:**
 - Both partitioned nodes (node3 and node4) are restarted
-- All four validators become active again
+- All four sequencers become active again
 - Network exceeds quorum requirement (4 > 3)
 
 **Expected behavior:**
@@ -117,7 +117,7 @@ With only 2 validators, the network cannot form a quorum of 3. This is **correct
 - ✓ Transactions can be committed again
 
 **Why it works:**
-Once quorum is restored, the network automatically resumes consensus. The BFT protocol ensures all validators converge to the same state without manual intervention.
+Once quorum is restored, the network automatically resumes consensus. The BFT protocol ensures all sequencers converge to the same state without manual intervention.
 
 ## Running the Examples
 
@@ -131,7 +131,7 @@ Once quorum is restored, the network automatically resumes consensus. The BFT pr
 
 ### Run Individual Scripts
 
-1. **Start the 4-validator network:**
+1. **Start the 4-sequencer network:**
    ```bash
    ./01-run-node1.sh &  # Terminal 1
    ./02-run-node2.sh &  # Terminal 2
@@ -168,7 +168,7 @@ Run all scenarios automatically with assertions:
 ```
 
 The test suite will:
-- Start all 4 validators
+- Start all 4 sequencers
 - Verify network health
 - Simulate single-node partition
 - Demonstrate continued consensus
@@ -182,10 +182,10 @@ The test suite will:
 
 ### What This Demonstrates
 
-1. **Byzantine Tolerance**: System tolerates up to `f=1` validator failures
+1. **Byzantine Tolerance**: System tolerates up to `f=1` sequencer failures
 2. **Safety Guarantees**: No commits without quorum (prevents inconsistency)
 3. **Liveness Guarantees**: Progress continues when quorum exists
-4. **Automatic Recovery**: Validators rejoin and sync automatically
+4. **Automatic Recovery**: Sequencers rejoin and sync automatically
 5. **Threshold Enforcement**: System correctly enforces BFT limits
 
 ### What This Simulates
@@ -194,10 +194,10 @@ These partition scenarios are analogous to Byzantine behaviors:
 
 | Scenario | Byzantine Analogy |
 |----------|------------------|
-| Single node partition | One validator goes offline (withholding) |
-| Two-node partition | Multiple validators fail (exceeds threshold) |
-| Node recovery | Failed validator recovers and resyncs |
-| Slow node rejoin | Validator catching up after being offline |
+| Single node partition | One sequencer goes offline (withholding) |
+| Two-node partition | Multiple sequencers fail (exceeds threshold) |
+| Node recovery | Failed sequencer recovers and resyncs |
+| Slow node rejoin | Sequencer catching up after being offline |
 
 ### Differences from True Byzantine Tests
 
@@ -208,14 +208,14 @@ These partition scenarios are analogous to Byzantine behaviors:
 - State synchronization
 
 **What's NOT tested here:**
-- Equivocation (conflicting certificates from same validator)
+- Equivocation (conflicting certificates from same sequencer)
 - Sophisticated Byzantine attacks
 - Internal consensus state manipulation
 - Reputation system dynamics
 
 For precise Byzantine attack simulations (equivocation, sophisticated withholding), see the Rust unit tests:
-- `rust/modality-validator-consensus/tests/byzantine_equivocation_tests.rs`
-- `rust/modality-validator-consensus/tests/byzantine_withholding_tests.rs`
+- `rust/modality-sequencer-consensus/tests/byzantine_equivocation_tests.rs`
+- `rust/modality-sequencer-consensus/tests/byzantine_withholding_tests.rs`
 
 ## Understanding the Results
 
@@ -223,9 +223,9 @@ For precise Byzantine attack simulations (equivocation, sophisticated withholdin
 
 ```
 Network Status:
-  Total validators: 4
-  Active validators: 3
-  Byzantine validators: 1 (offline)
+  Total sequencers: 4
+  Active sequencers: 3
+  Byzantine sequencers: 1 (offline)
   Quorum requirement: 3
   Can commit: YES ✓
 ```
@@ -236,9 +236,9 @@ The network continues because `active (3) ≥ quorum (3)`.
 
 ```
 Network Status:
-  Total validators: 4
-  Active validators: 2
-  Byzantine validators: 2 (offline)
+  Total sequencers: 4
+  Active sequencers: 2
+  Byzantine sequencers: 2 (offline)
   Quorum requirement: 3
   Can commit: NO ✗
 ```
@@ -248,7 +248,7 @@ The network halts because `active (2) < quorum (3)`. This is **correct** - safet
 ## Related Examples
 
 - **01-ping-node**: Basic network connectivity
-- **03-run-devnet3**: Running a multi-validator devnet
+- **03-run-devnet3**: Running a multi-sequencer devnet
 - **04-sync-miner-blocks**: Block synchronization between nodes
 - **05-mining**: Transaction ordering and block production
 

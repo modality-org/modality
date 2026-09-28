@@ -1,4 +1,5 @@
 {
+  "config_version": 2,
   "name": "devnet1",
   "description": "Single sequencer development network",
   "difficulty": 1,
@@ -7,7 +8,7 @@
   "sequencers": [
     "12D3KooW9pte76rpnggcLYkFaawuTEs5DC5axHkg3cK3cewGxxHd"
   ],
-  "contract_validators": [
+  "validators": [
     "12D3KooW9pte76rpnggcLYkFaawuTEs5DC5axHkg3cK3cewGxxHd"
   ],
   "repost_requires_validator_cert": true,

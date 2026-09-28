@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
-# Push local commits to validators on the network
-# Requires a running validator node
+# Push local commits to sequencers on the network
+# Requires a running sequencer node
 
 set -e
 cd "$(dirname "$0")"
 
 CONTRACT_DIR="./tmp/my-contract"
-NODE_DIR="./tmp/validator-node"
+NODE_DIR="./tmp/sequencer-node"
 
-echo "📤 Pushing commits to validators..."
+echo "📤 Pushing commits to sequencers..."
 echo "==================================="
 echo ""
 
@@ -20,30 +20,30 @@ fi
 
 # Check if node is needed
 if [ ! -d "$NODE_DIR" ]; then
-    echo "⚙️  Setting up validator node..."
+    echo "⚙️  Setting up sequencer node..."
     modal node create --dir "$NODE_DIR" --from-template devnet1/node1
-    echo "✅ Validator node created"
+    echo "✅ Sequencer node created"
     echo ""
 fi
 
-# Start the validator node if not running
+# Start the sequencer node if not running
 if ! lsof -i :10101 -sTCP:LISTEN -t >/dev/null 2>&1; then
-    echo "🚀 Starting validator node..."
+    echo "🚀 Starting sequencer node..."
     cd "$NODE_DIR"
-    modal node run-validator > ../test-logs/validator.log 2>&1 &
-    VALIDATOR_PID=$!
+    modal node run-sequencer > ../test-logs/sequencer.log 2>&1 &
+    SEQUENCER_PID=$!
     cd - > /dev/null
     
     # Wait for node to be ready
-    echo "⏳ Waiting for validator to start..."
+    echo "⏳ Waiting for sequencer to start..."
     for i in {1..30}; do
         if lsof -i :10101 -sTCP:LISTEN -t >/dev/null 2>&1; then
-            echo "✅ Validator ready on port 10101"
+            echo "✅ Sequencer ready on port 10101"
             break
         fi
         sleep 1
         if [ $i -eq 30 ]; then
-            echo "❌ Timeout waiting for validator"
+            echo "❌ Timeout waiting for sequencer"
             exit 1
         fi
     done

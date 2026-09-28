@@ -84,7 +84,7 @@ pub struct NetworkParameters {
     pub miner_hash_func: String,
     pub mining_hash_params: Option<serde_json::Value>,
     #[serde(default)]
-    pub contract_validators: Vec<String>,
+    pub validators: Vec<String>,
     #[serde(default)]
     pub validator_min_stake: u64,
     #[serde(default)]
@@ -127,7 +127,7 @@ impl NetworkParameters {
             sequencers: Vec::new(),
             miner_hash_func: "randomx".to_string(),
             mining_hash_params: None,
-            contract_validators: Vec::new(),
+            validators: Vec::new(),
             validator_min_stake: 0,
             validation_fees: ValidationFees::default(),
             repost_requires_validator_cert: false,
@@ -166,7 +166,7 @@ mod tests {
             sequencers: vec!["peer1".to_string()],
             miner_hash_func: "randomx".to_string(),
             mining_hash_params: Some(custom_params),
-            contract_validators: Vec::new(),
+            validators: Vec::new(),
             validator_min_stake: 0,
             validation_fees: ValidationFees::default(),
             repost_requires_validator_cert: false,
@@ -181,7 +181,7 @@ mod tests {
     }
 
     #[test]
-    fn test_network_parameters_serde_defaults_for_contract_validators() {
+    fn test_network_parameters_serde_defaults_for_validators() {
         let json = serde_json::json!({
             "name": "t",
             "description": "d",
@@ -192,7 +192,7 @@ mod tests {
             "miner_hash_func": "sha256"
         });
         let params: NetworkParameters = serde_json::from_value(json).unwrap();
-        assert!(params.contract_validators.is_empty());
+        assert!(params.validators.is_empty());
         assert!(!params.repost_requires_validator_cert);
         assert_eq!(params.validation_fees.quote(10), 0);
         assert_eq!(params.validator_qc_numerator, VALIDATOR_QC_NUMERATOR);

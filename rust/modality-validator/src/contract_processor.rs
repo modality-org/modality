@@ -142,7 +142,7 @@ impl ContractProcessor {
         if !ds.dest_apply_requires_validator_cert().unwrap_or(false) {
             return Ok(());
         }
-        let named = ds.contract_validators()?;
+        let named = ds.validators()?;
         let n = named.len();
         let threshold = crate::prefix_cert::qc_threshold(
             n,
@@ -1393,7 +1393,7 @@ mod tests {
             let ds = datastore.lock().await;
             ds.load_network_config(&serde_json::json!({
                 "repost_requires_validator_cert": true,
-                "contract_validators": ["peer1"]
+                "validators": ["peer1"]
             }))
             .await
             .unwrap();
@@ -1492,7 +1492,7 @@ mod tests {
             let ds = datastore.lock().await;
             ds.load_network_config(&serde_json::json!({
                 "repost_requires_validator_cert": true,
-                "contract_validators": named
+                "validators": named
             }))
             .await
             .unwrap();
@@ -1619,7 +1619,7 @@ mod tests {
             let ds = datastore.lock().await;
             ds.load_network_config(&serde_json::json!({
                 "repost_requires_validator_cert": require_cert,
-                "contract_validators": named
+                "validators": named
             }))
             .await
             .unwrap();

@@ -19,6 +19,6 @@ echo ""
 echo "Directories created:"
 echo "  - tmp/alice (Alice's contract)"
 echo "  - tmp/bob (Bob's contract)"
-echo "  - tmp/node1 (devnet1 validator)"
+echo "  - tmp/node1 (devnet1 sequencer)"
 echo ""
 

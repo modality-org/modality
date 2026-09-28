@@ -17,7 +17,7 @@ This example shows how to:
 - `02-upload-wasm.sh` - Upload WASM validation module
 - `03-push-contract.sh` - Push to network
 - `04-test-validation.sh` - Test the validation
-- `validator.wasm` - Example WASM validation module (if available)
+- `sequencer.wasm` - Example WASM validation module (if available)
 - `README.md` - This file
 
 ## Prerequisites
@@ -68,7 +68,7 @@ After running the example:
 
 ## Next Steps
 
-- Try uploading your own custom WASM validator
+- Try uploading your own custom WASM sequencer
 - Experiment with different gas limits
-- Use the JavaScript SDK to interact with WASM validators
+- Use the JavaScript SDK to interact with WASM sequencers
 

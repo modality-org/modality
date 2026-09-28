@@ -301,7 +301,7 @@ async fn test_consensus_metadata() {
     // Update metadata
     metadata.current_round = 10;
     metadata.total_certificates = 100;
-    metadata.validator_peer_id = test_peer_id(1).to_base58();
+    metadata.sequencer_peer_id = test_peer_id(1).to_base58();
     metadata.save_to_final(&datastore).await.unwrap();
     
     // Reload and verify

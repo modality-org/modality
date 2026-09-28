@@ -173,7 +173,7 @@ run_test_suite "03-run-devnet3" "Run Devnet3" "normal"
 
 # Slow tests (long running, might timeout in CI)
 run_test_suite "05-mining" "Mining" "slow"
-# run_test_suite "06-static-validators" "Static Validators" "slow"
+# run_test_suite "06-static-sequencers" "Static Sequencers" "slow"
 
 # Print summary and exit with appropriate code
 print_summary

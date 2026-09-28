@@ -142,8 +142,8 @@ fn build_menu(
             config_exists,
         ),
         item(
-            PickedAction::Run(NodeRole::ContractValidator),
-            "Run contract validator",
+            PickedAction::Run(NodeRole::Validator),
+            "Run validator",
             "prefix certificates; do not mine or sequence",
             config_exists,
         ),

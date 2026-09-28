@@ -149,9 +149,9 @@ Each network is defined in a JSON file with the following structure:
 }
 ```
 
-### Static Validators (Optional)
+### Static Sequencers (Optional)
 
-Networks can optionally specify a static set of validators. If the `validators` field is present, the network will use these validators for consensus. If absent, validators are selected dynamically from mining epochs.
+Networks can optionally specify a static sequencer committee. If the `sequencers` field is present, those peers order events with Shoal consensus. If absent, sequencers are selected dynamically from mining epochs.
 
 ```json
 {
@@ -162,7 +162,7 @@ Networks can optionally specify a static set of validators. If the `validators` 
     "/ip4/127.0.0.1/tcp/10302/ws/p2p/12D3KooW9pypLnRn67EFjiWgEiDdqo8YizaPn8yKe5cNJd3PGnMB",
     "/ip4/127.0.0.1/tcp/10303/ws/p2p/12D3KooW9qGaMuW7k2a5iEQ37gWgtjfFC4B3j5R1kKJPZofS62Se"
   ],
-  "validators": [
+  "sequencers": [
     "12D3KooW9pte76rpnggcLYkFaawuTEs5DC5axHkg3cK3cewGxxHd",
     "12D3KooW9pypLnRn67EFjiWgEiDdqo8YizaPn8yKe5cNJd3PGnMB",
     "12D3KooW9qGaMuW7k2a5iEQ37gWgtjfFC4B3j5R1kKJPZofS62Se"
@@ -174,7 +174,9 @@ Networks can optionally specify a static set of validators. If the `validators` 
 - `name` (required): Unique identifier for the network
 - `description` (required): Human-readable description
 - `bootstrappers` (required): List of multiaddresses for network bootstrapping
-- `validators` (optional): List of peer IDs that form the static validator set. If present, all validators have equal stake. If absent, validators are selected dynamically from mining epochs.
+- `sequencers` (optional): List of peer IDs that form the static sequencer committee. If present, all sequencers have equal stake. If absent, sequencers are selected dynamically from mining epochs.
+- `validators` (optional): Peer IDs allowed to sign prefix certificates (the validator role). Distinct from `sequencers`.
+- `config_version`: `2`. A network config file loaded from disk without it is refused, because before version 2 `validators` meant the sequencer committee.
 
 ## Building
 

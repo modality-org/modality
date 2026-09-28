@@ -19,6 +19,7 @@ modal node create --dir "${SCRIPT_DIR}/tmp/miner1"
 # Configure miner1
 cat > "${SCRIPT_DIR}/tmp/miner1/config.json" << 'EOF'
 {
+  "config_version": 2,
   "passfile_path": "./node.modal_passfile",
   "data_dir": "./data",
   "listeners": ["/ip4/0.0.0.0/tcp/10401/ws"],
@@ -58,6 +59,7 @@ MINER1_PEER_ID=$(jq -r '.id' ./tmp/miner1/config.json)
 # Configure miner2
 cat > "${SCRIPT_DIR}/tmp/miner2/config.json" << EOF
 {
+  "config_version": 2,
   "passfile_path": "./node.modal_passfile",
   "data_dir": "./data",
   "listeners": ["/ip4/0.0.0.0/tcp/10402/ws"],

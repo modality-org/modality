@@ -95,12 +95,12 @@ pub async fn load_network_config(
             config_json["sequencers"] = serde_json::json!(sequencers);
         }
 
-        if let Some(contract_validators) = network_info.contract_validators {
+        if let Some(validators) = network_info.validators {
             log::info!(
-                "Found {} contract validators in network config",
-                contract_validators.len()
+                "Found {} validators in network config",
+                validators.len()
             );
-            config_json["contract_validators"] = serde_json::json!(contract_validators);
+            config_json["validators"] = serde_json::json!(validators);
         }
         config_json["validator_min_stake"] = serde_json::json!(network_info.validator_min_stake);
         if let Some(fees) = network_info.validation_fees {
@@ -141,7 +141,12 @@ pub async fn load_network_config(
         config_json
     } else {
         let config_str = std::fs::read_to_string(&network_config_path)?;
-        serde_json::from_str(&config_str)?
+        let network_config: serde_json::Value = serde_json::from_str(&config_str)?;
+        crate::config::check_config_version(
+            &network_config,
+            &format!("network config {}", network_config_path.display()),
+        )?;
+        network_config
     };
 
     // Load network config into NodeState store and apply shared genesis params

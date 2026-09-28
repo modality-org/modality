@@ -13,7 +13,7 @@ echo "=================================="
 echo ""
 
 # For this demo, we'll simulate pulling by creating a second contract instance
-# In a real scenario, this would pull from validators
+# In a real scenario, this would pull from sequencers
 
 # Ensure original contract exists
 if [ ! -d "$CONTRACT_DIR/.contract" ]; then
@@ -54,7 +54,7 @@ else
     echo "⚠️  Pull completed (check output for details)"
     echo ""
     echo "💡 Note: This example demonstrates the pull command."
-    echo "         In a real network, validators would serve the commits."
+    echo "         In a real network, sequencers would serve the commits."
 fi
 
 echo ""

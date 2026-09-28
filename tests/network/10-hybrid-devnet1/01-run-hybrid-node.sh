@@ -13,13 +13,14 @@ if [ ! -f "./tmp/node1/config.json" ]; then
     # Update config to use devnet1-hybrid network and enable hybrid consensus
     cat > "${SCRIPT_DIR}/tmp/node1/config.json" << 'EOF'
 {
+  "config_version": 2,
   "passfile_path": "./node.modal_passfile",
   "data_dir": "./data",
   "listeners": ["/ip4/0.0.0.0/tcp/10111/ws"],
   "network_config_path": "modality-networks://devnet1-hybrid",
   "run_miner": true,
   "hybrid_consensus": true,
-  "run_validator": true,
+  "run_sequencer": true,
   "initial_difficulty": 1,
   "status_port": 3111
 }
@@ -29,7 +30,7 @@ fi
 # Clear storage for clean test
 modal node clear-storage --dir ./tmp/node1 --yes
 
-# Run the hybrid node (both miner and validator)
+# Run the hybrid node (both miner and sequencer)
 echo "Starting hybrid node - will mine blocks and validate from epoch 2..."
 modal node run-miner --dir ./tmp/node1
 

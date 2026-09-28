@@ -26,6 +26,6 @@ echo "  1. Post message to /data/message"
 echo "  2. Post count to /data/count"
 echo "  3. Post timestamp to /data/executed_at"
 echo ""
-echo "Note: Program execution happens on validators during consensus"
-echo "      In a local-only setup, push to a running validator to see results"
+echo "Note: Program execution happens on sequencers during consensus"
+echo "      In a local-only setup, push to a running sequencer to see results"
 

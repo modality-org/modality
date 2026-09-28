@@ -1,4 +1,5 @@
 {
+  "config_version": 2,
   "passfile_path": "../../../../fixtures/passfiles/node2.mod_passfile",
   "storage_path": "/Users/dotcontract/work/modality-dev/modality/examples/network/05-mining/tmp/storage/node2",
   "listeners": ["/ip4/0.0.0.0/tcp/4042/ws"],

@@ -29,7 +29,7 @@ The following parameters are stored in the genesis contract:
 - `/network/difficulty.number` - Initial mining difficulty
 - `/network/target_block_time_secs.number` - Target block time in seconds
 - `/network/blocks_per_epoch.number` - Blocks per epoch (default: 40)
-- `/network/validators/{index}.text` - Validator peer IDs
+- `/network/sequencers/{index}.text` - Sequencer peer IDs
 - `/network/bootstrappers/{index}.text` - Bootstrapper multiaddresses
 
 ## How It Works
@@ -51,7 +51,7 @@ const commit = {
 
 ### Processing During Consensus
 
-When validators process round 0, the contract processor (Rust) handles POST actions:
+When sequencers process round 0, the contract processor (Rust) handles POST actions:
 
 ```rust
 // In rust/modality-validator/src/contract_processor.rs
@@ -74,7 +74,7 @@ if let Some(genesis_contract_id) = network_config.get("genesis_contract_id") {
     let params = datastore
         .load_network_parameters_from_contract(genesis_contract_id)
         .await?;
-    // Use params.initial_difficulty, params.validators, etc.
+    // Use params.initial_difficulty, params.sequencers, etc.
 }
 ```
 
@@ -122,8 +122,8 @@ Running: Step 4: Verify parameter values
   ✓ Name contains 'devnet1'
   Difficulty: 1
   ✓ Difficulty is 1
-  Validator 0: 12D3KooW9pte76rpnggcLYkFaawuTEs5DC5axHkg3cK3cewGxxHd
-  ✓ Validator ID looks valid
+  Sequencer 0: 12D3KooW9pte76rpnggcLYkFaawuTEs5DC5axHkg3cK3cewGxxHd
+  ✓ Sequencer ID looks valid
 ✓ Step 4: Verify parameter values passed
 
 ================================================
@@ -140,7 +140,7 @@ Parameters are stored with this key format in the datastore:
 ```
 /contracts/${contract_id}/network/name.text → "devnet1"
 /contracts/${contract_id}/network/difficulty.number → "1"
-/contracts/${contract_id}/network/validators/0.text → "12D3KooW..."
+/contracts/${contract_id}/network/sequencers/0.text → "12D3KooW..."
 ```
 
 ## Implementation Files

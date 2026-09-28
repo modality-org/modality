@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Integration test for 11-hybrid-devnet3 example
-# Tests 3-miner/3-validator hybrid consensus
+# Tests 3-miner/3-sequencer hybrid consensus
 
 set -e
 cd "$(dirname "$0")"
@@ -20,12 +20,12 @@ test_init "11-hybrid-devnet3"
 
 echo ""
 echo "============================================"
-echo "Testing Hybrid Devnet3 - 3 Miners/Validators"
+echo "Testing Hybrid Devnet3 - 3 Miners/Sequencers"
 echo "============================================"
 
 # Test 1: Start all 3 hybrid nodes
 echo ""
-echo "Test 1: Starting 3 hybrid miner/validator nodes..."
+echo "Test 1: Starting 3 hybrid miner/sequencer nodes..."
 NODE1_PID=$(test_start_process "cd $(pwd) && ./01-run-miner1.sh" "node1")
 assert_success "test_wait_for_port 10311" "Node1 should start on port 10311"
 sleep 3
@@ -121,65 +121,65 @@ else
     test_fail "At least one node should broadcast epoch transition"
 fi
 
-# Test 5: Verify validator set was generated from epoch 0
+# Test 5: Verify sequencer set was generated from epoch 0
 echo ""
-echo "Test 5: Checking validator set generation..."
-VALIDATOR_SET_COUNT=0
+echo "Test 5: Checking sequencer set generation..."
+SEQUENCER_SET_COUNT=0
 for i in 1 2 3; do
     NODE_LOG="$LOG_DIR/${CURRENT_TEST}_node${i}.log"
-    if [ -f "$NODE_LOG" ] && grep -q "Validator set for epoch 2" "$NODE_LOG"; then
-        echo "✅ Node${i} generated validator set"
-        VALIDATOR_SET_COUNT=$((VALIDATOR_SET_COUNT + 1))
+    if [ -f "$NODE_LOG" ] && grep -q "Sequencer set for epoch 2" "$NODE_LOG"; then
+        echo "✅ Node${i} generated sequencer set"
+        SEQUENCER_SET_COUNT=$((SEQUENCER_SET_COUNT + 1))
     fi
 done
 
-if [ $VALIDATOR_SET_COUNT -gt 0 ]; then
-    echo "✅ PASS: Validator set generated from epoch 0 nominations"
+if [ $SEQUENCER_SET_COUNT -gt 0 ]; then
+    echo "✅ PASS: Sequencer set generated from epoch 0 nominations"
 else
-    echo "❌ FAIL: No validator set generated"
-    test_fail "Validator set should be generated"
+    echo "❌ FAIL: No sequencer set generated"
+    test_fail "Sequencer set should be generated"
 fi
 
-# Test 6: Check which nodes became validators
+# Test 6: Check which nodes became sequencers
 echo ""
-echo "Test 6: Identifying validators for epoch 2..."
-VALIDATOR_COUNT=0
+echo "Test 6: Identifying sequencers for epoch 2..."
+SEQUENCER_COUNT=0
 for i in 1 2 3; do
     NODE_LOG="$LOG_DIR/${CURRENT_TEST}_node${i}.log"
     if [ -f "$NODE_LOG" ]; then
-        if grep -q "This node IS a validator for epoch 2" "$NODE_LOG"; then
-            echo "✅ Node${i} IS a validator for epoch 2"
-            VALIDATOR_COUNT=$((VALIDATOR_COUNT + 1))
+        if grep -q "This node IS a sequencer for epoch 2" "$NODE_LOG"; then
+            echo "✅ Node${i} IS a sequencer for epoch 2"
+            SEQUENCER_COUNT=$((SEQUENCER_COUNT + 1))
             
             # Check if Shoal consensus started
             if grep -q "Starting Shoal consensus" "$NODE_LOG"; then
                 echo "  ✓ Node${i} started Shoal consensus"
             else
                 echo "  ❌ Node${i} did not start consensus"
-                test_fail "Validator should start consensus"
+                test_fail "Sequencer should start consensus"
             fi
-        elif grep -q "This node is NOT in the validator set" "$NODE_LOG"; then
-            echo "ℹ️  Node${i} is NOT a validator for epoch 2"
+        elif grep -q "This node is NOT in the sequencer set" "$NODE_LOG"; then
+            echo "ℹ️  Node${i} is NOT a sequencer for epoch 2"
         fi
     fi
 done
 
 echo ""
-echo "Validator count for epoch 2: ${VALIDATOR_COUNT}"
+echo "Sequencer count for epoch 2: ${SEQUENCER_COUNT}"
 
-# All 3 nodes nominate all 3 peer IDs, so all should become validators
-if [ $VALIDATOR_COUNT -eq 3 ]; then
-    echo "✅ PASS: All 3 nodes are validators (expected with full cross-nomination)"
-elif [ $VALIDATOR_COUNT -gt 0 ]; then
-    echo "✅ PASS: ${VALIDATOR_COUNT} node(s) became validator(s)"
+# All 3 nodes nominate all 3 peer IDs, so all should become sequencers
+if [ $SEQUENCER_COUNT -eq 3 ]; then
+    echo "✅ PASS: All 3 nodes are sequencers (expected with full cross-nomination)"
+elif [ $SEQUENCER_COUNT -gt 0 ]; then
+    echo "✅ PASS: ${SEQUENCER_COUNT} node(s) became sequencer(s)"
 else
-    echo "❌ FAIL: No validators activated"
-    test_fail "At least one node should be a validator"
+    echo "❌ FAIL: No sequencers activated"
+    test_fail "At least one node should be a sequencer"
 fi
 
 # Test 7: Verify continued mining
 echo ""
-echo "Test 7: Verifying continued mining after validator activation..."
+echo "Test 7: Verifying continued mining after sequencer activation..."
 sleep 10
 for i in 1 2 3; do
     NODE_LOG="$LOG_DIR/${CURRENT_TEST}_node${i}.log"
@@ -258,8 +258,8 @@ echo "============================================"
 echo ""
 echo "Hybrid consensus working with 3 nodes:"
 echo "  ✓ All nodes mine blocks in epochs 0-1"
-echo "  ✓ Validator set generated from epoch 0 at epoch 2"
-echo "  ✓ Validators activated at epoch 2"
+echo "  ✓ Sequencer set generated from epoch 0 at epoch 2"
+echo "  ✓ Sequencers activated at epoch 2"
 echo "  ✓ Mining and validation run concurrently"
 echo "  ✓ Multi-node consensus coordination"
 echo "  ✓ Sequenced contract push and pull"

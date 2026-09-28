@@ -1,4 +1,5 @@
 {
+  "config_version": 2,
   "passfile_path": "../passfiles/node1.mod_passfile",
   "data_dir": "../../tmp/data/miner-test",
   "listeners": ["/ip4/0.0.0.0/tcp/10201/ws"],

@@ -16,7 +16,7 @@ pub struct ConsensusMetadata {
     pub last_anchor_round: Option<u64>,
 
     // Sequencer info
-    pub validator_peer_id: String,
+    pub sequencer_peer_id: String,
     pub committee_size: usize,
     pub committee_epoch: u64,
 
@@ -41,7 +41,7 @@ impl Model for ConsensusMetadata {
         "current_round",
         "highest_committed_round",
         "last_anchor_round",
-        "validator_peer_id",
+        "sequencer_peer_id",
         "committee_size",
         "committee_epoch",
         "total_certificates",
@@ -63,8 +63,8 @@ impl Model for ConsensusMetadata {
                 self.highest_committed_round = value.as_u64().unwrap_or_default()
             }
             "last_anchor_round" => self.last_anchor_round = value.as_u64(),
-            "validator_peer_id" => {
-                self.validator_peer_id = value.as_str().unwrap_or_default().to_string()
+            "sequencer_peer_id" => {
+                self.sequencer_peer_id = value.as_str().unwrap_or_default().to_string()
             }
             "committee_size" => self.committee_size = value.as_u64().unwrap_or_default() as usize,
             "committee_epoch" => self.committee_epoch = value.as_u64().unwrap_or_default(),
@@ -107,7 +107,7 @@ impl ConsensusMetadata {
                     current_round: 0,
                     highest_committed_round: 0,
                     last_anchor_round: None,
-                    validator_peer_id: String::new(),
+                    sequencer_peer_id: String::new(),
                     committee_size: 0,
                     committee_epoch: 0,
                     total_certificates: 0,

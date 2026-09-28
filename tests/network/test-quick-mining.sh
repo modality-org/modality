@@ -20,6 +20,7 @@ echo '{"keypair":{"public_key":"ed01209c258f5d9487d557f3d1e3a0c4e20c3e0a7a6df2a6
 # Create config
 cat > ./tmp/quick-mining-test/config.json << CONFIG_EOF
 {
+  "config_version": 2,
   "passfile_path": "./node.modal_passfile",
   "data_dir": "./data",
   "network_config_path": "./network-config/config.json",

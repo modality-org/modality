@@ -624,7 +624,7 @@ mod tests {
         assert_eq!(display_node_role("hybrid"), "Miner+Sequencer");
         assert_eq!(display_node_role("Miner+Sequencer"), "Miner+Sequencer");
         assert_eq!(display_node_role("sequencer"), "Sequencer");
-        assert_eq!(display_node_role("contract-validator"), "Validator");
+        assert_eq!(display_node_role("validator"), "Validator");
         assert_eq!(display_node_role("observer"), "Observer");
     }
 

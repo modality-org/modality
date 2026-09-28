@@ -58,7 +58,7 @@ pub struct Node {
     pub hybrid_consensus: bool,
     pub run_miner: bool,
     pub run_sequencer: bool,
-    pub run_contract_validator: bool,
+    pub run_validator: bool,
     pub network_name: String,
     pub role: String,
     pub ignored_peers: Arc<Mutex<HashMap<PeerId, IgnoredPeerInfo>>>,
@@ -108,19 +108,13 @@ impl Node {
 
         // Determine run_sequencer based on run_as or explicit flag
         let run_sequencer = if let Some(ref run_as) = config.run_as {
-            matches!(
-                run_as.as_str(),
-                "sequencer" | "Sequencer"
-            )
+            matches!(run_as.as_str(), "sequencer" | "Sequencer")
         } else {
             config.run_sequencer.unwrap_or(false)
         };
 
-        let run_contract_validator = config.run_contract_validator.unwrap_or(false)
-            || matches!(
-                config.run_as.as_deref(),
-                Some("contract-validator" | "contract_validator")
-            );
+        let run_validator = config.run_validator.unwrap_or(false)
+            || matches!(config.run_as.as_deref(), Some("validator"));
 
         let run_miner = if let Some(ref run_as) = config.run_as {
             matches!(run_as.to_ascii_lowercase().as_str(), "miner" | "hybrid")
@@ -176,7 +170,7 @@ impl Node {
             hybrid_consensus,
             run_miner,
             run_sequencer,
-            run_contract_validator,
+            run_validator,
             network_name,
             role,
             ignored_peers: Arc::new(Mutex::new(HashMap::new())),
@@ -235,7 +229,7 @@ impl Node {
             hybrid_consensus: self.hybrid_consensus,
             run_miner: self.run_miner,
             run_sequencer: self.run_sequencer,
-            run_contract_validator: self.run_contract_validator,
+            run_validator: self.run_validator,
             datastore: self.datastore_manager.clone(),
             swarm: self.swarm.clone(),
             mining_metrics: self.mining_metrics.clone(),

@@ -2,7 +2,7 @@
 
 ## Overview
 
-The contract commands have been rearchitected to follow a local-first, git-like workflow. Contracts are now stored in local directories and synced to/from validator nodes using a dedicated protocol.
+The contract commands have been rearchitected to follow a local-first, git-like workflow. Contracts are now stored in local directories and synced to/from sequencer nodes using a dedicated protocol.
 
 ## Architecture
 
@@ -77,10 +77,10 @@ modal contract commit --dir ./my-contract --path /rate --value 7.5
 
 ### `modal contract push`
 
-Pushes local commits to chain validators.
+Pushes local commits to chain sequencers.
 
 ```bash
-# Push to a validator node
+# Push to a sequencer node
 modal contract push --remote /ip4/127.0.0.1/tcp/10101/p2p/12D3...
 
 # Specify remote name
@@ -113,7 +113,7 @@ modal contract pull --remote-name origin
 ```
 
 **What it does:**
-1. Queries validator node via `/contract/pull` reqres
+1. Queries sequencer node via `/contract/pull` reqres
 2. Downloads missing commits
 3. Writes commits to `.contract/commits/`
 4. Updates remote and local HEAD
@@ -277,7 +277,7 @@ modal contract commit --path /rules --value "always valid"
 # 3. Check status
 modal contract status
 
-# 4. Push to validator node
+# 4. Push to sequencer node
 modal contract push --remote /ip4/127.0.0.1/tcp/10101/p2p/12D3...
 
 # 5. Later, pull updates from chain
@@ -293,7 +293,7 @@ The old `modal contract create` and `modal contract commit` commands worked diff
 
 **Old behavior:**
 - Created contracts directly in node datastore
-- Commits submitted immediately to nodes/validators
+- Commits submitted immediately to nodes/sequencers
 - No local storage or version control
 
 **New behavior:**

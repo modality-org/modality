@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Simulate partitioning a single node (node4) from the network
-# This demonstrates that consensus can continue with n-1 validators (f=1 tolerable)
+# This demonstrates that consensus can continue with n-1 sequencers (f=1 tolerable)
 
 cd $(dirname -- "$0")
 set -e
@@ -23,6 +23,6 @@ else
     kill -9 "$NODE4_PID" 2>/dev/null || true
 fi
 
-echo "Node4 partitioned. Network should continue with 3 validators (quorum = 3)."
-echo "Consensus can continue as we have exactly 2f+1 validators remaining."
+echo "Node4 partitioned. Network should continue with 3 sequencers (quorum = 3)."
+echo "Consensus can continue as we have exactly 2f+1 sequencers remaining."
 

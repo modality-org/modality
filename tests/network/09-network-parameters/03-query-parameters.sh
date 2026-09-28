@@ -23,11 +23,11 @@ modal node inspect \
     > ./tmp/test-network-params/difficulty.txt 2>&1 || echo "(not found yet)"
 
 echo ""
-echo "Checking for /network/validators/0..."
+echo "Checking for /network/sequencers/0..."
 modal node inspect \
     --config ./tmp/test-network-params/config.json \
-    datastore-get "/contracts/$GENESIS_CONTRACT_ID/network/validators/0.text" \
-    > ./tmp/test-network-params/validator0.txt 2>&1 || echo "(not found yet)"
+    datastore-get "/contracts/$GENESIS_CONTRACT_ID/network/sequencers/0.text" \
+    > ./tmp/test-network-params/sequencer0.txt 2>&1 || echo "(not found yet)"
 
 echo ""
 echo "✓ Parameter query complete"

@@ -32,12 +32,12 @@ echo "Step 3: Viewing status..."
 echo "-------------------------"
 ./03-view-status.sh
 
-# Step 4: (Optional) Push to validators
+# Step 4: (Optional) Push to sequencers
 echo ""
-echo "Step 4: Pushing to validators..."
+echo "Step 4: Pushing to sequencers..."
 echo "---------------------------------"
-echo "⚠️  Note: This requires a running validator. Skipping for now."
-echo "    Run ./04-push-to-validators.sh manually if you have a validator running."
+echo "⚠️  Note: This requires a running sequencer. Skipping for now."
+echo "    Run ./04-push-to-sequencers.sh manually if you have a sequencer running."
 
 echo ""
 echo "✅ Contract lifecycle demonstration complete!"
@@ -52,5 +52,5 @@ echo ""
 echo "🎯 Next steps:"
 echo "   • View contract: cd ./tmp/my-contract && modal contract status"
 echo "   • Add more commits: cd ./tmp/my-contract && modal contract commit --path /test.text --value 'data'"
-echo "   • Push to network: ./04-push-to-validators.sh (requires validator)"
+echo "   • Push to network: ./04-push-to-sequencers.sh (requires sequencer)"
 

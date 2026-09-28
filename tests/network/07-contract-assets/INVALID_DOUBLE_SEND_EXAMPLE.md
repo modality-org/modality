@@ -10,7 +10,7 @@ The script attempts to send more tokens than the sender has available:
 
 - **Alice's Balance**: ~990,000 tokens (after sending 10,000 to Bob)
 - **Attempted Send**: 1,500,000 tokens
-- **Result**: Validator rejects with error: `"Insufficient balance: have 990000, need 1500000"`
+- **Result**: Sequencer rejects with error: `"Insufficient balance: have 990000, need 1500000"`
 
 ## Files Added/Modified
 
@@ -36,7 +36,7 @@ $ ./08-invalid-double-send.sh
 Example: Invalid Double-Send (Insufficient Balance)
 ================================================
 
-This example demonstrates that validators reject
+This example demonstrates that sequencers reject
 SEND commits when the sender lacks sufficient balance.
 
 📊 Current State:
@@ -47,14 +47,14 @@ Balance of asset my_token: 990000
 ❌ Attempting to send 1,500,000 tokens (Alice only has ~990,000)...
 
 ⚠️  WARNING: SEND was accepted locally!
-   (It will be rejected by validators during consensus)
+   (It will be rejected by sequencers during consensus)
 
    Commit ID: 790e7c...
 
    Let's try to push it...
 
    ⚠️  Skipping push (local mode)
-   In network mode, the validator would reject this commit
+   In network mode, the sequencer would reject this commit
    with error: 'Insufficient balance: have 990000, need 1500000'
 
 ================================================
@@ -62,7 +62,7 @@ Key Points:
 ================================================
 
 1. Local validation may allow the commit to be created
-2. Validators enforce balance checks at consensus level
+2. Sequencers enforce balance checks at consensus level
 3. Invalid SEND commits are rejected with clear errors
 4. Balance protection prevents double-spending
 ```
@@ -78,7 +78,7 @@ This example teaches users:
 2. **Balance Protection**:
    - Cannot send more than you have
    - Prevents double-spending attacks
-   - Validators enforce integrity
+   - Sequencers enforce integrity
 
 3. **Clear Error Messages**:
    - Explicit balance amounts in errors
@@ -99,7 +99,7 @@ This example teaches users:
 - ✅ All 27 tests pass
 
 ### Network Test (test-devnet1.sh)
-- Could be integrated to show actual validator rejection
+- Could be integrated to show actual sequencer rejection
 - Would demonstrate real consensus enforcement
 - Currently focused on happy path
 
@@ -149,7 +149,7 @@ fi
 
 ### Network vs Local Modes
 - **Local Mode** (`SKIP_PUSH=1`): Shows what would happen
-- **Network Mode**: Could show actual validator rejection
+- **Network Mode**: Could show actual sequencer rejection
 - Both modes teach the same concepts
 
 ## Benefits
@@ -163,7 +163,7 @@ fi
 ## Future Enhancements
 
 Potential additions:
-- Show validator logs with rejection details
+- Show sequencer logs with rejection details
 - Demonstrate retry with correct amount
 - Show balance recovery after rejection
 - Add network mode validation in test-devnet1.sh
@@ -176,5 +176,5 @@ Potential additions:
 ✅ **Tested**: Integrated into test suite (27 tests passing)  
 ✅ **Educational**: Clear explanations of consensus validation  
 
-The example successfully demonstrates that **validators enforce balance checks at the consensus level**, preventing double-spending and maintaining asset system integrity! 🎉
+The example successfully demonstrates that **sequencers enforce balance checks at the consensus level**, preventing double-spending and maintaining asset system integrity! 🎉
 

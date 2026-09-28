@@ -39,5 +39,5 @@ echo "📋 Summary:"
 echo "   Contract ID: $CONTRACT_ID"
 echo "   Local commits: $LOCAL_COMMITS"
 echo ""
-echo "💡 Tip: Push commits to validators with: modal contract push"
+echo "💡 Tip: Push commits to sequencers with: modal contract push"
 

@@ -176,25 +176,25 @@ if [ -f "$CONTRACT_DIR/status.json" ]; then
     fi
 fi
 
-# Test 8: Setup validator node for push test
+# Test 8: Setup sequencer node for push test
 echo ""
-echo "Test 8: Setting up validator node for push test..."
-NODE_DIR="./tmp/validator-node"
+echo "Test 8: Setting up sequencer node for push test..."
+NODE_DIR="./tmp/sequencer-node"
 assert_success \
     "modal node create --dir $NODE_DIR --from-template devnet1/node1" \
-    "Should create validator node"
+    "Should create sequencer node"
 
-# Test 9: Start validator node
+# Test 9: Start sequencer node
 echo ""
-echo "Test 9: Starting validator node..."
-NODE_PID=$(test_start_process "cd $NODE_DIR && modal node run-validator" "validator")
+echo "Test 9: Starting sequencer node..."
+NODE_PID=$(test_start_process "cd $NODE_DIR && modal node run-sequencer" "sequencer")
 
-assert_success "test_wait_for_port 10101" "Validator should start on port 10101"
-sleep 3  # Give validator time to fully initialize
+assert_success "test_wait_for_port 10101" "Sequencer should start on port 10101"
+sleep 3  # Give sequencer time to fully initialize
 
-# Test 10: Push commits to validator
+# Test 10: Push commits to sequencer
 echo ""
-echo "Test 10: Pushing commits to validator..."
+echo "Test 10: Pushing commits to sequencer..."
 REMOTE="/ip4/127.0.0.1/tcp/10101/ws/p2p/12D3KooW9pte76rpnggcLYkFaawuTEs5DC5axHkg3cK3cewGxxHd"
 PUSH_OUTPUT=$(cd "$CONTRACT_DIR" && modal contract push --remote "$REMOTE" --output json 2>&1) || true
 echo "Push output: $PUSH_OUTPUT" >> "$CURRENT_LOG"
@@ -243,7 +243,7 @@ else
 fi
 
 # Simulate a successful pull by copying commits (for testing purposes)
-# In a real network, pull would fetch these from validators
+# In a real network, pull would fetch these from sequencers
 if [ -d "$CONTRACT_DIR/.contract/commits" ] && [ ! -d "$CLONE_DIR/.contract/commits" ]; then
     echo "Simulating pull by copying commits for testing..." >> "$CURRENT_LOG"
     cp -r "$CONTRACT_DIR/.contract/commits" "$CLONE_DIR/.contract/"

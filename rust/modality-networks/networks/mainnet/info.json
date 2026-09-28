@@ -1,4 +1,5 @@
 {
+  "config_version": 2,
   "name": "mainnet",
   "description": "the main Modality Network",
   "bootstrappers": [

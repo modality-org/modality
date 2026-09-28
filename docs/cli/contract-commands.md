@@ -77,7 +77,7 @@ After a commit is accepted, `modal c commit` previews what predicate theory V1
 would change about it. For example, it names a model edge whose labels can never
 hold together, such as `+num_lt(/escrow/paid.num,"100")` beside
 `+num_gte(/escrow/paid.num,"100")`. Local verify still uses V0, so the preview
-is a warning. Validators refuse the commit if the network sets
+is a warning. Sequencers and validators refuse the commit if the network sets
 `predicate_theory_version` to `v1`. With `--output json`, the findings are
 under `theory_preview`.
 
@@ -302,7 +302,7 @@ modal c commit-id
 modal c push [OPTIONS]
 ```
 
-Push commits to a hub or chain validators.
+Push commits to a hub or to chain sequencers.
 
 **Remote formats:**
 - Hub: `http://hub.example.com/contracts/<id>`
@@ -381,7 +381,7 @@ Show what the predicate theory derives from the accepted contract:
 
 A move is `blocked` when accepted state already makes one of its labels false.
 It is `forced` when it is the only open move out of a state that has more than
-one. The view is read-only. Validators enforce the network's
+one. The view is read-only. Sequencers and validators enforce the network's
 `predicate_theory_version` (V0 unless the network names one).
 
 **Options:**

@@ -20,16 +20,16 @@ echo "Restarting node${NODE_NUM}..."
 # Don't clear storage to allow catch-up from existing state
 case $NODE_NUM in
     1)
-        modal node run-validator --dir ./tmp/node1 &
+        modal node run-sequencer --dir ./tmp/node1 &
         ;;
     2)
-        modal node run-validator --dir ./tmp/node2 &
+        modal node run-sequencer --dir ./tmp/node2 &
         ;;
     3)
-        modal node run-validator --dir ./tmp/node3 &
+        modal node run-sequencer --dir ./tmp/node3 &
         ;;
     4)
-        modal node run-validator --dir ./tmp/node4 &
+        modal node run-sequencer --dir ./tmp/node4 &
         ;;
     *)
         echo "Invalid node number: $NODE_NUM"

@@ -17,25 +17,25 @@ echo ""
 rm -rf /tmp/test-killall
 
 # Start a few test nodes
-echo "Starting 3 test validator nodes..."
+echo "Starting 3 test sequencer nodes..."
 mkdir -p /tmp/test-killall/node1 /tmp/test-killall/node2 /tmp/test-killall/node3
 
 # Create node1
 cd /tmp/test-killall/node1
-$MODAL_BIN node create --type validator --port 15001
-$MODAL_BIN node run-validator --dir . > node1.log 2>&1 &
+$MODAL_BIN node create --type sequencer --port 15001
+$MODAL_BIN node run-sequencer --dir . > node1.log 2>&1 &
 echo "Started node1"
 
 # Create node2
 cd /tmp/test-killall/node2
-$MODAL_BIN node create --type validator --port 15002
-$MODAL_BIN node run-validator --dir . > node2.log 2>&1 &
+$MODAL_BIN node create --type sequencer --port 15002
+$MODAL_BIN node run-sequencer --dir . > node2.log 2>&1 &
 echo "Started node2"
 
 # Create node3
 cd /tmp/test-killall/node3
-$MODAL_BIN node create --type validator --port 15003
-$MODAL_BIN node run-validator --dir . > node3.log 2>&1 &
+$MODAL_BIN node create --type sequencer --port 15003
+$MODAL_BIN node run-sequencer --dir . > node3.log 2>&1 &
 echo "Started node3"
 
 # Wait for nodes to initialize
@@ -64,10 +64,10 @@ echo "=== Test force kill with running nodes ==="
 echo "Starting 2 more nodes..."
 
 cd /tmp/test-killall/node1
-$MODAL_BIN node run-validator --dir . > node1.log 2>&1 &
+$MODAL_BIN node run-sequencer --dir . > node1.log 2>&1 &
 
 cd /tmp/test-killall/node2
-$MODAL_BIN node run-validator --dir . > node2.log 2>&1 &
+$MODAL_BIN node run-sequencer --dir . > node2.log 2>&1 &
 
 sleep 3
 echo ""

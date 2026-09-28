@@ -163,7 +163,10 @@ modal run miner --dir ./my-node
 # Run a hybrid miner+sequencer
 modal run hybrid --dir ./my-node
 
-# Run a validator
+# Run a sequencer (ordering committee)
+modal run sequencer --dir ./my-node
+
+# Run a validator (prefix certificates)
 modal run validator --dir ./my-node
 
 # Run an observer

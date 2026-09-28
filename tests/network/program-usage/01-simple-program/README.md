@@ -55,7 +55,7 @@ The simple program:
 
 - **Program vs Predicate**: Programs produce actions, predicates evaluate to true/false
 - **Storage Path**: Programs are stored at `/__programs__/{name}.wasm`
-- **Invocation**: Users sign the invoke action, validators execute the program
+- **Invocation**: Users sign the invoke action, sequencers execute the program
 - **Security**: User signature on invoke = indirect signature on results
 
 ## Expected Output

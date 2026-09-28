@@ -93,7 +93,7 @@ pub async fn run(node: &mut Node) -> Result<()> {
 
     // Mine and sequence in one process when hybrid (default) or static sequencers apply.
     crate::actions::sequencer::start_sequencing(node).await;
-    crate::actions::contract_validator::maybe_start_worker(node);
+    crate::actions::validator::maybe_start_worker(node);
 
     // Start block promotion/purge background task
     background_tasks::start_promotion_task(node.datastore_manager.clone(), shutdown.clone());

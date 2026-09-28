@@ -87,10 +87,10 @@ echo "modal contract theory: $EXPLANATION" >> "$CURRENT_LOG"
 check "modal contract theory names the dead refund edge" test -n "$EXPLANATION"
 
 echo ""
-echo "Starting a devnet1 validator whose network enforces predicate theory V1..."
+echo "Starting a devnet1 sequencer whose network enforces predicate theory V1..."
 assert_success \
     "modal node create --dir $NODE_DIR --from-template devnet1/node1" \
-    "Should create validator node"
+    "Should create sequencer node"
 modal node clear-storage --dir "$NODE_DIR" --yes >/dev/null 2>&1 || true
 python3 - "$NODE_DIR" <<'PY'
 import json, pathlib, sys
@@ -102,45 +102,45 @@ config = json.loads((node / "config.json").read_text())
 config["network_config_path"] = "./network.json"
 (node / "config.json").write_text(json.dumps(config, indent=2) + "\n")
 PY
-NODE_PID=$(test_start_process "cd $NODE_DIR && modal node run-validator" "validator")
+NODE_PID=$(test_start_process "cd $NODE_DIR && modal node run-sequencer" "sequencer")
 # test_start_process runs in a subshell here, so track the PID for cleanup.
 PIDS+=("$NODE_PID")
-assert_success "test_wait_for_port 10101" "Validator should listen on 10101"
+assert_success "test_wait_for_port 10101" "Sequencer should listen on 10101"
 sleep 3
 
-VALIDATOR_LOG="$LOG_DIR/${CURRENT_TEST}_validator.log"
+SEQUENCER_LOG="$LOG_DIR/${CURRENT_TEST}_sequencer.log"
 # Rounds are ~30 s apart on one node; a push can take a few rounds to apply.
 expect_log() {
     local pattern="$1"
     local desc="$2"
     local timeout="${3:-180}"
     TESTS_RUN=$((TESTS_RUN + 1))
-    if test_wait_for_log "$VALIDATOR_LOG" "$pattern" "$timeout"; then
+    if test_wait_for_log "$SEQUENCER_LOG" "$pattern" "$timeout"; then
         TESTS_PASSED=$((TESTS_PASSED + 1))
         echo -e "  ${GREEN}✓${NC} $desc"
         return 0
     fi
     TESTS_FAILED=$((TESTS_FAILED + 1))
     echo -e "  ${RED}✗${NC} $desc"
-    if [ -f "$VALIDATOR_LOG" ]; then
-        echo "Last 40 lines of validator log:" >> "$CURRENT_LOG"
-        tail -40 "$VALIDATOR_LOG" >> "$CURRENT_LOG"
-        tail -20 "$VALIDATOR_LOG"
+    if [ -f "$SEQUENCER_LOG" ]; then
+        echo "Last 40 lines of sequencer log:" >> "$CURRENT_LOG"
+        tail -40 "$SEQUENCER_LOG" >> "$CURRENT_LOG"
+        tail -20 "$SEQUENCER_LOG"
     fi
     return 1
 }
-expect_log "Predicate theory: v1" "Validator reports predicate theory v1" 10 || true
+expect_log "Predicate theory: v1" "Sequencer reports predicate theory v1" 10 || true
 
 echo ""
 echo "Pushing the slipped model..."
 PUSH_SLIP=$(modal contract push --dir "$CONTRACT_DIR" --remote "$REMOTE" --remote-name origin --output json)
 echo "$PUSH_SLIP" >> "$CURRENT_LOG"
 expect_log "Failed to process sequenced commit $SLIP_ID" \
-  "Validator refuses the model with a dead edge" || true
-check "Validator names predicate theory V1 in the refusal" \
-  grep -q "no commit can take (predicate theory V1)" "$VALIDATOR_LOG"
-check "Validator and modal contract theory give the same explanation" \
-  grep -qF "$EXPLANATION" "$VALIDATOR_LOG"
+  "Sequencer refuses the model with a dead edge" || true
+check "Sequencer names predicate theory V1 in the refusal" \
+  grep -q "no commit can take (predicate theory V1)" "$SEQUENCER_LOG"
+check "Sequencer and modal contract theory give the same explanation" \
+  grep -qF "$EXPLANATION" "$SEQUENCER_LOG"
 
 CLONE_DIR="./tmp/clone"
 mkdir -p "$CLONE_DIR/.contract/commits"
@@ -174,7 +174,7 @@ check "modal contract theory finds no dead edges in the fixed model" \
 rm -rf "$CONTRACT_DIR/.contract/refs/remotes/origin"
 PUSH_FIX=$(modal contract push --dir "$CONTRACT_DIR" --remote "$REMOTE" --remote-name origin --output json)
 echo "$PUSH_FIX" >> "$CURRENT_LOG"
-expect_log "Sequenced commit $FIX_ID" "Validator sequences the fixed model" || true
+expect_log "Sequenced commit $FIX_ID" "Sequencer sequences the fixed model" || true
 
 CLONE2_DIR="./tmp/clone-after-fix"
 mkdir -p "$CLONE2_DIR/.contract/commits"

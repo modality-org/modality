@@ -1,6 +1,6 @@
 # Example: Contract Lifecycle
 
-This example demonstrates the complete contract lifecycle in Modality, including creating contracts, making commits, checking status, pushing to validators, and pulling from the network.
+This example demonstrates the complete contract lifecycle in Modality, including creating contracts, making commits, checking status, pushing to sequencers, and pulling from the network.
 
 ## Overview
 
@@ -9,8 +9,8 @@ Modality contracts use a **local-first, git-like workflow**:
 - **Create**: Initialize a new contract locally with `modal contract create`
 - **Commit**: Add changes to the local contract with `modal contract commit`
 - **Status**: View local and remote contract state with `modal contract status`
-- **Push**: Push local commits to network validators with `modal contract push`
-- **Pull**: Pull remote commits from validators with `modal contract pull`
+- **Push**: Push local commits to network sequencers with `modal contract push`
+- **Pull**: Pull remote commits from sequencers with `modal contract pull`
 
 All contract data is stored in a `.contract/` directory (similar to `.git/`).
 
@@ -22,7 +22,7 @@ All contract data is stored in a `.contract/` directory (similar to `.git/`).
    cargo build --package modal
    ```
 
-2. (Optional) For push/pull operations, you'll need a running validator node.
+2. (Optional) For push/pull operations, you'll need a running sequencer node.
 
 ## Quick Start
 
@@ -106,15 +106,15 @@ Remote commits: 0
 Status: local changes not pushed
 ```
 
-### Step 4: Push to Validators
+### Step 4: Push to Sequencers
 
 ```bash
-./04-push-to-validators.sh
+./04-push-to-sequencers.sh
 ```
 
 This script will:
-1. Create a validator node (if needed)
-2. Start the validator
+1. Create a sequencer node (if needed)
+2. Start the sequencer
 3. Push your local commits to the network
 
 **Example output:**
@@ -125,7 +125,7 @@ This script will:
    Commits pushed: 3
 ```
 
-**Note**: Requires a running validator node. The script automatically creates and starts one using the `devnet1/node1` template.
+**Note**: Requires a running sequencer node. The script automatically creates and starts one using the `devnet1/node1` template.
 
 ### Step 5: Pull from Network
 
@@ -142,7 +142,7 @@ Demonstrates pulling commits from the network. In a real scenario, this would fe
 | `01-create-contract.sh` | Create a new contract locally |
 | `02-commit-to-contract.sh` | Add three commits to the contract |
 | `03-view-status.sh` | View contract status (local and remote) |
-| `04-push-to-validators.sh` | Push local commits to network validators |
+| `04-push-to-sequencers.sh` | Push local commits to network sequencers |
 | `05-pull-from-network.sh` | Pull remote commits from the network |
 | `06-full-lifecycle.sh` | Run the complete lifecycle demo |
 | `test.sh` | Automated integration test |
@@ -211,7 +211,7 @@ Options:
 
 ### `modal contract push`
 
-Push local commits to network validators.
+Push local commits to network sequencers.
 
 ```bash
 modal contract push --remote <MULTIADDR> [OPTIONS]
@@ -229,7 +229,7 @@ Options:
 
 ### `modal contract pull`
 
-Pull commits from network validators to local contract.
+Pull commits from network sequencers to local contract.
 
 ```bash
 modal contract pull [OPTIONS]
@@ -256,7 +256,7 @@ Options:
 │
 ├── genesis.json         # Genesis state
 │   ├── initial_state    # Initial contract state
-│   └── validators       # Genesis validators
+│   └── sequencers       # Genesis sequencers
 │
 ├── HEAD                 # Current commit pointer
 │
@@ -283,7 +283,7 @@ This tests:
 - ✓ Multiple commits
 - ✓ Status command (text and JSON)
 - ✓ Commit storage and counting
-- ✓ Push to validators
+- ✓ Push to sequencers
 - ✓ Pull from network
 - ✓ Contract ID consistency
 - ✓ JSON output validation
@@ -355,13 +355,13 @@ modal contract revert <commit-id>
 │   Network Layer     │
 │                     │
 │  ┌───────────────┐  │
-│  │  Validator 1  │  │
+│  │  Sequencer 1  │  │
 │  └───────────────┘  │
 │  ┌───────────────┐  │
-│  │  Validator 2  │  │
+│  │  Sequencer 2  │  │
 │  └───────────────┘  │
 │  ┌───────────────┐  │
-│  │  Validator 3  │  │
+│  │  Sequencer 3  │  │
 │  └───────────────┘  │
 └─────────────────────┘
 ```
@@ -378,12 +378,12 @@ Modality's contract system is inspired by Git:
 | `git push` | `modal contract push` |
 | `git pull` | `modal contract pull` |
 | `.git/` directory | `.contract/` directory |
-| Remote repository | Network validators |
+| Remote repository | Network sequencers |
 
 **Key differences:**
 - Contracts are stored on a decentralized network, not a central server
 - Commits include state changes, not file diffs
-- Validators verify and store commits, providing consensus
+- Sequencers verify and store commits, providing consensus
 
 ## Troubleshooting
 
@@ -391,9 +391,9 @@ Modality's contract system is inspired by Git:
 
 Make sure you're in a directory with a `.contract/` folder, or run `modal contract create` first.
 
-### "Failed to push: No validators reachable"
+### "Failed to push: No sequencers reachable"
 
-Ensure at least one validator node is running and accessible. Use `./04-push-to-validators.sh` which automatically sets up a local validator.
+Ensure at least one sequencer node is running and accessible. Use `./04-push-to-sequencers.sh` which automatically sets up a local sequencer.
 
 ### "Failed to pull: Contract ID mismatch"
 
@@ -453,14 +453,14 @@ done
 - Contract operations are local-first - work offline and sync later
 - The `.contract/` directory should be tracked in version control (like `.git/`)
 - Contract IDs are deterministic based on genesis state and creator
-- Push/pull operations require network connectivity and running validators
+- Push/pull operations require network connectivity and running sequencers
 - All commits are immutable once pushed to the network
 
 ## Next Steps
 
 After completing this example, explore:
 
-1. **[02-run-devnet1](../02-run-devnet1/)** - Learn about running validator nodes
+1. **[02-run-devnet1](../02-run-devnet1/)** - Learn about running sequencer nodes
 2. **[05-mining](../05-mining/)** - Understand mining and block creation
 3. **[Network Documentation](../README.md)** - Comprehensive network guide
 

@@ -88,10 +88,10 @@ pub struct NetworkInfo {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub checkpoints: Option<Vec<ManualCheckpoint>>,
 
-    /// Bootstrap named **contract validators** (peer IDs). Distinct from
+    /// Bootstrap named **validators** (peer IDs). Distinct from
     /// `sequencers` (the ordering committee). Empty / omitted = none.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub contract_validators: Option<Vec<String>>,
+    pub validators: Option<Vec<String>>,
 
     /// Minimum locked MOD to validate. Testnet/dev default is 0.
     #[serde(default)]
@@ -333,7 +333,7 @@ mod tests {
         );
         assert_eq!(devnet1.sequencers.as_ref().unwrap().len(), 1);
         assert_eq!(
-            devnet1.contract_validators.as_ref().unwrap().as_slice(),
+            devnet1.validators.as_ref().unwrap().as_slice(),
             ["12D3KooW9pte76rpnggcLYkFaawuTEs5DC5axHkg3cK3cewGxxHd"]
         );
         assert!(devnet1.repost_requires_validator_cert);
@@ -373,7 +373,7 @@ mod tests {
         assert_eq!(testnet.initial_difficulty, Some(1));
         assert_eq!(testnet.emission.as_ref().unwrap().block_subsidy, 50);
         assert_eq!(
-            testnet.contract_validators.as_ref().unwrap().as_slice(),
+            testnet.validators.as_ref().unwrap().as_slice(),
             [
                 "12D3KooWE4NPREQxLkevA5Rxd61Xiue4tTkUGN22qNABD7Mw5JhM",
                 "12D3KooWJpFYTRHNuPfwoj1hTf87aqB7CDJHKtVFp3RhPNB1DrRw",
@@ -421,7 +421,7 @@ mod tests {
             sequencers: None,
             checkpoint_mode: None,
             checkpoints: None,
-            contract_validators: None,
+            validators: None,
             validator_min_stake: 0,
             validation_fees: None,
             repost_requires_validator_cert: false,
@@ -446,7 +446,7 @@ mod tests {
             sequencers: None,
             checkpoint_mode: Some(CheckpointMode::Consensus),
             checkpoints: None,
-            contract_validators: None,
+            validators: None,
             validator_min_stake: 0,
             validation_fees: None,
             repost_requires_validator_cert: false,
@@ -470,7 +470,7 @@ mod tests {
             bootstrappers: vec![],
             sequencers: None,
             checkpoint_mode: Some(CheckpointMode::Manual),
-            contract_validators: None,
+            validators: None,
             validator_min_stake: 0,
             validation_fees: None,
             repost_requires_validator_cert: false,
@@ -532,14 +532,14 @@ mod tests {
     }
 
     #[test]
-    fn test_contract_validator_fields_default_when_omitted() {
+    fn test_validator_fields_default_when_omitted() {
         let json = serde_json::json!({
             "name": "test",
             "description": "test",
             "bootstrappers": []
         });
         let network: NetworkInfo = serde_json::from_value(json).unwrap();
-        assert!(network.contract_validators.is_none());
+        assert!(network.validators.is_none());
         assert_eq!(network.validator_min_stake, 0);
         assert!(network.validation_fees.is_none());
         assert!(!network.repost_requires_validator_cert);
@@ -549,12 +549,12 @@ mod tests {
     }
 
     #[test]
-    fn test_contract_validator_fields_round_trip() {
+    fn test_validator_fields_round_trip() {
         let json = serde_json::json!({
             "name": "test",
             "description": "test",
             "bootstrappers": [],
-            "contract_validators": ["12D3KooWtestpeer"],
+            "validators": ["12D3KooWtestpeer"],
             "validator_min_stake": 0,
             "validation_fees": { "nominal": 1, "meter_coefficient": 2 },
             "repost_requires_validator_cert": true,
@@ -562,7 +562,7 @@ mod tests {
         });
         let network: NetworkInfo = serde_json::from_value(json).unwrap();
         assert_eq!(
-            network.contract_validators.as_ref().unwrap().as_slice(),
+            network.validators.as_ref().unwrap().as_slice(),
             ["12D3KooWtestpeer"]
         );
         assert_eq!(network.validation_fees.as_ref().unwrap().quote(3), 7);
@@ -579,7 +579,7 @@ mod tests {
             let cfg: serde_json::Value = serde_json::from_str(tmpl.config).unwrap();
             assert_eq!(cfg["network_config_path"], "modality-networks://testnet");
             assert_eq!(cfg["hybrid_consensus"], true);
-            assert_eq!(cfg["run_contract_validator"], true);
+            assert_eq!(cfg["run_validator"], true);
             assert_eq!(cfg["listeners"][0], "/ip4/0.0.0.0/tcp/4040/ws");
             assert_eq!(cfg["passfile_path"], "./node.modal_passfile");
             let id = cfg["id"].as_str().expect("template id");

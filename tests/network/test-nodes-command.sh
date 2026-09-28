@@ -17,27 +17,27 @@ echo ""
 rm -rf /tmp/test-nodes-cmd
 
 # Start a few test nodes
-echo "Starting 3 test validator nodes..."
+echo "Starting 3 test sequencer nodes..."
 mkdir -p /tmp/test-nodes-cmd/node1 /tmp/test-nodes-cmd/node2 /tmp/test-nodes-cmd/node3
 
 # Create node1
 cd /tmp/test-nodes-cmd/node1
-$MODAL_BIN node create --type validator --port 14001
-$MODAL_BIN node run-validator --dir . > node1.log 2>&1 &
+$MODAL_BIN node create --type sequencer --port 14001
+$MODAL_BIN node run-sequencer --dir . > node1.log 2>&1 &
 NODE1_PID=$!
 echo "Started node1 (PID: $NODE1_PID)"
 
 # Create node2
 cd /tmp/test-nodes-cmd/node2
-$MODAL_BIN node create --type validator --port 14002
-$MODAL_BIN node run-validator --dir . > node2.log 2>&1 &
+$MODAL_BIN node create --type sequencer --port 14002
+$MODAL_BIN node run-sequencer --dir . > node2.log 2>&1 &
 NODE2_PID=$!
 echo "Started node2 (PID: $NODE2_PID)"
 
 # Create node3
 cd /tmp/test-nodes-cmd/node3
-$MODAL_BIN node create --type validator --port 14003
-$MODAL_BIN node run-validator --dir . > node3.log 2>&1 &
+$MODAL_BIN node create --type sequencer --port 14003
+$MODAL_BIN node run-sequencer --dir . > node3.log 2>&1 &
 NODE3_PID=$!
 echo "Started node3 (PID: $NODE3_PID)"
 

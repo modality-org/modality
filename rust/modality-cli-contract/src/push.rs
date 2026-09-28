@@ -14,7 +14,7 @@ use modality_node::actions::request;
 use modality_node::node::Node;
 
 #[derive(Debug, Parser)]
-#[command(about = "Push commits to chain validators or hub")]
+#[command(about = "Push commits to chain sequencers or hub")]
 pub struct Opts {
     /// Target node multiaddress or hub URL (http://...)
     #[clap(long)]

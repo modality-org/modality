@@ -31,7 +31,7 @@ pub struct NodeStatusSource {
     pub hybrid_consensus: bool,
     pub run_miner: bool,
     pub run_sequencer: bool,
-    pub run_contract_validator: bool,
+    pub run_validator: bool,
     pub datastore: Arc<Mutex<DatastoreManager>>,
     pub swarm: Arc<Mutex<crate::swarm::NodeSwarm>>,
     pub mining_metrics: SharedMiningMetrics,
@@ -194,7 +194,7 @@ pub fn derive_active_roles(
     role: &str,
     run_miner: bool,
     run_sequencer: bool,
-    run_contract_validator: bool,
+    run_validator: bool,
     hybrid_consensus: bool,
     named_validators: &[String],
     peerid: &str,
@@ -211,9 +211,9 @@ pub fn derive_active_roles(
             "sequencer" | "hybrid" | "miner+sequencer"
         )
         || (hybrid_consensus && miner);
-    let validator = run_contract_validator
+    let validator = run_validator
         || named_validators.iter().any(|id| id == peerid)
-        || matches!(r.as_str(), "contract-validator" | "contract_validator");
+        || matches!(r.as_str(), "validator");
     let mut out = Vec::new();
     if miner {
         out.push("Miner");
@@ -378,7 +378,7 @@ async fn collect_node_status_uncached(source: &NodeStatusSource) -> anyhow::Resu
             (Vec::new(), None)
         };
 
-    let named_validators = mgr.contract_validators().unwrap_or_default();
+    let named_validators = mgr.validators().unwrap_or_default();
     let validator_min_stake = mgr.validator_min_stake().unwrap_or(0);
     let validator_qc_numerator = mgr.validator_qc_numerator().unwrap_or(2);
     let validator_qc_denominator = mgr.validator_qc_denominator().unwrap_or(3);
@@ -399,7 +399,7 @@ async fn collect_node_status_uncached(source: &NodeStatusSource) -> anyhow::Resu
         &source.role,
         source.run_miner,
         source.run_sequencer,
-        source.run_contract_validator,
+        source.run_validator,
         source.hybrid_consensus,
         &named_validators,
         &peerid_str,
@@ -738,7 +738,7 @@ mod tests {
         assert_eq!(display_node_role("hybrid"), "Miner+Sequencer");
         assert_eq!(display_node_role("Miner+Sequencer"), "Miner+Sequencer");
         assert_eq!(display_node_role("sequencer"), "Sequencer");
-        assert_eq!(display_node_role("contract-validator"), "Validator");
+        assert_eq!(display_node_role("validator"), "Validator");
         assert_eq!(display_node_role("observer"), "Observer");
     }
 
@@ -873,9 +873,9 @@ mod tests {
     }
 
     #[test]
-    fn contract_validator_role_is_validator_only() {
+    fn validator_role_is_validator_only() {
         let roles =
-            derive_active_roles("contract-validator", false, false, true, false, &[], "peer");
+            derive_active_roles("validator", false, false, true, false, &[], "peer");
         assert_eq!(roles, vec!["Validator"]);
     }
 }

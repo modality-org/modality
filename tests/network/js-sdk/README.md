@@ -1,10 +1,10 @@
 # JavaScript SDK with devnet1 Example
 
-This example demonstrates how to connect to a Modal Money network using the JavaScript SDK. It shows a complete workflow of starting a validator node and interacting with it from JavaScript.
+This example demonstrates how to connect to a Modal Money network using the JavaScript SDK. It shows a complete workflow of starting a sequencer node and interacting with it from JavaScript.
 
 ## What This Example Demonstrates
 
-1. **Starting a devnet1 validator node** using the Rust CLI
+1. **Starting a devnet1 sequencer node** using the Rust CLI
 2. **Connecting to the node** from JavaScript using the SDK
 3. **Pinging the node** to verify connectivity  
 4. **Inspecting node state** to get chain and network information
@@ -35,7 +35,7 @@ pnpm install
 ```
 
 This will:
-- Create a validator node with devnet1/node1 identity
+- Create a sequencer node with devnet1/node1 identity
 - Start it in the background
 - Node listens on `/ip4/0.0.0.0/tcp/10101/ws`
 - Peer ID: `12D3KooW9pte76rpnggcLYkFaawuTEs5DC5axHkg3cK3cewGxxHd`
@@ -122,7 +122,7 @@ Example completed successfully!
 ### Network Setup
 
 The example uses **devnet1**, which is a development network configuration:
-- Single validator (node1)
+- Single sequencer (node1)
 - Pre-configured identity and genesis block
 - WebSocket transport for browser/JavaScript compatibility
 - Port 10101 for P2P communication
@@ -131,7 +131,7 @@ The example uses **devnet1**, which is a development network configuration:
 
 The JavaScript SDK:
 - Creates a lightweight libp2p client (client-only mode)
-- Connects via WebSocket to the validator
+- Connects via WebSocket to the sequencer
 - Uses the Modal Money reqres protocol for communication
 - Can ping and inspect, but cannot be dialed back
 
@@ -146,8 +146,8 @@ The SDK operates in client-only mode, which means:
 
 ## Files
 
-- `01-start-devnet1.sh` - Start devnet1 validator node
-- `02-stop-devnet1.sh` - Stop the validator node
+- `01-start-devnet1.sh` - Start devnet1 sequencer node
+- `02-stop-devnet1.sh` - Stop the sequencer node
 - `03-connect-sdk.js` - JavaScript SDK example code
 - `test.sh` - Automated test script
 - `tmp/` - Temporary directory for node data (gitignored)
@@ -164,7 +164,7 @@ netstat -an | grep 10101
 cat ./tmp/node1-output.log
 
 # Try manual start
-modal node run-validator --dir ./tmp/node1
+modal node run-sequencer --dir ./tmp/node1
 ```
 
 ### SDK can't connect

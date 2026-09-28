@@ -28,14 +28,14 @@ if [ -f ./tmp/test-network-params/difficulty.txt ]; then
     fi
 fi
 
-if [ -f ./tmp/test-network-params/validator0.txt ]; then
-    VALIDATOR=$(cat ./tmp/test-network-params/validator0.txt)
-    echo "  Validator 0: $VALIDATOR"
+if [ -f ./tmp/test-network-params/sequencer0.txt ]; then
+    SEQUENCER=$(cat ./tmp/test-network-params/sequencer0.txt)
+    echo "  Sequencer 0: $SEQUENCER"
     
-    if echo "$VALIDATOR" | grep -q "12D3KooW"; then
-        echo "  ✓ Validator ID looks valid"
+    if echo "$SEQUENCER" | grep -q "12D3KooW"; then
+        echo "  ✓ Sequencer ID looks valid"
     else
-        echo "  ✗ Validator ID doesn't look valid"
+        echo "  ✗ Sequencer ID doesn't look valid"
         exit 1
     fi
 fi

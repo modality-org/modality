@@ -339,7 +339,7 @@ impl DatastoreManager {
             }
         }
 
-        self.store_contract_validator_config(network_config)?;
+        self.store_validator_config(network_config)?;
         self.apply_native_mod_genesis()?;
 
         Ok(())
@@ -406,9 +406,9 @@ impl DatastoreManager {
         self.load_sequencer_events()
     }
 
-    fn store_contract_validator_config(&self, network_config: &serde_json::Value) -> Result<()> {
+    fn store_validator_config(&self, network_config: &serde_json::Value) -> Result<()> {
         let cfg = serde_json::json!({
-            "contract_validators": network_config.get("contract_validators").cloned().unwrap_or(serde_json::json!([])),
+            "validators": network_config.get("validators").cloned().unwrap_or(serde_json::json!([])),
             "validator_min_stake": network_config.get("validator_min_stake").and_then(|v| v.as_u64()).unwrap_or(0),
             "validation_fees": network_config.get("validation_fees").cloned().unwrap_or(serde_json::json!({"nominal": 0, "meter_coefficient": 0})),
             "repost_requires_validator_cert": network_config
@@ -429,20 +429,20 @@ impl DatastoreManager {
                 .unwrap_or(crate::DEFAULT_PREDICATE_THEORY_VERSION),
         });
         self.node_state
-            .put("contract_validator_config", &serde_json::to_vec(&cfg)?)
+            .put("validator_config", &serde_json::to_vec(&cfg)?)
     }
 
-    pub fn contract_validator_config(&self) -> Result<serde_json::Value> {
-        match self.node_state.get("contract_validator_config")? {
+    pub fn validator_config(&self) -> Result<serde_json::Value> {
+        match self.node_state.get("validator_config")? {
             Some(data) => Ok(serde_json::from_slice(&data).unwrap_or(serde_json::json!({}))),
             None => Ok(serde_json::json!({})),
         }
     }
 
-    pub fn contract_validators(&self) -> Result<Vec<String>> {
-        let cfg = self.contract_validator_config()?;
+    pub fn validators(&self) -> Result<Vec<String>> {
+        let cfg = self.validator_config()?;
         Ok(cfg
-            .get("contract_validators")
+            .get("validators")
             .and_then(|v| v.as_array())
             .map(|arr| {
                 arr.iter()
@@ -453,7 +453,7 @@ impl DatastoreManager {
     }
 
     pub fn validator_min_stake(&self) -> Result<u64> {
-        let cfg = self.contract_validator_config()?;
+        let cfg = self.validator_config()?;
         Ok(cfg
             .get("validator_min_stake")
             .and_then(|v| v.as_u64())
@@ -461,7 +461,7 @@ impl DatastoreManager {
     }
 
     pub fn validation_fees(&self) -> Result<crate::ValidationFees> {
-        let cfg = self.contract_validator_config()?;
+        let cfg = self.validator_config()?;
         Ok(cfg
             .get("validation_fees")
             .and_then(|v| serde_json::from_value(v.clone()).ok())
@@ -469,7 +469,7 @@ impl DatastoreManager {
     }
 
     pub fn repost_requires_validator_cert(&self) -> Result<bool> {
-        let cfg = self.contract_validator_config()?;
+        let cfg = self.validator_config()?;
         Ok(cfg
             .get("repost_requires_validator_cert")
             .and_then(|v| v.as_bool())
@@ -481,7 +481,7 @@ impl DatastoreManager {
     }
 
     pub fn validator_qc_numerator(&self) -> Result<u64> {
-        let cfg = self.contract_validator_config()?;
+        let cfg = self.validator_config()?;
         Ok(cfg
             .get("validator_qc_numerator")
             .and_then(|v| v.as_u64())
@@ -489,7 +489,7 @@ impl DatastoreManager {
     }
 
     pub fn validator_qc_denominator(&self) -> Result<u64> {
-        let cfg = self.contract_validator_config()?;
+        let cfg = self.validator_config()?;
         Ok(cfg
             .get("validator_qc_denominator")
             .and_then(|v| v.as_u64())
@@ -499,7 +499,7 @@ impl DatastoreManager {
     /// Predicate theory version validators enforce, as written in the network
     /// config. The validator parses it and refuses a version it does not know.
     pub fn predicate_theory_version(&self) -> Result<String> {
-        let cfg = self.contract_validator_config()?;
+        let cfg = self.validator_config()?;
         Ok(cfg
             .get("predicate_theory_version")
             .and_then(|v| v.as_str())

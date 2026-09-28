@@ -7,8 +7,33 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
+/// Node and network config files older than this used `validator` for the
+/// sequencer role. Version 2 gives `validator` to the prefix-cert role, so an
+/// unversioned file would silently change meaning and is rejected.
+pub const CONFIG_VERSION: u64 = 2;
+
+/// Reject a node or network config file written before `CONFIG_VERSION`.
+pub fn check_config_version(value: &serde_json::Value, what: &str) -> Result<()> {
+    let found = value.get("config_version").and_then(|v| v.as_u64());
+    if found.unwrap_or(0) >= CONFIG_VERSION {
+        return Ok(());
+    }
+    anyhow::bail!(
+        "{what} has config_version {} but this node requires {CONFIG_VERSION}. \
+         Since version 2, `validator` means the prefix-cert validator and the \
+         ordering role is `sequencer`: rename `run_validator` to `run_sequencer`, \
+         `run_contract_validator` to `run_validator`, `run_as: \"contract-validator\"` \
+         to `run_as: \"validator\"`, network `validators` (the static committee) to \
+         `sequencers`, and `contract_validators` to `validators`; then set \
+         \"config_version\": {CONFIG_VERSION}. Regenerating from a current template \
+         does all of this.",
+        found.map_or("none".to_string(), |v| v.to_string())
+    )
+}
+
 #[derive(Debug, Deserialize, Serialize, Default, Clone)]
 pub struct Config {
+    pub config_version: Option<u64>,
     pub id: Option<String>,
     pub passfile_path: Option<PathBuf>,
     pub storage_path: Option<PathBuf>,
@@ -32,8 +57,8 @@ pub struct Config {
     pub miner_nominees: Option<Vec<String>>,
     pub hybrid_consensus: Option<bool>, // Enable hybrid consensus mode (sequencers selected from epoch N-2 mining nominations)
     pub run_sequencer: Option<bool>,    // Run as sequencer (hybrid: wait for epoch >= 2)
-    /// Run the contract-validator worker (prefix certs). Distinct from `run_sequencer`.
-    pub run_contract_validator: Option<bool>,
+    /// Run the validator worker (prefix certs). Distinct from `run_sequencer`.
+    pub run_validator: Option<bool>,
     pub status_port: Option<u16>,
     pub status_html_dir: Option<PathBuf>,
     pub status_url: Option<String>, // Public URL for this node's status page (e.g., "https://node1.testnet.modality.network")
@@ -50,14 +75,17 @@ pub struct Config {
     pub fork_recovery_min_peers: Option<usize>, // Minimum number of peers that must report a heavier chain before pausing mining (default: 1)
     pub fork_recovery_epoch_threshold: Option<u64>, // Pause mining if peers report chains this many epochs ahead (default: 2)
 
-    pub run_as: Option<String>, // Node role: "miner", "observer", "sequencer", "contract-validator", "noop"
+    pub run_as: Option<String>, // Node role: "miner", "observer", "sequencer", "validator", "noop"
 }
 
 impl Config {
     pub fn from_filepath(path: &Path) -> Result<Config> {
         let file = fs::File::open(path).context("Failed to open config file")?;
-        let mut config: Config =
+        let raw: serde_json::Value =
             serde_json::from_reader(file).context("Failed to parse config file")?;
+        check_config_version(&raw, &format!("node config {}", path.display()))?;
+        let mut config: Config =
+            serde_json::from_value(raw).context("Failed to parse config file")?;
 
         let config_dir = path.parent().unwrap();
 
@@ -299,11 +327,11 @@ impl Config {
             return "Noop".to_string();
         }
 
-        if self.run_contract_validator.unwrap_or(false)
+        if self.run_validator.unwrap_or(false)
             && !self.run_miner.unwrap_or(false)
             && !self.run_sequencer.unwrap_or(false)
         {
-            return "contract-validator".to_string();
+            return "validator".to_string();
         }
 
         let run_miner = self.run_miner.unwrap_or(true);
@@ -326,5 +354,33 @@ pub fn to_absolute_path<P: AsRef<Path>>(base_dir: P, relative_path: P) -> Result
         Ok(path.to_path_buf())
     } else {
         Ok(base_dir.join(path))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn config_version_guard() {
+        assert!(check_config_version(&json!({"config_version": 2}), "cfg").is_ok());
+        let err = check_config_version(&json!({"run_validator": true}), "cfg")
+            .unwrap_err()
+            .to_string();
+        assert!(err.contains("config_version none"), "{err}");
+        assert!(err.contains("`run_validator` to `run_sequencer`"), "{err}");
+        assert!(check_config_version(&json!({"config_version": 1}), "cfg").is_err());
+    }
+
+    #[test]
+    fn from_filepath_rejects_unversioned_config() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("config.json");
+        fs::write(&path, r#"{"run_validator": true}"#).unwrap();
+        assert!(Config::from_filepath(&path).is_err());
+        fs::write(&path, r#"{"config_version": 2, "run_validator": true}"#).unwrap();
+        let config = Config::from_filepath(&path).unwrap();
+        assert_eq!(config.get_node_role(), "validator");
     }
 }

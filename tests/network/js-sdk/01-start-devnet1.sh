@@ -7,7 +7,7 @@ set -x
 if [ ! -f "./tmp/node1/config.json" ]; then
     echo "Creating node1 with standard devnet1/node1 identity..."
     
-    # Create node using template - single validator
+    # Create node using template - single sequencer
     modal node create \
         --dir "${SCRIPT_DIR}/tmp/node1" \
         --from-template devnet1/node1
@@ -16,9 +16,9 @@ fi
 # Clear storage to start fresh
 modal node clear-storage --dir ./tmp/node1 --yes
 
-# Run validator in background
+# Run sequencer in background
 echo "Starting devnet1 node1..."
-modal node run-validator --dir ./tmp/node1 > ./tmp/node1-output.log 2>&1 &
+modal node run-sequencer --dir ./tmp/node1 > ./tmp/node1-output.log 2>&1 &
 NODE_PID=$!
 
 echo "Node1 PID: ${NODE_PID}"

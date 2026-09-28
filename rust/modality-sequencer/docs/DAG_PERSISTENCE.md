@@ -87,7 +87,7 @@ pub struct ConsensusMetadata {
     pub current_round: u64,
     pub highest_committed_round: u64,
     pub last_anchor_round: Option<u64>,
-    pub validator_peer_id: String,
+    pub sequencer_peer_id: String,
     pub committee_size: usize,
     pub committee_epoch: u64,
     pub total_certificates: usize,

@@ -7,12 +7,12 @@ set -x
 if [ ! -f "./tmp/node1/config.json" ]; then
     echo "Creating node1 with standard devnet1/node1 identity..."
 
-    # Create node using template - single validator, no bootstrappers needed
+    # Create node using template - single sequencer, no bootstrappers needed
     modal node create \
         --dir "${SCRIPT_DIR}/tmp/node1" \
         --from-template devnet1/node1
 fi
 
 modal node clear-storage --dir ./tmp/node1 --yes
-modal node run-validator --dir ./tmp/node1
+modal node run-sequencer --dir ./tmp/node1
 

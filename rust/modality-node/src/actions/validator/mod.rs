@@ -1,4 +1,4 @@
-//! Contract-validator worker: attest a contract prefix through a named commit.
+//! Validator worker: attest a contract prefix through a named commit.
 //!
 //! Independent of Shoal sequencing. Certificates are opaque sequencer events.
 
@@ -15,22 +15,22 @@ use tokio::sync::Mutex;
 
 use crate::node::Node;
 
-/// Run a contract-validator node (networking + prefix-cert worker).
+/// Run a validator node (networking + prefix-cert worker).
 pub async fn run(node: &mut Node) -> Result<()> {
-    log::info!("Starting contract-validator node");
+    log::info!("Starting validator node");
     maybe_start_worker(node);
     super::observer::run(node).await
 }
 
-/// Start the worker if this peer is named or `run_contract_validator` is set.
+/// Start the worker if this peer is named or `run_validator` is set.
 pub fn maybe_start_worker(node: &Node) {
     let peer_id = node.peerid.to_string();
-    let force = node.run_contract_validator;
+    let force = node.run_validator;
     let datastore = node.datastore_manager.clone();
     let keypair = match Keypair::from_libp2p_keypair(node.node_keypair.clone()) {
         Ok(kp) => kp,
         Err(e) => {
-            log::error!("contract-validator: cannot convert keypair: {}", e);
+            log::error!("validator: cannot convert keypair: {}", e);
             return;
         }
     };
@@ -39,19 +39,19 @@ pub fn maybe_start_worker(node: &Node) {
         // Wait until network config is loaded (same process as setup).
         let named = {
             let mgr = datastore.lock().await;
-            mgr.contract_validators().unwrap_or_default()
+            mgr.validators().unwrap_or_default()
         };
         if !named.contains(&peer_id) && !force {
             log::debug!(
-                "contract-validator worker not started (peer {} not in contract_validators)",
+                "validator worker not started (peer {} not in validators)",
                 peer_id
             );
             return;
         }
-        log::info!("🔏 Contract-validator worker running as {}", peer_id);
+        log::info!("🔏 Validator worker running as {}", peer_id);
         loop {
             if let Err(e) = tick(&datastore, &keypair, &peer_id).await {
-                log::warn!("contract-validator tick failed: {}", e);
+                log::warn!("validator tick failed: {}", e);
             }
             tokio::time::sleep(tokio::time::Duration::from_millis(250)).await;
         }
@@ -92,14 +92,14 @@ async fn prefix_cert_requests_from_pending(
 
 /// Queue prefix-cert requests for REPOST/RECV actions in another sequencer's block.
 ///
-/// Only a named contract validator queues them; nothing else drains the queue.
+/// Only a named validator queues them; nothing else drains the queue.
 pub async fn queue_requests_for_events(
     mgr: &DatastoreManager,
     own_peer_id: &str,
     events: &[serde_json::Value],
 ) -> Result<usize> {
     if !mgr
-        .contract_validators()?
+        .validators()?
         .iter()
         .any(|p| p == own_peer_id)
     {
@@ -241,9 +241,9 @@ pub async fn issue_cert(
 
     {
         let mgr = datastore.lock().await;
-        let named = mgr.contract_validators()?;
+        let named = mgr.validators()?;
         if !named.is_empty() && !named.contains(&peer_id.to_string()) {
-            anyhow::bail!("this node is not a named contract validator");
+            anyhow::bail!("this node is not a named validator");
         }
         let min_stake = mgr.validator_min_stake()?;
         // Bootstrap stake is treated as 0; named membership is eligibility.
@@ -307,7 +307,7 @@ mod tests {
         let kp = Keypair::generate().unwrap();
         let peer = peer_id_of(&kp);
         mgr.load_network_config(&serde_json::json!({
-            "contract_validators": [peer],
+            "validators": [peer],
             "validator_min_stake": 0,
             "validation_fees": { "nominal": 1, "meter_coefficient": 2 },
         }))
@@ -346,7 +346,7 @@ mod tests {
     async fn rejects_unnamed_peer() {
         let mgr = DatastoreManager::create_in_memory().unwrap();
         mgr.load_network_config(&serde_json::json!({
-            "contract_validators": ["named-peer"],
+            "validators": ["named-peer"],
         }))
         .await
         .unwrap();
@@ -363,7 +363,7 @@ mod tests {
         )
         .await
         .unwrap_err();
-        assert!(err.to_string().contains("not a named contract validator"));
+        assert!(err.to_string().contains("not a named validator"));
     }
 
     #[tokio::test]
@@ -385,7 +385,7 @@ mod tests {
         let peer2 = peer_id_of(&kp2);
         let mgr = DatastoreManager::create_in_memory().unwrap();
         mgr.load_network_config(&serde_json::json!({
-            "contract_validators": [peer1, peer2],
+            "validators": [peer1, peer2],
         }))
         .await
         .unwrap();
@@ -465,7 +465,7 @@ mod tests {
     async fn named_validator_queues_requests_for_peer_repost() {
         let mgr = DatastoreManager::create_in_memory().unwrap();
         mgr.load_network_config(&serde_json::json!({
-            "contract_validators": ["me", "other"],
+            "validators": ["me", "other"],
         }))
         .await
         .unwrap();
@@ -482,7 +482,7 @@ mod tests {
     async fn stored_own_cert_is_republished_once_for_peer_repost() {
         let mgr = DatastoreManager::create_in_memory().unwrap();
         mgr.load_network_config(&serde_json::json!({
-            "contract_validators": ["me", "other"],
+            "validators": ["me", "other"],
         }))
         .await
         .unwrap();
@@ -509,7 +509,7 @@ mod tests {
     async fn unnamed_peer_does_not_queue_requests() {
         let mgr = DatastoreManager::create_in_memory().unwrap();
         mgr.load_network_config(&serde_json::json!({
-            "contract_validators": ["other"],
+            "validators": ["other"],
         }))
         .await
         .unwrap();

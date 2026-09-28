@@ -1,11 +1,11 @@
 # Contract Assets Example (with devnet1)
 
-This example demonstrates how to create, send, and receive assets within contracts using a real network validator (devnet1).
+This example demonstrates how to create, send, and receive assets within contracts using a real network sequencer (devnet1).
 
 ## Overview
 
 This example shows the complete lifecycle of contract assets with network consensus:
-1. Start a devnet1 validator node
+1. Start a devnet1 sequencer node
 2. Create two contracts (Alice and Bob)
 3. Alice creates a token asset
 4. Alice sends tokens to Bob (pushed to network)
@@ -28,18 +28,18 @@ Clean any previous state and create directories:
 ./00-setup-devnet1.sh
 ```
 
-### Step 0.5: Start devnet1 Validator
+### Step 0.5: Start devnet1 Sequencer
 
-Start the validator node in the background:
+Start the sequencer node in the background:
 
 ```bash
-./00b-start-validator.sh
+./00b-start-sequencer.sh
 ```
 
 This will:
-- Create a validator node from the devnet1/node1 template
+- Create a sequencer node from the devnet1/node1 template
 - Start it on port 10101
-- Run in the background with logs in `tmp/test-logs/validator.log`
+- Run in the background with logs in `tmp/test-logs/sequencer.log`
 
 ### Step 1: Create Alice's Contract
 
@@ -75,8 +75,8 @@ Alice sends 10,000 tokens to Bob's contract and pushes to the network:
 
 This will:
 - Create a SEND action
-- Push all commits (CREATE + SEND) to the validator
-- The validator processes the commits through consensus
+- Push all commits (CREATE + SEND) to the sequencer
+- The sequencer processes the commits through consensus
 
 ### Step 5: Bob Receives Tokens
 
@@ -88,8 +88,8 @@ Bob creates a RECV action to accept the tokens from Alice's SEND and pushes to t
 
 This will:
 - Create a RECV action referencing Alice's SEND
-- Push the RECV commit to the validator
-- The validator validates and processes the transfer through consensus
+- Push the RECV commit to the sequencer
+- The sequencer validates and processes the transfer through consensus
 
 ### Step 6: Query Balances
 
@@ -99,17 +99,17 @@ View the asset state in both contracts:
 ./06-query-balances.sh
 ```
 
-### Step 7: Stop Validator
+### Step 7: Stop Sequencer
 
-Clean shutdown of the validator node:
+Clean shutdown of the sequencer node:
 
 ```bash
-./07-stop-validator.sh
+./07-stop-sequencer.sh
 ```
 
 ### Step 8: Invalid Double-Send Example
 
-Demonstrates validator rejection of insufficient balance:
+Demonstrates sequencer rejection of insufficient balance:
 
 ```bash
 ./08-invalid-double-send.sh
@@ -117,12 +117,12 @@ Demonstrates validator rejection of insufficient balance:
 
 **What it does**:
 - Attempts to send 1,500,000 tokens when Alice only has ~990,000
-- Shows that validators reject the SEND at consensus level
+- Shows that sequencers reject the SEND at consensus level
 - Demonstrates balance validation and double-spend prevention
 
 **Expected result**:
 - Local commit may be created
-- Validator rejects with: `"Insufficient balance: have 990000, need 1500000"`
+- Sequencer rejects with: `"Insufficient balance: have 990000, need 1500000"`
 - Asset balances remain unchanged
 
 ## Running the Full Test
@@ -145,7 +145,7 @@ This demonstrates:
 
 ### Network Mode (devnet1)
 
-Run with a real validator node and network consensus:
+Run with a real sequencer node and network consensus:
 
 ```bash
 ./test-devnet1.sh
@@ -154,25 +154,25 @@ Run with a real validator node and network consensus:
 **Status**: ✅ All 18 tests pass
 
 This demonstrates:
-- Real network consensus with validator
+- Real network consensus with sequencer
 - Push/pull workflow for commits
 - Asset state tracking through consensus
 
 This will:
 - Clean previous state
-- Start devnet1 validator
+- Start devnet1 sequencer
 - Run all steps in sequence
 - Push commits to the network
 - Validate output at each step
-- Stop the validator
+- Stop the sequencer
 - Report success or failure
 
 ## Network Features
 
 This example demonstrates:
-- **Real network consensus**: Commits are processed by a validator node
-- **Push/Pull workflow**: Like git, contracts push commits to validators
-- **Consensus validation**: The validator validates and orders commits
+- **Real network consensus**: Commits are processed by a sequencer node
+- **Push/Pull workflow**: Like git, contracts push commits to sequencers
+- **Consensus validation**: The sequencer validates and orders commits
 - **Asset state tracking**: Balances are updated through network consensus
 
 ## Local vs Network
@@ -180,9 +180,9 @@ This example demonstrates:
 - **Local mode** (`./test.sh`): Fast testing without network
 - **Network mode** (`./test-devnet1.sh`): Full consensus with devnet1
 
-## Validator Details
+## Sequencer Details
 
-- **Network**: devnet1 (single validator)
+- **Network**: devnet1 (single sequencer)
 - **Port**: 10101
 - **Peer ID**: `12D3KooW9pte76rpnggcLYkFaawuTEs5DC5axHkg3cK3cewGxxHd`
 - **Template**: `devnet1/node1`
@@ -196,7 +196,7 @@ The example includes demonstrations of consensus-level validation:
 - **SEND**: Alice sends 10,000 tokens to Bob (has sufficient balance)
 - **RECV**: Bob receives the tokens (is the intended recipient)
 
-### Invalid Operations (Rejected by Validators)
+### Invalid Operations (Rejected by Sequencers)
 
 #### Invalid SEND - Insufficient Balance
 ```bash
@@ -206,7 +206,7 @@ The example includes demonstrations of consensus-level validation:
 Demonstrates what happens when trying to send more than you have:
 - Alice tries to send 1,500,000 tokens
 - Alice only has 990,000 tokens remaining
-- **Result**: Validator rejects with `"Insufficient balance: have 990000, need 1500000"`
+- **Result**: Sequencer rejects with `"Insufficient balance: have 990000, need 1500000"`
 
 This prevents:
 - Double-spending attacks
@@ -215,11 +215,11 @@ This prevents:
 
 #### Invalid RECV - Wrong Recipient
 If a contract tries to receive a SEND intended for someone else:
-- **Result**: Validator rejects with `"RECV rejected: not the intended recipient"`
+- **Result**: Sequencer rejects with `"RECV rejected: not the intended recipient"`
 
 #### Invalid RECV - Double Receive
 If a contract tries to receive the same SEND twice:
-- **Result**: Validator rejects with `"SEND already received by contract X"`
+- **Result**: Sequencer rejects with `"SEND already received by contract X"`
 
 ## Asset Types
 
@@ -284,7 +284,7 @@ To clean up and start over:
 ## Notes
 
 - This example uses local contracts only (no network interaction)
-- For network testing, use `modal contract push` to push commits to validators
+- For network testing, use `modal contract push` to push commits to sequencers
 - Asset state is tracked locally until pushed to the network
 - RECV actions reference SEND commits by their commit ID
 

@@ -20,7 +20,7 @@ required_patterns=(
   "node.modal_passfile"
   "modal node start [OPTIONS]"
   "\`--config <CONFIG>\` | Path to \`config.json\`"
-  "\`--node-type <TYPE>\` | \`miner\`, \`hybrid\`, \`observer\`, \`sequencer\`, \`validator\`, \`contract-validator\`, or \`server\`; otherwise resolved from config"
+  "\`--node-type <TYPE>\` | \`miner\`, \`hybrid\`, \`observer\`, \`sequencer\`, \`validator\`, or \`server\`; otherwise resolved from config"
   "modal node stop [OPTIONS]"
   "modal node restart [OPTIONS]"
   "modal node kill [OPTIONS]"
@@ -31,13 +31,13 @@ required_patterns=(
   "modal node run-hybrid [OPTIONS]"
   "modal node run-sequencer [OPTIONS]"
   "modal node run-validator [OPTIONS]"
-  "modal node run-contract-validator [OPTIONS]"
   "modal node run-observer [OPTIONS]"
   "modal node run-noop [OPTIONS]"
   "\`--enable-consensus\`, which is deprecated"
   "modal run miner --dir ./my-node"
   "modal run sequencer --dir ./my-node"
-  "modal run contract-validator --dir ./my-node"
+  "modal run validator --dir ./my-node"
+  "\"config_version\": 2"
   "modal node info [OPTIONS]"
   "modal node stats [OPTIONS]"
   "\`--sample-recent-blocks <COUNT>\`"
@@ -94,7 +94,9 @@ for forbidden_pattern in \
   "\`--get <KEY>\`" \
   "\`--set <KEY=VALUE>\`" \
   "\`--confirm\`" \
-  "modal hub start [OPTIONS]"; do
+  "modal hub start [OPTIONS]" \
+  "run-contract-validator" \
+  "\`contract_validators\` |"; do
   if grep -Fq -- "$forbidden_pattern" "$DOC"; then
     echo "node command reference still contains stale full-wrapper text: $forbidden_pattern" >&2
     exit 1
