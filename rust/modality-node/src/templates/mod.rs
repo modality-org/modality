@@ -723,7 +723,7 @@ mod tests {
         assert!(!html.contains("Modal Money"));
         assert!(html.contains("tabClick(event, 'sequencers')"));
         assert!(html.contains("tabClick(event, 'validators')"));
-        assert!(html.contains("No named validators on this network"));
+        assert!(html.contains(&render_empty_validators()));
     }
 
     #[test]
@@ -761,6 +761,6 @@ mod tests {
         status.named_validators = vec!["12D3KooWval".into()];
         let html = render_status_from_snapshot(&status);
         assert!(html.contains("12D3KooWval"));
-        assert!(!html.contains("No named validators on this network"));
+        assert!(!html.contains(&render_empty_validators()));
     }
 }

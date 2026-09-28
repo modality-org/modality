@@ -30,6 +30,10 @@ const STALE_DRAFT_REBROADCAST_AGES: [u64; 1] = [3];
 /// Rounds an author keeps collecting acks for a draft before dropping it.
 const DRAFT_ACK_WINDOW_ROUNDS: u64 = 10;
 
+/// How long opening a round waits for the datastore before proposing without
+/// queued events.
+const TICK_DATASTORE_WAIT: std::time::Duration = std::time::Duration::from_millis(300);
+
 /// Queued Shoal messages worth reporting. At a 2 s round, a few rounds of
 /// peer drafts, acks, and certs fit well under this.
 const LOOP_BACKLOG_WARN: usize = 64;
@@ -729,6 +733,134 @@ pub(crate) async fn apply_certified_contract_events(
     }
 }
 
+/// Datastore work the Shoal loop hands to one ordered task.
+///
+/// Mining holds the datastore lock for seconds while it scores forks. If the
+/// loop waited for it, acks and rounds would stop and no certificate forms.
+enum StoreJob {
+    OwnDraft(ValidatorBlock),
+    PeerDraft(ValidatorBlock),
+    OwnCert(ValidatorBlock),
+    PeerCert {
+        block: ValidatorBlock,
+        committee_size: usize,
+    },
+    RestoreEvents(Vec<serde_json::Value>),
+    Round(u64),
+    Finalize(u64),
+}
+
+async fn run_store_job(job: StoreJob, own_peer_id: &str, datastore: &Arc<Mutex<DatastoreManager>>) {
+    match job {
+        StoreJob::OwnDraft(block) => {
+            let mgr = datastore.lock().await;
+            if let Err(e) = block.save_to_active(&mgr).await {
+                log::error!("Failed to save validator block for round {}: {}", block.round_id, e);
+            }
+        }
+        StoreJob::PeerDraft(block) => {
+            let mgr = datastore.lock().await;
+            if let Err(e) = block.save_to_active(&mgr).await {
+                log::warn!("Failed to save incoming block: {}", e);
+            }
+            queue_peer_prefix_cert_requests(&mgr, own_peer_id, &block).await;
+        }
+        StoreJob::OwnCert(block) => {
+            if let Err(e) = save_certified_block(&block, datastore).await {
+                log::error!("Failed to save certified block: {}", e);
+            }
+            {
+                let mgr = datastore.lock().await;
+                super::cert_sync::record_cert_round(&mgr, own_peer_id, block.round_id);
+            }
+            apply_certified_contract_events(&block, datastore).await;
+        }
+        StoreJob::PeerCert {
+            block,
+            committee_size,
+        } => {
+            let received =
+                accept_received_certified_block(&block, own_peer_id, committee_size, datastore)
+                    .await;
+            if matches!(received, ReceivedCert::Own | ReceivedCert::Invalid) || block.events.is_empty() {
+                return;
+            }
+            if received == ReceivedCert::Accepted {
+                let mgr = datastore.lock().await;
+                queue_peer_prefix_cert_requests(&mgr, own_peer_id, &block).await;
+            }
+            log::info!(
+                "Applying certified block round {} from {}: {} events{}",
+                block.round_id,
+                &block.peer_id[..16.min(block.peer_id.len())],
+                block.events.len(),
+                if received == ReceivedCert::Duplicate { " (already stored)" } else { "" }
+            );
+            apply_certified_contract_events(&block, datastore).await;
+        }
+        StoreJob::RestoreEvents(events) => {
+            let n = events.len();
+            let mgr = datastore.lock().await;
+            for event in events {
+                if let Err(e) = mgr.enqueue_sequencer_event(event).await {
+                    log::warn!("Failed to restore uncertified sequencer event: {}", e);
+                }
+            }
+            log::info!("Restored {n} uncertified sequencer event(s) onto a later round");
+        }
+        StoreJob::Round(round) => {
+            let mgr = datastore.lock().await;
+            if let Err(e) = mgr.set_current_round(round).await {
+                log::warn!("Failed to update current round: {}", e);
+            }
+        }
+        StoreJob::Finalize(round) => run_finalization_task(datastore, round).await,
+    }
+}
+
+/// Queue datastore work, or do it inline if the store task is gone.
+async fn hand_off(
+    store_tx: &mpsc::UnboundedSender<StoreJob>,
+    job: StoreJob,
+    own_peer_id: &str,
+    datastore: &Arc<Mutex<DatastoreManager>>,
+) {
+    if let Err(mpsc::error::SendError(job)) = store_tx.send(job) {
+        run_store_job(job, own_peer_id, datastore).await;
+    }
+}
+
+/// Rounds of certificates the loop remembers without reading the datastore.
+const RECENT_CERT_ROUNDS: u64 = 2 * DRAFT_ACK_WINDOW_ROUNDS;
+
+/// Certificates (author to cert) seen in recent rounds, own and peers'.
+#[derive(Default)]
+struct RecentCerts {
+    rounds: std::collections::BTreeMap<u64, HashMap<String, String>>,
+}
+
+impl RecentCerts {
+    /// Remember a certified block. Returns false if it was already known.
+    fn insert(&mut self, block: &ValidatorBlock) -> bool {
+        let Some(cert) = &block.cert else {
+            return false;
+        };
+        self.rounds
+            .entry(block.round_id)
+            .or_default()
+            .insert(block.peer_id.clone(), cert.clone())
+            .is_none()
+    }
+
+    fn in_round(&self, round: u64) -> Option<&HashMap<String, String>> {
+        self.rounds.get(&round).filter(|certs| !certs.is_empty())
+    }
+
+    fn forget_before(&mut self, round: u64) {
+        self.rounds = self.rounds.split_off(&round);
+    }
+}
+
 async fn on_certificate_formed(
     certified_block: &ValidatorBlock,
     shoal_validator: &modality_validator::ShoalValidator,
@@ -737,20 +869,21 @@ async fn on_certificate_formed(
     validator_peer_id: &str,
     checkpoint_tracker: &mut CheckpointTracker,
     blocks_per_epoch: u64,
-    apply_tx: &mpsc::UnboundedSender<ValidatorBlock>,
+    store_tx: &mpsc::UnboundedSender<StoreJob>,
+    recent_certs: &mut RecentCerts,
 ) {
-    if let Err(e) = save_certified_block(certified_block, datastore).await {
-        log::error!("Failed to save certified block: {}", e);
+    // A late ack past the threshold forms the same certificate again.
+    if !recent_certs.insert(certified_block) {
+        return;
     }
-    {
-        let mgr = datastore.lock().await;
-        super::cert_sync::record_cert_round(&mgr, validator_peer_id, certified_block.round_id);
-    }
-
+    hand_off(
+        store_tx,
+        StoreJob::OwnCert(certified_block.clone()),
+        validator_peer_id,
+        datastore,
+    )
+    .await;
     ingest_into_shoal(shoal_validator, certified_block).await;
-    if apply_tx.send(certified_block.clone()).is_err() {
-        apply_certified_contract_events(certified_block, datastore).await;
-    }
 
     if checkpoint_tracker.on_round_certified(certified_block.round_id) {
         if let Some(selection_epoch) = checkpoint_tracker.get_selection_epoch() {
@@ -826,13 +959,15 @@ pub async fn spawn_consensus_loop_with_checkpoints(
         let mut checkpoint_tracker = CheckpointTracker::new(checkpoint_mode, blocks_per_epoch);
         checkpoint_tracker.on_epoch_change(validator_epoch);
 
-        let (apply_tx, mut apply_rx) = mpsc::unbounded_channel::<ValidatorBlock>();
-        let apply_datastore = datastore.clone();
+        let (store_tx, mut store_rx) = mpsc::unbounded_channel::<StoreJob>();
+        let store_datastore = datastore.clone();
+        let store_peer_id = validator_peer_id.clone();
         tokio::spawn(async move {
-            while let Some(block) = apply_rx.recv().await {
-                apply_certified_contract_events(&block, &apply_datastore).await;
+            while let Some(job) = store_rx.recv().await {
+                run_store_job(job, &store_peer_id, &store_datastore).await;
             }
         });
+        let mut recent_certs = RecentCerts::default();
 
         let mut round_interval = tokio::time::interval(tokio::time::Duration::from_secs(2));
         // A slow datastore read must not queue a burst of extra rounds.
@@ -889,17 +1024,7 @@ pub async fn spawn_consensus_loop_with_checkpoints(
                                         log::warn!("Failed to send ack: {}", e);
                                     }
 
-                                    // Store off the loop. Waiting here for the datastore
-                                    // delays every later ack past the author's window.
-                                    let datastore = datastore.clone();
-                                    let own_peer_id = validator_peer_id.clone();
-                                    tokio::spawn(async move {
-                                        let mgr = datastore.lock().await;
-                                        if let Err(e) = block.save_to_active(&mgr).await {
-                                            log::warn!("Failed to save incoming block: {}", e);
-                                        }
-                                        queue_peer_prefix_cert_requests(&mgr, &own_peer_id, &block).await;
-                                    });
+                                    hand_off(&store_tx, StoreJob::PeerDraft(block), &validator_peer_id, &datastore).await;
                                 }
                                 Ok(None) => {}
                                 Err(e) => {
@@ -926,7 +1051,8 @@ pub async fn spawn_consensus_loop_with_checkpoints(
                                             &validator_peer_id,
                                             &mut checkpoint_tracker,
                                             blocks_per_epoch,
-                                            &apply_tx,
+                                            &store_tx,
+                                            &mut recent_certs,
                                         ).await;
                                     }
                                 }
@@ -940,13 +1066,19 @@ pub async fn spawn_consensus_loop_with_checkpoints(
                             log::debug!("Received certified block from {} for round {}",
                                 &from[..16.min(from.len())], block.round_id);
 
-                            let n = control.committee_size.load(Ordering::Relaxed).max(1);
-                            let received =
-                                accept_received_certified_block(&block, &validator_peer_id, n, &datastore).await;
-                            if matches!(received, ReceivedCert::Own | ReceivedCert::Invalid) {
+                            if block.peer_id == validator_peer_id {
                                 continue;
                             }
-                            if received == ReceivedCert::Accepted {
+                            let n = control.committee_size.load(Ordering::Relaxed).max(1);
+                            if block.cert.is_none() || !matches!(validate_certificate(&block, n), Ok(true)) {
+                                log::warn!(
+                                    "Invalid certificate from {} for round {}",
+                                    &block.peer_id[..16.min(block.peer_id.len())],
+                                    block.round_id
+                                );
+                                continue;
+                            }
+                            if block.round_id + RECENT_CERT_ROUNDS > round && recent_certs.insert(&block) {
                                 // A certified peer block at a later round means our
                                 // round counter fell behind (restart or a stall).
                                 if block.round_id > round {
@@ -958,24 +1090,13 @@ pub async fn spawn_consensus_loop_with_checkpoints(
                                     round = block.round_id;
                                 }
                                 ingest_into_shoal(&shoal_validator, &block).await;
-                                if !block.events.is_empty() {
-                                    let mgr = datastore.lock().await;
-                                    queue_peer_prefix_cert_requests(&mgr, &validator_peer_id, &block).await;
-                                }
                             }
-                            if block.events.is_empty() {
-                                continue;
-                            }
-                            log::info!(
-                                "Applying certified block round {} from {}: {} events{}",
-                                block.round_id,
-                                &block.peer_id[..16.min(block.peer_id.len())],
-                                block.events.len(),
-                                if received == ReceivedCert::Duplicate { " (already stored)" } else { "" }
-                            );
-                            if apply_tx.send(block.clone()).is_err() {
-                                apply_certified_contract_events(&block, &datastore).await;
-                            }
+                            hand_off(
+                                &store_tx,
+                                StoreJob::PeerCert { block, committee_size: n },
+                                &validator_peer_id,
+                                &datastore,
+                            ).await;
                         }
                         _ => {}
                     }
@@ -1001,21 +1122,10 @@ pub async fn spawn_consensus_loop_with_checkpoints(
                     if round > DRAFT_ACK_WINDOW_ROUNDS {
                         let restored = ack_collector.cleanup_round(round - DRAFT_ACK_WINDOW_ROUNDS);
                         if !restored.is_empty() {
-                            let n = restored.len();
-                            let mgr = datastore.lock().await;
-                            for event in restored {
-                                if let Err(e) = mgr.enqueue_sequencer_event(event).await {
-                                    log::warn!(
-                                        "Failed to restore uncertified sequencer event: {}",
-                                        e
-                                    );
-                                }
-                            }
-                            log::info!(
-                                "Restored {n} uncertified sequencer event(s) onto a later round"
-                            );
+                            hand_off(&store_tx, StoreJob::RestoreEvents(restored), &validator_peer_id, &datastore).await;
                         }
                     }
+                    recent_certs.forget_before(round.saturating_sub(RECENT_CERT_ROUNDS));
 
                     // Gossip can drop a draft. Publish it again so peers that
                     // missed it still ack before the block expires.
@@ -1035,23 +1145,31 @@ pub async fn spawn_consensus_loop_with_checkpoints(
                         }
                     }
 
-                    let prev_round_certs = {
-                        let mgr = datastore.lock().await;
-                        get_prev_round_certs(&mgr, round).await
+                    // If the datastore is busy, open the round without queued
+                    // events. They stay queued for a later round.
+                    let mgr = tokio::time::timeout(TICK_DATASTORE_WAIT, datastore.lock()).await.ok();
+
+                    let prev_round_certs = match (recent_certs.in_round(round - 1), &mgr) {
+                        (Some(certs), _) => certs.clone(),
+                        (None, Some(mgr)) => get_prev_round_certs(mgr, round).await,
+                        (None, None) => HashMap::new(),
                     };
 
-                    let events = {
-                        let mgr = datastore.lock().await;
-                        let raw = match mgr.drain_sequencer_events().await {
-                            Ok(events) => events,
-                            Err(e) => {
-                                log::warn!("Failed to drain sequencer events: {}", e);
-                                Vec::new()
-                            }
-                        };
-                        let named = mgr.contract_validators().unwrap_or_default();
-                        prefix_cert::filter_includable_events(raw, &named)
+                    let events = match &mgr {
+                        Some(mgr) => {
+                            let raw = match mgr.drain_sequencer_events().await {
+                                Ok(events) => events,
+                                Err(e) => {
+                                    log::warn!("Failed to drain sequencer events: {}", e);
+                                    Vec::new()
+                                }
+                            };
+                            let named = mgr.contract_validators().unwrap_or_default();
+                            prefix_cert::filter_includable_events(raw, &named)
+                        }
+                        None => Vec::new(),
                     };
+                    drop(mgr);
 
                     let block = match create_validator_block(
                         &validator_peer_id,
@@ -1068,14 +1186,7 @@ pub async fn spawn_consensus_loop_with_checkpoints(
                     };
 
                     ack_collector.register_our_block(block.clone());
-
-                    {
-                        let mgr = datastore.lock().await;
-                        if let Err(e) = block.save_to_active(&mgr).await {
-                            log::error!("Failed to save validator block for round {}: {}", round, e);
-                            continue;
-                        }
-                    }
+                    hand_off(&store_tx, StoreJob::OwnDraft(block.clone()), &validator_peer_id, &datastore).await;
 
                     if let Err(e) = communication.broadcast_draft_block(&validator_peer_id, &block).await {
                         log::warn!("Failed to broadcast draft block for round {}: {}", round, e);
@@ -1093,7 +1204,8 @@ pub async fn spawn_consensus_loop_with_checkpoints(
                                     &validator_peer_id,
                                     &mut checkpoint_tracker,
                                     blocks_per_epoch,
-                                    &apply_tx,
+                                    &store_tx,
+                                    &mut recent_certs,
                                 ).await;
                             }
                         }
@@ -1103,12 +1215,7 @@ pub async fn spawn_consensus_loop_with_checkpoints(
                         }
                     }
 
-                    {
-                        let mgr = datastore.lock().await;
-                        if let Err(e) = mgr.set_current_round(round).await {
-                            log::warn!("Failed to update current round: {}", e);
-                        }
-                    }
+                    hand_off(&store_tx, StoreJob::Round(round), &validator_peer_id, &datastore).await;
 
                     if round.is_multiple_of(10) {
                         log::info!("📦 Round {} block created (validator: {}, committee: {}, prev_certs: {})",
@@ -1120,7 +1227,7 @@ pub async fn spawn_consensus_loop_with_checkpoints(
                     }
 
                     if round.is_multiple_of(5) {
-                        run_finalization_task(&datastore, round).await;
+                        hand_off(&store_tx, StoreJob::Finalize(round), &validator_peer_id, &datastore).await;
                     }
                 }
             }
