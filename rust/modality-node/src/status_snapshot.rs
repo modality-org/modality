@@ -1,7 +1,9 @@
 //! Structured node status for the HTTP page and the terminal UI.
 
+use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
+use std::time::{Duration, Instant};
 use tokio::sync::{broadcast, Mutex};
 
 use libp2p::Multiaddr;
@@ -225,8 +227,58 @@ pub fn derive_active_roles(
     out
 }
 
-/// Collect a live status snapshot from node handles.
+/// A snapshot scans the whole miner chain under the datastore lock, which the
+/// Shoal loop needs for every draft. Viewers polling status share one snapshot.
+const STATUS_SNAPSHOT_TTL: Duration = Duration::from_secs(10);
+
+type StatusCache = Mutex<HashMap<String, (Instant, NodeStatus)>>;
+type CommitteeCache = std::sync::Mutex<HashMap<(String, u64), Vec<String>>>;
+
+static STATUS_CACHE: OnceLock<StatusCache> = OnceLock::new();
+static COMMITTEE_CACHE: OnceLock<CommitteeCache> = OnceLock::new();
+
+/// Collect a status snapshot, reusing one taken in the last few seconds.
 pub async fn collect_node_status(source: &NodeStatusSource) -> anyhow::Result<NodeStatus> {
+    let key = source.peerid.to_string();
+    let mut cache = STATUS_CACHE
+        .get_or_init(|| Mutex::new(HashMap::new()))
+        .lock()
+        .await;
+    if let Some((taken, status)) = cache.get(&key) {
+        if taken.elapsed() < STATUS_SNAPSHOT_TTL {
+            return Ok(status.clone());
+        }
+    }
+    let status = collect_node_status_uncached(source).await?;
+    cache.insert(key, (Instant::now(), status.clone()));
+    Ok(status)
+}
+
+/// The N−2 committee for `epoch`. It is fixed once the epoch opens.
+async fn sequencer_committee_for_epoch(
+    mgr: &DatastoreManager,
+    peerid: &str,
+    epoch: u64,
+) -> Vec<String> {
+    let cache = COMMITTEE_CACHE.get_or_init(|| std::sync::Mutex::new(HashMap::new()));
+    let key = (peerid.to_string(), epoch);
+    if let Some(committee) = cache.lock().ok().and_then(|c| c.get(&key).cloned()) {
+        return committee;
+    }
+    match get_validator_set_for_mining_epoch_hybrid_multi(mgr, epoch).await {
+        Ok(Some(set)) => {
+            let committee = set.get_active_validators();
+            if let Ok(mut c) = cache.lock() {
+                c.retain(|(p, _), _| p != peerid);
+                c.insert(key, committee.clone());
+            }
+            committee
+        }
+        _ => Vec::new(),
+    }
+}
+
+async fn collect_node_status_uncached(source: &NodeStatusSource) -> anyhow::Result<NodeStatus> {
     let peer_ids = {
         let swarm = source.swarm.lock().await;
         swarm.connected_peers().cloned().collect::<Vec<_>>()
@@ -318,13 +370,10 @@ pub async fn collect_node_status(source: &NodeStatusSource) -> anyhow::Result<No
 
     let (sequencer_committee, sequencer_nomination_epoch) =
         if source.hybrid_consensus && current_epoch >= 2 {
-            match get_validator_set_for_mining_epoch_hybrid_multi(&mgr, current_epoch).await {
-                Ok(Some(set)) => (
-                    set.get_active_validators(),
-                    Some(current_epoch.saturating_sub(2)),
-                ),
-                _ => (Vec::new(), Some(current_epoch.saturating_sub(2))),
-            }
+            (
+                sequencer_committee_for_epoch(&mgr, &peerid_str, current_epoch).await,
+                Some(current_epoch.saturating_sub(2)),
+            )
         } else {
             (Vec::new(), None)
         };

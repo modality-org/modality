@@ -25,7 +25,35 @@ use super::ack_collector::{
 use super::checkpoint::{create_checkpoint_for_epoch, CheckpointTracker};
 
 /// Ages, in rounds, at which an uncertified draft of ours is published again.
-const STALE_DRAFT_REBROADCAST_AGES: [u64; 2] = [3, 6];
+const STALE_DRAFT_REBROADCAST_AGES: [u64; 1] = [3];
+
+/// Rounds an author keeps collecting acks for a draft before dropping it.
+const DRAFT_ACK_WINDOW_ROUNDS: u64 = 10;
+
+/// Queued Shoal messages worth reporting. At a 2 s round, a few rounds of
+/// peer drafts, acks, and certs fit well under this.
+const LOOP_BACKLOG_WARN: usize = 64;
+
+/// Warns when one Shoal message holds the loop long enough to delay acks.
+struct SlowMessageGuard {
+    kind: &'static str,
+    round: u64,
+    started: std::time::Instant,
+}
+
+impl Drop for SlowMessageGuard {
+    fn drop(&mut self) {
+        let elapsed = self.started.elapsed();
+        if elapsed >= std::time::Duration::from_millis(250) {
+            log::warn!(
+                "Shoal loop spent {} ms on {} for round {}",
+                elapsed.as_millis(),
+                self.kind,
+                self.round
+            );
+        }
+    }
+}
 
 /// Shared flags so the hybrid coordinator can start a single live loop and
 /// later mark this node as in/out of the N−2 committee without respawning.
@@ -827,6 +855,16 @@ pub async fn spawn_consensus_loop_with_checkpoints(
                 biased;
                 Some(msg) = msg_rx.recv(), if msgs_since_tick < MSGS_BEFORE_TICK => {
                     msgs_since_tick += 1;
+                    let _slow = SlowMessageGuard {
+                        kind: match &msg {
+                            ConsensusMessage::DraftValidatorBlock { .. } => "draft",
+                            ConsensusMessage::ValidatorBlockAck { .. } => "ack",
+                            ConsensusMessage::CertifiedValidatorBlock { .. } => "cert",
+                            _ => "other",
+                        },
+                        round,
+                        started: std::time::Instant::now(),
+                    };
                     match msg {
                         ConsensusMessage::DraftValidatorBlock { from, block, .. } => {
                             if !control.participate.load(Ordering::Relaxed) {
@@ -834,6 +872,12 @@ pub async fn spawn_consensus_loop_with_checkpoints(
                             }
                             log::debug!("Received draft block from {} for round {}",
                                 &from[..16.min(from.len())], block.round_id);
+
+                            // The author has already dropped this draft. Acking it
+                            // only delays drafts that can still be certified.
+                            if block.round_id + DRAFT_ACK_WINDOW_ROUNDS <= round {
+                                continue;
+                            }
 
                             match ack_collector.handle_incoming_block(&block) {
                                 Ok(Some(ack)) => {
@@ -845,11 +889,17 @@ pub async fn spawn_consensus_loop_with_checkpoints(
                                         log::warn!("Failed to send ack: {}", e);
                                     }
 
-                                    let mgr = datastore.lock().await;
-                                    if let Err(e) = block.save_to_active(&mgr).await {
-                                        log::warn!("Failed to save incoming block: {}", e);
-                                    }
-                                    queue_peer_prefix_cert_requests(&mgr, &validator_peer_id, &block).await;
+                                    // Store off the loop. Waiting here for the datastore
+                                    // delays every later ack past the author's window.
+                                    let datastore = datastore.clone();
+                                    let own_peer_id = validator_peer_id.clone();
+                                    tokio::spawn(async move {
+                                        let mgr = datastore.lock().await;
+                                        if let Err(e) = block.save_to_active(&mgr).await {
+                                            log::warn!("Failed to save incoming block: {}", e);
+                                        }
+                                        queue_peer_prefix_cert_requests(&mgr, &own_peer_id, &block).await;
+                                    });
                                 }
                                 Ok(None) => {}
                                 Err(e) => {
@@ -908,8 +958,10 @@ pub async fn spawn_consensus_loop_with_checkpoints(
                                     round = block.round_id;
                                 }
                                 ingest_into_shoal(&shoal_validator, &block).await;
-                                let mgr = datastore.lock().await;
-                                queue_peer_prefix_cert_requests(&mgr, &validator_peer_id, &block).await;
+                                if !block.events.is_empty() {
+                                    let mgr = datastore.lock().await;
+                                    queue_peer_prefix_cert_requests(&mgr, &validator_peer_id, &block).await;
+                                }
                             }
                             if block.events.is_empty() {
                                 continue;
@@ -936,9 +988,18 @@ pub async fn spawn_consensus_loop_with_checkpoints(
                     }
 
                     round += 1;
+                    let _slow = SlowMessageGuard {
+                        kind: "tick",
+                        round,
+                        started: std::time::Instant::now(),
+                    };
+                    let backlog = msg_rx.len();
+                    if backlog >= LOOP_BACKLOG_WARN {
+                        log::warn!("Shoal loop backlog: {} queued messages at round {}", backlog, round);
+                    }
 
-                    if round > 10 {
-                        let restored = ack_collector.cleanup_round(round - 10);
+                    if round > DRAFT_ACK_WINDOW_ROUNDS {
+                        let restored = ack_collector.cleanup_round(round - DRAFT_ACK_WINDOW_ROUNDS);
                         if !restored.is_empty() {
                             let n = restored.len();
                             let mgr = datastore.lock().await;
