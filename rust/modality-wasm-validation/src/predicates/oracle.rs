@@ -73,10 +73,10 @@ fn canonical_oracle_replay_bundle_json(
     serde_json::to_string(bundle)
 }
 
-fn accepted_state_oracle_pubkey<'a>(
-    oracle_input: &'a OracleAttestsInput,
+fn accepted_state_oracle_pubkey(
+    oracle_input: &OracleAttestsInput,
     gas_used: u64,
-) -> Result<&'a str, PredicateResult> {
+) -> Result<&str, PredicateResult> {
     let accepted_state_oracle_keys = oracle_input.accepted_state_oracle_keys.as_ref().ok_or_else(
         || {
             PredicateResult::failure(

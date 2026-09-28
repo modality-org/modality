@@ -465,14 +465,11 @@ fn validate_commit_against_model(
             commit_has_invoke, expand_invoke_actions, expand_prefix, frozen_invoke_context,
             wasm_modules_from_commits,
         };
-        let prefix = match crate::replay::prefix_from_store(store) {
-            Ok(prefix) => prefix,
-            Err(_) => Vec::new(),
-        };
+        let prefix = crate::replay::prefix_from_store(store).unwrap_or_default();
         if commit_has_invoke(commit) || prefix.iter().any(|(_, file)| commit_has_invoke(file)) {
             let history_files: Vec<_> = prefix.iter().map(|(_, file)| file.clone()).collect();
             let mut wasm = wasm_modules_from_commits(&history_files)?;
-            for module in wasm_modules_from_commits(&[commit.clone()])? {
+            for module in wasm_modules_from_commits(std::slice::from_ref(commit))? {
                 if modality_common::independent_replay::lookup_wasm(&wasm, &module.path).is_none() {
                     wasm.push(module);
                 }

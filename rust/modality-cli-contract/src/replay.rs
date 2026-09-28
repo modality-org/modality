@@ -106,7 +106,7 @@ fn verify_artifact(artifact: &ReplayArtifact) -> Result<ReplayReport> {
         } else {
             None
         };
-        return verify_replay_artifact(artifact, engine_ref);
+        verify_replay_artifact(artifact, engine_ref)
     }
     #[cfg(not(feature = "wasm"))]
     {
@@ -212,7 +212,7 @@ async fn fetch_remote_artifact(opts: &Opts, remote: &str) -> Result<ReplayArtifa
         let data = response
             .data
             .ok_or_else(|| anyhow::anyhow!("No data in replay response"))?;
-        return Ok(serde_json::from_value(data)?);
+        Ok(serde_json::from_value(data)?)
     }
     #[cfg(not(feature = "p2p"))]
     {

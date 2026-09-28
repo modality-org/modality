@@ -327,7 +327,7 @@ pub fn sync_fetch_end(row_count: u64, chain_tip: u64) -> u64 {
 /// Outcome of one hash lookup. A timeout is not the same as a peer that
 /// does not store the block: the next pass can ask again.
 pub enum HashLookup {
-    Block(MinerBlock),
+    Block(Box<MinerBlock>),
     NotFound,
     Unavailable,
 }
@@ -392,7 +392,7 @@ pub async fn request_block_by_hash(
         return Ok(HashLookup::NotFound);
     };
     match serde_json::from_value::<MinerBlock>(data) {
-        Ok(block) if block.hash == hash => Ok(HashLookup::Block(block)),
+        Ok(block) if block.hash == hash => Ok(HashLookup::Block(Box::new(block))),
         Ok(_) => Ok(HashLookup::NotFound),
         Err(e) => {
             log::warn!("Failed to parse block {hash}: {e}");

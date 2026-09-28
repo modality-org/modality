@@ -305,7 +305,7 @@ impl ContractProcessor {
         let accepted_files: Vec<CommitFile> =
             accepted_raw.iter().map(|(_, file)| file.clone()).collect();
         let mut wasm = wasm_modules_from_commits(&accepted_files)?;
-        for module in wasm_modules_from_commits(&[pending.clone()])? {
+        for module in wasm_modules_from_commits(std::slice::from_ref(pending))? {
             if modality_common::independent_replay::lookup_wasm(&wasm, &module.path).is_none() {
                 wasm.push(module);
             }
