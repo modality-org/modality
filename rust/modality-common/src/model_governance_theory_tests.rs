@@ -1451,3 +1451,50 @@ model Contract {
     let from_q1 = rule_commit(r#"<+bool_true(/f.bool)> true"#);
     validate(&accepted, &from_q1, v2).expect("q1 --> q2 is open");
 }
+
+/// Part `a` requires Alice; part `b` does not. A commit may take either
+/// part's edge out of `q1`, so "Alice signs every later commit" is refused
+/// under every version; with Alice required in both parts it is accepted
+/// and enforced.
+#[test]
+fn a_rule_on_a_multi_part_model_binds_every_part() {
+    const TWO: &str = r#"
+model Contract {
+  part a {
+    q0 --> q1
+    q1 --> q1: +signed_by(/parties/alice.id)
+  }
+  part b {
+    q0 --> q1
+    q1 --> q1: +POST
+  }
+}
+"#;
+    let parties = || {
+        vec![
+            ("/parties/alice.id", json!("KEY_A")),
+            ("/parties/bob.id", json!("KEY_B")),
+        ]
+    };
+    let rule = || {
+        signed(
+            rule_commit("[] always([-signed_by(/parties/alice.id)] false)"),
+            &["KEY_A"],
+        )
+    };
+    for theory in [V0, V1, TheoryVersion::V2] {
+        let accepted = vec![model_commit(TWO, parties())];
+        let err = validate(&accepted, &rule(), theory)
+            .expect_err("part b lets Bob commit alone")
+            .to_string();
+        assert!(err.contains("Model violates rule"), "{theory:?}: {err}");
+
+        let both = TWO.replace("+POST", "+POST +signed_by(/parties/alice.id)");
+        let accepted = vec![model_commit(&both, parties())];
+        validate(&accepted, &rule(), theory).expect("every part requires Alice");
+        let accepted = then(&accepted, &rule());
+        validate(&accepted, &signed(note(), &["KEY_B"]), theory)
+            .expect_err("Bob alone takes no edge");
+        validate(&accepted, &signed(note(), &["KEY_A"]), theory).expect("Alice may");
+    }
+}

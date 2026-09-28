@@ -56,7 +56,9 @@ pub use mermaid::{
     generate_mermaid_diagram, generate_mermaid_diagram_with_state,
     generate_mermaid_diagram_with_styling, generate_mermaid_diagrams,
 };
-pub use model_checker::{DeadEdge, ModelCheckResult, ModelChecker, Move, MoveStatus, State};
+pub use model_checker::{
+    merged_model, DeadEdge, ModelCheckResult, ModelChecker, Move, MoveStatus, State,
+};
 pub use printer::print_model;
 pub use runtime::negotiation::{
     CounterProposal, Proposal as NegotiationProposal, ProposalStatus as NegotiationStatus,

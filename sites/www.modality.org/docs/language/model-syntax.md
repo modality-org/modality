@@ -58,6 +58,43 @@ q1 -> q2 [+DISPUTE]
 q1 -> q3 [+DISPUTE +signed_by(/parties/arbiter.id)]
 ```
 
+## Parts
+
+```modality
+model Contract {
+  part a {
+    q0 --> q1: +signed_by(/parties/alice.id)
+  }
+  part b {
+    q0 --> q2: +signed_by(/parties/bob.id)
+  }
+}
+```
+
+Parts are one graph joined by node name. A commit at `q0` may take an edge
+out of `q0` in any part, so rules are checked against every part's edges
+together: `[-signed_by(/parties/alice.id)] false` fails here, because part `b`
+lets Bob commit alone. A node name in two parts is the same node.
+
+A part of same-node loops allows commits that do not advance the rest of the
+model, such as notes or evidence, while the contract stays at its node:
+
+```modality
+model Contract {
+  part flow {
+    q0 --> q1: +signed_by(/parties/alice.id)
+    q1 --> q2: +signed_by(/parties/bob.id)
+  }
+  part notes {
+    q1 --> q1: +signed_by(/parties/alice.id) -modifies(/parties)
+  }
+}
+```
+
+Rules range over these loops like any other edge, so give them the signer
+labels the rules require. A loop keeps the contract at `q1` but may still write
+state; `-modifies` says which paths it leaves unchanged.
+
 ## Comments
 
 ```modality

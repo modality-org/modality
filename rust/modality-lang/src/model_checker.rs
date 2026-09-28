@@ -3,7 +3,7 @@ use crate::theory::{standard, NoState, Registry, StateView, Theory, TheoryVersio
 use crate::vars;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 /// Represents an internal LTS witness node (part name and node id).
 ///
@@ -56,6 +56,33 @@ pub struct Move {
     pub offending: Vec<String>,
 }
 
+/// The graph commits move on: every part's transitions and the top-level
+/// ones, as one part over node names. A commit at a node may take any edge
+/// out of it, whichever part the edge is written in. The part is named
+/// after the parts it joins (`a+b`).
+pub fn merged_model(model: &Model) -> Model {
+    if model.parts.len() <= 1 && model.transitions.is_empty() {
+        return model.clone();
+    }
+    let mut names: Vec<&str> = model.parts.iter().map(|p| p.name.as_str()).collect();
+    if names.is_empty() {
+        names.push("default");
+    }
+    let mut part = Part::new(names.join("+"));
+    for t in model
+        .parts
+        .iter()
+        .flat_map(|p| p.transitions.iter())
+        .chain(model.transitions.iter())
+    {
+        part.add_transition(t.clone());
+    }
+    let mut merged = model.clone();
+    merged.parts = vec![part];
+    merged.transitions = Vec::new();
+    merged
+}
+
 /// Model checker for temporal modal formulas
 pub struct ModelChecker {
     model: Model,
@@ -68,6 +95,8 @@ pub struct ModelChecker {
     never: HashSet<(usize, usize)>,
     /// The node a `V2` rule check is evaluated from.
     start: Option<String>,
+    /// Fixed-point variables being evaluated, bound to their states.
+    bound: Mutex<HashMap<String, Vec<State>>>,
 }
 
 impl ModelChecker {
@@ -117,6 +146,7 @@ impl ModelChecker {
             dead: HashSet::new(),
             never: HashSet::new(),
             start: None,
+            bound: Mutex::new(HashMap::new()),
         };
         checker.dead = checker.compute_dead();
         checker
@@ -404,7 +434,8 @@ impl ModelChecker {
 
     /// Runtime necessity: classify every outgoing edge of `node` (in every
     /// part that has it) against the state view. Under `V0`, or with no
-    /// state view, every live edge is `Open`.
+    /// state view, every live edge is `Open`. A move is `Forced` when it is
+    /// the only open edge out of `node` in any part: a commit may take any.
     pub fn classify_moves(&self, node: &str) -> Vec<Move> {
         let theory = self.theory();
         let mut out = Vec::new();
@@ -439,20 +470,14 @@ impl ModelChecker {
                     }
                 })
                 .collect();
-            if moves.len() > 1
-                && moves
-                    .iter()
-                    .filter(|m| m.status == MoveStatus::Open)
-                    .count()
-                    == 1
-            {
-                for m in &mut moves {
-                    if m.status == MoveStatus::Open {
-                        m.status = MoveStatus::Forced;
-                    }
+            out.append(&mut moves);
+        }
+        if out.len() > 1 && out.iter().filter(|m| m.status == MoveStatus::Open).count() == 1 {
+            for m in &mut out {
+                if m.status == MoveStatus::Open {
+                    m.status = MoveStatus::Forced;
                 }
             }
-            out.extend(moves);
         }
         out
     }
@@ -484,11 +509,22 @@ impl ModelChecker {
 
     /// Check if a formula is satisfied starting from a specific witness node id
     ///
-    /// Returns satisfied if the named witness node is among the nodes that satisfy the formula
+    /// Returns satisfied if the named witness node is among the nodes that satisfy the formula.
+    /// The formula is evaluated on [`merged_model`], the graph commits move on, so on a model
+    /// with several parts it must hold for the edges of every part out of the node.
     ///
     /// Under `V2` the check runs from `state_name` with nothing known about
     /// accepted state there, and drops the edges no run from it takes.
     pub fn check_formula_at_state(&self, formula: &Formula, state_name: &str) -> ModelCheckResult {
+        if self.model.parts.len() > 1 || !self.model.transitions.is_empty() {
+            return ModelChecker::with_shared(
+                merged_model(&self.model),
+                self.version,
+                self.registry.clone(),
+                self.state.clone(),
+            )
+            .check_formula_at_state(formula, state_name);
+        }
         if self.version == TheoryVersion::V2 && self.start.as_deref() != Some(state_name) {
             let mut scoped = ModelChecker::with_shared(
                 self.model.clone(),
@@ -540,6 +576,9 @@ impl ModelChecker {
                 Vec::new()
             }
             FormulaExpr::Prop(name) => {
+                if let Some(states) = self.bound_states(name) {
+                    return states;
+                }
                 // Witness nodes where the opaque node id matches the proposition.
                 self.all_states()
                     .into_iter()
@@ -585,8 +624,9 @@ impl ModelChecker {
             FormulaExpr::Until(left, right) => self.evaluate_until(left, right),
             FormulaExpr::Next(expr) => self.evaluate_next(expr),
             FormulaExpr::Var(name) => {
-                // Variable lookup - should be handled in fixed point context
-                // For now, treat as proposition (will be substituted during fixed point eval)
+                if let Some(states) = self.bound_states(name) {
+                    return states;
+                }
                 self.all_states()
                     .into_iter()
                     .filter(|s| s.node_name == *name)
@@ -753,9 +793,7 @@ impl ModelChecker {
         let mut changed = true;
 
         while changed {
-            // Substitute current result for variable X in the formula
-            let substituted = self.substitute_var(expr, var, &result);
-            let new_result = self.evaluate_formula(&substituted);
+            let new_result = self.evaluate_bound(var, &result, expr);
 
             // Check if we've reached a fixed point
             changed =
@@ -773,9 +811,7 @@ impl ModelChecker {
         let mut changed = true;
 
         while changed {
-            // Substitute current result for variable X in the formula
-            let substituted = self.substitute_var(expr, var, &result);
-            let new_result = self.evaluate_formula(&substituted);
+            let new_result = self.evaluate_bound(var, &result, expr);
 
             // Intersect with current result (gfp is monotonically decreasing)
             let intersection = self.intersect_states(&result, &new_result);
@@ -788,79 +824,31 @@ impl ModelChecker {
         result
     }
 
-    /// Substitute a variable with a set of witness nodes in a formula
-    /// Returns a formula where Var(name) is replaced with an Or of Prop(node_id)
-    fn substitute_var(&self, expr: &FormulaExpr, var: &str, states: &[State]) -> FormulaExpr {
-        match expr {
-            FormulaExpr::Var(name) | FormulaExpr::Prop(name) if name == var => {
-                // Replace variable with disjunction of state propositions
-                if states.is_empty() {
-                    FormulaExpr::False
-                } else {
-                    states.iter().skip(1).fold(
-                        FormulaExpr::Prop(states[0].node_name.clone()),
-                        |acc, s| {
-                            FormulaExpr::Or(
-                                Box::new(acc),
-                                Box::new(FormulaExpr::Prop(s.node_name.clone())),
-                            )
-                        },
-                    )
-                }
-            }
-            FormulaExpr::And(l, r) => FormulaExpr::And(
-                Box::new(self.substitute_var(l, var, states)),
-                Box::new(self.substitute_var(r, var, states)),
-            ),
-            FormulaExpr::Or(l, r) => FormulaExpr::Or(
-                Box::new(self.substitute_var(l, var, states)),
-                Box::new(self.substitute_var(r, var, states)),
-            ),
-            FormulaExpr::Not(inner) => {
-                FormulaExpr::Not(Box::new(self.substitute_var(inner, var, states)))
-            }
-            FormulaExpr::Implies(l, r) => FormulaExpr::Implies(
-                Box::new(self.substitute_var(l, var, states)),
-                Box::new(self.substitute_var(r, var, states)),
-            ),
-            FormulaExpr::Paren(inner) => {
-                FormulaExpr::Paren(Box::new(self.substitute_var(inner, var, states)))
-            }
-            FormulaExpr::Diamond(props, phi) => FormulaExpr::Diamond(
-                props.clone(),
-                Box::new(self.substitute_var(phi, var, states)),
-            ),
-            FormulaExpr::Box(props, phi) => FormulaExpr::Box(
-                props.clone(),
-                Box::new(self.substitute_var(phi, var, states)),
-            ),
-            FormulaExpr::DiamondBox(props, phi) => FormulaExpr::DiamondBox(
-                props.clone(),
-                Box::new(self.substitute_var(phi, var, states)),
-            ),
-            FormulaExpr::Eventually(phi) => {
-                FormulaExpr::Eventually(Box::new(self.substitute_var(phi, var, states)))
-            }
-            FormulaExpr::Always(phi) => {
-                FormulaExpr::Always(Box::new(self.substitute_var(phi, var, states)))
-            }
-            FormulaExpr::Until(l, r) => FormulaExpr::Until(
-                Box::new(self.substitute_var(l, var, states)),
-                Box::new(self.substitute_var(r, var, states)),
-            ),
-            FormulaExpr::Next(phi) => {
-                FormulaExpr::Next(Box::new(self.substitute_var(phi, var, states)))
-            }
-            // Nested fixed points: only substitute if var is different
-            FormulaExpr::Lfp(v, phi) if v != var => {
-                FormulaExpr::Lfp(v.clone(), Box::new(self.substitute_var(phi, var, states)))
-            }
-            FormulaExpr::Gfp(v, phi) if v != var => {
-                FormulaExpr::Gfp(v.clone(), Box::new(self.substitute_var(phi, var, states)))
-            }
-            // Don't substitute bound variables or literals
-            other => other.clone(),
+    /// Evaluate `expr` with `var` bound to exactly `states`. A bound
+    /// variable names states, part and node, not node names: on a model with
+    /// several parts a node name would also pick the same name in every
+    /// other part.
+    fn evaluate_bound(&self, var: &str, states: &[State], expr: &FormulaExpr) -> Vec<State> {
+        let outer = self.bind(var, Some(states.to_vec()));
+        let result = self.evaluate_formula(expr);
+        self.bind(var, outer);
+        result
+    }
+
+    fn bind(&self, var: &str, states: Option<Vec<State>>) -> Option<Vec<State>> {
+        let mut bound = self.bound.lock().unwrap_or_else(|e| e.into_inner());
+        match states {
+            Some(states) => bound.insert(var.to_string(), states),
+            None => bound.remove(var),
         }
+    }
+
+    fn bound_states(&self, name: &str) -> Option<Vec<State>> {
+        self.bound
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .get(name)
+            .cloned()
     }
 
     /// Evaluate diamond operator: <properties> phi

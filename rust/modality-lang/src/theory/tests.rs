@@ -883,6 +883,161 @@ model Contract {
     assert!(rule_accepted(m, each, TheoryVersion::V1));
 }
 
+const TWO_PARTS: &str = r#"
+model Contract {
+  part a {
+    q0 --> q1
+    q1 --> q1: +signed_by(/parties/alice.id)
+  }
+  part b {
+    q0 --> q1
+    q1 --> q1: +POST
+  }
+}
+"#;
+
+#[test]
+fn a_rule_holds_only_if_it_holds_for_every_part_out_of_the_node() {
+    let alice = r#"[] always([-signed_by(/parties/alice.id)] false)"#;
+    for v in [TheoryVersion::V0, TheoryVersion::V1, TheoryVersion::V2] {
+        assert!(!rule_accepted(TWO_PARTS, alice, v), "{v:?}");
+        let both = TWO_PARTS.replace("+POST", "+POST +signed_by(/parties/alice.id)");
+        assert!(rule_accepted(&both, alice, v), "{v:?}");
+    }
+    // Possibility is met through either part.
+    let post = r#"<> <+POST> true"#;
+    assert!(rule_accepted(TWO_PARTS, post, TheoryVersion::V0));
+
+    // The example in `docs/language/model-syntax.md` (Parts).
+    let doc = r#"
+model Contract {
+  part a {
+    q0 --> q1: +signed_by(/parties/alice.id)
+  }
+  part b {
+    q0 --> q2: +signed_by(/parties/bob.id)
+  }
+}
+"#;
+    let rule = r#"[-signed_by(/parties/alice.id)] false"#;
+    assert!(!rule_accepted(doc, rule, TheoryVersion::V0));
+    assert!(rule_accepted(
+        &doc.replace("part b {\n    q0 --> q2", "part b {\n    q5 --> q2"),
+        rule,
+        TheoryVersion::V0
+    ));
+}
+
+#[test]
+fn top_level_transitions_count_with_the_parts() {
+    let m = r#"
+model Contract {
+  part a {
+    q0 --> q0: +signed_by(/parties/alice.id)
+  }
+  q0 --> q0: +POST
+}
+"#;
+    let alice = r#"always([-signed_by(/parties/alice.id)] false)"#;
+    assert!(!rule_accepted(m, alice, TheoryVersion::V0));
+}
+
+/// A fixed-point variable names states, part and node. As node names it
+/// also picked `b`'s `q1`, which has no way on, through `a`'s.
+/// A part of same-node loops lets commits stay at a node. The loop is a
+/// way in, so the node keeps a fact only if the loop frames it.
+#[test]
+fn a_stutter_loop_keeps_facts_only_when_framed() {
+    let stutter = |frame: &str| {
+        format!(
+            r#"
+model Contract {{
+  part flow {{
+    q0 --> q1: +bool_true(/f.bool) -modifies(/f.bool)
+    q1 --> q2: +bool_false(/f.bool)
+  }}
+  part notes {{
+    q1 --> q1: +POST{frame}
+  }}
+}}
+"#
+        )
+    };
+    assert_eq!(dead_after(&stutter(" -modifies(/f.bool)")), ["q1 --> q2"]);
+    assert!(dead_after(&stutter("")).is_empty());
+
+    // The example in `docs/language/model-syntax.md` (Parts).
+    model(
+        r#"
+model Contract {
+  part flow {
+    q0 --> q1: +signed_by(/parties/alice.id)
+    q1 --> q2: +signed_by(/parties/bob.id)
+  }
+  part notes {
+    q1 --> q1: +signed_by(/parties/alice.id) -modifies(/parties)
+  }
+}
+"#,
+    );
+}
+
+#[test]
+fn a_fixed_point_variable_does_not_leak_across_parts() {
+    let m = r#"
+model Contract {
+  part a {
+    q0 --> q1
+    q1 --> q1
+  }
+  part b {
+    q0 --> q1
+  }
+}
+"#;
+    let checker = ModelChecker::new(model(m));
+    let states = checker
+        .check_formula(&formula("gfp(X, <>X)"))
+        .satisfying_states;
+    let mut names: Vec<String> = states
+        .iter()
+        .map(|s| format!("{}.{}", s.part_name, s.node_name))
+        .collect();
+    names.sort();
+    assert_eq!(names, ["a.q0", "a.q1"]);
+}
+
+#[test]
+fn a_move_is_forced_only_if_no_other_part_offers_one() {
+    let m = r#"
+model Contract {
+  part a {
+    q0 --> q1: +bool_true(/f.bool)
+    q0 --> q2: +bool_false(/f.bool)
+  }
+  part b {
+    q0 --> q3: +POST
+  }
+}
+"#;
+    let state = MapState::from_pairs([("/f.bool".to_string(), "true".to_string())]);
+    let checker =
+        ModelChecker::with_theory(model(m), TheoryVersion::V1, None, Some(Box::new(state)));
+    let statuses: Vec<(String, MoveStatus)> = checker
+        .classify_moves("q0")
+        .into_iter()
+        .map(|mv| (mv.to, mv.status))
+        .collect();
+    assert_eq!(
+        statuses,
+        [
+            ("q1".to_string(), MoveStatus::Open),
+            ("q2".to_string(), MoveStatus::Blocked),
+            ("q3".to_string(), MoveStatus::Open),
+        ]
+    );
+}
+
 const G_FLAG: &str = r#"
 model Contract {
   part flow {

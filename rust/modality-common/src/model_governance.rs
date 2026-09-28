@@ -1344,7 +1344,7 @@ fn transition_matches_formula_properties(transition: &Transition, properties: &[
 }
 
 fn satisfying_node_names(model: &Model, expr: &FormulaExpr) -> Vec<String> {
-    let checker = ModelChecker::new(model_for_rule_checking(model));
+    let checker = ModelChecker::new(modality_lang::merged_model(model));
     let formula = Formula::new("diagnostic".to_string(), expr.clone());
     let mut nodes = checker
         .check_formula_any_state(&formula)
