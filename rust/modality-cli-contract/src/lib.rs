@@ -20,6 +20,7 @@ pub mod repost;
 pub mod set;
 pub mod set_named_id;
 pub mod status;
+pub mod theory;
 pub mod unpack;
 pub mod wasm_upload;
 

@@ -117,20 +117,21 @@ model Contract {
 // Pending RULE commits
 // ---------------------------------------------------------------------------
 
-/// Today a pending RULE is not model-checked; replay of the next commit
-/// checks it. A rule the model violates is accepted, then every later
-/// commit that keeps the model fails replay. `V1` checks it up front.
+/// A pending RULE the model violates is refused up front, under every
+/// version. It used to be accepted, and then every later commit that kept
+/// the model failed replay; a log that already holds one still does.
 #[test]
-fn v0_accepts_a_pending_rule_the_next_commit_cannot_replay() {
+fn a_pending_rule_the_model_violates_is_refused() {
     let accepted = vec![model_commit(POST_LOOP, vec![])];
     let pending = rule_commit("[+POST] false");
 
-    validate(&accepted, &pending, V0).expect("V0 accepts the rule commit");
-    let err = validate(&then(&accepted, &pending), &note(), V0)
-        .expect_err("the next commit cannot replay the accepted rule");
-    assert!(err.to_string().contains("Model violates rule"), "{err}");
+    for theory in [V0, V1] {
+        let err = validate(&accepted, &pending, theory).expect_err("refused up front");
+        assert!(err.to_string().contains("Model violates rule"), "{err}");
+    }
 
-    let err = validate(&accepted, &pending, V1).expect_err("V1 checks the pending rule");
+    let err = validate(&then(&accepted, &pending), &note(), V0)
+        .expect_err("a log that already holds the rule cannot replay it");
     assert!(err.to_string().contains("Model violates rule"), "{err}");
 }
 
@@ -200,8 +201,8 @@ fn g3_v1_accepts_a_box_over_a_dead_edge() {
     let accepted = vec![model_commit(LIVE_AND_DEAD, vec![])];
     let pending = rule_commit(r#"[+num_gt(/x.num,"5")] false"#);
 
-    validate(&accepted, &pending, V0).expect("V0 accepts at pending time");
-    validate(&then(&accepted, &pending), &note(), V0).expect_err("and fails on the next replay");
+    validate(&accepted, &pending, V0).expect_err("V0: the dead edge still counts");
+    validate(&then(&accepted, &pending), &note(), V0).expect_err("and replay agrees");
 
     validate(&accepted, &pending, V1).expect("V1 accepts: the box is vacuous");
     validate(&then(&accepted, &pending), &note(), V1).expect("and replays");
@@ -212,9 +213,8 @@ fn g4_v1_matches_edges_by_entailment() {
     let accepted = vec![model_commit(G4, vec![("/x.num", json!(9))])];
     let pending = rule_commit(r#"[] always(<+num_gt(/x.num,"5")> true)"#);
 
-    validate(&accepted, &pending, V0).expect("V0 accepts at pending time");
-    validate(&then(&accepted, &pending), &note_at_x(), V0)
-        .expect_err("x > 7 is not structurally x > 5");
+    validate(&accepted, &pending, V0).expect_err("x > 7 is not structurally x > 5");
+    validate(&then(&accepted, &pending), &note_at_x(), V0).expect_err("and replay agrees");
 
     validate(&accepted, &pending, V1).expect("x > 7 entails x > 5");
     validate(&then(&accepted, &pending), &note_at_x(), V1).expect("and replays");
@@ -365,7 +365,6 @@ fn i3_shadow_findings_never_change_the_v0_outcome() {
         let today = validate(&accepted, &pending, V0).is_ok();
         let report = shadow_findings("", &accepted, &pending, V1);
         assert_eq!(report.accepted_today, today, "{id}");
-        assert!(!report.findings.is_empty(), "{id}: {report:?}");
         assert_eq!(validate(&accepted, &pending, V0).is_ok(), today, "{id}");
 
         let has = |pred: fn(&TheoryFinding) -> bool| report.findings.iter().any(pred);
@@ -381,12 +380,11 @@ fn i3_shadow_findings_never_change_the_v0_outcome() {
                 has(|f| matches!(f, TheoryFinding::WouldRefuse { .. })),
                 "{id}"
             ),
-            "G3" | "G4" | "probe" => {
-                assert!(
-                    has(|f| matches!(f, TheoryFinding::ReplayWouldFail { .. })),
-                    "{id}"
-                )
-            }
+            "G3" | "G4" => assert!(
+                has(|f| matches!(f, TheoryFinding::WouldAccept { .. })),
+                "{id}"
+            ),
+            "probe" => assert!(report.findings.is_empty(), "{id}: {report:?}"),
             _ => unreachable!(),
         }
     }
@@ -402,7 +400,7 @@ fn moves(
     posts: Vec<(&str, Value)>,
     theory: TheoryVersion,
 ) -> Vec<(String, MoveStatus)> {
-    let view = necessity_view(
+    let view = derived_view(
         "",
         &[model_commit(model, posts)],
         TheoryActivation::always(theory),
@@ -527,6 +525,247 @@ model Contract {
         moves(h6, vec![("/claimants/KEY_B.id", json!("KEY_B"))], V1),
         statuses(&[("q1", Blocked), ("q2", Forced)])
     );
+}
+
+// ---------------------------------------------------------------------------
+// Testnet faucet v1, as far as today's predicates reach
+// ---------------------------------------------------------------------------
+
+/// Two posted claimants, one drip each. A drip is a `SEND` that also posts
+/// the claimant's own flag, signed by that claimant and not the other. The
+/// flag is read from accepted state, so it blocks the *next* drip.
+const FAUCET: &str = r#"
+model Faucet {
+  part flow {
+    q0 --> q1
+    q1 --> q1: +POST -SEND -CREATE
+    q1 --> q1: +SEND +POST -CREATE +signed_by(/claimants/alice.id) -signed_by(/claimants/bob.id) -bool_true(/claimants/alice/claimed.bool) +post_to_path(/claimants/alice/claimed.bool)
+    q1 --> q1: +SEND +POST -CREATE +signed_by(/claimants/bob.id) -signed_by(/claimants/alice.id) -bool_true(/claimants/bob/claimed.bool) +post_to_path(/claimants/bob/claimed.bool)
+  }
+}
+"#;
+
+/// Every later `SEND` is signed by a claimant.
+const FAUCET_SIGNED: &str = "[] always([+SEND -any_signed(/claimants)] false)";
+/// No `CREATE` after bootstrap: the pool is finite.
+const FAUCET_NO_CREATE: &str = "[] always([+CREATE] false)";
+/// Alice drips at most once.
+const FAUCET_ALICE_ONCE: &str =
+    "[] always([+SEND +signed_by(/claimants/alice.id) +bool_true(/claimants/alice/claimed.bool)] false)";
+/// Alice's drip marks her flag.
+const FAUCET_ALICE_MARKS: &str =
+    "[] always([+SEND +signed_by(/claimants/alice.id) -post_to_path(/claimants/alice/claimed.bool)] false)";
+
+fn faucet_bootstrap() -> CommitFile {
+    let mut c = model_commit(
+        FAUCET,
+        vec![
+            ("/config/drip.num", json!(10)),
+            ("/claimants/alice.id", json!("KEY_A")),
+            ("/claimants/bob.id", json!("KEY_B")),
+        ],
+    );
+    c.add_action(
+        "create".to_string(),
+        None,
+        json!({"asset_id": "drops", "quantity": 1000, "divisibility": 1}),
+    );
+    c
+}
+
+fn drip(claimant: &str, flag: Option<&str>, signers: &[&str]) -> CommitFile {
+    let mut c = CommitFile::new();
+    c.add_action(
+        "send".to_string(),
+        None,
+        json!({"asset_id": "drops", "to_contract": format!("{claimant}-wallet"), "amount": 10}),
+    );
+    if let Some(flag) = flag {
+        c.add_action(
+            "post".to_string(),
+            Some(format!("/claimants/{flag}/claimed.bool")),
+            json!(true),
+        );
+    }
+    signed(c, signers)
+}
+
+fn faucet_moves(accepted: &[CommitFile]) -> Vec<(String, MoveStatus)> {
+    let view = derived_view("", accepted, TheoryActivation::always(V1)).unwrap();
+    assert!(view.dead_edges.is_empty(), "{:?}", view.dead_edges);
+    let label = |m: &Move| {
+        if m.properties.iter().any(|p| p.name == "SEND" && p.sign == PropertySign::Minus) {
+            "register".to_string()
+        } else if format_properties(&m.properties).contains("+signed_by(/claimants/alice.id)") {
+            "alice".to_string()
+        } else {
+            "bob".to_string()
+        }
+    };
+    view.moves.iter().map(|m| (label(m), m.status)).collect()
+}
+
+fn signed(mut c: CommitFile, keys: &[&str]) -> CommitFile {
+    let sigs: serde_json::Map<String, Value> =
+        keys.iter().map(|k| (k.to_string(), json!("sig"))).collect();
+    c.head.signatures = Some(Value::Object(sigs));
+    c
+}
+
+const ALTERNATION: &str = "[] always(([-signed_by(/parties/alice.id) -signed_by(/parties/bob.id)] false) & ([+signed_by(/parties/alice.id)] [-signed_by(/parties/bob.id)] false) & ([+signed_by(/parties/bob.id)] [-signed_by(/parties/alice.id)] false))";
+
+const TURNS: &str = r#"
+model Contract {
+  part flow {
+    q0 --> q1
+    q1 --> q2: +signed_by(/parties/alice.id) -signed_by(/parties/bob.id)
+    q2 --> q1: +signed_by(/parties/bob.id) -signed_by(/parties/alice.id)
+  }
+}
+"#;
+
+#[test]
+fn a_co_signed_commit_cannot_break_alternating_turns() {
+    let parties = || {
+        vec![
+            ("/parties/alice.id", json!("KEY_A")),
+            ("/parties/bob.id", json!("KEY_B")),
+        ]
+    };
+    for theory in [V0, V1] {
+        // Without the guards, Alice co-signs Bob's turn and then signs again.
+        let unguarded = TURNS
+            .replace(" -signed_by(/parties/bob.id)", "")
+            .replace(" -signed_by(/parties/alice.id)", "");
+        let err = validate(
+            &[model_commit(&unguarded, parties())],
+            &signed(rule_commit(ALTERNATION), &["KEY_A"]),
+            theory,
+        )
+        .expect_err("Bob's edge admits Alice's signature");
+        assert!(err.to_string().contains("Model violates rule"), "{err}");
+
+        let mut accepted = vec![model_commit(TURNS, parties())];
+        let rule = signed(rule_commit(ALTERNATION), &["KEY_A"]);
+        validate(&accepted, &rule, theory).expect("guarded turns satisfy the rule");
+        accepted.push(rule);
+        let both = signed(note(), &["KEY_A", "KEY_B"]);
+        validate(&accepted, &both, theory).expect_err("a co-signed turn has no edge");
+        validate(&accepted, &signed(note(), &["KEY_B"]), theory).expect("Bob's turn");
+    }
+}
+
+#[test]
+fn faucet_v1_rules_hold_together_and_block_the_second_drip() {
+    // Without the cross `-signed_by` guards, Alice could co-sign Bob's drip
+    // and skip her own flag: the rule that her drip marks it is refused.
+    let unguarded = FAUCET
+        .replace(" -signed_by(/claimants/bob.id)", "")
+        .replace(" -signed_by(/claimants/alice.id)", "");
+    for theory in [V0, V1] {
+        let err = validate(
+            &[model_commit(&unguarded, vec![])],
+            &rule_commit(FAUCET_ALICE_MARKS),
+            theory,
+        )
+        .expect_err("Bob's edge admits Alice's signature");
+        assert!(err.to_string().contains("+signed_by(/claimants/bob.id)"), "{err}");
+    }
+
+    let mut accepted = vec![faucet_bootstrap()];
+    for rule in [FAUCET_NO_CREATE, FAUCET_ALICE_ONCE, FAUCET_ALICE_MARKS] {
+        let pending = rule_commit(rule);
+        for theory in [V0, V1] {
+            validate(&accepted, &pending, theory).unwrap_or_else(|e| panic!("{rule}: {e}"));
+        }
+        accepted.push(pending);
+    }
+
+    // V0 matches `-any_signed(/claimants)` against a drip edge that only
+    // names `signed_by(/claimants/alice.id)`, so the rule looks violated.
+    // V1 knows a claimant's signature is a signature under `/claimants` (C5).
+    // From here on the log is V1's: V0 replay would refuse this rule.
+    let signed = rule_commit(FAUCET_SIGNED);
+    let err = validate(&accepted, &signed, V0).expect_err("V0 cannot see the entailment");
+    assert!(err.to_string().contains("Model violates rule"), "{err}");
+    validate(&accepted, &signed, V1).expect("V1 accepts it");
+    accepted.push(signed);
+    assert_eq!(
+        faucet_moves(&accepted),
+        statuses(&[("register", Open), ("alice", Open), ("bob", Open)])
+    );
+
+    // A drip that does not mark the flag, or that both claimants sign, has
+    // no edge to take.
+    for bad in [
+        drip("alice", None, &["KEY_A"]),
+        drip("alice", Some("bob"), &["KEY_A"]),
+        drip("alice", Some("alice"), &["KEY_A", "KEY_B"]),
+    ] {
+        validate(&accepted, &bad, V1).expect_err("not a drip the model allows");
+    }
+
+    let first = drip("alice", Some("alice"), &["KEY_A"]);
+    validate(&accepted, &first, V1).expect("Alice's first drip");
+    accepted.push(first);
+
+    // Once her flag is accepted state, the theory says her drip is blocked
+    // before she tries; the evaluator agrees when she does.
+    assert_eq!(
+        faucet_moves(&accepted),
+        statuses(&[("register", Open), ("alice", Blocked), ("bob", Open)])
+    );
+    let err = validate(&accepted, &drip("alice", Some("alice"), &["KEY_A"]), V1)
+        .expect_err("second drip refused");
+    assert!(
+        err.to_string().contains("-bool_true(/claimants/alice/claimed.bool)"),
+        "{err}"
+    );
+    validate(&accepted, &drip("bob", Some("bob"), &["KEY_B"]), V1).expect("Bob's first drip");
+
+    // The rules outlive the model: a replacement that forgets the flag on
+    // Alice's edge is refused.
+    let sloppy = FAUCET.replace(" -bool_true(/claimants/alice/claimed.bool)", "");
+    let replace = model_commit(&sloppy, vec![("/notes/c.text", json!("c"))]);
+    let err = validate(&accepted, &replace, V1).expect_err("rules still bind");
+    let text = err.to_string();
+    assert!(
+        text.contains("Model violates rule")
+            && text.contains("+bool_true(/claimants/alice/claimed.bool)"),
+        "{text}"
+    );
+}
+
+/// A contract accepted under `V0` with a dead edge and an unreadable
+/// declaration: the view names both, and leaves the dead edge out of the
+/// moves.
+#[test]
+fn derived_view_names_dead_edges_and_unparsed_declarations() {
+    let accepted = [model_commit(
+        LIVE_AND_DEAD,
+        vec![(
+            "/predicates/odd.theory.json",
+            json!({"necessary": "(odd $1)"}),
+        )],
+    )];
+
+    let view = derived_view("", &accepted, TheoryActivation::always(V1)).unwrap();
+    assert_eq!(view.current_states, vec!["q1".to_string()]);
+    assert_eq!(view.dead_edges.len(), 1);
+    assert_eq!(view.dead_edges[0].to, "q2");
+    assert_eq!(view.unparsed_declarations, vec!["/predicates/odd.wasm"]);
+    assert_eq!(
+        view.moves
+            .iter()
+            .map(|m| (m.to.as_str(), m.status))
+            .collect::<Vec<_>>(),
+        vec![("q1", Open)]
+    );
+
+    let today = derived_view("", &accepted, TheoryActivation::V0).unwrap();
+    assert!(today.dead_edges.is_empty());
+    assert!(today.unparsed_declarations.is_empty());
+    assert_eq!(today.moves.len(), 2);
 }
 
 #[test]

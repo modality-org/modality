@@ -4,6 +4,9 @@ use serde::{Deserialize, Serialize};
 pub const VALIDATOR_QC_NUMERATOR: u64 = 2;
 pub const VALIDATOR_QC_DENOMINATOR: u64 = 3;
 
+/// Predicate theory validators enforce when a network does not name one.
+pub const DEFAULT_PREDICATE_THEORY_VERSION: &str = "v0";
+
 /// Per-network validation fee schedule (nominal + metered compute).
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub struct ValidationFees {
@@ -94,6 +97,14 @@ pub struct NetworkParameters {
     pub validator_qc_denominator: u64,
     #[serde(default)]
     pub emission: EmissionConfig,
+    /// `v0` or `v1`, in force from network genesis. See
+    /// [`DEFAULT_PREDICATE_THEORY_VERSION`].
+    #[serde(default = "default_predicate_theory_version")]
+    pub predicate_theory_version: String,
+}
+
+fn default_predicate_theory_version() -> String {
+    DEFAULT_PREDICATE_THEORY_VERSION.to_string()
 }
 
 fn default_qc_numerator() -> u64 {
@@ -123,6 +134,7 @@ impl NetworkParameters {
             validator_qc_numerator: VALIDATOR_QC_NUMERATOR,
             validator_qc_denominator: VALIDATOR_QC_DENOMINATOR,
             emission: EmissionConfig::default(),
+            predicate_theory_version: default_predicate_theory_version(),
         }
     }
 }
@@ -161,6 +173,7 @@ mod tests {
             validator_qc_numerator: VALIDATOR_QC_NUMERATOR,
             validator_qc_denominator: VALIDATOR_QC_DENOMINATOR,
             emission: EmissionConfig::default(),
+            predicate_theory_version: default_predicate_theory_version(),
         };
 
         assert_eq!(params.miner_hash_func, "randomx");
@@ -185,6 +198,7 @@ mod tests {
         assert_eq!(params.validator_qc_numerator, VALIDATOR_QC_NUMERATOR);
         assert_eq!(params.validator_qc_denominator, VALIDATOR_QC_DENOMINATOR);
         assert!(!params.emission.is_active());
+        assert_eq!(params.predicate_theory_version, "v0");
     }
 
     #[test]

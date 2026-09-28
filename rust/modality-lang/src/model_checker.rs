@@ -634,7 +634,7 @@ impl ModelChecker {
         for part in &self.model.parts {
             for transition in self.live_transitions(part) {
                 // Check if this transition has all the required properties
-                if self.transition_satisfies_properties(transition, properties) {
+                if self.transition_satisfies_properties(transition, properties, false) {
                     // Check if the target state satisfies the inner formula
                     let from_state = State {
                         part_name: part.name.clone(),
@@ -680,7 +680,7 @@ impl ModelChecker {
                 let transitions_with_properties = self
                     .get_transitions_from_node(part, &node)
                     .into_iter()
-                    .filter(|t| self.transition_satisfies_properties(t, properties))
+                    .filter(|t| self.transition_satisfies_properties(t, properties, true))
                     .collect::<Vec<_>>();
 
                 if transitions_with_properties.is_empty() {
@@ -722,10 +722,17 @@ impl ModelChecker {
     /// - the edge's atoms plus the property are inconsistent → not usable
     ///
     /// and the structural rule above decides the rest.
+    ///
+    /// `whole_atom` is set for boxes: "mentions" then means the same predicate
+    /// with the same arguments. A box has to range over every edge a commit
+    /// could take, and a commit signed by Alice and Bob takes an edge that only
+    /// names `+signed_by(bob)`; matching by name alone would skip that edge and
+    /// accept a rule that such a commit breaks.
     fn transition_satisfies_properties(
         &self,
         transition: &Transition,
         properties: &[Property],
+        whole_atom: bool,
     ) -> bool {
         let theory = if self.version == TheoryVersion::V0 {
             None
@@ -753,10 +760,12 @@ impl ModelChecker {
 
             // If transition doesn't mention this property at all, it's usable
             let property_name = &property.name;
-            let mentions_property = transition
-                .properties
-                .iter()
-                .any(|p| p.name == *property_name);
+            let mentions_property = transition.properties.iter().any(|p| {
+                p.name == *property_name
+                    && (!whole_atom
+                        || p.get_predicate().map(|(_, args)| args)
+                            == property.get_predicate().map(|(_, args)| args))
+            });
             !mentions_property
         })
     }

@@ -159,7 +159,9 @@ impl Node {
         }
 
         let (shutdown_tx, _) = tokio::sync::broadcast::channel(1);
-        let (consensus_tx, consensus_rx) = mpsc::channel(100);
+        // Drafts and acks share this channel. A short stall must not force
+        // acks to wait behind a full queue of miner chatter.
+        let (consensus_tx, consensus_rx) = mpsc::channel(1024);
         let (sync_trigger_tx, _sync_trigger_rx) = tokio::sync::broadcast::channel(100);
         let (epoch_transition_tx, _) = tokio::sync::broadcast::channel(10);
 
@@ -628,7 +630,25 @@ impl Node {
                             let consensus_tx = consensus_tx.clone();
                             let swarm = swarm.clone();
                             tokio::spawn(async move {
-                                let res = {
+                                let res = if request.path == "/consensus/block/ack" {
+                                    // Wait for a Shoal-channel slot without the
+                                    // datastore lock. The loop needs that lock
+                                    // to drain the channel.
+                                    match reqres::handle_block_ack(request.data, consensus_tx).await
+                                    {
+                                        Ok(res) => res,
+                                        Err(e) => {
+                                            log::error!("reqres handler failed: {}", e);
+                                            reqres::Response {
+                                                ok: false,
+                                                data: None,
+                                                errors: Some(
+                                                    serde_json::json!({"error": e.to_string()}),
+                                                ),
+                                            }
+                                        }
+                                    }
+                                } else {
                                     let mgr = datastore_manager.lock().await;
                                     match reqres::handle_request(request, &mgr, consensus_tx).await
                                     {

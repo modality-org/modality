@@ -141,11 +141,11 @@ impl TheoryActivation {
 /// Pending-commit validation under a predicate theory activation.
 ///
 /// [`TheoryActivation::V0`] is exactly the check every other entry point
-/// runs. Where the pending commit is under a version above `V0`:
+/// runs. Under every version, a `RULE` in the pending commit is checked
+/// against the governing model from the states the commit reaches: the
+/// check replay runs on it once it is accepted. Where the pending commit is
+/// under a version above `V0`:
 /// - a commit that posts a `MODEL` with a dead edge is refused;
-/// - a `RULE` in the pending commit is checked against the governing
-///   model from the states the commit reaches (today it is checked only
-///   when a later commit replays it);
 /// - rule checks use entailment-aware edge matching and dead-edge pruning.
 pub fn validate_pending_commit_with_theory(
     fallback_model_content: &str,
@@ -175,22 +175,20 @@ pub fn validate_pending_commit_with_theory(
     );
 
     let theory = activation.at(accepted.len());
-    if theory != TheoryVersion::V0 {
-        let mut after = state.clone();
-        apply_commit_to_state(pending, &mut after);
-        if pending_model_content(pending).is_some() {
-            refuse_dead_edges(&model, &after, theory)?;
-        }
-        check_pending_rules(
-            &model,
-            accepted.len(),
-            &current_states,
-            &facts,
-            pending,
-            &after,
-            theory,
-        )?;
+    let mut after = state.clone();
+    apply_commit_to_state(pending, &mut after);
+    if theory != TheoryVersion::V0 && pending_model_content(pending).is_some() {
+        refuse_dead_edges(&model, &after, theory)?;
     }
+    check_pending_rules(
+        &model,
+        accepted.len(),
+        &current_states,
+        &facts,
+        pending,
+        &after,
+        theory,
+    )?;
 
     if has_valid_transition(&model, &current_states, &facts) {
         return Ok(());
@@ -335,10 +333,6 @@ pub enum TheoryFinding {
     WouldAccept { refused_today_because: String },
     /// A committed declaration outside the fragment; its predicate is opaque.
     DeclarationUnparsed { module: String },
-    /// Accepted today, but a rule in the commit fails today's rule check,
-    /// so replay of any later commit that keeps the governing model fails.
-    /// (Today the pending commit's own rules are checked only on replay.)
-    ReplayWouldFail { reason: String },
 }
 
 /// Shadow mode: the `V0` outcome, and what switching `theory` on at the
@@ -389,26 +383,6 @@ pub fn shadow_findings(
         for module in contract_registry(&after).unparsed() {
             findings.push(TheoryFinding::DeclarationUnparsed { module });
         }
-        if today.is_ok() {
-            if let Ok((current_states, state, _rules)) =
-                replay_commits_to_current_state(&model, accepted)
-            {
-                let facts = CommitFacts::from_commit(pending, &state);
-                if let Err(err) = check_pending_rules(
-                    &model,
-                    accepted.len(),
-                    &current_states,
-                    &facts,
-                    pending,
-                    &after,
-                    TheoryVersion::V0,
-                ) {
-                    findings.push(TheoryFinding::ReplayWouldFail {
-                        reason: err.to_string(),
-                    });
-                }
-            }
-        }
     }
     match (&today, &shadow) {
         (Ok(()), Err(err)) => findings.push(TheoryFinding::WouldRefuse {
@@ -427,21 +401,51 @@ pub fn shadow_findings(
     }
 }
 
-/// Runtime necessity from accepted state: which moves out of the current
-/// states are open, blocked, or forced, under `activation.version`. Replay
-/// follows `activation`. A pure function of the accepted prefix.
+/// Shadow mode over a local contract's history.
+pub fn shadow_findings_for_store(
+    fallback_model_content: &str,
+    store: &ContractStore,
+    pending: &CommitFile,
+    theory: TheoryVersion,
+) -> Result<ShadowReport> {
+    let history = load_commits_oldest_first(store)?;
+    Ok(shadow_findings(
+        fallback_model_content,
+        &history,
+        pending,
+        theory,
+    ))
+}
+
+/// What the predicate theory derives from accepted state, under
+/// `activation.version`: the governing model's dead edges, the committed
+/// declarations it cannot read, and which moves out of the current states
+/// are open, blocked, or forced. Replay follows `activation`. A pure
+/// function of the accepted prefix.
 #[derive(Debug, Clone, PartialEq, serde::Serialize)]
-pub struct NecessityView {
+pub struct DerivedView {
     pub theory: String,
     pub current_states: Vec<String>,
+    pub dead_edges: Vec<DeadEdge>,
+    pub unparsed_declarations: Vec<String>,
     pub moves: Vec<Move>,
 }
 
-pub fn necessity_view(
+/// [`derived_view`] over a local contract's history.
+pub fn derived_view_for_store(
+    fallback_model_content: &str,
+    store: &ContractStore,
+    activation: TheoryActivation,
+) -> Result<DerivedView> {
+    let history = load_commits_oldest_first(store)?;
+    derived_view(fallback_model_content, &history, activation)
+}
+
+pub fn derived_view(
     fallback_model_content: &str,
     accepted: &[CommitFile],
     activation: TheoryActivation,
-) -> Result<NecessityView> {
+) -> Result<DerivedView> {
     let governing_model = latest_accepted_model_from_commits(accepted)
         .unwrap_or_else(|| fallback_model_content.to_string());
     let model = parse_content_lalrpop(&governing_model)
@@ -454,10 +458,16 @@ pub fn necessity_view(
         replay_commits_to_current_state_with(&model, model_index, accepted, activation)?;
 
     let theory = activation.version;
+    let registry = contract_registry(&state);
+    let unparsed_declarations = if theory == TheoryVersion::V0 {
+        Vec::new()
+    } else {
+        registry.unparsed()
+    };
     let checker = ModelChecker::with_theory(
         model_for_rule_checking(&model),
         theory,
-        Some(Box::new(contract_registry(&state))),
+        Some(Box::new(registry)),
         Some(Box::new(OwnedAcceptedState(state))),
     );
     let mut current: Vec<String> = current_states.into_iter().collect();
@@ -467,9 +477,11 @@ pub fn necessity_view(
         .flat_map(|node| checker.classify_moves(node))
         .collect();
 
-    Ok(NecessityView {
+    Ok(DerivedView {
         theory: format!("{theory:?}"),
         current_states: current,
+        dead_edges: checker.dead_transitions(),
+        unparsed_declarations,
         moves,
     })
 }
@@ -1641,7 +1653,8 @@ fn initial_states(model: &Model) -> HashSet<String> {
     initial
 }
 
-fn format_properties(properties: &[Property]) -> String {
+/// An edge's labels as they read in a model: `+POST +signed_by(/a.id)`.
+pub fn format_properties(properties: &[Property]) -> String {
     if properties.is_empty() {
         return "no predicates".to_string();
     }

@@ -128,6 +128,12 @@ pub struct NetworkInfo {
     /// Target seconds per miner block (informational; applied when present).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub target_block_time_secs: Option<u64>,
+
+    /// Predicate theory version validators enforce on every contract, from
+    /// network genesis (`v0` or `v1`). Omitted = `v0`. Changing it on a
+    /// running network re-judges accepted logs, so it is a hard fork.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub predicate_theory_version: Option<String>,
 }
 
 const DEFAULT_QC_NUMERATOR: u64 = 2;
@@ -425,6 +431,7 @@ mod tests {
             blocks_per_epoch: None,
             initial_difficulty: None,
             target_block_time_secs: None,
+            predicate_theory_version: None,
         };
         assert_eq!(network.get_checkpoint_mode(), CheckpointMode::None);
         assert!(!network.checkpoints_enabled());
@@ -449,6 +456,7 @@ mod tests {
             blocks_per_epoch: None,
             initial_difficulty: None,
             target_block_time_secs: None,
+            predicate_theory_version: None,
         };
         assert_eq!(network.get_checkpoint_mode(), CheckpointMode::Consensus);
         assert!(network.checkpoints_enabled());
@@ -472,6 +480,7 @@ mod tests {
             blocks_per_epoch: None,
             initial_difficulty: None,
             target_block_time_secs: None,
+            predicate_theory_version: None,
             checkpoints: Some(vec![
                 ManualCheckpoint {
                     block_index: 100,

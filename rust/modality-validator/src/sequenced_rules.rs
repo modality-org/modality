@@ -1,5 +1,7 @@
 use anyhow::Result;
 use modality_common::contract_store::CommitFile;
+use modality_common::model_governance::TheoryActivation;
+use modality_lang::TheoryVersion;
 use modality_datastore::models::Commit;
 use modality_datastore::DatastoreManager;
 use std::collections::{HashMap, HashSet};
@@ -55,6 +57,7 @@ pub fn validate_against_local_rules_for_commit(
         pending_commit_id,
         contract_id,
         None,
+        TheoryActivation::V0,
     )
 }
 
@@ -64,12 +67,26 @@ pub fn validate_against_local_rules_for_commit_at(
     pending_commit_id: &str,
     contract_id: &str,
     evaluation_timestamp: Option<u64>,
+    theory: TheoryActivation,
 ) -> Result<()> {
-    modality_common::model_governance::validate_sequenced_commit_with_ids_at(
+    modality_common::model_governance::validate_sequenced_commit_with_theory(
         accepted,
         pending,
         Some(pending_commit_id),
         Some(contract_id),
         evaluation_timestamp,
+        theory,
     )
+}
+
+/// The predicate theory this network's validators enforce, in force from
+/// network genesis. A version this build does not know is an error, not a
+/// fallback: judged under `V0`, the commit could be accepted here and refused
+/// by every upgraded peer.
+pub fn network_theory(ds: &DatastoreManager) -> Result<TheoryActivation> {
+    let raw = ds.predicate_theory_version()?;
+    let version: TheoryVersion = raw.parse().map_err(|err: String| {
+        anyhow::anyhow!("network parameter predicate_theory_version: {err}; upgrade this node")
+    })?;
+    Ok(TheoryActivation::always(version))
 }

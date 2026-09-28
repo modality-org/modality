@@ -276,7 +276,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
 
     // Validate against contract rules (signature predicates, etc.)
     store.validate_commit_against_rules(&commit)?;
-    validate_commit_against_model(&dir, &store, &commit)?;
+    let theory_preview = validate_commit_against_model(&dir, &store, &commit)?;
 
     // Compute commit ID
     let mut commit_id = commit.compute_id()?;
@@ -312,21 +312,33 @@ pub async fn run(opts: &Opts) -> Result<()> {
 
     // Output
     if opts.output == "json" {
-        println!(
-            "{}",
-            serde_json::to_string_pretty(&serde_json::json!({
-                "contract_id": config.contract_id,
-                "commit_id": commit_id,
-                "parent": parent_id,
-                "status": "committed",
-            }))?
-        );
+        let mut out = serde_json::json!({
+            "contract_id": config.contract_id,
+            "commit_id": commit_id,
+            "parent": parent_id,
+            "status": "committed",
+        });
+        if let Some(preview) = &theory_preview {
+            out["theory_preview"] = preview.json.clone();
+        }
+        println!("{}", serde_json::to_string_pretty(&out)?);
     } else {
         println!("✅ Commit created successfully!");
         println!("   Contract ID: {}", config.contract_id);
         println!("   Commit ID: {}", commit_id);
         if let Some(parent) = parent_id {
             println!("   Parent: {}", parent);
+        }
+        if let Some(preview) = &theory_preview {
+            println!();
+            println!(
+                "⚠️  Predicate theory {} preview (local verify uses V0; a network that sets predicate_theory_version v1 enforces this):",
+                preview.theory
+            );
+            for line in &preview.lines {
+                println!("   - {line}");
+            }
+            println!("   Run `modal contract theory` for the full view.");
         }
         println!();
         println!("Next steps:");
@@ -373,12 +385,73 @@ fn accepted_model_content(store: &ContractStore) -> Result<Option<String>> {
     Ok(None)
 }
 
+/// What a newer predicate theory version would change about a commit the
+/// network accepts today. Shown, never enforced.
+#[cfg_attr(not(feature = "model-status"), allow(dead_code))]
+struct TheoryPreview {
+    theory: String,
+    json: Value,
+    lines: Vec<String>,
+}
+
+#[cfg(feature = "model-status")]
+fn theory_preview(
+    report: modality_common::model_governance::ShadowReport,
+) -> Option<TheoryPreview> {
+    use modality_common::model_governance::TheoryFinding;
+
+    if report.findings.is_empty() {
+        return None;
+    }
+    let has_dead_edge = report
+        .findings
+        .iter()
+        .any(|f| matches!(f, TheoryFinding::DeadEdge { .. }));
+    let mut verdicts = Vec::new();
+    let mut details = Vec::new();
+    for finding in &report.findings {
+        match finding {
+            TheoryFinding::WouldRefuse { .. } if has_dead_edge => {
+                verdicts.push("this commit would be refused: the model has dead edges".to_string())
+            }
+            TheoryFinding::WouldRefuse { reason } => {
+                verdicts.push(format!("this commit would be refused: {reason}"))
+            }
+            TheoryFinding::WouldAccept { .. } => {
+                verdicts.push("this commit would be accepted".to_string())
+            }
+            TheoryFinding::DeadEdge {
+                part,
+                from,
+                to,
+                offending,
+            } => details.push(format!(
+                "dead edge {part}: {from} --> {to}; cannot hold together: {}",
+                offending.join(", ")
+            )),
+            TheoryFinding::DeclarationUnparsed { module } => details.push(format!(
+                "the declaration for {module} is outside the theory; its predicate stays opaque"
+            )),
+        }
+    }
+    verdicts.extend(details);
+    let lines = verdicts;
+    Some(TheoryPreview {
+        theory: report.theory.clone(),
+        json: serde_json::to_value(&report).ok()?,
+        lines,
+    })
+}
+
 #[cfg(feature = "model-status")]
 fn validate_commit_against_model(
     dir: &std::path::Path,
     store: &ContractStore,
     commit: &CommitFile,
-) -> Result<()> {
+) -> Result<Option<TheoryPreview>> {
+    use modality_common::model_governance::shadow_findings_for_store;
+    use modality_lang::TheoryVersion;
+
     let model_path = dir.join("model").join("default.modality");
     let model_content = if model_path.exists() {
         std::fs::read_to_string(&model_path)?
@@ -422,15 +495,95 @@ fn validate_commit_against_model(
                 &accepted,
                 &pending,
             )?;
-            return Ok(());
+            return Ok(theory_preview(modality_common::model_governance::shadow_findings(
+                &model_content,
+                &accepted,
+                &pending,
+                TheoryVersion::V1,
+            )));
         }
     }
 
     if model_path.exists() {
         modality_common::model_governance::validate_pending_commit(&model_content, store, commit)?;
+        return Ok(shadow_findings_for_store(&model_content, store, commit, TheoryVersion::V1)
+            .ok()
+            .and_then(theory_preview));
     }
 
-    Ok(())
+    Ok(None)
+}
+
+#[cfg(all(test, feature = "model-status"))]
+mod tests {
+    use super::*;
+    use tempfile::TempDir;
+
+    const SLIPPED_ESCROW: &str = r#"export default model {
+  start --> open: +MODEL
+  open --> open: +post_to_path(/escrow/paid.num)
+  open --> released: +signed_by(/parties/alice.id) +num_gte(/escrow/paid.num,"100")
+  open --> refunded: +signed_by(/parties/bob.id) +num_lt(/escrow/paid.num,"100") +num_gte(/escrow/paid.num,"100")
+}
+"#;
+
+    #[tokio::test]
+    async fn previews_a_dead_edge_without_refusing_the_commit() -> Result<()> {
+        let temp = TempDir::new()?;
+        let dir = temp.path().join("escrow");
+        let dir_arg = dir.to_string_lossy().to_string();
+        crate::create::run(&crate::create::Opts::parse_from([
+            "create",
+            "--dir",
+            dir_arg.as_str(),
+            "--output",
+            "json",
+        ]))
+        .await?;
+        crate::checkout::run(&crate::checkout::Opts::parse_from([
+            "checkout",
+            "--dir",
+            dir_arg.as_str(),
+        ]))
+        .await?;
+        std::fs::write(dir.join("model/default.modality"), SLIPPED_ESCROW)?;
+
+        let store = ContractStore::open(&dir)?;
+        let mut commit = CommitFile::with_parent(store.get_head()?.expect("genesis HEAD"));
+        commit.add_action(
+            "model".to_string(),
+            Some("/model/default.modality".to_string()),
+            Value::String(SLIPPED_ESCROW.to_string()),
+        );
+        let preview = validate_commit_against_model(&dir, &store, &commit)?
+            .expect("V1 has something to say about a dead edge");
+        assert_eq!(preview.theory, "V1");
+        assert!(preview.lines[0].contains("would be refused"), "{:?}", preview.lines);
+        assert!(
+            preview.lines.iter().any(|l| l.contains("open --> refunded")),
+            "{:?}",
+            preview.lines
+        );
+
+        crate::commit::run(&Opts::parse_from([
+            "commit",
+            "--all",
+            "--dir",
+            dir_arg.as_str(),
+            "--output",
+            "json",
+        ]))
+        .await?;
+        crate::theory::run(&crate::theory::Opts::parse_from([
+            "theory",
+            "--dir",
+            dir_arg.as_str(),
+            "--output",
+            "json",
+        ]))
+        .await?;
+        Ok(())
+    }
 }
 
 #[cfg(not(feature = "model-status"))]
@@ -438,8 +591,8 @@ fn validate_commit_against_model(
     _dir: &std::path::Path,
     _store: &ContractStore,
     _commit: &CommitFile,
-) -> Result<()> {
-    Ok(())
+) -> Result<Option<TheoryPreview>> {
+    Ok(None)
 }
 
 fn build_create_value(opts: &Opts) -> Result<Value> {

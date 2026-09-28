@@ -44,6 +44,36 @@ pub enum TheoryVersion {
     V1,
 }
 
+impl TheoryVersion {
+    /// The spelling used in network parameters and replay artifacts.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            TheoryVersion::V0 => "v0",
+            TheoryVersion::V1 => "v1",
+        }
+    }
+}
+
+impl std::fmt::Display for TheoryVersion {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
+impl std::str::FromStr for TheoryVersion {
+    type Err = String;
+
+    fn from_str(raw: &str) -> Result<Self, Self::Err> {
+        match raw.trim().to_ascii_lowercase().as_str() {
+            "v0" => Ok(TheoryVersion::V0),
+            "v1" => Ok(TheoryVersion::V1),
+            other => Err(format!(
+                "unknown predicate theory version `{other}` (this build knows v0 and v1)"
+            )),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Tri {
     True,

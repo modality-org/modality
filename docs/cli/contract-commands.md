@@ -73,6 +73,14 @@ modal c commit --path /notes.text --value "signed update" --sign alice
 modal c commit --action '{"type":"DEPOSIT","amount":100}' --sign alice
 ```
 
+After a commit is accepted, `modal c commit` previews what predicate theory V1
+would change about it. For example, it names a model edge whose labels can never
+hold together, such as `+num_lt(/escrow/paid.num,"100")` beside
+`+num_gte(/escrow/paid.num,"100")`. Local verify still uses V0, so the preview
+is a warning. Validators refuse the commit if the network sets
+`predicate_theory_version` to `v1`. With `--output json`, the findings are
+under `theory_preview`.
+
 ## Checkout
 
 ```bash
@@ -358,6 +366,29 @@ modal c replay --artifact prefix.json
 | `--through <COMMIT>` | Sequenced tip to replay through |
 | `--dir <DIR>` | Local contract directory (used when not fetching) |
 | `--node-dir <DIR>` | Node directory for identity/config on P2P remotes |
+| `--output <FORMAT>` | Output format: `text` or `json` |
+
+## Theory
+
+```bash
+modal c theory [OPTIONS]
+```
+
+Show what the predicate theory derives from the accepted contract:
+- dead edges: model transitions whose labels no commit can satisfy together;
+- committed `.theory.json` declarations the theory cannot read, whose predicates stay opaque;
+- each move out of the current state, marked as `open`, `blocked`, or `forced`.
+
+A move is `blocked` when accepted state already makes one of its labels false.
+It is `forced` when it is the only open move out of a state that has more than
+one. The view is read-only. Validators enforce the network's
+`predicate_theory_version` (V0 unless the network names one).
+
+**Options:**
+| Option | Description |
+|--------|-------------|
+| `--dir <DIR>` | Contract directory (defaults to current directory) |
+| `--theory <VERSION>` | Theory version to preview: `v1` (default) or `v0` |
 | `--output <FORMAT>` | Output format: `text` or `json` |
 
 ## Pack / Unpack

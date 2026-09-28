@@ -385,6 +385,11 @@ enum ContractCommands {
 
     #[command(about = "Fetch a sequenced prefix and re-check it without the original node")]
     Replay(modality_cli_contract::replay::Opts),
+
+    #[command(
+        about = "Show what the predicate theory derives from the contract: dead edges and open, blocked, or forced moves"
+    )]
+    Theory(modality_cli_contract::theory::Opts),
 }
 
 #[derive(Subcommand)]
@@ -674,6 +679,7 @@ pub async fn run() -> Result<()> {
             ContractCommands::Ai { command } => modality_cli_contract::ai::run(command).await?,
             ContractCommands::Download(opts) => modality_cli_contract::download::run(opts).await?,
             ContractCommands::Replay(opts) => modality_cli_contract::replay::run(opts).await?,
+            ContractCommands::Theory(opts) => modality_cli_contract::theory::run(opts).await?,
         },
         #[cfg(all(feature = "contract", not(feature = "cli-contract")))]
         Commands::Contract(opts) => crate::cmds::contract::run(opts).await?,

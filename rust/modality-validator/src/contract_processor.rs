@@ -292,14 +292,15 @@ impl ContractProcessor {
         pending: &CommitFile,
         validation_timestamp: u64,
     ) -> Result<CommitFile> {
-        let accepted_raw = {
+        let (accepted_raw, theory) = {
             let ds = self.datastore.lock().await;
-            crate::sequenced_rules::load_sequenced_parent_chain(
+            let chain = crate::sequenced_rules::load_sequenced_parent_chain(
                 &ds,
                 contract_id,
                 pending.head.parent.as_deref(),
             )
-            .await?
+            .await?;
+            (chain, crate::sequenced_rules::network_theory(&ds)?)
         };
         let accepted_files: Vec<CommitFile> =
             accepted_raw.iter().map(|(_, file)| file.clone()).collect();
@@ -336,6 +337,7 @@ impl ContractProcessor {
             commit_id,
             contract_id,
             Some(validation_timestamp),
+            theory,
         )?;
         Ok(pending_expanded)
     }
@@ -3743,6 +3745,79 @@ model DeliveryOracle {
                 .expect("accepted commit must post state");
             assert_eq!(String::from_utf8(posted).unwrap(), "signed");
         }
+    }
+
+    const SLIPPED_ESCROW: &str = r#"export default model {
+  start --> open: +MODEL
+  open --> open: +post_to_path(/escrow/paid.num)
+  open --> released: +signed_by(/parties/alice.id) +num_gte(/escrow/paid.num,"100")
+  open --> refunded: +signed_by(/parties/bob.id) +num_lt(/escrow/paid.num,"100") +num_gte(/escrow/paid.num,"100")
+}
+"#;
+
+    fn slipped_escrow_json() -> serde_json::Value {
+        serde_json::json!({
+            "body": [
+                { "method": "post", "path": "/parties/alice.id", "value": "alice_key" },
+                { "method": "post", "path": "/parties/bob.id", "value": "bob_key" },
+                { "method": "model", "path": "/model/default.modality", "value": SLIPPED_ESCROW }
+            ],
+            "head": {}
+        })
+    }
+
+    async fn processor_on_network(
+        network_config: serde_json::Value,
+    ) -> (ContractProcessor, Arc<Mutex<DatastoreManager>>) {
+        let datastore = Arc::new(Mutex::new(DatastoreManager::create_in_memory().unwrap()));
+        datastore
+            .lock()
+            .await
+            .load_network_config(&network_config)
+            .await
+            .unwrap();
+        (ContractProcessor::new(datastore.clone()), datastore)
+    }
+
+    #[tokio::test]
+    async fn network_theory_v1_refuses_a_model_with_a_dead_edge() {
+        let (v0, _) = processor_on_network(serde_json::json!({})).await;
+        v0.process_commit("c1", "escrow", &slipped_escrow_json().to_string())
+            .await
+            .expect("V0, the default, accepts the dead edge");
+
+        let (v1, datastore) =
+            processor_on_network(serde_json::json!({ "predicate_theory_version": "v1" })).await;
+        let err = v1
+            .process_commit("c1", "escrow", &slipped_escrow_json().to_string())
+            .await
+            .expect_err("V1 refuses the dead edge");
+        let text = err.to_string();
+        assert!(
+            text.contains("no commit can take (predicate theory V1)")
+                && text.contains("open --> refunded"),
+            "unexpected error: {text}"
+        );
+        let ds = datastore.lock().await;
+        assert!(ds
+            .get_data_by_key("/contracts/c1/parties/alice.id")
+            .await
+            .unwrap()
+            .is_none());
+    }
+
+    #[tokio::test]
+    async fn network_theory_unknown_to_this_build_refuses_every_commit() {
+        let (processor, _) =
+            processor_on_network(serde_json::json!({ "predicate_theory_version": "v9" })).await;
+        let err = processor
+            .process_commit("c1", "bootstrap", &bootstrap_commit_json().to_string())
+            .await
+            .expect_err("an unknown version must not fall back to V0");
+        assert!(
+            err.to_string().contains("upgrade this node"),
+            "unexpected error: {err}"
+        );
     }
 
     fn wasm_post_action() -> serde_json::Value {

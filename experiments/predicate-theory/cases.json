@@ -1,0 +1,675 @@
+{
+  "about": [
+    "Single-edge cases for the predicate theory: what V1 must decide about",
+    "one transition's labels (consistent, entails), and, where a case gives",
+    "accepted state, what runtime necessity decides from it. V0 is always",
+    "unknown. Checked by rust/modality-lang (theory tests); the cases inside",
+    "the Lean fragment are proved in experiments/predicate-theory/lean",
+    "(PredicateTheory/Generated.lean, from gen_cases.py)."
+  ],
+  "cases": [
+    {
+      "id": "A1",
+      "title": "Empty interval on one path",
+      "literals": [
+        "+num_gt(/x.num,\"5\")",
+        "+num_lt(/x.num,\"3\")"
+      ],
+      "v1": {
+        "consistent": "no"
+      },
+      "explain": "(5,inf) ∩ (-inf,3) = ∅"
+    },
+    {
+      "id": "A2",
+      "title": "Non-empty interval",
+      "literals": [
+        "+num_gt(/x.num,\"3\")",
+        "+num_lt(/x.num,\"5\")"
+      ],
+      "v1": {
+        "consistent": "yes"
+      },
+      "explain": "(3,5)"
+    },
+    {
+      "id": "A3",
+      "title": "Different paths do not interact",
+      "literals": [
+        "+num_gt(/x.num,\"5\")",
+        "+num_lt(/y.num,\"3\")"
+      ],
+      "v1": {
+        "consistent": "yes"
+      }
+    },
+    {
+      "id": "A4",
+      "title": "Closed bounds meeting at a point",
+      "literals": [
+        "+num_gte(/x.num,\"5\")",
+        "+num_lte(/x.num,\"5\")"
+      ],
+      "v1": {
+        "consistent": "yes",
+        "entails": {
+          "+num_eq(/x.num,\"5\")": "yes"
+        }
+      },
+      "explain": "[5,5]"
+    },
+    {
+      "id": "A5",
+      "title": "Open vs closed bound at the same point",
+      "literals": [
+        "+num_gt(/x.num,\"5\")",
+        "+num_lte(/x.num,\"5\")"
+      ],
+      "v1": {
+        "consistent": "no"
+      },
+      "explain": "(5,inf) ∩ (-inf,5] = ∅"
+    },
+    {
+      "id": "A6",
+      "title": "Negated literal flips the bound",
+      "literals": [
+        "-num_gt(/x.num,\"5\")",
+        "+num_gt(/x.num,\"7\")"
+      ],
+      "v1": {
+        "consistent": "no"
+      },
+      "explain": "-num_gt(5) is x <= 5; with x > 7 empty"
+    },
+    {
+      "id": "A7",
+      "title": "amount_in_range as two bounds",
+      "literals": [
+        "+amount_in_range(/x.num,\"1\",\"9\")",
+        "+num_gt(/x.num,\"9\")"
+      ],
+      "v1": {
+        "consistent": "no"
+      }
+    },
+    {
+      "id": "A8",
+      "title": "Equality with strict inequality",
+      "literals": [
+        "+num_eq(/x.num,\"5\")",
+        "+num_gt(/x.num,\"5\")"
+      ],
+      "v1": {
+        "consistent": "no"
+      }
+    },
+    {
+      "id": "A9",
+      "title": "Interval inclusion is entailment",
+      "literals": [
+        "+num_gt(/x.num,\"5\")"
+      ],
+      "v1": {
+        "consistent": "yes",
+        "entails": {
+          "+num_gt(/x.num,\"3\")": "yes",
+          "+num_gte(/x.num,\"5\")": "yes",
+          "+num_gt(/x.num,\"7\")": "no",
+          "+num_lt(/x.num,\"3\")": "no"
+        }
+      },
+      "explain": "goal (3,inf) ⊇ (5,inf); x>7 has countermodel x=6"
+    },
+    {
+      "id": "A10",
+      "title": "Decimal bounds are exact rationals",
+      "literals": [
+        "+num_gt(/x.num,\"0.1\")",
+        "+num_lt(/x.num,\"0.2\")"
+      ],
+      "v1": {
+        "consistent": "yes"
+      },
+      "explain": "no float rounding; 0.1 and 0.2 are exact"
+    },
+    {
+      "id": "A11",
+      "title": "Unparsable bound is opaque",
+      "literals": [
+        "+num_gt(/x.num,\"five\")",
+        "+num_lt(/x.num,\"3\")"
+      ],
+      "v1": {
+        "consistent": "unknown"
+      },
+      "explain": "conservative; do not refuse"
+    },
+    {
+      "id": "A12",
+      "title": "i128 overflow is unknown, not wrong",
+      "literals": [
+        "+num_gt(/x.num,\"170141183460469231731687303715884105728\")",
+        "+num_lt(/x.num,\"3\")"
+      ],
+      "v1": {
+        "consistent": "unknown"
+      },
+      "explain": "2^127 overflows the checked rational; conservative"
+    },
+    {
+      "id": "A13a",
+      "title": "Negation is not classical unless existence is forced",
+      "literals": [
+        "-num_gt(/x.num,\"5\")"
+      ],
+      "v1": {
+        "entails": {
+          "+num_lte(/x.num,\"5\")": "no",
+          "-state_exists(/x.num)": "no"
+        }
+      },
+      "explain": "predicates on an absent path evaluate false today, so -num_gt holds when /x.num is missing; x <= 5 does not follow"
+    },
+    {
+      "id": "A13b",
+      "title": "Negation is not classical unless existence is forced",
+      "literals": [
+        "-num_gt(/x.num,\"5\")",
+        "+state_exists(/x.num)"
+      ],
+      "v1": {
+        "entails": {
+          "+num_lte(/x.num,\"5\")": "no"
+        }
+      },
+      "explain": "existence is not type: .num is not type-checked on write, so a present /x.num may hold a string, and then num_lte is false too"
+    },
+    {
+      "id": "A13c",
+      "title": "Negation is not classical unless existence is forced",
+      "literals": [
+        "-num_gt(/x.num,\"5\")",
+        "+num_gte(/x.num,\"0\")"
+      ],
+      "v1": {
+        "entails": {
+          "+num_lte(/x.num,\"5\")": "yes"
+        }
+      },
+      "explain": "a positive numeric literal forces a number at /x.num; then the negation flips the bound"
+    },
+    {
+      "id": "B1",
+      "title": "Chain through a relational literal",
+      "literals": [
+        "+num_gt(/x.num,\"5\")",
+        "+num_lt(/y.num,\"3\")",
+        "+num_gt(/y.num,/x.num)"
+      ],
+      "v1": {
+        "consistent": "no"
+      },
+      "explain": "5 < x < y < 3; strict cycle via constants 3 < 5. Per-path intervals alone miss this; the order graph is required in V1."
+    },
+    {
+      "id": "B2",
+      "title": "Strict cycle among paths",
+      "literals": [
+        "+num_gt(/x.num,/y.num)",
+        "+num_gt(/y.num,/z.num)",
+        "+num_gt(/z.num,/x.num)"
+      ],
+      "v1": {
+        "consistent": "no"
+      }
+    },
+    {
+      "id": "B3",
+      "title": "Two non-strict bounds imply equality",
+      "literals": [
+        "+num_gte(/x.num,/y.num)",
+        "+num_gte(/y.num,/x.num)"
+      ],
+      "v1": {
+        "consistent": "yes",
+        "entails": {
+          "+num_eq(/x.num,/y.num)": "yes"
+        }
+      }
+    },
+    {
+      "id": "B4",
+      "title": "Equality merges classes (union-find)",
+      "literals": [
+        "+num_eq(/x.num,/y.num)",
+        "+num_gt(/x.num,\"5\")",
+        "+num_lt(/y.num,\"5\")"
+      ],
+      "v1": {
+        "consistent": "no"
+      }
+    },
+    {
+      "id": "B5a",
+      "title": "Reflexive strict is dead; reflexive non-strict is a tautology",
+      "literals": [
+        "+num_gt(/x.num,/x.num)"
+      ],
+      "v1": {
+        "consistent": "no"
+      }
+    },
+    {
+      "id": "B5b",
+      "title": "Reflexive strict is dead; reflexive non-strict is a tautology",
+      "literals": [
+        "+num_gte(/x.num,/x.num)"
+      ],
+      "v1": {
+        "consistent": "yes"
+      }
+    },
+    {
+      "id": "B6",
+      "title": "Entailment through a chain",
+      "literals": [
+        "+num_gt(/x.num,\"5\")",
+        "+num_gt(/y.num,/x.num)"
+      ],
+      "v1": {
+        "entails": {
+          "+num_gt(/y.num,\"5\")": "yes",
+          "+num_gt(/y.num,\"3\")": "yes",
+          "+num_gt(/y.num,\"6\")": "no"
+        }
+      },
+      "explain": "y > x > 5 gives y > 5; y=5.5 is a countermodel for y > 6"
+    },
+    {
+      "id": "C1",
+      "title": "all_signed with not-any_signed",
+      "literals": [
+        "+all_signed(/m)",
+        "-any_signed(/m)"
+      ],
+      "v1": {
+        "consistent": "no"
+      },
+      "explain": "all_signed requires a non-empty set, all of whom signed; then any_signed holds. No state needed."
+    },
+    {
+      "id": "C2",
+      "title": "all entails any",
+      "literals": [
+        "+all_signed(/m)"
+      ],
+      "v1": {
+        "entails": {
+          "+any_signed(/m)": "yes"
+        }
+      }
+    },
+    {
+      "id": "C3",
+      "title": "threshold is monotone in n",
+      "literals": [
+        "+threshold(\"3\",/m)"
+      ],
+      "v1": {
+        "entails": {
+          "+threshold(\"2\",/m)": "yes",
+          "+any_signed(/m)": "yes",
+          "+threshold(\"4\",/m)": "no"
+        }
+      }
+    },
+    {
+      "id": "C4",
+      "title": "threshold above the posted set size",
+      "literals": [
+        "+threshold(\"3\",/m)"
+      ],
+      "state": {
+        "/m/alice.id": "KEY_A",
+        "/m/bob.id": "KEY_B"
+      },
+      "v1": {
+        "consistent": "yes"
+      },
+      "runtime": {
+        "consistent": "no"
+      },
+      "explain": "Without state the key set is open, so some state satisfies it: yes. With state, 3 > 2 keys: impossible now."
+    },
+    {
+      "id": "C5",
+      "title": "signed_by under a prefix entails any_signed of the prefix (structural)",
+      "literals": [
+        "+signed_by(/m/alice.id)",
+        "-any_signed(/m)"
+      ],
+      "v1": {
+        "consistent": "no"
+      },
+      "explain": "signed_by(p) holding implies p exists in state as a .id under /m, so any_signed(/m) holds. No state needed."
+    },
+    {
+      "id": "C6",
+      "title": "signed_by needs the key posted (bridge to state_exists)",
+      "literals": [
+        "+signed_by(/a.id)",
+        "-state_exists(/a.id)"
+      ],
+      "v1": {
+        "consistent": "no"
+      }
+    },
+    {
+      "id": "C7a",
+      "title": "Prefix containment for any/all is asymmetric",
+      "literals": [
+        "+any_signed(/m/a)"
+      ],
+      "v1": {
+        "entails": {
+          "+any_signed(/m)": "yes"
+        }
+      },
+      "explain": "all_signed(/m/a) also requires /m/a to be non-empty, which /m being non-empty does not give. The countermodel (/m/a empty) needs no state, so the verdict is `no`, not `unknown`."
+    },
+    {
+      "id": "C7b",
+      "title": "Prefix containment for any/all is asymmetric",
+      "literals": [
+        "+all_signed(/m)"
+      ],
+      "v1": {
+        "entails": {
+          "+all_signed(/m/a)": "no"
+        }
+      },
+      "explain": "all_signed(/m/a) also requires /m/a to be non-empty, which /m being non-empty does not give. The countermodel (/m/a empty) needs no state, so the verdict is `no`, not `unknown`."
+    },
+    {
+      "id": "C8",
+      "title": "any_signed over an empty set at runtime",
+      "literals": [
+        "+any_signed(/m)"
+      ],
+      "state": {
+        "/other/x.text": "hello"
+      },
+      "v1": {
+        "consistent": "yes"
+      },
+      "runtime": {
+        "consistent": "no"
+      }
+    },
+    {
+      "id": "D1",
+      "title": "Forbidding a prefix while posting under it",
+      "literals": [
+        "-modifies(/config)",
+        "+post_to_path(/config/fee.num)"
+      ],
+      "v1": {
+        "consistent": "no"
+      }
+    },
+    {
+      "id": "D2",
+      "title": "post_to_path entails modifies up the lattice",
+      "literals": [
+        "+post_to_path(/a/b.text)"
+      ],
+      "v1": {
+        "entails": {
+          "+modifies(/a/b.text)": "yes",
+          "+modifies(/a)": "yes",
+          "+post_to_path(/a)": "yes"
+        }
+      }
+    },
+    {
+      "id": "D3",
+      "title": "modifies does not entail post_to_path",
+      "literals": [
+        "+modifies(/a)"
+      ],
+      "v1": {
+        "entails": {
+          "+post_to_path(/a)": "no"
+        }
+      },
+      "explain": "the write could be a REPOST"
+    },
+    {
+      "id": "D4",
+      "title": "Sibling prefixes are not descendants",
+      "literals": [
+        "-modifies(/ab)",
+        "+post_to_path(/abc.text)"
+      ],
+      "v1": {
+        "consistent": "yes"
+      },
+      "explain": "/abc is not under /ab; no false positive"
+    },
+    {
+      "id": "E1",
+      "title": "Two different text literals on one path",
+      "literals": [
+        "+text_eq(/p.text,\"a\")",
+        "+text_eq(/p.text,\"b\")"
+      ],
+      "v1": {
+        "consistent": "no"
+      }
+    },
+    {
+      "id": "E2",
+      "title": "bool_true with bool_false",
+      "literals": [
+        "+bool_true(/f.bool)",
+        "+bool_false(/f.bool)"
+      ],
+      "v1": {
+        "consistent": "no"
+      }
+    },
+    {
+      "id": "E3",
+      "title": "Value predicate with not-state_exists",
+      "literals": [
+        "-state_exists(/p.text)",
+        "+text_eq(/p.text,\"a\")"
+      ],
+      "v1": {
+        "consistent": "no"
+      }
+    },
+    {
+      "id": "E4",
+      "title": "Value predicates entail existence",
+      "literals": [
+        "+text_eq(/p.text,\"a\")"
+      ],
+      "v1": {
+        "entails": {
+          "+state_exists(/p.text)": "yes"
+        }
+      }
+    },
+    {
+      "id": "E5a",
+      "title": "Substring predicates only when literal-provable",
+      "literals": [
+        "+text_contains(/p.text,\"abc\")",
+        "+text_eq(/p.text,\"xyz\")"
+      ],
+      "v1": {
+        "consistent": "no"
+      }
+    },
+    {
+      "id": "E5b",
+      "title": "Substring predicates only when literal-provable",
+      "literals": [
+        "+text_contains(/p.text,\"b\")",
+        "+text_starts_with(/p.text,\"a\")"
+      ],
+      "v1": {
+        "consistent": "unknown"
+      }
+    },
+    {
+      "id": "F1",
+      "title": "Opaque atom does not hide a numeric contradiction",
+      "literals": [
+        "+wasm(/pred.wasm)",
+        "+num_gt(/x.num,\"5\")",
+        "+num_lt(/x.num,\"3\")"
+      ],
+      "v1": {
+        "consistent": "no"
+      }
+    },
+    {
+      "id": "F2",
+      "title": "Identical opaque literal with both signs",
+      "literals": [
+        "+wasm(/a.wasm)",
+        "-wasm(/a.wasm)"
+      ],
+      "v1": {
+        "consistent": "no"
+      },
+      "explain": "syntactic: same atom, opposite signs"
+    },
+    {
+      "id": "F3",
+      "title": "Opaque alone derives nothing",
+      "literals": [
+        "+oracle_attests(/oracle/price.json)"
+      ],
+      "v1": {
+        "consistent": "unknown",
+        "entails": {
+          "+state_exists(/oracle/price.json)": "unknown"
+        }
+      }
+    },
+    {
+      "id": "J1",
+      "title": "Declared necessary constraint kills an edge",
+      "literals": [
+        "+wasm(/predicates/above_floor.wasm, /p.num)",
+        "+num_lt(/p.num, /floor.num)"
+      ],
+      "declarations": {
+        "/predicates/above_floor.wasm": {
+          "necessary": "(> $1 /floor.num)",
+          "sufficient": "(> $1 /floor.num)"
+        }
+      },
+      "v1": {
+        "consistent": "no"
+      },
+      "explain": "p > floor and p < floor; the custom predicate and the standard one meet in the order graph on /p.num"
+    },
+    {
+      "id": "J4",
+      "title": "Undeclared custom predicate stays opaque",
+      "literals": [
+        "+wasm(/predicates/mystery.wasm, /p.num)",
+        "+num_lt(/p.num, /floor.num)"
+      ],
+      "v1": {
+        "consistent": "unknown"
+      }
+    },
+    {
+      "id": "J6",
+      "title": "Two custom predicates interact only through shared sorts",
+      "literals": [
+        "+wasm(/predicates/above_floor.wasm, /p.num)",
+        "+wasm(/predicates/below_cap.wasm, /p.num)",
+        "+num_gt(/floor.num, /cap.num)"
+      ],
+      "declarations": {
+        "/predicates/above_floor.wasm": {
+          "necessary": "(> $1 /floor.num)"
+        },
+        "/predicates/below_cap.wasm": {
+          "necessary": "(< $1 /cap.num)"
+        }
+      },
+      "v1": {
+        "consistent": "no"
+      },
+      "explain": "floor < p < cap and floor > cap; neither author knew about the other's predicate"
+    },
+    {
+      "id": "J7",
+      "title": "Declaration outside the fragment is ignored",
+      "literals": [
+        "+wasm(/predicates/odd.wasm, /p.num)",
+        "+num_eq(/p.num,\"2\")"
+      ],
+      "declarations": {
+        "/predicates/odd.wasm": {
+          "necessary": "(odd $1)"
+        }
+      },
+      "v1": {
+        "consistent": "unknown"
+      },
+      "lint": [
+        "modality/declaration-unparsed"
+      ],
+      "explain": "`odd` is not in the V1 fragment; the predicate is opaque and modal says why"
+    },
+    {
+      "id": "J11",
+      "title": "Ill-typed declaration is rejected like an out-of-fragment one",
+      "literals": [
+        "+wasm(/predicates/label_above.wasm, /p.text)",
+        "+text_eq(/p.text,\"a\")"
+      ],
+      "declarations": {
+        "/predicates/label_above.wasm": {
+          "necessary": "(> $1 \"5\")"
+        }
+      },
+      "v1": {
+        "consistent": "unknown"
+      },
+      "explain": "the declaration parses; it is ill-typed only where $1 is bound to a .text path, so that use stays opaque (no declaration-unparsed lint)"
+    },
+    {
+      "id": "J10",
+      "title": "Nonlinear declaration is outside V1 but inside a later fragment",
+      "literals": [
+        "+wasm(/predicates/product_at_least.wasm, /x.num, /y.num, \"100\")",
+        "+num_lt(/x.num,\"1\")",
+        "+num_lt(/y.num,\"1\")",
+        "+num_gt(/x.num,\"0\")",
+        "+num_gt(/y.num,\"0\")"
+      ],
+      "declarations": {
+        "/predicates/product_at_least.wasm": {
+          "necessary": "(>= (* $1 $2) $3)"
+        }
+      },
+      "v1": {
+        "consistent": "unknown"
+      },
+      "lint": [
+        "modality/declaration-unparsed"
+      ],
+      "explain": "0<x<1, 0<y<1 gives x*y<1<100. `*` between two paths is not in V1; the local solver-backed analysis reports it as a finding; a later fragment version may decide it in consensus"
+    }
+  ]
+}

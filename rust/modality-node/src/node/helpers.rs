@@ -127,6 +127,9 @@ pub async fn load_network_config(
         if let Some(target_block_time_secs) = network_info.target_block_time_secs {
             config_json["target_block_time_secs"] = serde_json::json!(target_block_time_secs);
         }
+        if let Some(version) = network_info.predicate_theory_version {
+            config_json["predicate_theory_version"] = serde_json::json!(version);
+        }
 
         config_json["rounds"] = serde_json::json!({});
 
@@ -163,6 +166,10 @@ pub async fn load_network_config(
         if let Some(emission) = network_config.get("emission") {
             log::info!("Network emission: {}", emission);
         }
+        log::info!(
+            "Predicate theory: {}",
+            mgr.predicate_theory_version().unwrap_or_else(|_| "v0".into())
+        );
     }
 
     // Load network parameters from genesis contract if present

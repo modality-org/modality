@@ -5,8 +5,10 @@
 //! - implication sugar that hides the preferred explicit Boolean form
 //! - bare identifiers that refer to opaque witness LTS node ids
 //! - witness node names leaking from bundled models into formulas
+//! - modalities whose labels no commit can carry (predicate theory V1)
 
 use crate::ast::{Formula, FormulaExpr, Model, Property, PropertySign, PropertySource};
+use crate::theory::{Theory, Tri};
 use std::collections::HashSet;
 
 /// Severity of a formula lint finding.
@@ -29,6 +31,8 @@ pub enum LintCode {
     BackwardEventuallyOrdering,
     /// Formula implication sugar is accepted by the parser but discouraged for signed rules.
     ImplicationSugar,
+    /// A box or diamond whose labels cannot hold together on any commit.
+    UnsatisfiableLabelSet,
 }
 
 impl LintCode {
@@ -39,6 +43,7 @@ impl LintCode {
             LintCode::WitnessNodeLeak => "modality/witness-node-leak",
             LintCode::BackwardEventuallyOrdering => "modality/backward-eventually-ordering",
             LintCode::ImplicationSugar => "modality/implication-sugar",
+            LintCode::UnsatisfiableLabelSet => "modality/unsatisfiable-label-set",
         }
     }
 }
@@ -376,6 +381,7 @@ fn walk_expr(expr: &FormulaExpr, ctx: &mut LintContext<'_>) {
                     highlight: Some(needle),
                 });
             }
+            lint_label_set(props, true, ctx);
             walk_expr(inner, ctx);
         }
         FormulaExpr::And(l, r) | FormulaExpr::Or(l, r) | FormulaExpr::Until(l, r) => {
@@ -424,9 +430,7 @@ fn walk_expr(expr: &FormulaExpr, ctx: &mut LintContext<'_>) {
             walk_expr(r, ctx);
         }
         FormulaExpr::Diamond(props, inner) | FormulaExpr::DiamondBox(props, inner) => {
-            for prop in props {
-                let _ = prop;
-            }
+            lint_label_set(props, false, ctx);
             walk_expr(inner, ctx);
         }
         FormulaExpr::Lfp(var, inner) | FormulaExpr::Gfp(var, inner) => {
@@ -436,6 +440,50 @@ fn walk_expr(expr: &FormulaExpr, ctx: &mut LintContext<'_>) {
         }
         FormulaExpr::Var(_) | FormulaExpr::True | FormulaExpr::False => {}
     }
+}
+
+/// Standard declarations and no state: a label set refuted here is refuted
+/// in every contract.
+fn lint_label_set(props: &[Property], is_box: bool, ctx: &mut LintContext<'_>) {
+    if props.is_empty() {
+        return;
+    }
+    let verdict = Theory::v1_structural().consistent(props);
+    if verdict.tri != Tri::False {
+        return;
+    }
+    let why = verdict.explain().join(" and ");
+    let (message, suggestion) = if is_box {
+        (
+            format!(
+                "no commit can carry these box labels: {why} cannot hold together, so the box \
+                 is vacuously true and constrains nothing"
+            ),
+            "drop the contradictory label, or split the box into one box per label",
+        )
+    } else {
+        (
+            format!(
+                "no commit can carry these diamond labels: {why} cannot hold together; \
+                 predicate theory V1 makes the diamond false, while V0 may still match an edge \
+                 that does not mention them"
+            ),
+            "drop the contradictory label so some commit can take the step",
+        )
+    };
+    let first = &props[0];
+    let sign = match first.sign {
+        PropertySign::Plus => "+",
+        PropertySign::Minus => "-",
+    };
+    ctx.diags.push(FormulaLintDiagnostic {
+        code: LintCode::UnsatisfiableLabelSet,
+        severity: LintSeverity::Warning,
+        message,
+        suggestion: Some(suggestion.to_string()),
+        span: None,
+        highlight: Some(format!("{sign}{}", first.name)),
+    });
 }
 
 fn is_vacuous_action_box(props: &[Property], inner: &FormulaExpr) -> bool {
@@ -599,6 +647,35 @@ mod tests {
             "always(!<+CREATE_ORDER> true | <+signed_by(/users/account_holder.id)> true)",
         );
         assert!(diags.is_empty());
+    }
+
+    #[test]
+    fn warns_unsatisfiable_box_labels() {
+        let diags = lint_expr(r#"[] always([+num_gt(/x.num,"5") +num_lt(/x.num,"3")] false)"#);
+        let diag = diags
+            .iter()
+            .find(|d| d.code == LintCode::UnsatisfiableLabelSet)
+            .expect("unsatisfiable box labels");
+        assert!(diag.message.contains("vacuously true"), "{}", diag.message);
+        assert!(diag.message.contains("/x.num"), "{}", diag.message);
+    }
+
+    #[test]
+    fn warns_unsatisfiable_diamond_labels() {
+        let diags = lint_expr("<+signed_by(/parties/alice.id) -signed_by(/parties/alice.id)> true");
+        assert!(has_code(&diags, LintCode::UnsatisfiableLabelSet));
+        let diags = lint_expr(r#"[<+bool_true(/f.bool) +bool_false(/f.bool)>] true"#);
+        assert!(has_code(&diags, LintCode::UnsatisfiableLabelSet));
+    }
+
+    #[test]
+    fn satisfiable_labels_are_not_flagged() {
+        let diags = lint_expr(r#"[] always([+num_gt(/x.num,"5") +num_lt(/x.num,"7")] false)"#);
+        assert!(!has_code(&diags, LintCode::UnsatisfiableLabelSet));
+        let diags = lint_expr(
+            "<+signed_by(/parties/alice.id) -signed_by(/parties/bob.id)> true",
+        );
+        assert!(!has_code(&diags, LintCode::UnsatisfiableLabelSet));
     }
 
     #[test]

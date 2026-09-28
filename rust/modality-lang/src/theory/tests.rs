@@ -230,15 +230,134 @@ fn existence_is_not_type() {
     ]));
 }
 
+// --- the case fixture shared with the Lean proofs ----------------------------
+
+/// A label set as a model edge carries it, parsed by the model parser.
+fn labels(literals: &[&str]) -> Vec<Property> {
+    let src = format!(
+        "model Case {{\n  part p {{\n    q0 --> q1: {}\n  }}\n}}\n",
+        literals.join(" ")
+    );
+    model(&src).parts[0].transitions[0].properties.clone()
+}
+
+fn tri_word(t: Tri) -> &'static str {
+    match t {
+        Tri::True => "yes",
+        Tri::False => "no",
+        Tri::Unknown => "unknown",
+    }
+}
+
+fn check_expect(
+    id: &str,
+    layer: &str,
+    th: &Theory,
+    props: &[Property],
+    expect: &serde_json::Value,
+    failures: &mut Vec<String>,
+) {
+    if let Some(want) = expect.get("consistent").and_then(|v| v.as_str()) {
+        let v = th.consistent(props);
+        if tri_word(v.tri) != want {
+            failures.push(format!(
+                "{id} {layer}: consistent {want}, got {} {:?}",
+                tri_word(v.tri),
+                v.explain()
+            ));
+        }
+        if v.tri == Tri::False && v.offending.is_empty() {
+            failures.push(format!("{id} {layer}: a `no` must explain itself"));
+        }
+    }
+    if let Some(goals) = expect.get("entails").and_then(|v| v.as_object()) {
+        for (goal, want) in goals {
+            let got = tri_word(th.entails(props, &labels(&[goal])[0]));
+            if Some(got) != want.as_str() {
+                failures.push(format!("{id} {layer}: entails {goal} {want}, got {got}"));
+            }
+        }
+    }
+}
+
+/// Every case in `experiments/predicate-theory/cases.json`. The cases inside
+/// the Lean fragment are also proved there, from the same file.
+#[test]
+fn the_case_fixture_agrees() {
+    let fixture: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../../experiments/predicate-theory/cases.json"
+    ))
+    .expect("fixture parses");
+    let cases = fixture["cases"].as_array().expect("cases");
+    assert!(cases.len() >= 50, "{}", cases.len());
+
+    let mut failures = Vec::new();
+    for case in cases {
+        let id = case["id"].as_str().expect("id");
+        let literals: Vec<&str> = case["literals"]
+            .as_array()
+            .expect("literals")
+            .iter()
+            .map(|l| l.as_str().expect("literal"))
+            .collect();
+        let props = labels(&literals);
+        assert_eq!(props.len(), literals.len(), "{id}: {literals:?}");
+
+        let mut registry = ContractRegistry::new();
+        if let Some(decls) = case.get("declarations").and_then(|d| d.as_object()) {
+            for (module, d) in decls {
+                registry.declare(
+                    module,
+                    Declaration::parse(
+                        d.get("necessary").and_then(|v| v.as_str()),
+                        d.get("sufficient").and_then(|v| v.as_str()),
+                    ),
+                );
+            }
+        }
+        let unparsed = !registry.unparsed().is_empty();
+        let wants_unparsed = case
+            .get("lint")
+            .and_then(|l| l.as_array())
+            .is_some_and(|l| l.iter().any(|c| c == "modality/declaration-unparsed"));
+        if unparsed != wants_unparsed {
+            failures.push(format!("{id}: declaration-unparsed {wants_unparsed}, got {unparsed}"));
+        }
+
+        let th = Theory::new(TheoryVersion::V1, &registry, &NoState);
+        check_expect(id, "V1", &th, &props, &case["v1"], &mut failures);
+
+        if let Some(runtime) = case.get("runtime") {
+            let state = MapState::from_pairs(
+                case["state"]
+                    .as_object()
+                    .expect("a runtime case gives state")
+                    .iter()
+                    .map(|(k, v)| (k.clone(), v.as_str().expect("state value").to_string())),
+            );
+            let th = Theory::new(TheoryVersion::V1, &registry, &state);
+            check_expect(id, "runtime", &th, &props, runtime, &mut failures);
+        }
+    }
+    assert!(failures.is_empty(), "\n{}", failures.join("\n"));
+}
+
 /// The cases proved in `experiments/predicate-theory/lean/PredicateTheory/Cases.lean`.
 #[test]
 fn the_lean_escrow_cases_agree() {
     let th = v1();
     let paid = "/escrow/paid.num";
+    let (alice, bob) = ("/parties/alice.id", "/parties/bob.id");
     // refund_edge_is_dead
-    no(&th.consistent(&[p("num_lt", &[paid, "100"]), p("num_gte", &[paid, "100"])]));
+    no(&th.consistent(&[
+        p("signed_by", &[bob]),
+        p("num_lt", &[paid, "100"]),
+        p("num_gte", &[paid, "100"]),
+    ]));
     // release_edge_is_live
-    yes(&th.consistent(&[p("num_gte", &[paid, "100"])]));
+    yes(&th.consistent(&[p("signed_by", &[alice]), p("num_gte", &[paid, "100"])]));
+    // release_needs_the_key_posted
+    no(&th.consistent(&[p("signed_by", &[alice]), n("state_exists", &[alice])]));
     // stricter_release_meets_the_rule
     assert_eq!(
         th.entails(
@@ -252,6 +371,12 @@ fn the_lean_escrow_cases_agree() {
     // ...and with a number forced, they do
     no(&th.consistent(&[
         p("num_lte", &[paid, "1000"]),
+        n("num_lt", &[paid, "100"]),
+        n("num_gte", &[paid, "100"]),
+    ]));
+    // ...but present is not a number
+    yes(&th.consistent(&[
+        p("state_exists", &[paid]),
         n("num_lt", &[paid, "100"]),
         n("num_gte", &[paid, "100"]),
     ]));
@@ -632,8 +757,30 @@ model Contract {
     assert!(rule_accepted(m, rule, TheoryVersion::V1));
 }
 
+const ALTERNATION: &str = "[] always(([-signed_by(/parties/alice.id) -signed_by(/parties/bob.id)] false) & ([+signed_by(/parties/alice.id)] [-signed_by(/parties/bob.id)] false) & ([+signed_by(/parties/bob.id)] [-signed_by(/parties/alice.id)] false))";
+
 #[test]
 fn g8_cookbook_alternation_is_unaffected() {
+    let m = r#"
+model Contract {
+  part flow {
+    q0 --> q1
+    q1 --> q2: +signed_by(/parties/alice.id) -signed_by(/parties/bob.id)
+    q2 --> q1: +signed_by(/parties/bob.id) -signed_by(/parties/alice.id)
+  }
+}
+"#;
+    assert!(rule_accepted(m, ALTERNATION, TheoryVersion::V0));
+    assert!(rule_accepted(m, ALTERNATION, TheoryVersion::V1));
+    assert!(ModelChecker::with_version(model(m), TheoryVersion::V1)
+        .dead_transitions()
+        .is_empty());
+}
+
+#[test]
+fn a_box_ranges_over_an_edge_that_names_another_signer() {
+    // A commit Alice and Bob both sign takes Bob's edge, so Alice would sign
+    // twice in a row. The box sees that edge under every version.
     let m = r#"
 model Contract {
   part flow {
@@ -643,12 +790,8 @@ model Contract {
   }
 }
 "#;
-    let rule = "[] always(([-signed_by(/parties/alice.id) -signed_by(/parties/bob.id)] false) & ([+signed_by(/parties/alice.id)] [-signed_by(/parties/bob.id)] false) & ([+signed_by(/parties/bob.id)] [-signed_by(/parties/alice.id)] false))";
-    assert!(rule_accepted(m, rule, TheoryVersion::V0));
-    assert!(rule_accepted(m, rule, TheoryVersion::V1));
-    assert!(ModelChecker::with_version(model(m), TheoryVersion::V1)
-        .dead_transitions()
-        .is_empty());
+    assert!(!rule_accepted(m, ALTERNATION, TheoryVersion::V0));
+    assert!(!rule_accepted(m, ALTERNATION, TheoryVersion::V1));
 }
 
 #[test]
@@ -1062,4 +1205,105 @@ fn static_labels_are_opaque_and_match_structurally() {
     unknown(&v1().consistent(std::slice::from_ref(&a)));
     no(&v1().consistent(&[a.clone(), not_a]));
     assert_eq!(v1().entails(std::slice::from_ref(&a), &a), Tri::True);
+}
+
+// --- Rust vs the proven Lean checker ----------------------------------------
+
+/// A label set in the fragment `experiments/predicate-theory/lean` proves
+/// sound, as Rust properties and as a `pt-check` input line.
+fn random_label_set(next: &mut impl FnMut() -> u64) -> (Vec<Property>, String) {
+    const NUMS: [&str; 3] = ["/x.num", "/y.num", "/z.num"];
+    const BOOLS: [&str; 2] = ["/f.bool", "/g.bool"];
+    const IDS: [&str; 2] = ["/a.id", "/b.id"];
+    const ORDER: [&str; 5] = ["num_gt", "num_gte", "num_lt", "num_lte", "num_eq"];
+    let mut pick = |n: usize| (next() % n as u64) as usize;
+    let size = 1 + pick(6);
+    let mut props = Vec::new();
+    let mut line = Vec::new();
+    for _ in 0..size {
+        let (name, args): (&str, Vec<String>) = match pick(10) {
+            0..=5 => {
+                let second = if pick(3) == 0 {
+                    NUMS[pick(3)].to_string()
+                } else {
+                    (pick(5) as i64 - 1).to_string()
+                };
+                (ORDER[pick(5)], vec![NUMS[pick(3)].to_string(), second])
+            }
+            6 => (
+                ["bool_true", "bool_false"][pick(2)],
+                vec![BOOLS[pick(2)].to_string()],
+            ),
+            7 | 8 => {
+                let pool = [NUMS[pick(3)], BOOLS[pick(2)], IDS[pick(2)]];
+                ("state_exists", vec![pool[pick(3)].to_string()])
+            }
+            _ => ("signed_by", vec![IDS[pick(2)].to_string()]),
+        };
+        let negated = pick(3) == 0;
+        let refs: Vec<&str> = args.iter().map(String::as_str).collect();
+        props.push(if negated { n(name, &refs) } else { p(name, &refs) });
+        line.push(format!("{}{} {}", if negated { '-' } else { '+' }, name, args.join(" ")));
+    }
+    (props, line.join(" ; "))
+}
+
+/// Random label sets decided by the Rust theory and by the Lean checker whose
+/// soundness is proved in `experiments/predicate-theory/lean`. Build the
+/// checker with `lake build pt-check` there, then run
+/// `PT_CHECK=<path to .lake/build/bin/pt-check> cargo test -p modality-lang
+/// rust_and_lean_agree -- --ignored` (`PT_ROUNDS`, `PT_SEED` optional).
+#[test]
+#[ignore = "needs the Lean checker; set PT_CHECK"]
+fn rust_and_lean_agree() {
+    use std::io::Write;
+    use std::process::{Command, Stdio};
+
+    let bin = std::env::var("PT_CHECK").expect("PT_CHECK: path to pt-check");
+    let rounds: usize = std::env::var("PT_ROUNDS")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(50_000);
+    let mut state: u64 = std::env::var("PT_SEED")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(0x9e37_79b9_7f4a_7c15);
+    let mut next = move || {
+        state ^= state << 13;
+        state ^= state >> 7;
+        state ^= state << 17;
+        state
+    };
+    let sets: Vec<_> = (0..rounds).map(|_| random_label_set(&mut next)).collect();
+
+    let mut child = Command::new(&bin)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()
+        .unwrap_or_else(|e| panic!("cannot run {bin}: {e}"));
+    let input: String = sets.iter().map(|(_, line)| format!("{line}\n")).collect();
+    let mut stdin = child.stdin.take().unwrap();
+    let writer = std::thread::spawn(move || stdin.write_all(input.as_bytes()));
+    let output = child.wait_with_output().unwrap();
+    writer.join().unwrap().unwrap();
+    let verdicts: Vec<&str> = std::str::from_utf8(&output.stdout).unwrap().lines().collect();
+    assert_eq!(verdicts.len(), sets.len(), "pt-check answered every line");
+
+    let th = v1();
+    let mut dead = 0;
+    let mut disagreements = Vec::new();
+    for ((props, line), lean) in sets.iter().zip(&verdicts) {
+        assert_ne!(*lean, "error", "pt-check could not read: {line}");
+        let rust_dead = th.consistent(props).tri == Tri::False;
+        dead += rust_dead as usize;
+        if rust_dead != (*lean == "dead") {
+            disagreements.push(format!("rust {rust_dead:5} lean {lean}: {line}"));
+        }
+    }
+    eprintln!("{rounds} label sets, {dead} dead, {} disagreements", disagreements.len());
+    assert!(
+        disagreements.is_empty(),
+        "Rust and Lean disagree:\n{}",
+        disagreements.iter().take(20).cloned().collect::<Vec<_>>().join("\n")
+    );
 }

@@ -404,6 +404,10 @@ impl DatastoreManager {
                 .get("validator_qc_denominator")
                 .and_then(|v| v.as_u64())
                 .unwrap_or(crate::VALIDATOR_QC_DENOMINATOR),
+            "predicate_theory_version": network_config
+                .get("predicate_theory_version")
+                .and_then(|v| v.as_str())
+                .unwrap_or(crate::DEFAULT_PREDICATE_THEORY_VERSION),
         });
         self.node_state
             .put("contract_validator_config", &serde_json::to_vec(&cfg)?)
@@ -471,6 +475,17 @@ impl DatastoreManager {
             .get("validator_qc_denominator")
             .and_then(|v| v.as_u64())
             .unwrap_or(crate::VALIDATOR_QC_DENOMINATOR))
+    }
+
+    /// Predicate theory version validators enforce, as written in the network
+    /// config. The validator parses it and refuses a version it does not know.
+    pub fn predicate_theory_version(&self) -> Result<String> {
+        let cfg = self.contract_validator_config()?;
+        Ok(cfg
+            .get("predicate_theory_version")
+            .and_then(|v| v.as_str())
+            .unwrap_or(crate::DEFAULT_PREDICATE_THEORY_VERSION)
+            .to_string())
     }
 
     pub fn enqueue_prefix_cert_request(&self, request: serde_json::Value) -> Result<()> {

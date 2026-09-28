@@ -4229,6 +4229,7 @@ dependencies = [
  "modality-cli-ai",
  "modality-cli-common",
  "modality-common",
+ "modality-lang",
  "modality-node",
  "modality-wasm-runtime",
  "modality-wasm-validation",

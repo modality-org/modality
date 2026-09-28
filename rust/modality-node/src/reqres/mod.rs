@@ -36,6 +36,17 @@ pub struct Response {
     pub errors: Option<serde_json::Value>,
 }
 
+/// Deliver a block ack without a datastore lock.
+///
+/// The handler waits until the Shoal loop accepts the message. Holding the
+/// datastore lock across that wait deadlocks the loop.
+pub async fn handle_block_ack(
+    data: Option<serde_json::Value>,
+    consensus_tx: mpsc::Sender<ConsensusMessage>,
+) -> Result<Response> {
+    consensus::block::ack::handler(data, consensus_tx).await
+}
+
 pub async fn handle_request(
     req: Request,
     datastore_manager: &DatastoreManager,
@@ -60,10 +71,7 @@ pub async fn handle_request(
         "/consensus/status" => {
             consensus::status::handler(Some(data.clone()), datastore_manager).await?
         }
-        "/consensus/block/ack" => {
-            consensus::block::ack::handler(Some(data.clone()), datastore_manager, consensus_tx)
-                .await?
-        }
+        "/consensus/block/ack" => consensus::block::ack::handler(Some(data.clone()), consensus_tx).await?,
         "/data/miner_block/get" => {
             reqres_data::miner_block::get::handler(Some(data.clone()), datastore_manager).await?
         }

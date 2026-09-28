@@ -542,13 +542,26 @@ pub async fn spawn_consensus_loop_with_checkpoints(
         }
 
         let mut round_interval = tokio::time::interval(tokio::time::Duration::from_secs(2));
+        // A slow datastore read must not queue a burst of extra rounds.
+        // Each extra round discards acks that have not arrived yet.
+        round_interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
         round_interval.tick().await;
+
+        // How many queued drafts/acks to apply before opening the next round.
+        // Unbounded preference for the channel stalls the round timer whenever
+        // peers keep publishing, and the local contract queue never drains.
+        const MSGS_BEFORE_TICK: u32 = 32;
+        let mut msgs_since_tick = 0u32;
 
         loop {
             ack_collector.committee_size = control.committee_size.load(Ordering::Relaxed).max(1);
 
+            // Prefer pending acks, but only for a bounded batch. A ready
+            // interval must still open a round so local commits are proposed.
             tokio::select! {
-                Some(msg) = msg_rx.recv() => {
+                biased;
+                Some(msg) = msg_rx.recv(), if msgs_since_tick < MSGS_BEFORE_TICK => {
+                    msgs_since_tick += 1;
                     match msg {
                         ConsensusMessage::DraftValidatorBlock { from, block, .. } => {
                             if !control.participate.load(Ordering::Relaxed) {
@@ -638,6 +651,7 @@ pub async fn spawn_consensus_loop_with_checkpoints(
                 }
 
                 _ = round_interval.tick() => {
+                    msgs_since_tick = 0;
                     if !control.participate.load(Ordering::Relaxed) {
                         continue;
                     }

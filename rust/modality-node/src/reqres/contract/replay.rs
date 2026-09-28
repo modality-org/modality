@@ -94,7 +94,9 @@ pub async fn export_replay_artifact(
         prefix.push((id, file));
     }
     prefix.reverse();
-    artifact_from_prefix(contract_id, &through, &prefix)
+    let mut artifact = artifact_from_prefix(contract_id, &through, &prefix)?;
+    artifact.predicate_theory = datastore_manager.predicate_theory_version()?;
+    Ok(artifact)
 }
 
 #[cfg(test)]

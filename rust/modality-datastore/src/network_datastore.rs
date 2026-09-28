@@ -314,6 +314,7 @@ impl NetworkDatastore {
             validator_qc_numerator: crate::VALIDATOR_QC_NUMERATOR,
             validator_qc_denominator: crate::VALIDATOR_QC_DENOMINATOR,
             emission: crate::EmissionConfig::default(),
+            predicate_theory_version: crate::DEFAULT_PREDICATE_THEORY_VERSION.to_string(),
         })
     }
 

@@ -27,6 +27,17 @@ pub struct ReplayArtifact {
     pub commits: Vec<ReplayCommit>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub wasm: Vec<ReplayWasm>,
+    /// Predicate theory the network enforced on this prefix; omitted is `v0`.
+    #[serde(default = "default_predicate_theory", skip_serializing_if = "is_v0")]
+    pub predicate_theory: String,
+}
+
+fn default_predicate_theory() -> String {
+    "v0".to_string()
+}
+
+fn is_v0(version: &str) -> bool {
+    version.eq_ignore_ascii_case("v0")
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -350,12 +361,15 @@ pub fn expand_and_validate_prefix(
     prefix: &[(String, CommitFile)],
     wasm: &[ReplayWasm],
     invoke_engine: Option<&mut dyn InvokeEngine>,
+    theory: crate::model_governance::TheoryActivation,
 ) -> Result<(Vec<CommitFile>, usize)> {
     let (expanded, invokes_expanded) = expand_prefix(contract_id, prefix, wasm, invoke_engine)?;
     let mut accepted = Vec::new();
     for (index, pending) in expanded.iter().enumerate() {
-        crate::model_governance::validate_sequenced_commit(&accepted, pending)
-            .map_err(|err| anyhow::anyhow!("commit {}: {err}", prefix[index].0))?;
+        crate::model_governance::validate_sequenced_commit_with_theory(
+            &accepted, pending, None, None, None, theory,
+        )
+        .map_err(|err| anyhow::anyhow!("commit {}: {err}", prefix[index].0))?;
         accepted.push(pending.clone());
     }
     Ok((accepted, invokes_expanded))
@@ -476,6 +490,7 @@ pub fn artifact_from_prefix(
         prefix_digest: prefix_digest(&ids),
         wasm: wasm_modules_from_commits(&files)?,
         commits,
+        predicate_theory: default_predicate_theory(),
     })
 }
 
@@ -588,12 +603,25 @@ pub fn verify_replay_artifact(
     let mut accepted: Vec<CommitFile> = Vec::new();
     #[cfg(feature = "model-governance")]
     {
-        match expand_and_validate_prefix(&artifact.contract_id, &files, &wasm, invoke_engine) {
-            Ok((expanded, count)) => {
-                invokes_expanded = count;
-                accepted = expanded;
-            }
-            Err(err) => errors.push(err.to_string()),
+        let theory = artifact
+            .predicate_theory
+            .parse::<modality_lang::TheoryVersion>()
+            .map(crate::model_governance::TheoryActivation::always);
+        match theory {
+            Ok(theory) => match expand_and_validate_prefix(
+                &artifact.contract_id,
+                &files,
+                &wasm,
+                invoke_engine,
+                theory,
+            ) {
+                Ok((expanded, count)) => {
+                    invokes_expanded = count;
+                    accepted = expanded;
+                }
+                Err(err) => errors.push(err.to_string()),
+            },
+            Err(err) => errors.push(format!("artifact predicate_theory: {err}")),
         }
     }
     #[cfg(not(feature = "model-governance"))]
@@ -941,5 +969,46 @@ model FirstContract {
         let report = verify_replay_artifact(&artifact, None).unwrap();
         assert!(report.ok, "{:?}", report.errors);
         assert_eq!(report.commits_checked, 2);
+    }
+
+    #[cfg(feature = "model-governance")]
+    #[test]
+    fn replay_uses_the_predicate_theory_the_artifact_names() {
+        let model = r#"export default model {
+  start --> open: +MODEL
+  open --> refunded: +num_lt(/escrow/paid.num,"100") +num_gte(/escrow/paid.num,"100")
+}
+"#;
+        let genesis = file(
+            None,
+            vec![CommitAction {
+                method: "model".to_string(),
+                path: Some("/model/default.modality".to_string()),
+                value: Value::String(model.to_string()),
+                source_contract: None,
+                source_path: None,
+                source_commit: None,
+            }],
+        );
+        let mut artifact = artifact_from_prefix("c1", "g", &[("g".into(), genesis)]).unwrap();
+        assert!(!serde_json::to_string(&artifact)
+            .unwrap()
+            .contains("predicate_theory"));
+        assert!(verify_replay_artifact(&artifact, None).unwrap().ok);
+
+        artifact.predicate_theory = "v1".to_string();
+        let artifact = load_artifact_json(&serde_json::to_string(&artifact).unwrap()).unwrap();
+        let report = verify_replay_artifact(&artifact, None).unwrap();
+        assert!(!report.ok);
+        assert!(
+            report.errors.iter().any(|err| err.contains("open --> refunded")),
+            "{:?}",
+            report.errors
+        );
+
+        let mut unknown = artifact.clone();
+        unknown.predicate_theory = "v9".to_string();
+        let report = verify_replay_artifact(&unknown, None).unwrap();
+        assert!(report.errors[0].contains("unknown predicate theory version"));
     }
 }

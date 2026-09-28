@@ -2,24 +2,30 @@ import PredicateTheory.Fragment
 import PredicateTheory.Decide
 import PredicateTheory.Sound
 import PredicateTheory.Cases
+import PredicateTheory.Generated
 
 /-!
-# Predicate theory, order sort: spec, checker, proof
+# Predicate theory: spec, checker, proof
 
-The numeric part of Modality's predicate theory, stated in Lean:
+Part of Modality's predicate theory, stated in Lean:
 
-- `Fragment`: what `num_gt(/p.num, "5")` and friends **mean**, as a
-  proposition about accepted state. A path either holds a number or it
-  does not (`Option`); a missing number is not zero.
-- `Decide`: a small checker that says whether one edge's labels can ever
-  hold together. The Rust in `modality-lang/src/theory/order.rs` follows
-  the same rule for negated literals.
-- `Sound`: a proof that whenever the checker says "dead", no accepted
-  state lets a commit take the edge; and the same for entailment.
-- `Cases`: an escrow edge with a copy-paste slip, decided by running
-  the proven checker; and a "simpler" checker that Lean proves wrong.
+- `Fragment`: what `num_gt(/p.num, "5")`, `bool_true`, `state_exists`,
+  and `signed_by` **mean**, as propositions about accepted state and the
+  commit's signers. A path holds a typed value or nothing; a missing
+  number is not zero, and a present path need not hold a number. Numbers
+  range over any decidable linear order.
+- `Decide`: a checker that says whether one edge's labels can ever hold
+  together. Each check is the twin of a Rust procedure in
+  `modality-lang/src/theory/`.
+- `Sound`: a proof that whenever the checker says "dead", no world lets a
+  commit take the edge; and the same for entailment. It holds for every
+  decidable linear order, so for the integers and for the rationals.
+- `Cases`: an escrow edge with a copy-paste slip, decided by running the
+  proven checker; and a "simpler" checker that Lean proves wrong.
+- `Generated`: every case in `../cases.json` inside this fragment,
+  written by `gen_cases.py`.
 
-Build with `lake build` (Lean 4.14, no Mathlib). Scope: path-vs-constant
-bounds over integers. The full spec adds path-vs-path order, rationals,
-signers, text, and existence.
+Build with `lake build PredicateTheory` (Lean 4.14, no Mathlib). Outside
+this fragment: text, signer sets under a prefix, the path lattice of
+pending writes, custom declarations, and accepted state at runtime.
 -/
