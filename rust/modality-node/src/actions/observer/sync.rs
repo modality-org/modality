@@ -1,7 +1,7 @@
 //! Sync functionality for observer nodes.
 //!
 //! This module provides synchronization functions used by observer nodes
-//! and any node types that extend observer (miner, validator).
+//! and any node types that extend observer (miner, sequencer).
 //!
 //! Key functions:
 //! - `request_chain_info_impl` - Core sync logic: compare chains with peer, adopt if heavier

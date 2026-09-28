@@ -1,10 +1,10 @@
 {
   "name": "devnet1",
-  "description": "Single validator development network",
+  "description": "Single sequencer development network",
   "difficulty": 1,
   "target_block_time_secs": 60,
   "blocks_per_epoch": 40,
-  "validators": [
+  "sequencers": [
     "12D3KooW9pte76rpnggcLYkFaawuTEs5DC5axHkg3cK3cewGxxHd"
   ],
   "contract_validators": [
@@ -18,4 +18,3 @@
     "block_subsidy": 50
   }
 }
-

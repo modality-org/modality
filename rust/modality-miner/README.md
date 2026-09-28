@@ -6,7 +6,7 @@ A proof-of-work blockchain implementation for the Modality network with epoch-ba
 
 - **Proof-of-Work Mining**: SHA-256 based block mining with configurable difficulty
 - **Epoch-Based Difficulty Adjustment**: Automatic difficulty adjustment every 40 blocks (1 epoch)
-- **Nominated Peer IDs**: Each block nominates a network peer ID for downstream use (e.g., validator selection)
+- **Nominated Peer IDs**: Each block nominates a network peer ID for downstream use (e.g., sequencer selection)
 - **Deterministic Shuffling**: Fisher-Yates shuffle based on XOR of epoch nonces for fair nomination ordering
 - **Persistence Support** (optional): Save and load blockchain data using `NetworkDatastore`
 - **Comprehensive Validation**: Block and chain validation with detailed error reporting
@@ -199,7 +199,7 @@ The shuffling process:
 3. Output is a shuffled list of (block_index, peer_id) pairs
 
 This can be used for:
-- Validator selection
+- Sequencer selection
 - Consensus participation
 - Reward distribution
 - Governance voting order
@@ -321,7 +321,7 @@ cargo test test_full_blockchain_lifecycle
 
 ## Use Cases
 
-1. **Network Validator Selection**: Use shuffled nominations to determine validator sets
+1. **Network Sequencer Selection**: Use shuffled nominations to determine sequencer sets
 2. **Consensus Mechanism**: Proof-of-work provides Sybil resistance
 3. **Reward Distribution**: Track miner contributions via nominated peer IDs
 4. **Governance**: Use shuffle order for proposal voting
@@ -348,5 +348,5 @@ See [CONTRIBUTING.md](../../CONTRIBUTING.md)
 ## Related Packages
 
 - `modality-datastore`: Persistent storage for blockchain data
-- `modality-validator-consensus`: Consensus mechanisms using mining data
+- `modality-sequencer-consensus`: Consensus mechanisms using mining data
 - `modality-utils`: Shared utilities including crypto functions

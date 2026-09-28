@@ -98,11 +98,11 @@ impl ModalityContract {
         let keys = [("contract_id".to_string(), contract_id.to_string())]
             .into_iter()
             .collect();
-        Self::find_one_from_store(datastore.validator_final(), keys).await
+        Self::find_one_from_store(datastore.sequencer_final(), keys).await
     }
 
     pub async fn save(&self, datastore: &DatastoreManager) -> Result<()> {
-        self.save_to_store(datastore.validator_final()).await
+        self.save_to_store(datastore.sequencer_final()).await
     }
 }
 
@@ -165,7 +165,7 @@ impl ModalityRule {
         let prefix = format!("/modality/rules/{}/", contract_id);
         let mut rules = Vec::new();
 
-        let store = datastore.validator_final();
+        let store = datastore.sequencer_final();
         let iterator = store.iterator(&prefix);
         for result in iterator {
             let (key, _) = result?;
@@ -192,7 +192,7 @@ impl ModalityRule {
     }
 
     pub async fn save(&self, datastore: &DatastoreManager) -> Result<()> {
-        self.save_to_store(datastore.validator_final()).await
+        self.save_to_store(datastore.sequencer_final()).await
     }
 }
 
@@ -259,7 +259,7 @@ impl ModalityAction {
         let prefix = format!("/modality/actions/{}/", contract_id);
         let mut actions = Vec::new();
 
-        let store = datastore.validator_final();
+        let store = datastore.sequencer_final();
         let iterator = store.iterator(&prefix);
         for result in iterator {
             let (key, _) = result?;
@@ -286,7 +286,7 @@ impl ModalityAction {
     }
 
     pub async fn save(&self, datastore: &DatastoreManager) -> Result<()> {
-        self.save_to_store(datastore.validator_final()).await
+        self.save_to_store(datastore.sequencer_final()).await
     }
 }
 

@@ -25,7 +25,7 @@ use libp2p::{Multiaddr, PeerId};
 
 use modality_common::multiaddr_list::resolve_dns_multiaddrs;
 use modality_datastore::DatastoreManager;
-use modality_validator_consensus::communication::Message as ConsensusMessage;
+use modality_sequencer_consensus::communication::Message as ConsensusMessage;
 
 use crate::config::Config;
 use crate::consensus::net_comm::NetComm;
@@ -57,7 +57,7 @@ pub struct Node {
     pub miner_nominees: Option<Vec<String>>,
     pub hybrid_consensus: bool,
     pub run_miner: bool,
-    pub run_validator: bool,
+    pub run_sequencer: bool,
     pub run_contract_validator: bool,
     pub network_name: String,
     pub role: String,
@@ -106,14 +106,14 @@ impl Node {
         // Hybrid consensus should be ON by default for all nodes
         let hybrid_consensus = config.hybrid_consensus.unwrap_or(true);
 
-        // Determine run_validator based on run_as or explicit flag
-        let run_validator = if let Some(ref run_as) = config.run_as {
+        // Determine run_sequencer based on run_as or explicit flag
+        let run_sequencer = if let Some(ref run_as) = config.run_as {
             matches!(
                 run_as.as_str(),
-                "validator" | "Validator" | "sequencer" | "Sequencer"
+                "sequencer" | "Sequencer"
             )
         } else {
-            config.run_validator.unwrap_or(false)
+            config.run_sequencer.unwrap_or(false)
         };
 
         let run_contract_validator = config.run_contract_validator.unwrap_or(false)
@@ -175,7 +175,7 @@ impl Node {
             miner_nominees,
             hybrid_consensus,
             run_miner,
-            run_validator,
+            run_sequencer,
             run_contract_validator,
             network_name,
             role,
@@ -234,7 +234,7 @@ impl Node {
             status_port: self.status_port,
             hybrid_consensus: self.hybrid_consensus,
             run_miner: self.run_miner,
-            run_validator: self.run_validator,
+            run_sequencer: self.run_sequencer,
             run_contract_validator: self.run_contract_validator,
             datastore: self.datastore_manager.clone(),
             swarm: self.swarm.clone(),

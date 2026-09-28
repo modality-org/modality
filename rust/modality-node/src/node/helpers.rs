@@ -87,12 +87,12 @@ pub async fn load_network_config(
             "bootstrappers": network_info.bootstrappers,
         });
 
-        if let Some(validators) = network_info.validators {
+        if let Some(sequencers) = network_info.sequencers {
             log::info!(
-                "📋 Found {} static validators in network config",
-                validators.len()
+                "📋 Found {} static sequencers in network config",
+                sequencers.len()
             );
-            config_json["validators"] = serde_json::json!(validators);
+            config_json["sequencers"] = serde_json::json!(sequencers);
         }
 
         if let Some(contract_validators) = network_info.contract_validators {
@@ -193,10 +193,10 @@ pub async fn load_network_config(
                 log::info!("  Difficulty: {}", params.initial_difficulty);
                 log::info!("  Block Time: {}s", params.target_block_time_secs);
                 log::info!("  Blocks per Epoch: {}", params.blocks_per_epoch);
-                log::info!("  Validators: {}", params.validators.len());
+                log::info!("  Sequencers: {}", params.sequencers.len());
 
-                if !params.validators.is_empty() {
-                    mgr.set_static_validators(&params.validators).await?;
+                if !params.sequencers.is_empty() {
+                    mgr.set_static_sequencers(&params.sequencers).await?;
                 }
             }
             Err(e) => {

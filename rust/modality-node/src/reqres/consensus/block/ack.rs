@@ -3,8 +3,8 @@ use anyhow::Result;
 use serde_json;
 use tokio::sync::mpsc;
 
-use modality_datastore::models::validator::block::Ack;
-use modality_validator_consensus::communication::Message as ConsensusMessage;
+use modality_datastore::models::sequencer::block::Ack;
+use modality_sequencer_consensus::communication::Message as ConsensusMessage;
 
 use crate::reqres::Response;
 
@@ -67,7 +67,7 @@ pub async fn handler(
         acker_sig,
     };
 
-    let msg = ConsensusMessage::ValidatorBlockAck {
+    let msg = ConsensusMessage::SequencerBlockAck {
         from: acker,
         to: peer_id,
         ack,

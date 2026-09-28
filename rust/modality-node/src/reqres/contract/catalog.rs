@@ -6,7 +6,7 @@ use modality_datastore::DatastoreManager;
 
 use crate::explorer;
 use crate::reqres::Response;
-use modality_validator_consensus::communication::Message as ConsensusMessage;
+use modality_sequencer_consensus::communication::Message as ConsensusMessage;
 
 pub async fn handler(
     _data: Option<Value>,

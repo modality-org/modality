@@ -249,9 +249,9 @@ impl RpcClient {
         Ok(serde_json::from_value(result)?)
     }
 
-    /// Get validators (network nodes only)
-    pub async fn get_validators(&self) -> Result<ValidatorsResponse, RpcError> {
-        let result = self.request("getValidators", serde_json::json!({})).await?;
+    /// Get sequencers (network nodes only)
+    pub async fn get_sequencers(&self) -> Result<SequencersResponse, RpcError> {
+        let result = self.request("getSequencers", serde_json::json!({})).await?;
         Ok(serde_json::from_value(result)?)
     }
 }

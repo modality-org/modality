@@ -8,8 +8,8 @@ use tokio::sync::{broadcast, Mutex};
 
 use libp2p::Multiaddr;
 use modality_datastore::models::miner::MinerBlock;
-use modality_datastore::models::validator::{
-    get_validator_set_for_mining_epoch_hybrid_multi, ValidatorBlock,
+use modality_datastore::models::sequencer::{
+    get_sequencer_set_for_mining_epoch_hybrid_multi, SequencerBlock,
 };
 use modality_datastore::DatastoreManager;
 
@@ -30,7 +30,7 @@ pub struct NodeStatusSource {
     pub status_port: Option<u16>,
     pub hybrid_consensus: bool,
     pub run_miner: bool,
-    pub run_validator: bool,
+    pub run_sequencer: bool,
     pub run_contract_validator: bool,
     pub datastore: Arc<Mutex<DatastoreManager>>,
     pub swarm: Arc<Mutex<crate::swarm::NodeSwarm>>,
@@ -193,7 +193,7 @@ pub fn display_node_role(role: &str) -> String {
 pub fn derive_active_roles(
     role: &str,
     run_miner: bool,
-    run_validator: bool,
+    run_sequencer: bool,
     run_contract_validator: bool,
     hybrid_consensus: bool,
     named_validators: &[String],
@@ -203,12 +203,12 @@ pub fn derive_active_roles(
     let miner = run_miner
         || matches!(
             r.as_str(),
-            "miner" | "hybrid" | "miner+validator" | "miner+sequencer"
+            "miner" | "hybrid" | "miner+sequencer"
         );
-    let sequencer = run_validator
+    let sequencer = run_sequencer
         || matches!(
             r.as_str(),
-            "sequencer" | "validator" | "hybrid" | "miner+validator" | "miner+sequencer"
+            "sequencer" | "hybrid" | "miner+sequencer"
         )
         || (hybrid_consensus && miner);
     let validator = run_contract_validator
@@ -265,9 +265,9 @@ async fn sequencer_committee_for_epoch(
     if let Some(committee) = cache.lock().ok().and_then(|c| c.get(&key).cloned()) {
         return committee;
     }
-    match get_validator_set_for_mining_epoch_hybrid_multi(mgr, epoch).await {
+    match get_sequencer_set_for_mining_epoch_hybrid_multi(mgr, epoch).await {
         Ok(Some(set)) => {
-            let committee = set.get_active_validators();
+            let committee = set.get_active_sequencers();
             if let Ok(mut c) = cache.lock() {
                 c.retain(|(p, _), _| p != peerid);
                 c.insert(key, committee.clone());
@@ -393,12 +393,12 @@ async fn collect_node_status_uncached(source: &NodeStatusSource) -> anyhow::Resu
         .peek_prefix_cert_requests()
         .map(|r| r.len())
         .unwrap_or(0);
-    let last_cert_round_by_author = crate::actions::validator::cert_sync::last_cert_rounds(&mgr);
+    let last_cert_round_by_author = crate::actions::sequencer::cert_sync::last_cert_rounds(&mgr);
 
     let active_roles = derive_active_roles(
         &source.role,
         source.run_miner,
-        source.run_validator,
+        source.run_sequencer,
         source.run_contract_validator,
         source.hybrid_consensus,
         &named_validators,
@@ -499,7 +499,7 @@ async fn collect_finalized_rounds(mgr: &DatastoreManager, current_round: u64) ->
     let mut rounds = Vec::new();
     let start_round = current_round.saturating_sub(STATUS_FINALIZED_ROUNDS_TO_SHOW);
     for round_id in (start_round..current_round).rev() {
-        let all_blocks = match ValidatorBlock::find_all_in_round_multi(mgr, round_id).await {
+        let all_blocks = match SequencerBlock::find_all_in_round_multi(mgr, round_id).await {
             Ok(blocks) => blocks,
             Err(_) => continue,
         };
@@ -736,8 +736,7 @@ mod tests {
     fn display_node_role_maps_protocol_names() {
         assert_eq!(display_node_role("miner"), "Miner");
         assert_eq!(display_node_role("hybrid"), "Miner+Sequencer");
-        assert_eq!(display_node_role("Miner+Validator"), "Miner+Sequencer");
-        assert_eq!(display_node_role("validator"), "Sequencer");
+        assert_eq!(display_node_role("Miner+Sequencer"), "Miner+Sequencer");
         assert_eq!(display_node_role("sequencer"), "Sequencer");
         assert_eq!(display_node_role("contract-validator"), "Validator");
         assert_eq!(display_node_role("observer"), "Observer");

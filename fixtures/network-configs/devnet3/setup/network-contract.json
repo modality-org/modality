@@ -16,7 +16,7 @@
       {
         "method": "post",
         "path": "/network/description.text",
-        "value": "Three validator development network"
+        "value": "Three sequencer development network"
       },
       {
         "method": "post",
@@ -40,17 +40,17 @@
       },
       {
         "method": "post",
-        "path": "/network/validators/0.text",
+        "path": "/network/sequencers/0.text",
         "value": "12D3KooW9pte76rpnggcLYkFaawuTEs5DC5axHkg3cK3cewGxxHd"
       },
       {
         "method": "post",
-        "path": "/network/validators/1.text",
+        "path": "/network/sequencers/1.text",
         "value": "12D3KooW9pypLnRn67EFjiWgEiDdqo8YizaPn8yKe5cNJd3PGnMB"
       },
       {
         "method": "post",
-        "path": "/network/validators/2.text",
+        "path": "/network/sequencers/2.text",
         "value": "12D3KooW9qGaMuW7k2a5iEQ37gWgtjfFC4B3j5R1kKJPZofS62Se"
       }
     ],

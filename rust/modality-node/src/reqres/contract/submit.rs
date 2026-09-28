@@ -8,7 +8,7 @@ use modality_datastore::models::Commit;
 use modality_datastore::DatastoreManager;
 
 use crate::reqres::Response;
-use modality_validator_consensus::communication::Message as ConsensusMessage;
+use modality_sequencer_consensus::communication::Message as ConsensusMessage;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct SubmitCommitRequest {
@@ -51,7 +51,7 @@ pub async fn handler(
         in_batch: None,
     };
 
-    // Save to ValidatorFinal store
+    // Save to SequencerFinal store
     Commit::save_to_final(&commit, datastore_manager).await?;
 
     let response = SubmitCommitResponse {

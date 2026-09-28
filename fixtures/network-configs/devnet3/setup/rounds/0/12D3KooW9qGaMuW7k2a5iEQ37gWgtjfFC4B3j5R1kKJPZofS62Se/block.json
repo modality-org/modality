@@ -7,7 +7,7 @@
     {
       "type": "contract-commit",
       "contract_id": "12D3KooWNJeKDwcWM3C2U6i2RBD6FNtMwtfgy6TbLNbjwLD3iFEM",
-      "commit_id": "a856d3fde096130029429970c9c4e675408d7403e8b05d73f9f3541d0344e3b4",
+      "commit_id": "8c5cd956b79b1f15c32c7c43b34af5c0397f4d17d3e023f6271d3606d4a4276b",
       "commit": {
         "body": [
           {
@@ -18,7 +18,7 @@
           {
             "method": "post",
             "path": "/network/description.text",
-            "value": "Three validator development network"
+            "value": "Three sequencer development network"
           },
           {
             "method": "post",
@@ -37,17 +37,17 @@
           },
           {
             "method": "post",
-            "path": "/network/validators/0.text",
+            "path": "/network/sequencers/0.text",
             "value": "12D3KooW9pte76rpnggcLYkFaawuTEs5DC5axHkg3cK3cewGxxHd"
           },
           {
             "method": "post",
-            "path": "/network/validators/1.text",
+            "path": "/network/sequencers/1.text",
             "value": "12D3KooW9pypLnRn67EFjiWgEiDdqo8YizaPn8yKe5cNJd3PGnMB"
           },
           {
             "method": "post",
-            "path": "/network/validators/2.text",
+            "path": "/network/sequencers/2.text",
             "value": "12D3KooW9qGaMuW7k2a5iEQ37gWgtjfFC4B3j5R1kKJPZofS62Se"
           }
         ],
@@ -57,7 +57,7 @@
     {
       "type": "contract-commit",
       "contract_id": "12D3KooWPNHaYyqn4oXoz7RPje2a16WGBaPJHqWaewnDQZJ6K3Jd",
-      "commit_id": "a856d3fde096130029429970c9c4e675408d7403e8b05d73f9f3541d0344e3b4",
+      "commit_id": "8c5cd956b79b1f15c32c7c43b34af5c0397f4d17d3e023f6271d3606d4a4276b",
       "commit": {
         "body": [
           {
@@ -68,7 +68,7 @@
           {
             "method": "post",
             "path": "/network/description.text",
-            "value": "Three validator development network"
+            "value": "Three sequencer development network"
           },
           {
             "method": "post",
@@ -87,17 +87,17 @@
           },
           {
             "method": "post",
-            "path": "/network/validators/0.text",
+            "path": "/network/sequencers/0.text",
             "value": "12D3KooW9pte76rpnggcLYkFaawuTEs5DC5axHkg3cK3cewGxxHd"
           },
           {
             "method": "post",
-            "path": "/network/validators/1.text",
+            "path": "/network/sequencers/1.text",
             "value": "12D3KooW9pypLnRn67EFjiWgEiDdqo8YizaPn8yKe5cNJd3PGnMB"
           },
           {
             "method": "post",
-            "path": "/network/validators/2.text",
+            "path": "/network/sequencers/2.text",
             "value": "12D3KooW9qGaMuW7k2a5iEQ37gWgtjfFC4B3j5R1kKJPZofS62Se"
           }
         ],
@@ -105,10 +105,12 @@
       }
     }
   ],
-  "closing_sig": "LIHcxsrE8F1Gh4l0WLB+p7MXJCIHiZSAF2S5VfqOPaDIiKys29c0UVHb6OzQ4l1f49LJTN82d9EcFsDHD/7XAg==",
+  "closing_sig": "8mLiXPhPwyqCb57/fEie6KNGzcn/kKHFdZrpSADgLwWM2hAlM5NaS6/7WsFcOdqQG1QB3CFGyzqrFeL/vPeWBA==",
   "acks": {
-    "12D3KooW9qGaMuW7k2a5iEQ37gWgtjfFC4B3j5R1kKJPZofS62Se": "u4Fz5hCfzPO/6EOpzSeN7AhTa8WrXTUzsD3znVuP7DwIGM0t9EvVyq70FQkaZY5NPZ3XFuyUPY7eKgBzsj/JCA=="
+    "12D3KooW9pte76rpnggcLYkFaawuTEs5DC5axHkg3cK3cewGxxHd": "UOadV/gCSu1pl1xGvpTdnhgyyHJOTo7dC7tYkalHpwsAH8OU6NKJwLVxLiYfpJem5HL+O01lxNmfg0PsqttgCQ==",
+    "12D3KooW9pypLnRn67EFjiWgEiDdqo8YizaPn8yKe5cNJd3PGnMB": "v+wte17mJMkcA4lsG9A4uLypWS1BYj8QQ9ZboLmOTMTRIjjURBkqpc89WiGUZewOWOWjDe5h9uJJHHHPuC0ADA==",
+    "12D3KooW9qGaMuW7k2a5iEQ37gWgtjfFC4B3j5R1kKJPZofS62Se": "0USSEkaIqNydlmWxd4JG3m42G8sXbnnBXUOPNOwwhQZ+snQ3/gN0/aSMqUAqcWPKpqg1I2Sah/MKdrP8lBPhAg=="
   },
   "late_acks": [],
-  "cert": "tmvQuGk9zpjdGbv2C3AyE5YwRbuCoMFDyUveLgcmmW2PQ53/vsS9gL5ZF0yu2HfsqFLyE+Il3on+TWTZkUogDg=="
+  "cert": "qRxz1tZrMF+EP3fb0Oa1Hjkd1COAnCe02I/l8X+i0ZuS6BvE5b9Uts5u0pLRXVLl6cGXfdKkwGve/tZLnmOoAA=="
 }

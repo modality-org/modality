@@ -2,7 +2,7 @@
   {
     "type": "contract-commit",
     "contract_id": "12D3KooWRjja961jDEY1Rf1nNDr1PWaNjHTYA34mLd4VTrkEhMBq",
-    "commit_id": "94c573151783f4860714ff87dcbde9eed03a9a576e215be9b44139aef0d73dca",
+    "commit_id": "ab04105ca192a3369faaf205cefb9baeb9b0d539e9e0f0f6d8aa4eed01b94879",
     "commit": {
       "body": [
         {
@@ -13,7 +13,7 @@
         {
           "method": "post",
           "path": "/network/description.text",
-          "value": "Single validator development network"
+          "value": "Single sequencer development network"
         },
         {
           "method": "post",
@@ -32,7 +32,7 @@
         },
         {
           "method": "post",
-          "path": "/network/validators/0.text",
+          "path": "/network/sequencers/0.text",
           "value": "12D3KooW9pte76rpnggcLYkFaawuTEs5DC5axHkg3cK3cewGxxHd"
         }
       ],
@@ -42,7 +42,7 @@
   {
     "type": "contract-commit",
     "contract_id": "12D3KooWJpNzxCz4JgoLKWH4SCWkEo5jXR6gwqzo6J1Vh7gBDSqT",
-    "commit_id": "94c573151783f4860714ff87dcbde9eed03a9a576e215be9b44139aef0d73dca",
+    "commit_id": "ab04105ca192a3369faaf205cefb9baeb9b0d539e9e0f0f6d8aa4eed01b94879",
     "commit": {
       "body": [
         {
@@ -53,7 +53,7 @@
         {
           "method": "post",
           "path": "/network/description.text",
-          "value": "Single validator development network"
+          "value": "Single sequencer development network"
         },
         {
           "method": "post",
@@ -72,7 +72,7 @@
         },
         {
           "method": "post",
-          "path": "/network/validators/0.text",
+          "path": "/network/sequencers/0.text",
           "value": "12D3KooW9pte76rpnggcLYkFaawuTEs5DC5axHkg3cK3cewGxxHd"
         }
       ],

@@ -3,7 +3,7 @@ use serde_json::{json, Value};
 use tokio::sync::mpsc;
 
 use modality_datastore::DatastoreManager;
-use modality_validator_consensus::communication::Message as ConsensusMessage;
+use modality_sequencer_consensus::communication::Message as ConsensusMessage;
 
 use crate::reqres::Response;
 

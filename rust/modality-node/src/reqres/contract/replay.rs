@@ -9,7 +9,7 @@ use serde_json::Value;
 use tokio::sync::mpsc;
 
 use crate::reqres::Response;
-use modality_validator_consensus::communication::Message as ConsensusMessage;
+use modality_sequencer_consensus::communication::Message as ConsensusMessage;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ReplayRequest {

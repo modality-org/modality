@@ -11,14 +11,14 @@
 //! ├── miner_canon/      # Finalized canonical miner blocks
 //! ├── miner_forks/      # Archived orphaned miner blocks
 //! ├── miner_active/     # Recent miner blocks
-//! ├── validator_final/  # Finalized validator data
-//! ├── validator_active/ # Active validator consensus
+//! ├── sequencer_final/  # Finalized sequencer data
+//! ├── sequencer_active/ # Active sequencer consensus
 //! └── node_state/       # Node-specific state
 //! ```
 
 use crate::stores::{
     MinerActiveStore, MinerCanonStore, MinerForksStore, NodeStateStore, Store,
-    ValidatorActiveStore, ValidatorFinalStore,
+    SequencerActiveStore, SequencerFinalStore,
 };
 use crate::Result;
 use std::fs;
@@ -51,8 +51,8 @@ pub struct DatastoreManager {
     miner_canon: MinerCanonStore,
     miner_forks: MinerForksStore,
     miner_active: MinerActiveStore,
-    validator_final: ValidatorFinalStore,
-    validator_active: ValidatorActiveStore,
+    sequencer_final: SequencerFinalStore,
+    sequencer_active: SequencerActiveStore,
     node_state: NodeStateStore,
     epoch_config: EpochConfig,
 }
@@ -82,6 +82,23 @@ fn native_mod_paid_key(block_hash: &str) -> String {
     format!("native_mod/paid/{}", block_hash)
 }
 
+/// Data dirs written before the sequencer rename hold consensus state under
+/// `validator_final/` and `validator_active/`. Opening them would start from
+/// empty stores beside the old ones, so refuse instead.
+fn reject_pre_sequencer_layout(data_dir: &Path) -> Result<()> {
+    let legacy = ["validator_final", "validator_active"]
+        .iter()
+        .any(|name| data_dir.join(name).exists());
+    if legacy && !data_dir.join("sequencer_final").exists() {
+        return Err(crate::Error::InvalidData(format!(
+            "data dir {} predates the validator -> sequencer rename \
+             (found validator_final/ or validator_active/); wipe it and resync",
+            data_dir.display()
+        )));
+    }
+    Ok(())
+}
+
 fn decode_prefix_certs(data: &[u8]) -> Vec<serde_json::Value> {
     match serde_json::from_slice::<serde_json::Value>(data) {
         Ok(serde_json::Value::Array(arr)) => arr,
@@ -95,13 +112,14 @@ impl DatastoreManager {
     pub fn open(data_dir: &Path) -> Result<Self> {
         // Ensure data directory exists
         fs::create_dir_all(data_dir)?;
+        reject_pre_sequencer_layout(data_dir)?;
 
         // Open each store
         let miner_canon = MinerCanonStore::open(&data_dir.join("miner_canon"))?;
         let miner_forks = MinerForksStore::open(&data_dir.join("miner_forks"))?;
         let miner_active = MinerActiveStore::open(&data_dir.join("miner_active"))?;
-        let validator_final = ValidatorFinalStore::open(&data_dir.join("validator_final"))?;
-        let validator_active = ValidatorActiveStore::open(&data_dir.join("validator_active"))?;
+        let sequencer_final = SequencerFinalStore::open(&data_dir.join("sequencer_final"))?;
+        let sequencer_active = SequencerActiveStore::open(&data_dir.join("sequencer_active"))?;
         let node_state = NodeStateStore::open(&data_dir.join("node_state"))?;
 
         Ok(Self {
@@ -109,8 +127,8 @@ impl DatastoreManager {
             miner_canon,
             miner_forks,
             miner_active,
-            validator_final,
-            validator_active,
+            sequencer_final,
+            sequencer_active,
             node_state,
             epoch_config: EpochConfig::default(),
         })
@@ -118,13 +136,14 @@ impl DatastoreManager {
 
     /// Open existing stores read-only (inspect a live node's data dir).
     pub fn open_readonly(data_dir: &Path) -> Result<Self> {
+        reject_pre_sequencer_layout(data_dir)?;
         let miner_canon = MinerCanonStore::open_readonly(&data_dir.join("miner_canon"))?;
         let miner_forks = MinerForksStore::open_readonly(&data_dir.join("miner_forks"))?;
         let miner_active = MinerActiveStore::open_readonly(&data_dir.join("miner_active"))?;
-        let validator_final =
-            ValidatorFinalStore::open_readonly(&data_dir.join("validator_final"))?;
-        let validator_active =
-            ValidatorActiveStore::open_readonly(&data_dir.join("validator_active"))?;
+        let sequencer_final =
+            SequencerFinalStore::open_readonly(&data_dir.join("sequencer_final"))?;
+        let sequencer_active =
+            SequencerActiveStore::open_readonly(&data_dir.join("sequencer_active"))?;
         let node_state = NodeStateStore::open_readonly(&data_dir.join("node_state"))?;
 
         Ok(Self {
@@ -132,8 +151,8 @@ impl DatastoreManager {
             miner_canon,
             miner_forks,
             miner_active,
-            validator_final,
-            validator_active,
+            sequencer_final,
+            sequencer_active,
             node_state,
             epoch_config: EpochConfig::default(),
         })
@@ -147,8 +166,8 @@ impl DatastoreManager {
         let miner_canon = MinerCanonStore::create_in_memory()?;
         let miner_forks = MinerForksStore::create_in_memory()?;
         let miner_active = MinerActiveStore::create_in_memory()?;
-        let validator_final = ValidatorFinalStore::create_in_memory()?;
-        let validator_active = ValidatorActiveStore::create_in_memory()?;
+        let sequencer_final = SequencerFinalStore::create_in_memory()?;
+        let sequencer_active = SequencerActiveStore::create_in_memory()?;
         let node_state = NodeStateStore::create_in_memory()?;
 
         Ok(Self {
@@ -156,8 +175,8 @@ impl DatastoreManager {
             miner_canon,
             miner_forks,
             miner_active,
-            validator_final,
-            validator_active,
+            sequencer_final,
+            sequencer_active,
             node_state,
             epoch_config: EpochConfig::default(),
         })
@@ -198,24 +217,24 @@ impl DatastoreManager {
         &mut self.miner_active
     }
 
-    /// Get a reference to the ValidatorFinal store
-    pub fn validator_final(&self) -> &ValidatorFinalStore {
-        &self.validator_final
+    /// Get a reference to the SequencerFinal store
+    pub fn sequencer_final(&self) -> &SequencerFinalStore {
+        &self.sequencer_final
     }
 
-    /// Get a mutable reference to the ValidatorFinal store
-    pub fn validator_final_mut(&mut self) -> &mut ValidatorFinalStore {
-        &mut self.validator_final
+    /// Get a mutable reference to the SequencerFinal store
+    pub fn sequencer_final_mut(&mut self) -> &mut SequencerFinalStore {
+        &mut self.sequencer_final
     }
 
-    /// Get a reference to the ValidatorActive store
-    pub fn validator_active(&self) -> &ValidatorActiveStore {
-        &self.validator_active
+    /// Get a reference to the SequencerActive store
+    pub fn sequencer_active(&self) -> &SequencerActiveStore {
+        &self.sequencer_active
     }
 
-    /// Get a mutable reference to the ValidatorActive store
-    pub fn validator_active_mut(&mut self) -> &mut ValidatorActiveStore {
-        &mut self.validator_active
+    /// Get a mutable reference to the SequencerActive store
+    pub fn sequencer_active_mut(&mut self) -> &mut SequencerActiveStore {
+        &mut self.sequencer_active
     }
 
     /// Get a reference to the NodeState store
@@ -265,8 +284,8 @@ impl DatastoreManager {
         self.miner_canon.flush()?;
         self.miner_forks.flush()?;
         self.miner_active.flush()?;
-        self.validator_final.flush()?;
-        self.validator_active.flush()?;
+        self.sequencer_final.flush()?;
+        self.sequencer_active.flush()?;
         self.node_state.flush()?;
         Ok(())
     }
@@ -309,14 +328,14 @@ impl DatastoreManager {
         let config_json = serde_json::to_vec(network_config)?;
         self.node_state.put("network_config", &config_json)?;
 
-        // Extract and store static validators if present
-        if let Some(validators) = network_config.get("validators").and_then(|v| v.as_array()) {
-            let validator_list: Vec<String> = validators
+        // Extract and store static sequencers if present
+        if let Some(sequencers) = network_config.get("sequencers").and_then(|v| v.as_array()) {
+            let sequencer_list: Vec<String> = sequencers
                 .iter()
                 .filter_map(|v| v.as_str().map(|s| s.to_string()))
                 .collect();
-            if !validator_list.is_empty() {
-                self.set_static_validators(&validator_list).await?;
+            if !sequencer_list.is_empty() {
+                self.set_static_sequencers(&sequencer_list).await?;
             }
         }
 
@@ -331,9 +350,9 @@ impl DatastoreManager {
         &self,
         contract_id: &str,
     ) -> Result<crate::NetworkParameters> {
-        // Try to load from ValidatorFinal store where contracts live
+        // Try to load from SequencerFinal store where contracts live
         let key = format!("contract/{}/network_params", contract_id);
-        if let Some(data) = self.validator_final.get(&key)? {
+        if let Some(data) = self.sequencer_final.get(&key)? {
             let params: crate::NetworkParameters = serde_json::from_slice(&data)?;
             return Ok(params);
         }
@@ -351,20 +370,20 @@ impl DatastoreManager {
         )))
     }
 
-    /// Set static validators in NodeState store
-    pub async fn set_static_validators(&self, validators: &[String]) -> Result<()> {
-        let json = serde_json::to_vec(validators)?;
-        self.node_state.put("static_validators", &json)
+    /// Set static sequencers in NodeState store
+    pub async fn set_static_sequencers(&self, sequencers: &[String]) -> Result<()> {
+        let json = serde_json::to_vec(sequencers)?;
+        self.node_state.put("static_sequencers", &json)
     }
 
-    /// Queue a sequencer event to be included in the next validator round.
+    /// Queue a sequencer event to be included in the next sequencer round.
     pub async fn enqueue_sequencer_event(&self, event: serde_json::Value) -> Result<()> {
         let mut events = self.load_sequencer_events()?;
         events.push(event);
         self.store_sequencer_events(&events)
     }
 
-    /// Take all pending sequencer events for the next validator block.
+    /// Take all pending sequencer events for the next sequencer block.
     pub async fn drain_sequencer_events(&self) -> Result<Vec<serde_json::Value>> {
         let events = self.load_sequencer_events()?;
         self.store_sequencer_events(&[])?;
@@ -715,11 +734,11 @@ impl DatastoreManager {
         Ok(())
     }
 
-    /// Get static validators from NodeState store
-    pub async fn get_static_validators(&self) -> Result<Option<Vec<String>>> {
-        if let Some(data) = self.node_state.get("static_validators")? {
-            let validators: Vec<String> = serde_json::from_slice(&data)?;
-            Ok(Some(validators))
+    /// Get static sequencers from NodeState store
+    pub async fn get_static_sequencers(&self) -> Result<Option<Vec<String>>> {
+        if let Some(data) = self.node_state.get("static_sequencers")? {
+            let sequencers: Vec<String> = serde_json::from_slice(&data)?;
+            Ok(Some(sequencers))
         } else {
             Ok(None)
         }
@@ -755,9 +774,9 @@ impl DatastoreManager {
         &self,
         round_id: u64,
     ) -> Result<std::collections::HashMap<String, String>> {
-        use crate::models::ValidatorBlock;
+        use crate::models::SequencerBlock;
 
-        let blocks = ValidatorBlock::find_all_in_round_multi(self, round_id).await?;
+        let blocks = SequencerBlock::find_all_in_round_multi(self, round_id).await?;
 
         Ok(blocks
             .into_iter()
@@ -793,16 +812,16 @@ impl DatastoreManager {
         clear_db(self.miner_active.db(), &mut count)?;
         clear_db(self.miner_canon.db(), &mut count)?;
         clear_db(self.miner_forks.db(), &mut count)?;
-        clear_db(self.validator_active.db(), &mut count)?;
-        clear_db(self.validator_final.db(), &mut count)?;
+        clear_db(self.sequencer_active.db(), &mut count)?;
+        clear_db(self.sequencer_final.db(), &mut count)?;
         clear_db(self.node_state.db(), &mut count)?;
 
         // Flush all stores
         self.miner_active.flush()?;
         self.miner_canon.flush()?;
         self.miner_forks.flush()?;
-        self.validator_active.flush()?;
-        self.validator_final.flush()?;
+        self.sequencer_active.flush()?;
+        self.sequencer_final.flush()?;
         self.node_state.flush()?;
 
         Ok(count)
@@ -817,6 +836,22 @@ mod tests {
     fn test_create_in_memory() {
         let mgr = DatastoreManager::create_in_memory().unwrap();
         assert!(mgr.data_dir().exists() || true); // In-memory may use temp dir
+    }
+
+    #[test]
+    fn open_refuses_pre_sequencer_data_dir() {
+        let dir = tempfile::tempdir().unwrap();
+        fs::create_dir_all(dir.path().join("validator_final")).unwrap();
+        let err = DatastoreManager::open(dir.path()).unwrap_err();
+        assert!(err.to_string().contains("sequencer rename"), "{err}");
+        assert!(!dir.path().join("sequencer_final").exists());
+    }
+
+    #[test]
+    fn open_accepts_fresh_data_dir() {
+        let dir = tempfile::tempdir().unwrap();
+        DatastoreManager::open(dir.path()).unwrap();
+        assert!(dir.path().join("sequencer_final").exists());
     }
 
     #[test]

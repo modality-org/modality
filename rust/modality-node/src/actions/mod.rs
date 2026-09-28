@@ -8,4 +8,4 @@ pub mod observer;
 pub mod request;
 pub mod server;
 pub mod sync_blocks;
-pub mod validator;
+pub mod sequencer;

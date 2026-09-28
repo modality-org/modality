@@ -80,7 +80,7 @@ pub struct NetworkParameters {
     pub initial_difficulty: u128,
     pub target_block_time_secs: u64,
     pub blocks_per_epoch: u64,
-    pub validators: Vec<String>,
+    pub sequencers: Vec<String>,
     pub miner_hash_func: String,
     pub mining_hash_params: Option<serde_json::Value>,
     #[serde(default)]
@@ -124,7 +124,7 @@ impl NetworkParameters {
             initial_difficulty: 1,
             target_block_time_secs: 60,
             blocks_per_epoch: 40,
-            validators: Vec::new(),
+            sequencers: Vec::new(),
             miner_hash_func: "randomx".to_string(),
             mining_hash_params: None,
             contract_validators: Vec::new(),
@@ -163,7 +163,7 @@ mod tests {
             initial_difficulty: 100,
             target_block_time_secs: 30,
             blocks_per_epoch: 20,
-            validators: vec!["peer1".to_string()],
+            sequencers: vec!["peer1".to_string()],
             miner_hash_func: "randomx".to_string(),
             mining_hash_params: Some(custom_params),
             contract_validators: Vec::new(),
@@ -188,7 +188,7 @@ mod tests {
             "initial_difficulty": 1,
             "target_block_time_secs": 1,
             "blocks_per_epoch": 1,
-            "validators": [],
+            "sequencers": [],
             "miner_hash_func": "sha256"
         });
         let params: NetworkParameters = serde_json::from_value(json).unwrap();

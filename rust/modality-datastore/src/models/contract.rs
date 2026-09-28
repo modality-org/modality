@@ -42,7 +42,7 @@ impl Contract {
         let prefix = "/contracts/";
         let mut contracts = Vec::new();
 
-        let store = datastore.validator_final();
+        let store = datastore.sequencer_final();
         let iterator = store.iterator(prefix);
         for result in iterator {
             let (key, _) = result?;
@@ -73,12 +73,12 @@ impl Contract {
         let keys = [("contract_id".to_string(), contract_id.to_string())]
             .into_iter()
             .collect();
-        Self::find_one_from_store(datastore.validator_final(), keys).await
+        Self::find_one_from_store(datastore.sequencer_final(), keys).await
     }
 
-    /// Save this contract to the ValidatorFinal store
+    /// Save this contract to the SequencerFinal store
     pub async fn save_to_final(&self, datastore: &DatastoreManager) -> Result<()> {
-        self.save_to_store(datastore.validator_final()).await
+        self.save_to_store(datastore.sequencer_final()).await
     }
 }
 
@@ -131,7 +131,7 @@ impl Commit {
         let prefix = format!("/commits/{}", contract_id);
         let mut commits = Vec::new();
 
-        let store = datastore.validator_final();
+        let store = datastore.sequencer_final();
         let iterator = store.iterator(&prefix);
         for result in iterator {
             let (key, _) = result?;
@@ -158,10 +158,10 @@ impl Commit {
         Ok(commits)
     }
 
-    /// Contract IDs that have at least one commit in validator_final.
+    /// Contract IDs that have at least one commit in sequencer_final.
     pub async fn list_contract_ids_multi(datastore: &DatastoreManager) -> Result<Vec<String>> {
         let mut ids = BTreeSet::new();
-        let store = datastore.validator_final();
+        let store = datastore.sequencer_final();
         for result in store.iterator("/commits") {
             let (key, _) = result?;
             let key_str = String::from_utf8(key.to_vec())?;
@@ -180,12 +180,12 @@ impl Commit {
         datastore: &DatastoreManager,
         keys: HashMap<String, String>,
     ) -> Result<Option<Self>> {
-        Self::find_one_from_store(datastore.validator_final(), keys).await
+        Self::find_one_from_store(datastore.sequencer_final(), keys).await
     }
 
-    /// Save this commit to the ValidatorFinal store
+    /// Save this commit to the SequencerFinal store
     pub async fn save_to_final(&self, datastore: &DatastoreManager) -> Result<()> {
-        self.save_to_store(datastore.validator_final()).await
+        self.save_to_store(datastore.sequencer_final()).await
     }
 
     pub fn is_sequenced(&self) -> bool {
@@ -201,7 +201,7 @@ impl Commit {
         datastore: &DatastoreManager,
         commit_id: &str,
     ) -> Result<Option<Self>> {
-        let iterator = datastore.validator_final().iterator("/commits");
+        let iterator = datastore.sequencer_final().iterator("/commits");
         for result in iterator {
             let (key, _) = result?;
             let key_str = String::from_utf8_lossy(&key);
@@ -280,7 +280,7 @@ impl ContractAsset {
         let prefix = format!("/assets/{}/", contract_id);
         let mut assets = Vec::new();
 
-        let store = datastore.validator_final();
+        let store = datastore.sequencer_final();
         let iterator = store.iterator(&prefix);
         for result in iterator {
             let (key, _) = result?;
@@ -311,12 +311,12 @@ impl ContractAsset {
         datastore: &DatastoreManager,
         keys: HashMap<String, String>,
     ) -> Result<Option<Self>> {
-        Self::find_one_from_store(datastore.validator_final(), keys).await
+        Self::find_one_from_store(datastore.sequencer_final(), keys).await
     }
 
-    /// Save this asset to the ValidatorFinal store
+    /// Save this asset to the SequencerFinal store
     pub async fn save_to_final(&self, datastore: &DatastoreManager) -> Result<()> {
-        self.save_to_store(datastore.validator_final()).await
+        self.save_to_store(datastore.sequencer_final()).await
     }
 }
 
@@ -368,7 +368,7 @@ impl AssetBalance {
         let prefix = "/balances/";
         let mut balances = Vec::new();
 
-        let store = datastore.validator_final();
+        let store = datastore.sequencer_final();
         let iterator = store.iterator(prefix);
         for result in iterator {
             let (key, _) = result?;
@@ -408,7 +408,7 @@ impl AssetBalance {
         let prefix = format!("/balances/{}/{}/", contract_id, asset_id);
         let mut balances = Vec::new();
 
-        let store = datastore.validator_final();
+        let store = datastore.sequencer_final();
         let iterator = store.iterator(&prefix);
         for result in iterator {
             let (key, _) = result?;
@@ -442,12 +442,12 @@ impl AssetBalance {
         datastore: &DatastoreManager,
         keys: HashMap<String, String>,
     ) -> Result<Option<Self>> {
-        Self::find_one_from_store(datastore.validator_final(), keys).await
+        Self::find_one_from_store(datastore.sequencer_final(), keys).await
     }
 
-    /// Save this balance to the ValidatorFinal store
+    /// Save this balance to the SequencerFinal store
     pub async fn save_to_final(&self, datastore: &DatastoreManager) -> Result<()> {
-        self.save_to_store(datastore.validator_final()).await
+        self.save_to_store(datastore.sequencer_final()).await
     }
 }
 
@@ -499,11 +499,11 @@ impl ReceivedSend {
         datastore: &DatastoreManager,
         keys: HashMap<String, String>,
     ) -> Result<Option<Self>> {
-        Self::find_one_from_store(datastore.validator_final(), keys).await
+        Self::find_one_from_store(datastore.sequencer_final(), keys).await
     }
 
-    /// Save this record to the ValidatorFinal store
+    /// Save this record to the SequencerFinal store
     pub async fn save_to_final(&self, datastore: &DatastoreManager) -> Result<()> {
-        self.save_to_store(datastore.validator_final()).await
+        self.save_to_store(datastore.sequencer_final()).await
     }
 }

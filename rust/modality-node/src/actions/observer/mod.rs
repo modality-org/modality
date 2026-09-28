@@ -7,7 +7,7 @@
 //! - Gossip subscription for mining blocks
 //! - Status server and networking
 //!
-//! Observer serves as the foundation for both miner and validator nodes,
+//! Observer serves as the foundation for both miner and sequencer nodes,
 //! while also being functional as a standalone read-only node.
 //!
 //! ## Node Type Hierarchy
@@ -15,7 +15,7 @@
 //! ```text
 //! Observer (base)
 //! ├── Miner    - extends with block production
-//! └── Validator - extends with consensus participation
+//! └── Sequencer - extends with consensus participation
 //! ```
 
 pub mod chain_maintenance;
@@ -93,7 +93,7 @@ pub async fn run(node: &mut Node) -> Result<()> {
     gossip::add_miner_event_listeners(node).await?;
     log::info!("Subscribed to mining block gossip");
 
-    gossip::add_validator_event_listeners(node).await?;
+    gossip::add_sequencer_event_listeners(node).await?;
     log::info!("Subscribed to certified sequencer-block gossip");
     contract_catchup::start_live_apply(node);
 

@@ -6,10 +6,10 @@ use tokio::sync::Mutex;
 
 use libp2p_identity::PeerId;
 
-use modality_datastore::models::validator::block::Ack;
-use modality_datastore::models::validator::block::ValidatorBlock;
-use modality_validator_consensus::communication::Communication;
-use modality_validator_consensus::communication::Message as ConsensusMessage;
+use modality_datastore::models::sequencer::block::Ack;
+use modality_datastore::models::sequencer::block::SequencerBlock;
+use modality_sequencer_consensus::communication::Communication;
+use modality_sequencer_consensus::communication::Message as ConsensusMessage;
 
 use crate::gossip::consensus::block::cert::TOPIC as BLOCK_CERT_TOPIC;
 use crate::gossip::consensus::block::draft::TOPIC as BLOCK_DRAFT_TOPIC;
@@ -46,9 +46,9 @@ impl Communication for NodeCommunication {
     async fn broadcast_draft_block(
         &mut self,
         from_peer: &str,
-        block: &ValidatorBlock,
+        block: &SequencerBlock,
     ) -> Result<()> {
-        let msg = ConsensusMessage::DraftValidatorBlock {
+        let msg = ConsensusMessage::DraftSequencerBlock {
             from: from_peer.to_string(),
             to: String::new(),
             block: block.clone(),
@@ -67,7 +67,7 @@ impl Communication for NodeCommunication {
     async fn broadcast_certified_block(
         &mut self,
         _from_peer: &str,
-        block: &ValidatorBlock,
+        block: &SequencerBlock,
     ) -> Result<()> {
         // The author already saved and applied its own certificate.
         {
@@ -87,7 +87,7 @@ impl Communication for NodeCommunication {
             data: Some(serde_json::json!(ack)),
         };
         if ack.peer_id == ack.acker {
-            let msg = ConsensusMessage::ValidatorBlockAck {
+            let msg = ConsensusMessage::SequencerBlockAck {
                 from: from_peer.to_string(),
                 to: String::new(),
                 ack: ack.clone(),
@@ -120,7 +120,7 @@ impl Communication for NodeCommunication {
         _to_peer: &str,
         _scribe_peer: &str,
         _round: u64,
-    ) -> Result<Option<ValidatorBlock>> {
+    ) -> Result<Option<SequencerBlock>> {
         Ok(None)
         // let target_peer = PeerId::from_str(to_peer)?;
         // let request = crate::reqres::Request {

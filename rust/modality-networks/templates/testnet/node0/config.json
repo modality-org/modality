@@ -17,7 +17,7 @@
   ],
   "network_config_path": "modality-networks://testnet",
   "run_miner": false,
-  "run_validator": false,
+  "run_sequencer": false,
   "run_contract_validator": false,
   "hybrid_consensus": true,
   "initial_difficulty": 1,

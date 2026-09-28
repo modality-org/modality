@@ -43,7 +43,7 @@ impl Transaction {
         let prefix = "/transactions";
         let mut transactions = Vec::new();
 
-        let store = datastore.validator_final();
+        let store = datastore.sequencer_final();
         let iterator = store.iterator(prefix);
         for result in iterator {
             let (key, _) = result?;
@@ -76,8 +76,8 @@ impl Transaction {
         Ok(transactions)
     }
 
-    /// Save this transaction to the ValidatorFinal store
+    /// Save this transaction to the SequencerFinal store
     pub async fn save_to_final(&self, datastore: &DatastoreManager) -> Result<()> {
-        self.save_to_store(datastore.validator_final()).await
+        self.save_to_store(datastore.sequencer_final()).await
     }
 }

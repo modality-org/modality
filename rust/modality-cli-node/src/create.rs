@@ -21,7 +21,7 @@ pub struct Opts {
     pub node_id: Option<String>,
 
     /// Data directory for multi-store architecture (default: ./data)
-    /// Contains: miner_canon/, miner_forks/, miner_active/, validator_final/, validator_active/, node_state/
+    /// Contains: miner_canon/, miner_forks/, miner_active/, sequencer_final/, sequencer_active/, node_state/
     #[clap(long, default_value = "./data")]
     pub data_dir: String,
 

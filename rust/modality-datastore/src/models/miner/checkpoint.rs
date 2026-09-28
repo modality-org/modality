@@ -17,14 +17,14 @@ const CHECKPOINT_PREFIX: &str = "/miner_checkpoints/epoch";
 ///
 /// Checkpoints are created either:
 /// - Manually via network configuration
-/// - Automatically via consensus (when a new validator set's second certified round completes)
+/// - Automatically via consensus (when a new sequencer set's second certified round completes)
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct MinerCheckpoint {
-    /// The epoch that was checkpointed (the selection epoch for validators)
+    /// The epoch that was checkpointed (the selection epoch for sequencers)
     pub epoch: u64,
 
-    /// The epoch in which the validator set (selected from this epoch) operates
-    pub validator_set_epoch: u64,
+    /// The epoch in which the sequencer set (selected from this epoch) operates
+    pub sequencer_set_epoch: u64,
 
     /// The last canonical block index in the checkpointed epoch
     pub last_block_index: u64,
@@ -41,9 +41,9 @@ pub struct MinerCheckpoint {
     /// Unix timestamp when this checkpoint was created
     pub created_at: i64,
 
-    /// The validator consensus round that triggered this checkpoint (if consensus-based)
+    /// The sequencer consensus round that triggered this checkpoint (if consensus-based)
     /// None for manual checkpoints
-    pub validator_round: Option<u64>,
+    pub sequencer_round: Option<u64>,
 
     /// Whether this checkpoint was created manually or via consensus
     pub is_manual: bool,
@@ -56,22 +56,22 @@ impl MinerCheckpoint {
     /// Create a new consensus-based checkpoint
     pub fn new_consensus(
         epoch: u64,
-        validator_set_epoch: u64,
+        sequencer_set_epoch: u64,
         last_block_index: u64,
         last_block_hash: String,
         merkle_root: String,
         block_count: u64,
-        validator_round: u64,
+        sequencer_round: u64,
     ) -> Self {
         Self {
             epoch,
-            validator_set_epoch,
+            sequencer_set_epoch,
             last_block_index,
             last_block_hash,
             merkle_root,
             block_count,
             created_at: chrono::Utc::now().timestamp(),
-            validator_round: Some(validator_round),
+            sequencer_round: Some(sequencer_round),
             is_manual: false,
             description: None,
         }
@@ -88,13 +88,13 @@ impl MinerCheckpoint {
     ) -> Self {
         Self {
             epoch,
-            validator_set_epoch: epoch + 2, // Validators operate 2 epochs later
+            sequencer_set_epoch: epoch + 2, // Sequencers operate 2 epochs later
             last_block_index,
             last_block_hash,
             merkle_root,
             block_count,
             created_at: chrono::Utc::now().timestamp(),
-            validator_round: None,
+            sequencer_round: None,
             is_manual: true,
             description,
         }
@@ -105,13 +105,13 @@ impl MinerCheckpoint {
         let epoch = block_index / blocks_per_epoch;
         Self {
             epoch,
-            validator_set_epoch: epoch + 2,
+            sequencer_set_epoch: epoch + 2,
             last_block_index: block_index,
             last_block_hash: block_hash.clone(),
             merkle_root: block_hash, // Use block hash as merkle root for simple checkpoints
             block_count: 1,          // Single block checkpoint
             created_at: chrono::Utc::now().timestamp(),
-            validator_round: None,
+            sequencer_round: None,
             is_manual: true,
             description: None,
         }
@@ -124,13 +124,13 @@ impl Model for MinerCheckpoint {
 
     const FIELDS: &'static [&'static str] = &[
         "epoch",
-        "validator_set_epoch",
+        "sequencer_set_epoch",
         "last_block_index",
         "last_block_hash",
         "merkle_root",
         "block_count",
         "created_at",
-        "validator_round",
+        "sequencer_round",
         "is_manual",
         "description",
     ];
@@ -145,9 +145,9 @@ impl Model for MinerCheckpoint {
                     self.epoch = v;
                 }
             }
-            "validator_set_epoch" => {
+            "sequencer_set_epoch" => {
                 if let Some(v) = value.as_u64() {
-                    self.validator_set_epoch = v;
+                    self.sequencer_set_epoch = v;
                 }
             }
             "last_block_index" => {
@@ -175,8 +175,8 @@ impl Model for MinerCheckpoint {
                     self.created_at = v;
                 }
             }
-            "validator_round" => {
-                self.validator_round = value.as_u64();
+            "sequencer_round" => {
+                self.sequencer_round = value.as_u64();
             }
             "is_manual" => {
                 if let Some(v) = value.as_bool() {
@@ -464,7 +464,7 @@ mod tests {
         );
 
         assert!(checkpoint.is_manual);
-        assert!(checkpoint.validator_round.is_none());
+        assert!(checkpoint.sequencer_round.is_none());
         assert_eq!(
             checkpoint.description,
             Some("Genesis checkpoint".to_string())

@@ -1,9 +1,9 @@
 //! Modality Network Validation
 //! 
-//! This package provides functionality for validator nodes that observe
+//! This package provides functionality for sequencer nodes that observe
 //! the mining chain without participating in mining themselves.
 //! 
-//! Validators are a second class of consensus nodes that:
+//! Sequencers are a second class of consensus nodes that:
 //! - Listen to mining events via gossip
 //! - Maintain the canonical/heaviest chain
 //! - Participate in consensus operations

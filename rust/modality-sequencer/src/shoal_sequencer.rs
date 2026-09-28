@@ -1,0 +1,780 @@
+use crate::error::{Result, SequencerError};
+use modality_datastore::DatastoreManager;
+use modality_sequencer_consensus::narwhal::dag::DAG;
+use modality_sequencer_consensus::narwhal::{
+    create_vote, Certificate, Committee, Primary, PublicKey, SyncClient, SyncRequest, SyncResponse,
+    Transaction, Sequencer, Worker,
+};
+use modality_sequencer_consensus::shoal::consensus::ShoalConsensus;
+use modality_sequencer_consensus::shoal::ordering::OrderingEngine;
+use modality_sequencer_consensus::shoal::reputation::ReputationManager;
+use modality_sequencer_consensus::shoal::ReputationConfig;
+use std::net::SocketAddr;
+use std::sync::Arc;
+use tokio::sync::{Mutex, RwLock};
+
+/// Configuration for Shoal consensus
+#[derive(Debug, Clone)]
+pub struct ShoalSequencerConfig {
+    /// This sequencer's keypair (placeholder - would use real crypto)
+    pub sequencer_key: PublicKey,
+
+    /// Committee of all sequencers
+    pub committee: Committee,
+
+    /// Narwhal configuration
+    pub narwhal_config: NarwhalConfig,
+
+    /// Shoal reputation configuration
+    pub reputation_config: ReputationConfig,
+}
+
+/// Narwhal-specific configuration
+#[derive(Debug, Clone)]
+pub struct NarwhalConfig {
+    /// Number of worker threads per sequencer
+    pub workers_per_sequencer: usize,
+
+    /// Maximum transactions per batch
+    pub batch_size: usize,
+
+    /// Maximum batch size in bytes
+    pub max_batch_bytes: usize,
+}
+
+impl Default for NarwhalConfig {
+    fn default() -> Self {
+        Self {
+            workers_per_sequencer: 4,
+            batch_size: 1000,
+            max_batch_bytes: 512 * 1024, // 512KB
+        }
+    }
+}
+
+impl ShoalSequencerConfig {
+    /// Create a simple test configuration with N sequencers
+    pub fn new_test(n_sequencers: usize, sequencer_index: usize) -> Self {
+        use libp2p_identity::ed25519;
+
+        let sequencers: Vec<Sequencer> = (0..n_sequencers)
+            .map(|i| {
+                // Create deterministic PeerId for testing
+                let mut secret_bytes = [0u8; 32];
+                secret_bytes[0] = i as u8 + 1;
+                let secret =
+                    ed25519::SecretKey::try_from_bytes(secret_bytes).expect("valid secret key");
+                let keypair = ed25519::Keypair::from(secret);
+                let peer_id = libp2p_identity::PeerId::from_public_key(&keypair.public().into());
+
+                Sequencer {
+                    public_key: peer_id,
+                    stake: 1,
+                    network_address: format!("127.0.0.1:800{}", i).parse::<SocketAddr>().unwrap(),
+                }
+            })
+            .collect();
+
+        // Create sequencer key
+        let mut secret_bytes = [0u8; 32];
+        secret_bytes[0] = sequencer_index as u8 + 1;
+        let secret = ed25519::SecretKey::try_from_bytes(secret_bytes).expect("valid secret key");
+        let keypair = ed25519::Keypair::from(secret);
+        let sequencer_key = libp2p_identity::PeerId::from_public_key(&keypair.public().into());
+
+        let committee = Committee::new(sequencers);
+
+        Self {
+            sequencer_key,
+            committee,
+            narwhal_config: NarwhalConfig::default(),
+            reputation_config: ReputationConfig::default(),
+        }
+    }
+
+    /// Create configuration from a list of peer ID strings
+    ///
+    /// This is useful for creating a committee from static sequencer configuration.
+    /// All sequencers will have equal stake (1) and placeholder network addresses.
+    pub fn from_peer_ids(peer_id_strings: Vec<String>, sequencer_index: usize) -> Result<Self> {
+        Self::from_peer_ids_with_stakes(peer_id_strings, Vec::new(), sequencer_index)
+    }
+
+    /// Create configuration from a list of peer ID strings with custom stakes
+    ///
+    /// This allows creating a committee with weighted sequencers based on nomination counts.
+    /// If stakes is empty, all sequencers will have equal stake (1).
+    pub fn from_peer_ids_with_stakes(
+        peer_id_strings: Vec<String>,
+        stakes: Vec<u64>,
+        sequencer_index: usize,
+    ) -> Result<Self> {
+        if sequencer_index >= peer_id_strings.len() {
+            return Err(SequencerError::InitializationFailed(format!(
+                "sequencer_index {} out of range for {} sequencers",
+                sequencer_index,
+                peer_id_strings.len()
+            )));
+        }
+
+        // Validate stakes length if provided
+        if !stakes.is_empty() && stakes.len() != peer_id_strings.len() {
+            return Err(SequencerError::InitializationFailed(format!(
+                "stakes length ({}) must match peer_id_strings length ({})",
+                stakes.len(),
+                peer_id_strings.len()
+            )));
+        }
+
+        // Parse all peer IDs
+        let mut sequencers = Vec::new();
+        for (i, peer_id_str) in peer_id_strings.iter().enumerate() {
+            let peer_id: PublicKey = peer_id_str.parse().map_err(|e| {
+                SequencerError::InitializationFailed(format!(
+                    "invalid peer ID '{}': {}",
+                    peer_id_str, e
+                ))
+            })?;
+
+            let stake = if stakes.is_empty() { 1 } else { stakes[i] };
+
+            sequencers.push(Sequencer {
+                public_key: peer_id,
+                stake,
+                network_address: format!("127.0.0.1:800{}", i).parse::<SocketAddr>().unwrap(),
+            });
+        }
+
+        // Get this sequencer's key
+        let sequencer_key = peer_id_strings[sequencer_index].parse().map_err(|e| {
+            SequencerError::InitializationFailed(format!("invalid sequencer peer ID: {}", e))
+        })?;
+
+        let committee = Committee::new(sequencers);
+
+        Ok(Self {
+            sequencer_key,
+            committee,
+            narwhal_config: NarwhalConfig::default(),
+            reputation_config: ReputationConfig::default(),
+        })
+    }
+}
+
+/// Shoal-based sequencer implementation
+pub struct ShoalSequencer {
+    /// Configuration
+    config: ShoalSequencerConfig,
+
+    /// Multi-store datastore manager
+    datastore_manager: Option<Arc<Mutex<DatastoreManager>>>,
+
+    /// The DAG
+    dag: Arc<RwLock<DAG>>,
+
+    /// Primary node
+    primary: Arc<Mutex<Primary>>,
+
+    /// Worker nodes
+    workers: Vec<Arc<Mutex<Worker>>>,
+
+    /// Shoal consensus engine
+    consensus: Arc<Mutex<ShoalConsensus>>,
+
+    /// Ordering engine
+    ordering: OrderingEngine,
+
+    /// Sync client for DAG synchronization
+    sync_client: SyncClient,
+
+    /// Libp2p keypair used to sign Narwhal votes for this sequencer
+    signing_keypair: Option<libp2p_identity::Keypair>,
+}
+
+impl ShoalSequencer {
+    /// Create a new Shoal-based sequencer with DatastoreManager
+    pub async fn new(
+        datastore_manager: Arc<Mutex<DatastoreManager>>,
+        config: ShoalSequencerConfig,
+    ) -> Result<Self> {
+        // Start with a fresh DAG for multi-store mode
+        let dag = Arc::new(RwLock::new(DAG::new()));
+
+        // Create workers
+        let mut workers = Vec::new();
+        for i in 0..config.narwhal_config.workers_per_sequencer {
+            let worker = Worker::new(
+                i as u32,
+                config.sequencer_key,
+                config.narwhal_config.batch_size,
+                config.narwhal_config.max_batch_bytes,
+            );
+            workers.push(Arc::new(Mutex::new(worker)));
+        }
+
+        // Create primary
+        let primary = Primary::new(config.sequencer_key, config.committee.clone(), dag.clone());
+        let primary = Arc::new(Mutex::new(primary));
+
+        // Create reputation manager
+        let reputation =
+            ReputationManager::new(config.committee.clone(), config.reputation_config.clone());
+
+        // Create consensus engine
+        let consensus = {
+            let cons = ShoalConsensus::new(dag.clone(), reputation, config.committee.clone());
+            Arc::new(Mutex::new(cons))
+        };
+
+        // Create ordering engine
+        let ordering = OrderingEngine::new(dag.clone());
+
+        // Create sync client
+        let sync_client = SyncClient::new(dag.clone());
+
+        log::info!(
+            "created Shoal sequencer (multi-store) for sequencer {:?}",
+            config.sequencer_key
+        );
+
+        Ok(Self {
+            config,
+            datastore_manager: Some(datastore_manager),
+            dag,
+            primary,
+            workers,
+            consensus,
+            ordering,
+            sync_client,
+            signing_keypair: None,
+        })
+    }
+
+    /// Attach the sequencer's signing keypair used for Narwhal votes.
+    pub fn with_signing_keypair(mut self, keypair: libp2p_identity::Keypair) -> Self {
+        self.signing_keypair = Some(keypair);
+        self
+    }
+
+    /// Initialize the sequencer by loading existing state
+    pub async fn initialize(&self) -> Result<()> {
+        // TODO: Load DAG and consensus state from datastore
+        log::info!("Shoal sequencer initialized");
+        Ok(())
+    }
+
+    /// Submit a transaction for ordering
+    pub async fn submit_transaction(&self, tx: Transaction) -> Result<()> {
+        // Add transaction to first available worker
+        if let Some(worker) = self.workers.first() {
+            let mut worker = worker.lock().await;
+            worker.add_transaction(tx);
+            log::debug!("transaction submitted, {} pending", worker.pending_count());
+            Ok(())
+        } else {
+            Err(SequencerError::InitializationFailed(
+                "no workers available".to_string(),
+            ))
+        }
+    }
+
+    /// Propose a new batch (called periodically by consensus loop).
+    ///
+    /// Adds this sequencer's signed vote only. Returns `None` until a quorum of
+    /// votes can be assembled (other votes arrive via `process_certificate`).
+    pub async fn propose_batch(&self) -> Result<Option<Certificate>> {
+        self.propose_batch_inner(false).await
+    }
+
+    /// Test helper: sign votes for every committee member using the deterministic
+    /// keys from `ShoalSequencerConfig::new_test`.
+    #[cfg(test)]
+    pub async fn propose_batch_with_test_quorum(&self) -> Result<Option<Certificate>> {
+        self.propose_batch_inner(true).await
+    }
+
+    async fn propose_batch_inner(
+        &self,
+        simulate_committee_votes: bool,
+    ) -> Result<Option<Certificate>> {
+        let batch_opt = if let Some(worker) = self.workers.first() {
+            let mut worker = worker.lock().await;
+            worker.form_batch().await
+        } else {
+            None
+        };
+
+        let Some((batch, batch_digest)) = batch_opt else {
+            return Ok(None);
+        };
+
+        log::info!(
+            "formed batch with {} transactions",
+            batch.transactions.len()
+        );
+
+        let mut primary = self.primary.lock().await;
+        let header = primary.propose(batch_digest).await?;
+
+        log::info!("proposed header for round {}", header.round);
+
+        let Some(ref signing_keypair) = self.signing_keypair else {
+            log::warn!("no signing keypair configured; cannot vote on proposed header");
+            return Ok(None);
+        };
+
+        let mut builder = primary.create_certificate_builder(header.clone());
+        let vote = create_vote(&header, signing_keypair)
+            .map_err(|e| SequencerError::InitializationFailed(e.to_string()))?;
+        builder
+            .add_vote(vote.voter, vote.signature)
+            .map_err(|e| SequencerError::InitializationFailed(e.to_string()))?;
+
+        #[cfg(test)]
+        if simulate_committee_votes {
+            for (i, sequencer) in self.config.committee.sequencer_order.iter().enumerate() {
+                if *sequencer == self.config.sequencer_key {
+                    continue;
+                }
+                let kp = test_committee_keypair(i);
+                let vote = create_vote(&header, &kp)
+                    .map_err(|e| SequencerError::InitializationFailed(e.to_string()))?;
+                builder
+                    .add_vote(vote.voter, vote.signature)
+                    .map_err(|e| SequencerError::InitializationFailed(e.to_string()))?;
+            }
+        }
+        #[cfg(not(test))]
+        let _ = simulate_committee_votes;
+
+        let cert = match builder.build() {
+            Ok(cert) => cert,
+            Err(_) => return Ok(None),
+        };
+
+        primary.process_certificate(cert.clone()).await?;
+
+        let mut consensus = self.consensus.lock().await;
+        let committed = consensus.process_certificate(cert.clone()).await?;
+
+        if !committed.is_empty() {
+            log::info!("committed {} certificates", committed.len());
+        }
+
+        Ok(Some(cert))
+    }
+
+    /// Feed certified sequencer-block events into Narwhal workers and advance rounds.
+    pub async fn ingest_certified_events(
+        &self,
+        round: u64,
+        events: &[serde_json::Value],
+    ) -> Result<()> {
+        for event in events {
+            let tx = Transaction {
+                data: serde_json::to_vec(event).unwrap_or_default(),
+                timestamp: std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_secs(),
+            };
+            self.submit_transaction(tx).await?;
+        }
+        while self.get_current_round().await < round {
+            self.advance_round().await;
+        }
+        Ok(())
+    }
+
+    /// Process a certificate received from another sequencer
+    pub async fn process_certificate(&self, cert: Certificate) -> Result<Vec<Transaction>> {
+        // Note: Certificate persistence requires DatastoreManager support in DAG (TODO)
+        // #[cfg(feature = "persistence")]
+        // {
+        //     if let Some(ref ds) = self.datastore_manager {
+        //         let dag = self.dag.read().await;
+        //         let ds_guard = ds.lock().await;
+        //         // TODO: Update DAG to support DatastoreManager
+        //     }
+        // }
+
+        let primary = self.primary.lock().await;
+        primary.process_certificate(cert.clone()).await?;
+        drop(primary);
+
+        let mut consensus = self.consensus.lock().await;
+        let committed = consensus.process_certificate(cert).await?;
+
+        if !committed.is_empty() {
+            log::info!("committed {} certificates", committed.len());
+
+            // Create checkpoint every 100 rounds
+            // Note: Checkpoint creation requires DatastoreManager support in DAG (TODO)
+            // #[cfg(feature = "persistence")]
+            // {
+            //     let current_round = {
+            //         let dag = self.dag.read().await;
+            //         dag.highest_round()
+            //     };
+            //
+            //     if current_round > 0 && current_round % 100 == 0 {
+            //         // TODO: Update DAG to support DatastoreManager
+            //     }
+            // }
+
+            // Order and extract transactions
+            let consensus_state = &consensus.state;
+            let transactions = self
+                .ordering
+                .order_certificates(&consensus_state.committed)
+                .await?;
+
+            // Process contract commits for asset state updates
+            use modality_validator::ContractProcessor;
+            // Use datastore_manager if available, otherwise skip contract processing
+            let Some(datastore_for_contracts) = self.datastore_manager.clone() else {
+                log::debug!("No datastore manager available, skipping contract processing");
+                return Ok(transactions);
+            };
+            let contract_processor = ContractProcessor::new(datastore_for_contracts);
+
+            for tx in &transactions {
+                // Parse transaction to see if it contains a contract commit
+                if let Ok(tx_str) = std::str::from_utf8(&tx.data) {
+                    if let Ok(tx_json) = serde_json::from_str::<serde_json::Value>(tx_str) {
+                        // Check if this is a contract push transaction
+                        if let Some(req_type) = tx_json.get("type").and_then(|v| v.as_str()) {
+                            if req_type == "contract_push" {
+                                // Extract contract data
+                                if let Some(data) = tx_json.get("data") {
+                                    if let (Some(contract_id), Some(commits)) = (
+                                        data.get("contract_id").and_then(|v| v.as_str()),
+                                        data.get("commits").and_then(|v| v.as_array()),
+                                    ) {
+                                        // Process each commit
+                                        for commit_entry in commits {
+                                            if let (Some(commit_id), Some(commit_data_obj)) = (
+                                                commit_entry
+                                                    .get("commit_id")
+                                                    .and_then(|v| v.as_str()),
+                                                commit_entry.get("body"),
+                                            ) {
+                                                // Reconstruct commit data string
+                                                let commit_data = serde_json::json!({
+                                                    "body": commit_data_obj,
+                                                    "head": commit_entry.get("head")
+                                                });
+                                                let commit_data_str =
+                                                    serde_json::to_string(&commit_data)
+                                                        .unwrap_or_default();
+
+                                                // Process the commit
+                                                match contract_processor
+                                                    .process_commit(
+                                                        contract_id,
+                                                        commit_id,
+                                                        &commit_data_str,
+                                                    )
+                                                    .await
+                                                {
+                                                    Ok(state_changes) => {
+                                                        log::info!("Processed commit {} for contract {}: {} state changes", 
+                                                            commit_id, contract_id, state_changes.len());
+                                                    }
+                                                    Err(e) => {
+                                                        log::warn!("Failed to process commit {} for contract {}: {}", 
+                                                            commit_id, contract_id, e);
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            return Ok(transactions);
+        }
+
+        Ok(vec![])
+    }
+
+    /// Get the current consensus round
+    pub async fn get_current_round(&self) -> u64 {
+        let consensus = self.consensus.lock().await;
+        consensus.current_round()
+    }
+
+    /// Get the last committed round
+    pub async fn get_chain_tip(&self) -> u64 {
+        let consensus = self.consensus.lock().await;
+        consensus.last_committed_round()
+    }
+
+    /// Advance to the next round
+    pub async fn advance_round(&self) {
+        let mut primary = self.primary.lock().await;
+        primary.advance_round();
+
+        let mut consensus = self.consensus.lock().await;
+        consensus.advance_round();
+
+        log::info!("advanced to round {}", consensus.current_round());
+    }
+
+    /// Get committed transactions up to a certain round
+    pub async fn get_committed_transactions(
+        &self,
+        _from_round: u64,
+        _to_round: u64,
+    ) -> Result<Vec<Transaction>> {
+        // TODO: Implement range queries
+        let consensus = self.consensus.lock().await;
+        let transactions = self
+            .ordering
+            .order_certificates(&consensus.state.committed)
+            .await?;
+        Ok(transactions)
+    }
+
+    /// Get the number of pending transactions
+    pub async fn pending_transaction_count(&self) -> usize {
+        let mut total = 0;
+        for worker in &self.workers {
+            let worker = worker.lock().await;
+            total += worker.pending_count();
+        }
+        total
+    }
+
+    // Sync methods for DAG synchronization
+
+    /// Handle sync request from another node
+    pub async fn handle_sync_request(&self, request: SyncRequest) -> SyncResponse {
+        let dag = self.dag.read().await;
+        dag.handle_sync_request(request)
+    }
+
+    /// Sync DAG with a peer using a request function
+    /// The request_fn should send requests to the peer and return responses
+    pub async fn sync_with_peer<F, Fut>(
+        &self,
+        request_fn: F,
+    ) -> Result<modality_sequencer_consensus::narwhal::SyncStats>
+    where
+        F: Fn(SyncRequest) -> Fut,
+        Fut: std::future::Future<Output = anyhow::Result<SyncResponse>>,
+    {
+        self.sync_client
+            .sync_with_peer(request_fn)
+            .await
+            .map_err(|e| e.into())
+    }
+
+    /// Request specific certificates from a peer
+    pub async fn request_certificates<F, Fut>(
+        &self,
+        digests: Vec<modality_sequencer_consensus::narwhal::CertificateDigest>,
+        request_fn: F,
+    ) -> Result<Vec<Certificate>>
+    where
+        F: Fn(SyncRequest) -> Fut,
+        Fut: std::future::Future<Output = anyhow::Result<SyncResponse>>,
+    {
+        self.sync_client
+            .request_certificates(digests, request_fn)
+            .await
+            .map_err(|e| e.into())
+    }
+
+    /// Sync missing parents for a certificate before processing it
+    pub async fn sync_and_process_certificate<F, Fut>(
+        &self,
+        cert: Certificate,
+        request_fn: F,
+    ) -> Result<Vec<Transaction>>
+    where
+        F: Fn(SyncRequest) -> Fut,
+        Fut: std::future::Future<Output = anyhow::Result<SyncResponse>>,
+    {
+        // Check if we have all parents
+        let has_parents = {
+            let dag = self.dag.read().await;
+            dag.has_all_parents(&cert)
+        };
+
+        if !has_parents {
+            log::info!("Certificate has missing parents, syncing...");
+            let synced = self
+                .sync_client
+                .sync_missing_parents(&cert, request_fn)
+                .await?;
+
+            if !synced {
+                return Err(SequencerError::Custom(
+                    "Failed to sync all parents for certificate".to_string(),
+                ));
+            }
+        }
+
+        // Now process the certificate
+        self.process_certificate(cert).await
+    }
+
+    /// Get the highest round in our DAG
+    pub async fn get_highest_round(&self) -> u64 {
+        let dag = self.dag.read().await;
+        dag.highest_round()
+    }
+
+    /// Check if we have all certificates in a round
+    pub async fn has_complete_round(&self, round: u64) -> bool {
+        let dag = self.dag.read().await;
+        let quorum_threshold = self.config.committee.quorum_threshold();
+        dag.round_size(round) >= quorum_threshold as usize
+    }
+}
+
+#[cfg(test)]
+fn test_committee_keypair(index: usize) -> libp2p_identity::Keypair {
+    use libp2p_identity::ed25519;
+    let mut secret_bytes = [0u8; 32];
+    secret_bytes[0] = index as u8 + 1;
+    let secret = ed25519::SecretKey::try_from_bytes(secret_bytes).expect("valid secret key");
+    libp2p_identity::Keypair::from(ed25519::Keypair::from(secret))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::TempDir;
+
+    async fn create_test_sequencer(sequencer_index: usize) -> (ShoalSequencer, TempDir) {
+        let temp_dir = TempDir::new().unwrap();
+        let datastore_manager = DatastoreManager::open(temp_dir.path()).unwrap();
+        let datastore_manager = Arc::new(Mutex::new(datastore_manager));
+
+        let config = ShoalSequencerConfig::new_test(4, sequencer_index);
+        let sequencer = ShoalSequencer::new(datastore_manager, config)
+            .await
+            .unwrap()
+            .with_signing_keypair(test_committee_keypair(sequencer_index));
+
+        (sequencer, temp_dir)
+    }
+
+    #[tokio::test]
+    async fn test_shoal_sequencer_create() {
+        let (sequencer, _temp) = create_test_sequencer(0).await;
+        sequencer.initialize().await.unwrap();
+
+        assert_eq!(sequencer.get_current_round().await, 0);
+        assert_eq!(sequencer.get_chain_tip().await, 0);
+    }
+
+    #[tokio::test]
+    async fn test_shoal_sequencer_from_peer_ids() {
+        // Test creating a sequencer configuration from peer IDs
+        let peer_ids = vec![
+            "12D3KooW9pte76rpnggcLYkFaawuTEs5DC5axHkg3cK3cewGxxHd".to_string(),
+            "12D3KooW9pypLnRn67EFjiWgEiDdqo8YizaPn8yKe5cNJd3PGnMB".to_string(),
+            "12D3KooW9qGaMuW7k2a5iEQ37gWgtjfFC4B3j5R1kKJPZofS62Se".to_string(),
+        ];
+
+        // Create config with sequencer at index 1
+        let config = ShoalSequencerConfig::from_peer_ids(peer_ids.clone(), 1).unwrap();
+
+        // Verify committee has all sequencers
+        assert_eq!(config.committee.size(), 3);
+
+        // Verify sequencer key is correct
+        let expected_key: libp2p_identity::PeerId = peer_ids[1].parse().unwrap();
+        assert_eq!(config.sequencer_key, expected_key);
+
+        // Verify all peer IDs are in the committee
+        for peer_id_str in peer_ids {
+            let peer_id: libp2p_identity::PeerId = peer_id_str.parse().unwrap();
+            assert!(config.committee.contains(&peer_id));
+        }
+    }
+
+    #[tokio::test]
+    async fn test_shoal_sequencer_from_peer_ids_invalid_index() {
+        let peer_ids = vec![
+            "12D3KooW9pte76rpnggcLYkFaawuTEs5DC5axHkg3cK3cewGxxHd".to_string(),
+            "12D3KooW9pypLnRn67EFjiWgEiDdqo8YizaPn8yKe5cNJd3PGnMB".to_string(),
+        ];
+
+        // Try to create config with out-of-bounds index
+        let result = ShoalSequencerConfig::from_peer_ids(peer_ids, 5);
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_shoal_sequencer_submit_transaction() {
+        let (sequencer, _temp) = create_test_sequencer(0).await;
+        sequencer.initialize().await.unwrap();
+
+        let tx = Transaction {
+            data: vec![1, 2, 3],
+            timestamp: 1000,
+        };
+
+        sequencer.submit_transaction(tx).await.unwrap();
+        assert_eq!(sequencer.pending_transaction_count().await, 1);
+    }
+
+    #[tokio::test]
+    async fn test_shoal_sequencer_propose_batch() {
+        let (sequencer, _temp) = create_test_sequencer(0).await;
+        sequencer.initialize().await.unwrap();
+
+        // Submit some transactions
+        for i in 0..5 {
+            let tx = Transaction {
+                data: vec![i],
+                timestamp: 1000 + i as u64,
+            };
+            sequencer.submit_transaction(tx).await.unwrap();
+        }
+
+        // Propose batch with a simulated committee quorum (unit test only)
+        let cert = sequencer.propose_batch_with_test_quorum().await.unwrap();
+        assert!(cert.is_some());
+
+        let cert = cert.unwrap();
+        assert_eq!(cert.header.round, 0); // Genesis round
+
+        // Should be committed
+        assert_eq!(sequencer.get_chain_tip().await, 0);
+    }
+
+    #[tokio::test]
+    async fn test_shoal_sequencer_advance_round() {
+        let (sequencer, _temp) = create_test_sequencer(0).await;
+        sequencer.initialize().await.unwrap();
+
+        assert_eq!(sequencer.get_current_round().await, 0);
+
+        sequencer.advance_round().await;
+        assert_eq!(sequencer.get_current_round().await, 1);
+
+        sequencer.advance_round().await;
+        assert_eq!(sequencer.get_current_round().await, 2);
+    }
+
+    #[tokio::test]
+    async fn test_ingest_certified_events_advances_round() {
+        let (sequencer, _temp) = create_test_sequencer(0).await;
+        sequencer.initialize().await.unwrap();
+        sequencer
+            .ingest_certified_events(3, &[serde_json::json!({"type": "contract_push"})])
+            .await
+            .unwrap();
+        assert_eq!(sequencer.get_current_round().await, 3);
+        assert_eq!(sequencer.pending_transaction_count().await, 1);
+    }
+}

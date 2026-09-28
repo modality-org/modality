@@ -55,7 +55,8 @@ sha2 = "0.10"
 # libp2p-stream = "0.1.0-alpha"
 modality-common = { path = "../modality-common", version = "0.1.6" }
 modality-validator = { path = "../modality-validator", version = "0.1.0" }
-modality-validator-consensus = { path = "../modality-validator-consensus", version = "0.1.0" }
+modality-sequencer = { path = "../modality-sequencer", version = "0.1.0" }
+modality-sequencer-consensus = { path = "../modality-sequencer-consensus", version = "0.1.0" }
 modality-datastore = { path = "../modality-datastore", version = "0.1.0" }
 modality-miner = { path = "../modality-miner", version = "0.1.0", features = ["persistence"] }
 modality-observer = { path = "../modality-observer", version = "0.1.0" }

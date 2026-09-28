@@ -1,6 +1,6 @@
 use anyhow::Result;
 use lazy_static::lazy_static;
-use modality_datastore::models::ValidatorBlock;
+use modality_datastore::models::SequencerBlock;
 #[allow(unused_imports)]
 use modality_datastore::{DatastoreManager, Model};
 use serde_json::{self, Value};
@@ -126,7 +126,7 @@ impl Devnet {
             } else {
                 HashMap::new()
             };
-            let mut block = ValidatorBlock::create_from_json(serde_json::json!({
+            let mut block = SequencerBlock::create_from_json(serde_json::json!({
                 "peer_id": peer_id_str,
                 "round_id": round_id,
                 "events": [],

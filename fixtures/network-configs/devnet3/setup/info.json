@@ -1,10 +1,10 @@
 {
   "name": "devnet3",
-  "description": "Three validator development network",
+  "description": "Three sequencer development network",
   "difficulty": 1,
   "target_block_time_secs": 60,
   "blocks_per_epoch": 40,
-  "validators": [
+  "sequencers": [
     "12D3KooW9pte76rpnggcLYkFaawuTEs5DC5axHkg3cK3cewGxxHd",
     "12D3KooW9pypLnRn67EFjiWgEiDdqo8YizaPn8yKe5cNJd3PGnMB",
     "12D3KooW9qGaMuW7k2a5iEQ37gWgtjfFC4B3j5R1kKJPZofS62Se"

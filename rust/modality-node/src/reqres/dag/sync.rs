@@ -1,7 +1,7 @@
 use crate::reqres::Response;
 use anyhow::Result;
 use modality_datastore::DatastoreManager;
-use modality_validator_consensus::narwhal::SyncRequest;
+use modality_sequencer_consensus::narwhal::SyncRequest;
 use serde_json::Value;
 
 /// Handler for DAG sync requests
@@ -33,7 +33,7 @@ pub async fn handler(
         ok: false,
         data: None,
         errors: Some(serde_json::json!({
-            "error": "DAG sync endpoint available but Shoal validator not yet integrated"
+            "error": "DAG sync endpoint available but Shoal sequencer not yet integrated"
         })),
     })
 }

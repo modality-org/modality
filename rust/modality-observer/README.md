@@ -4,11 +4,11 @@ Validation and chain observation for Modality network consensus.
 
 ## Overview
 
-This package provides the core functionality for validator nodes in the Modality network. Validators are a second class of consensus nodes that observe mining events and maintain the canonical chain without participating in mining themselves.
+This package provides the core functionality for sequencer nodes in the Modality network. Sequencers are a second class of consensus nodes that observe mining events and maintain the canonical chain without participating in mining themselves.
 
 ## Architecture
 
-Validators have several key responsibilities:
+Sequencers have several key responsibilities:
 
 1. **Chain Observation**: Listen to mining block gossip events and track the canonical chain
 2. **Fork Choice**: Apply cumulative difficulty-based fork choice rules (implemented in the gossip handler)
@@ -143,21 +143,21 @@ This ensures that chains with more actual computational work are favored, provid
 
 ## Usage
 
-Validator nodes are started using the CLI:
+Sequencer nodes are started using the CLI:
 
 ```bash
-modality net run-validator --dir /path/to/node/dir
+modality net run-sequencer --dir /path/to/node/dir
 ```
 
 Or with a specific config file:
 
 ```bash
-modality net run-validator --config /path/to/config.json
+modality net run-sequencer --config /path/to/config.json
 ```
 
 ## Differences from Miners
 
-| Feature | Miners | Validators |
+| Feature | Miners | Sequencers |
 |---------|--------|------------|
 | Mine blocks | ✅ Yes | ❌ No |
 | Listen to mining gossip | ✅ Yes | ✅ Yes |

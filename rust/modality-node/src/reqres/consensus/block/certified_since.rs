@@ -1,7 +1,7 @@
 use anyhow::Result;
 use serde_json::{json, Value};
 
-use modality_datastore::models::ValidatorBlock;
+use modality_datastore::models::SequencerBlock;
 use modality_datastore::DatastoreManager;
 
 use crate::reqres::Response;
@@ -47,7 +47,7 @@ pub async fn handler(
     let mut round = since + 1;
     while round <= end {
         if let Some(block) =
-            ValidatorBlock::find_final_by_round_peer_multi(datastore_manager, round, author).await?
+            SequencerBlock::find_final_by_round_peer_multi(datastore_manager, round, author).await?
         {
             if block.cert.is_some() && !block.events.is_empty() {
                 blocks.push(block);
@@ -77,8 +77,8 @@ mod tests {
     use super::*;
     use std::collections::HashMap;
 
-    fn block(peer: &str, round: u64, cert: bool, events: Vec<Value>) -> ValidatorBlock {
-        ValidatorBlock {
+    fn block(peer: &str, round: u64, cert: bool, events: Vec<Value>) -> SequencerBlock {
+        SequencerBlock {
             peer_id: peer.into(),
             round_id: round,
             prev_round_certs: HashMap::new(),

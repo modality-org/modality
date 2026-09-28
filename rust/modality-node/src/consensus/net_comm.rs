@@ -3,9 +3,9 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 // use std::sync::Mutex;
 
-use modality_datastore::models::validator::block::Ack;
-use modality_datastore::models::validator::block::ValidatorBlock;
-use modality_validator_consensus::communication::Communication;
+use modality_datastore::models::sequencer::block::Ack;
+use modality_datastore::models::sequencer::block::SequencerBlock;
+use modality_sequencer_consensus::communication::Communication;
 
 use crate::gossip::consensus::block::cert::TOPIC as BLOCK_CERT_TOPIC;
 use crate::gossip::consensus::block::draft::TOPIC as BLOCK_DRAFT_TOPIC;
@@ -29,7 +29,7 @@ impl Communication for NetComm {
     async fn broadcast_draft_block(
         &mut self,
         _from: &str,
-        block_data: &ValidatorBlock,
+        block_data: &SequencerBlock,
     ) -> Result<()> {
         let mut node = self.node.lock().await;
         node.publish_gossip(
@@ -59,7 +59,7 @@ impl Communication for NetComm {
     async fn broadcast_certified_block(
         &mut self,
         _from: &str,
-        block_data: &ValidatorBlock,
+        block_data: &SequencerBlock,
     ) -> Result<()> {
         let mut node = self.node.lock().await;
         node.publish_gossip(
@@ -77,7 +77,7 @@ impl Communication for NetComm {
         to: &str,
         peer_id: &str,
         round_id: u64,
-    ) -> Result<Option<ValidatorBlock>> {
+    ) -> Result<Option<SequencerBlock>> {
         // if (to === this.node.peerid) {
         //     return null;
         //   }

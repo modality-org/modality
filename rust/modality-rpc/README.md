@@ -6,7 +6,7 @@ JSON-RPC interface for Modal Money hubs and networks, with WebSocket support.
 
 This crate provides a common RPC interface that can be used by both:
 - **Contract Hubs**: Centralized contract storage and collaboration servers
-- **Network Nodes**: Decentralized Modal Money network validators
+- **Network Nodes**: Decentralized Modal Money network sequencers
 
 ## Features
 
@@ -139,7 +139,7 @@ async fn main() {
 | Method | Description |
 |--------|-------------|
 | `getNetworkInfo` | Get network info |
-| `getValidators` | Get validator set |
+| `getSequencers` | Get sequencer set |
 | `getEpochInfo` | Get epoch info |
 
 ## WebSocket Events

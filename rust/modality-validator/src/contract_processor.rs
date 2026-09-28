@@ -1048,7 +1048,7 @@ mod tests {
                 },
                 {
                     "method": "post",
-                    "path": "/network/validators/0.text",
+                    "path": "/network/sequencers/0.text",
                     "value": "12D3KooWTest123"
                 }
             ],
@@ -1096,14 +1096,14 @@ mod tests {
             .unwrap();
         assert_eq!(difficulty, Some("100".to_string()));
 
-        let validator = ds
+        let sequencer = ds
             .get_string(&format!(
-                "/contracts/{}/network/validators/0.text",
+                "/contracts/{}/network/sequencers/0.text",
                 contract_id
             ))
             .await
             .unwrap();
-        assert_eq!(validator, Some("12D3KooWTest123".to_string()));
+        assert_eq!(sequencer, Some("12D3KooWTest123".to_string()));
     }
 
     #[tokio::test]

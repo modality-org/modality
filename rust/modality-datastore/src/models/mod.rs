@@ -3,13 +3,13 @@ pub mod miner;
 pub mod modality;
 pub mod peer_info;
 pub mod transaction;
-pub mod validator;
+pub mod sequencer;
 pub mod wasm_module;
 
 // Re-export commonly used types
-pub use validator::{
-    ConsensusMetadata, DAGBatch, DAGCertificate, DAGState, ValidatorBlock, ValidatorBlockHeader,
-    ValidatorBlockMessage, ValidatorSet,
+pub use sequencer::{
+    ConsensusMetadata, DAGBatch, DAGCertificate, DAGState, SequencerBlock, SequencerBlockHeader,
+    SequencerBlockMessage, SequencerSet,
 };
 
 pub use contract::{AssetBalance, Commit, Contract, ContractAsset, ReceivedSend};

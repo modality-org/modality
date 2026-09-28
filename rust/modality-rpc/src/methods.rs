@@ -28,7 +28,7 @@ pub mod method_names {
     
     // Network-specific methods
     pub const GET_NETWORK_INFO: &str = "getNetworkInfo";
-    pub const GET_VALIDATORS: &str = "getValidators";
+    pub const GET_SEQUENCERS: &str = "getSequencers";
     pub const GET_EPOCH_INFO: &str = "getEpochInfo";
 }
 
@@ -76,9 +76,9 @@ pub trait RpcHandler: Send + Sync {
         Err(RpcError::MethodNotFound("getNetworkInfo".to_string()))
     }
     
-    /// Get validators (network nodes only)
-    async fn get_validators(&self) -> Result<ValidatorsResponse, RpcError> {
-        Err(RpcError::MethodNotFound("getValidators".to_string()))
+    /// Get sequencers (network nodes only)
+    async fn get_sequencers(&self) -> Result<SequencersResponse, RpcError> {
+        Err(RpcError::MethodNotFound("getSequencers".to_string()))
     }
 }
 
@@ -129,8 +129,8 @@ impl<H: RpcHandler> RpcHandler for std::sync::Arc<H> {
         (**self).get_network_info().await
     }
     
-    async fn get_validators(&self) -> Result<ValidatorsResponse, RpcError> {
-        (**self).get_validators().await
+    async fn get_sequencers(&self) -> Result<SequencersResponse, RpcError> {
+        (**self).get_sequencers().await
     }
 }
 
@@ -216,8 +216,8 @@ pub async fn dispatch_request<H: RpcHandler>(
             Ok(serde_json::to_value(result)?)
         }
         
-        GET_VALIDATORS => {
-            let result = handler.get_validators().await?;
+        GET_SEQUENCERS => {
+            let result = handler.get_sequencers().await?;
             Ok(serde_json::to_value(result)?)
         }
         

@@ -8,7 +8,7 @@
     "/ip4/127.0.0.1/tcp/10504/ws/p2p/12D3KooW9qNFNGM5KJauVtyrCxnqPuvCF14zPE7gDTg1hamswzry",
     "/ip4/127.0.0.1/tcp/10505/ws/p2p/12D3KooW9qnrANTWdi8VwL3zfSFSvdSQvKk5AtRE3nuEdinmbR1H"
   ],
-  "validators": [
+  "sequencers": [
     "12D3KooW9pte76rpnggcLYkFaawuTEs5DC5axHkg3cK3cewGxxHd",
     "12D3KooW9pypLnRn67EFjiWgEiDdqo8YizaPn8yKe5cNJd3PGnMB",
     "12D3KooW9qGaMuW7k2a5iEQ37gWgtjfFC4B3j5R1kKJPZofS62Se",

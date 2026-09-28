@@ -96,7 +96,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             // Get just the peer IDs
             let shuffled_peer_ids = chain.get_epoch_shuffled_peer_ids(0).unwrap();
             println!("\n📋 Shuffled peer IDs can be used for:");
-            println!("  - Validator selection");
+            println!("  - Sequencer selection");
             println!("  - Consensus participation");
             println!("  - Reward distribution");
             println!("  - Governance voting order");

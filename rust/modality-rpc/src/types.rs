@@ -294,14 +294,14 @@ pub struct NetworkInfoResponse {
     pub network_id: String,
     pub version: String,
     pub block_height: u64,
-    pub validator_count: u32,
+    pub sequencer_count: u32,
     pub peer_count: u32,
     pub epoch: u64,
 }
 
-/// Validator info
+/// Sequencer info
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ValidatorInfo {
+pub struct SequencerInfo {
     pub public_key: String,
     pub peer_id: String,
     pub stake: Option<u64>,
@@ -309,9 +309,9 @@ pub struct ValidatorInfo {
     pub active: bool,
 }
 
-/// Get validators response
+/// Get sequencers response
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ValidatorsResponse {
+pub struct SequencersResponse {
     pub epoch: u64,
-    pub validators: Vec<ValidatorInfo>,
+    pub sequencers: Vec<SequencerInfo>,
 }

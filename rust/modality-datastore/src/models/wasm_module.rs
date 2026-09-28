@@ -115,14 +115,14 @@ impl WasmModule {
             let mut keys = HashMap::new();
             keys.insert("contract_id".to_string(), contract_id.to_string());
             keys.insert("module_name".to_string(), module_name);
-            Self::find_one_from_store(datastore.validator_final(), keys).await
+            Self::find_one_from_store(datastore.sequencer_final(), keys).await
         } else {
             Ok(None)
         }
     }
 
     /// Find a WASM module by contract ID and path (multi-store version)
-    /// Searches in ValidatorFinal store
+    /// Searches in SequencerFinal store
     pub async fn find_by_contract_and_path_multi(
         datastore_manager: &crate::DatastoreManager,
         contract_id: &str,
@@ -134,14 +134,14 @@ impl WasmModule {
             // Build the key for the WasmModule
             let key = format!("/wasm_modules/{}/{}", contract_id, module_name);
 
-            // Check ValidatorFinal store first (finalized modules)
-            if let Some(bytes) = datastore_manager.validator_final().get(&key)? {
+            // Check SequencerFinal store first (finalized modules)
+            if let Some(bytes) = datastore_manager.sequencer_final().get(&key)? {
                 let module: WasmModule = serde_json::from_slice(&bytes)?;
                 return Ok(Some(module));
             }
 
-            // Check ValidatorActive store (pending modules)
-            if let Some(bytes) = datastore_manager.validator_active().get(&key)? {
+            // Check SequencerActive store (pending modules)
+            if let Some(bytes) = datastore_manager.sequencer_active().get(&key)? {
                 let module: WasmModule = serde_json::from_slice(&bytes)?;
                 return Ok(Some(module));
             }
@@ -152,13 +152,13 @@ impl WasmModule {
         }
     }
 
-    /// Save WASM module to ValidatorFinal store (multi-store version)
+    /// Save WASM module to SequencerFinal store (multi-store version)
     pub async fn save_to_final(&self, datastore_manager: &crate::DatastoreManager) -> Result<()> {
         use crate::stores::Store;
 
         let key = format!("/wasm_modules/{}/{}", self.contract_id, self.module_name);
         let value = serde_json::to_vec(self)?;
-        datastore_manager.validator_final().put(&key, &value)?;
+        datastore_manager.sequencer_final().put(&key, &value)?;
         Ok(())
     }
 }

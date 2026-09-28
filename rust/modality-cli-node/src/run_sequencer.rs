@@ -1,4 +1,4 @@
-//! Run a sequencer node (Shoal ordering). `run-validator` is a clap alias of this command.
+//! Run a sequencer node (Shoal ordering).
 
 use anyhow::Result;
 use clap::Parser;

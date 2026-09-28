@@ -16,7 +16,7 @@
       {
         "method": "post",
         "path": "/network/description.text",
-        "value": "Single validator development network"
+        "value": "Single sequencer development network"
       },
       {
         "method": "post",
@@ -40,7 +40,7 @@
       },
       {
         "method": "post",
-        "path": "/network/validators/0.text",
+        "path": "/network/sequencers/0.text",
         "value": "12D3KooW9pte76rpnggcLYkFaawuTEs5DC5axHkg3cK3cewGxxHd"
       }
     ],

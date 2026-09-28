@@ -7,7 +7,7 @@ use std::path::Path;
 use std::path::PathBuf;
 
 use crate::model::Model;
-use crate::models::validator::{ValidatorBlock, ValidatorBlockHeader};
+use crate::models::sequencer::{SequencerBlock, SequencerBlockHeader};
 
 #[derive(Debug)]
 pub struct NetworkDatastore {
@@ -187,8 +187,8 @@ impl NetworkDatastore {
     pub async fn get_timely_cert_blocks_at_round(
         &self,
         round_id: u64,
-    ) -> anyhow::Result<HashMap<String, ValidatorBlock>> {
-        let blocks = ValidatorBlock::find_all_in_round(self, round_id).await?;
+    ) -> anyhow::Result<HashMap<String, SequencerBlock>> {
+        let blocks = SequencerBlock::find_all_in_round(self, round_id).await?;
 
         Ok(blocks
             .into_iter()
@@ -201,7 +201,7 @@ impl NetworkDatastore {
         &self,
         round_id: u64,
     ) -> anyhow::Result<HashMap<String, String>> {
-        let blocks = ValidatorBlock::find_all_in_round(self, round_id).await?;
+        let blocks = SequencerBlock::find_all_in_round(self, round_id).await?;
 
         Ok(blocks
             .into_iter()
@@ -215,7 +215,7 @@ impl NetworkDatastore {
         &self,
         round_id: u64,
     ) -> anyhow::Result<Vec<String>> {
-        let blocks = ValidatorBlock::find_all_in_round(self, round_id).await?;
+        let blocks = SequencerBlock::find_all_in_round(self, round_id).await?;
 
         let cert_map: std::collections::HashMap<String, String> = blocks
             .into_iter()
@@ -242,7 +242,7 @@ impl NetworkDatastore {
         let mut initial_difficulty: Option<u128> = None;
         let mut target_block_time_secs: Option<u64> = None;
         let mut blocks_per_epoch: Option<u64> = None;
-        let mut validators = Vec::new();
+        let mut sequencers = Vec::new();
         let mut miner_hash_func: Option<String> = None;
         let mut mining_hash_params: Option<serde_json::Value> = None;
 
@@ -271,9 +271,9 @@ impl NetworkDatastore {
                     path if path.starts_with("blocks_per_epoch.") => {
                         blocks_per_epoch = Some(value_str.parse()?);
                     }
-                    path if path.starts_with("validators/") => {
-                        // Extract index and add to validators
-                        validators.push(value_str);
+                    path if path.starts_with("sequencers/") => {
+                        // Extract index and add to sequencers
+                        sequencers.push(value_str);
                     }
                     path if path.starts_with("miner_hash_func.") => {
                         miner_hash_func = Some(value_str.clone());
@@ -291,7 +291,7 @@ impl NetworkDatastore {
             }
         }
 
-        // Sort validators by their indices (they may come in any order from iterator)
+        // Sort sequencers by their indices (they may come in any order from iterator)
         // Since we don't parse indices above, we'll just use the order from the iterator
         // In practice, the iterator should return them in lexicographic order
 
@@ -304,7 +304,7 @@ impl NetworkDatastore {
                 .ok_or_else(|| Error::Database("Missing target_block_time_secs".to_string()))?,
             blocks_per_epoch: blocks_per_epoch
                 .ok_or_else(|| Error::Database("Missing blocks_per_epoch".to_string()))?,
-            validators,
+            sequencers,
             miner_hash_func: miner_hash_func.unwrap_or_else(|| "randomx".to_string()),
             mining_hash_params,
             contract_validators: Vec::new(),
@@ -319,14 +319,14 @@ impl NetworkDatastore {
     }
 
     pub async fn load_network_config(&self, network_config: &serde_json::Value) -> Result<()> {
-        // Load static validators if present
-        if let Some(validators) = network_config.get("validators") {
-            if let Some(validators_array) = validators.as_array() {
-                let validator_peer_ids: Vec<String> = validators_array
+        // Load static sequencers if present
+        if let Some(sequencers) = network_config.get("sequencers") {
+            if let Some(sequencers_array) = sequencers.as_array() {
+                let sequencer_peer_ids: Vec<String> = sequencers_array
                     .iter()
                     .filter_map(|v| v.as_str().map(|s| s.to_string()))
                     .collect();
-                self.set_static_validators(&validator_peer_ids).await?;
+                self.set_static_sequencers(&sequencer_peer_ids).await?;
             }
         }
 
@@ -340,13 +340,13 @@ impl NetworkDatastore {
                     let mut genesis_events: Vec<(String, String, serde_json::Value)> = Vec::new();
 
                     for block_data in round_obj.values() {
-                        // Create and save ValidatorBlock
-                        let block = ValidatorBlock::create_from_json(block_data.clone())?;
+                        // Create and save SequencerBlock
+                        let block = SequencerBlock::create_from_json(block_data.clone())?;
                         block.save(self).await?;
 
-                        // Create and save ValidatorBlockHeader
+                        // Create and save SequencerBlockHeader
                         let block_header =
-                            ValidatorBlockHeader::create_from_json(block_data.clone())?;
+                            SequencerBlockHeader::create_from_json(block_data.clone())?;
                         block_header.save(self).await?;
 
                         // Extract contract-commit events for processing
@@ -473,19 +473,19 @@ impl NetworkDatastore {
         Ok(())
     }
 
-    /// Set the static validators for this network
-    pub async fn set_static_validators(&self, validators: &[String]) -> Result<()> {
-        let json_value = serde_json::to_string(validators)?;
-        self.set_data_by_key("network:static_validators", json_value.as_bytes())
+    /// Set the static sequencers for this network
+    pub async fn set_static_sequencers(&self, sequencers: &[String]) -> Result<()> {
+        let json_value = serde_json::to_string(sequencers)?;
+        self.set_data_by_key("network:static_sequencers", json_value.as_bytes())
             .await
     }
 
-    /// Get the static validators for this network, if configured
-    pub async fn get_static_validators(&self) -> Result<Option<Vec<String>>> {
-        match self.get_data_by_key("network:static_validators").await? {
+    /// Get the static sequencers for this network, if configured
+    pub async fn get_static_sequencers(&self) -> Result<Option<Vec<String>>> {
+        match self.get_data_by_key("network:static_sequencers").await? {
             Some(data) => {
-                let validators: Vec<String> = serde_json::from_slice(&data)?;
-                Ok(Some(validators))
+                let sequencers: Vec<String> = serde_json::from_slice(&data)?;
+                Ok(Some(sequencers))
             }
             None => Ok(None),
         }

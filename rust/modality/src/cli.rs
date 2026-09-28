@@ -273,10 +273,7 @@ enum NodeCommands {
     #[command(about = "Run a hybrid node (mines and sequences under N-2 lookback)")]
     RunHybrid(modality_cli_node::run_hybrid::Opts),
 
-    #[command(
-        visible_alias = "run-validator",
-        about = "Run a sequencer node (orders events; does not mine). `run-validator` is an alias."
-    )]
+    #[command(about = "Run a sequencer node (orders events; does not mine)")]
     RunSequencer(modality_cli_node::run_sequencer::Opts),
 
     #[command(
@@ -334,7 +331,7 @@ enum ContractCommands {
     #[command(about = "Get the contract ID from the current directory")]
     Id(modality_cli_contract::id::Opts),
 
-    #[command(about = "Push commits to chain validators")]
+    #[command(about = "Push commits to the network for sequencing")]
     Push(modality_cli_contract::push::Opts),
 
     #[command(about = "Pull commits from the chain")]
@@ -408,10 +405,7 @@ enum RunCommands {
     #[command(about = "Run a hybrid node (mines and sequences under N-2 lookback)")]
     Hybrid(modality_cli_node::run_hybrid::Opts),
 
-    #[command(
-        visible_alias = "validator",
-        about = "Run a sequencer node (orders events; does not mine). `validator` is an alias."
-    )]
+    #[command(about = "Run a sequencer node (orders events; does not mine)")]
     Sequencer(modality_cli_node::run_sequencer::Opts),
 
     #[command(about = "Run a contract-validator node (prefix certificates)")]
@@ -796,28 +790,22 @@ mod tests {
 
     #[cfg(feature = "full")]
     #[test]
-    fn node_run_validator_is_alias_of_run_sequencer() {
+    fn node_run_sequencer_parses() {
         use clap::Parser;
-        let via_alias =
-            Cli::try_parse_from(["modality", "node", "run-validator", "--dir", "./tmp/node1"])
-                .unwrap();
-        let via_preferred =
+        let cli =
             Cli::try_parse_from(["modality", "node", "run-sequencer", "--dir", "./tmp/node1"])
                 .unwrap();
-        match (via_alias.command, via_preferred.command) {
-            (
-                Commands::Node {
-                    command: Some(NodeCommands::RunSequencer(a)),
-                    ..
-                },
-                Commands::Node {
-                    command: Some(NodeCommands::RunSequencer(b)),
-                    ..
-                },
-            ) => {
-                assert_eq!(a.common.dir, b.common.dir);
+        match cli.command {
+            Commands::Node {
+                command: Some(NodeCommands::RunSequencer(opts)),
+                ..
+            } => {
+                assert_eq!(
+                    opts.common.dir.as_deref(),
+                    Some(std::path::Path::new("./tmp/node1"))
+                );
             }
-            _ => panic!("expected both commands to parse as run-sequencer"),
+            _ => panic!("expected `node run-sequencer`"),
         }
     }
 

@@ -22,7 +22,7 @@
     "12D3KooWLHTsoeBE1ZWBgzumeSi6hsm3o9AndFufrGx7xLTyq2dw"
   ],
   "hybrid_consensus": true,
-  "run_validator": true,
+  "run_sequencer": true,
   "run_contract_validator": true,
   "initial_difficulty": 1,
   "status_port": 3102,

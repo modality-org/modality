@@ -7,7 +7,7 @@
     {
       "type": "contract-commit",
       "contract_id": "12D3KooWEYSyxUqQUNVzTJJ9BwNotRrFd3KyiQo428Nz6ynMkcy1",
-      "commit_id": "a856d3fde096130029429970c9c4e675408d7403e8b05d73f9f3541d0344e3b4",
+      "commit_id": "8c5cd956b79b1f15c32c7c43b34af5c0397f4d17d3e023f6271d3606d4a4276b",
       "commit": {
         "body": [
           {
@@ -18,7 +18,7 @@
           {
             "method": "post",
             "path": "/network/description.text",
-            "value": "Three validator development network"
+            "value": "Three sequencer development network"
           },
           {
             "method": "post",
@@ -37,17 +37,17 @@
           },
           {
             "method": "post",
-            "path": "/network/validators/0.text",
+            "path": "/network/sequencers/0.text",
             "value": "12D3KooW9pte76rpnggcLYkFaawuTEs5DC5axHkg3cK3cewGxxHd"
           },
           {
             "method": "post",
-            "path": "/network/validators/1.text",
+            "path": "/network/sequencers/1.text",
             "value": "12D3KooW9pypLnRn67EFjiWgEiDdqo8YizaPn8yKe5cNJd3PGnMB"
           },
           {
             "method": "post",
-            "path": "/network/validators/2.text",
+            "path": "/network/sequencers/2.text",
             "value": "12D3KooW9qGaMuW7k2a5iEQ37gWgtjfFC4B3j5R1kKJPZofS62Se"
           }
         ],
@@ -57,7 +57,7 @@
     {
       "type": "contract-commit",
       "contract_id": "12D3KooWPNHaYyqn4oXoz7RPje2a16WGBaPJHqWaewnDQZJ6K3Jd",
-      "commit_id": "a856d3fde096130029429970c9c4e675408d7403e8b05d73f9f3541d0344e3b4",
+      "commit_id": "8c5cd956b79b1f15c32c7c43b34af5c0397f4d17d3e023f6271d3606d4a4276b",
       "commit": {
         "body": [
           {
@@ -68,7 +68,7 @@
           {
             "method": "post",
             "path": "/network/description.text",
-            "value": "Three validator development network"
+            "value": "Three sequencer development network"
           },
           {
             "method": "post",
@@ -87,17 +87,17 @@
           },
           {
             "method": "post",
-            "path": "/network/validators/0.text",
+            "path": "/network/sequencers/0.text",
             "value": "12D3KooW9pte76rpnggcLYkFaawuTEs5DC5axHkg3cK3cewGxxHd"
           },
           {
             "method": "post",
-            "path": "/network/validators/1.text",
+            "path": "/network/sequencers/1.text",
             "value": "12D3KooW9pypLnRn67EFjiWgEiDdqo8YizaPn8yKe5cNJd3PGnMB"
           },
           {
             "method": "post",
-            "path": "/network/validators/2.text",
+            "path": "/network/sequencers/2.text",
             "value": "12D3KooW9qGaMuW7k2a5iEQ37gWgtjfFC4B3j5R1kKJPZofS62Se"
           }
         ],
@@ -105,12 +105,12 @@
       }
     }
   ],
-  "closing_sig": "vdwAuDVQ5NDWJWjme7JWfKz2+SH+33b15fqHSTRpG0NMTrb9faRe76j6zRmotMAGwyGM99iDhFPwjes8XnjcCQ==",
+  "closing_sig": "jmtxv2YGvxVZI6/Y7NeiB9GQdS1pP/PZSByFj88XQD2RhLsjhoWZKVW56XGVkCIBNTF75G1qVT5vPFU4XDt7Cg==",
   "acks": {
-    "12D3KooW9pte76rpnggcLYkFaawuTEs5DC5axHkg3cK3cewGxxHd": "JBWp34XLX6ZL6Bi+/xSkXNbpW8rh3JVP21VZHIQ2igYtRJcH7vwGNjxcrZHTUu075mOGXqMuC2GNDgYU3MT9AA==",
-    "12D3KooW9pypLnRn67EFjiWgEiDdqo8YizaPn8yKe5cNJd3PGnMB": "hMSYWBHHAKI6hTbdd5UCNrwoNZjkCT4cQrF2YTBRE6/k4a+giKJgUMcM9a7/itruSWRVLZvrQIpO5zMksdYzCQ==",
-    "12D3KooW9qGaMuW7k2a5iEQ37gWgtjfFC4B3j5R1kKJPZofS62Se": "r90cdI+wzUE5tzV2EVVPHlu1RftbIy1KJdnY5AIUZx+WJiHGtJzQ8HbNrJM1RyTKDWmpY8+HmjLGj7hyu0ILCw=="
+    "12D3KooW9pte76rpnggcLYkFaawuTEs5DC5axHkg3cK3cewGxxHd": "2xSTfsrBcfuUwT0CnknEhQYPfYtZrFItoYMr4djn59ezzn86b/+jCUaRMZ8wo5b5Ml+pezezoNSHMc/3+w/lAw==",
+    "12D3KooW9pypLnRn67EFjiWgEiDdqo8YizaPn8yKe5cNJd3PGnMB": "7QHUakyPHeJ0e0rt0l3tWFnwVODPv537ruyedDwtwFeauk5Dxq2P/xcRoBEJ4bXFuGwb7sNz9pxaVyuLvbahCg==",
+    "12D3KooW9qGaMuW7k2a5iEQ37gWgtjfFC4B3j5R1kKJPZofS62Se": "lpOZkUaAFLix2xXJ81guHi5269Z+JQ5ik3+LAb0Mokb1zNVFXiu6NeTPoyZAiaNWTuQyvX/y47AUJ+yvGzQVCA=="
   },
   "late_acks": [],
-  "cert": "RyMrtXyhVJI/PmDKNy9ihHPpPwV4dpTnqTSy2xZHrzQHDNhZKWYNYT+nrICh2vCoK7B8k1ZH0Km52Z4XKknMCg=="
+  "cert": "DY5HLiSJ6VLtwL/uhNKyuXtCIaS4IbUg9crCDy5Xf+BjWQg3Z/ll+yE5Mj59SY+gXLyl9/3U+CojQot9fPrHBg=="
 }

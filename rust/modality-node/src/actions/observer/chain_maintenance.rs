@@ -6,7 +6,7 @@
 //! - Syncing missing blocks from peers
 //!
 //! These functions are used by observer nodes and any node types
-//! that extend observer (miner, validator).
+//! that extend observer (miner, sequencer).
 
 use modality_datastore::models::MinerBlock;
 use modality_datastore::DatastoreManager;

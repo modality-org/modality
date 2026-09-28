@@ -9,7 +9,7 @@ pub enum CheckpointMode {
     None,
     /// User specifies checkpoints manually in the network config
     Manual,
-    /// Checkpoints are triggered by consensus (on new validator set's second certified round)
+    /// Checkpoints are triggered by consensus (on new sequencer set's second certified round)
     Consensus,
 }
 
@@ -73,11 +73,11 @@ pub struct NetworkInfo {
     /// List of bootstrapper multiaddresses
     pub bootstrappers: Vec<String>,
 
-    /// Optional static set of validators (peer IDs)
-    /// If present, this network uses a static validator set.
-    /// If absent, validators are selected dynamically from mining epochs.
+    /// Optional static set of sequencers (peer IDs)
+    /// If present, this network uses a static sequencer set.
+    /// If absent, sequencers are selected dynamically from mining epochs.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub validators: Option<Vec<String>>,
+    pub sequencers: Option<Vec<String>>,
 
     /// Checkpoint mode for this network
     /// Defaults to None if not specified
@@ -89,7 +89,7 @@ pub struct NetworkInfo {
     pub checkpoints: Option<Vec<ManualCheckpoint>>,
 
     /// Bootstrap named **contract validators** (peer IDs). Distinct from
-    /// `validators` (the sequencer committee). Empty / omitted = none.
+    /// `sequencers` (the ordering committee). Empty / omitted = none.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub contract_validators: Option<Vec<String>>,
 
@@ -324,14 +324,14 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_devnet_networks_have_validators() {
-        // Test that devnet networks have validators configured
+    fn test_devnet_networks_have_sequencers() {
+        // Test that devnet networks have sequencers configured
         let devnet1 = networks::devnet1();
         assert!(
-            devnet1.validators.is_some(),
-            "devnet1 should have validators"
+            devnet1.sequencers.is_some(),
+            "devnet1 should have sequencers"
         );
-        assert_eq!(devnet1.validators.as_ref().unwrap().len(), 1);
+        assert_eq!(devnet1.sequencers.as_ref().unwrap().len(), 1);
         assert_eq!(
             devnet1.contract_validators.as_ref().unwrap().as_slice(),
             ["12D3KooW9pte76rpnggcLYkFaawuTEs5DC5axHkg3cK3cewGxxHd"]
@@ -341,33 +341,33 @@ mod tests {
 
         let devnet2 = networks::devnet2();
         assert!(
-            devnet2.validators.is_some(),
-            "devnet2 should have validators"
+            devnet2.sequencers.is_some(),
+            "devnet2 should have sequencers"
         );
-        assert_eq!(devnet2.validators.as_ref().unwrap().len(), 2);
+        assert_eq!(devnet2.sequencers.as_ref().unwrap().len(), 2);
 
         let devnet3 = networks::devnet3();
         assert!(
-            devnet3.validators.is_some(),
-            "devnet3 should have validators"
+            devnet3.sequencers.is_some(),
+            "devnet3 should have sequencers"
         );
-        assert_eq!(devnet3.validators.as_ref().unwrap().len(), 3);
+        assert_eq!(devnet3.sequencers.as_ref().unwrap().len(), 3);
 
         let devnet5 = networks::devnet5();
         assert!(
-            devnet5.validators.is_some(),
-            "devnet5 should have validators"
+            devnet5.sequencers.is_some(),
+            "devnet5 should have sequencers"
         );
-        assert_eq!(devnet5.validators.as_ref().unwrap().len(), 5);
+        assert_eq!(devnet5.sequencers.as_ref().unwrap().len(), 5);
     }
 
     #[test]
-    fn test_testnet_mainnet_no_static_validators() {
-        // Test that testnet and mainnet use dynamic validator selection
+    fn test_testnet_mainnet_no_static_sequencers() {
+        // Test that testnet and mainnet use dynamic sequencer selection
         let testnet = networks::testnet();
         assert!(
-            testnet.validators.is_none(),
-            "testnet should not have static validators"
+            testnet.sequencers.is_none(),
+            "testnet should not have static sequencers"
         );
         assert_eq!(testnet.blocks_per_epoch, Some(40));
         assert_eq!(testnet.initial_difficulty, Some(1));
@@ -393,16 +393,16 @@ mod tests {
 
         let mainnet = networks::mainnet();
         assert!(
-            mainnet.validators.is_none(),
-            "mainnet should not have static validators"
+            mainnet.sequencers.is_none(),
+            "mainnet should not have static sequencers"
         );
     }
 
     #[test]
-    fn test_validator_peer_ids_are_valid() {
-        // Ensure validator peer IDs are non-empty strings
+    fn test_sequencer_peer_ids_are_valid() {
+        // Ensure sequencer peer IDs are non-empty strings
         let devnet3 = networks::devnet3();
-        for peer_id in devnet3.validators.unwrap() {
+        for peer_id in devnet3.sequencers.unwrap() {
             assert!(!peer_id.is_empty(), "Peer ID should not be empty");
             assert!(
                 peer_id.starts_with("12D3"),
@@ -418,7 +418,7 @@ mod tests {
             name: "test".to_string(),
             description: "test network".to_string(),
             bootstrappers: vec![],
-            validators: None,
+            sequencers: None,
             checkpoint_mode: None,
             checkpoints: None,
             contract_validators: None,
@@ -443,7 +443,7 @@ mod tests {
             name: "test".to_string(),
             description: "test network".to_string(),
             bootstrappers: vec![],
-            validators: None,
+            sequencers: None,
             checkpoint_mode: Some(CheckpointMode::Consensus),
             checkpoints: None,
             contract_validators: None,
@@ -468,7 +468,7 @@ mod tests {
             name: "test".to_string(),
             description: "test network".to_string(),
             bootstrappers: vec![],
-            validators: None,
+            sequencers: None,
             checkpoint_mode: Some(CheckpointMode::Manual),
             contract_validators: None,
             validator_min_stake: 0,
@@ -600,7 +600,7 @@ mod tests {
         assert_eq!(cfg["network_config_path"], "modality-networks://testnet");
         assert_eq!(cfg["status_port"], 1337);
         assert_eq!(cfg["run_miner"], false);
-        assert_eq!(cfg["run_validator"], false);
+        assert_eq!(cfg["run_sequencer"], false);
         assert_eq!(cfg["listeners"][0], "/ip4/0.0.0.0/tcp/4040/ws");
         let id = cfg["id"].as_str().expect("template id");
         assert!(tmpl.passfile.contains(id), "passfile must match config id");

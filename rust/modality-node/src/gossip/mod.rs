@@ -5,14 +5,14 @@ use tokio::sync::mpsc;
 use tokio::sync::Mutex;
 
 use modality_datastore::DatastoreManager;
-use modality_validator_consensus::communication::Message as ConsensusMessage;
+use modality_sequencer_consensus::communication::Message as ConsensusMessage;
 
 use crate::node::Node;
 
 pub mod consensus;
 pub mod miner;
 
-pub async fn add_validator_event_listeners(node: &mut Node) -> Result<()> {
+pub async fn add_sequencer_event_listeners(node: &mut Node) -> Result<()> {
     {
         let mut swarm = node.swarm.lock().await;
 

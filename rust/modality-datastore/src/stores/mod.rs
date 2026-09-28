@@ -4,23 +4,23 @@
 //! - MinerCanon: Finalized canonical miner blocks (2+ epochs old) - shareable
 //! - MinerForks: Archived orphaned miner blocks (2+ epochs old) - local
 //! - MinerActive: Recent miner blocks (12 epoch rolling window) - local
-//! - ValidatorFinal: Finalized validator blocks, contracts, network params - shareable
-//! - ValidatorActive: In-progress rounds, draft blocks, pending certs - local
+//! - SequencerFinal: Finalized sequencer blocks, contracts, network params - shareable
+//! - SequencerActive: In-progress rounds, draft blocks, pending certs - local
 //! - NodeState: Node-specific state (status, peer info, ignored peers) - local
 
 pub mod miner_active;
 pub mod miner_canon;
 pub mod miner_forks;
 pub mod node_state;
-pub mod validator_active;
-pub mod validator_final;
+pub mod sequencer_active;
+pub mod sequencer_final;
 
 pub use miner_active::MinerActiveStore;
 pub use miner_canon::MinerCanonStore;
 pub use miner_forks::MinerForksStore;
 pub use node_state::NodeStateStore;
-pub use validator_active::ValidatorActiveStore;
-pub use validator_final::ValidatorFinalStore;
+pub use sequencer_active::SequencerActiveStore;
+pub use sequencer_final::SequencerFinalStore;
 
 use crate::Result;
 use rocksdb::{IteratorMode, Options, DB};

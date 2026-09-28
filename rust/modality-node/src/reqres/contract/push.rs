@@ -8,7 +8,7 @@ use modality_datastore::DatastoreManager;
 use modality_validator::ContractProcessor;
 
 use crate::reqres::Response;
-use modality_validator_consensus::communication::Message as ConsensusMessage;
+use modality_sequencer_consensus::communication::Message as ConsensusMessage;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct PushRequest {

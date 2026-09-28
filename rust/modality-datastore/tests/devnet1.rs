@@ -52,13 +52,13 @@ async fn test_devnet1_config_loading() -> Result<()> {
 }
 
 #[tokio::test]
-async fn test_static_validators_loading() -> Result<()> {
+async fn test_static_sequencers_loading() -> Result<()> {
     let datastore = NetworkDatastore::create_in_memory()?;
 
-    // Create a test network config with static validators
+    // Create a test network config with static sequencers
     let network_config = serde_json::json!({
         "name": "test-static",
-        "validators": [
+        "sequencers": [
             "12D3KooW9pte76rpnggcLYkFaawuTEs5DC5axHkg3cK3cewGxxHd",
             "12D3KooW9pypLnRn67EFjiWgEiDdqo8YizaPn8yKe5cNJd3PGnMB",
             "12D3KooW9qGaMuW7k2a5iEQ37gWgtjfFC4B3j5R1kKJPZofS62Se"
@@ -67,41 +67,41 @@ async fn test_static_validators_loading() -> Result<()> {
 
     datastore.load_network_config(&network_config).await?;
 
-    // Verify static validators were stored
-    let validators = datastore.get_static_validators().await?;
-    assert!(validators.is_some(), "Expected static validators to be set");
+    // Verify static sequencers were stored
+    let sequencers = datastore.get_static_sequencers().await?;
+    assert!(sequencers.is_some(), "Expected static sequencers to be set");
 
-    let validators = validators.unwrap();
-    assert_eq!(validators.len(), 3, "Expected 3 validators");
+    let sequencers = sequencers.unwrap();
+    assert_eq!(sequencers.len(), 3, "Expected 3 sequencers");
     assert!(
-        validators.contains(&"12D3KooW9pte76rpnggcLYkFaawuTEs5DC5axHkg3cK3cewGxxHd".to_string())
+        sequencers.contains(&"12D3KooW9pte76rpnggcLYkFaawuTEs5DC5axHkg3cK3cewGxxHd".to_string())
     );
     assert!(
-        validators.contains(&"12D3KooW9pypLnRn67EFjiWgEiDdqo8YizaPn8yKe5cNJd3PGnMB".to_string())
+        sequencers.contains(&"12D3KooW9pypLnRn67EFjiWgEiDdqo8YizaPn8yKe5cNJd3PGnMB".to_string())
     );
     assert!(
-        validators.contains(&"12D3KooW9qGaMuW7k2a5iEQ37gWgtjfFC4B3j5R1kKJPZofS62Se".to_string())
+        sequencers.contains(&"12D3KooW9qGaMuW7k2a5iEQ37gWgtjfFC4B3j5R1kKJPZofS62Se".to_string())
     );
 
     Ok(())
 }
 
 #[tokio::test]
-async fn test_static_validators_absent() -> Result<()> {
+async fn test_static_sequencers_absent() -> Result<()> {
     let datastore = NetworkDatastore::create_in_memory()?;
 
-    // Create a test network config without static validators
+    // Create a test network config without static sequencers
     let network_config = serde_json::json!({
         "name": "test-dynamic"
     });
 
     datastore.load_network_config(&network_config).await?;
 
-    // Verify no static validators were stored
-    let validators = datastore.get_static_validators().await?;
+    // Verify no static sequencers were stored
+    let sequencers = datastore.get_static_sequencers().await?;
     assert!(
-        validators.is_none(),
-        "Expected no static validators to be set"
+        sequencers.is_none(),
+        "Expected no static sequencers to be set"
     );
 
     Ok(())

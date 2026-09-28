@@ -1,6 +1,6 @@
 //! Pull sequenced contract logs onto an observer (or any non-sequencer).
 //!
-//! Live path: certified validator-block gossip, then the same apply as sequencers.
+//! Live path: certified sequencer-block gossip, then the same apply as sequencers.
 //! Historical path: `/contract/catalog` + list/pull from a bootstrapper.
 
 use anyhow::Result;
@@ -15,9 +15,9 @@ use tokio::sync::Mutex;
 use modality_datastore::models::{Commit, Contract};
 use modality_datastore::DatastoreManager;
 use modality_validator::ContractProcessor;
-use modality_validator_consensus::communication::Message as ConsensusMessage;
+use modality_sequencer_consensus::communication::Message as ConsensusMessage;
 
-use crate::actions::validator::consensus::apply_certified_contract_events;
+use crate::actions::sequencer::consensus::apply_certified_contract_events;
 use crate::constants::REQRES_TIMEOUT_SECS;
 use crate::node::Node;
 use crate::reqres;
@@ -34,7 +34,7 @@ pub fn start_live_apply(node: &mut Node) {
     tokio::spawn(async move {
         log::info!("Observer applying certified contract_push events");
         while let Some(msg) = rx.recv().await {
-            if let ConsensusMessage::CertifiedValidatorBlock { block, .. } = msg {
+            if let ConsensusMessage::CertifiedSequencerBlock { block, .. } = msg {
                 if block.cert.is_some() {
                     apply_certified_contract_events(&block, &datastore).await;
                 }

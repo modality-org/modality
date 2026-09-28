@@ -2,7 +2,7 @@
   {
     "type": "contract-commit",
     "contract_id": "12D3KooWNG8PPtaXXzw42CMxhbDEX8zvuxHtymRh1amixDpy8Y44",
-    "commit_id": "a856d3fde096130029429970c9c4e675408d7403e8b05d73f9f3541d0344e3b4",
+    "commit_id": "8c5cd956b79b1f15c32c7c43b34af5c0397f4d17d3e023f6271d3606d4a4276b",
     "commit": {
       "body": [
         {
@@ -13,7 +13,7 @@
         {
           "method": "post",
           "path": "/network/description.text",
-          "value": "Three validator development network"
+          "value": "Three sequencer development network"
         },
         {
           "method": "post",
@@ -32,17 +32,17 @@
         },
         {
           "method": "post",
-          "path": "/network/validators/0.text",
+          "path": "/network/sequencers/0.text",
           "value": "12D3KooW9pte76rpnggcLYkFaawuTEs5DC5axHkg3cK3cewGxxHd"
         },
         {
           "method": "post",
-          "path": "/network/validators/1.text",
+          "path": "/network/sequencers/1.text",
           "value": "12D3KooW9pypLnRn67EFjiWgEiDdqo8YizaPn8yKe5cNJd3PGnMB"
         },
         {
           "method": "post",
-          "path": "/network/validators/2.text",
+          "path": "/network/sequencers/2.text",
           "value": "12D3KooW9qGaMuW7k2a5iEQ37gWgtjfFC4B3j5R1kKJPZofS62Se"
         }
       ],
@@ -52,7 +52,7 @@
   {
     "type": "contract-commit",
     "contract_id": "12D3KooWPNHaYyqn4oXoz7RPje2a16WGBaPJHqWaewnDQZJ6K3Jd",
-    "commit_id": "a856d3fde096130029429970c9c4e675408d7403e8b05d73f9f3541d0344e3b4",
+    "commit_id": "8c5cd956b79b1f15c32c7c43b34af5c0397f4d17d3e023f6271d3606d4a4276b",
     "commit": {
       "body": [
         {
@@ -63,7 +63,7 @@
         {
           "method": "post",
           "path": "/network/description.text",
-          "value": "Three validator development network"
+          "value": "Three sequencer development network"
         },
         {
           "method": "post",
@@ -82,17 +82,17 @@
         },
         {
           "method": "post",
-          "path": "/network/validators/0.text",
+          "path": "/network/sequencers/0.text",
           "value": "12D3KooW9pte76rpnggcLYkFaawuTEs5DC5axHkg3cK3cewGxxHd"
         },
         {
           "method": "post",
-          "path": "/network/validators/1.text",
+          "path": "/network/sequencers/1.text",
           "value": "12D3KooW9pypLnRn67EFjiWgEiDdqo8YizaPn8yKe5cNJd3PGnMB"
         },
         {
           "method": "post",
-          "path": "/network/validators/2.text",
+          "path": "/network/sequencers/2.text",
           "value": "12D3KooW9qGaMuW7k2a5iEQ37gWgtjfFC4B3j5R1kKJPZofS62Se"
         }
       ],

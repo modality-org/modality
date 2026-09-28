@@ -21,8 +21,8 @@ pub struct Opts {
     #[clap(long)]
     pub dir: Option<PathBuf>,
 
-    /// Node type to run: miner, hybrid, observer, sequencer, validator, contract-validator, or server (default: determined by config)
-    #[clap(long, value_parser = ["miner", "hybrid", "observer", "sequencer", "validator", "contract-validator", "server"])]
+    /// Node type to run: miner, hybrid, observer, sequencer, contract-validator, or server (default: determined by config)
+    #[clap(long, value_parser = ["miner", "hybrid", "observer", "sequencer", "contract-validator", "server"])]
     pub node_type: Option<String>,
 
     /// Force kill (SIGKILL) instead of graceful shutdown (SIGTERM)
@@ -136,7 +136,6 @@ pub async fn run(opts: &Opts) -> Result<()> {
         "hybrid" => "run-hybrid",
         "observer" => "run-observer",
         "sequencer" => "run-sequencer",
-        "validator" => "run-validator",
         "contract-validator" | "contract_validator" => "run-contract-validator",
         "server" => "run",
         _ => bail!("Unknown node type: {}", node_type),

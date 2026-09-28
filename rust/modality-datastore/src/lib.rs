@@ -17,7 +17,7 @@ pub use network_params::{
 };
 pub use stores::{
     MinerActiveStore, MinerCanonStore, MinerForksStore, NodeStateStore, Store,
-    ValidatorActiveStore, ValidatorFinalStore,
+    SequencerActiveStore, SequencerFinalStore,
 };
 
 pub type Result<T> = std::result::Result<T, Error>;

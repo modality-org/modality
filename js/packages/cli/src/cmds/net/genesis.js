@@ -96,10 +96,10 @@ async function createNetworkGenesisContract(networkInfo) {
   
   commit.addPost("/network/blocks_per_epoch.number", String(networkInfo.blocks_per_epoch || 40));
   
-  // Validators (indexed)
-  if (networkInfo.validators && networkInfo.validators.length > 0) {
-    networkInfo.validators.forEach((validator, index) => {
-      commit.addPost(`/network/validators/${index}.text`, validator);
+  // Sequencers (indexed static committee)
+  if (networkInfo.sequencers && networkInfo.sequencers.length > 0) {
+    networkInfo.sequencers.forEach((sequencer, index) => {
+      commit.addPost(`/network/sequencers/${index}.text`, sequencer);
     });
   }
   
@@ -272,7 +272,7 @@ export async function handler({ passfile, dir }) {
       difficulty: networkInfo.difficulty || 1,
       target_block_time_secs: networkInfo.target_block_time_secs || 60,
       blocks_per_epoch: networkInfo.blocks_per_epoch || 40,
-      validators: networkInfo.validators || [],
+      sequencers: networkInfo.sequencers || [],
       bootstrappers: networkInfo.bootstrappers || []
     };
     

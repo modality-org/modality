@@ -30,9 +30,9 @@ pub struct Config {
     pub noop_mode: Option<bool>,
     pub run_miner: Option<bool>,
     pub miner_nominees: Option<Vec<String>>,
-    pub hybrid_consensus: Option<bool>, // Enable hybrid consensus mode (validators selected from epoch N-2 mining nominations)
-    pub run_validator: Option<bool>,    // Run as sequencer (hybrid: wait for epoch >= 2)
-    /// Run the contract-validator worker (prefix certs). Distinct from `run_validator`.
+    pub hybrid_consensus: Option<bool>, // Enable hybrid consensus mode (sequencers selected from epoch N-2 mining nominations)
+    pub run_sequencer: Option<bool>,    // Run as sequencer (hybrid: wait for epoch >= 2)
+    /// Run the contract-validator worker (prefix certs). Distinct from `run_sequencer`.
     pub run_contract_validator: Option<bool>,
     pub status_port: Option<u16>,
     pub status_html_dir: Option<PathBuf>,
@@ -50,7 +50,7 @@ pub struct Config {
     pub fork_recovery_min_peers: Option<usize>, // Minimum number of peers that must report a heavier chain before pausing mining (default: 1)
     pub fork_recovery_epoch_threshold: Option<u64>, // Pause mining if peers report chains this many epochs ahead (default: 2)
 
-    pub run_as: Option<String>, // Node role: "miner", "observer", "validator"/"sequencer", "contract-validator", "noop"
+    pub run_as: Option<String>, // Node role: "miner", "observer", "sequencer", "contract-validator", "noop"
 }
 
 impl Config {
@@ -287,7 +287,7 @@ impl Config {
         "Unknown".to_string()
     }
 
-    /// Get node role based on run_as, run_miner, run_validator, and noop_mode
+    /// Get node role based on run_as, run_miner, run_sequencer, and noop_mode
     pub fn get_node_role(&self) -> String {
         // Use explicit run_as if provided
         if let Some(ref run_as) = self.run_as {
@@ -301,15 +301,15 @@ impl Config {
 
         if self.run_contract_validator.unwrap_or(false)
             && !self.run_miner.unwrap_or(false)
-            && !self.run_validator.unwrap_or(false)
+            && !self.run_sequencer.unwrap_or(false)
         {
             return "contract-validator".to_string();
         }
 
         let run_miner = self.run_miner.unwrap_or(true);
-        let run_validator = self.run_validator.unwrap_or(false);
+        let run_sequencer = self.run_sequencer.unwrap_or(false);
 
-        match (run_miner, run_validator) {
+        match (run_miner, run_sequencer) {
             (true, true) => "hybrid".to_string(),
             (true, false) => "Miner".to_string(),
             (false, true) => "Sequencer".to_string(),

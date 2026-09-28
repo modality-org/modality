@@ -224,7 +224,7 @@ pub async fn mine_and_gossip_block(
                 log::debug!("No receivers for epoch transition: {}", e);
             } else {
                 log::info!(
-                    "📡 Broadcasted epoch {} transition for validator coordination",
+                    "📡 Broadcasted epoch {} transition for sequencer coordination",
                     miner_block.epoch
                 );
             }

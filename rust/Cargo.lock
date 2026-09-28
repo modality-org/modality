@@ -4510,8 +4510,9 @@ dependencies = [
  "modality-miner",
  "modality-networks",
  "modality-observer",
+ "modality-sequencer",
+ "modality-sequencer-consensus",
  "modality-validator",
- "modality-validator-consensus",
  "rand 0.8.7",
  "reqwest",
  "self-replace",
@@ -4561,40 +4562,24 @@ dependencies = [
 ]
 
 [[package]]
-name = "modality-synthesizer"
-version = "0.1.7"
-dependencies = [
- "modality-lang",
-]
-
-[[package]]
-name = "modality-validator"
+name = "modality-sequencer"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "base64 0.22.1",
  "env_logger 0.11.11",
- "hex",
  "libp2p-identity",
  "log",
- "modality-common",
  "modality-datastore",
- "modality-lang",
- "modality-observer",
- "modality-validator-consensus",
- "modality-wasm-runtime",
- "modality-wasm-validation",
- "serde",
+ "modality-sequencer-consensus",
+ "modality-validator",
  "serde_json",
- "sha2 0.10.9",
  "tempfile",
  "thiserror 1.0.69",
  "tokio",
- "wasmtime",
 ]
 
 [[package]]
-name = "modality-validator-consensus"
+name = "modality-sequencer-consensus"
 version = "0.1.0"
 dependencies = [
  "anyhow",
@@ -4621,6 +4606,37 @@ dependencies = [
  "tokio-util",
  "uuid",
  "zip 0.6.6",
+]
+
+[[package]]
+name = "modality-synthesizer"
+version = "0.1.7"
+dependencies = [
+ "modality-lang",
+]
+
+[[package]]
+name = "modality-validator"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "base64 0.22.1",
+ "env_logger 0.11.11",
+ "hex",
+ "libp2p-identity",
+ "log",
+ "modality-common",
+ "modality-datastore",
+ "modality-lang",
+ "modality-wasm-runtime",
+ "modality-wasm-validation",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "tempfile",
+ "thiserror 1.0.69",
+ "tokio",
+ "wasmtime",
 ]
 
 [[package]]
