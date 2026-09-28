@@ -50,13 +50,18 @@ Rule: every later step is signed by Alice or Bob, and the same party cannot
 sign twice in a row.
 
 Witness: unlabeled bootstrap, then a two-state cycle. No same-signer self-loop.
+Each turn also excludes the other signer.
 
 ```modality
 model Contract {
   part flow {
     q0 --> q1
-    q1 --> q2: +signed_by(/parties/alice.id)
-    q2 --> q1: +signed_by(/parties/bob.id)
+    q1 --> q2: +signed_by(/parties/alice.id) -signed_by(/parties/bob.id)
+    q2 --> q1: +signed_by(/parties/bob.id) -signed_by(/parties/alice.id)
   }
 }
 ```
+
+Without `-signed_by(/parties/alice.id)` on Bob's turn, a commit Alice and Bob
+both sign takes that edge, and Alice can sign again right after. The rule is
+refused for that model.

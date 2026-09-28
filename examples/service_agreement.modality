@@ -10,7 +10,7 @@ model ServiceAgreement {
     offered --> expired: +EXPIRE
     accepted --> completed: +COMPLETE +signed_by(provider)
     accepted --> cancelled: +CANCEL +signed_by(consumer)
-    completed --> paid: +PAY +signed_by(consumer)
+    completed --> paid: +PAY +signed_by(consumer) -signed_by(arbiter)
     completed --> disputed: +DISPUTE +signed_by(consumer)
     disputed --> paid: +PAY +signed_by(arbiter)
     disputed --> refunded: +REFUND +signed_by(arbiter)

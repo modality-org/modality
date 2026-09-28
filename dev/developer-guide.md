@@ -77,17 +77,22 @@ The model checker implements the core semantics:
 
 #### Property Satisfaction
 ```rust
-fn transition_satisfies_properties(&self, transition: &Transition, properties: &[Property]) -> bool {
+fn transition_satisfies_properties(&self, transition: &Transition, properties: &[Property], whole_atom: bool) -> bool {
     properties.iter().all(|property| {
         // Check if transition explicitly has this property
         let has_explicit = transition.properties.iter().any(|p| p == property);
         if has_explicit {
             return true;
         }
-        
-        // If transition doesn't mention this property at all, it's usable
-        let property_name = &property.name;
-        let mentions_property = transition.properties.iter().any(|p| p.name == *property_name);
+
+        // (theory versions above V0 consult entailment and consistency here)
+
+        // If transition doesn't mention this property at all, it's usable.
+        // Boxes pass whole_atom = true: signed_by(bob) does not mention signed_by(alice).
+        let mentions_property = transition.properties.iter().any(|p| {
+            p.name == property.name
+                && (!whole_atom || p.get_predicate().map(|(_, a)| a) == property.get_predicate().map(|(_, a)| a))
+        });
         !mentions_property
     })
 }

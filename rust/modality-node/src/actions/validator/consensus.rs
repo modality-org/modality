@@ -376,21 +376,34 @@ pub(crate) async fn accept_received_certified_block(
     committee_size: usize,
     datastore: &Arc<Mutex<DatastoreManager>>,
 ) -> ReceivedCert {
+    if let Some(rejected) = check_received_certificate(block, own_peer_id, committee_size) {
+        return rejected;
+    }
+    let mgr = datastore.lock().await;
+    store_received_certified_block(block, &mgr).await
+}
+
+/// The part of [`accept_received_certified_block`] that needs no datastore.
+fn check_received_certificate(
+    block: &ValidatorBlock,
+    own_peer_id: &str,
+    committee_size: usize,
+) -> Option<ReceivedCert> {
     if block.peer_id == own_peer_id {
-        return ReceivedCert::Own;
+        return Some(ReceivedCert::Own);
     }
     if block.cert.is_none() {
-        return ReceivedCert::Invalid;
+        return Some(ReceivedCert::Invalid);
     }
     match validate_certificate(block, committee_size.max(1)) {
-        Ok(true) => {}
+        Ok(true) => None,
         Ok(false) => {
             log::warn!(
                 "Invalid certificate from {} for round {}",
                 &block.peer_id[..16.min(block.peer_id.len())],
                 block.round_id
             );
-            return ReceivedCert::Invalid;
+            Some(ReceivedCert::Invalid)
         }
         Err(e) => {
             log::warn!(
@@ -398,31 +411,30 @@ pub(crate) async fn accept_received_certified_block(
                 &block.peer_id[..16.min(block.peer_id.len())],
                 e
             );
-            return ReceivedCert::Invalid;
+            Some(ReceivedCert::Invalid)
         }
     }
+}
+
+async fn store_received_certified_block(
+    block: &ValidatorBlock,
+    mgr: &DatastoreManager,
+) -> ReceivedCert {
+    if let Ok(Some(existing)) =
+        ValidatorBlock::find_final_by_round_peer_multi(mgr, block.round_id, &block.peer_id).await
     {
-        let mgr = datastore.lock().await;
-        if let Ok(Some(existing)) =
-            ValidatorBlock::find_final_by_round_peer_multi(&mgr, block.round_id, &block.peer_id)
-                .await
-        {
-            if existing.cert.is_some() && existing.closing_sig == block.closing_sig {
-                return ReceivedCert::Duplicate;
-            }
+        if existing.cert.is_some() && existing.closing_sig == block.closing_sig {
+            return ReceivedCert::Duplicate;
         }
     }
-    if let Err(e) = save_certified_block(block, datastore).await {
+    if let Err(e) = save_certified_block(block, mgr).await {
         log::warn!(
             "Failed to save certified block from {}: {}",
             &block.peer_id[..16.min(block.peer_id.len())],
             e
         );
     }
-    {
-        let mgr = datastore.lock().await;
-        super::cert_sync::record_cert_round(&mgr, &block.peer_id, block.round_id);
-    }
+    super::cert_sync::record_cert_round(mgr, &block.peer_id, block.round_id);
     ReceivedCert::Accepted
 }
 
@@ -750,71 +762,105 @@ enum StoreJob {
     Finalize(u64),
 }
 
-async fn run_store_job(job: StoreJob, own_peer_id: &str, datastore: &Arc<Mutex<DatastoreManager>>) {
-    match job {
-        StoreJob::OwnDraft(block) => {
-            let mgr = datastore.lock().await;
-            if let Err(e) = block.save_to_active(&mgr).await {
-                log::error!("Failed to save validator block for round {}: {}", block.round_id, e);
-            }
-        }
-        StoreJob::PeerDraft(block) => {
-            let mgr = datastore.lock().await;
-            if let Err(e) = block.save_to_active(&mgr).await {
-                log::warn!("Failed to save incoming block: {}", e);
-            }
-            queue_peer_prefix_cert_requests(&mgr, own_peer_id, &block).await;
-        }
-        StoreJob::OwnCert(block) => {
-            if let Err(e) = save_certified_block(&block, datastore).await {
-                log::error!("Failed to save certified block: {}", e);
-            }
-            {
-                let mgr = datastore.lock().await;
-                super::cert_sync::record_cert_round(&mgr, own_peer_id, block.round_id);
-            }
-            apply_certified_contract_events(&block, datastore).await;
-        }
-        StoreJob::PeerCert {
+/// Most store jobs queued at once, so one lock hold stays short.
+const STORE_BATCH_MAX: usize = 256;
+
+/// Run queued store jobs under one datastore lock, then apply contract events.
+///
+/// The datastore mutex is FIFO and shared with the miner, so each separate
+/// acquisition can wait seconds. Contract apply locks on its own and runs after.
+async fn run_store_batch(
+    jobs: Vec<StoreJob>,
+    own_peer_id: &str,
+    datastore: &Arc<Mutex<DatastoreManager>>,
+) {
+    let mut checked = Vec::with_capacity(jobs.len());
+    for job in jobs {
+        if let StoreJob::PeerCert {
             block,
             committee_size,
-        } => {
-            let received =
-                accept_received_certified_block(&block, own_peer_id, committee_size, datastore)
-                    .await;
-            if matches!(received, ReceivedCert::Own | ReceivedCert::Invalid) || block.events.is_empty() {
-                return;
+        } = &job
+        {
+            if check_received_certificate(block, own_peer_id, *committee_size).is_some() {
+                continue;
             }
-            if received == ReceivedCert::Accepted {
-                let mgr = datastore.lock().await;
-                queue_peer_prefix_cert_requests(&mgr, own_peer_id, &block).await;
-            }
-            log::info!(
-                "Applying certified block round {} from {}: {} events{}",
-                block.round_id,
-                &block.peer_id[..16.min(block.peer_id.len())],
-                block.events.len(),
-                if received == ReceivedCert::Duplicate { " (already stored)" } else { "" }
-            );
-            apply_certified_contract_events(&block, datastore).await;
         }
-        StoreJob::RestoreEvents(events) => {
-            let n = events.len();
-            let mgr = datastore.lock().await;
-            for event in events {
-                if let Err(e) = mgr.enqueue_sequencer_event(event).await {
-                    log::warn!("Failed to restore uncertified sequencer event: {}", e);
+        checked.push(job);
+    }
+
+    let mut to_apply = Vec::new();
+    let mut latest_round = None;
+    let mut finalize_round = None;
+    {
+        let mgr = datastore.lock().await;
+        for job in checked {
+            match job {
+                StoreJob::OwnDraft(block) => {
+                    if let Err(e) = block.save_to_active(&mgr).await {
+                        log::error!(
+                            "Failed to save validator block for round {}: {}",
+                            block.round_id,
+                            e
+                        );
+                    }
                 }
+                StoreJob::PeerDraft(block) => {
+                    if let Err(e) = block.save_to_active(&mgr).await {
+                        log::warn!("Failed to save incoming block: {}", e);
+                    }
+                    queue_peer_prefix_cert_requests(&mgr, own_peer_id, &block).await;
+                }
+                StoreJob::OwnCert(block) => {
+                    if let Err(e) = save_certified_block(&block, &mgr).await {
+                        log::error!("Failed to save certified block: {}", e);
+                    }
+                    super::cert_sync::record_cert_round(&mgr, own_peer_id, block.round_id);
+                    if !block.events.is_empty() {
+                        to_apply.push(block);
+                    }
+                }
+                StoreJob::PeerCert { block, .. } => {
+                    let received = store_received_certified_block(&block, &mgr).await;
+                    if block.events.is_empty() {
+                        continue;
+                    }
+                    if received == ReceivedCert::Accepted {
+                        queue_peer_prefix_cert_requests(&mgr, own_peer_id, &block).await;
+                    }
+                    log::info!(
+                        "Applying certified block round {} from {}: {} events{}",
+                        block.round_id,
+                        &block.peer_id[..16.min(block.peer_id.len())],
+                        block.events.len(),
+                        if received == ReceivedCert::Duplicate { " (already stored)" } else { "" }
+                    );
+                    to_apply.push(block);
+                }
+                StoreJob::RestoreEvents(events) => {
+                    let n = events.len();
+                    for event in events {
+                        if let Err(e) = mgr.enqueue_sequencer_event(event).await {
+                            log::warn!("Failed to restore uncertified sequencer event: {}", e);
+                        }
+                    }
+                    log::info!("Restored {n} uncertified sequencer event(s) onto a later round");
+                }
+                StoreJob::Round(round) => latest_round = latest_round.max(Some(round)),
+                StoreJob::Finalize(round) => finalize_round = finalize_round.max(Some(round)),
             }
-            log::info!("Restored {n} uncertified sequencer event(s) onto a later round");
         }
-        StoreJob::Round(round) => {
-            let mgr = datastore.lock().await;
+        if let Some(round) = latest_round {
             if let Err(e) = mgr.set_current_round(round).await {
                 log::warn!("Failed to update current round: {}", e);
             }
         }
-        StoreJob::Finalize(round) => run_finalization_task(datastore, round).await,
+        if let Some(round) = finalize_round {
+            run_finalization_task(&mgr, round).await;
+        }
+    }
+
+    for block in to_apply {
+        apply_certified_contract_events(&block, datastore).await;
     }
 }
 
@@ -826,7 +872,7 @@ async fn hand_off(
     datastore: &Arc<Mutex<DatastoreManager>>,
 ) {
     if let Err(mpsc::error::SendError(job)) = store_tx.send(job) {
-        run_store_job(job, own_peer_id, datastore).await;
+        run_store_batch(vec![job], own_peer_id, datastore).await;
     }
 }
 
@@ -964,7 +1010,14 @@ pub async fn spawn_consensus_loop_with_checkpoints(
         let store_peer_id = validator_peer_id.clone();
         tokio::spawn(async move {
             while let Some(job) = store_rx.recv().await {
-                run_store_job(job, &store_peer_id, &store_datastore).await;
+                let mut jobs = vec![job];
+                while jobs.len() < STORE_BATCH_MAX {
+                    match store_rx.try_recv() {
+                        Ok(job) => jobs.push(job),
+                        Err(_) => break,
+                    }
+                }
+                run_store_batch(jobs, &store_peer_id, &store_datastore).await;
             }
         });
         let mut recent_certs = RecentCerts::default();
@@ -1849,6 +1902,41 @@ model FirstContract {
             ReceivedCert::Own
         );
         let mgr = receiver.lock().await;
+        assert_eq!(
+            super::super::cert_sync::last_cert_rounds(&mgr),
+            vec![(author.as_public_address(), 8)]
+        );
+    }
+
+    #[tokio::test]
+    async fn store_batch_saves_certs_applies_events_and_keeps_latest_round() {
+        let author = Keypair::generate().unwrap();
+        let a1 = Keypair::generate().unwrap();
+        let a2 = Keypair::generate().unwrap();
+        let good = signed_certified_block(&author, &[&author, &a1, &a2], 8, vec![genesis_push()]);
+        let short = signed_certified_block(&a1, &[&a1], 9, vec![]);
+        let receiver = Arc::new(Mutex::new(DatastoreManager::create_in_memory().unwrap()));
+
+        run_store_batch(
+            vec![
+                StoreJob::Round(11),
+                StoreJob::PeerCert { block: good.clone(), committee_size: 4 },
+                StoreJob::PeerCert { block: good.clone(), committee_size: 4 },
+                StoreJob::PeerCert { block: short.clone(), committee_size: 4 },
+                StoreJob::Round(12),
+            ],
+            "receiver",
+            &receiver,
+        )
+        .await;
+
+        assert_eq!(in_batch_of(&receiver, "src", "genesis").await, good.cert);
+        let mgr = receiver.lock().await;
+        assert_eq!(mgr.get_current_round().await.unwrap(), 12);
+        assert!(ValidatorBlock::find_final_by_round_peer_multi(&mgr, 9, &short.peer_id)
+            .await
+            .unwrap()
+            .is_none());
         assert_eq!(
             super::super::cert_sync::last_cert_rounds(&mgr),
             vec![(author.as_public_address(), 8)]

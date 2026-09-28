@@ -594,7 +594,10 @@ fn faucet_moves(accepted: &[CommitFile]) -> Vec<(String, MoveStatus)> {
     let view = derived_view("", accepted, TheoryActivation::always(V1)).unwrap();
     assert!(view.dead_edges.is_empty(), "{:?}", view.dead_edges);
     let label = |m: &Move| {
-        if m.properties.iter().any(|p| p.name == "SEND" && p.sign == PropertySign::Minus) {
+        if m.properties
+            .iter()
+            .any(|p| p.name == "SEND" && p.sign == PropertySign::Minus)
+        {
             "register".to_string()
         } else if format_properties(&m.properties).contains("+signed_by(/claimants/alice.id)") {
             "alice".to_string()
@@ -669,7 +672,10 @@ fn faucet_v1_rules_hold_together_and_block_the_second_drip() {
             theory,
         )
         .expect_err("Bob's edge admits Alice's signature");
-        assert!(err.to_string().contains("+signed_by(/claimants/bob.id)"), "{err}");
+        assert!(
+            err.to_string().contains("+signed_by(/claimants/bob.id)"),
+            "{err}"
+        );
     }
 
     let mut accepted = vec![faucet_bootstrap()];
@@ -718,7 +724,8 @@ fn faucet_v1_rules_hold_together_and_block_the_second_drip() {
     let err = validate(&accepted, &drip("alice", Some("alice"), &["KEY_A"]), V1)
         .expect_err("second drip refused");
     assert!(
-        err.to_string().contains("-bool_true(/claimants/alice/claimed.bool)"),
+        err.to_string()
+            .contains("-bool_true(/claimants/alice/claimed.bool)"),
         "{err}"
     );
     validate(&accepted, &drip("bob", Some("bob"), &["KEY_B"]), V1).expect("Bob's first drip");

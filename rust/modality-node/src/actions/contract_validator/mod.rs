@@ -114,12 +114,42 @@ pub async fn queue_requests_for_events(
             continue;
         };
         if mgr.has_prefix_cert_from(source, through, own_peer_id)? {
+            republish_own_prefix_cert(mgr, source, through, own_peer_id).await?;
             continue;
         }
         mgr.enqueue_prefix_cert_request(req)?;
         queued += 1;
     }
     Ok(queued)
+}
+
+/// Put our stored cert for `source` through `through` back on our sequencer queue.
+///
+/// The sequencer carrying the dest commit may have missed the block that first
+/// published it, and a validator issues each cert only once.
+async fn republish_own_prefix_cert(
+    mgr: &DatastoreManager,
+    source: &str,
+    through: &str,
+    own_peer_id: &str,
+) -> Result<()> {
+    if mgr
+        .peek_sequencer_events()?
+        .iter()
+        .any(|event| is_prefix_cert_event(event, source, through, own_peer_id))
+    {
+        return Ok(());
+    }
+    let Some(cert) = mgr
+        .list_prefix_certs(source, through)?
+        .into_iter()
+        .find(|c| c.get("validator_peer_id").and_then(|v| v.as_str()) == Some(own_peer_id))
+    else {
+        return Ok(());
+    };
+    mgr.enqueue_sequencer_event(cert).await?;
+    log::info!("Re-publishing prefix_cert for {} through {}", source, through);
+    Ok(())
 }
 
 async fn prefix_cert_requests_for_events(
@@ -446,6 +476,33 @@ mod tests {
         let reqs = mgr.drain_prefix_cert_requests().unwrap();
         assert_eq!(reqs[0]["source_contract"], "src");
         assert_eq!(reqs[0]["through_commit"], "c1");
+    }
+
+    #[tokio::test]
+    async fn stored_own_cert_is_republished_once_for_peer_repost() {
+        let mgr = DatastoreManager::create_in_memory().unwrap();
+        mgr.load_network_config(&serde_json::json!({
+            "contract_validators": ["me", "other"],
+        }))
+        .await
+        .unwrap();
+        let cert = serde_json::json!({
+            "type": PREFIX_CERT_TYPE,
+            "source_contract": "src",
+            "through_commit": "c1",
+            "validator_peer_id": "me",
+            "signature": "sig",
+        });
+        mgr.save_prefix_cert(&cert).unwrap();
+
+        for _ in 0..2 {
+            let queued = queue_requests_for_events(&mgr, "me", &[peer_repost_event()])
+                .await
+                .unwrap();
+            assert_eq!(queued, 0);
+        }
+        assert!(mgr.drain_prefix_cert_requests().unwrap().is_empty());
+        assert_eq!(mgr.peek_sequencer_events().unwrap(), vec![cert]);
     }
 
     #[tokio::test]

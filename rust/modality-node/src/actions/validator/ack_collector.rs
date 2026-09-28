@@ -12,8 +12,6 @@ use modality_datastore::models::validator::block::Ack;
 use modality_datastore::models::ValidatorBlock;
 use modality_datastore::DatastoreManager;
 use std::collections::HashMap;
-use std::sync::Arc;
-use tokio::sync::Mutex;
 
 /// Tracks acks received for blocks in a given round
 pub struct AckCollector {
@@ -316,18 +314,13 @@ pub fn validate_certificate(block: &ValidatorBlock, committee_size: usize) -> Re
 }
 
 /// Save a certified block to the appropriate datastores
-pub async fn save_certified_block(
-    block: &ValidatorBlock,
-    datastore: &Arc<Mutex<DatastoreManager>>,
-) -> Result<()> {
-    let mgr = datastore.lock().await;
-
+pub async fn save_certified_block(block: &ValidatorBlock, mgr: &DatastoreManager) -> Result<()> {
     // First save to active store
-    block.save_to_active(&mgr).await?;
+    block.save_to_active(mgr).await?;
 
     // If it has a certificate, promote to final
     if block.cert.is_some() {
-        block.promote_to_final(&mgr).await?;
+        block.promote_to_final(mgr).await?;
         log::info!(
             "✅ Block certified and finalized: round {} peer {}",
             block.round_id,
@@ -339,11 +332,9 @@ pub async fn save_certified_block(
 }
 
 /// Run periodic finalization task to move certified blocks to final store
-pub async fn run_finalization_task(datastore: &Arc<Mutex<DatastoreManager>>, current_round: u64) {
-    let mgr = datastore.lock().await;
-
+pub async fn run_finalization_task(mgr: &DatastoreManager, current_round: u64) {
     // Keep blocks in active for 10 rounds before deleting
-    match ValidatorBlock::run_finalization(&mgr, current_round, 10).await {
+    match ValidatorBlock::run_finalization(mgr, current_round, 10).await {
         Ok((finalized, deleted)) => {
             if finalized > 0 || deleted > 0 {
                 log::info!(

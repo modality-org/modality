@@ -321,7 +321,9 @@ fn the_case_fixture_agrees() {
             .and_then(|l| l.as_array())
             .is_some_and(|l| l.iter().any(|c| c == "modality/declaration-unparsed"));
         if unparsed != wants_unparsed {
-            failures.push(format!("{id}: declaration-unparsed {wants_unparsed}, got {unparsed}"));
+            failures.push(format!(
+                "{id}: declaration-unparsed {wants_unparsed}, got {unparsed}"
+            ));
         }
 
         let th = Theory::new(TheoryVersion::V1, &registry, &NoState);
@@ -1242,8 +1244,17 @@ fn random_label_set(next: &mut impl FnMut() -> u64) -> (Vec<Property>, String) {
         };
         let negated = pick(3) == 0;
         let refs: Vec<&str> = args.iter().map(String::as_str).collect();
-        props.push(if negated { n(name, &refs) } else { p(name, &refs) });
-        line.push(format!("{}{} {}", if negated { '-' } else { '+' }, name, args.join(" ")));
+        props.push(if negated {
+            n(name, &refs)
+        } else {
+            p(name, &refs)
+        });
+        line.push(format!(
+            "{}{} {}",
+            if negated { '-' } else { '+' },
+            name,
+            args.join(" ")
+        ));
     }
     (props, line.join(" ; "))
 }
@@ -1286,7 +1297,10 @@ fn rust_and_lean_agree() {
     let writer = std::thread::spawn(move || stdin.write_all(input.as_bytes()));
     let output = child.wait_with_output().unwrap();
     writer.join().unwrap().unwrap();
-    let verdicts: Vec<&str> = std::str::from_utf8(&output.stdout).unwrap().lines().collect();
+    let verdicts: Vec<&str> = std::str::from_utf8(&output.stdout)
+        .unwrap()
+        .lines()
+        .collect();
     assert_eq!(verdicts.len(), sets.len(), "pt-check answered every line");
 
     let th = v1();
@@ -1300,10 +1314,18 @@ fn rust_and_lean_agree() {
             disagreements.push(format!("rust {rust_dead:5} lean {lean}: {line}"));
         }
     }
-    eprintln!("{rounds} label sets, {dead} dead, {} disagreements", disagreements.len());
+    eprintln!(
+        "{rounds} label sets, {dead} dead, {} disagreements",
+        disagreements.len()
+    );
     assert!(
         disagreements.is_empty(),
         "Rust and Lean disagree:\n{}",
-        disagreements.iter().take(20).cloned().collect::<Vec<_>>().join("\n")
+        disagreements
+            .iter()
+            .take(20)
+            .cloned()
+            .collect::<Vec<_>>()
+            .join("\n")
     );
 }

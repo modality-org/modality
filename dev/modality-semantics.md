@@ -96,6 +96,15 @@ A transition satisfies a property list if it satisfies **all** properties in the
 - ✅ Transition explicitly has `-property`
 - ✅ Transition doesn't mention the property at all (neutral)
 
+#### Predicates with arguments
+`signed_by(/parties/alice.id)` and `signed_by(/parties/bob.id)` are different
+properties. Under a box, an edge that only names `+signed_by(/parties/bob.id)`
+is neutral to Alice's signature, so `[+signed_by(/parties/alice.id)] phi`
+ranges over it: a commit both of them sign can take that edge. Diamonds still
+treat any `signed_by(...)` on the edge as mentioning the name. To keep a
+co-signed commit off an edge, write the exclusion:
+`+signed_by(/parties/bob.id) -signed_by(/parties/alice.id)`.
+
 #### Examples:
 
 ```modality
