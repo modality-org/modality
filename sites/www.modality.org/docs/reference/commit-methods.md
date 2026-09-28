@@ -2,6 +2,12 @@
 
 Modality contracts are append-only logs of commits. Each commit contains one or more **actions**, and each action has a **method** that determines what it does.
 
+## GENESIS
+
+Opens a contract. `modal contract create` writes it as the first commit.
+Validators refuse `GENESIS` in any later commit: it would change state
+without taking a step in the model.
+
 ## POST
 
 The most common method — writes data to a path in **this** contract's state.

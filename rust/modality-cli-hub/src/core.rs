@@ -1325,6 +1325,16 @@ impl HubCore {
                     .unwrap_or("")
                     .to_lowercase();
 
+                if method == "genesis"
+                    && contracts
+                        .get(contract_id)
+                        .is_some_and(|contract| !contract.commits.is_empty())
+                {
+                    return Err(HubError::InvalidRequest(
+                        "GENESIS is allowed only in a contract's first commit".to_string(),
+                    ));
+                }
+
                 if method == "repost" {
                     self.validate_repost_action(action, &contracts)?;
                 }

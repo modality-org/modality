@@ -1047,6 +1047,17 @@ impl RpcHandler for HubHandler {
                         .to_lowercase();
 
                     match method.as_str() {
+                        "genesis" => {
+                            let started = contracts
+                                .get(&params.contract_id)
+                                .is_some_and(|contract| !contract.commits.is_empty());
+                            if started {
+                                return Err(RpcError::InvalidParams(
+                                    "GENESIS is allowed only in a contract's first commit"
+                                        .to_string(),
+                                ));
+                            }
+                        }
                         "repost" => {
                             // Validate REPOST against source contract
                             self.validate_repost(&body).await?;

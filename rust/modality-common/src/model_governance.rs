@@ -157,6 +157,7 @@ pub fn validate_pending_commit_with_theory(
     evaluation_timestamp: Option<u64>,
     activation: TheoryActivation,
 ) -> Result<()> {
+    refuse_later_genesis(accepted.len(), pending)?;
     let Some(governing_model) = governing_model_content(fallback_model_content, accepted, pending)
     else {
         return Ok(());
@@ -214,6 +215,7 @@ pub fn validate_sequenced_commit_with_theory(
     evaluation_timestamp: Option<u64>,
     activation: TheoryActivation,
 ) -> Result<()> {
+    refuse_later_genesis(accepted.len(), pending)?;
     if is_genesis_only(pending) {
         return Ok(());
     }
@@ -525,7 +527,8 @@ impl StateView for OwnedAcceptedState {
     }
 }
 
-/// Sequenced apply: skip genesis-only and contracts that never posted a model.
+/// Sequenced apply: skip the first commit's genesis and contracts that never
+/// posted a model; refuse genesis anywhere later.
 pub fn validate_sequenced_commit(accepted: &[CommitFile], pending: &CommitFile) -> Result<()> {
     validate_sequenced_commit_with_pending_id(accepted, pending, None)
 }
@@ -560,6 +563,7 @@ pub fn validate_sequenced_commit_with_ids_at(
     expected_contract_id: Option<&str>,
     evaluation_timestamp: Option<u64>,
 ) -> Result<()> {
+    refuse_later_genesis(accepted.len(), pending)?;
     if is_genesis_only(pending) {
         return Ok(());
     }
@@ -626,6 +630,24 @@ fn latest_accepted_model_from_commits(commits: &[CommitFile]) -> Option<String> 
     })
 }
 
+fn has_genesis(commit: &CommitFile) -> bool {
+    commit
+        .body
+        .iter()
+        .any(|action| action.method.eq_ignore_ascii_case("genesis"))
+}
+
+/// `genesis` belongs to a contract's first commit. Anywhere later it would
+/// write state without taking an edge of the model.
+fn refuse_later_genesis(commit_index: usize, commit: &CommitFile) -> Result<()> {
+    if commit_index > 0 && has_genesis(commit) {
+        anyhow::bail!(
+            "GENESIS is allowed only in a contract's first commit; this is commit {commit_index}"
+        );
+    }
+    Ok(())
+}
+
 fn is_genesis_only(commit: &CommitFile) -> bool {
     !commit.body.is_empty()
         && commit
@@ -661,7 +683,8 @@ fn replay_commits_to_current_state_with(
     let mut anchored_rules = Vec::new();
 
     for (commit_index, commit) in commits.iter().enumerate() {
-        if commit.body.iter().all(|action| action.method == "genesis") {
+        refuse_later_genesis(commit_index, commit)?;
+        if is_genesis_only(commit) {
             apply_commit_to_state(commit, &mut state);
             continue;
         }
@@ -5177,5 +5200,72 @@ model FirstContract {
             "{err}"
         );
         Ok(())
+    }
+
+    fn signed_by(mut commit: CommitFile, key: &str) -> CommitFile {
+        commit.head.signatures = Some(serde_json::json!({ key: "sig" }));
+        commit
+    }
+
+    fn one_action(method: &str, path: Option<&str>, value: Value) -> CommitFile {
+        let mut commit = CommitFile::new();
+        commit.add_action(method.to_string(), path.map(str::to_string), value);
+        commit
+    }
+
+    /// Alice signs every commit after one free step.
+    fn alice_after_one_step() -> Vec<CommitFile> {
+        let mut bootstrap = one_action(
+            "model",
+            Some("/model/default.modality"),
+            Value::String(
+                "model M {\n  part p {\n    q0 --> q1\n    q1 --> q2\n    q2 --> q2: +signed_by(/parties/alice.id)\n  }\n}\n"
+                    .to_string(),
+            ),
+        );
+        bootstrap.add_action(
+            "post".to_string(),
+            Some("/parties/alice.id".to_string()),
+            Value::String("KEY_A".to_string()),
+        );
+        vec![
+            one_action("genesis", None, serde_json::json!({ "contract_id": "c" })),
+            bootstrap,
+        ]
+    }
+
+    #[test]
+    fn genesis_is_refused_after_the_first_commit() {
+        let accepted = alice_after_one_step();
+        let takeover = signed_by(
+            one_action(
+                "genesis",
+                Some("/parties/alice.id"),
+                Value::String("KEY_B".to_string()),
+            ),
+            "KEY_B",
+        );
+        let err = validate_sequenced_commit(&accepted, &takeover)
+            .expect_err("a later genesis would rewrite Alice's key outside the model");
+        assert!(err.to_string().contains("first commit"), "{err}");
+
+        let mut replayed = accepted.clone();
+        replayed.push(takeover);
+        let note = one_action("post", Some("/notes/b.text"), Value::String("b".into()));
+        validate_sequenced_commit(&replayed, &signed_by(note, "KEY_B"))
+            .expect_err("replay refuses a log with a later genesis");
+    }
+
+    #[test]
+    fn an_empty_commit_moves_in_replay_as_it_did_when_accepted() {
+        let accepted = alice_after_one_step();
+        let empty = signed_by(CommitFile::new(), "KEY_B");
+        validate_sequenced_commit(&accepted, &empty).expect("the free step");
+        let mut accepted = accepted;
+        accepted.push(empty);
+        let note = || one_action("post", Some("/notes/b.text"), Value::String("b".into()));
+        validate_sequenced_commit(&accepted, &signed_by(note(), "KEY_B"))
+            .expect_err("the free step was taken");
+        validate_sequenced_commit(&accepted, &signed_by(note(), "KEY_A")).expect("Alice may");
     }
 }
