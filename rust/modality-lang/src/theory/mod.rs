@@ -19,6 +19,7 @@
 //! No floats, no external crates, deterministic output ordering.
 
 pub mod decl;
+pub mod flow;
 pub mod fragment;
 pub mod literals;
 pub mod order;
@@ -50,6 +51,10 @@ pub enum TheoryVersion {
     V0,
     /// Per-edge theory over the V1 fragment.
     V1,
+    /// `V1`, and a rule check drops the edges state flow proves no run
+    /// from the rule's evaluation node takes (`flow`). Models are refused
+    /// only as under `V1`.
+    V2,
 }
 
 impl TheoryVersion {
@@ -58,6 +63,7 @@ impl TheoryVersion {
         match self {
             TheoryVersion::V0 => "v0",
             TheoryVersion::V1 => "v1",
+            TheoryVersion::V2 => "v2",
         }
     }
 }
@@ -75,8 +81,9 @@ impl std::str::FromStr for TheoryVersion {
         match raw.trim().to_ascii_lowercase().as_str() {
             "v0" => Ok(TheoryVersion::V0),
             "v1" => Ok(TheoryVersion::V1),
+            "v2" => Ok(TheoryVersion::V2),
             other => Err(format!(
-                "unknown predicate theory version `{other}` (this build knows v0 and v1)"
+                "unknown predicate theory version `{other}` (this build knows v0, v1, and v2)"
             )),
         }
     }

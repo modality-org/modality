@@ -1356,3 +1356,98 @@ fn witnesses_are_commits_the_evaluator_accepts() {
     assert!(built > 5_000, "built {built}");
     assert!(in_state > 1_000, "in state {in_state}");
 }
+
+/// Case G6, after an unlabeled bootstrap: step one pins `/x` and `/y` and
+/// writes neither, so step two can never be taken. The model is accepted (contracts may end); the
+/// view and the pre-commit preview name the edge.
+#[test]
+fn an_edge_dead_after_a_step_is_a_warning_not_a_refusal() {
+    const G6: &str = r#"
+model Contract {
+  part flow {
+    q0 --> q1
+    q1 --> q2: +POST +num_gt(/x.num,"5") +num_lt(/y.num,"3") -modifies(/x.num) -modifies(/y.num)
+    q2 --> q3: +num_gt(/y.num,/x.num)
+  }
+}
+"#;
+    let bootstrap = model_commit(G6, vec![("/x.num", json!(7)), ("/y.num", json!(1))]);
+    validate(&[], &bootstrap, V1).expect("a dead end is not a dead edge");
+    let accepted = vec![bootstrap];
+    let view = derived_view("", &accepted, TheoryActivation::always(V1)).unwrap();
+    assert!(view.dead_edges.is_empty(), "{:?}", view.dead_edges);
+    let after: Vec<_> = view
+        .dead_after_step
+        .iter()
+        .map(|e| (e.from.as_str(), e.to.as_str(), e.offending.len()))
+        .collect();
+    assert_eq!(after, [("q2", "q3", 3)]);
+    let v0 = derived_view("", &accepted, TheoryActivation::V0).unwrap();
+    assert!(v0.dead_after_step.is_empty());
+
+    let report = shadow_findings("", &accepted, &note(), V1);
+    assert!(
+        report.findings.iter().any(|f| matches!(
+            f,
+            TheoryFinding::DeadAfterStep { from, to, .. } if from == "q2" && to == "q3"
+        )),
+        "{:?}",
+        report.findings
+    );
+
+    // Without the frame (case G5) step one may move `/x` and `/y`.
+    let g5 = G6.replace(" -modifies(/x.num) -modifies(/y.num)", "");
+    let view = derived_view(
+        "",
+        &[model_commit(
+            &g5,
+            vec![("/x.num", json!(7)), ("/y.num", json!(1))],
+        )],
+        TheoryActivation::always(V1),
+    )
+    .unwrap();
+    assert!(view.dead_after_step.is_empty());
+}
+
+/// Under `V2` a rule check drops edges state flow proves no run from the
+/// rule's anchor takes. The model itself is refused only as under `V1`.
+#[test]
+fn v2_rule_checks_drop_edges_no_run_from_the_anchor_takes() {
+    const FLAG: &str = r#"
+model Contract {
+  part flow {
+    b0 --> q0
+    q0 --> q1: +POST
+    q1 --> q2: +POST +bool_true(/f.bool) -modifies(/f.bool)
+    q2 --> q3: +POST +bool_false(/f.bool)
+  }
+}
+"#;
+    let v2 = TheoryVersion::V2;
+    let bootstrap = model_commit(FLAG, vec![("/f.bool", json!(true))]);
+    validate(&[], &bootstrap, v2).expect("V2 refuses no model V1 accepts");
+    let accepted = vec![bootstrap];
+
+    let diamond = rule_commit(r#"<+bool_true(/f.bool)> <+bool_false(/f.bool)> true"#);
+    validate(&accepted, &diamond, V1).expect("V1 judges one edge at a time");
+    let err = validate(&accepted, &diamond, v2)
+        .expect_err("V2 refuses")
+        .to_string();
+    assert!(err.contains("Model violates rule"), "{err}");
+    assert!(
+        err.contains("dropped transitions no run from q1 takes"),
+        "{err}"
+    );
+    assert!(err.contains("q2 --> q3"), "{err}");
+
+    let boxed = rule_commit(r#"[+bool_true(/f.bool)] [+bool_false(/f.bool)] false"#);
+    validate(&accepted, &boxed, V1).expect_err("V1 counts q2 --> q3");
+    validate(&accepted, &boxed, v2).expect("V2 knows no run takes it");
+    validate(&then(&accepted, &boxed), &note(), v2).expect("and replays");
+
+    // From the anchor nothing is known yet: one step is still possible.
+    let one = rule_commit(r#"<+bool_false(/f.bool)> true"#);
+    validate(&accepted, &one, v2).expect_err("q1 --> q2 needs /f.bool true");
+    let from_q1 = rule_commit(r#"<+bool_true(/f.bool)> true"#);
+    validate(&accepted, &from_q1, v2).expect("q1 --> q2 is open");
+}

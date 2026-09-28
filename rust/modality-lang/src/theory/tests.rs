@@ -705,6 +705,120 @@ fn f3_opaque_alone_derives_nothing() {
 
 // --- G. model and rule commits -----------------------------------------------
 
+/// Dead-after-step edges of `m` under `V1`, as `from --> to`, run from `q0`.
+fn dead_after(m: &str) -> Vec<String> {
+    ModelChecker::with_version(model(m), TheoryVersion::V1)
+        .dead_after_step(&["q0".to_string()])
+        .iter()
+        .map(|e| format!("{} --> {}", e.from, e.to))
+        .collect()
+}
+
+#[test]
+fn g5_two_steps_without_a_frame_are_not_dead() {
+    let m = r#"
+model Contract {
+  part flow {
+    q0 --> q1: +num_gt(/x.num,"5") +num_lt(/y.num,"3")
+    q1 --> q2: +num_gt(/y.num,/x.num)
+  }
+}
+"#;
+    assert!(dead_after(m).is_empty());
+}
+
+const G6: &str = r#"
+model Contract {
+  part flow {
+    q0 --> q1: +num_gt(/x.num,"5") +num_lt(/y.num,"3") -modifies(/x.num) -modifies(/y.num)
+    q1 --> q2: +num_gt(/y.num,/x.num)
+  }
+}
+"#;
+
+#[test]
+fn g6_two_steps_with_a_frame_are_a_dead_end() {
+    assert_eq!(dead_after(G6), ["q1 --> q2"]);
+    let c = ModelChecker::with_version(model(G6), TheoryVersion::V1);
+    let edge = &c.dead_after_step(&["q0".to_string()])[0];
+    assert_eq!(edge.offending.len(), 3, "{:?}", edge.offending);
+    assert!(c.dead_transitions().is_empty(), "only dead after a step");
+    assert!(ModelChecker::with_version(model(G6), TheoryVersion::V0)
+        .dead_after_step(&["q0".to_string()])
+        .is_empty());
+    // The rule that G5 and G6 share is accepted either way: a lint.
+    let rule = r#"[-num_gt(/x.num,"5")] false & [-num_lt(/y.num,"3")] false & [] [-num_gt(/y.num,/x.num)] false"#;
+    assert!(rule_accepted(G6, rule, TheoryVersion::V1));
+}
+
+#[test]
+fn facts_hold_only_when_every_way_in_carries_them() {
+    // A frame under a directory keeps every path below it.
+    let m = r#"
+model Contract {
+  part flow {
+    q0 --> q1: +bool_true(/f/a.bool) -modifies(/f)
+    q1 --> q1: +POST -modifies(/f)
+    q1 --> q2: +bool_false(/f/a.bool)
+  }
+}
+"#;
+    assert_eq!(dead_after(m), ["q1 --> q2"]);
+    // A second way into q1 that may write the flag.
+    let two = m.replace("    q1 --> q2:", "    q0 --> q1: +POST\n    q1 --> q2:");
+    assert!(dead_after(&two).is_empty());
+    // A loop that may write it.
+    let looped = m.replace("q1 --> q1: +POST -modifies(/f)", "q1 --> q1: +POST");
+    assert!(dead_after(&looped).is_empty());
+    // A frame on a sibling does not count.
+    let sibling = m.replace(
+        "-modifies(/f)\n    q1 --> q1",
+        "-modifies(/g)\n    q1 --> q1",
+    );
+    assert!(dead_after(&sibling).is_empty());
+}
+
+#[test]
+fn an_edge_that_falls_carries_nothing_into_its_target() {
+    // q1 --> q2 falls, so q2 is reached only from q3, which carries
+    // x > 1: q2 --> q4 falls too. Had q1 --> q2 still counted, the two
+    // ways in would share no fact and q2 --> q4 would stand.
+    let m = r#"
+model Contract {
+  part flow {
+    q0 --> q1: +num_gt(/x.num,"5") -modifies(/x.num)
+    q1 --> q2: +num_lt(/x.num,"3") -modifies(/x.num)
+    q0 --> q3
+    q3 --> q2: +num_gt(/x.num,"1") -modifies(/x.num)
+    q2 --> q4: +num_lt(/x.num,"0")
+  }
+}
+"#;
+    assert_eq!(dead_after(m), ["q1 --> q2", "q2 --> q4"]);
+    // Without q3, no run reaches q2, and nothing past it is reported.
+    let unreached = m.replace("    q0 --> q3\n", "");
+    assert_eq!(dead_after(&unreached), ["q1 --> q2"]);
+}
+
+#[test]
+fn signatures_and_writes_are_not_carried() {
+    let m = r#"
+model Contract {
+  part flow {
+    q0 --> q1: +signed_by(/p/a.id) +modifies(/w) -modifies(/p) -modifies(/w)
+    q1 --> q2: -signed_by(/p/a.id) -modifies(/w)
+  }
+}
+"#;
+    // q0 --> q1 is dead on its own (`+modifies(/w)` with `-modifies(/w)`).
+    assert!(dead_after(m).is_empty());
+    let m = m.replace(
+        " +modifies(/w) -modifies(/p) -modifies(/w)",
+        " -modifies(/p)",
+    );
+    assert!(dead_after(&m).is_empty());
+}
+
 const G_DEAD: &str = r#"
 model Contract {
   part flow {
@@ -752,6 +866,110 @@ model Contract {
     let rule = r#"[] always(<+num_gt(/x.num,"5")> true)"#;
     assert!(!rule_accepted(m, rule, TheoryVersion::V0));
     assert!(rule_accepted(m, rule, TheoryVersion::V1));
+}
+
+#[test]
+fn g11_diamond_labels_hold_together_with_the_edge() {
+    let m = r#"
+model Contract {
+  part flow {
+    q0 --> q1: +num_eq(/x.num,/y.num)
+  }
+}
+"#;
+    let rule = r#"<+num_gt(/x.num,"5") +num_lt(/y.num,"3")> true"#;
+    assert!(!rule_accepted(m, rule, TheoryVersion::V1));
+    let each = r#"<+num_gt(/x.num,"5")> true & <+num_lt(/y.num,"3")> true"#;
+    assert!(rule_accepted(m, each, TheoryVersion::V1));
+}
+
+const G_FLAG: &str = r#"
+model Contract {
+  part flow {
+    q0 --> q1: +bool_true(/f.bool) -modifies(/f.bool)
+    q1 --> q2: +bool_false(/f.bool)
+  }
+}
+"#;
+
+#[test]
+fn g13_v2_rule_checks_drop_edges_no_run_takes() {
+    let diamond = r#"<+bool_true(/f.bool)> <+bool_false(/f.bool)> true"#;
+    assert!(rule_accepted(G_FLAG, diamond, TheoryVersion::V1));
+    assert!(!rule_accepted(G_FLAG, diamond, TheoryVersion::V2));
+
+    let boxed = r#"[+bool_true(/f.bool)] [+bool_false(/f.bool)] false"#;
+    assert!(!rule_accepted(G_FLAG, boxed, TheoryVersion::V1));
+    assert!(rule_accepted(G_FLAG, boxed, TheoryVersion::V2));
+
+    let m = model(G_FLAG);
+    for v in [TheoryVersion::V1, TheoryVersion::V2] {
+        assert!(ModelChecker::with_version(m.clone(), v)
+            .dead_transitions()
+            .is_empty());
+    }
+}
+
+#[test]
+fn g14_v2_flow_starts_at_the_evaluation_node() {
+    let rule = formula(r#"<+bool_false(/f.bool)> true"#);
+    let checker = ModelChecker::with_version(model(G_FLAG), TheoryVersion::V2);
+    assert!(checker.check_formula_at_state(&rule, "q1").is_satisfied);
+    let later = formula(r#"<+bool_true(/f.bool)> <+bool_false(/f.bool)> true"#);
+    assert!(!checker.check_formula_at_state(&later, "q0").is_satisfied);
+}
+
+#[test]
+fn g15_v2_carries_nothing_through_a_model_with_variables() {
+    let m = r#"
+model Contract {
+  part flow {
+    q0 --> q1: +bool_true(/c/$k.bool) -modifies(/c/$k.bool) +signed_by(/c/$k.id)
+    q1 --> q2: +bool_false(/c/a.bool)
+  }
+}
+"#;
+    let rule = r#"<+bool_true(/c/a.bool)> <+bool_false(/c/a.bool)> true"#;
+    assert!(rule_accepted(m, rule, TheoryVersion::V1));
+    assert!(rule_accepted(m, rule, TheoryVersion::V2));
+}
+
+#[test]
+fn v2_rule_checks_match_v1_without_frames() {
+    for rule in [
+        r#"[-num_gt(/x.num,"5")] false & [-num_lt(/y.num,"3")] false & [] [-num_gt(/y.num,/x.num)] false"#,
+        r#"[] <+num_gt(/y.num,/x.num)> true"#,
+    ] {
+        let g5 = r#"
+model Contract {
+  part flow {
+    q0 --> q1: +num_gt(/x.num,"5") +num_lt(/y.num,"3")
+    q1 --> q2: +num_gt(/y.num,/x.num)
+  }
+}
+"#;
+        assert_eq!(
+            rule_accepted(g5, rule, TheoryVersion::V1),
+            rule_accepted(g5, rule, TheoryVersion::V2),
+            "{rule}"
+        );
+    }
+}
+
+#[test]
+fn g12_diamond_labels_that_contradict_each_other_meet_no_edge() {
+    let m = r#"
+model Contract {
+  part flow {
+    q0 --> q1
+  }
+}
+"#;
+    let rule = r#"<+num_gt(/x.num,"5") +num_lt(/x.num,"3")> true"#;
+    assert!(rule_accepted(m, rule, TheoryVersion::V0));
+    assert!(!rule_accepted(m, rule, TheoryVersion::V1));
+    let boxed = r#"[+num_gt(/x.num,"5") +num_lt(/x.num,"3")] false"#;
+    assert!(!rule_accepted(m, boxed, TheoryVersion::V1));
 }
 
 const G_TWO_STEP_RULE: &str = r#"[-num_gt(/x.num,"5")] false & [-num_lt(/y.num,"3")] false & [] [-num_gt(/y.num,/x.num)] false"#;
@@ -1823,6 +2041,126 @@ fn rust_and_lean_agree_on_variable_edges() {
         disagreements
             .iter()
             .take(12)
+            .cloned()
+            .collect::<Vec<_>>()
+            .join("\n")
+    );
+}
+
+/// A random model over four nodes, with order, boolean, text and presence
+/// labels and frequent `-modifies` frames, so facts are carried.
+fn random_flow_case(next: &mut impl FnMut() -> u64) -> Vec<(String, Vec<Property>, String)> {
+    const NODES: [&str; 4] = ["q0", "q1", "q2", "q3"];
+    const CONSTS: [&str; 4] = ["0", "1", "3", "5"];
+    let mut pick = |n: usize| (next() % n as u64) as usize;
+    (0..2 + pick(5))
+        .map(|_| {
+            let from = NODES[pick(3)].to_string();
+            let to = NODES[1 + pick(3)].to_string();
+            let mut props = Vec::new();
+            for _ in 0..pick(4) {
+                let negated = pick(4) == 0;
+                let (name, args): (&str, Vec<&str>) = match pick(10) {
+                    0 | 1 => (
+                        ["num_gt", "num_lt", "num_gte", "num_lte"][pick(4)],
+                        vec![["/x.num", "/y.num"][pick(2)], CONSTS[pick(4)]],
+                    ),
+                    2 => ("num_gt", vec!["/y.num", "/x.num"]),
+                    3 => (["bool_true", "bool_false"][pick(2)], vec!["/f/a.bool"]),
+                    4 => ("text_eq", vec!["/t.text", ["K", "L"][pick(2)]]),
+                    5 => ("state_exists", vec![["/x.num", "/f/a.bool"][pick(2)]]),
+                    6 => ("signed_by", vec!["/p/a.id"]),
+                    _ => {
+                        props.push(n(
+                            "modifies",
+                            &[["/x.num", "/y.num", "/f", "/t.text"][pick(4)]],
+                        ));
+                        continue;
+                    }
+                };
+                props.push(if negated {
+                    n(name, &args)
+                } else {
+                    p(name, &args)
+                });
+            }
+            // Often the edge writes none of the state the labels read.
+            if pick(2) == 0 {
+                for path in ["/x.num", "/y.num", "/f", "/t.text"] {
+                    props.push(n("modifies", &[path]));
+                }
+            }
+            (from, props, to)
+        })
+        .collect()
+}
+
+/// Random models: the facts `flow` computes must be closed (`closedB`)
+/// and every edge it reports dead after a step must be `dead` with its
+/// node's facts, both by the Lean checker. With `flow_sound` and
+/// `dead_after_sound`, no run takes a reported edge. Run by
+/// `experiments/predicate-theory/lean/agree.sh`.
+#[test]
+#[ignore = "needs the Lean checker; set PT_CHECK"]
+fn rust_and_lean_agree_on_flow() {
+    use super::flow::{flow, FlowEdge};
+    let (bin, rounds, mut next) = harness(20_000);
+    let th = v1();
+    let mut requests = Vec::new();
+    let mut reported = 0;
+    for _ in 0..rounds {
+        let case = random_flow_case(&mut next);
+        let edges: Vec<FlowEdge> = case
+            .iter()
+            .map(|(from, props, to)| FlowEdge {
+                from: from.clone(),
+                to: to.clone(),
+                lits: Some(th.expand_all(props).0),
+            })
+            .collect();
+        let f = flow(&edges, &["q0".to_string()]);
+        reported += f.dead_after.len();
+        let lits = |ls: &[Lit]| ls.iter().map(lit_json).collect::<Vec<_>>();
+        let arcs: Vec<_> = edges
+            .iter()
+            .map(|e| serde_json::json!([e.from, lits(e.lits.as_ref().unwrap()), e.to]))
+            .collect();
+        let facts: Vec<_> = f
+            .facts
+            .iter()
+            .map(|(n, ls)| serde_json::json!([n, lits(ls)]))
+            .collect();
+        let dead_after: Vec<usize> = f.dead_after.iter().map(|(i, _)| *i).collect();
+        requests.push(
+            serde_json::json!({ "flow": {
+                "arcs": arcs, "init": ["q0"], "facts": facts, "dead_after": dead_after,
+            }})
+            .to_string(),
+        );
+    }
+    let answers = ask_lean(&bin, requests.iter());
+    let problems: Vec<String> = requests
+        .iter()
+        .zip(&answers)
+        .filter(|(_, got)| {
+            got.get("error").is_some()
+                || got["closed"] != true
+                || got["dead"]
+                    .as_array()
+                    .is_none_or(|d| d.iter().any(|b| *b != true))
+        })
+        .map(|(line, got)| format!("lean {got}\n  {line}"))
+        .collect();
+    eprintln!(
+        "{rounds} models, {reported} edges dead after a step, {} not certified",
+        problems.len()
+    );
+    assert!(
+        problems.is_empty(),
+        "Lean does not certify the flow:\n{}",
+        problems
+            .iter()
+            .take(8)
             .cloned()
             .collect::<Vec<_>>()
             .join("\n")

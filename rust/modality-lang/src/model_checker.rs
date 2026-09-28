@@ -64,6 +64,10 @@ pub struct ModelChecker {
     state: Option<Arc<dyn StateView + Send + Sync>>,
     /// `(part index, transition index)` of edges the theory proved dead.
     dead: HashSet<(usize, usize)>,
+    /// Under `V2`, edges state flow proves no run from `start` takes.
+    never: HashSet<(usize, usize)>,
+    /// The node a `V2` rule check is evaluated from.
+    start: Option<String>,
 }
 
 impl ModelChecker {
@@ -111,6 +115,8 @@ impl ModelChecker {
             registry,
             state,
             dead: HashSet::new(),
+            never: HashSet::new(),
+            start: None,
         };
         checker.dead = checker.compute_dead();
         checker
@@ -225,12 +231,18 @@ impl ModelChecker {
             &names,
             fprops.iter().copied().chain(mprops.iter().copied()),
         );
-        let ground = ModelChecker::with_shared(
+        let mut ground = ModelChecker::with_shared(
             vars::ground_model(&self.model, &names, &fill),
             self.version,
             self.registry.clone(),
             self.state.clone(),
         );
+        if let Some(start) = &self.start {
+            if !vars::any_vars(mprops.iter().copied()) {
+                ground.start = Some(start.clone());
+                ground.never = ground.never_from(start);
+            }
+        }
         let formulas = vars::assignments(&rule_vars, &names)
             .iter()
             .map(|env| vars::substitute_formula(expr, env))
@@ -262,16 +274,21 @@ impl ModelChecker {
         self.model.parts.iter().position(|p| std::ptr::eq(p, part))
     }
 
-    /// Transitions of a part that the theory has not proved dead.
+    /// Transitions of a part that the theory has not proved dead, or, from
+    /// a `V2` start node, never taken.
     fn live_transitions<'a>(&self, part: &'a Part) -> Vec<&'a Transition> {
-        if self.dead.is_empty() {
+        if self.dead.is_empty() && self.never.is_empty() {
             return part.transitions.iter().collect();
         }
         let pi = self.part_index(part);
         part.transitions
             .iter()
             .enumerate()
-            .filter(|(ti, _)| pi.is_none_or(|pi| !self.dead.contains(&(pi, *ti))))
+            .filter(|(ti, _)| {
+                pi.is_none_or(|pi| {
+                    !self.dead.contains(&(pi, *ti)) && !self.never.contains(&(pi, *ti))
+                })
+            })
             .map(|(_, t)| t)
             .collect()
     }
@@ -305,6 +322,83 @@ impl ModelChecker {
                         .unwrap_or_default(),
                 }
             })
+            .collect()
+    }
+
+    /// Edges no commit takes once the contract is under way from `initial`:
+    /// the facts every way into their node carries contradict their labels
+    /// (theory state flow, `theory::flow`). A lint under `V1`; under `V2` a
+    /// rule check from a node drops the edges this finds from it. The
+    /// offending literals include the carried facts. Empty under `V0`.
+    pub fn dead_after_step(&self, initial: &[String]) -> Vec<DeadEdge> {
+        self.flow_from(initial)
+            .into_iter()
+            .map(|((pi, ti), offending)| {
+                let part = &self.model.parts[pi];
+                let t = &part.transitions[ti];
+                DeadEdge {
+                    part_name: part.name.clone(),
+                    from: t.from.clone(),
+                    to: t.to.clone(),
+                    properties: t.properties.clone(),
+                    offending,
+                }
+            })
+            .collect()
+    }
+
+    /// State flow over every part's edges from `initial`, without accepted
+    /// state: the position of each edge dead after a step, and why.
+    fn flow_from(&self, initial: &[String]) -> Vec<((usize, usize), Vec<String>)> {
+        if self.version == TheoryVersion::V0 {
+            return Vec::new();
+        }
+        let registry: &dyn Registry = match &self.registry {
+            Some(r) => r.as_ref(),
+            None => standard(),
+        };
+        let theory = Theory::new(self.version, registry, &NoState);
+        let mut at = Vec::new();
+        let mut edges = Vec::new();
+        for (pi, part) in self.model.parts.iter().enumerate() {
+            for (ti, t) in part.transitions.iter().enumerate() {
+                let lits =
+                    (!vars::any_vars(&t.properties)).then(|| theory.expand_all(&t.properties).0);
+                edges.push(crate::theory::flow::FlowEdge {
+                    from: t.from.clone(),
+                    to: t.to.clone(),
+                    lits,
+                });
+                at.push((pi, ti));
+            }
+        }
+        crate::theory::flow::flow(&edges, initial)
+            .dead_after
+            .into_iter()
+            .map(|(i, why)| (at[i], why.iter().map(ToString::to_string).collect()))
+            .collect()
+    }
+
+    /// Under `V2`, the edges a rule check from `node` drops, with why.
+    pub fn never_taken_from(&self, node: &str) -> Vec<DeadEdge> {
+        if self.never_from(node).is_empty() {
+            return Vec::new();
+        }
+        self.dead_after_step(&[node.to_string()])
+    }
+
+    /// Under `V2`, the edges no run from `node` takes. Empty for a model
+    /// with variables: its instances stand for edges with names the flow
+    /// does not see.
+    fn never_from(&self, node: &str) -> HashSet<(usize, usize)> {
+        if self.version != TheoryVersion::V2
+            || vars::any_vars(vars::model_props(&self.model).iter().copied())
+        {
+            return HashSet::new();
+        }
+        self.flow_from(&[node.to_string()])
+            .into_iter()
+            .map(|(at, _)| at)
             .collect()
     }
 
@@ -391,7 +485,21 @@ impl ModelChecker {
     /// Check if a formula is satisfied starting from a specific witness node id
     ///
     /// Returns satisfied if the named witness node is among the nodes that satisfy the formula
+    ///
+    /// Under `V2` the check runs from `state_name` with nothing known about
+    /// accepted state there, and drops the edges no run from it takes.
     pub fn check_formula_at_state(&self, formula: &Formula, state_name: &str) -> ModelCheckResult {
+        if self.version == TheoryVersion::V2 && self.start.as_deref() != Some(state_name) {
+            let mut scoped = ModelChecker::with_shared(
+                self.model.clone(),
+                self.version,
+                self.registry.clone(),
+                self.state.clone(),
+            );
+            scoped.start = Some(state_name.to_string());
+            scoped.never = scoped.never_from(state_name);
+            return scoped.check_formula_at_state(formula, state_name);
+        }
         let satisfying_states = self.satisfying(&formula.expression);
 
         // Check if any satisfying state has this node name
@@ -850,7 +958,9 @@ impl ModelChecker {
     /// - the edge's atoms entail the property → usable (`x>7` for `x>5`)
     /// - the edge's atoms plus the property are inconsistent → not usable
     ///
-    /// and the structural rule above decides the rest.
+    /// and the structural rule above decides the rest. For a diamond the edge
+    /// is also not usable when its atoms and all the labels together are
+    /// inconsistent: one commit has to meet every label at once.
     ///
     /// `whole_atom` is set for boxes: "mentions" then means the same predicate
     /// with the same arguments. A box has to range over every edge a commit
@@ -868,6 +978,13 @@ impl ModelChecker {
         } else {
             Some(self.theory())
         };
+        if let Some(theory) = theory.as_ref().filter(|_| !whole_atom) {
+            let mut with = transition.properties.clone();
+            with.extend(properties.iter().cloned());
+            if theory.consistent(&with).tri == Tri::False {
+                return false;
+            }
+        }
         properties.iter().all(|property| {
             // Check if transition explicitly has this property
             let has_explicit = transition.properties.iter().any(|p| p == property);

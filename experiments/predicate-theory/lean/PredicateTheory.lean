@@ -8,6 +8,7 @@ import PredicateTheory.Runtime
 import PredicateTheory.Vars
 import PredicateTheory.Elab
 import PredicateTheory.Spec
+import PredicateTheory.Flow
 import PredicateTheory.Cases
 import PredicateTheory.Generated
 
@@ -38,6 +39,10 @@ Modality's predicate theory, stated and proved in Lean (4.14, no Mathlib):
   variables.
 - `Spec`: the verdicts the model checker asks for (`consistent`,
   `entailsV`, `runtime`) on labels as written, and what they mean.
+- `Flow`: state flow along a model. `carry_sound`: a literal over paths
+  an edge forbids writing survives the commit; `flow_sound`: facts closed
+  under that hold on every run; `dead_after_sound`: an edge that
+  contradicts its node's facts is never taken. `closedB` decides closure.
 - `Cases`: an escrow edge with a copy-paste slip, decided by the proven
   checker; and a "simpler" checker that Lean proves wrong.
 - `Generated`: every case in `../cases.json`, written by `gen_cases.py`.

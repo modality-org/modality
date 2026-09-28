@@ -432,6 +432,15 @@ fn theory_preview(
             TheoryFinding::DeclarationUnparsed { module } => details.push(format!(
                 "the declaration for {module} is outside the theory; its predicate stays opaque"
             )),
+            TheoryFinding::DeadAfterStep {
+                part,
+                from,
+                to,
+                offending,
+            } => details.push(format!(
+                "warning (modality/dead-end-after-step): {part}: {from} --> {to} is never taken once the contract is under way; cannot hold together: {}",
+                offending.join(", ")
+            )),
         }
     }
     verdicts.extend(details);

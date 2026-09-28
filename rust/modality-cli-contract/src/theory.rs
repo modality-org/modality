@@ -11,7 +11,7 @@ pub struct Opts {
     #[clap(long)]
     dir: Option<PathBuf>,
 
-    /// Predicate theory version to preview (v0 or v1)
+    /// Predicate theory version to preview (v0, v1, or v2)
     #[clap(long, default_value = "v1")]
     theory: String,
 
@@ -69,6 +69,27 @@ pub async fn run(opts: &Opts) -> Result<()> {
                 format_properties(&edge.properties)
             );
             println!("       cannot hold together: {}", edge.offending.join(", "));
+        }
+    }
+
+    if !view.dead_after_step.is_empty() {
+        println!();
+        println!(
+            "  ⚠️  Dead after a step (modality/dead-end-after-step; a warning, contracts may end):"
+        );
+        for edge in &view.dead_after_step {
+            println!(
+                "     {}: {} --> {} [{}]",
+                edge.part_name,
+                edge.from,
+                edge.to,
+                format_properties(&edge.properties)
+            );
+            println!(
+                "       what arrives at {} contradicts it: {}",
+                edge.from,
+                edge.offending.join(", ")
+            );
         }
     }
 

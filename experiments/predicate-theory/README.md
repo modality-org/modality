@@ -58,6 +58,7 @@ Lean proves the same edge dead in `Cases.lean`.
 | `lean/PredicateTheory/Sound.lean` | `dead_sound`, `entails_sound`, `live_sound` |
 | `lean/PredicateTheory/Runtime.lean` | The same with accepted state known: `deadIn_sound`, `liveIn_sound` |
 | `lean/PredicateTheory/Vars.lean` | Edges with variables (`$k`) and holes (`!$k`): what taking one means, and `takesB`, which decides it from the commit's own paths |
+| `lean/PredicateTheory/Flow.lean` | State flow along a model: which facts survive an edge, facts closed over a model, and edges no run takes after a step |
 | `lean/PredicateTheory/Spec.lean` | The verdicts on labels as written, and what each one means |
 | `lean/PredicateTheory/Cases.lean` | The escrow, decided by the proven checker; a flawed checker refuted |
 | `lean/PredicateTheory/Generated.lean` | Every case in `cases.json`, as a theorem or checked example; written by `gen_cases.py` |
@@ -119,6 +120,21 @@ other such name. `takesB` therefore tries the prefixes of the world's
 segments plus one fresh name, and skips the fresh name in a hole's
 excluded slot.
 
+**State flow.** A commit changes accepted state only at the paths its
+actions name. On an edge with `-modifies(/x.num)`, a literal that reads
+only `/x.num` holds after the commit if it held before. The facts at a
+node are what every way into it carries, and nothing at an initial node.
+An edge whose literals are `dead` together with its node's facts is taken
+by no run. Checking a model does not refuse such an edge, because
+contracts may end; the tools warn (`modality/dead-end-after-step`). Under
+`V2` a rule check drops those edges, with the flow started at the rule's
+anchor state and nothing known there: after a model is replaced, facts
+from the model's initial states need not hold. Lean proves no run from
+the anchor takes a dropped edge (`dead_after_sound` with the anchor as
+the only initial node). That dropping it leaves every diamond and box a
+run can meet unchanged is argued, not proved: formulas are not in the
+Lean spec.
+
 ## Checked claims
 
 - `dead_sound`: if `dead` says the labels cannot hold together, no world
@@ -137,6 +153,12 @@ excluded slot.
 - `takesB_iff`: `takesB` is true exactly when some names take the edge;
   the faucet examples in `Vars.lean` (own slot yes, a neighbour's slot
   no) are decided by the kernel
+- `carry_sound`: a literal over paths the edge frames survives the
+  commit; `flow_sound`: closed facts hold at every node a run reaches,
+  whatever the next commit is; `dead_after_sound`: labels `dead` with a
+  node's facts are taken by no commit on any run; `closed_of_closedB`:
+  `closedB` decides closure; case G6 (`g6_second_step_never_taken`) by the
+  kernel
 - `Generated.lean`: all 62 cases in `cases.json`, as 71 theorems and 15
   checked examples (each `unknown` is checked to stay `unknown`)
 
@@ -184,8 +206,16 @@ with variables and holes in `signed_by`, `modifies`, `post_to_path`,
 state and commit. The Rust search (`rust/modality-lang/src/vars.rs`)
 tries fewer names than `takesB`: only segments at the position where the
 variable sits, in the paths that predicate reads. Its answer must match
-`takesB`. It runs 5,000 edges by default (`PT_ROUNDS` sets both
-harnesses); three seeds of 20,000 gave no disagreement.
+`takesB`. It runs 5,000 edges by default (`PT_ROUNDS` sets every
+harness); three seeds of 20,000 gave no disagreement.
+
+`rust_and_lean_agree_on_flow` draws models over four nodes with order,
+boolean, text, presence, and signer labels and frequent `-modifies`
+frames. It sends the facts the Rust flow (`theory/flow.rs`) computes to
+Lean. Lean must find them closed and every edge Rust reports `dead` with
+its node's facts; with `flow_sound`, no run takes a reported edge. Four
+seeds of 50,000 models (about 740 reported edges each) were all
+certified.
 
 ## What this does not claim
 
@@ -200,8 +230,13 @@ harnesses); three seeds of 20,000 gave no disagreement.
   inexact declarations, and some signer sets: for example, keys that
   must differ (`-text_eq(/a.id,/b.id)`) under a `-threshold` bound, which
   is graph colouring and is not decided.
-- Enforcement. The network validates with `V0`; `V1` refusals come from
-  the `*_with_theory` entry points in `rust/modality-common`. `V1` has
-  not been enforced on any network, and its dead verdicts were revised
-  (text classes joined through literals, keys known by literal, static
-  labels) before it was.
+- That state flow finds every edge no run takes. A fact crosses an edge
+  only when a `-modifies` label on that edge frames every path it reads.
+  What a posted value says, and signer literals, are never carried, and
+  an edge with variables carries nothing. The facts are sound, not the
+  strongest.
+- Enforcement. The network validates with `V0`; `V1` and `V2` refusals
+  come from the `*_with_theory` entry points in `rust/modality-common`.
+  Neither has been enforced on any network. `V1`'s dead verdicts were
+  revised (text classes joined through literals, keys known by literal,
+  static labels) before any network enforced it.

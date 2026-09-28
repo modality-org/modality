@@ -337,6 +337,15 @@ pub enum TheoryFinding {
     WouldAccept { refused_today_because: String },
     /// A committed declaration outside the fragment; its predicate is opaque.
     DeclarationUnparsed { module: String },
+    /// A transition no commit takes once the contract is under way: what
+    /// every way into its node leaves unchanged contradicts its labels. A
+    /// lint (`modality/dead-end-after-step`); contracts may end.
+    DeadAfterStep {
+        part: String,
+        from: String,
+        to: String,
+        offending: Vec<String>,
+    },
 }
 
 /// Shadow mode: the `V0` outcome, and what switching `theory` on at the
@@ -376,8 +385,17 @@ pub fn shadow_findings(
         for commit in accepted.iter().chain(std::iter::once(pending)) {
             apply_commit_to_state(commit, &mut after);
         }
-        for edge in rule_checker(&model, theory, &after).dead_transitions() {
+        let checker = rule_checker(&model, theory, &after);
+        for edge in checker.dead_transitions() {
             findings.push(TheoryFinding::DeadEdge {
+                part: edge.part_name,
+                from: edge.from,
+                to: edge.to,
+                offending: edge.offending,
+            });
+        }
+        for edge in checker.dead_after_step(&sorted_initial_states(&model)) {
+            findings.push(TheoryFinding::DeadAfterStep {
                 part: edge.part_name,
                 from: edge.from,
                 to: edge.to,
@@ -431,6 +449,9 @@ pub struct DerivedView {
     pub theory: String,
     pub current_states: Vec<String>,
     pub dead_edges: Vec<DeadEdge>,
+    /// Edges no commit takes once the contract is under way from the
+    /// model's initial states (a lint, not a refusal).
+    pub dead_after_step: Vec<DeadEdge>,
     pub unparsed_declarations: Vec<String>,
     pub moves: Vec<Move>,
 }
@@ -485,6 +506,7 @@ pub fn derived_view(
         theory: format!("{theory:?}"),
         current_states: current,
         dead_edges: checker.dead_transitions(),
+        dead_after_step: checker.dead_after_step(&sorted_initial_states(&model)),
         unparsed_declarations,
         moves,
     })
@@ -766,7 +788,7 @@ fn validate_anchored_rule(
         let result = checker.check_formula_at_state(&rule.formula, anchor);
         if !result.is_satisfied {
             let dead = checker.dead_transitions();
-            let theory_note = if dead.is_empty() {
+            let mut theory_note = if dead.is_empty() {
                 String::new()
             } else {
                 format!(
@@ -775,6 +797,15 @@ fn validate_anchored_rule(
                     format_dead_edges(&dead)
                 )
             };
+            let never = checker.never_taken_from(anchor);
+            if !never.is_empty() {
+                theory_note.push_str(&format!(
+                    "; predicate theory {:?} dropped transitions no run from {} takes: {}",
+                    theory,
+                    anchor,
+                    format_dead_edges(&never)
+                ));
+            }
             anyhow::bail!(
                 "Model violates rule '{}' anchored at accepted commit {} from states {:?}; failed anchor state: {}; satisfying states in replacement model: {}; formula: {}; counterexample: {}{}",
                 rule.formula.name,
@@ -1656,6 +1687,12 @@ fn ground_failures(properties: &[Property], facts: &CommitFacts) -> Vec<String> 
             }
         })
         .collect()
+}
+
+fn sorted_initial_states(model: &Model) -> Vec<String> {
+    let mut states: Vec<String> = initial_states(model).into_iter().collect();
+    states.sort();
+    states
 }
 
 fn initial_states(model: &Model) -> HashSet<String> {

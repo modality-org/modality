@@ -14,6 +14,9 @@ One JSON object per line on stdin, one per line on stdout.
   → {"verdict": ..., "exact": BOOL, "same": BOOL}
 {"edge": [LIT...], "world": WORLD}
   → {"takes": BOOL}
+{"flow": {"arcs": [[NODE, [LIT...], NODE]...], "init": [NODE...],
+          "facts": [[NODE, [LIT...]]...], "dead_after": [INDEX...]}}
+  → {"closed": BOOL, "dead": [BOOL...]}
 ```
 
 `verdict` is Lean's on the literals (with `state`, the runtime view).
@@ -21,7 +24,10 @@ One JSON object per line on stdin, one per line on stdout.
 `labels`, Lean elaborates them itself; `same` says its literals are the
 given ones (as sets), and `verdict` is on its own. With `edge`, paths may
 hold variables (`c/$k.id`) and holes (`c/$!k`), and `takes` is `takesB`:
-whether the commit takes the edge for some names.
+whether the commit takes the edge for some names. With `flow`, `closed`
+is `closedB` on the given facts (a node not listed is reached by no run),
+and `dead` says, for each listed arc, that its literals are `dead` with
+its source's facts: by `dead_after_sound`, no run takes it.
 
 ```
 LIT    := {"pos": BOOL, "atom": ATOM}
@@ -160,8 +166,34 @@ def sameSet (a b : List Lit) : Bool :=
   let b := b.map Lit.reduce
   a.all b.contains && b.all a.contains
 
+def getLits (j : Json) : Except String (List Lit) := do (← j.getArr?).toList.mapM getLit
+
+def flowAnswer (j : Json) : Except String Json := do
+  let arcs ← (← (← j.getObjVal? "arcs").getArr?).toList.mapM fun a => do
+    match (← a.getArr?).toList with
+    | [s, ls, d] => pure (⟨← s.getStr?, ← getLits ls, ← d.getStr?⟩ : Arc)
+    | _ => throw "arc"
+  let init ← (← (← j.getObjVal? "init").getArr?).toList.mapM getStr
+  let facts ← (← (← j.getObjVal? "facts").getArr?).toList.mapM fun f => do
+    match (← f.getArr?).toList with
+    | [n, ls] => pure (← n.getStr?, ← getLits ls)
+    | _ => throw "facts"
+  let deadAfter ← (← (← j.getObjVal? "dead_after").getArr?).toList.mapM fun i => i.getNat?
+  let dead := deadAfter.map fun i =>
+    match arcs.get? i with
+    | some a =>
+      match facts.lookup a.src with
+      | some Fn => PredicateTheory.dead (Fn ++ a.lits)
+      | none => false
+    | none => false
+  pure <| Json.mkObj [
+    ("closed", Json.bool (closedB arcs init facts)),
+    ("dead", Json.arr (dead.map Json.bool).toArray)]
+
 def answer (line : String) : Except String Json := do
   let j ← Json.parse line
+  if let .ok f := j.getObjVal? "flow" then
+    return ← flowAnswer f
   if let .ok edge := j.getObjVal? "edge" then
     let e ← (← edge.getArr?).toList.mapM getLit
     let w ← getWorld (← j.getObjVal? "world")

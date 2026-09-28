@@ -376,6 +376,9 @@ modal c theory [OPTIONS]
 
 Show what the predicate theory derives from the accepted contract:
 - dead edges: model transitions whose labels no commit can satisfy together;
+- edges dead after a step: transitions whose labels contradict what every way
+  into their state keeps unchanged (through `-modifies`), so no run takes them
+  (a warning; contracts may end);
 - committed `.theory.json` declarations the theory cannot read, whose predicates stay opaque;
 - each move out of the current state, marked as `open`, `blocked`, or `forced`.
 
@@ -388,7 +391,7 @@ one. The view is read-only. Sequencers and validators enforce the network's
 | Option | Description |
 |--------|-------------|
 | `--dir <DIR>` | Contract directory (defaults to current directory) |
-| `--theory <VERSION>` | Theory version to preview: `v1` (default) or `v0` |
+| `--theory <VERSION>` | Theory version to preview: `v1` (default), `v2`, or `v0` |
 | `--output <FORMAT>` | Output format: `text` or `json` |
 
 ## Pack / Unpack
