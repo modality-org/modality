@@ -659,7 +659,22 @@ pub async fn spawn_consensus_loop_with_checkpoints(
                     round += 1;
 
                     if round > 10 {
-                        ack_collector.cleanup_round(round - 10);
+                        let restored = ack_collector.cleanup_round(round - 10);
+                        if !restored.is_empty() {
+                            let n = restored.len();
+                            let mgr = datastore.lock().await;
+                            for event in restored {
+                                if let Err(e) = mgr.enqueue_sequencer_event(event).await {
+                                    log::warn!(
+                                        "Failed to restore uncertified sequencer event: {}",
+                                        e
+                                    );
+                                }
+                            }
+                            log::info!(
+                                "Restored {n} uncertified sequencer event(s) onto a later round"
+                            );
+                        }
                     }
 
                     let prev_round_certs = {

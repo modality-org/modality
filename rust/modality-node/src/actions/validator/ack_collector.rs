@@ -186,8 +186,12 @@ impl AckCollector {
         Some(block.clone())
     }
 
-    /// Clean up old entries for completed rounds
-    pub fn cleanup_round(&mut self, round: u64) {
+    /// Drop state for old rounds.
+    ///
+    /// Events from our own blocks that never collected a certificate are
+    /// returned so the caller can put them back on the sequencer queue.
+    /// Draining them into a draft that expires would drop the commits.
+    pub fn cleanup_round(&mut self, round: u64) -> Vec<serde_json::Value> {
         // Remove old pending acks
         self.pending_acks.retain(|(r, _), _| *r > round);
 
@@ -197,10 +201,21 @@ impl AckCollector {
         // Remove old already-acked markers
         self.already_acked.retain(|(r, _), _| *r > round);
 
+        let mut restored = Vec::new();
         // Remove old pending blocks (keep a few rounds for late acks)
         if round > 5 {
-            self.our_pending_blocks.retain(|r, _| *r > round - 5);
+            let keep_after = round - 5;
+            self.our_pending_blocks.retain(|r, block| {
+                if *r > keep_after {
+                    return true;
+                }
+                if block.cert.is_none() {
+                    restored.extend(block.events.iter().cloned());
+                }
+                false
+            });
         }
+        restored
     }
 }
 
