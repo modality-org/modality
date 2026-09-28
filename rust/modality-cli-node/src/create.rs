@@ -246,6 +246,20 @@ pub async fn run(opts: &Opts) -> Result<()> {
 
             println!("✅ Loaded identity: {}", kp.as_public_address());
 
+            let same_file = match (from_passfile.canonicalize(), passfile_path.canonicalize()) {
+                (Ok(a), Ok(b)) => a == b,
+                _ => false,
+            };
+            if !same_file {
+                std::fs::copy(from_passfile, &passfile_path).with_context(|| {
+                    format!(
+                        "Failed to copy passfile from {} to {}",
+                        from_passfile.display(),
+                        passfile_path.display()
+                    )
+                })?;
+            }
+
             // When loading from imported passfile, we don't generate new mnemonic info
             (kp, None, None, true)
         } else if existing_passfile {

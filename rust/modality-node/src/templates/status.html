@@ -197,6 +197,13 @@
             color: var(--text);
             font-weight: 650;
         }}
+        .pulse a {{
+            color: inherit;
+            text-decoration: none;
+        }}
+        .pulse a:hover strong {{
+            color: var(--accent);
+        }}
         h2 {{
             color: var(--accent);
             font-size: 1.3em;
@@ -240,6 +247,14 @@
             padding: 16px 18px;
             text-align: left;
         }}
+        a.stat-box {{
+            display: block;
+            text-decoration: none;
+            color: inherit;
+        }}
+        a.stat-box:hover {{
+            border-color: var(--accent);
+        }}
         .stat-label {{
             color: var(--dim);
             font-size: 0.9em;
@@ -282,6 +297,7 @@
             border-radius: 999px;
             font-size: 0.85em;
             font-weight: 600;
+            text-decoration: none;
         }}
         .role-chip.on {{
             border-color: var(--accent);
@@ -588,6 +604,27 @@
             if (tabName === 'miners' && scope === 'all') loadChainCompare();
             if (tabName === 'sequencers' && scope === 'all') loadSequencerCompare();
             if (tabName === 'validators' && scope === 'all') loadValidatorCompare();
+            scrollToHash();
+        }}
+        function scrollToHash() {{
+            var hash = location.hash;
+            if (!hash || hash.length < 2) return;
+            var el = document.getElementById(decodeURIComponent(hash.slice(1)));
+            if (el && el.scrollIntoView) el.scrollIntoView({{ block: 'center' }});
+        }}
+        function followStatusLink(href) {{
+            var url = new URL(href, location.origin);
+            var next = url.pathname + url.search + url.hash;
+            var current = location.pathname + location.search + location.hash;
+            if (next !== current) history.pushState({{}}, '', next);
+            var tab = tabFromPath(url.pathname);
+            if (tab === 'contracts') loadedKey = null;
+            showTab(tab);
+            if (tab === 'contracts') {{
+                var field = document.getElementById('qid');
+                var id = contractIdFromPath();
+                if (field) field.value = id || '';
+            }}
         }}
         function scopeClick(ev, scope) {{
             if (ev.metaKey || ev.ctrlKey || ev.shiftKey || ev.altKey || ev.button !== 0) return true;
@@ -778,6 +815,7 @@
                 (commitRows || '<tr><td colspan="5" class="tab-copy">No commits</td></tr>') +
                 '</tbody></table></div>' +
                 (replay ? '<div class="status-card"><h2>Replay artifact</h2>' + jsonBlock(replay.report || replay) + '</div>' : '');
+            scrollToHash();
         }}
         function loadContracts() {{
             var id = contractIdFromPath();
@@ -854,6 +892,17 @@
                     loadContracts();
                 }});
             }}
+            document.addEventListener('click', function (ev) {{
+                if (ev.defaultPrevented) return;
+                if (ev.metaKey || ev.ctrlKey || ev.shiftKey || ev.altKey || ev.button !== 0) return;
+                var link = ev.target.closest && ev.target.closest('a[href]');
+                if (!link || link.target === '_blank') return;
+                var href = link.getAttribute('href');
+                if (!href || href.charAt(0) !== '/') return;
+                if (href.indexOf('/status.json') === 0 || href.indexOf('/chain.json') === 0 || href.indexOf('/api/') === 0) return;
+                ev.preventDefault();
+                followStatusLink(href);
+            }});
             window.addEventListener('popstate', function () {{
                 // Back and forward move between tab paths; follow the path
                 // without pushing a new entry.
@@ -954,7 +1003,7 @@
                 var rel = relationText(c, live, common);
                 var tip = c.data ? ('#' + c.data.tip_index + ' · <code>' + esc(shortId(c.data.tip_hash, 8)) + '</code>') : '—';
                 var diff = c.data ? c.data.cumulative_difficulty : '—';
-                return '<div class="tip-card lane-' + (i % 6) + '"><h3>' + esc(c.label) + '</h3><div>' + tip + '</div><div class="tab-copy" style="margin:4px 0 0">Difficulty ' + esc(diff) + '</div><div class="' + rel.cls + '">' + esc(rel.text) + '</div></div>';
+                return '<div class="tip-card lane-' + (i % 6) + '"><h3>' + nodeLink(c, 'miners') + '</h3><div>' + tip + '</div><div class="tab-copy" style="margin:4px 0 0">Difficulty ' + esc(diff) + '</div><div class="' + rel.cls + '">' + esc(rel.text) + '</div></div>';
             }}).join('');
             var from = common ? common.index : Math.max(0, maxTip - 24);
             if (live.length < 2) {{
@@ -1069,9 +1118,9 @@
             if (!view.querySelector('.fork-board')) view.innerHTML = '<p class="tab-copy">Reading tips…</p>';
             Promise.all(picks.map(function (pick) {{
                 return fetchJson(chainUrl(pick)).then(function (data) {{
-                    return {{ data: data, error: '', label: pick.label, peer_id: pick.peer_id }};
+                    return {{ data: data, error: '', label: pick.label, peer_id: pick.peer_id, status_url: pick.status_url, self: pick.self }};
                 }}).catch(function (e) {{
-                    return {{ data: null, error: e.message || 'Unreachable', label: pick.label, peer_id: pick.peer_id }};
+                    return {{ data: null, error: e.message || 'Unreachable', label: pick.label, peer_id: pick.peer_id, status_url: pick.status_url, self: pick.self }};
                 }});
             }})).then(function (chains) {{
                 if (seq !== chainSeq) return;
@@ -1099,13 +1148,52 @@
         function idKey(list) {{
             return (list || []).map(String).sort().join('\n');
         }}
-        function memberCell(ids, size) {{
+        function anchorKind(page) {{
+            if (page === 'sequencers') return 'sequencer';
+            if (page === 'validators') return 'validator';
+            if (page === 'nodes') return 'node';
+            return page;
+        }}
+        function peerHref(peerId, page, choices) {{
+            var match = null;
+            (choices || []).forEach(function (c) {{ if (c.peer_id === peerId) match = c; }});
+            if (match && !match.self && match.status_url) {{
+                return String(match.status_url).replace(/\/$/, '') + '/' + page;
+            }}
+            return '/' + page + '#' + anchorKind(page) + '-' + encodeURIComponent(peerId);
+        }}
+        function peerLink(peerId, page, choices, label) {{
+            var href = peerHref(peerId, page, choices);
+            var external = href.indexOf('http') === 0;
+            return '<a href="' + esc(href) + '"' + (external ? ' target="_blank" rel="noopener"' : '') + ' title="' + esc(peerId) + '"><code>' + esc(label || shortId(peerId, 4)) + '</code></a>';
+        }}
+        function roleLinks(role) {{
+            if (!role) return '—';
+            return String(role).split('+').map(function (part) {{
+                var href = part === 'Miner' ? '/miners' : part === 'Sequencer' ? '/sequencers' : part === 'Validator' ? '/validators' : '';
+                return href ? '<a href="' + href + '">' + esc(part) + '</a>' : esc(part);
+            }}).join('+');
+        }}
+        function nodeLink(pick, page) {{
+            var href = '/' + page;
+            var external = false;
+            if (pick && !pick.self && pick.status_url) {{
+                href = String(pick.status_url).replace(/\/$/, '') + '/' + page;
+                external = true;
+            }} else if (pick && !pick.self && pick.peer_id) {{
+                href = '/nodes#node-' + encodeURIComponent(pick.peer_id);
+            }}
+            return '<a href="' + esc(href) + '"' + (external ? ' target="_blank" rel="noopener"' : '') + '>' + esc(pick ? pick.label : '—') + '</a>';
+        }}
+        function memberCell(ids, size, page, choices) {{
             if (Array.isArray(ids)) {{
                 if (!ids.length) return 'none';
-                return ids.length + ' · ' + ids.map(function (id) {{ return shortId(id, 4); }}).join(' ');
+                return ids.length + ' · ' + ids.map(function (id) {{
+                    return peerLink(id, page, choices, shortId(id, 4));
+                }}).join(' ');
             }}
             if (size == null) return '—';
-            return String(size);
+            return esc(String(size));
         }}
         function loadNodeStatuses() {{
             return fetchJson('/status.json').then(function (status) {{
@@ -1126,6 +1214,7 @@
             return n + ' ' + (n === 1 ? singular : plural);
         }}
         function renderSequencerCompare(rows) {{
+            var choices = rows.map(function (row) {{ return row.pick; }});
             var self = null;
             rows.forEach(function (row) {{ if (row.pick.self && row.data) self = row; }});
             var selfKey = self ? idKey(self.data.sequencer_committee) : '';
@@ -1152,13 +1241,13 @@
                 var epoch = row.data ? row.data.epoch : '—';
                 var round = row.data ? row.data.round : '—';
                 var nom = row.data ? row.data.sequencer_nomination_epoch : '—';
-                var members = row.data ? memberCell(row.data.sequencer_committee, row.data.sequencer_committee_size) : '—';
-                return '<tr><td>' + esc(row.pick.label) + '</td><td>' + esc(row.pick.role || '—') + '</td><td>' + esc(epoch) + '</td><td>' + esc(round) + '</td><td>' + esc(nom) + '</td><td><code>' + esc(members) + '</code></td><td class="' + agree.cls + '">' + esc(agree.text) + '</td></tr>';
+                var members = row.data ? memberCell(row.data.sequencer_committee, row.data.sequencer_committee_size, 'sequencers', choices) : '—';
+                return '<tr><td>' + nodeLink(row.pick, 'sequencers') + '</td><td>' + roleLinks(row.pick.role) + '</td><td>' + esc(epoch) + '</td><td>' + esc(round) + '</td><td>' + esc(nom) + '</td><td>' + members + '</td><td class="' + agree.cls + '">' + esc(agree.text) + '</td></tr>';
             }}).join('');
             var lists = '';
             if (self && Array.isArray(self.data.sequencer_committee)) {{
                 var items = self.data.sequencer_committee.map(function (id) {{
-                    return '<li><code>' + esc(id) + '</code></li>';
+                    return '<li>' + peerLink(id, 'sequencers', choices, id) + '</li>';
                 }}).join('');
                 lists = '<div class="status-card"><h2>This node\'s committee</h2>' +
                     (items ? '<ul class="listeners">' + items + '</ul>' : '<p class="tab-copy">No sequencers named for this epoch.</p>') +
@@ -1182,6 +1271,7 @@
             return '⌈' + data.validator_qc_numerator + 'n/' + data.validator_qc_denominator + '⌉';
         }}
         function renderValidatorCompare(rows) {{
+            var choices = rows.map(function (row) {{ return row.pick; }});
             var self = null;
             rows.forEach(function (row) {{ if (row.pick.self && row.data) self = row; }});
             var selfKey = self ? validatorViewKey(self.data) : '';
@@ -1198,16 +1288,16 @@
                 else if (!Array.isArray(row.data.named_validators)) agree = {{ cls: 'rel-behind', text: 'Set not published' }};
                 else if (validatorViewKey(row.data) === selfKey) agree = {{ cls: 'rel-same', text: 'Same view' }};
                 else agree = {{ cls: 'rel-fork', text: 'Different view' }};
-                var members = row.data ? memberCell(row.data.named_validators, row.data.named_validator_count) : '—';
+                var members = row.data ? memberCell(row.data.named_validators, row.data.named_validator_count, 'validators', choices) : '—';
                 var stake = row.data && row.data.validator_min_stake != null ? row.data.validator_min_stake : '—';
                 var dest = !row.data || row.data.dest_apply_requires_cert == null ? '—' : (row.data.dest_apply_requires_cert ? 'required' : 'not required');
                 var pending = row.data && row.data.pending_prefix_cert_requests != null ? row.data.pending_prefix_cert_requests : '—';
-                return '<tr><td>' + esc(row.pick.label) + '</td><td>' + esc(row.pick.role || '—') + '</td><td><code>' + esc(members) + '</code></td><td>' + esc(stake) + '</td><td>' + esc(row.data ? qcLabel(row.data) : '—') + '</td><td>' + esc(dest) + '</td><td>' + esc(pending) + '</td><td class="' + agree.cls + '">' + esc(agree.text) + '</td></tr>';
+                return '<tr><td>' + nodeLink(row.pick, 'validators') + '</td><td>' + roleLinks(row.pick.role) + '</td><td>' + members + '</td><td>' + esc(stake) + '</td><td>' + esc(row.data ? qcLabel(row.data) : '—') + '</td><td>' + esc(dest) + '</td><td>' + esc(pending) + '</td><td class="' + agree.cls + '">' + esc(agree.text) + '</td></tr>';
             }}).join('');
             var lists = '';
             if (self && Array.isArray(self.data.named_validators)) {{
                 var items = self.data.named_validators.map(function (id) {{
-                    return '<li><code>' + esc(id) + '</code></li>';
+                    return '<li>' + peerLink(id, 'validators', choices, id) + '</li>';
                 }}).join('');
                 lists = '<div class="status-card"><h2>This node\'s named validators</h2>' +
                     (items ? '<ul class="listeners">' + items + '</ul>' : '<p class="tab-copy">No named validators on this network.</p>') +
@@ -1265,10 +1355,10 @@
         <div class="header-row">
             <div class="section-title"></div>
             <p class="pulse">
-                <span>Height <strong>{total_miner_blocks}</strong></span>
-                <span>Epoch <strong>{current_epoch}</strong></span>
-                <span>Peers <strong>{connected_peers}</strong></span>
-                <span>Difficulty <strong>{current_difficulty}</strong></span>
+                <span>Height <a href="/miners"><strong>{total_miner_blocks}</strong></a></span>
+                <span>Epoch <a href="/sequencers"><strong>{current_epoch}</strong></a></span>
+                <span>Peers <a href="/nodes"><strong>{connected_peers}</strong></a></span>
+                <span>Difficulty <a href="/miners"><strong>{current_difficulty}</strong></a></span>
             </p>
             <div class="topbar-meta">
                 <span class="status-online">Online</span>
@@ -1282,22 +1372,22 @@
 
     <div id="overview-content" class="tab-content">
         <div class="status-grid">
-            <div class="stat-box">
+            <a class="stat-box" href="/nodes">
                 <div class="stat-label">Connected Peers</div>
                 <div class="stat-value">{connected_peers}</div>
-            </div>
-            <div class="stat-box">
+            </a>
+            <a class="stat-box" href="/miners">
                 <div class="stat-label">Block Height</div>
                 <div class="stat-value">{total_miner_blocks}</div>
-            </div>
-            <div class="stat-box">
+            </a>
+            <a class="stat-box" href="/sequencers">
                 <div class="stat-label">Epoch</div>
                 <div class="stat-value">{current_epoch}</div>
-            </div>
-            <div class="stat-box">
+            </a>
+            <a class="stat-box" href="/chains">
                 <div class="stat-label">Cumulative Difficulty</div>
                 <div class="stat-value">{cumulative_difficulty}</div>
-            </div>
+            </a>
         </div>
 
         <div class="status-card">
@@ -1320,7 +1410,7 @@
             <h2>Chain Status</h2>
             <div class="status-item">
                 <span class="label">Sequencer Round:</span>
-                <span class="value">{current_round}</span>
+                <span class="value"><a href="/sequencers">{current_round}</a></span>
             </div>
         </div>
 
@@ -1364,10 +1454,10 @@
     <div id="miners-content" class="tab-content">
         <p class="tab-copy">Miners extend the PoW index and nominate sequencers. Entry is hashpower, not a permission list.</p>
         <div class="status-grid">
-            <div class="stat-box">
+            <a class="stat-box" href="/chains">
                 <div class="stat-label">Block Height</div>
                 <div class="stat-value">{total_miner_blocks}</div>
-            </div>
+            </a>
             <div class="stat-box">
                 <div class="stat-label">Blocks Mined by Node</div>
                 <div class="stat-value">{blocks_mined_by_node}</div>
@@ -1445,10 +1535,10 @@
                 <div class="stat-label">Current Epoch</div>
                 <div class="stat-value">{current_epoch}</div>
             </div>
-            <div class="stat-box">
+            <a class="stat-box" href="/miners">
                 <div class="stat-label">Block Height</div>
                 <div class="stat-value">{total_miner_blocks}</div>
-            </div>
+            </a>
             <div class="stat-box">
                 <div class="stat-label">Nomination Epoch</div>
                 <div class="stat-value">{sequencer_nomination_epoch}</div>

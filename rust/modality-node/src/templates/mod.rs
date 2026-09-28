@@ -13,14 +13,70 @@ pub const STATUS_TEMPLATE: &str = include_str!("status.html");
 pub use crate::status_snapshot::display_node_role;
 
 pub fn render_role_chips(active: &[&str]) -> String {
-    ["Miner", "Sequencer", "Validator"]
+    [("Miner", "/miners"), ("Sequencer", "/sequencers"), ("Validator", "/validators")]
         .iter()
-        .map(|role| {
+        .map(|(role, href)| {
             let on = if active.contains(role) { " on" } else { "" };
-            format!(r#"<span class="role-chip{on}">{role}</span>"#)
+            format!(r#"<a class="role-chip{on}" href="{href}">{role}</a>"#)
         })
         .collect::<Vec<_>>()
         .join("")
+}
+
+fn esc(value: &str) -> String {
+    value
+        .replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
+}
+
+fn path_segment(value: &str) -> String {
+    let mut out = String::new();
+    for b in value.bytes() {
+        match b {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
+                out.push(b as char);
+            }
+            _ => out.push_str(&format!("%{b:02X}")),
+        }
+    }
+    out
+}
+
+fn xref(href: &str, inner: &str) -> String {
+    format!(r#"<a href="{}">{inner}</a>"#, esc(href))
+}
+
+/// Link a protocol role name. Compound labels (`Miner+Sequencer`) link each part.
+fn link_role_label(label: &str) -> String {
+    label
+        .split('+')
+        .map(|role| match role {
+            "Miner" => xref("/miners", "Miner"),
+            "Sequencer" => xref("/sequencers", "Sequencer"),
+            "Validator" => xref("/validators", "Validator"),
+            other => esc(other),
+        })
+        .collect::<Vec<_>>()
+        .join("+")
+}
+
+fn peer_code_link(href: &str, peer_id: &str, keep: Option<usize>) -> String {
+    let shown = match keep {
+        Some(keep) => truncate_middle(peer_id, keep),
+        None => peer_id.to_string(),
+    };
+    format!(
+        r#"<a href="{}" title="{}"><code>{}</code></a>"#,
+        esc(href),
+        esc(peer_id),
+        esc(&shown)
+    )
+}
+
+fn contract_href(contract_id: &str) -> String {
+    format!("/contracts/{}", path_segment(contract_id))
 }
 
 fn truncate_middle(value: &str, keep: usize) -> String {
@@ -40,15 +96,19 @@ pub fn render_block_row(
     timestamp: i64,
     time_delta: &str,
 ) -> String {
+    let nominee = if nominated_peer_id.is_empty() {
+        "—".to_string()
+    } else {
+        peer_code_link(
+            &format!("/sequencers#sequencer-{nominated_peer_id}"),
+            nominated_peer_id,
+            Some(10),
+        )
+    };
     format!(
-        r#"<tr><td>{}</td><td>{}</td><td><code>{}</code></td><td>{}</td><td class="timestamp" data-timestamp="{}" onclick="toggleTimestamp(this)" style="cursor: pointer;" title="Click to toggle local time">{}</td><td>{}</td></tr>"#,
-        index,
-        epoch,
-        truncate_middle(hash, 8),
-        truncate_middle(nominated_peer_id, 10),
-        timestamp,
-        timestamp,
-        time_delta
+        r#"<tr id="block-{index}"><td>{index}</td><td>{}</td><td><code>{}</code></td><td>{nominee}</td><td class="timestamp" data-timestamp="{timestamp}" onclick="toggleTimestamp(this)" style="cursor: pointer;" title="Click to toggle local time">{timestamp}</td><td>{time_delta}</td></tr>"#,
+        xref(&format!("/sequencers#epoch-{epoch}"), &epoch.to_string()),
+        esc(&truncate_middle(hash, 8)),
     )
 }
 
@@ -93,12 +153,25 @@ pub fn render_peer_row_with_metadata(
     };
 
     let role_cell = role
-        .map(display_node_role)
+        .map(|role| link_role_label(&display_node_role(role)))
         .unwrap_or_else(|| "-".to_string());
+    let peer_cell = if let Some(url) = status_url {
+        format!(
+            r#"<a href="{}" target="_blank" rel="noopener" title="{}"><code>{}</code></a>"#,
+            esc(url),
+            esc(peer_id),
+            esc(peer_id)
+        )
+    } else {
+        format!("<code>{}</code>", esc(peer_id))
+    };
 
     format!(
-        r#"<tr><td><code>{}</code></td><td>{}</td><td>{}</td></tr>"#,
-        peer_id, role_cell, status_cell
+        r#"<tr id="node-{}"><td>{}</td><td>{}</td><td>{}</td></tr>"#,
+        esc(peer_id),
+        peer_cell,
+        role_cell,
+        status_cell
     )
 }
 
@@ -126,6 +199,15 @@ pub fn render_block_0_info(
     difficulty: &str,
     nominated_peer_id: &str,
 ) -> String {
+    let nominee = if nominated_peer_id.is_empty() {
+        "—".to_string()
+    } else {
+        peer_code_link(
+            &format!("/sequencers#sequencer-{nominated_peer_id}"),
+            nominated_peer_id,
+            None,
+        )
+    };
     format!(
         r#"<div class="status-item">
             <span class="label">Index:</span>
@@ -157,9 +239,16 @@ pub fn render_block_0_info(
         </div>
         <div class="status-item">
             <span class="label">Nominated sequencer:</span>
-            <span class="value"><code>{}</code></span>
+            <span class="value">{}</span>
         </div>"#,
-        index, hash, epoch, timestamp, previous_hash, data_hash, difficulty, nominated_peer_id
+        xref(&format!("/miners#block-{index}"), &index.to_string()),
+        esc(hash),
+        xref(&format!("/sequencers#epoch-{epoch}"), &epoch.to_string()),
+        timestamp,
+        esc(previous_hash),
+        esc(data_hash),
+        xref("/miners", &esc(difficulty)),
+        nominee
     )
 }
 
@@ -205,7 +294,7 @@ pub fn render_empty_sequencer_committee() -> String {
 pub fn render_epoch_nominees_section(epoch: u64, nominees_html: &str) -> String {
     format!(
         r#"
-    <div class="status-card">
+    <div class="status-card" id="epoch-{}">
         <h2>Epoch {} Sequencer Nominees (Shuffled Order)</h2>
         <div class="blocks-container">
             <table>
@@ -223,7 +312,7 @@ pub fn render_epoch_nominees_section(epoch: u64, nominees_html: &str) -> String 
             </table>
         </div>
     </div>"#,
-        epoch, nominees_html
+        epoch, epoch, nominees_html
     )
 }
 
@@ -232,9 +321,13 @@ pub fn render_nominee_row(rank: usize, block_idx: u64, block_hash: &str, peer_id
     format!(
         "<tr><td>{}</td><td>{}</td><td><code>{}</code></td><td>{}</td></tr>",
         rank,
-        block_idx,
-        truncate_middle(block_hash, 8),
-        truncate_middle(peer_id, 10)
+        xref(&format!("/miners#block-{block_idx}"), &block_idx.to_string()),
+        esc(&truncate_middle(block_hash, 8)),
+        peer_code_link(
+            &format!("/sequencers#sequencer-{peer_id}"),
+            peer_id,
+            Some(10),
+        )
     )
 }
 
@@ -344,7 +437,13 @@ pub fn render_named_validators(peers: &[String]) -> String {
     }
     let rows = peers
         .iter()
-        .map(|peer| format!("<tr><td><code>{}</code></td></tr>", peer))
+        .map(|peer| {
+            format!(
+                r#"<tr id="validator-{}"><td>{}</td></tr>"#,
+                esc(peer),
+                peer_code_link(&format!("/nodes#node-{peer}"), peer, None)
+            )
+        })
         .collect::<Vec<_>>()
         .join("\n                    ");
     format!(
@@ -369,12 +468,30 @@ pub fn render_empty_prefix_certs() -> String {
 }
 
 pub fn render_prefix_cert_row(cert: &PrefixCertStatus) -> String {
+    let contract = contract_href(&cert.source_contract);
+    let commit = format!("{contract}#c-{}", path_segment(&cert.through_commit));
     format!(
-        "<tr><td><code>{}</code></td><td><code>{}</code></td><td>{}</td><td><code>{}</code></td></tr>",
-        truncate_middle(&cert.source_contract, 10),
-        truncate_middle(&cert.through_commit, 8),
-        truncate_middle(&cert.validator_peer_id, 10),
-        truncate_middle(&cert.prefix_digest, 8)
+        "<tr><td>{}</td><td>{}</td><td>{}</td><td><code>{}</code></td></tr>",
+        xref(
+            &contract,
+            &format!(
+                "<code>{}</code>",
+                esc(&truncate_middle(&cert.source_contract, 10))
+            )
+        ),
+        xref(
+            &commit,
+            &format!(
+                "<code>{}</code>",
+                esc(&truncate_middle(&cert.through_commit, 8))
+            )
+        ),
+        peer_code_link(
+            &format!("/validators#validator-{}", cert.validator_peer_id),
+            &cert.validator_peer_id,
+            Some(10),
+        ),
+        esc(&truncate_middle(&cert.prefix_digest, 8))
     )
 }
 
@@ -417,7 +534,13 @@ fn render_sequencer_committee(peers: &[String]) -> String {
     }
     peers
         .iter()
-        .map(|peer| format!("<tr><td><code>{}</code></td></tr>", peer))
+        .map(|peer| {
+            format!(
+                r#"<tr id="sequencer-{}"><td>{}</td></tr>"#,
+                esc(peer),
+                peer_code_link(&format!("/nodes#node-{peer}"), peer, None)
+            )
+        })
         .collect::<Vec<_>>()
         .join("\n                    ")
 }
@@ -425,7 +548,7 @@ fn render_sequencer_committee(peers: &[String]) -> String {
 pub fn render_status_from_snapshot(status: &NodeStatus) -> String {
     let nomination = status
         .sequencer_nomination_epoch
-        .map(|e| e.to_string())
+        .map(|epoch| xref(&format!("/sequencers#epoch-{epoch}"), &epoch.to_string()))
         .unwrap_or_else(|| "—".to_string());
     let vars = StatusPageVars {
         refresh_interval: crate::constants::STATUS_PAGE_REFRESH_SECS,
@@ -434,7 +557,7 @@ pub fn render_status_from_snapshot(status: &NodeStatus) -> String {
         cumulative_difficulty: status.cumulative_difficulty,
         peerid: status.peerid.clone(),
         network_name: status.network_name.clone(),
-        role_display: status.role_display.clone(),
+        role_display: link_role_label(&status.role_display),
         role_chips_html: render_role_chips(&status.active_roles),
         hybrid_label: status.hybrid_label().to_string(),
         listeners_html: status
@@ -760,6 +883,51 @@ mod tests {
         status.named_validators = vec!["12D3KooWval".into()];
         let html = render_status_from_snapshot(&status);
         assert!(html.contains("12D3KooWval"));
+        assert!(html.contains("href=\"/nodes#node-12D3KooWval\""));
         assert!(!html.contains(&render_empty_validators()));
+    }
+
+    #[test]
+    fn status_items_link_to_the_page_that_explains_them() {
+        let mut status = sample_status();
+        status.role_display = "Miner+Sequencer".into();
+        status.active_roles = vec!["Miner", "Sequencer"];
+        status.peers = vec![crate::status_snapshot::PeerStatus {
+            peer_id: "12D3KooWpeer".into(),
+            role: Some("miner".into()),
+            status_url: Some("http://peer.example".into()),
+        }];
+        status.recent_blocks = vec![crate::status_snapshot::BlockStatus {
+            index: 4,
+            epoch: 1,
+            hash: "abcd".into(),
+            nominee: "12D3KooWseq".into(),
+            timestamp: 1,
+            time_delta: "0".into(),
+        }];
+        status.recent_prefix_certs = vec![crate::status_snapshot::PrefixCertStatus {
+            source_contract: "contract1".into(),
+            through_commit: "commit1".into(),
+            validator_peer_id: "12D3KooWval".into(),
+            prefix_digest: "digest".into(),
+        }];
+        status.sequencer_committee = vec!["12D3KooWseq".into()];
+        let html = render_status_from_snapshot(&status);
+        assert!(html.contains("Height <a href=\"/miners\">"));
+        assert!(html.contains("Epoch <a href=\"/sequencers\">"));
+        assert!(html.contains("Peers <a href=\"/nodes\">"));
+        assert!(html.contains("href=\"/chains\""));
+        assert!(html.contains("<a href=\"/sequencers\">0</a>"));
+        assert!(html.contains("href=\"/miners\">Miner</a>"));
+        assert!(html.contains("href=\"/sequencers\">Sequencer</a>"));
+        assert!(html.contains("id=\"node-12D3KooWpeer\""));
+        assert!(html.contains("href=\"http://peer.example\""));
+        assert!(html.contains("id=\"block-4\""));
+        assert!(html.contains("href=\"/sequencers#sequencer-12D3KooWseq\""));
+        assert!(html.contains("href=\"/sequencers#epoch-1\""));
+        assert!(html.contains("id=\"sequencer-12D3KooWseq\""));
+        assert!(html.contains("href=\"/contracts/contract1\""));
+        assert!(html.contains("href=\"/contracts/contract1#c-commit1\""));
+        assert!(html.contains("href=\"/validators#validator-12D3KooWval\""));
     }
 }
