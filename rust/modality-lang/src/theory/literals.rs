@@ -1,13 +1,21 @@
-//! Existence, Boolean, and text-equality reasoning.
+//! Existence, Boolean, text, and type reasoning.
 //!
 //! - Every positive value constraint on `p` forces `p` to exist; `-exists(p)`
 //!   then contradicts (cases E3, C6).
 //! - A path is not `true` and `false` at once.
-//! - Text paths form equality classes via `(= a b)`; a class holds at most
-//!   one literal (case E1). Substring predicates are checked only against a
-//!   class literal (case E5); otherwise they are left alone.
+//! - Text classes (`text.rs`) hold at most one literal (case E1); a denied
+//!   equality inside a class, a substring test the class literal fails
+//!   (case E5), or one key both signed and not (case K3) contradict. So do
+//!   a denied substring test that a required one implies (`+ends-with
+//!   "ab"`, `-contains "b"`) or with the empty needle, and two required
+//!   prefixes (suffixes) neither of which extends the other.
+//! - One path does not hold two types (a number and a string, a number and
+//!   a boolean, a string and a boolean).
+//!
+//! Lean twins: checks 2, 3, 5, and 8 in `Decide.lean`.
 
-use super::sort::{Constraint, Lit, TextOp};
+use super::sort::{Constraint, Lit, Term, TextOp};
+use super::text::TextClasses;
 use std::collections::{BTreeMap, BTreeSet};
 
 /// Paths forced to exist by positive value constraints in `lits`.
@@ -67,8 +75,9 @@ fn text_holds(op: TextOp, value: &str, needle: &str) -> bool {
     }
 }
 
-pub fn check(lits: &[Lit], forced: &BTreeSet<String>) -> Option<Vec<Lit>> {
+pub fn check(lits: &[Lit], classes: &TextClasses) -> Option<Vec<Lit>> {
     // -exists(p) with p forced.
+    let forced = forced_paths(lits);
     for lit in lits.iter().filter(|l| !l.positive) {
         if let Constraint::Exists { path } = &lit.c {
             if forced.contains(path) {
@@ -105,129 +114,164 @@ pub fn check(lits: &[Lit], forced: &BTreeSet<String>) -> Option<Vec<Lit>> {
         }
     }
 
-    // Text classes.
-    let mut paths: Vec<&str> = Vec::new();
+    if let Some(why) = text(lits, classes) {
+        return Some(why);
+    }
+    types(lits, classes)
+}
+
+fn positive_text(lits: &[Lit]) -> Vec<Lit> {
+    let mut v: Vec<Lit> = lits
+        .iter()
+        .filter(|l| {
+            l.positive
+                && matches!(
+                    l.c,
+                    Constraint::Eq { .. }
+                        | Constraint::Eq2 { .. }
+                        | Constraint::Text { .. }
+                        | Constraint::Signer { .. }
+                )
+        })
+        .cloned()
+        .collect();
+    v.sort();
+    v
+}
+
+fn with(mut why: Vec<Lit>, lit: &Lit) -> Vec<Lit> {
+    why.push(lit.clone());
+    why.sort();
+    why.dedup();
+    why
+}
+
+fn text(lits: &[Lit], classes: &TextClasses) -> Option<Vec<Lit>> {
+    if classes.two_lits().is_some() {
+        return Some(positive_text(lits));
+    }
     for lit in lits {
-        match &lit.c {
-            Constraint::Eq { path, .. } | Constraint::Text { path, .. } => paths.push(path),
-            Constraint::Eq2 { a, b } => {
-                paths.push(a);
-                paths.push(b);
+        let denied = match (&lit.c, lit.positive) {
+            (Constraint::Eq { path, lit: s }, false) => classes.same_lit(path, s),
+            (Constraint::Eq2 { a, b }, false) => classes.same_paths(a, b),
+            (Constraint::Text { path, op, needle }, positive) => {
+                classes
+                    .class_lits(path)
+                    .iter()
+                    .any(|s| text_holds(*op, s, needle) != positive)
+                    || (!positive
+                        && classes.texted(path)
+                        && (needle.is_empty() || implied_test(lits, classes, path, *op, needle)))
             }
-            _ => {}
+            (Constraint::Signer { id: b }, false) => lits.iter().any(|l| {
+                l.positive
+                    && matches!(&l.c, Constraint::Signer { id: a } if classes.same_paths(a, b))
+            }),
+            _ => false,
+        };
+        if denied {
+            return Some(with(positive_text(lits), lit));
         }
     }
-    paths.sort();
-    paths.dedup();
-    if paths.is_empty() {
-        return None;
-    }
-    let idx: BTreeMap<&str, usize> = paths.iter().enumerate().map(|(i, p)| (*p, i)).collect();
-    let mut parent: Vec<usize> = (0..paths.len()).collect();
-    fn find(parent: &mut [usize], x: usize) -> usize {
-        let mut r = x;
-        while parent[r] != r {
-            r = parent[r];
-        }
-        r
-    }
-    for lit in lits.iter().filter(|l| l.positive) {
-        if let Constraint::Eq2 { a, b } = &lit.c {
-            let (ra, rb) = (
-                find(&mut parent, idx[a.as_str()]),
-                find(&mut parent, idx[b.as_str()]),
-            );
-            if ra != rb {
-                let (lo, hi) = if ra < rb { (ra, rb) } else { (rb, ra) };
-                parent[hi] = lo;
-            }
-        }
-    }
-    // One literal per class.
-    let mut class_lit: BTreeMap<usize, (&str, &Lit)> = BTreeMap::new();
-    for lit in lits.iter().filter(|l| l.positive) {
-        if let Constraint::Eq { path, lit: value } = &lit.c {
-            let r = find(&mut parent, idx[path.as_str()]);
-            match class_lit.get(&r) {
-                Some((v, other)) if *v != value.as_str() => {
-                    let mut why = vec![lit.clone(), (*other).clone()];
-                    why.extend(
-                        lits.iter()
-                            .filter(|l| l.positive && matches!(l.c, Constraint::Eq2 { .. }))
-                            .cloned(),
-                    );
-                    why.sort();
-                    why.dedup();
-                    return Some(why);
-                }
-                Some(_) => {}
-                None => {
-                    class_lit.insert(r, (value.as_str(), lit));
-                }
-            }
-        }
-    }
-    for lit in lits.iter().filter(|l| !l.positive) {
-        match &lit.c {
-            Constraint::Eq { path, lit: value } => {
-                let r = find(&mut parent, idx[path.as_str()]);
-                if let Some((v, other)) = class_lit.get(&r) {
-                    if *v == value.as_str() {
-                        let mut why = vec![lit.clone(), (*other).clone()];
-                        why.sort();
-                        return Some(why);
-                    }
-                }
-            }
-            // `(= a a)` is false when `a` holds no string, so `-(= a a)`
-            // contradicts only when a positive literal makes `a` a string.
-            // Distinct paths share a class only through positive `(= a b)`,
-            // which does.
-            Constraint::Eq2 { a, b } => {
-                if find(&mut parent, idx[a.as_str()]) != find(&mut parent, idx[b.as_str()]) {
-                    continue;
-                }
-                let texts_a = |l: &&Lit| {
-                    l.positive
-                        && match &l.c {
-                            Constraint::Eq { path, .. } | Constraint::Text { path, .. } => {
-                                path == a
-                            }
-                            Constraint::Eq2 { a: x, b: y } => x == a || y == a,
-                            _ => false,
-                        }
-                };
-                let mut why: Vec<Lit> = if a == b {
-                    lits.iter().filter(texts_a).cloned().collect()
-                } else {
-                    lits.iter()
-                        .filter(|l| l.positive && matches!(l.c, Constraint::Eq2 { .. }))
-                        .cloned()
-                        .collect()
-                };
-                if why.is_empty() {
-                    continue;
-                }
-                why.push(lit.clone());
+    for a in lits {
+        for b in lits {
+            if needles_clash(classes, a, b) {
+                let mut why = vec![a.clone(), b.clone()];
                 why.sort();
                 return Some(why);
-            }
-            _ => {}
-        }
-    }
-    // Substring predicates against a known class literal.
-    for lit in lits {
-        if let Constraint::Text { path, op, needle } = &lit.c {
-            let r = find(&mut parent, idx[path.as_str()]);
-            if let Some((v, other)) = class_lit.get(&r) {
-                let holds = text_holds(*op, v, needle);
-                if holds != lit.positive {
-                    let mut why = vec![lit.clone(), (*other).clone()];
-                    why.sort();
-                    return Some(why);
-                }
             }
         }
     }
     None
+}
+
+/// Every string passing `op2` against `m` passes `op` against `n`. Lean:
+/// `TextOp.implies`.
+fn implies(op2: TextOp, m: &str, op: TextOp, n: &str) -> bool {
+    match (op2, op) {
+        (_, TextOp::Contains) => m.contains(n),
+        (TextOp::StartsWith, TextOp::StartsWith) => m.starts_with(n),
+        (TextOp::EndsWith, TextOp::EndsWith) => m.ends_with(n),
+        _ => false,
+    }
+}
+
+/// A positive substring test on `p`'s class implies `op n`.
+fn implied_test(lits: &[Lit], classes: &TextClasses, p: &str, op: TextOp, n: &str) -> bool {
+    lits.iter().any(|l| {
+        l.positive
+            && matches!(&l.c, Constraint::Text { path: q, op: op2, needle: m }
+                if classes.same_paths(q, p) && implies(*op2, m, op, n))
+    })
+}
+
+/// Two required prefixes (suffixes) of one string, neither extending the
+/// other. Lean: `needlesClash`.
+fn needles_clash(classes: &TextClasses, a: &Lit, b: &Lit) -> bool {
+    if !a.positive || !b.positive {
+        return false;
+    }
+    let (
+        Constraint::Text {
+            path: p,
+            op: o1,
+            needle: m,
+        },
+        Constraint::Text {
+            path: q,
+            op: o2,
+            needle: n,
+        },
+    ) = (&a.c, &b.c)
+    else {
+        return false;
+    };
+    let extends = match (o1, o2) {
+        (TextOp::StartsWith, TextOp::StartsWith) => {
+            n.starts_with(m.as_str()) || m.starts_with(n.as_str())
+        }
+        (TextOp::EndsWith, TextOp::EndsWith) => n.ends_with(m.as_str()) || m.ends_with(n.as_str()),
+        _ => return false,
+    };
+    !extends && classes.same_paths(p, q)
+}
+
+/// Paths a positive order literal forces to hold a number.
+fn num_forced(lits: &[Lit]) -> BTreeSet<&str> {
+    let mut out = BTreeSet::new();
+    for lit in lits.iter().filter(|l| l.positive) {
+        if let Constraint::Order { lhs, rhs, .. } = &lit.c {
+            for t in [lhs, rhs] {
+                if let Term::Path(p) = t {
+                    out.insert(p.as_str());
+                }
+            }
+        }
+    }
+    out
+}
+
+fn types(lits: &[Lit], classes: &TextClasses) -> Option<Vec<Lit>> {
+    let nums = num_forced(lits);
+    let bools: BTreeSet<&str> = lits
+        .iter()
+        .filter(|l| l.positive)
+        .filter_map(|l| match &l.c {
+            Constraint::Is { path, .. } => Some(path.as_str()),
+            _ => None,
+        })
+        .collect();
+    let clash = nums
+        .iter()
+        .find(|p| classes.texted(p) || bools.contains(*p))
+        .copied()
+        .or_else(|| classes.texted_paths().find(|p| bools.contains(p)));
+    let p = clash?;
+    let mut why: Vec<Lit> = lits
+        .iter()
+        .filter(|l| l.positive && forced_paths(std::slice::from_ref(l)).contains(p))
+        .cloned()
+        .collect();
+    why.sort();
+    Some(why)
 }

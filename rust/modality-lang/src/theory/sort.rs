@@ -89,13 +89,10 @@ impl Lit {
         }
     }
 
-    /// Can the theory decide this literal completely (so a `consistent =
-    /// True` claim is a real model)? `Text`, `Label`, and `Opaque` cannot.
-    pub fn decidable(&self) -> bool {
-        !matches!(
-            self.c,
-            Constraint::Text { .. } | Constraint::Label { .. } | Constraint::Opaque { .. }
-        )
+    /// A predicate with no usable declaration: nothing is known about it,
+    /// so no witness can claim it holds.
+    pub fn is_opaque(&self) -> bool {
+        matches!(self.c, Constraint::Opaque { .. })
     }
 }
 
@@ -109,6 +106,29 @@ pub fn norm_path(p: &str) -> String {
 /// the evaluator's prefix match: the empty prefix contains only itself.
 pub fn under(path: &str, prefix: &str) -> bool {
     path == prefix || path.starts_with(&format!("{prefix}/"))
+}
+
+/// A state key the evaluator can hold: `norm_path` never leaves a leading
+/// slash. Lean: `normalized`.
+pub fn normalized(p: &str) -> bool {
+    !p.starts_with('/')
+}
+
+/// A posted-key path: the evaluator's `key.ends_with(".id")`. Lean: `isId`.
+pub fn is_id(p: &str) -> bool {
+    p.ends_with(".id")
+}
+
+/// `p` is a posted-key path under `q`: a member of `q` whenever it holds
+/// a string. Lean: `keyUnder`.
+pub fn key_under(p: &str, q: &str) -> bool {
+    normalized(p) && is_id(p) && under(p, q)
+}
+
+/// No key can be posted under `q`: only the root is under the empty
+/// prefix, and the root has no extension. Lean: `noKeys`.
+pub fn no_keys(q: &str) -> bool {
+    q.is_empty() || q.starts_with('/')
 }
 
 /// Extension of a normalised path (`num`, `bool`, `text`, `id`, …), if any.

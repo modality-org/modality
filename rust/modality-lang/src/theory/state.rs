@@ -40,6 +40,11 @@ pub trait StateView {
     /// Values stored at `.id` paths at or under `prefix`, sorted; `None` if
     /// the view does not know the state.
     fn keys_under(&self, prefix: &str) -> Option<Vec<String>>;
+    /// The view is an accepted state (possibly with values it cannot type),
+    /// so a witness keeps it and builds only the commit.
+    fn is_known(&self) -> bool {
+        true
+    }
 }
 
 /// Knows nothing.
@@ -51,6 +56,9 @@ impl StateView for NoState {
     }
     fn keys_under(&self, _prefix: &str) -> Option<Vec<String>> {
         None
+    }
+    fn is_known(&self) -> bool {
+        false
     }
 }
 

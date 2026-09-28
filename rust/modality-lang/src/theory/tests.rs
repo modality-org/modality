@@ -31,6 +31,7 @@ fn v1() -> Theory<'static> {
 
 fn yes(v: &Verdict) {
     assert_eq!(v.tri, Tri::True, "expected consistent: yes, got {v:?}");
+    assert!(v.witness.is_some(), "a `yes` must carry its witness");
 }
 fn no(v: &Verdict) {
     assert_eq!(v.tri, Tri::False, "expected consistent: no, got {v:?}");
@@ -400,6 +401,55 @@ fn text_equality_is_not_reflexive_on_a_missing_string() {
 }
 
 #[test]
+fn substring_tests_are_decided_without_a_literal() {
+    let th = v1();
+    // "ab" at the end means "b" occurs.
+    no(&th.consistent(&[
+        p("text_ends_with", &["/s.text", "ab"]),
+        n("text_contains", &["/s.text", "b"]),
+    ]));
+    // Two required prefixes, neither extending the other.
+    no(&th.consistent(&[
+        p("text_starts_with", &["/s.text", "ab"]),
+        p("text_starts_with", &["/s.text", "b"]),
+    ]));
+    // "ab" somewhere does not mean "b" at the end.
+    yes(&th.consistent(&[
+        p("text_contains", &["/s.text", "ab"]),
+        n("text_ends_with", &["/s.text", "b"]),
+    ]));
+}
+
+#[test]
+fn keys_may_be_shared_to_stay_under_a_threshold() {
+    let th = v1();
+    // Both keys may be the same key, which counts once.
+    let v = th.consistent(&[
+        p("signed_by", &["/m/a.id"]),
+        p("signed_by", &["/m/b.id"]),
+        n("threshold", &["2", "/m"]),
+    ]);
+    yes(&v);
+    let w = v.witness.unwrap();
+    assert_eq!(w.signed.len(), 1, "{w:?}");
+}
+
+#[test]
+fn keys_forced_apart_under_a_threshold_are_not_decided() {
+    // Dead (two distinct signed keys under /m), but deciding it in general
+    // is graph colouring; V1 stays conservative.
+    let labels = [
+        p("signed_by", &["/m/a.id"]),
+        p("signed_by", &["/m/b.id"]),
+        n("text_eq", &["/m/a.id", "/m/b.id"]),
+        n("threshold", &["2", "/m"]),
+    ];
+    let (lits, exact) = v1().expand_all(&labels);
+    assert!(exact && !lits.iter().any(Lit::is_opaque), "{lits:?}");
+    unknown(&v1().consistent(&labels));
+}
+
+#[test]
 fn prefixes_match_the_evaluator() {
     let th = v1();
     // `/` is the empty prefix, which contains only itself in the evaluator.
@@ -618,7 +668,8 @@ fn e5_substring_only_when_literal_provable() {
         p("text_contains", &["/p.text", "abc"]),
         p("text_eq", &["/p.text", "xyz"]),
     ]));
-    unknown(&v1().consistent(&[
+    // Satisfiable, and a string is built: "a", fresh, "b".
+    yes(&v1().consistent(&[
         p("text_contains", &["/p.text", "b"]),
         p("text_starts_with", &["/p.text", "a"]),
     ]));
@@ -1201,69 +1252,212 @@ fn explanations_are_sorted_and_readable() {
 }
 
 #[test]
-fn static_labels_are_opaque_and_match_structurally() {
+fn static_labels_are_actions_with_that_method() {
     let a = Property::new(PropertySign::Plus, "APPROVE".into());
     let not_a = Property::new(PropertySign::Minus, "APPROVE".into());
-    unknown(&v1().consistent(std::slice::from_ref(&a)));
+    yes(&v1().consistent(std::slice::from_ref(&a)));
     no(&v1().consistent(&[a.clone(), not_a]));
     assert_eq!(v1().entails(std::slice::from_ref(&a), &a), Tri::True);
 }
 
 // --- Rust vs the proven Lean checker ----------------------------------------
 
-/// A label set in the fragment `experiments/predicate-theory/lean` proves
-/// sound, as Rust properties and as a `pt-check` input line.
-fn random_label_set(next: &mut impl FnMut() -> u64) -> (Vec<Property>, String) {
-    const NUMS: [&str; 3] = ["/x.num", "/y.num", "/z.num"];
-    const BOOLS: [&str; 2] = ["/f.bool", "/g.bool"];
-    const IDS: [&str; 2] = ["/a.id", "/b.id"];
-    const ORDER: [&str; 5] = ["num_gt", "num_gte", "num_lt", "num_lte", "num_eq"];
-    let mut pick = |n: usize| (next() % n as u64) as usize;
-    let size = 1 + pick(6);
-    let mut props = Vec::new();
-    let mut line = Vec::new();
-    for _ in 0..size {
-        let (name, args): (&str, Vec<String>) = match pick(10) {
-            0..=5 => {
-                let second = if pick(3) == 0 {
-                    NUMS[pick(3)].to_string()
-                } else {
-                    (pick(5) as i64 - 1).to_string()
-                };
-                (ORDER[pick(5)], vec![NUMS[pick(3)].to_string(), second])
-            }
-            6 => (
-                ["bool_true", "bool_false"][pick(2)],
-                vec![BOOLS[pick(2)].to_string()],
-            ),
-            7 | 8 => {
-                let pool = [NUMS[pick(3)], BOOLS[pick(2)], IDS[pick(2)]];
-                ("state_exists", vec![pool[pick(3)].to_string()])
-            }
-            _ => ("signed_by", vec![IDS[pick(2)].to_string()]),
-        };
-        let negated = pick(3) == 0;
-        let refs: Vec<&str> = args.iter().map(String::as_str).collect();
-        props.push(if negated {
-            n(name, &refs)
-        } else {
-            p(name, &refs)
-        });
-        line.push(format!(
-            "{}{} {}",
-            if negated { '-' } else { '+' },
-            name,
-            args.join(" ")
-        ));
-    }
-    (props, line.join(" ; "))
+fn q_json(q: &Rational) -> serde_json::Value {
+    let n = i64::try_from(q.num()).expect("harness numbers fit in i64");
+    let d = i64::try_from(q.den()).expect("harness numbers fit in i64");
+    serde_json::json!([n, d])
 }
 
-/// Random label sets decided by the Rust theory and by the Lean checker whose
-/// soundness is proved in `experiments/predicate-theory/lean`. Build the
-/// checker with `lake build pt-check` there, then run
-/// `PT_CHECK=<path to .lake/build/bin/pt-check> cargo test -p modality-lang
-/// rust_and_lean_agree -- --ignored` (`PT_ROUNDS`, `PT_SEED` optional).
+fn term_json(t: &Term) -> serde_json::Value {
+    match t {
+        Term::Path(p) => serde_json::json!({ "path": p }),
+        Term::Const(c) => serde_json::json!({ "q": q_json(c) }),
+    }
+}
+
+fn lit_json(l: &Lit) -> serde_json::Value {
+    use serde_json::json;
+    let op = |o: &Op| match o {
+        Op::Lt => "lt",
+        Op::Le => "le",
+        Op::Eq => "eq",
+    };
+    let atom = match &l.c {
+        Constraint::Order { lhs, op: o, rhs } => {
+            json!(["order", term_json(lhs), op(o), term_json(rhs)])
+        }
+        Constraint::Eq { path, lit } => json!(["eq", path, lit]),
+        Constraint::Eq2 { a, b } => json!(["eq2", a, b]),
+        Constraint::Text { path, op, needle } => json!([
+            "text",
+            path,
+            match op {
+                TextOp::Contains => "contains",
+                TextOp::StartsWith => "starts-with",
+                TextOp::EndsWith => "ends-with",
+            },
+            needle
+        ]),
+        Constraint::Is { path, value } => json!(["is", path, value]),
+        Constraint::Exists { path } => json!(["exists", path]),
+        Constraint::Signer { id } => json!(["signed", id]),
+        Constraint::SignerCount { prefix, at_least } => json!(["card", prefix, at_least]),
+        Constraint::SignerAll { prefix } => json!(["all", prefix]),
+        Constraint::Writes { path } => json!(["writes", path]),
+        Constraint::Posts { path } => json!(["posts", path]),
+        Constraint::Label { name } => json!(["label", name]),
+        Constraint::Opaque { name, args } => json!(["opaque", name, args]),
+    };
+    json!({ "pos": l.positive, "atom": atom })
+}
+
+fn value_json(v: &witness::Value) -> serde_json::Value {
+    use serde_json::json;
+    match v {
+        witness::Value::Num(q) => json!({ "num": q_json(q) }),
+        witness::Value::Bool(b) => json!({ "bool": b }),
+        witness::Value::Text(s) => json!({ "text": s }),
+        witness::Value::Structured => json!("structured"),
+    }
+}
+
+fn state_json(state: &[(String, witness::Value)]) -> serde_json::Value {
+    state
+        .iter()
+        .map(|(p, v)| serde_json::json!([p, value_json(v)]))
+        .collect()
+}
+
+fn world_json(w: &World, state: &[(String, witness::Value)]) -> serde_json::Value {
+    let state = if w.state.is_empty() { state } else { &w.state };
+    serde_json::json!({
+        "state": state_json(state),
+        "signed": w.signed,
+        "body": w.body.iter().map(|a| serde_json::json!([a.method, a.path])).collect::<Vec<_>>(),
+    })
+}
+
+fn label_json(p: &Property) -> serde_json::Value {
+    serde_json::json!({
+        "pos": p.sign == PropertySign::Plus,
+        "name": p.name,
+        "args": decl::property_args(p),
+        "static": p.is_static(),
+    })
+}
+
+/// A random label set over every sort of the fragment, and sometimes an
+/// accepted state (well typed, so Lean and Rust read it the same way).
+fn random_case(next: &mut impl FnMut() -> u64) -> (Vec<Property>, Option<Vec<(String, String)>>) {
+    const NUMS: [&str; 2] = ["/x.num", "/y.num"];
+    const CONSTS: [&str; 5] = ["-1", "0", "0.5", "1", "2"];
+    const BOOLS: [&str; 2] = ["/f.bool", "/g.bool"];
+    const TEXTS: [&str; 4] = ["/s.text", "/t.text", "/m/a.id", "/m/b.id"];
+    const WORDS: [&str; 3] = ["K", "L", "ab"];
+    const NEEDLES: [&str; 3] = ["a", "b", "ab"];
+    const IDS: [&str; 3] = ["/m/a.id", "/m/b.id", "/a.id"];
+    const PREFIXES: [&str; 4] = ["/m", "/m/a", "/", "/n"];
+    const WRITES: [&str; 3] = ["/w", "/w/v", "/z"];
+    const ORDER: [&str; 5] = ["num_gt", "num_gte", "num_lt", "num_lte", "num_eq"];
+    const TEXT: [&str; 3] = ["text_contains", "text_starts_with", "text_ends_with"];
+    const STATIC: [&str; 3] = ["POST", "PUT", "APPROVE"];
+    let mut pick = |n: usize| (next() % n as u64) as usize;
+    let size = 1 + pick(5);
+    let mut props = Vec::new();
+    for _ in 0..size {
+        let negated = pick(3) == 0;
+        let (name, args): (&str, Vec<&str>) = match pick(16) {
+            0..=3 => {
+                let second = if pick(3) == 0 {
+                    NUMS[pick(2)]
+                } else {
+                    CONSTS[pick(5)]
+                };
+                (ORDER[pick(5)], vec![NUMS[pick(2)], second])
+            }
+            4 => (
+                "amount_in_range",
+                vec![NUMS[pick(2)], CONSTS[pick(5)], CONSTS[pick(5)]],
+            ),
+            5 => (["bool_true", "bool_false"][pick(2)], vec![BOOLS[pick(2)]]),
+            6 => {
+                let second = if pick(3) == 0 {
+                    TEXTS[pick(4)]
+                } else {
+                    WORDS[pick(3)]
+                };
+                ("text_eq", vec![TEXTS[pick(4)], second])
+            }
+            7 => (TEXT[pick(3)], vec![TEXTS[pick(4)], NEEDLES[pick(3)]]),
+            8 => {
+                let pool = [NUMS[pick(2)], BOOLS[pick(2)], TEXTS[pick(4)]];
+                ("state_exists", vec![pool[pick(3)]])
+            }
+            9 | 10 => ("signed_by", vec![IDS[pick(3)]]),
+            11 => (
+                ["any_signed", "all_signed"][pick(2)],
+                vec![PREFIXES[pick(4)]],
+            ),
+            12 => (
+                "threshold",
+                vec![["1", "2", "3"][pick(3)], PREFIXES[pick(4)]],
+            ),
+            13 => (["modifies", "post_to_path"][pick(2)], vec![WRITES[pick(3)]]),
+            14 => {
+                let sign = if negated {
+                    PropertySign::Minus
+                } else {
+                    PropertySign::Plus
+                };
+                props.push(Property::new(sign, STATIC[pick(3)].into()));
+                continue;
+            }
+            _ => ("wasm", vec!["/opaque.wasm"]),
+        };
+        props.push(if negated {
+            n(name, &args)
+        } else {
+            p(name, &args)
+        });
+    }
+    let state = (pick(3) == 0).then(|| {
+        let mut pairs = Vec::new();
+        for path in NUMS {
+            if pick(2) == 0 {
+                pairs.push((path.to_string(), CONSTS[pick(5)].to_string()));
+            }
+        }
+        for path in BOOLS {
+            if pick(2) == 0 {
+                pairs.push((path.to_string(), ["true", "false"][pick(2)].to_string()));
+            }
+        }
+        for path in TEXTS.iter().chain(&IDS[2..]) {
+            if pick(2) == 0 {
+                pairs.push((path.to_string(), WORDS[pick(3)].to_string()));
+            }
+        }
+        pairs
+    });
+    (props, state)
+}
+
+fn verdict_word(t: Tri) -> &'static str {
+    match t {
+        Tri::True => "live",
+        Tri::False => "dead",
+        Tri::Unknown => "unknown",
+    }
+}
+
+/// Random label sets decided by the Rust theory and by the Lean checker
+/// proved sound in `experiments/predicate-theory/lean`. For every set Lean
+/// elaborates the labels itself and must get Rust's literals and
+/// exactness; the verdicts must be the same; every Rust witness must pass
+/// Lean's `check`; with a known state, the runtime verdicts must be the
+/// same; and no exact, opaque-free set may be left unknown. Run
+/// `experiments/predicate-theory/lean/agree.sh` (`PT_ROUNDS`, `PT_SEED`
+/// optional).
 #[test]
 #[ignore = "needs the Lean checker; set PT_CHECK"]
 fn rust_and_lean_agree() {
@@ -1274,56 +1468,206 @@ fn rust_and_lean_agree() {
     let rounds: usize = std::env::var("PT_ROUNDS")
         .ok()
         .and_then(|s| s.parse().ok())
-        .unwrap_or(50_000);
-    let mut state: u64 = std::env::var("PT_SEED")
+        .unwrap_or(20_000);
+    let mut seed: u64 = std::env::var("PT_SEED")
         .ok()
         .and_then(|s| s.parse().ok())
         .unwrap_or(0x9e37_79b9_7f4a_7c15);
     let mut next = move || {
-        state ^= state << 13;
-        state ^= state >> 7;
-        state ^= state << 17;
-        state
+        seed ^= seed << 13;
+        seed ^= seed >> 7;
+        seed ^= seed << 17;
+        seed
     };
-    let sets: Vec<_> = (0..rounds).map(|_| random_label_set(&mut next)).collect();
+
+    // Each request: its line, and what Rust expects back.
+    enum Expect {
+        Labels {
+            verdict: Tri,
+            exact: bool,
+        },
+        Witness,
+        Runtime {
+            verdict: Tri,
+            exact: bool,
+            witness: bool,
+        },
+    }
+    let th = v1();
+    let mut requests: Vec<(String, Expect)> = Vec::new();
+    let mut counts = [0usize; 3];
+    // Exact, opaque-free, and still unknown: where `dead` or the witness
+    // construction could be more complete.
+    let mut gaps: Vec<String> = Vec::new();
+    for _ in 0..rounds {
+        let (props, pairs) = random_case(&mut next);
+        let (lits, exact) = th.expand_all(&props);
+        let lits_json: Vec<_> = lits.iter().map(lit_json).collect();
+        let v = th.consistent(&props);
+        counts[match v.tri {
+            Tri::False => 0,
+            Tri::True => 1,
+            Tri::Unknown => 2,
+        }] += 1;
+        if v.tri == Tri::Unknown && exact && !lits.iter().any(Lit::is_opaque) {
+            gaps.push(
+                lits.iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join(" "),
+            );
+        }
+        requests.push((
+            serde_json::json!({
+                "labels": props.iter().map(label_json).collect::<Vec<_>>(),
+                "decls": [],
+                "lits": lits_json,
+            })
+            .to_string(),
+            Expect::Labels {
+                verdict: v.tri,
+                exact,
+            },
+        ));
+        if let Some(w) = &v.witness {
+            requests.push((
+                serde_json::json!({ "lits": lits_json, "witness": world_json(w, &[]) }).to_string(),
+                Expect::Witness,
+            ));
+        }
+        if let Some(pairs) = pairs {
+            let map = MapState::from_pairs(pairs.iter().cloned());
+            let typed: Vec<(String, witness::Value)> = pairs
+                .iter()
+                .map(|(k, _)| {
+                    let k = sort::norm_path(k);
+                    let v = match map.value_at(&k) {
+                        Lookup::Present(StateValue::Num(q)) => witness::Value::Num(q),
+                        Lookup::Present(StateValue::Bool(b)) => witness::Value::Bool(b),
+                        Lookup::Present(StateValue::Text(s)) => witness::Value::Text(s),
+                        other => panic!("ill-typed harness state {k}: {other:?}"),
+                    };
+                    (k, v)
+                })
+                .collect();
+            let rt = Theory::new(TheoryVersion::V1, standard(), &map);
+            let v = rt.consistent_lits(&lits, exact);
+            let witness = v
+                .witness
+                .as_ref()
+                .map(|w| world_json(w, &typed))
+                .unwrap_or(serde_json::Value::Null);
+            requests.push((
+                serde_json::json!({ "lits": lits_json, "state": state_json(&typed), "witness": witness })
+                    .to_string(),
+                Expect::Runtime {
+                    verdict: v.tri,
+                    exact,
+                    witness: v.witness.is_some(),
+                },
+            ));
+        }
+    }
 
     let mut child = Command::new(&bin)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .spawn()
         .unwrap_or_else(|e| panic!("cannot run {bin}: {e}"));
-    let input: String = sets.iter().map(|(_, line)| format!("{line}\n")).collect();
+    let input: String = requests
+        .iter()
+        .map(|(line, _)| format!("{line}\n"))
+        .collect();
     let mut stdin = child.stdin.take().unwrap();
     let writer = std::thread::spawn(move || stdin.write_all(input.as_bytes()));
     let output = child.wait_with_output().unwrap();
     writer.join().unwrap().unwrap();
-    let verdicts: Vec<&str> = std::str::from_utf8(&output.stdout)
+    let answers: Vec<serde_json::Value> = std::str::from_utf8(&output.stdout)
         .unwrap()
         .lines()
+        .map(|l| serde_json::from_str(l).expect("pt-check answers JSON"))
         .collect();
-    assert_eq!(verdicts.len(), sets.len(), "pt-check answered every line");
+    assert_eq!(
+        answers.len(),
+        requests.len(),
+        "pt-check answered every line"
+    );
 
-    let th = v1();
-    let mut dead = 0;
+    let mut runtime = 0;
     let mut disagreements = Vec::new();
-    for ((props, line), lean) in sets.iter().zip(&verdicts) {
-        assert_ne!(*lean, "error", "pt-check could not read: {line}");
-        let rust_dead = th.consistent(props).tri == Tri::False;
-        dead += rust_dead as usize;
-        if rust_dead != (*lean == "dead") {
-            disagreements.push(format!("rust {rust_dead:5} lean {lean}: {line}"));
+    for ((line, expect), got) in requests.iter().zip(&answers) {
+        assert!(
+            got.get("error").is_none(),
+            "pt-check could not read: {line}: {got}"
+        );
+        let verdict = got["verdict"].as_str().unwrap_or("");
+        let problem = match expect {
+            Expect::Labels {
+                verdict: want,
+                exact,
+            } => {
+                if got["same"] != true {
+                    Some("elaboration differs".to_string())
+                } else if got["exact"] != *exact {
+                    Some(format!("exact: rust {exact}"))
+                } else if verdict != verdict_word(*want) {
+                    Some(format!("verdict: rust {}", verdict_word(*want)))
+                } else {
+                    None
+                }
+            }
+            Expect::Witness => (got["witness"] != true).then(|| "Lean rejects the witness".into()),
+            Expect::Runtime {
+                verdict: want,
+                exact,
+                witness,
+            } => {
+                runtime += 1;
+                let rust = verdict_word(*want);
+                // Lean's runtime view does not gate on exactness.
+                let agrees = if *exact {
+                    verdict == rust
+                } else {
+                    (verdict == "dead") == (rust == "dead")
+                };
+                if *witness && got["witness"] != true {
+                    Some("Lean rejects the runtime witness".into())
+                } else if !agrees {
+                    Some(format!("runtime verdict: rust {rust}"))
+                } else {
+                    None
+                }
+            }
+        };
+        if let Some(problem) = problem {
+            disagreements.push(format!("{problem}; lean {got}\n  {line}"));
         }
     }
     eprintln!(
-        "{rounds} label sets, {dead} dead, {} disagreements",
+        "{rounds} label sets ({} dead, {} live, {} unknown, {} of them exact and opaque-free), \
+         {runtime} with state, {} disagreements",
+        counts[0],
+        counts[1],
+        counts[2],
+        gaps.len(),
         disagreements.len()
+    );
+    for g in gaps.iter().take(12) {
+        eprintln!("  gap: {g}");
+    }
+    // Completeness on this vocabulary: every label set with no opaque atom
+    // and an exact elaboration is decided.
+    assert!(
+        gaps.is_empty(),
+        "exact, opaque-free label sets left unknown:\n{}",
+        gaps.iter().take(12).cloned().collect::<Vec<_>>().join("\n")
     );
     assert!(
         disagreements.is_empty(),
         "Rust and Lean disagree:\n{}",
         disagreements
             .iter()
-            .take(20)
+            .take(12)
             .cloned()
             .collect::<Vec<_>>()
             .join("\n")

@@ -4,8 +4,13 @@
 //! Predicates reach the theory only through declarations (`decl.rs`) that
 //! elaborate them into a closed set of sorts (`sort.rs`). The decision
 //! procedures are per sort (`order.rs`, `signers.rs`, `paths.rs`,
-//! `literals.rs`). Everything is three-valued and conservative: `Unknown`
-//! never refuses anything.
+//! `literals.rs`, `text.rs`). Everything is three-valued and conservative:
+//! `Unknown` never refuses anything. `False` is a contradiction the sort
+//! procedures found; `True` is a world built and checked (`witness.rs`).
+//!
+//! The specification and its proofs are the Lean development in
+//! `experiments/predicate-theory/lean`; this module is its transliteration,
+//! and the harness (`tests::rust_and_lean_agree`) holds the two together.
 //!
 //! `TheoryVersion::V0` is today's behaviour: every query returns `Unknown`.
 //! `V1` is the per-edge theory. The version is protocol; it is chosen by
@@ -23,6 +28,8 @@ pub mod signers;
 pub mod sort;
 pub mod standard;
 pub mod state;
+pub mod text;
+pub mod witness;
 
 pub use decl::{expand, ContractRegistry, Declaration, Expansion, Registry};
 pub use fragment::Template;
@@ -30,6 +37,7 @@ pub use rational::Rational;
 pub use sort::{Constraint, Lit, Op, Term, TextOp};
 pub use standard::{standard, StandardRegistry};
 pub use state::{Lookup, MapState, NoState, StateValue, StateView};
+pub use witness::World;
 
 use crate::ast::Property;
 use std::cmp::Ordering;
@@ -91,12 +99,17 @@ impl Tri {
     }
 }
 
-/// Result of a consistency query, with the offending literals when `False`.
+/// Result of a consistency query: the offending literals when `False`, the
+/// witness when `True`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Verdict {
     pub tri: Tri,
-    /// Sorted, deterministic. Empty unless `tri == False`.
+    /// Sorted, deterministic. Empty unless `tri == False`. May include what
+    /// the accepted state says about a path.
     pub offending: Vec<Lit>,
+    /// A world where every literal holds. Under a known accepted state, the
+    /// commit only (`World::state` is empty).
+    pub witness: Option<World>,
 }
 
 impl Verdict {
@@ -104,12 +117,14 @@ impl Verdict {
         Self {
             tri: Tri::Unknown,
             offending: Vec::new(),
+            witness: None,
         }
     }
-    fn yes() -> Self {
+    fn yes(w: World) -> Self {
         Self {
             tri: Tri::True,
             offending: Vec::new(),
+            witness: Some(w),
         }
     }
     fn no(mut offending: Vec<Lit>) -> Self {
@@ -118,6 +133,7 @@ impl Verdict {
         Self {
             tri: Tri::False,
             offending,
+            witness: None,
         }
     }
     pub fn explain(&self) -> Vec<String> {
@@ -190,81 +206,129 @@ impl<'a> Theory<'a> {
         self.consistent_lits(&lits, exact)
     }
 
-    /// Consistency over already-elaborated literals.
+    /// Consistency over already-elaborated literals. `exact`: the literals
+    /// say exactly what the labels say, so a witness for them is an
+    /// accepted commit. Lean: `consistent` / `runtime` in `Spec.lean`.
     pub fn consistent_lits(&self, lits: &[Lit], exact: bool) -> Verdict {
         if self.version == TheoryVersion::V0 {
             return Verdict::unknown();
         }
-        // 1. Identical constraint with both signs.
-        let positives: BTreeSet<&Constraint> =
-            lits.iter().filter(|l| l.positive).map(|l| &l.c).collect();
-        for lit in lits.iter().filter(|l| !l.positive) {
-            if positives.contains(&lit.c) {
-                return Verdict::no(vec![lit.clone(), lit.negated()]);
-            }
-        }
-        // 2. Facts from state: a literal that is false now cannot hold.
-        for lit in lits {
-            if self.evaluate(lit) == Tri::False {
-                return Verdict::no(vec![lit.clone()]);
-            }
-        }
-        // 3. What is forced, by positive literals or by state. Existence and
-        //    type are separate: a present `.num` path may hold a string.
-        let mut exists = literals::forced_paths(lits);
-        let mut numeric = literals::forced_numeric(lits);
-        let mut members = BTreeSet::new();
-        for lit in lits {
-            for p in constraint_paths(&lit.c) {
-                if let Lookup::Present(v) = self.state.value_at(&p) {
-                    exists.insert(p.clone());
-                    match v {
-                        StateValue::Num(_) => {
-                            numeric.insert(p);
-                        }
-                        StateValue::Text(_) if sort::ext(&p) == Some("id") => {
-                            members.insert(p);
-                        }
-                        _ => {}
-                    }
-                }
-            }
-        }
-        // 4. Per-sort procedures.
-        if let Some(why) = literals::check(lits, &exists) {
+        let mut all = lits.to_vec();
+        all.extend(self.state_facts(lits));
+        all.sort();
+        all.dedup();
+        if let Some(why) = dead(&all) {
             return Verdict::no(why);
         }
-        if let Some(why) = paths::check(lits) {
+        if let Some(why) = self.state_denied(lits) {
             return Verdict::no(why);
         }
-        if let Some(why) = signers::check(&signers::Ctx {
-            lits,
-            members: &members,
-            state: self.state,
-        }) {
-            return Verdict::no(why);
+        if !exact || lits.iter().any(Lit::is_opaque) {
+            return Verdict::unknown();
         }
-        let mut unknown = false;
-        match order::check(&order::Ctx {
-            lits,
-            numeric: &numeric,
-        }) {
-            Ok(Some(why)) => return Verdict::no(why),
-            Ok(None) => {}
-            Err(order::Overflow) => unknown = true,
-        }
-        // 5. No contradiction found.
-        if exact && !unknown && lits.iter().all(Lit::decidable) {
-            Verdict::yes()
+        let w = if self.state.is_known() {
+            witness::build_in(self.state, lits)
         } else {
-            Verdict::unknown()
+            witness::build(lits)
+        };
+        match w {
+            Some(w) => Verdict::yes(w),
+            None => Verdict::unknown(),
         }
+    }
+
+    /// What the accepted state says about every path the literals mention,
+    /// as literals true in every world with that state. Lean: `stateFacts`.
+    fn state_facts(&self, lits: &[Lit]) -> Vec<Lit> {
+        let mut out = Vec::new();
+        for p in witness::all_paths(lits) {
+            match self.state.value_at(&p) {
+                Lookup::Present(StateValue::Num(q)) => out.push(Lit::pos(Constraint::Order {
+                    lhs: Term::Path(p),
+                    op: Op::Eq,
+                    rhs: Term::Const(q),
+                })),
+                Lookup::Present(StateValue::Text(s)) => {
+                    out.push(Lit::pos(Constraint::Eq { path: p, lit: s }))
+                }
+                Lookup::Present(StateValue::Bool(b)) => {
+                    out.push(Lit::pos(Constraint::Is { path: p, value: b }))
+                }
+                Lookup::Present(StateValue::Structured) => {
+                    out.push(Lit::pos(Constraint::Exists { path: p.clone() }));
+                    for value in [true, false] {
+                        out.push(Lit::neg(Constraint::Is {
+                            path: p.clone(),
+                            value,
+                        }));
+                    }
+                    out.push(Lit::neg(Constraint::Eq2 {
+                        a: p.clone(),
+                        b: p.clone(),
+                    }));
+                    out.push(Lit::neg(Constraint::Order {
+                        lhs: Term::Path(p.clone()),
+                        op: Op::Le,
+                        rhs: Term::Path(p),
+                    }));
+                }
+                Lookup::Absent => out.push(Lit::neg(Constraint::Exists { path: p })),
+                Lookup::Unknown | Lookup::Present(StateValue::Other) => {}
+            }
+        }
+        out
+    }
+
+    /// Under a known state the posted keys are a closed set, which no
+    /// literal can say. Lean: `Lit.stateDenied`.
+    fn state_denied(&self, lits: &[Lit]) -> Option<Vec<Lit>> {
+        let signed_in: Vec<String> = lits
+            .iter()
+            .filter(|l| l.positive)
+            .filter_map(|l| match &l.c {
+                Constraint::Signer { id } => match self.state.value_at(id) {
+                    Lookup::Present(StateValue::Text(k)) => Some(k),
+                    _ => None,
+                },
+                _ => None,
+            })
+            .collect();
+        for lit in lits {
+            let denied = match (&lit.c, lit.positive) {
+                (Constraint::SignerCount { prefix, at_least }, true) => self
+                    .state
+                    .keys_under(prefix)
+                    .is_some_and(|k| (k.len() as u64) < u64::from(*at_least)),
+                (Constraint::SignerAll { prefix }, true) => {
+                    self.state.keys_under(prefix).is_some_and(|k| k.is_empty())
+                }
+                (Constraint::SignerAll { prefix }, false) => self
+                    .state
+                    .keys_under(prefix)
+                    .is_some_and(|k| !k.is_empty() && k.iter().all(|x| signed_in.contains(x))),
+                _ => false,
+            };
+            if denied {
+                let mut why = vec![lit.clone()];
+                if !lit.positive {
+                    why.extend(
+                        lits.iter()
+                            .filter(|l| l.positive && matches!(l.c, Constraint::Signer { .. }))
+                            .cloned(),
+                    );
+                }
+                return Some(why);
+            }
+        }
+        None
     }
 
     /// Do the edge's atoms entail the goal atom?
     ///
-    /// `True`: entailed. `False`: a countermodel exists in the theory.
-    /// `Unknown`: cannot tell (opaque goal, non-exact premises, overflow).
+    /// `True`: every way the goal could fail contradicts the premises.
+    /// `False`: a witness where the premises hold and the goal fails; only
+    /// when the premises and the goal's declaration are exact. `Unknown`:
+    /// cannot tell. Lean: `entailsV` in `Spec.lean`.
     pub fn entails(&self, premises: &[Property], goal: &Property) -> Tri {
         if premises.iter().any(|p| p == goal) {
             return Tri::True;
@@ -272,7 +336,7 @@ impl<'a> Theory<'a> {
         if self.version == TheoryVersion::V0 {
             return Tri::Unknown;
         }
-        let (mut lits, exact) = self.expand_all(premises);
+        let (lits, exact) = self.expand_all(premises);
         let (key, args) = decl::registry_key_and_args(goal);
         let decl = if goal.is_static() {
             None
@@ -283,55 +347,41 @@ impl<'a> Theory<'a> {
             return Tri::Unknown;
         };
         let positive_goal = goal.sign == crate::ast::PropertySign::Plus;
-
-        // Sub-goals whose negation we add to the premises.
-        let subgoals: Vec<Lit> = if positive_goal {
-            let Some(t) = &decl.sufficient else {
-                return Tri::Unknown;
-            };
-            let Some(cs) = t.instantiate(&args) else {
-                return Tri::Unknown;
-            };
-            cs.into_iter().map(Lit::pos).collect()
+        // For +P, one query per sufficient atom (its negation); for -P, one
+        // query with the necessary atoms.
+        let template = if positive_goal {
+            &decl.sufficient
         } else {
-            // premises ⊨ ¬P  ⇐  premises ∧ necessary(P) inconsistent
-            let Some(t) = &decl.necessary else {
-                return Tri::Unknown;
-            };
-            let Some(cs) = t.instantiate(&args) else {
-                return Tri::Unknown;
-            };
+            &decl.necessary
+        };
+        let Some(cs) = template.as_ref().and_then(|t| t.instantiate(&args)) else {
+            return Tri::Unknown;
+        };
+        let queries: Vec<Vec<Lit>> = if positive_goal {
+            cs.into_iter().map(|c| vec![Lit::neg(c)]).collect()
+        } else {
+            vec![cs.into_iter().map(Lit::pos).collect()]
+        };
+        let exact = exact && decl.sufficient == decl.necessary;
+        let mut all_dead = true;
+        let mut any_live = false;
+        for q in queries {
             let mut with = lits.clone();
-            with.extend(cs.into_iter().map(Lit::pos));
+            with.extend(q);
             with.sort();
             with.dedup();
-            return match self.consistent_lits(&with, exact).tri {
-                Tri::False => Tri::True,
-                Tri::True => Tri::False,
-                Tri::Unknown => Tri::Unknown,
-            };
-        };
-
-        let mut all_entailed = true;
-        let mut any_countermodel = false;
-        for g in subgoals {
-            let neg = g.negated();
-            lits.push(neg.clone());
-            lits.sort();
-            let v = self.consistent_lits(&lits, exact && neg.decidable());
-            lits.retain(|l| l != &neg);
-            match v.tri {
+            match self.consistent_lits(&with, exact).tri {
                 Tri::False => {}
                 Tri::True => {
-                    all_entailed = false;
-                    any_countermodel = true;
+                    all_dead = false;
+                    any_live = true;
                 }
-                Tri::Unknown => all_entailed = false,
+                Tri::Unknown => all_dead = false,
             }
         }
-        if all_entailed {
+        if all_dead {
             Tri::True
-        } else if any_countermodel {
+        } else if any_live {
             Tri::False
         } else {
             Tri::Unknown
@@ -382,9 +432,7 @@ impl<'a> Theory<'a> {
                 let (Some(Some(l)), Some(Some(r))) = (l, r) else {
                     return Tri::Unknown;
                 };
-                let Some(ord) = l.try_cmp(&r) else {
-                    return Tri::Unknown;
-                };
+                let ord = l.cmp_exact(&r);
                 let holds = match op {
                     Op::Lt => ord == Ordering::Less,
                     Op::Le => ord != Ordering::Greater,
@@ -474,23 +522,34 @@ fn tri(b: bool) -> Tri {
     }
 }
 
-fn constraint_paths(c: &Constraint) -> Vec<String> {
-    match c {
-        Constraint::Order { lhs, rhs, .. } => [lhs, rhs]
-            .into_iter()
-            .filter_map(|t| match t {
-                Term::Path(p) => Some(p.clone()),
-                _ => None,
-            })
-            .collect(),
-        Constraint::Eq { path, .. }
-        | Constraint::Text { path, .. }
-        | Constraint::Is { path, .. }
-        | Constraint::Exists { path } => vec![path.clone()],
-        Constraint::Eq2 { a, b } => vec![a.clone(), b.clone()],
-        Constraint::Signer { id } => vec![id.clone()],
-        _ => Vec::new(),
+/// Structural contradiction: no world satisfies every literal. Lean: `dead`
+/// in `Decide.lean`. The explanation is the literals that clash.
+pub fn dead(lits: &[Lit]) -> Option<Vec<Lit>> {
+    let positives: BTreeSet<&Constraint> =
+        lits.iter().filter(|l| l.positive).map(|l| &l.c).collect();
+    for lit in lits.iter().filter(|l| !l.positive) {
+        if positives.contains(&lit.c) {
+            return Some(vec![lit.clone(), lit.negated()]);
+        }
     }
+    let classes = text::TextClasses::new(lits);
+    if let Some(why) = literals::check(lits, &classes) {
+        return Some(why);
+    }
+    if let Some(why) = paths::check(lits) {
+        return Some(why);
+    }
+    if let Some(why) = signers::check(&signers::Ctx {
+        lits,
+        classes: &classes,
+    }) {
+        return Some(why);
+    }
+    let numeric = literals::forced_numeric(lits);
+    order::check(&order::Ctx {
+        lits,
+        numeric: &numeric,
+    })
 }
 
 #[cfg(test)]

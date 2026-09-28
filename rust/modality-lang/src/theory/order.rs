@@ -9,8 +9,8 @@
 //! hold a number (`-num_gt(x,5)` alone is "x ≤ 5, or x absent, or x not a
 //! number"; case A13).
 //!
-//! Returns the offending literals, or `None` if consistent, or
-//! `Err(Overflow)` when an overflow made the answer unknowable.
+//! Returns the offending literals, or `None` if consistent. Lean twin:
+//! `orderDead` in `Decide.lean`.
 
 use super::rational::Rational;
 use super::sort::{Constraint, Lit, Op, Term};
@@ -72,13 +72,9 @@ fn term_numeric(t: &Term, numeric: &BTreeSet<String>) -> bool {
     }
 }
 
-/// Checked arithmetic overflowed; the answer is unknowable at this width.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Overflow;
-
-/// `Ok(None)` consistent; `Ok(Some(lits))` inconsistent; `Err(Overflow)` unknown.
+/// `None` consistent; `Some(lits)` inconsistent.
 #[allow(clippy::needless_range_loop)]
-pub fn check(ctx: &Ctx) -> Result<Option<Vec<Lit>>, Overflow> {
+pub fn check(ctx: &Ctx) -> Option<Vec<Lit>> {
     // Collect terms.
     let mut terms: BTreeSet<Term> = BTreeSet::new();
     let mut used: Vec<(&Lit, &Term, Op, &Term, bool)> = Vec::new(); // (lit, lhs, op, rhs, negated)
@@ -94,7 +90,7 @@ pub fn check(ctx: &Ctx) -> Result<Option<Vec<Lit>>, Overflow> {
         }
     }
     if used.is_empty() {
-        return Ok(None);
+        return None;
     }
     let terms: Vec<Term> = terms.into_iter().collect();
     let index: BTreeMap<&Term, usize> = terms.iter().enumerate().map(|(i, t)| (t, i)).collect();
@@ -115,7 +111,7 @@ pub fn check(ctx: &Ctx) -> Result<Option<Vec<Lit>>, Overflow> {
         .collect();
     for (i, (ia, a)) in consts.iter().enumerate() {
         for (ib, b) in consts.iter().skip(i + 1) {
-            match a.try_cmp(b).ok_or(Overflow)? {
+            match a.cmp_exact(b) {
                 Ordering::Less => edges.push(Edge {
                     from: *ia,
                     to: *ib,
@@ -171,7 +167,7 @@ pub fn check(ctx: &Ctx) -> Result<Option<Vec<Lit>>, Overflow> {
     for (i, (ia, a)) in consts.iter().enumerate() {
         for (ib, b) in consts.iter().skip(i + 1) {
             if uf.find(*ia) == uf.find(*ib) && a != b {
-                return Ok(Some(eq_lits(ctx)));
+                return Some(eq_lits(ctx));
             }
         }
     }
@@ -203,12 +199,12 @@ pub fn check(ctx: &Ctx) -> Result<Option<Vec<Lit>>, Overflow> {
     for e in &edges {
         let (a, b) = (uf.find(e.from), uf.find(e.to));
         if e.strict && (a == b || reach[b][a].is_some()) {
-            return Ok(Some(cycle_lits(ctx, e, &edges, &mut uf, &reach)));
+            return Some(cycle_lits(ctx, e, &edges, &mut uf, &reach));
         }
     }
     for i in 0..n {
         if reach[i][i] == Some(true) {
-            return Ok(Some(order_lits(ctx)));
+            return Some(order_lits(ctx));
         }
     }
 
@@ -221,11 +217,11 @@ pub fn check(ctx: &Ctx) -> Result<Option<Vec<Lit>>, Overflow> {
                 why.push(lit.clone());
             }
             why.sort();
-            return Ok(Some(why));
+            return Some(why);
         }
     }
 
-    Ok(None)
+    None
 }
 
 fn order_lits(ctx: &Ctx) -> Vec<Lit> {

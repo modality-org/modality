@@ -147,7 +147,7 @@
     },
     {
       "id": "A12",
-      "title": "i128 overflow is unknown, not wrong",
+      "title": "A bound outside the exact domain is opaque",
       "literals": [
         "+num_gt(/x.num,\"170141183460469231731687303715884105728\")",
         "+num_lt(/x.num,\"3\")"
@@ -155,7 +155,7 @@
       "v1": {
         "consistent": "unknown"
       },
-      "explain": "2^127 overflows the checked rational; conservative"
+      "explain": "2^127 has more than 15 significant digits, where f64 comparison can differ from exact; the predicate stays opaque"
     },
     {
       "id": "A13a",
@@ -521,8 +521,9 @@
         "+text_starts_with(/p.text,\"a\")"
       ],
       "v1": {
-        "consistent": "unknown"
-      }
+        "consistent": "yes"
+      },
+      "explain": "the witness builder shapes a string from the needles (\\\"a\\\" + fresh + \\\"b\\\"); substring predicates are refuted only against a class literal (E5a)"
     },
     {
       "id": "F1",
@@ -670,6 +671,174 @@
         "modality/declaration-unparsed"
       ],
       "explain": "0<x<1, 0<y<1 gives x*y<1<100. `*` between two paths is not in V1; the local solver-backed analysis reports it as a finding; a later fragment version may decide it in consensus"
+    },
+    {
+      "id": "K1",
+      "title": "Two paths equal to one literal are equal",
+      "literals": [
+        "+text_eq(/a.text,\"x\")",
+        "+text_eq(/b.text,\"x\")",
+        "-text_eq(/a.text,/b.text)"
+      ],
+      "v1": {
+        "consistent": "no"
+      },
+      "explain": "text classes join through a shared literal, not only through (= a b)"
+    },
+    {
+      "id": "K2",
+      "title": "A key posted by literal is a member",
+      "literals": [
+        "+text_eq(/m/a.id,\"K\")",
+        "+all_signed(/m)",
+        "-signed_by(/m/a.id)"
+      ],
+      "v1": {
+        "consistent": "no"
+      },
+      "explain": "text_eq posts K at /m/a.id, so K is a member of /m and all_signed makes it sign"
+    },
+    {
+      "id": "K3",
+      "title": "One key signs or does not, at every path that holds it",
+      "literals": [
+        "+text_eq(/m/a.id,\"K\")",
+        "+text_eq(/m/b.id,\"K\")",
+        "+signed_by(/m/a.id)",
+        "-signed_by(/m/b.id)"
+      ],
+      "v1": {
+        "consistent": "no"
+      }
+    },
+    {
+      "id": "K4",
+      "title": "Distinct signed keys count separately",
+      "literals": [
+        "+text_eq(/m/a.id,\"KA\")",
+        "+text_eq(/m/b.id,\"KB\")",
+        "+signed_by(/m/a.id)",
+        "+signed_by(/m/b.id)",
+        "-threshold(\"2\",/m)"
+      ],
+      "v1": {
+        "consistent": "no"
+      },
+      "explain": "two different literal keys, both signed: at least two distinct signers under /m"
+    },
+    {
+      "id": "K5",
+      "title": "The root prefix holds no keys",
+      "literals": [
+        "+any_signed(\"/\")"
+      ],
+      "v1": {
+        "consistent": "no"
+      },
+      "explain": "the empty prefix contains only itself in the evaluator, and the root has no .id extension"
+    },
+    {
+      "id": "K6",
+      "title": "A post is a POST",
+      "literals": [
+        "+post_to_path(/x)",
+        "-POST"
+      ],
+      "v1": {
+        "consistent": "no"
+      },
+      "explain": "post_to_path needs a POST action; the static label reads the same methods"
+    },
+    {
+      "id": "K7",
+      "title": "A non-empty sub-prefix of an all-signed prefix is all-signed",
+      "literals": [
+        "+all_signed(/m)",
+        "+any_signed(/m/a)",
+        "-all_signed(/m/a)"
+      ],
+      "v1": {
+        "consistent": "no"
+      },
+      "explain": "C7 is `no` only because /m/a may be empty; any_signed(/m/a) says it is not"
+    },
+    {
+      "id": "K8",
+      "title": "An all-signed prefix with an empty sub-prefix",
+      "literals": [
+        "+all_signed(/m)",
+        "-all_signed(/m/a)"
+      ],
+      "v1": {
+        "consistent": "yes"
+      },
+      "explain": "witness: one signed key at a fresh /m/… path, nothing under /m/a"
+    },
+    {
+      "id": "K9",
+      "title": "Static labels are decidable",
+      "literals": [
+        "+APPROVE",
+        "+modifies(/x)",
+        "-POST"
+      ],
+      "v1": {
+        "consistent": "yes"
+      },
+      "explain": "witness: an APPROVE action and a PUT to /x"
+    },
+    {
+      "id": "K10",
+      "title": "A path cannot hold a number and a string",
+      "literals": [
+        "+num_gt(/x.num,\"0\")",
+        "+wasm(/predicates/named.wasm, /x.num)"
+      ],
+      "declarations": {
+        "/predicates/named.wasm": {
+          "necessary": "(exists $1)"
+        }
+      },
+      "v1": {
+        "consistent": "unknown"
+      },
+      "explain": "control: a custom predicate that only says /x.num exists does not clash with a number"
+    },
+    {
+      "id": "K11",
+      "title": "Every posted key already signs",
+      "literals": [
+        "+signed_by(/m/a.id)",
+        "-all_signed(/m)"
+      ],
+      "state": {
+        "/m/a.id": "KA"
+      },
+      "v1": {
+        "consistent": "yes"
+      },
+      "runtime": {
+        "consistent": "no"
+      },
+      "explain": "with state known, /m holds exactly KA; KA signs, so all_signed(/m) holds"
+    },
+    {
+      "id": "K12",
+      "title": "Runtime: a threshold met by the posted keys",
+      "literals": [
+        "+threshold(\"2\",/m)"
+      ],
+      "state": {
+        "/m/a.id": "KA",
+        "/m/b.id": "KB"
+      },
+      "v1": {
+        "consistent": "yes"
+      },
+      "runtime": {
+        "consistent": "yes"
+      },
+      "explain": "witness: both posted keys sign"
     }
   ]
 }

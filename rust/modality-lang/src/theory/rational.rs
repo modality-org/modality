@@ -1,7 +1,10 @@
-//! Exact rationals on `i128`, with checked arithmetic.
+//! Exact rationals on `i128`.
 //!
-//! Every operation that could overflow returns `None`. The theory maps
-//! `None` to `Unknown`, never to a verdict. There is no `f64` here.
+//! Comparison is exact for every pair: the cross products are formed in
+//! 256 bits, so no verdict depends on overflow (the Lean spec compares
+//! unbounded integers). Arithmetic, used only to build witnesses, is
+//! checked: `None` there means "no witness", never a verdict. There is no
+//! `f64` here.
 
 use std::cmp::Ordering;
 use std::fmt;
@@ -100,12 +103,103 @@ impl Rational {
         Self::new(num, den)
     }
 
-    /// Checked comparison; `None` on intermediate overflow.
-    pub fn try_cmp(&self, other: &Self) -> Option<Ordering> {
-        let l = self.num.checked_mul(other.den)?;
-        let r = other.num.checked_mul(self.den)?;
-        Some(l.cmp(&r))
+    pub fn num(&self) -> i128 {
+        self.num
     }
+
+    /// Always positive.
+    pub fn den(&self) -> i128 {
+        self.den
+    }
+
+    /// Exact comparison: `self.num * other.den` against `other.num *
+    /// self.den`, in 256 bits.
+    pub fn cmp_exact(&self, other: &Self) -> Ordering {
+        let l = (
+            self.num.signum(),
+            wide_mul(self.num.unsigned_abs(), other.den as u128),
+        );
+        let r = (
+            other.num.signum(),
+            wide_mul(other.num.unsigned_abs(), self.den as u128),
+        );
+        match l.0.cmp(&r.0) {
+            Ordering::Equal if l.0 < 0 => r.1.cmp(&l.1),
+            Ordering::Equal => l.1.cmp(&r.1),
+            o => o,
+        }
+    }
+
+    /// Kept for callers that predate exact comparison; always `Some`.
+    pub fn try_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp_exact(other))
+    }
+
+    /// Finite decimal spelling (`-12.5`), when the denominator divides a
+    /// power of ten.
+    pub fn to_decimal(&self) -> Option<String> {
+        let mut den = self.den;
+        let (mut twos, mut fives) = (0u32, 0u32);
+        while den % 2 == 0 {
+            den /= 2;
+            twos += 1;
+        }
+        while den % 5 == 0 {
+            den /= 5;
+            fives += 1;
+        }
+        if den != 1 {
+            return None;
+        }
+        let places = twos.max(fives);
+        let scaled = self
+            .num
+            .checked_mul(10i128.checked_pow(places)?)?
+            .checked_div(self.den)?;
+        let digits = scaled.unsigned_abs().to_string();
+        let sign = if scaled < 0 { "-" } else { "" };
+        if places == 0 {
+            return Some(format!("{sign}{digits}"));
+        }
+        let places = places as usize;
+        let padded = format!("{digits:0>width$}", width = places + 1);
+        let (int, frac) = padded.split_at(padded.len() - places);
+        Some(format!("{sign}{int}.{frac}"))
+    }
+
+    pub fn checked_add(&self, other: &Self) -> Option<Self> {
+        let n = self
+            .num
+            .checked_mul(other.den)?
+            .checked_add(other.num.checked_mul(self.den)?)?;
+        Self::new(n, self.den.checked_mul(other.den)?)
+    }
+
+    pub fn checked_sub(&self, other: &Self) -> Option<Self> {
+        self.checked_add(&Self::new(other.num.checked_neg()?, other.den)?)
+    }
+
+    pub fn checked_mul(&self, other: &Self) -> Option<Self> {
+        Self::new(
+            self.num.checked_mul(other.num)?,
+            self.den.checked_mul(other.den)?,
+        )
+    }
+}
+
+/// `a * b` as `(high, low)` 128-bit halves.
+fn wide_mul(a: u128, b: u128) -> (u128, u128) {
+    const M: u128 = u64::MAX as u128;
+    let (a1, a0) = (a >> 64, a & M);
+    let (b1, b0) = (b >> 64, b & M);
+    let p00 = a0 * b0;
+    let p01 = a0 * b1;
+    let p10 = a1 * b0;
+    let p11 = a1 * b1;
+    let mid = (p00 >> 64) + (p01 & M) + (p10 & M);
+    let lo = (p00 & M) | ((mid & M) << 64);
+    let hi = p11 + (p01 >> 64) + (p10 >> 64) + (mid >> 64);
+    (hi, lo)
 }
 
 impl PartialOrd for Rational {
@@ -115,12 +209,9 @@ impl PartialOrd for Rational {
 }
 
 impl Ord for Rational {
-    /// Total order for deterministic output. Exact when no overflow;
-    /// otherwise falls back to a structural comparison. Decision logic
-    /// must use `try_cmp`, never this.
+    /// Exact, and consistent with `==` (values are normalised).
     fn cmp(&self, other: &Self) -> Ordering {
-        self.try_cmp(other)
-            .unwrap_or_else(|| (self.num, self.den).cmp(&(other.num, other.den)))
+        self.cmp_exact(other)
     }
 }
 
@@ -158,6 +249,32 @@ mod tests {
         assert!(Rational::parse("5 ").is_none());
         assert!(Rational::parse(" 5").is_none());
         assert!(Rational::parse("170141183460469231731687303715884105728").is_none());
+    }
+
+    #[test]
+    fn comparison_is_exact_beyond_i128_products() {
+        let big = Rational::new(i128::MAX, 1).unwrap();
+        let tiny = Rational::new(1, i128::MAX).unwrap();
+        let neg = Rational::new(-i128::MAX, 3).unwrap();
+        assert_eq!(big.cmp_exact(&tiny), Ordering::Greater);
+        assert_eq!(tiny.cmp_exact(&big), Ordering::Less);
+        assert_eq!(neg.cmp_exact(&tiny), Ordering::Less);
+        let a = Rational::new(i128::MAX - 1, i128::MAX).unwrap();
+        let b = Rational::new(i128::MAX - 2, i128::MAX - 1).unwrap();
+        assert_eq!(a.cmp_exact(&b), Ordering::Greater);
+        assert_eq!(a.cmp_exact(&a), Ordering::Equal);
+        let m = Rational::new(i128::MIN + 1, 7).unwrap();
+        assert_eq!(m.cmp_exact(&neg), Ordering::Greater);
+        assert_eq!(neg.cmp_exact(&m), Ordering::Less);
+    }
+
+    #[test]
+    fn decimals_spell_back_exactly() {
+        for s in ["0", "5", "-3.5", "0.001", "-0.25", "123.456"] {
+            let q = Rational::parse(s).unwrap();
+            assert_eq!(q.to_decimal().as_deref(), Some(s), "{s}");
+        }
+        assert_eq!(Rational::new(1, 3).unwrap().to_decimal(), None);
     }
 
     #[test]

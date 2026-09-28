@@ -1,4 +1,4 @@
-import PredicateTheory.Sound
+import PredicateTheory.Spec
 
 /-!
 An escrow, decided by the proven checker.
@@ -19,45 +19,41 @@ signs. No commit can ever take that edge.
 
 namespace PredicateTheory
 
-def paid : Path := "/escrow/paid.num"
-def alice : Path := "/parties/alice.id"
-def bob : Path := "/parties/bob.id"
+def signedBy (p : String) : Label := ⟨true, "signed_by", [p], false⟩
+def gte (p v : String) : Label := ⟨true, "num_gte", [p, v], false⟩
+def lt (p v : String) : Label := ⟨true, "num_lt", [p, v], false⟩
+def notLabel (l : Label) : Label := { l with pos := false }
 
-def releaseEdge : List (Lit Int) := [pos (signed_by alice), pos (num_gte paid 100)]
+def paid := "/escrow/paid.num"
+def alice := "/parties/alice.id"
+def bob := "/parties/bob.id"
 
-def refundEdge : List (Lit Int) :=
-  [pos (signed_by bob), pos (num_lt paid 100), pos (num_gte paid 100)]
+def releaseEdge : List Label := [signedBy alice, gte paid "100"]
+def refundEdge : List Label := [signedBy bob, lt paid "100", gte paid "100"]
 
-#eval explain releaseEdge
-#eval explain refundEdge
+#eval explain (expandAll standard refundEdge).lits
+#eval build (expandAll standard releaseEdge).lits
 
-/-- No accepted state and no set of signers let any commit take the refund
+/-- No accepted state, signer set, or body lets any commit take the refund
 edge: run the checker (`decide`), then apply its soundness theorem. -/
-theorem refund_edge_is_dead : ¬ Sat refundEdge :=
-  dead_sound (by decide)
+theorem refund_edge_is_dead : ∀ I, ¬ Sat I (expandAll standard refundEdge).lits :=
+  consistent_dead (by decide)
 
-/-- Bob has paid exactly 100, and Alice signs. -/
-def paidInFull : World Int where
-  state p := if p = paid then some (.num 100) else if p = alice then some (.text "KEY_A") else none
-  signed k := k = "KEY_A"
-
-/-- The release edge is live: `paidInFull` takes it. -/
-theorem release_edge_is_live : Sat releaseEdge :=
-  ⟨paidInFull, by
-    simp [releaseEdge, paidInFull, paid, alice, pos, num_gte, signed_by, Lit.holds, Atom.holds,
-      Term.eval, Op.eval, Value.num?]⟩
+/-- The release edge is live: the checker builds a world (Alice's key
+posted and signing, `paid` above 100) and checks it. -/
+theorem release_edge_is_live : ∀ I, Sat I (expandAll standard releaseEdge).lits :=
+  (consistent_live (by decide)).2
 
 /-- A release edge asking for at least 120 meets a rule that asks for at
 least 100 (case G4: one edge's labels entail another's). -/
 theorem stricter_release_meets_the_rule :
-    Entails [pos (num_gte paid 120)] (pos (num_gte paid 100) : Lit Int) :=
-  entails_sound (by decide)
+    ∀ I, LabelEntails I standard [gte paid "120"] (gte paid "100") :=
+  entails_yes (by decide)
 
-/-- Alice's release needs her key posted: `-state_exists` on it is dead
-(case C6). -/
+/-- Alice's release needs her key posted (case C6). -/
 theorem release_needs_the_key_posted :
-    ¬ Sat ([pos (signed_by alice), neg (state_exists alice)] : List (Lit Int)) :=
-  dead_sound (by decide)
+    ∀ I, ¬ Sat I (expandAll standard [signedBy alice, notLabel ⟨true, "state_exists", [alice], false⟩]).lits :=
+  consistent_dead (by decide)
 
 /-! ## Why the state type says `Value`
 
@@ -66,34 +62,32 @@ if `/escrow/paid.num` holds the text `"lots"`, there is no number there,
 both comparisons are false, and both negations hold. Path extensions are
 not type-checked on write, so this state can happen. -/
 
-def notANumber : List (Lit Int) := [neg (num_lt paid 100), neg (num_gte paid 100)]
+def notANumber : List Label := [notLabel (lt paid "100"), notLabel (gte paid "100")]
 
-theorem not_a_number_is_live : Sat notANumber :=
-  ⟨⟨fun _ => some (.text "lots"), fun _ => False⟩, by
-    simp [notANumber, neg, num_lt, num_gte, Lit.holds, Atom.holds, Term.eval, Value.num?]⟩
+theorem not_a_number_is_live : ∀ I, Sat I (expandAll standard notANumber).lits :=
+  (consistent_live (by decide)).2
 
-/-- The checker agrees: nothing forces a number at `paid`, so it does not
-flip the negations and does not call the edge dead. -/
-example : dead notANumber = false := by decide
-
-/-- With a positive literal forcing a number, the same negations do flip. -/
-example : dead (pos (num_lte paid 1000) :: notANumber) = true := by decide
+/-- With a positive literal forcing a number, the same negations flip. -/
+example : consistent standard (⟨true, "num_lte", [paid, "1000"], false⟩ :: notANumber) = .dead := by
+  decide
 
 /-- Present is not a number either: `state_exists` does not flip them. -/
-example : dead (pos (state_exists paid) :: notANumber) = false := by decide
+example : consistent standard (⟨true, "state_exists", [paid], false⟩ :: notANumber) = .live := by
+  decide
 
 /-- A "simpler" checker that always flips negated order literals, as if
 every path held a number. -/
-def Lit.edgesNaive : Lit Int → List (Edge Int)
+def Lit.edgesNaive : Lit → List (Edge Term)
   | ⟨false, .order a .lt b⟩ => [⟨b, false, a⟩]
   | ⟨false, .order a .le b⟩ => [⟨b, true, a⟩]
-  | l => l.edges []
+  | l => l.orderEdges []
 
-def deadNaive (ls : List (Lit Int)) : Bool :=
+def deadNaive (ls : List Lit) : Bool :=
   (close ls.length (ls.flatMap Lit.edgesNaive)).any Edge.contradicts
 
 /-- Lean refutes it: it would refuse an edge that a commit can take. -/
-theorem deadNaive_is_unsound : ∃ ls, deadNaive ls = true ∧ Sat ls :=
-  ⟨notANumber, by decide, not_a_number_is_live⟩
+theorem deadNaive_is_unsound :
+    ∃ ls, deadNaive ls = true ∧ ∀ I, Sat I ls :=
+  ⟨(expandAll standard notANumber).lits, by decide, not_a_number_is_live⟩
 
 end PredicateTheory

@@ -200,8 +200,9 @@ pub fn registry_key_and_args(p: &Property) -> (String, Vec<String>) {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Expansion {
     pub lits: Vec<Lit>,
-    /// Every literal is decidable and the expansion is exact in the
-    /// direction used, so a `consistent = True` over these is a real model.
+    /// The literals say exactly what the property says (its declaration is
+    /// exact, or it is a static label), so a witness for them is a commit
+    /// the evaluator accepts. Lean: `Expansion.exact`.
     pub exact: bool,
 }
 
@@ -226,7 +227,8 @@ pub fn expand(reg: &dyn Registry, p: &Property) -> Expansion {
         exact: false,
     };
 
-    // Static labels (`+APPROVE`) have no declaration by construction.
+    // Static labels (`+APPROVE`) have no declaration by construction; the
+    // label literal is the whole meaning (some action has that method).
     if p.is_static() {
         return Expansion {
             lits: vec![Lit {
@@ -235,7 +237,7 @@ pub fn expand(reg: &dyn Registry, p: &Property) -> Expansion {
                 },
                 positive,
             }],
-            exact: false,
+            exact: true,
         };
     }
     let Some(decl) = reg.declaration(&key).filter(|d| d.accepts(&args)) else {
@@ -250,7 +252,7 @@ pub fn expand(reg: &dyn Registry, p: &Property) -> Expansion {
             return opaque();
         };
         let lits: Vec<Lit> = cs.into_iter().map(Lit::pos).collect();
-        let exact = decl.sufficient == decl.necessary && lits.iter().all(Lit::decidable);
+        let exact = decl.sufficient == decl.necessary;
         Expansion { lits, exact }
     } else {
         let Some(t) = &decl.sufficient else {
@@ -263,7 +265,7 @@ pub fn expand(reg: &dyn Registry, p: &Property) -> Expansion {
             return opaque();
         };
         let lits: Vec<Lit> = cs.into_iter().map(Lit::neg).collect();
-        let exact = decl.sufficient == decl.necessary && lits.iter().all(Lit::decidable);
+        let exact = decl.sufficient == decl.necessary;
         Expansion { lits, exact }
     }
 }

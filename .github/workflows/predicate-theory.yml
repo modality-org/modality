@@ -1,0 +1,87 @@
+name: Predicate theory
+
+# The Lean specification and proofs of the predicate theory, and the harness
+# that holds the Rust implementation to them.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'experiments/predicate-theory/**'
+      - 'rust/modality-lang/src/theory/**'
+      - '.github/workflows/predicate-theory.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'experiments/predicate-theory/**'
+      - 'rust/modality-lang/src/theory/**'
+      - '.github/workflows/predicate-theory.yml'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_NET_RETRY: "10"
+  RUSTFLAGS: "-D warnings"
+
+jobs:
+  lean:
+    name: Proofs and Rust-vs-Lean harness
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: experiments/predicate-theory/lean
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Cache Lean toolchain
+        uses: actions/cache@v5
+        with:
+          path: ~/.elan
+          key: ${{ runner.os }}-elan-${{ hashFiles('experiments/predicate-theory/lean/lean-toolchain') }}
+
+      - name: Install Lean (elan)
+        run: |
+          if [ ! -x "$HOME/.elan/bin/lake" ]; then
+            curl -sSfL https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh \
+              | sh -s -- -y --default-toolchain none
+          fi
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+
+      - name: Generated cases are current
+        run: |
+          python3 gen_cases.py
+          git diff --exit-code -- PredicateTheory/Generated.lean
+
+      - name: Build and check the proofs
+        run: |
+          lake build 2>&1 | tee build.log
+          if grep -q "declaration uses 'sorry'" build.log; then
+            echo "a proof uses sorry" >&2
+            exit 1
+          fi
+          if grep -rn "native_decide" PredicateTheory Main.lean; then
+            echo "native_decide trusts the compiler; proofs must use decide" >&2
+            exit 1
+          fi
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.94.1
+
+      - name: Cache cargo
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            rust/target
+          key: ${{ runner.os }}-cargo-predicate-theory-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-predicate-theory-
+
+      - name: Rust and Lean agree
+        run: sh agree.sh

@@ -1143,3 +1143,77 @@ fn theory_agrees_with_the_evaluator() {
     assert!(entailed > 1_000, "entailed {entailed}");
     assert!(decided > 1_000, "decided {decided}");
 }
+
+/// A witness as the evaluator's inputs: the accepted state it builds (empty
+/// under a known view) and the pending commit.
+fn realize(w: &modality_lang::theory::World) -> (HashMap<String, Value>, CommitFile) {
+    use modality_lang::theory::witness::Value as W;
+    let state = w
+        .state
+        .iter()
+        .map(|(p, v)| {
+            let v = match v {
+                W::Num(q) => serde_json::from_str(&q.to_decimal().expect("decimal witness"))
+                    .expect("a JSON number"),
+                W::Bool(b) => json!(b),
+                W::Text(s) => json!(s),
+                W::Structured => json!({}),
+            };
+            (p.clone(), v)
+        })
+        .collect();
+    let mut c = CommitFile::new();
+    for a in &w.body {
+        c.add_action(
+            a.method.clone(),
+            a.path.as_ref().map(|p| format!("/{p}")),
+            json!(1),
+        );
+    }
+    c.head.signatures = Some(Value::Object(
+        w.signed.iter().map(|k| (k.clone(), json!("sig"))).collect(),
+    ));
+    (state, c)
+}
+
+/// A `True` consistency verdict is a commit the evaluator accepts: for
+/// random label sets (and random accepted states), every witness the theory
+/// returns, written as a state and a commit, makes every label hold in
+/// `CommitFacts::predicate_holds`.
+#[test]
+fn witnesses_are_commits_the_evaluator_accepts() {
+    let mut rng = Rng(0x5EED_CAFE_F00D_0001);
+    let (mut built, mut in_state) = (0, 0);
+    for round in 0..40_000 {
+        let props: Vec<Property> = (0..1 + rng.below(4))
+            .map(|_| random_property(&mut rng))
+            .collect();
+        let state = random_state(&mut rng);
+        let accepted = AcceptedState::new(&state);
+        for (view, theory) in [
+            ("no state", Theory::new(V1, standard(), &NoState)),
+            ("accepted state", Theory::new(V1, standard(), &accepted)),
+        ] {
+            let Some(w) = theory.consistent(&props).witness else {
+                continue;
+            };
+            let (built_state, commit) = realize(&w);
+            let s = if view == "no state" {
+                built += 1;
+                &built_state
+            } else {
+                in_state += 1;
+                &state
+            };
+            let facts = CommitFacts::from_commit(&commit, s);
+            for p in &props {
+                assert!(
+                    holds(&facts, p),
+                    "round {round} ({view}): {props:?} has witness {w:?}, but {p:?} fails"
+                );
+            }
+        }
+    }
+    assert!(built > 5_000, "built {built}");
+    assert!(in_state > 1_000, "in state {in_state}");
+}
