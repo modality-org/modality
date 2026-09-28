@@ -81,7 +81,21 @@ pub async fn handler(
     }
 
     let mut queued_commits = Vec::new();
+    let mut already_sequenced = 0;
     for commit_data in &req.commits {
+        let keys = [
+            ("contract_id".to_string(), req.contract_id.clone()),
+            ("commit_id".to_string(), commit_data.commit_id.clone()),
+        ]
+        .into_iter()
+        .collect();
+        if let Some(existing) = Commit::find_one_multi(datastore_manager, keys).await? {
+            if existing.is_sequenced() {
+                already_sequenced += 1;
+                continue;
+            }
+        }
+
         let commit_data_json = json!({
             "body": commit_data.body,
             "head": commit_data.head,
@@ -116,10 +130,15 @@ pub async fn handler(
             .await?;
     }
 
+    let status = if saved_count == 0 && already_sequenced > 0 {
+        "already_sequenced"
+    } else {
+        "queued"
+    };
     let response = PushResponse {
         contract_id: req.contract_id,
         pushed_count: saved_count,
-        status: "queued".to_string(),
+        status: status.to_string(),
     };
 
     Ok(Response {
@@ -180,6 +199,44 @@ mod tests {
         let events = mgr.drain_sequencer_events().await.unwrap();
         assert_eq!(events.len(), 1);
         assert_eq!(events[0]["type"], "contract_push");
+    }
+
+    #[tokio::test]
+    async fn test_repush_keeps_sequenced_commit_and_does_not_requeue_it() {
+        let mgr = DatastoreManager::create_in_memory().unwrap();
+        let (tx, _rx) = mpsc::channel::<ConsensusMessage>(100);
+        let push = json!({
+            "contract_id": "c",
+            "commits": [
+                {"commit_id": "genesis", "body": [{"method": "post", "path": "/a.text", "value": "a"}], "head": {}},
+                {"commit_id": "next", "body": [{"method": "post", "path": "/b.text", "value": "b"}], "head": {"parent": "genesis"}}
+            ]
+        });
+
+        assert!(handler(Some(push.clone()), &mgr, tx.clone()).await.unwrap().ok);
+        mgr.drain_sequencer_events().await.unwrap();
+        let keys = [
+            ("contract_id".to_string(), "c".to_string()),
+            ("commit_id".to_string(), "genesis".to_string()),
+        ]
+        .into_iter()
+        .collect::<std::collections::HashMap<_, _>>();
+        let mut genesis = Commit::find_one_multi(&mgr, keys.clone()).await.unwrap().unwrap();
+        genesis.in_batch = Some("batch-1".into());
+        genesis.save_to_final(&mgr).await.unwrap();
+
+        let response = handler(Some(push), &mgr, tx).await.unwrap();
+        assert!(response.ok);
+        assert_eq!(response.data.unwrap()["pushed_count"], 1);
+
+        let genesis = Commit::find_one_multi(&mgr, keys).await.unwrap().unwrap();
+        assert_eq!(genesis.in_batch.as_deref(), Some("batch-1"));
+
+        let events = mgr.drain_sequencer_events().await.unwrap();
+        assert_eq!(events.len(), 1);
+        let commits = events[0]["data"]["commits"].as_array().unwrap();
+        assert_eq!(commits.len(), 1);
+        assert_eq!(commits[0]["commit_id"], "next");
     }
 
     #[tokio::test]

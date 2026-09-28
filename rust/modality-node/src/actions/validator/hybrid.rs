@@ -146,7 +146,7 @@ pub fn start_hybrid_consensus_monitor_with_checkpoints(
 }
 
 /// Get the current mining epoch from the canonical chain tip.
-async fn get_current_epoch(datastore: &Arc<Mutex<DatastoreManager>>) -> u64 {
+pub(super) async fn get_current_epoch(datastore: &Arc<Mutex<DatastoreManager>>) -> u64 {
     let blocks_per_epoch = {
         let ds = datastore.lock().await;
         ds.epoch_config().blocks_per_epoch.max(1)

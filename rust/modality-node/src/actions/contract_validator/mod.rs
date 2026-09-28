@@ -87,8 +87,47 @@ async fn tick(
 async fn prefix_cert_requests_from_pending(
     mgr: &DatastoreManager,
 ) -> Result<Vec<serde_json::Value>> {
+    prefix_cert_requests_for_events(mgr, &mgr.peek_sequencer_events()?).await
+}
+
+/// Queue prefix-cert requests for REPOST/RECV actions in another sequencer's block.
+///
+/// Only a named contract validator queues them; nothing else drains the queue.
+pub async fn queue_requests_for_events(
+    mgr: &DatastoreManager,
+    own_peer_id: &str,
+    events: &[serde_json::Value],
+) -> Result<usize> {
+    if !mgr
+        .contract_validators()?
+        .iter()
+        .any(|p| p == own_peer_id)
+    {
+        return Ok(0);
+    }
+    let requests = prefix_cert_requests_for_events(mgr, events).await?;
+    let mut queued = 0;
+    for req in requests {
+        let source = req.get("source_contract").and_then(|v| v.as_str());
+        let through = req.get("through_commit").and_then(|v| v.as_str());
+        let (Some(source), Some(through)) = (source, through) else {
+            continue;
+        };
+        if mgr.has_prefix_cert_from(source, through, own_peer_id)? {
+            continue;
+        }
+        mgr.enqueue_prefix_cert_request(req)?;
+        queued += 1;
+    }
+    Ok(queued)
+}
+
+async fn prefix_cert_requests_for_events(
+    mgr: &DatastoreManager,
+    events: &[serde_json::Value],
+) -> Result<Vec<serde_json::Value>> {
     let mut out = Vec::new();
-    for event in mgr.peek_sequencer_events()? {
+    for event in events {
         if event.get("type").and_then(|v| v.as_str()) != Some("contract_push") {
             continue;
         }
@@ -369,6 +408,59 @@ mod tests {
         .await
         .unwrap();
         assert!(skip_first.is_none(), "same peer should not recertify");
+    }
+
+    fn peer_repost_event() -> serde_json::Value {
+        serde_json::json!({
+            "type": "contract_push",
+            "data": {
+                "contract_id": "dest",
+                "commits": [{
+                    "commit_id": "d1",
+                    "body": [{
+                        "method": "repost",
+                        "path": "/reposts/src/hello.text",
+                        "value": "hi",
+                        "source_contract": "src",
+                        "source_path": "/hello.text",
+                        "source_commit": "c1"
+                    }],
+                    "head": {}
+                }]
+            }
+        })
+    }
+
+    #[tokio::test]
+    async fn named_validator_queues_requests_for_peer_repost() {
+        let mgr = DatastoreManager::create_in_memory().unwrap();
+        mgr.load_network_config(&serde_json::json!({
+            "contract_validators": ["me", "other"],
+        }))
+        .await
+        .unwrap();
+        let queued = queue_requests_for_events(&mgr, "me", &[peer_repost_event()])
+            .await
+            .unwrap();
+        assert_eq!(queued, 1);
+        let reqs = mgr.drain_prefix_cert_requests().unwrap();
+        assert_eq!(reqs[0]["source_contract"], "src");
+        assert_eq!(reqs[0]["through_commit"], "c1");
+    }
+
+    #[tokio::test]
+    async fn unnamed_peer_does_not_queue_requests() {
+        let mgr = DatastoreManager::create_in_memory().unwrap();
+        mgr.load_network_config(&serde_json::json!({
+            "contract_validators": ["other"],
+        }))
+        .await
+        .unwrap();
+        let queued = queue_requests_for_events(&mgr, "me", &[peer_repost_event()])
+            .await
+            .unwrap();
+        assert_eq!(queued, 0);
+        assert!(mgr.drain_prefix_cert_requests().unwrap().is_empty());
     }
 
     #[tokio::test]

@@ -9,6 +9,7 @@
 //! - Do NOT mine blocks
 
 mod ack_collector;
+pub(crate) mod cert_sync;
 pub mod checkpoint;
 pub(crate) mod consensus;
 mod hybrid;
@@ -134,6 +135,16 @@ pub async fn start_sequencing(node: &mut Node) {
     let swarm = node.swarm.clone();
     let consensus_tx = node.get_consensus_tx();
 
+    if static_or_hybrid(node).await {
+        cert_sync::start_pull(
+            node.peerid.to_string(),
+            swarm.clone(),
+            node.reqres_response_txs.clone(),
+            node.datastore_manager.clone(),
+            consensus_tx.clone(),
+        );
+    }
+
     let static_validators = {
         let ds = node.datastore_manager.lock().await;
         ds.get_static_validators().await.ok().flatten()
@@ -190,4 +201,12 @@ pub async fn start_sequencing(node: &mut Node) {
     } else {
         log::info!("Consensus not enabled (no static validators and hybrid consensus is off)");
     }
+}
+
+async fn static_or_hybrid(node: &Node) -> bool {
+    if node.hybrid_consensus {
+        return true;
+    }
+    let ds = node.datastore_manager.lock().await;
+    ds.get_static_validators().await.ok().flatten().is_some()
 }

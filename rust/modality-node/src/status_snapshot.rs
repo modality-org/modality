@@ -88,6 +88,8 @@ pub struct NodeStatus {
     pub dest_apply_requires_cert: bool,
     pub recent_prefix_certs: Vec<PrefixCertStatus>,
     pub pending_prefix_cert_requests: usize,
+    /// Highest certified sequencer round seen per block author.
+    pub last_cert_round_by_author: Vec<(String, u64)>,
 }
 
 #[derive(Debug, Clone)]
@@ -342,6 +344,7 @@ pub async fn collect_node_status(source: &NodeStatusSource) -> anyhow::Result<No
         .peek_prefix_cert_requests()
         .map(|r| r.len())
         .unwrap_or(0);
+    let last_cert_round_by_author = crate::actions::validator::cert_sync::last_cert_rounds(&mgr);
 
     let active_roles = derive_active_roles(
         &source.role,
@@ -393,6 +396,7 @@ pub async fn collect_node_status(source: &NodeStatusSource) -> anyhow::Result<No
         dest_apply_requires_cert,
         recent_prefix_certs,
         pending_prefix_cert_requests,
+        last_cert_round_by_author,
     })
 }
 
@@ -669,6 +673,7 @@ pub(crate) fn sample_status() -> NodeStatus {
         dest_apply_requires_cert: false,
         recent_prefix_certs: vec![],
         pending_prefix_cert_requests: 0,
+        last_cert_round_by_author: vec![],
     }
 }
 

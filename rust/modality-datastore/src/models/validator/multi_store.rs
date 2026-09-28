@@ -49,6 +49,25 @@ impl ValidatorBlock {
         Ok(None)
     }
 
+    /// Find a block in ValidatorFinal only (certified blocks).
+    pub async fn find_final_by_round_peer_multi(
+        mgr: &DatastoreManager,
+        round_id: u64,
+        peer_id: &str,
+    ) -> Result<Option<Self>> {
+        let key = format!(
+            "{}/round/{}/peer/{}",
+            VALIDATOR_BLOCK_PREFIX, round_id, peer_id
+        );
+        match mgr.validator_final().get(&key)? {
+            Some(data) => Ok(Some(
+                serde_json::from_slice(&data)
+                    .context("Failed to deserialize ValidatorBlock from ValidatorFinal")?,
+            )),
+            None => Ok(None),
+        }
+    }
+
     /// Find all blocks in a round, merging ValidatorActive and ValidatorFinal
     pub async fn find_all_in_round_multi(
         mgr: &DatastoreManager,

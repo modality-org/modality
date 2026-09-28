@@ -6,7 +6,7 @@
 use anyhow::Result;
 use modality_common::keypair::{Keypair, KeypairOrPublicKey};
 use modality_datastore::models::{Commit, Contract, ValidatorBlock};
-use modality_datastore::DatastoreManager;
+use modality_datastore::{DatastoreManager, Store};
 use modality_networks::CheckpointMode;
 use modality_validator::prefix_cert::{self, PREFIX_CERT_TYPE};
 use modality_validator::ContractProcessor;
@@ -23,6 +23,9 @@ use super::ack_collector::{
     run_finalization_task, save_certified_block, validate_certificate, AckCollector,
 };
 use super::checkpoint::{create_checkpoint_for_epoch, CheckpointTracker};
+
+/// Ages, in rounds, at which an uncertified draft of ours is published again.
+const STALE_DRAFT_REBROADCAST_AGES: [u64; 2] = [3, 6];
 
 /// Shared flags so the hybrid coordinator can start a single live loop and
 /// later mark this node as in/out of the N−2 committee without respawning.
@@ -271,6 +274,315 @@ async fn ingest_into_shoal(
     }
 }
 
+/// Ask our contract-validator worker to certify REPOST/RECV sources a peer is sequencing.
+///
+/// A dest commit pushed to one sequencer needs prefix certs from the other
+/// named validators too, and they only learn of it from that sequencer's blocks.
+async fn queue_peer_prefix_cert_requests(
+    mgr: &DatastoreManager,
+    own_peer_id: &str,
+    block: &ValidatorBlock,
+) {
+    if block.peer_id == own_peer_id || block.events.is_empty() {
+        return;
+    }
+    match crate::actions::contract_validator::queue_requests_for_events(
+        mgr,
+        own_peer_id,
+        &block.events,
+    )
+    .await
+    {
+        Ok(0) => {}
+        Ok(n) => log::info!(
+            "Queued {} prefix-cert request(s) from {} round {}",
+            n,
+            &block.peer_id[..16.min(block.peer_id.len())],
+            block.round_id
+        ),
+        Err(e) => log::warn!("Failed to queue prefix-cert requests from peer block: {}", e),
+    }
+}
+
+/// What became of a certified block that arrived from another sequencer.
+#[derive(Debug, PartialEq, Eq)]
+pub(crate) enum ReceivedCert {
+    Accepted,
+    Own,
+    /// Already stored. Apply is idempotent, so the caller may still apply it.
+    Duplicate,
+    Invalid,
+}
+
+/// Validate a peer's certified block and store it the first time it is seen.
+///
+/// The same block arrives by gossip and again by the certified-block pull.
+pub(crate) async fn accept_received_certified_block(
+    block: &ValidatorBlock,
+    own_peer_id: &str,
+    committee_size: usize,
+    datastore: &Arc<Mutex<DatastoreManager>>,
+) -> ReceivedCert {
+    if block.peer_id == own_peer_id {
+        return ReceivedCert::Own;
+    }
+    if block.cert.is_none() {
+        return ReceivedCert::Invalid;
+    }
+    match validate_certificate(block, committee_size.max(1)) {
+        Ok(true) => {}
+        Ok(false) => {
+            log::warn!(
+                "Invalid certificate from {} for round {}",
+                &block.peer_id[..16.min(block.peer_id.len())],
+                block.round_id
+            );
+            return ReceivedCert::Invalid;
+        }
+        Err(e) => {
+            log::warn!(
+                "Error validating certificate from {}: {}",
+                &block.peer_id[..16.min(block.peer_id.len())],
+                e
+            );
+            return ReceivedCert::Invalid;
+        }
+    }
+    {
+        let mgr = datastore.lock().await;
+        if let Ok(Some(existing)) =
+            ValidatorBlock::find_final_by_round_peer_multi(&mgr, block.round_id, &block.peer_id)
+                .await
+        {
+            if existing.cert.is_some() && existing.closing_sig == block.closing_sig {
+                return ReceivedCert::Duplicate;
+            }
+        }
+    }
+    if let Err(e) = save_certified_block(block, datastore).await {
+        log::warn!(
+            "Failed to save certified block from {}: {}",
+            &block.peer_id[..16.min(block.peer_id.len())],
+            e
+        );
+    }
+    {
+        let mgr = datastore.lock().await;
+        super::cert_sync::record_cert_round(&mgr, &block.peer_id, block.round_id);
+    }
+    ReceivedCert::Accepted
+}
+
+/// Outcome of applying one pushed commit from a certified block.
+#[derive(Debug, PartialEq, Eq)]
+enum CommitApply {
+    Sequenced,
+    AlreadySequenced,
+    /// Dest REPOST/RECV that lacks a prefix-cert quorum. Retried when a cert lands.
+    WaitingForPrefixCert,
+    Failed,
+}
+
+async fn apply_pushed_commit(
+    processor: &ContractProcessor,
+    datastore: &Arc<Mutex<DatastoreManager>>,
+    contract_id: &str,
+    commit_entry: &serde_json::Value,
+    batch_id: &str,
+) -> CommitApply {
+    let Some(commit_id) = commit_entry
+        .get("commit_id")
+        .or_else(|| commit_entry.get("hash"))
+        .and_then(|v| v.as_str())
+    else {
+        return CommitApply::Failed;
+    };
+    let body = commit_entry
+        .get("body")
+        .or_else(|| commit_entry.get("data"));
+    let commit_data = serde_json::json!({
+        "body": body,
+        "head": commit_entry.get("head"),
+    });
+
+    {
+        let mgr = datastore.lock().await;
+        let keys = [
+            ("contract_id".to_string(), contract_id.to_string()),
+            ("commit_id".to_string(), commit_id.to_string()),
+        ]
+        .into_iter()
+        .collect();
+        if let Ok(Some(existing)) = Commit::find_one_multi(&mgr, keys).await {
+            if existing.is_sequenced() {
+                log::debug!(
+                    "Skipping already-sequenced commit {} for contract {}",
+                    commit_id,
+                    contract_id
+                );
+                return CommitApply::AlreadySequenced;
+            }
+        }
+    }
+
+    match processor
+        .process_commit(contract_id, commit_id, &commit_data.to_string())
+        .await
+    {
+        Ok(changes) => {
+            log::info!(
+                "Sequenced commit {} for contract {}: {} state changes",
+                commit_id,
+                contract_id,
+                changes.len()
+            );
+        }
+        Err(e) => {
+            log::warn!(
+                "Failed to process sequenced commit {} for contract {}: {}",
+                commit_id,
+                contract_id,
+                e
+            );
+            if e.to_string().contains("missing prefix_cert") {
+                return CommitApply::WaitingForPrefixCert;
+            }
+            return CommitApply::Failed;
+        }
+    }
+
+    let mgr = datastore.lock().await;
+    let keys = [
+        ("contract_id".to_string(), contract_id.to_string()),
+        ("commit_id".to_string(), commit_id.to_string()),
+    ]
+    .into_iter()
+    .collect();
+    match Commit::find_one_multi(&mgr, keys).await {
+        Ok(Some(mut commit)) => {
+            commit.in_batch = Some(batch_id.to_string());
+            if let Err(e) = commit.save_to_final(&mgr).await {
+                log::warn!("Failed to set in_batch on commit {}: {}", commit_id, e);
+            } else {
+                log::info!(
+                    "Commit {} sequenced in batch {}",
+                    commit_id,
+                    &batch_id[..16.min(batch_id.len())]
+                );
+            }
+        }
+        Ok(None) => {
+            log::warn!("Sequenced commit {} not found in store", commit_id);
+        }
+        Err(e) => {
+            log::warn!(
+                "Failed to load commit {} for in_batch update: {}",
+                commit_id,
+                e
+            );
+        }
+    }
+    CommitApply::Sequenced
+}
+
+const PENDING_PREFIX_CERT_COMMITS_KEY: &str = "pending_prefix_cert_commits";
+const MAX_PENDING_PREFIX_CERT_COMMITS: usize = 256;
+
+fn load_pending_prefix_cert_commits(mgr: &DatastoreManager) -> Vec<serde_json::Value> {
+    match mgr.node_state().get(PENDING_PREFIX_CERT_COMMITS_KEY) {
+        Ok(Some(data)) => serde_json::from_slice(&data).unwrap_or_default(),
+        _ => Vec::new(),
+    }
+}
+
+fn store_pending_prefix_cert_commits(mgr: &DatastoreManager, pending: &[serde_json::Value]) {
+    let data = serde_json::to_vec(pending).unwrap_or_default();
+    if let Err(e) = mgr.node_state().put(PENDING_PREFIX_CERT_COMMITS_KEY, &data) {
+        log::warn!("Failed to store commits waiting for prefix certs: {}", e);
+    }
+}
+
+fn pending_entry_matches(entry: &serde_json::Value, contract_id: &str, commit_id: &str) -> bool {
+    entry.get("contract_id").and_then(|v| v.as_str()) == Some(contract_id)
+        && entry
+            .get("commit")
+            .and_then(|c| c.get("commit_id").or_else(|| c.get("hash")))
+            .and_then(|v| v.as_str())
+            == Some(commit_id)
+}
+
+async fn park_for_prefix_cert(
+    datastore: &Arc<Mutex<DatastoreManager>>,
+    contract_id: &str,
+    commit_entry: &serde_json::Value,
+    batch_id: &str,
+) {
+    let Some(commit_id) = commit_entry
+        .get("commit_id")
+        .or_else(|| commit_entry.get("hash"))
+        .and_then(|v| v.as_str())
+    else {
+        return;
+    };
+    let mgr = datastore.lock().await;
+    let mut pending = load_pending_prefix_cert_commits(&mgr);
+    if pending
+        .iter()
+        .any(|e| pending_entry_matches(e, contract_id, commit_id))
+    {
+        return;
+    }
+    pending.push(serde_json::json!({
+        "contract_id": contract_id,
+        "commit": commit_entry,
+        "batch_id": batch_id,
+    }));
+    if pending.len() > MAX_PENDING_PREFIX_CERT_COMMITS {
+        let excess = pending.len() - MAX_PENDING_PREFIX_CERT_COMMITS;
+        pending.drain(..excess);
+    }
+    store_pending_prefix_cert_commits(&mgr, &pending);
+    log::info!(
+        "Commit {} for contract {} waits for a prefix-cert quorum",
+        commit_id,
+        contract_id
+    );
+}
+
+/// Retry dest commits that failed only for a missing prefix-cert quorum.
+async fn retry_commits_waiting_for_prefix_cert(
+    processor: &ContractProcessor,
+    datastore: &Arc<Mutex<DatastoreManager>>,
+) {
+    let pending = {
+        let mgr = datastore.lock().await;
+        load_pending_prefix_cert_commits(&mgr)
+    };
+    if pending.is_empty() {
+        return;
+    }
+    let mut still_waiting = Vec::new();
+    for entry in pending {
+        let (Some(contract_id), Some(commit_entry)) = (
+            entry.get("contract_id").and_then(|v| v.as_str()),
+            entry.get("commit"),
+        ) else {
+            continue;
+        };
+        let batch_id = entry
+            .get("batch_id")
+            .and_then(|v| v.as_str())
+            .unwrap_or_default();
+        if apply_pushed_commit(processor, datastore, contract_id, commit_entry, batch_id).await
+            == CommitApply::WaitingForPrefixCert
+        {
+            still_waiting.push(entry);
+        }
+    }
+    let mgr = datastore.lock().await;
+    store_pending_prefix_cert_commits(&mgr, &still_waiting);
+}
+
 pub(crate) async fn apply_certified_contract_events(
     block: &ValidatorBlock,
     datastore: &Arc<Mutex<DatastoreManager>>,
@@ -287,6 +599,7 @@ pub(crate) async fn apply_certified_contract_events(
 
     let processor = ContractProcessor::new(datastore.clone());
     let events = prefix_cert::canonical_event_order(&block.events);
+    let mut stored_prefix_cert = false;
 
     for event in &events {
         if event.get("type").and_then(|v| v.as_str()) == Some(PREFIX_CERT_TYPE) {
@@ -294,14 +607,19 @@ pub(crate) async fn apply_certified_contract_events(
             if let Err(e) = mgr.save_prefix_cert(event) {
                 log::warn!("Failed to persist prefix_cert: {}", e);
             } else {
+                stored_prefix_cert = true;
                 log::info!(
-                    "Stored prefix_cert for {} through {}",
+                    "Stored prefix_cert for {} through {} from {}",
                     event
                         .get("source_contract")
                         .and_then(|v| v.as_str())
                         .unwrap_or("?"),
                     event
                         .get("through_commit")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("?"),
+                    event
+                        .get("validator_peer_id")
                         .and_then(|v| v.as_str())
                         .unwrap_or("?")
                 );
@@ -348,96 +666,17 @@ pub(crate) async fn apply_certified_contract_events(
         }
 
         for commit_entry in commits {
-            let Some(commit_id) = commit_entry
-                .get("commit_id")
-                .or_else(|| commit_entry.get("hash"))
-                .and_then(|v| v.as_str())
-            else {
-                continue;
-            };
-            let body = commit_entry
-                .get("body")
-                .or_else(|| commit_entry.get("data"));
-            let commit_data = serde_json::json!({
-                "body": body,
-                "head": commit_entry.get("head"),
-            });
-
-            {
-                let mgr = datastore.lock().await;
-                let keys = [
-                    ("contract_id".to_string(), contract_id.to_string()),
-                    ("commit_id".to_string(), commit_id.to_string()),
-                ]
-                .into_iter()
-                .collect();
-                if let Ok(Some(existing)) = Commit::find_one_multi(&mgr, keys).await {
-                    if existing.is_sequenced() {
-                        log::debug!(
-                            "Skipping already-sequenced commit {} for contract {}",
-                            commit_id,
-                            contract_id
-                        );
-                        continue;
-                    }
-                }
-            }
-
-            match processor
-                .process_commit(contract_id, commit_id, &commit_data.to_string())
+            if apply_pushed_commit(&processor, datastore, contract_id, commit_entry, &batch_id)
                 .await
+                == CommitApply::WaitingForPrefixCert
             {
-                Ok(changes) => {
-                    log::info!(
-                        "Sequenced commit {} for contract {}: {} state changes",
-                        commit_id,
-                        contract_id,
-                        changes.len()
-                    );
-                }
-                Err(e) => {
-                    log::warn!(
-                        "Failed to process sequenced commit {} for contract {}: {}",
-                        commit_id,
-                        contract_id,
-                        e
-                    );
-                    continue;
-                }
-            }
-
-            let mgr = datastore.lock().await;
-            let keys = [
-                ("contract_id".to_string(), contract_id.to_string()),
-                ("commit_id".to_string(), commit_id.to_string()),
-            ]
-            .into_iter()
-            .collect();
-            match Commit::find_one_multi(&mgr, keys).await {
-                Ok(Some(mut commit)) => {
-                    commit.in_batch = Some(batch_id.clone());
-                    if let Err(e) = commit.save_to_final(&mgr).await {
-                        log::warn!("Failed to set in_batch on commit {}: {}", commit_id, e);
-                    } else {
-                        log::info!(
-                            "Commit {} sequenced in batch {}",
-                            commit_id,
-                            &batch_id[..16.min(batch_id.len())]
-                        );
-                    }
-                }
-                Ok(None) => {
-                    log::warn!("Sequenced commit {} not found in store", commit_id);
-                }
-                Err(e) => {
-                    log::warn!(
-                        "Failed to load commit {} for in_batch update: {}",
-                        commit_id,
-                        e
-                    );
-                }
+                park_for_prefix_cert(datastore, contract_id, commit_entry, &batch_id).await;
             }
         }
+    }
+
+    if stored_prefix_cert {
+        retry_commits_waiting_for_prefix_cert(&processor, datastore).await;
     }
 }
 
@@ -453,6 +692,10 @@ async fn on_certificate_formed(
 ) {
     if let Err(e) = save_certified_block(certified_block, datastore).await {
         log::error!("Failed to save certified block: {}", e);
+    }
+    {
+        let mgr = datastore.lock().await;
+        super::cert_sync::record_cert_round(&mgr, validator_peer_id, certified_block.round_id);
     }
 
     ingest_into_shoal(shoal_validator, certified_block).await;
@@ -512,7 +755,15 @@ pub async fn spawn_consensus_loop_with_checkpoints(
 ) -> Result<()> {
     tokio::spawn(async move {
         log::info!("🚀 Starting Shoal consensus loop (gossip receiver attached)");
-        let mut round = 0u64;
+        // Resume after the last round this node opened. Block keys are
+        // round/peer, so restarting at 0 would overwrite our own certified blocks.
+        let mut round = {
+            let mgr = datastore.lock().await;
+            mgr.get_current_round().await.unwrap_or(0)
+        };
+        if round > 0 {
+            log::info!("Resuming Shoal rounds after round {}", round);
+        }
         let shoal_validator = Arc::new(shoal_validator);
 
         let mut communication = NodeCommunication {
@@ -533,13 +784,6 @@ pub async fn spawn_consensus_loop_with_checkpoints(
                 apply_certified_contract_events(&block, &apply_datastore).await;
             }
         });
-
-        {
-            let mgr = datastore.lock().await;
-            if let Err(e) = mgr.set_current_round(0).await {
-                log::warn!("Failed to initialize current round: {}", e);
-            }
-        }
 
         let mut round_interval = tokio::time::interval(tokio::time::Duration::from_secs(2));
         // A slow datastore read must not queue a burst of extra rounds.
@@ -584,6 +828,7 @@ pub async fn spawn_consensus_loop_with_checkpoints(
                                     if let Err(e) = block.save_to_active(&mgr).await {
                                         log::warn!("Failed to save incoming block: {}", e);
                                     }
+                                    queue_peer_prefix_cert_requests(&mgr, &validator_peer_id, &block).await;
                                 }
                                 Ok(None) => {}
                                 Err(e) => {
@@ -624,26 +869,39 @@ pub async fn spawn_consensus_loop_with_checkpoints(
                             log::debug!("Received certified block from {} for round {}",
                                 &from[..16.min(from.len())], block.round_id);
 
-                            if block.cert.is_some() {
-                                let n = control.committee_size.load(Ordering::Relaxed).max(1);
-                                match validate_certificate(&block, n) {
-                                    Ok(true) => {
-                                        if let Err(e) = save_certified_block(&block, &datastore).await {
-                                            log::warn!("Failed to save certified block from {}: {}", from, e);
-                                        }
-                                        ingest_into_shoal(&shoal_validator, &block).await;
-                                        if apply_tx.send(block.clone()).is_err() {
-                                            apply_certified_contract_events(&block, &datastore).await;
-                                        }
-                                    }
-                                    Ok(false) => {
-                                        log::warn!("Invalid certificate from {} for round {}",
-                                            &from[..16.min(from.len())], block.round_id);
-                                    }
-                                    Err(e) => {
-                                        log::warn!("Error validating certificate from {}: {}", from, e);
-                                    }
+                            let n = control.committee_size.load(Ordering::Relaxed).max(1);
+                            let received =
+                                accept_received_certified_block(&block, &validator_peer_id, n, &datastore).await;
+                            if matches!(received, ReceivedCert::Own | ReceivedCert::Invalid) {
+                                continue;
+                            }
+                            if received == ReceivedCert::Accepted {
+                                // A certified peer block at a later round means our
+                                // round counter fell behind (restart or a stall).
+                                if block.round_id > round {
+                                    log::info!(
+                                        "Advancing from round {} to round {} to match certified peer block",
+                                        round,
+                                        block.round_id
+                                    );
+                                    round = block.round_id;
                                 }
+                                ingest_into_shoal(&shoal_validator, &block).await;
+                                let mgr = datastore.lock().await;
+                                queue_peer_prefix_cert_requests(&mgr, &validator_peer_id, &block).await;
+                            }
+                            if block.events.is_empty() {
+                                continue;
+                            }
+                            log::info!(
+                                "Applying certified block round {} from {}: {} events{}",
+                                block.round_id,
+                                &block.peer_id[..16.min(block.peer_id.len())],
+                                block.events.len(),
+                                if received == ReceivedCert::Duplicate { " (already stored)" } else { "" }
+                            );
+                            if apply_tx.send(block.clone()).is_err() {
+                                apply_certified_contract_events(&block, &datastore).await;
                             }
                         }
                         _ => {}
@@ -674,6 +932,24 @@ pub async fn spawn_consensus_loop_with_checkpoints(
                             log::info!(
                                 "Restored {n} uncertified sequencer event(s) onto a later round"
                             );
+                        }
+                    }
+
+                    // Gossip can drop a draft. Publish it again so peers that
+                    // missed it still ack before the block expires.
+                    for age in STALE_DRAFT_REBROADCAST_AGES {
+                        let Some(stale_round) = round.checked_sub(age) else {
+                            continue;
+                        };
+                        let stale = ack_collector
+                            .get_our_block(stale_round)
+                            .filter(|b| b.cert.is_none())
+                            .cloned();
+                        if let Some(stale) = stale {
+                            log::debug!("Re-broadcasting uncertified draft for round {}", stale_round);
+                            if let Err(e) = communication.broadcast_draft_block(&validator_peer_id, &stale).await {
+                                log::warn!("Failed to re-broadcast draft for round {}: {}", stale_round, e);
+                            }
                         }
                     }
 
@@ -1295,6 +1571,186 @@ model FirstContract {
             in_batch_of(&ds, "alice", "create-token").await.as_deref(),
             Some("batch-1"),
             "second apply must not clear in_batch after CREATE already-exists"
+        );
+    }
+
+    fn signed_certified_block(
+        author: &Keypair,
+        ackers: &[&Keypair],
+        round: u64,
+        events: Vec<serde_json::Value>,
+    ) -> ValidatorBlock {
+        let mut block = create_validator_block(
+            &author.as_public_address(),
+            round,
+            HashMap::new(),
+            author,
+            events,
+        )
+        .unwrap();
+        for kp in ackers {
+            let ack = block.generate_ack(kp).unwrap();
+            block.acks.insert(ack.acker, ack.acker_sig);
+        }
+        let sigs: Vec<&str> = block.acks.values().map(|s| s.as_str()).collect();
+        block.cert = Some(serde_json::to_string(&sigs).unwrap());
+        block
+    }
+
+    fn genesis_push() -> serde_json::Value {
+        json!({
+            "type": "contract_push",
+            "data": {
+                "contract_id": "src",
+                "commits": [{
+                    "commit_id": "genesis",
+                    "body": [{ "method": "post", "path": "/hello.text", "value": "hi" }],
+                    "head": {}
+                }]
+            }
+        })
+    }
+
+    #[tokio::test]
+    async fn receiver_applies_peer_certified_block_after_gossip_roundtrip() {
+        let author = Keypair::generate().unwrap();
+        let a1 = Keypair::generate().unwrap();
+        let a2 = Keypair::generate().unwrap();
+        let block = signed_certified_block(&author, &[&author, &a1, &a2], 8, vec![genesis_push()]);
+
+        let (tx, mut rx) = mpsc::channel(4);
+        crate::gossip::consensus::block::cert::handler(serde_json::to_string(&block).unwrap(), tx)
+            .await
+            .unwrap();
+        let Some(ConsensusMessage::CertifiedValidatorBlock {
+            block: received, ..
+        }) = rx.recv().await
+        else {
+            panic!("gossip handler must forward a certified block");
+        };
+        assert_eq!(received.events, block.events);
+
+        let receiver = Arc::new(Mutex::new(DatastoreManager::create_in_memory().unwrap()));
+        assert_eq!(
+            accept_received_certified_block(&received, "receiver", 4, &receiver).await,
+            ReceivedCert::Accepted
+        );
+        apply_certified_contract_events(&received, &receiver).await;
+        assert_eq!(in_batch_of(&receiver, "src", "genesis").await, received.cert);
+
+        assert_eq!(
+            accept_received_certified_block(&received, "receiver", 4, &receiver).await,
+            ReceivedCert::Duplicate,
+            "the pulled copy of a gossiped block is recognised"
+        );
+        apply_certified_contract_events(&received, &receiver).await;
+        assert_eq!(
+            in_batch_of(&receiver, "src", "genesis").await,
+            received.cert,
+            "re-applying a duplicate keeps the first sequencing"
+        );
+        assert_eq!(
+            accept_received_certified_block(
+                &received,
+                &author.as_public_address(),
+                4,
+                &receiver
+            )
+            .await,
+            ReceivedCert::Own
+        );
+        let mgr = receiver.lock().await;
+        assert_eq!(
+            super::super::cert_sync::last_cert_rounds(&mgr),
+            vec![(author.as_public_address(), 8)]
+        );
+    }
+
+    #[tokio::test]
+    async fn receiver_rejects_certificate_below_committee_threshold() {
+        let author = Keypair::generate().unwrap();
+        let a1 = Keypair::generate().unwrap();
+        let block = signed_certified_block(&author, &[&author, &a1], 3, vec![genesis_push()]);
+        let receiver = Arc::new(Mutex::new(DatastoreManager::create_in_memory().unwrap()));
+        assert_eq!(
+            accept_received_certified_block(&block, "receiver", 4, &receiver).await,
+            ReceivedCert::Invalid
+        );
+        let mgr = receiver.lock().await;
+        assert!(ValidatorBlock::find_final_by_round_peer_multi(&mgr, 3, &block.peer_id)
+            .await
+            .unwrap()
+            .is_none());
+    }
+
+    #[tokio::test]
+    async fn dest_repost_waiting_for_quorum_sequences_when_second_cert_lands_later() {
+        let ds = Arc::new(Mutex::new(DatastoreManager::create_in_memory().unwrap()));
+        sequenced_source_named(&ds, true, &["peer1", "peer2", "peer3"]).await;
+        let digest = {
+            let mgr = ds.lock().await;
+            build_prefix_from_store(&mgr, "src", "src-commit")
+                .await
+                .unwrap()
+                .1
+        };
+        apply_certified_contract_events(
+            &certified_block(
+                vec![dest_push("d-late"), prefix_cert_event("peer1", &digest)],
+                "batch-first",
+            ),
+            &ds,
+        )
+        .await;
+        assert!(dest_in_batch(&ds, "d-late").await.is_none());
+
+        apply_certified_contract_events(
+            &certified_block(vec![prefix_cert_event("peer2", &digest)], "batch-cert"),
+            &ds,
+        )
+        .await;
+        assert_eq!(
+            dest_in_batch(&ds, "d-late").await.as_deref(),
+            Some("batch-first")
+        );
+        let mgr = ds.lock().await;
+        assert!(load_pending_prefix_cert_commits(&mgr).is_empty());
+    }
+
+    #[tokio::test]
+    async fn dest_repost_stays_parked_until_quorum() {
+        let ds = Arc::new(Mutex::new(DatastoreManager::create_in_memory().unwrap()));
+        sequenced_source_named(&ds, true, &["peer1", "peer2", "peer3"]).await;
+        let digest = {
+            let mgr = ds.lock().await;
+            build_prefix_from_store(&mgr, "src", "src-commit")
+                .await
+                .unwrap()
+                .1
+        };
+        apply_certified_contract_events(
+            &certified_block(vec![dest_push("d-park")], "batch-first"),
+            &ds,
+        )
+        .await;
+        apply_certified_contract_events(
+            &certified_block(vec![prefix_cert_event("peer1", &digest)], "batch-c1"),
+            &ds,
+        )
+        .await;
+        assert!(dest_in_batch(&ds, "d-park").await.is_none());
+        {
+            let mgr = ds.lock().await;
+            assert_eq!(load_pending_prefix_cert_commits(&mgr).len(), 1);
+        }
+        apply_certified_contract_events(
+            &certified_block(vec![prefix_cert_event("peer3", &digest)], "batch-c3"),
+            &ds,
+        )
+        .await;
+        assert_eq!(
+            dest_in_batch(&ds, "d-park").await.as_deref(),
+            Some("batch-first")
         );
     }
 

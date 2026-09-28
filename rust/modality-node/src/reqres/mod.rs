@@ -1,6 +1,6 @@
 use anyhow::Result;
 use libp2p::request_response;
-mod consensus;
+pub(crate) mod consensus;
 pub(crate) mod contract;
 mod dag;
 mod data;
@@ -72,6 +72,9 @@ pub async fn handle_request(
             consensus::status::handler(Some(data.clone()), datastore_manager).await?
         }
         "/consensus/block/ack" => consensus::block::ack::handler(Some(data.clone()), consensus_tx).await?,
+        consensus::block::certified_since::PATH => {
+            consensus::block::certified_since::handler(Some(data.clone()), datastore_manager).await?
+        }
         "/data/miner_block/get" => {
             reqres_data::miner_block::get::handler(Some(data.clone()), datastore_manager).await?
         }

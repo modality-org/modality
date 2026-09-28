@@ -202,6 +202,11 @@ async fn status_json_handler(
         "genesis_hash": genesis_hash,
         "sequencer_nomination_epoch": status.sequencer_nomination_epoch,
         "sequencer_committee_size": status.sequencer_committee.len(),
+        "last_cert_round_by_author": status
+            .last_cert_round_by_author
+            .iter()
+            .cloned()
+            .collect::<std::collections::BTreeMap<_, _>>(),
         "named_validators": status.named_validators,
         "named_validator_count": status.named_validators.len(),
         "validator_min_stake": status.validator_min_stake,

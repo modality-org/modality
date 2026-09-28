@@ -30,8 +30,8 @@ pub struct AckCollector {
     pub our_pending_blocks: HashMap<u64, ValidatorBlock>,
     /// Blocks we've received from other validators that need acks
     pub incoming_blocks: HashMap<(u64, String), ValidatorBlock>,
-    /// Set of blocks we've already acked (to avoid duplicates)
-    pub already_acked: HashMap<(u64, String), bool>,
+    /// Acks we already signed, resent if the author publishes the draft again
+    pub already_acked: HashMap<(u64, String), Ack>,
 }
 
 impl AckCollector {
@@ -73,6 +73,9 @@ impl AckCollector {
 
     /// Handle an incoming draft block from another validator
     /// Returns an Ack if the block is valid and we should ack it
+    ///
+    /// A draft published again means the author has not collected our ack,
+    /// so the same signed ack is returned for resending.
     pub fn handle_incoming_block(&mut self, block: &ValidatorBlock) -> Result<Option<Ack>> {
         let key = (block.round_id, block.peer_id.clone());
 
@@ -81,8 +84,10 @@ impl AckCollector {
             return Ok(None);
         }
 
-        // Don't ack blocks we've already acked
-        if self.already_acked.contains_key(&key) {
+        if let Some(ack) = self.already_acked.get(&key) {
+            if Some(&ack.closing_sig) == block.closing_sig.as_ref() {
+                return Ok(Some(ack.clone()));
+            }
             return Ok(None);
         }
 
@@ -102,8 +107,7 @@ impl AckCollector {
         // Generate and return an ack
         let ack = block.generate_ack(&self.keypair)?;
 
-        // Mark as acked
-        self.already_acked.insert(key, true);
+        self.already_acked.insert(key, ack.clone());
 
         Ok(Some(ack))
     }
@@ -143,8 +147,6 @@ impl AckCollector {
     }
 
     /// Get our block for a round if it exists
-    // TODO: Wire up to validator consensus loop
-    #[allow(dead_code)]
     pub fn get_our_block(&self, round: u64) -> Option<&ValidatorBlock> {
         self.our_pending_blocks.get(&round)
     }
@@ -442,9 +444,26 @@ mod tests {
         let result = collector.handle_incoming_block(&block).unwrap();
         assert!(result.is_some());
 
-        // Second call should return None (already acked)
+        // A re-published draft gets the same ack again for resending
         let result2 = collector.handle_incoming_block(&block).unwrap();
-        assert!(result2.is_none());
+        assert_eq!(result2, result);
+    }
+
+    #[test]
+    fn test_conflicting_draft_for_acked_round_is_not_acked() {
+        let our_keypair = create_test_keypair();
+        let mut collector =
+            AckCollector::new(our_keypair.as_public_address(), our_keypair.clone(), 4);
+
+        let other_keypair = create_test_keypair();
+        let other_peer_id = other_keypair.as_public_address();
+        let block = create_test_block(&other_peer_id, 1, &other_keypair);
+        assert!(collector.handle_incoming_block(&block).unwrap().is_some());
+
+        let mut conflicting = create_test_block(&other_peer_id, 1, &other_keypair);
+        conflicting.events.push(serde_json::json!({"type": "other"}));
+        conflicting.generate_sigs(&other_keypair).unwrap();
+        assert!(collector.handle_incoming_block(&conflicting).unwrap().is_none());
     }
 
     #[test]
@@ -492,10 +511,35 @@ mod tests {
         collector.handle_incoming_block(&other_block).unwrap();
 
         // Cleanup rounds <= 10 (keeps round 5 due to the 5-round buffer)
-        collector.cleanup_round(10);
+        let restored = collector.cleanup_round(10);
 
         // Old entries should be removed
         assert!(collector.incoming_blocks.is_empty());
         assert!(collector.already_acked.is_empty());
+        assert!(collector.get_our_block(5).is_none());
+        assert!(restored.is_empty(), "the expired block had no events");
+    }
+
+    #[test]
+    fn test_cleanup_round_restores_events_of_uncertified_blocks_only() {
+        let keypair = create_test_keypair();
+        let peer_id = keypair.as_public_address();
+        let mut collector = AckCollector::new(peer_id.clone(), keypair.clone(), 1);
+
+        let mut uncertified = create_test_block(&peer_id, 2, &keypair);
+        uncertified.events.push(serde_json::json!({"type": "contract_push", "n": 1}));
+        collector.register_our_block(uncertified);
+
+        let mut certified = create_test_block(&peer_id, 3, &keypair);
+        certified.events.push(serde_json::json!({"type": "contract_push", "n": 2}));
+        collector.register_our_block(certified);
+        assert!(collector.try_self_ack(3).unwrap());
+        assert!(collector.form_certificate(3).is_some());
+
+        let restored = collector.cleanup_round(10);
+        assert_eq!(
+            restored,
+            vec![serde_json::json!({"type": "contract_push", "n": 1})]
+        );
     }
 }

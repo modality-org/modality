@@ -66,15 +66,10 @@ impl Communication for NodeCommunication {
 
     async fn broadcast_certified_block(
         &mut self,
-        from_peer: &str,
+        _from_peer: &str,
         block: &ValidatorBlock,
     ) -> Result<()> {
-        let msg = ConsensusMessage::CertifiedValidatorBlock {
-            from: from_peer.to_string(),
-            to: String::new(),
-            block: block.clone(),
-        };
-        self.enqueue(msg)?;
+        // The author already saved and applied its own certificate.
         {
             let mut swarm = self.swarm.lock().await;
             swarm.behaviour_mut().gossipsub.publish(
