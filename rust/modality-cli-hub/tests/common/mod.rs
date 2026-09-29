@@ -23,11 +23,10 @@ impl TestHub {
             "test-contract-{}",
             CONTRACT_COUNTER.fetch_add(1, Ordering::SeqCst)
         );
-        
+
         let contract_dir = self.data_dir.join("contracts").join(&contract_id);
-        std::fs::create_dir_all(contract_dir.join("commits"))
-            .map_err(|e| e.to_string())?;
-        
+        std::fs::create_dir_all(contract_dir.join("commits")).map_err(|e| e.to_string())?;
+
         Ok(contract_id)
     }
 
@@ -43,7 +42,7 @@ impl TestHub {
 
     /// Generic commit
     async fn commit(&self, contract_id: &str, method: &str, value: &str) -> Result<String, String> {
-        use sha2::{Sha256, Digest};
+        use sha2::{Digest, Sha256};
 
         let contract_dir = self.data_dir.join("contracts").join(contract_id);
         let commits_dir = contract_dir.join("commits");
@@ -51,7 +50,12 @@ impl TestHub {
         // Read current HEAD
         let head_file = contract_dir.join("HEAD");
         let parent = if head_file.exists() {
-            Some(std::fs::read_to_string(&head_file).map_err(|e| e.to_string())?.trim().to_string())
+            Some(
+                std::fs::read_to_string(&head_file)
+                    .map_err(|e| e.to_string())?
+                    .trim()
+                    .to_string(),
+            )
         } else {
             None
         };
@@ -101,7 +105,11 @@ impl TestHub {
 
     /// Load commits from disk
     fn load_commits(&self, contract_id: &str) -> Result<Vec<StoredCommit>, String> {
-        let commits_dir = self.data_dir.join("contracts").join(contract_id).join("commits");
+        let commits_dir = self
+            .data_dir
+            .join("contracts")
+            .join(contract_id)
+            .join("commits");
         let mut commits = Vec::new();
 
         if !commits_dir.exists() {
@@ -112,9 +120,11 @@ impl TestHub {
             let entry = entry.map_err(|e| e.to_string())?;
             if entry.path().extension().and_then(|s| s.to_str()) == Some("json") {
                 let content = std::fs::read_to_string(entry.path()).map_err(|e| e.to_string())?;
-                let commit: serde_json::Value = serde_json::from_str(&content).map_err(|e| e.to_string())?;
-                
-                let hash = entry.path()
+                let commit: serde_json::Value =
+                    serde_json::from_str(&content).map_err(|e| e.to_string())?;
+
+                let hash = entry
+                    .path()
                     .file_stem()
                     .and_then(|s| s.to_str())
                     .unwrap_or("")
@@ -131,11 +141,18 @@ impl TestHub {
     }
 
     /// Validate MODEL commit against rules
-    fn validate_model(&self, _contract_id: &str, model_content: &str, commits: &[StoredCommit]) -> Result<(), String> {
+    fn validate_model(
+        &self,
+        _contract_id: &str,
+        model_content: &str,
+        commits: &[StoredCommit],
+    ) -> Result<(), String> {
         use modality_cli_hub::model_validator::{ModelValidator, ReplayCommit};
 
         // Build replay commits
-        let replay_commits: Vec<ReplayCommit> = commits.iter().enumerate()
+        let replay_commits: Vec<ReplayCommit> = commits
+            .iter()
+            .enumerate()
             .map(|(i, c)| {
                 let mut method = String::new();
                 let mut rule_content = None;
@@ -143,7 +160,8 @@ impl TestHub {
 
                 if let Some(actions) = c.body.as_array() {
                     for action in actions {
-                        let m = action.get("method")
+                        let m = action
+                            .get("method")
                             .and_then(|m| m.as_str())
                             .unwrap_or("")
                             .to_lowercase();
@@ -154,12 +172,14 @@ impl TestHub {
 
                         match m.as_str() {
                             "model" => {
-                                model_content = action.get("value")
+                                model_content = action
+                                    .get("value")
                                     .and_then(|v| v.as_str())
                                     .map(|s| s.to_string());
                             }
                             "rule" => {
-                                rule_content = action.get("value")
+                                rule_content = action
+                                    .get("value")
                                     .and_then(|v| v.as_str())
                                     .map(|s| s.to_string());
                             }

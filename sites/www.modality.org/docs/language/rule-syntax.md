@@ -25,7 +25,7 @@ The model proves the rule can be satisfied. Without a satisfying model, the rule
 
 ```modality
 rule <name> {
-  starting_at <commit_ref>
+  starting_at $PARENT
   formula {
     <modal_formula>
   }
@@ -40,13 +40,24 @@ export default rule {
 }
 ```
 
+A rule file holds one or more rules. Each rule has one or more
+`formula { ... }` blocks, optionally named (`formula no_early_release { ... }`),
+and every one is checked and enforced. A file of top-level
+`formula <name> { ... }` blocks is also a rule file; each formula is a rule.
+`//` comments may appear between items, not inside a formula.
+
+The validator reads the whole file or refuses the commit. A misspelled
+keyword, an unclosed brace, or trailing text is an error, never skipped.
+
 ## Anchoring (`starting_at`)
 
 ```modality
-starting_at $PARENT           // Parent of this commit
-starting_at $ROOT             // Genesis commit
-starting_at abc123...         // Specific commit hash
+starting_at $PARENT           // The commit that adds the rule
 ```
+
+A rule is anchored at the commit that adds it, from the states that commit
+reaches. `starting_at` is optional, and `$PARENT` is its only value. Any
+other anchor is refused.
 
 ## Modal Operators
 

@@ -746,7 +746,7 @@ impl ModalityLanguageServer {
             "states" => "**states**\n\nDeclares the set of states in a model.\n\n```modality\nstates { idle, active, done }\n```",
             "initial" => "**initial**\n\nDeclares the initial state(s) of a model.\n\n```modality\ninitial { idle }\n```",
             "transitions" => "**transitions**\n\nDefines state transitions with actions.\n\n```modality\ntransitions {\n  idle -[START]-> active\n  active -[FINISH]-> done\n}\n```",
-            "starting_at" => "**starting_at**\n\nSpecifies the commit hash where the rule takes effect.\n\nUse `$PARENT` to reference the parent commit.",
+            "starting_at" => "**starting_at**\n\nWhere the rule is anchored. Only `$PARENT` is supported: a rule is anchored at the commit that adds it.",
             "true" => "**true**\n\nBoolean constant, always satisfied.",
             "false" => "**false**\n\nBoolean constant, never satisfied.",
             _ => {

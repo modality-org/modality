@@ -526,11 +526,7 @@ impl HubCore {
     }
 
     /// Get a specific commit
-    pub async fn get_commit(
-        &self,
-        contract_id: &str,
-        hash: &str,
-    ) -> Result<CommitEntry, HubError> {
+    pub async fn get_commit(&self, contract_id: &str, hash: &str) -> Result<CommitEntry, HubError> {
         let contracts = self.contracts.read().await;
 
         let contract = contracts
@@ -611,9 +607,7 @@ impl HubCore {
         // Get parent hash
         let parent = {
             let contracts = self.contracts.read().await;
-            contracts
-                .get(&req.contract_id)
-                .and_then(|c| c.head.clone())
+            contracts.get(&req.contract_id).and_then(|c| c.head.clone())
         };
 
         let head = json!({
@@ -642,19 +636,20 @@ impl HubCore {
         // Update in-memory state
         let new_state = {
             let mut contracts = self.contracts.write().await;
-            let contract = contracts
-                .entry(req.contract_id.clone())
-                .or_insert_with(|| ContractData {
-                    head: None,
-                    commits: Vec::new(),
-                    created_at: timestamp,
-                    model: None,
-                    rules: Vec::new(),
-                    assets: HashMap::new(),
-                    balances: HashMap::new(),
-                    pending_sends: HashMap::new(),
-                    received_sends: HashMap::new(),
-                });
+            let contract =
+                contracts
+                    .entry(req.contract_id.clone())
+                    .or_insert_with(|| ContractData {
+                        head: None,
+                        commits: Vec::new(),
+                        created_at: timestamp,
+                        model: None,
+                        rules: Vec::new(),
+                        assets: HashMap::new(),
+                        balances: HashMap::new(),
+                        pending_sends: HashMap::new(),
+                        received_sends: HashMap::new(),
+                    });
 
             Self::apply_commit_to_state(&req.contract_id, &commit, contract);
             contract.commits.push(commit);
@@ -712,7 +707,10 @@ impl HubCore {
                     .and_then(|p| p.as_str())
                     .map(|s| s.to_string())
             });
-            let head = item.head.clone().unwrap_or_else(|| json!({ "parent": parent }));
+            let head = item
+                .head
+                .clone()
+                .unwrap_or_else(|| json!({ "parent": parent }));
             let hash = item
                 .hash
                 .clone()
@@ -748,9 +746,9 @@ impl HubCore {
 
             {
                 let mut contracts = self.contracts.write().await;
-                let contract = contracts.get_mut(contract_id).ok_or_else(|| {
-                    HubError::ContractNotFound(contract_id.to_string())
-                })?;
+                let contract = contracts
+                    .get_mut(contract_id)
+                    .ok_or_else(|| HubError::ContractNotFound(contract_id.to_string()))?;
                 Self::apply_commit_to_state(contract_id, &commit, contract);
                 contract.commits.push(commit);
                 contract.head = Some(hash);
@@ -823,17 +821,19 @@ impl HubCore {
         std::fs::create_dir_all(contract_dir.join("commits"))?;
 
         let mut contracts = self.contracts.write().await;
-        contracts.entry(contract_id.to_string()).or_insert_with(|| ContractData {
-            head: None,
-            commits: Vec::new(),
-            created_at: timestamp,
-            model: None,
-            rules: Vec::new(),
-            assets: HashMap::new(),
-            balances: HashMap::new(),
-            pending_sends: HashMap::new(),
-            received_sends: HashMap::new(),
-        });
+        contracts
+            .entry(contract_id.to_string())
+            .or_insert_with(|| ContractData {
+                head: None,
+                commits: Vec::new(),
+                created_at: timestamp,
+                model: None,
+                rules: Vec::new(),
+                assets: HashMap::new(),
+                balances: HashMap::new(),
+                pending_sends: HashMap::new(),
+                received_sends: HashMap::new(),
+            });
         Ok(())
     }
 
@@ -1166,10 +1166,7 @@ impl HubCore {
         for commit in commits {
             if let Some(actions) = commit.body.as_array() {
                 for action in actions {
-                    let method = action
-                        .get("method")
-                        .and_then(|m| m.as_str())
-                        .unwrap_or("");
+                    let method = action.get("method").and_then(|m| m.as_str()).unwrap_or("");
 
                     match method {
                         "genesis" => {
@@ -1222,8 +1219,10 @@ impl HubCore {
             return commits;
         }
 
-        let commit_map: HashMap<String, StoredCommit> =
-            commits.iter().map(|c| (c.hash.clone(), c.clone())).collect();
+        let commit_map: HashMap<String, StoredCommit> = commits
+            .iter()
+            .map(|c| (c.hash.clone(), c.clone()))
+            .collect();
 
         let mut sorted = Vec::new();
         let mut current = head.clone();
@@ -1371,7 +1370,8 @@ impl HubCore {
     ) -> Result<(), HubError> {
         use modality_common::contract_store::{json_values_equal, parse_repost_json};
 
-        let spec = parse_repost_json(action).map_err(|e| HubError::InvalidRequest(e.to_string()))?;
+        let spec =
+            parse_repost_json(action).map_err(|e| HubError::InvalidRequest(e.to_string()))?;
         let source = contracts.get(&spec.source_contract).ok_or_else(|| {
             HubError::ValidationFailed(format!(
                 "REPOST rejected: source contract '{}' not found",
@@ -1506,7 +1506,7 @@ impl HubCore {
     /// Extract paths being written in this commit
     fn extract_commit_paths(&self, body: &Value) -> Vec<String> {
         let mut paths = Vec::new();
-        
+
         if let Some(actions) = body.as_array() {
             for action in actions {
                 if let Some(path) = action.get("path").and_then(|p| p.as_str()) {
@@ -1514,7 +1514,7 @@ impl HubCore {
                 }
             }
         }
-        
+
         paths
     }
 
@@ -1543,7 +1543,6 @@ impl HubCore {
         message_hex: &str,
         signatures: &[(String, String)],
     ) -> bool {
-
         let message_bytes = match hex::decode(message_hex) {
             Ok(b) => b,
             Err(_) => return false,
@@ -1571,7 +1570,6 @@ impl HubCore {
         message_hex: &str,
         signatures: &[(String, String)],
     ) -> bool {
-
         if members.is_empty() {
             return true; // Trivially satisfied
         }
@@ -1599,7 +1597,6 @@ impl HubCore {
 
     /// Verify an ed25519 signature
     fn verify_ed25519_signature(&self, pubkey_hex: &str, sig_hex: &str, message: &[u8]) -> bool {
-
         let pubkey_bytes = match hex::decode(pubkey_hex) {
             Ok(b) => b,
             Err(_) => return false,
@@ -1709,7 +1706,11 @@ impl HubCore {
         Ok(())
     }
 
-    fn apply_commit_to_state(contract_id: &str, commit: &StoredCommit, contract: &mut ContractData) {
+    fn apply_commit_to_state(
+        contract_id: &str,
+        commit: &StoredCommit,
+        contract: &mut ContractData,
+    ) {
         if let Some(body) = commit.body.as_array() {
             for action in body {
                 let method = action
@@ -1942,11 +1943,7 @@ export default rule {
 **bob**: Payment guaranteed upon successful delivery
 **carol**: Authority limited to dispute resolution only
 "#;
-        let parties = vec![
-            "alice".to_string(),
-            "bob".to_string(),
-            "carol".to_string(),
-        ];
+        let parties = vec!["alice".to_string(), "bob".to_string(), "carol".to_string()];
         let protections = HubCore::extract_protections_from_response(response, &parties);
 
         assert_eq!(protections.len(), 3);
@@ -2138,11 +2135,15 @@ export default rule {
 
         // Check parties were extracted
         assert!(
-            resp.parties.iter().any(|p| p.to_lowercase().contains("alice")),
+            resp.parties
+                .iter()
+                .any(|p| p.to_lowercase().contains("alice")),
             "Should extract Alice as a party"
         );
         assert!(
-            resp.parties.iter().any(|p| p.to_lowercase().contains("bob")),
+            resp.parties
+                .iter()
+                .any(|p| p.to_lowercase().contains("bob")),
             "Should extract Bob as a party"
         );
 
@@ -2206,7 +2207,12 @@ export default rule {
         )
         .await
         .unwrap();
-        let source_head = core.get_contract(&source.contract_id).await.unwrap().head.unwrap();
+        let source_head = core
+            .get_contract(&source.contract_id)
+            .await
+            .unwrap()
+            .head
+            .unwrap();
 
         push_action(
             &core,
@@ -2263,7 +2269,12 @@ export default rule {
         )
         .await
         .unwrap();
-        let source_head = core.get_contract(&source.contract_id).await.unwrap().head.unwrap();
+        let source_head = core
+            .get_contract(&source.contract_id)
+            .await
+            .unwrap()
+            .head
+            .unwrap();
 
         let mismatch = push_action(
             &core,

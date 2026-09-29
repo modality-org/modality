@@ -6,10 +6,10 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use tracing::info;
 
-use modality_rpc::server::{RpcServer, RpcServerConfig};
 use super::core::HubCore;
 use super::handler::HubHandler;
 use super::rest;
+use modality_rpc::server::{RpcServer, RpcServerConfig};
 
 #[derive(Debug, Parser)]
 #[command(about = "Start a contract hub server")]
@@ -41,7 +41,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
         .with_env_filter(
             tracing_subscriber::EnvFilter::from_default_env()
                 .add_directive("modal=info".parse()?)
-                .add_directive("modality_rpc=info".parse()?)
+                .add_directive("modality_rpc=info".parse()?),
         )
         .init();
 
@@ -57,7 +57,9 @@ pub async fn run(opts: &Opts) -> Result<()> {
 
     // Also create legacy handler for RPC compatibility
     let rpc_handler = HubHandler::new(opts.data_dir.clone());
-    rpc_handler.load_from_disk().await
+    rpc_handler
+        .load_from_disk()
+        .await
         .map_err(|e| anyhow::anyhow!("Failed to load data: {}", e))?;
 
     info!("Hub ready - accepting connections");
@@ -65,16 +67,31 @@ pub async fn run(opts: &Opts) -> Result<()> {
 
     // REST API
     info!("REST API:");
-    info!("  http://{}:{}/contracts      (Create/Get contracts)", opts.host, opts.port);
-    info!("  http://{}:{}/templates      (List templates)", opts.host, opts.port);
-    info!("  http://{}:{}/health         (Health check)", opts.host, opts.port);
+    info!(
+        "  http://{}:{}/contracts      (Create/Get contracts)",
+        opts.host, opts.port
+    );
+    info!(
+        "  http://{}:{}/templates      (List templates)",
+        opts.host, opts.port
+    );
+    info!(
+        "  http://{}:{}/health         (Health check)",
+        opts.host, opts.port
+    );
     info!("");
 
     // RPC (if enabled)
     if opts.rpc_port > 0 {
         info!("RPC endpoints:");
-        info!("  POST http://{}:{}/          (JSON-RPC)", opts.host, opts.rpc_port);
-        info!("  WS   ws://{}:{}/ws          (WebSocket)", opts.host, opts.rpc_port);
+        info!(
+            "  POST http://{}:{}/          (JSON-RPC)",
+            opts.host, opts.rpc_port
+        );
+        info!(
+            "  WS   ws://{}:{}/ws          (WebSocket)",
+            opts.host, opts.rpc_port
+        );
         info!("");
     }
 
@@ -94,7 +111,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
     // Start REST server
     let rest_addr = format!("{}:{}", opts.host, opts.port);
     let rest_listener = tokio::net::TcpListener::bind(&rest_addr).await?;
-    
+
     let rest_server = axum::serve(rest_listener, rest_router);
 
     // Start RPC server if enabled
@@ -118,7 +135,9 @@ pub async fn run(opts: &Opts) -> Result<()> {
         }
     } else {
         // REST only
-        rest_server.await.map_err(|e| anyhow::anyhow!("REST server error: {}", e))?;
+        rest_server
+            .await
+            .map_err(|e| anyhow::anyhow!("REST server error: {}", e))?;
     }
 
     Ok(())

@@ -7,6 +7,7 @@ use crate::model_diagnostics::{
 use crate::theory_state::{contract_registry, AcceptedState};
 use anyhow::Result;
 use ed25519_dalek::{PublicKey, Signature, Verifier};
+use modality_lang::rule_file::parse_rule_file;
 use modality_lang::theory::{Lookup, StateView};
 use modality_lang::vars;
 use modality_lang::{
@@ -717,9 +718,8 @@ fn replay_commits_to_current_state_with(
         }
 
         let facts = CommitFacts::from_commit(commit, &state);
-        let next_states = next_states_for_commit(model, &current_states, &facts)
-            .or_else(|| commit_contains_rule(commit).then(|| current_states.clone()))
-            .ok_or_else(|| {
+        let next_states =
+            next_states_for_commit(model, &current_states, &facts).ok_or_else(|| {
                 anyhow::anyhow!(
                     "Existing commit cannot be replayed against governing model: {}",
                     explain_no_valid_transition(model, &current_states, &facts)
@@ -807,11 +807,18 @@ fn anchored_rules_from_commit(
             continue;
         }
 
+        let path = action.path.as_deref().unwrap_or("(no path)");
         let Some(rule_content) = action.value.as_str() else {
-            continue;
+            anyhow::bail!("Invalid rule at {path}: the RULE value must be rule text");
         };
-
-        if let Some((formula, formula_source)) = parse_rule_formula(rule_content)? {
+        let blocks = parse_rule_file(rule_content)
+            .map_err(|err| anyhow::anyhow!("Invalid rule at {path}: {err}"))?;
+        for f in blocks.iter().flat_map(|b| &b.formulas) {
+            let name = match rules.len() {
+                0 => "local_rule".to_string(),
+                n => format!("local_rule_{}", n + 1),
+            };
+            let (formula, formula_source) = parse_rule_formula(&name, &f.body)?;
             rules.push(AnchoredRule {
                 formula,
                 formula_source,
@@ -891,22 +898,18 @@ fn model_for_rule_checking(model: &Model) -> Model {
     normalized
 }
 
-fn parse_rule_formula(rule_content: &str) -> Result<Option<(Formula, String)>> {
-    let Some(formula_body) = extract_rule_formula_body(rule_content) else {
-        return Ok(None);
-    };
-
+fn parse_rule_formula(name: &str, formula_body: &str) -> Result<(Formula, String)> {
     let formula_source = formula_body
         .split_whitespace()
         .collect::<Vec<_>>()
         .join(" ");
-    let formula_decl = format!("formula local_rule {{\n{}\n}}", formula_body);
+    let formula_decl = format!("formula {name} {{\n{}\n}}", formula_body);
     let parser = modality_lang::grammar::FormulaParser::new();
     let formula = parser
         .parse(&formula_decl)
         .map_err(|err| anyhow::anyhow!("Invalid rule formula syntax: {:?}", err))?;
     vars::check_formula(&formula).map_err(|err| anyhow::anyhow!("Invalid rule formula: {err}"))?;
-    Ok(Some((formula, formula_source)))
+    Ok((formula, formula_source))
 }
 
 fn format_satisfying_states(states: &[modality_lang::State]) -> String {
@@ -1575,35 +1578,6 @@ fn format_formula_expr(expr: &FormulaExpr) -> String {
             )
         }
         FormulaExpr::Next(inner) => format!("next({})", format_formula_expr(inner)),
-    }
-}
-
-fn extract_rule_formula_body(rule_content: &str) -> Option<&str> {
-    let formula_start = rule_content.find("formula")?;
-    let after_formula = &rule_content[formula_start..];
-    let brace_start = after_formula.find('{')?;
-    let content_start = formula_start + brace_start + 1;
-
-    let mut depth = 1;
-    let mut end = content_start;
-    for (offset, ch) in rule_content[content_start..].char_indices() {
-        match ch {
-            '{' => depth += 1,
-            '}' => {
-                depth -= 1;
-                if depth == 0 {
-                    end = content_start + offset;
-                    break;
-                }
-            }
-            _ => {}
-        }
-    }
-
-    if depth == 0 {
-        Some(rule_content[content_start..end].trim())
-    } else {
-        None
     }
 }
 
@@ -5066,6 +5040,7 @@ model Accepted {
   initial q0
   part flow {
     q0 -> q1 [+MODEL]
+    q1 -> q1 [+RULE]
     q1 -> q2 [+POST]
     q2 -> q2 [+MODEL]
   }
@@ -5101,6 +5076,7 @@ model BadReplacement {
   initial q0
   part flow {
     q0 -> q1 [+MODEL]
+    q1 -> q1 [+RULE]
     q1 -> q1 [+POST]
     q1 -> q1 [+MODEL]
   }
@@ -5145,6 +5121,7 @@ model Accepted {
   initial q0
   part flow {
     q0 -> q1 [+MODEL]
+    q1 -> q1 [+RULE]
     q1 -> q2 [+POST]
     q2 -> q2 [+MODEL]
   }
@@ -5180,6 +5157,7 @@ model BadReplacement {
   initial q0
   part flow {
     q0 -> q1 [+MODEL]
+    q1 -> q1 [+RULE]
     q1 -> q1 [+POST]
     q1 -> q1 [+MODEL]
   }

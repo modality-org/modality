@@ -20,6 +20,7 @@ pub mod nl_mapper;
 pub mod paths;
 pub mod patterns;
 pub mod printer;
+pub mod rule_file;
 pub mod runtime;
 pub mod synthesis;
 pub mod theory;

@@ -142,29 +142,29 @@ impl ModelValidator {
 
     /// Apply a RULE commit
     fn apply_rule(&mut self, content: &str, commit_index: usize) -> Result<(), String> {
-        // Parse the rule formula
-        let formula = self.parse_rule_formula(content)?;
+        let formulas = self.parse_rule_formulas(content)?;
 
-        // If we have a model, validate the rule is satisfiable from current states
+        // If we have a model, validate each formula is satisfiable from current states
         if let Some(model) = &self.current_model {
-            if let Some(explanation) =
-                self.explain_rule_on_model_failure(&formula, model, &self.current_states)
-            {
-                return Err(format!(
-                    "Rule '{}' is not satisfied by current model at states {:?}: {}",
-                    formula.name, self.current_states, explanation
-                ));
+            for formula in &formulas {
+                if let Some(explanation) =
+                    self.explain_rule_on_model_failure(formula, model, &self.current_states)
+                {
+                    return Err(format!(
+                        "Rule '{}' is not satisfied by current model at states {:?}: {}",
+                        formula.name, self.current_states, explanation
+                    ));
+                }
             }
         }
 
-        // Anchor the rule to current state
-        let anchored = AnchoredRule {
-            formula,
-            anchor_commit: commit_index,
-            anchor_states: self.current_states.clone(),
-        };
-
-        self.rules.push(anchored);
+        for formula in formulas {
+            self.rules.push(AnchoredRule {
+                formula,
+                anchor_commit: commit_index,
+                anchor_states: self.current_states.clone(),
+            });
+        }
         Ok(())
     }
 
@@ -435,43 +435,25 @@ impl ModelValidator {
         None
     }
 
-    /// Parse a rule's formula from content
-    fn parse_rule_formula(&self, content: &str) -> Result<Formula, String> {
-        // Try to extract formula from rule syntax
-        // Format: rule name { formula name { ... } }
-
-        // Find "formula" keyword and extract the full formula declaration
-        if let Some(start) = content.find("formula") {
-            // Find the opening brace after "formula <name>"
-            let after_formula = &content[start..];
-            if let Some(brace_start) = after_formula.find('{') {
-                let formula_start = start + brace_start + 1;
-                // Find matching closing brace
-                let mut depth = 1;
-                let mut end = formula_start;
-                for (i, c) in content[formula_start..].chars().enumerate() {
-                    match c {
-                        '{' => depth += 1,
-                        '}' => {
-                            depth -= 1;
-                            if depth == 0 {
-                                end = formula_start + i;
-                                break;
-                            }
-                        }
-                        _ => {}
-                    }
-                }
-
-                // Extract the full formula declaration: "formula name { expr }"
-                let formula_content = &content[start..=end];
-
-                // Parse as formula
-                return self.parse_formula_decl(formula_content);
+    /// Every formula in a rule file, named by the formula, else by its rule
+    /// (`default` for `export default rule`).
+    fn parse_rule_formulas(&self, content: &str) -> Result<Vec<Formula>, String> {
+        let blocks = modality_lang::rule_file::parse_rule_file(content)
+            .map_err(|e| format!("Invalid rule: {e}"))?;
+        let mut formulas = Vec::new();
+        for block in &blocks {
+            let rule_name = block.name.as_deref().unwrap_or("default");
+            for (i, f) in block.formulas.iter().enumerate() {
+                let name = match (&f.name, i) {
+                    (Some(n), _) => n.clone(),
+                    (None, 0) => rule_name.to_string(),
+                    (None, i) => format!("{rule_name}_formula_{}", i + 1),
+                };
+                formulas
+                    .push(self.parse_formula_decl(&format!("formula {name} {{\n{}\n}}", f.body))?);
             }
         }
-
-        Err(format!("Could not extract formula from rule: {}", content))
+        Ok(formulas)
     }
 
     /// Parse a formula declaration (formula name { expr })

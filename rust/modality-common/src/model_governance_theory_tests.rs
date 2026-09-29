@@ -283,6 +283,80 @@ fn g9_a_terminal_node_is_not_a_dead_edge() {
     refuse_dead_edges(&model, &HashMap::new(), V1).expect("no dead edge");
 }
 
+/// A `RULE` action is read whole or refused, under every version: every
+/// formula is checked, and text governance does not read is not skipped.
+#[test]
+fn rule_text_is_read_whole_or_refused() {
+    let accepted = [model_commit(
+        "model M {\n  part p {\n    q0 --> q1\n    q1 --> q1: +POST\n  }\n}\n",
+        vec![],
+    )];
+    let raw = |value: Value| {
+        commit(vec![
+            ("rule", "/rules/r.modality", value),
+            ("post", "/notes/a.text", json!("a")),
+        ])
+    };
+    for (rule, why) in [
+        (
+            json!("export default rule {\n  formla {\n    false\n  }\n}\n"),
+            "line 2: expected `formula {`",
+        ),
+        (
+            json!("rule r { formula { true } formula { false } }"),
+            "Model violates rule 'local_rule_2'",
+        ),
+        (
+            json!("formula a { true }\nformula b { false }"),
+            "Model violates rule 'local_rule_2'",
+        ),
+        (
+            json!("rule r { starting_at $ROOT formula { true } }"),
+            "`$PARENT` (a rule is anchored at the commit that adds it)",
+        ),
+        (
+            json!({"formula": "true"}),
+            "the RULE value must be rule text",
+        ),
+    ] {
+        let err = validate(&accepted, &raw(rule.clone()), V0).expect_err(&rule.to_string());
+        assert!(err.to_string().contains(why), "{rule}: {err}");
+    }
+    validate(
+        &accepted,
+        &raw(json!("rule r {\n  starting_at $PARENT // anchor\n  formula named { <+POST> true }\n  formula { true }\n}")),
+        V0,
+    )
+    .expect("two formulas that hold");
+}
+
+/// Replay holds a commit that adds a rule to the model like any other
+/// commit: a replacement model must admit its writes too.
+#[test]
+fn a_commit_with_a_rule_replays_like_any_other() {
+    const OPEN: &str = "model M {\n  part p {\n    q0 --> q1\n    q1 --> q1: +POST\n  }\n}\n";
+    const GUARDED: &str =
+        "model M {\n  part p {\n    q0 --> q1\n    q1 --> q1: +POST -modifies(/secret)\n  }\n}\n";
+    let mut accepted = vec![model_commit(OPEN, vec![])];
+    let with_rule = commit(vec![
+        (
+            "rule",
+            "/rules/r.modality",
+            json!("rule r { formula { true } }"),
+        ),
+        ("post", "/secret/x.text", json!("leaked")),
+    ]);
+    validate(&accepted, &with_rule, V0).expect("the open model admits the write");
+    accepted.push(with_rule);
+    let replace = model_commit(GUARDED, vec![("/notes/n.text", json!("n"))]);
+    let err = validate(&accepted, &replace, V0).expect_err("the log writes /secret");
+    assert!(
+        err.to_string()
+            .contains("Existing commit cannot be replayed against governing model"),
+        "{err}"
+    );
+}
+
 /// Case G21: `predicate_holds` never evaluates `after`, so no commit takes
 /// the `+after` edge and `-after` holds on every commit.
 #[test]

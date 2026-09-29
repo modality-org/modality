@@ -672,9 +672,7 @@ mod tests {
     fn satisfiable_labels_are_not_flagged() {
         let diags = lint_expr(r#"[] always([+num_gt(/x.num,"5") +num_lt(/x.num,"7")] false)"#);
         assert!(!has_code(&diags, LintCode::UnsatisfiableLabelSet));
-        let diags = lint_expr(
-            "<+signed_by(/parties/alice.id) -signed_by(/parties/bob.id)> true",
-        );
+        let diags = lint_expr("<+signed_by(/parties/alice.id) -signed_by(/parties/bob.id)> true");
         assert!(!has_code(&diags, LintCode::UnsatisfiableLabelSet));
     }
 

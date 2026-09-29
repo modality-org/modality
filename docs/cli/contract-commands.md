@@ -212,7 +212,7 @@ and wraps the formula as `export default rule { starting_at $PARENT ... }`.
 | Option | Description |
 |--------|-------------|
 | `--name <NAME>` | Rule name written as `rules/<name>.modality` |
-| `--starting-at <ANCHOR>` | Rule anchor (default: `$PARENT`) |
+| `--starting-at <ANCHOR>` | Rule anchor; only `$PARENT` (the default) is supported |
 | `--dir <DIR>` | Contract directory (defaults to current directory) |
 
 ```bash

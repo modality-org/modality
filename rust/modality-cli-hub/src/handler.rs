@@ -3,15 +3,15 @@
 //! Stores contracts and commits in a local directory structure.
 
 use async_trait::async_trait;
+use modality_rpc::error::RpcError;
 use modality_rpc::methods::RpcHandler;
 use modality_rpc::types::*;
-use modality_rpc::error::RpcError;
 use serde_json::{json, Value};
+use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use sha2::{Sha256, Digest};
 
 /// Hub state
 pub struct HubHandler {
@@ -117,21 +117,24 @@ impl HubHandler {
                 if entry.path().extension().and_then(|s| s.to_str()) == Some("json") {
                     let content = std::fs::read_to_string(entry.path())?;
                     if let Ok(commit_json) = serde_json::from_str::<Value>(&content) {
-                        let hash = entry.path()
+                        let hash = entry
+                            .path()
                             .file_stem()
                             .and_then(|s| s.to_str())
                             .unwrap_or("")
                             .to_string();
-                        
+
                         commits.push(StoredCommit {
                             hash,
-                            parent: commit_json.get("head")
+                            parent: commit_json
+                                .get("head")
                                 .and_then(|h| h.get("parent"))
                                 .and_then(|p| p.as_str())
                                 .map(|s| s.to_string()),
                             body: commit_json.get("body").cloned().unwrap_or(json!([])),
                             head: commit_json.get("head").cloned().unwrap_or(json!({})),
-                            timestamp: commit_json.get("timestamp")
+                            timestamp: commit_json
+                                .get("timestamp")
                                 .and_then(|t| t.as_u64())
                                 .unwrap_or(0),
                         });
@@ -146,7 +149,7 @@ impl HubHandler {
         let created_at = commits.first().map(|c| c.timestamp).unwrap_or(0);
 
         // Build asset state from commits
-        let (assets, balances, pending_sends, received_sends) = 
+        let (assets, balances, pending_sends, received_sends) =
             Self::build_asset_state_from_commits(&commits);
 
         Ok(ContractData {
@@ -160,7 +163,11 @@ impl HubHandler {
         })
     }
 
-    fn sort_commits_by_chain(&self, commits: Vec<StoredCommit>, head: &Option<String>) -> Vec<StoredCommit> {
+    fn sort_commits_by_chain(
+        &self,
+        commits: Vec<StoredCommit>,
+        head: &Option<String>,
+    ) -> Vec<StoredCommit> {
         if commits.is_empty() {
             return commits;
         }
@@ -189,7 +196,11 @@ impl HubHandler {
         sorted
     }
 
-    fn save_commit_to_disk(&self, contract_id: &str, commit: &StoredCommit) -> Result<(), std::io::Error> {
+    fn save_commit_to_disk(
+        &self,
+        contract_id: &str,
+        commit: &StoredCommit,
+    ) -> Result<(), std::io::Error> {
         let contract_dir = self.data_dir.join("contracts").join(contract_id);
         let commits_dir = contract_dir.join("commits");
         std::fs::create_dir_all(&commits_dir)?;
@@ -217,14 +228,14 @@ impl HubHandler {
         for commit in commits {
             if let Some(body) = commit.body.as_array() {
                 for action in body {
-                    let method = action.get("method")
+                    let method = action
+                        .get("method")
                         .and_then(|m| m.as_str())
                         .unwrap_or("")
                         .to_lowercase();
-                    
-                    let path = action.get("path")
-                        .and_then(|p| p.as_str());
-                    
+
+                    let path = action.get("path").and_then(|p| p.as_str());
+
                     let value = action.get("value");
 
                     if let (Some(path), Some(value)) = (path, value) {
@@ -245,12 +256,14 @@ impl HubHandler {
 
     /// Validate a REPOST commit against the pinned source commit
     async fn validate_repost(&self, commit_body: &Value) -> Result<(), RpcError> {
-        let actions = commit_body.as_array()
+        let actions = commit_body
+            .as_array()
             .ok_or_else(|| RpcError::InvalidParams("Commit body must be an array".to_string()))?;
         let contracts = self.contracts.read().await;
 
         for action in actions {
-            let method = action.get("method")
+            let method = action
+                .get("method")
                 .and_then(|m| m.as_str())
                 .unwrap_or("")
                 .to_lowercase();
@@ -261,13 +274,20 @@ impl HubHandler {
             let spec = modality_common::contract_store::parse_repost_json(action)
                 .map_err(|e| RpcError::InvalidParams(e.to_string()))?;
 
-            let source = contracts.get(&spec.source_contract)
+            let source = contracts
+                .get(&spec.source_contract)
                 .ok_or_else(|| RpcError::Custom {
                     code: -32010,
-                    message: format!("REPOST rejected: source contract '{}' not found", spec.source_contract),
+                    message: format!(
+                        "REPOST rejected: source contract '{}' not found",
+                        spec.source_contract
+                    ),
                 })?;
 
-            let through = source.commits.iter().position(|c| c.hash == spec.source_commit)
+            let through = source
+                .commits
+                .iter()
+                .position(|c| c.hash == spec.source_commit)
                 .ok_or_else(|| RpcError::Custom {
                     code: -32013,
                     message: format!(
@@ -277,7 +297,8 @@ impl HubHandler {
                 })?;
             let source_state = self.build_state(&source.commits[..=through]);
             let normalized_path = spec.source_path.trim_start_matches('/');
-            let source_value = source_state.get(normalized_path)
+            let source_value = source_state
+                .get(normalized_path)
                 .or_else(|| source_state.get(&spec.source_path))
                 .ok_or_else(|| RpcError::Custom {
                     code: -32011,
@@ -313,7 +334,9 @@ impl HubHandler {
     }
 
     /// Build asset state from commits (for loading from disk)
-    fn build_asset_state_from_commits(commits: &[StoredCommit]) -> (
+    fn build_asset_state_from_commits(
+        commits: &[StoredCommit],
+    ) -> (
         HashMap<String, AssetInfo>,
         HashMap<(String, String), u64>,
         HashMap<String, SendInfo>,
@@ -327,7 +350,8 @@ impl HubHandler {
         for commit in commits {
             if let Some(body) = commit.body.as_array() {
                 for action in body {
-                    let method = action.get("method")
+                    let method = action
+                        .get("method")
                         .and_then(|m| m.as_str())
                         .unwrap_or("")
                         .to_lowercase();
@@ -341,11 +365,14 @@ impl HubHandler {
                                     v.get("quantity").and_then(|q| q.as_u64()),
                                     v.get("divisibility").and_then(|d| d.as_u64()),
                                 ) {
-                                    assets.insert(asset_id.to_string(), AssetInfo {
-                                        asset_id: asset_id.to_string(),
-                                        quantity,
-                                        divisibility,
-                                    });
+                                    assets.insert(
+                                        asset_id.to_string(),
+                                        AssetInfo {
+                                            asset_id: asset_id.to_string(),
+                                            quantity,
+                                            divisibility,
+                                        },
+                                    );
                                     // Creator gets initial balance - need contract_id context
                                     // This is handled during validation, not here
                                 }
@@ -358,19 +385,25 @@ impl HubHandler {
                                     v.get("to_contract").and_then(|t| t.as_str()),
                                     v.get("amount").and_then(|a| a.as_u64()),
                                 ) {
-                                    pending_sends.insert(commit.hash.clone(), SendInfo {
-                                        asset_id: asset_id.to_string(),
-                                        from_contract: String::new(), // filled during validation
-                                        to_contract: to_contract.to_string(),
-                                        amount,
-                                    });
+                                    pending_sends.insert(
+                                        commit.hash.clone(),
+                                        SendInfo {
+                                            asset_id: asset_id.to_string(),
+                                            from_contract: String::new(), // filled during validation
+                                            to_contract: to_contract.to_string(),
+                                            amount,
+                                        },
+                                    );
                                 }
                             }
                         }
                         "recv" => {
                             if let Some(v) = value {
-                                if let Some(send_commit_id) = v.get("send_commit_id").and_then(|s| s.as_str()) {
-                                    received_sends.insert(send_commit_id.to_string(), commit.hash.clone());
+                                if let Some(send_commit_id) =
+                                    v.get("send_commit_id").and_then(|s| s.as_str())
+                                {
+                                    received_sends
+                                        .insert(send_commit_id.to_string(), commit.hash.clone());
                                 }
                             }
                         }
@@ -390,18 +423,22 @@ impl HubHandler {
         action: &Value,
         contracts: &HashMap<String, ContractData>,
     ) -> Result<(), RpcError> {
-        let value = action.get("value")
+        let value = action
+            .get("value")
             .ok_or_else(|| RpcError::InvalidParams("SEND missing value".to_string()))?;
 
-        let asset_id = value.get("asset_id")
+        let asset_id = value
+            .get("asset_id")
             .and_then(|a| a.as_str())
             .ok_or_else(|| RpcError::InvalidParams("SEND missing asset_id".to_string()))?;
 
-        let to_contract = value.get("to_contract")
+        let to_contract = value
+            .get("to_contract")
             .and_then(|t| t.as_str())
             .ok_or_else(|| RpcError::InvalidParams("SEND missing to_contract".to_string()))?;
 
-        let amount = value.get("amount")
+        let amount = value
+            .get("amount")
             .and_then(|a| a.as_u64())
             .ok_or_else(|| RpcError::InvalidParams("SEND missing amount".to_string()))?;
 
@@ -413,16 +450,20 @@ impl HubHandler {
         }
 
         // Check asset exists in sender's contract
-        let sender_contract = contracts.get(contract_id)
-            .ok_or_else(|| RpcError::Custom {
-                code: -32021,
-                message: format!("Sender contract '{}' not found", contract_id),
-            })?;
+        let sender_contract = contracts.get(contract_id).ok_or_else(|| RpcError::Custom {
+            code: -32021,
+            message: format!("Sender contract '{}' not found", contract_id),
+        })?;
 
-        let asset = sender_contract.assets.get(asset_id)
+        let asset = sender_contract
+            .assets
+            .get(asset_id)
             .ok_or_else(|| RpcError::Custom {
                 code: -32022,
-                message: format!("Asset '{}' not found in contract '{}'", asset_id, contract_id),
+                message: format!(
+                    "Asset '{}' not found in contract '{}'",
+                    asset_id, contract_id
+                ),
             })?;
 
         // Check divisibility
@@ -437,7 +478,8 @@ impl HubHandler {
         }
 
         // Check balance
-        let balance = sender_contract.balances
+        let balance = sender_contract
+            .balances
             .get(&(asset_id.to_string(), contract_id.to_string()))
             .copied()
             .unwrap_or(0);
@@ -454,7 +496,10 @@ impl HubHandler {
 
         tracing::debug!(
             "SEND validated: {} {} from {} to {}",
-            amount, asset_id, contract_id, to_contract
+            amount,
+            asset_id,
+            contract_id,
+            to_contract
         );
 
         Ok(())
@@ -467,16 +512,18 @@ impl HubHandler {
         action: &Value,
         contracts: &HashMap<String, ContractData>,
     ) -> Result<(), RpcError> {
-        let value = action.get("value")
+        let value = action
+            .get("value")
             .ok_or_else(|| RpcError::InvalidParams("RECV missing value".to_string()))?;
 
-        let send_commit_id = value.get("send_commit_id")
+        let send_commit_id = value
+            .get("send_commit_id")
             .and_then(|s| s.as_str())
             .ok_or_else(|| RpcError::InvalidParams("RECV missing send_commit_id".to_string()))?;
 
         // Find the SEND in any contract
         let mut send_info: Option<(String, &SendInfo)> = None;
-        
+
         for (cid, contract) in contracts.iter() {
             if let Some(info) = contract.pending_sends.get(send_commit_id) {
                 send_info = Some((cid.clone(), info));
@@ -484,11 +531,10 @@ impl HubHandler {
             }
         }
 
-        let (from_contract, info) = send_info
-            .ok_or_else(|| RpcError::Custom {
-                code: -32030,
-                message: format!("RECV rejected: SEND commit '{}' not found", send_commit_id),
-            })?;
+        let (from_contract, info) = send_info.ok_or_else(|| RpcError::Custom {
+            code: -32030,
+            message: format!("RECV rejected: SEND commit '{}' not found", send_commit_id),
+        })?;
 
         // Check this RECV is for the correct recipient
         if info.to_contract != contract_id {
@@ -513,7 +559,10 @@ impl HubHandler {
 
         tracing::debug!(
             "RECV validated: {} receiving {} {} from {}",
-            contract_id, info.amount, info.asset_id, from_contract
+            contract_id,
+            info.amount,
+            info.asset_id,
+            from_contract
         );
 
         Ok(())
@@ -526,7 +575,8 @@ impl HubHandler {
         contract_state: &Value,
         commit_signers: &[String],
     ) -> Result<(), RpcError> {
-        let members = contract_state.get("members.json")
+        let members = contract_state
+            .get("members.json")
             .and_then(|m| m.as_array())
             .map(|arr| arr.iter().filter_map(|v| v.as_str()).collect::<Vec<_>>())
             .unwrap_or_default();
@@ -555,7 +605,8 @@ impl HubHandler {
         contract_state: &Value,
         commit_signers: &[String],
     ) -> Result<(), RpcError> {
-        let members = contract_state.get("members.json")
+        let members = contract_state
+            .get("members.json")
             .and_then(|m| m.as_array())
             .map(|arr| arr.iter().filter_map(|v| v.as_str()).collect::<Vec<_>>())
             .unwrap_or_default();
@@ -590,14 +641,17 @@ impl HubHandler {
         contract_state: &Value,
         commit_signers: &[String],
     ) -> Result<(), RpcError> {
-        let params = action.get("params")
+        let params = action
+            .get("params")
             .ok_or_else(|| RpcError::InvalidParams("WITHDRAW missing params".to_string()))?;
 
-        let account_id = params.get("account_id")
+        let account_id = params
+            .get("account_id")
             .and_then(|a| a.as_str())
             .ok_or_else(|| RpcError::InvalidParams("WITHDRAW missing account_id".to_string()))?;
 
-        let amount = params.get("amount")
+        let amount = params
+            .get("amount")
             .and_then(|a| a.as_f64())
             .ok_or_else(|| RpcError::InvalidParams("WITHDRAW missing amount".to_string()))?;
 
@@ -610,14 +664,16 @@ impl HubHandler {
 
         // Look up account at /bank/accounts/{account_id}.json
         let account_path = format!("bank/accounts/{}.json", account_id);
-        let account_data = contract_state.get(&account_path)
+        let account_data = contract_state
+            .get(&account_path)
             .ok_or_else(|| RpcError::Custom {
                 code: -32051,
                 message: format!("Account '{}' not found", account_id),
             })?;
 
         // Get account owner ID
-        let owner_id = account_data.get("id")
+        let owner_id = account_data
+            .get("id")
             .and_then(|i| i.as_str())
             .ok_or_else(|| RpcError::Custom {
                 code: -32052,
@@ -628,15 +684,13 @@ impl HubHandler {
         if !commit_signers.contains(&owner_id.to_string()) {
             return Err(RpcError::Custom {
                 code: -32053,
-                message: format!(
-                    "WITHDRAW must be signed by account owner '{}'",
-                    account_id
-                ),
+                message: format!("WITHDRAW must be signed by account owner '{}'", account_id),
             });
         }
 
         // Get balance
-        let balance = account_data.get("balance")
+        let balance = account_data
+            .get("balance")
             .and_then(|b| b.as_f64())
             .unwrap_or(0.0);
 
@@ -661,27 +715,35 @@ impl HubHandler {
         action: &Value,
         contracts: &HashMap<String, ContractData>,
     ) -> Result<(), RpcError> {
-        let value = action.get("value")
+        let value = action
+            .get("value")
             .ok_or_else(|| RpcError::InvalidParams("CREATE missing value".to_string()))?;
 
-        let asset_id = value.get("asset_id")
+        let asset_id = value
+            .get("asset_id")
             .and_then(|a| a.as_str())
             .ok_or_else(|| RpcError::InvalidParams("CREATE missing asset_id".to_string()))?;
 
-        let quantity = value.get("quantity")
+        let quantity = value
+            .get("quantity")
             .and_then(|q| q.as_u64())
             .ok_or_else(|| RpcError::InvalidParams("CREATE missing quantity".to_string()))?;
 
-        let divisibility = value.get("divisibility")
+        let divisibility = value
+            .get("divisibility")
             .and_then(|d| d.as_u64())
             .ok_or_else(|| RpcError::InvalidParams("CREATE missing divisibility".to_string()))?;
 
         if quantity == 0 {
-            return Err(RpcError::InvalidParams("CREATE quantity must be > 0".to_string()));
+            return Err(RpcError::InvalidParams(
+                "CREATE quantity must be > 0".to_string(),
+            ));
         }
 
         if divisibility == 0 {
-            return Err(RpcError::InvalidParams("CREATE divisibility must be > 0".to_string()));
+            return Err(RpcError::InvalidParams(
+                "CREATE divisibility must be > 0".to_string(),
+            ));
         }
 
         // Check asset doesn't already exist in this contract
@@ -689,14 +751,20 @@ impl HubHandler {
             if contract.assets.contains_key(asset_id) {
                 return Err(RpcError::Custom {
                     code: -32040,
-                    message: format!("Asset '{}' already exists in contract '{}'", asset_id, contract_id),
+                    message: format!(
+                        "Asset '{}' already exists in contract '{}'",
+                        asset_id, contract_id
+                    ),
                 });
             }
         }
 
         tracing::debug!(
             "CREATE validated: {} creating asset '{}' (qty: {}, div: {})",
-            contract_id, asset_id, quantity, divisibility
+            contract_id,
+            asset_id,
+            quantity,
+            divisibility
         );
 
         Ok(())
@@ -712,7 +780,9 @@ impl HubHandler {
         use super::model_validator::{ModelValidator, ReplayCommit};
 
         // Build replay commits from stored commits
-        let replay_commits: Vec<ReplayCommit> = commits.iter().enumerate()
+        let replay_commits: Vec<ReplayCommit> = commits
+            .iter()
+            .enumerate()
             .map(|(i, c)| {
                 let mut method = String::new();
                 let mut action_labels = Vec::new();
@@ -721,29 +791,35 @@ impl HubHandler {
 
                 if let Some(actions) = c.body.as_array() {
                     for action in actions {
-                        let m = action.get("method")
+                        let m = action
+                            .get("method")
                             .and_then(|m| m.as_str())
                             .unwrap_or("")
                             .to_lowercase();
-                        
+
                         if !m.is_empty() {
                             method = m.clone();
                         }
 
                         match m.as_str() {
                             "model" => {
-                                model_content = action.get("value")
+                                model_content = action
+                                    .get("value")
                                     .and_then(|v| v.as_str())
                                     .map(|s| s.to_string());
                             }
                             "rule" => {
-                                rule_content = action.get("value")
+                                rule_content = action
+                                    .get("value")
                                     .and_then(|v| v.as_str())
                                     .map(|s| s.to_string());
                             }
                             "action" => {
-                                if let Some(labels) = action.get("labels").and_then(|l| l.as_array()) {
-                                    action_labels = labels.iter()
+                                if let Some(labels) =
+                                    action.get("labels").and_then(|l| l.as_array())
+                                {
+                                    action_labels = labels
+                                        .iter()
                                         .filter_map(|l| l.as_str())
                                         .map(|s| s.to_string())
                                         .collect();
@@ -766,8 +842,8 @@ impl HubHandler {
             .collect();
 
         // Create validator from existing commits
-        let validator = ModelValidator::from_commits(&replay_commits)
-            .map_err(|e| RpcError::Custom {
+        let validator =
+            ModelValidator::from_commits(&replay_commits).map_err(|e| RpcError::Custom {
                 code: -32050,
                 message: format!("Failed to build model validator: {}", e),
             })?;
@@ -778,16 +854,14 @@ impl HubHandler {
         if !result.valid {
             return Err(RpcError::Custom {
                 code: -32051,
-                message: format!(
-                    "MODEL commit rejected: {}",
-                    result.errors.join("; ")
-                ),
+                message: format!("MODEL commit rejected: {}", result.errors.join("; ")),
             });
         }
 
         tracing::info!(
             "MODEL validated for contract {}: states {:?}",
-            contract_id, result.current_states
+            contract_id,
+            result.current_states
         );
 
         Ok(())
@@ -801,7 +875,8 @@ impl HubHandler {
     ) {
         if let Some(body) = commit.body.as_array() {
             for action in body {
-                let method = action.get("method")
+                let method = action
+                    .get("method")
                     .and_then(|m| m.as_str())
                     .unwrap_or("")
                     .to_lowercase();
@@ -815,11 +890,14 @@ impl HubHandler {
                                 v.get("quantity").and_then(|q| q.as_u64()),
                                 v.get("divisibility").and_then(|d| d.as_u64()),
                             ) {
-                                contract.assets.insert(asset_id.to_string(), AssetInfo {
-                                    asset_id: asset_id.to_string(),
-                                    quantity,
-                                    divisibility,
-                                });
+                                contract.assets.insert(
+                                    asset_id.to_string(),
+                                    AssetInfo {
+                                        asset_id: asset_id.to_string(),
+                                        quantity,
+                                        divisibility,
+                                    },
+                                );
                                 // Creator gets initial balance
                                 contract.balances.insert(
                                     (asset_id.to_string(), contract_id.to_string()),
@@ -841,23 +919,27 @@ impl HubHandler {
                                     *balance = balance.saturating_sub(amount);
                                 }
                                 // Record pending send
-                                contract.pending_sends.insert(commit.hash.clone(), SendInfo {
-                                    asset_id: asset_id.to_string(),
-                                    from_contract: contract_id.to_string(),
-                                    to_contract: to_contract.to_string(),
-                                    amount,
-                                });
+                                contract.pending_sends.insert(
+                                    commit.hash.clone(),
+                                    SendInfo {
+                                        asset_id: asset_id.to_string(),
+                                        from_contract: contract_id.to_string(),
+                                        to_contract: to_contract.to_string(),
+                                        amount,
+                                    },
+                                );
                             }
                         }
                     }
                     "recv" => {
                         if let Some(v) = value {
-                            if let Some(send_commit_id) = v.get("send_commit_id").and_then(|s| s.as_str()) {
+                            if let Some(send_commit_id) =
+                                v.get("send_commit_id").and_then(|s| s.as_str())
+                            {
                                 // Mark as received
-                                contract.received_sends.insert(
-                                    send_commit_id.to_string(),
-                                    commit.hash.clone(),
-                                );
+                                contract
+                                    .received_sends
+                                    .insert(send_commit_id.to_string(), commit.hash.clone());
                                 // Note: balance credit happens in the sender's contract tracking
                                 // This simplified model tracks receives for double-spend prevention
                             }
@@ -895,24 +977,33 @@ impl RpcHandler for HubHandler {
 
     async fn get_contract(&self, params: GetContractParams) -> Result<ContractResponse, RpcError> {
         let contracts = self.contracts.read().await;
-        
-        let contract = contracts.get(&params.contract_id)
+
+        let contract = contracts
+            .get(&params.contract_id)
             .ok_or_else(|| RpcError::Custom {
                 code: -32000,
                 message: format!("Contract not found: {}", params.contract_id),
             })?;
 
         let commits = if params.include_commits {
-            Some(contract.commits.iter().map(|c| CommitInfo {
-                hash: c.hash.clone(),
-                parent: c.parent.clone(),
-                commit_type: "commit".to_string(),
-                timestamp: c.timestamp,
-                signer_count: c.head.get("signatures")
-                    .and_then(|s| s.as_object())
-                    .map(|o| o.len() as u32)
-                    .unwrap_or(0),
-            }).collect())
+            Some(
+                contract
+                    .commits
+                    .iter()
+                    .map(|c| CommitInfo {
+                        hash: c.hash.clone(),
+                        parent: c.parent.clone(),
+                        commit_type: "commit".to_string(),
+                        timestamp: c.timestamp,
+                        signer_count: c
+                            .head
+                            .get("signatures")
+                            .and_then(|s| s.as_object())
+                            .map(|o| o.len() as u32)
+                            .unwrap_or(0),
+                    })
+                    .collect(),
+            )
         } else {
             None
         };
@@ -936,28 +1027,30 @@ impl RpcHandler for HubHandler {
 
     async fn get_contract_state(&self, contract_id: &str) -> Result<Value, RpcError> {
         let contracts = self.contracts.read().await;
-        
-        let contract = contracts.get(contract_id)
-            .ok_or_else(|| RpcError::Custom {
-                code: -32000,
-                message: format!("Contract not found: {}", contract_id),
-            })?;
+
+        let contract = contracts.get(contract_id).ok_or_else(|| RpcError::Custom {
+            code: -32000,
+            message: format!("Contract not found: {}", contract_id),
+        })?;
 
         Ok(self.build_state(&contract.commits))
     }
 
     async fn get_commits(&self, params: GetCommitsParams) -> Result<CommitsResponse, RpcError> {
         let contracts = self.contracts.read().await;
-        
-        let contract = contracts.get(&params.contract_id)
+
+        let contract = contracts
+            .get(&params.contract_id)
             .ok_or_else(|| RpcError::Custom {
                 code: -32000,
                 message: format!("Contract not found: {}", params.contract_id),
             })?;
 
         let limit = params.limit.unwrap_or(100) as usize;
-        
-        let commits: Vec<CommitDetail> = contract.commits.iter()
+
+        let commits: Vec<CommitDetail> = contract
+            .commits
+            .iter()
             .take(limit)
             .map(|c| CommitDetail {
                 hash: c.hash.clone(),
@@ -969,13 +1062,17 @@ impl RpcHandler for HubHandler {
                     "head": c.head,
                 }),
                 timestamp: c.timestamp,
-                signatures: c.head.get("signatures")
+                signatures: c
+                    .head
+                    .get("signatures")
                     .and_then(|s| s.as_object())
                     .map(|obj| {
-                        obj.iter().map(|(k, v)| SignatureInfo {
-                            public_key: k.clone(),
-                            signature: v.as_str().unwrap_or("").to_string(),
-                        }).collect()
+                        obj.iter()
+                            .map(|(k, v)| SignatureInfo {
+                                public_key: k.clone(),
+                                signature: v.as_str().unwrap_or("").to_string(),
+                            })
+                            .collect()
                     })
                     .unwrap_or_default(),
             })
@@ -990,14 +1087,15 @@ impl RpcHandler for HubHandler {
 
     async fn get_commit(&self, contract_id: &str, hash: &str) -> Result<CommitDetail, RpcError> {
         let contracts = self.contracts.read().await;
-        
-        let contract = contracts.get(contract_id)
-            .ok_or_else(|| RpcError::Custom {
-                code: -32000,
-                message: format!("Contract not found: {}", contract_id),
-            })?;
 
-        let commit = contract.commits.iter()
+        let contract = contracts.get(contract_id).ok_or_else(|| RpcError::Custom {
+            code: -32000,
+            message: format!("Contract not found: {}", contract_id),
+        })?;
+
+        let commit = contract
+            .commits
+            .iter()
             .find(|c| c.hash == hash)
             .ok_or_else(|| RpcError::Custom {
                 code: -32002,
@@ -1014,34 +1112,48 @@ impl RpcHandler for HubHandler {
                 "head": commit.head,
             }),
             timestamp: commit.timestamp,
-            signatures: commit.head.get("signatures")
+            signatures: commit
+                .head
+                .get("signatures")
                 .and_then(|s| s.as_object())
                 .map(|obj| {
-                    obj.iter().map(|(k, v)| SignatureInfo {
-                        public_key: k.clone(),
-                        signature: v.as_str().unwrap_or("").to_string(),
-                    }).collect()
+                    obj.iter()
+                        .map(|(k, v)| SignatureInfo {
+                            public_key: k.clone(),
+                            signature: v.as_str().unwrap_or("").to_string(),
+                        })
+                        .collect()
                 })
                 .unwrap_or_default(),
         })
     }
 
-    async fn submit_commit(&self, params: SubmitCommitParams) -> Result<SubmitCommitResponse, RpcError> {
+    async fn submit_commit(
+        &self,
+        params: SubmitCommitParams,
+    ) -> Result<SubmitCommitResponse, RpcError> {
         // Extract body and head from payload
-        let body = params.commit.payload.get("body")
+        let body = params
+            .commit
+            .payload
+            .get("body")
             .cloned()
             .unwrap_or(json!([]));
-        let head = params.commit.payload.get("head")
+        let head = params
+            .commit
+            .payload
+            .get("head")
             .cloned()
             .unwrap_or(json!({}));
 
         // Validate all actions in the commit
         {
             let contracts = self.contracts.read().await;
-            
+
             if let Some(actions) = body.as_array() {
                 for action in actions {
-                    let method = action.get("method")
+                    let method = action
+                        .get("method")
                         .and_then(|m| m.as_str())
                         .unwrap_or("")
                         .to_lowercase();
@@ -1063,36 +1175,42 @@ impl RpcHandler for HubHandler {
                             self.validate_repost(&body).await?;
                         }
                         "create" => {
-                            self.validate_create(&params.contract_id, action, &contracts).await?;
+                            self.validate_create(&params.contract_id, action, &contracts)
+                                .await?;
                         }
                         "send" => {
-                            self.validate_send(&params.contract_id, action, &contracts).await?;
+                            self.validate_send(&params.contract_id, action, &contracts)
+                                .await?;
                         }
                         "recv" => {
-                            self.validate_recv(&params.contract_id, action, &contracts).await?;
+                            self.validate_recv(&params.contract_id, action, &contracts)
+                                .await?;
                         }
                         "model" => {
                             // Validate MODEL commit: new model must satisfy all existing rules
                             if let Some(contract) = contracts.get(&params.contract_id) {
-                                let model_content = action.get("value")
-                                    .and_then(|v| v.as_str())
-                                    .unwrap_or("");
-                                
-                                self.validate_model(&params.contract_id, model_content, &contract.commits)?;
+                                let model_content =
+                                    action.get("value").and_then(|v| v.as_str()).unwrap_or("");
+
+                                self.validate_model(
+                                    &params.contract_id,
+                                    model_content,
+                                    &contract.commits,
+                                )?;
                             }
                         }
                         "action" => {
-                            let action_name = action.get("action")
-                                .and_then(|a| a.as_str())
-                                .unwrap_or("");
-                            
+                            let action_name =
+                                action.get("action").and_then(|a| a.as_str()).unwrap_or("");
+
                             if let Some(contract) = contracts.get(&params.contract_id) {
                                 let state = self.build_state(&contract.commits);
-                                let signers: Vec<String> = head.get("signatures")
+                                let signers: Vec<String> = head
+                                    .get("signatures")
                                     .and_then(|s| s.as_object())
                                     .map(|obj| obj.keys().cloned().collect())
                                     .unwrap_or_default();
-                                
+
                                 match action_name {
                                     "WITHDRAW" => {
                                         self.validate_withdraw(action, &state, &signers)?;
@@ -1110,12 +1228,13 @@ impl RpcHandler for HubHandler {
                     }
                 }
             }
-            
+
             // For contracts with /members.json, validate signer is a member
             if let Some(contract) = contracts.get(&params.contract_id) {
                 let state = self.build_state(&contract.commits);
                 if state.get("members.json").is_some() {
-                    let signers: Vec<String> = head.get("signatures")
+                    let signers: Vec<String> = head
+                        .get("signatures")
                         .and_then(|s| s.as_object())
                         .map(|obj| obj.keys().cloned().collect())
                         .unwrap_or_default();
@@ -1148,7 +1267,8 @@ impl RpcHandler for HubHandler {
         // Update in-memory state
         {
             let mut contracts = self.contracts.write().await;
-            let contract = contracts.entry(params.contract_id.clone())
+            let contract = contracts
+                .entry(params.contract_id.clone())
                 .or_insert_with(|| ContractData {
                     head: None,
                     commits: Vec::new(),
@@ -1166,7 +1286,11 @@ impl RpcHandler for HubHandler {
             contract.head = Some(hash.clone());
         }
 
-        tracing::info!("Accepted commit {} for contract {}", hash, params.contract_id);
+        tracing::info!(
+            "Accepted commit {} for contract {}",
+            hash,
+            params.contract_id
+        );
 
         Ok(SubmitCommitResponse {
             success: true,
@@ -1231,7 +1355,7 @@ mod tests {
 
         let result = handler.validate_withdraw(&action, &state, &signers);
         assert!(result.is_err(), "Insufficient balance should fail");
-        
+
         let err = result.unwrap_err();
         match err {
             RpcError::Custom { code, message } => {
@@ -1251,7 +1375,7 @@ mod tests {
 
         let result = handler.validate_withdraw(&action, &state, &signers);
         assert!(result.is_err(), "Wrong signer should fail");
-        
+
         let err = result.unwrap_err();
         match err {
             RpcError::Custom { code, message } => {
@@ -1271,7 +1395,7 @@ mod tests {
 
         let result = handler.validate_withdraw(&action, &state, &signers);
         assert!(result.is_err(), "Missing account should fail");
-        
+
         let err = result.unwrap_err();
         match err {
             RpcError::Custom { code, message } => {
@@ -1291,7 +1415,7 @@ mod tests {
 
         let result = handler.validate_withdraw(&action, &state, &signers);
         assert!(result.is_err(), "Negative amount should fail");
-        
+
         let err = result.unwrap_err();
         match err {
             RpcError::Custom { code, message } => {
@@ -1323,7 +1447,9 @@ mod tests {
         // Bob cannot withdraw from Alice's account
         let action = make_withdraw_action("alice", 100.0);
         let signers = vec!["bob_key".to_string()];
-        assert!(handler.validate_withdraw(&action, &state, &signers).is_err());
+        assert!(handler
+            .validate_withdraw(&action, &state, &signers)
+            .is_err());
     }
 
     // ===== Member contract tests =====
@@ -1352,7 +1478,7 @@ mod tests {
 
         let result = handler.validate_member_signed(&state, &signers);
         assert!(result.is_err(), "Non-member should be rejected");
-        
+
         match result.unwrap_err() {
             RpcError::Custom { code, .. } => assert_eq!(code, -32060),
             _ => panic!("Expected Custom error"),
@@ -1362,7 +1488,7 @@ mod tests {
     #[test]
     fn test_member_signed_no_members_list_allows_anyone() {
         let handler = HubHandler::new("/tmp/test".into());
-        let state = json!({});  // No members.json
+        let state = json!({}); // No members.json
         let signers = vec!["anyone_key".to_string()];
 
         let result = handler.validate_member_signed(&state, &signers);
@@ -1373,7 +1499,7 @@ mod tests {
     fn test_add_member_requires_all_signatures() {
         let handler = HubHandler::new("/tmp/test".into());
         let state = make_members_state(&["alice_key", "bob_key", "carol_key"]);
-        
+
         // All 3 members sign
         let signers = vec![
             "alice_key".to_string(),
@@ -1387,13 +1513,13 @@ mod tests {
     fn test_add_member_fails_with_partial_signatures() {
         let handler = HubHandler::new("/tmp/test".into());
         let state = make_members_state(&["alice_key", "bob_key", "carol_key"]);
-        
+
         // Only 2 of 3 members sign
         let signers = vec!["alice_key".to_string(), "bob_key".to_string()];
-        
+
         let result = handler.validate_add_member(&state, &signers);
         assert!(result.is_err(), "ADD_MEMBER needs all members");
-        
+
         match result.unwrap_err() {
             RpcError::Custom { code, message } => {
                 assert_eq!(code, -32061);
@@ -1406,7 +1532,7 @@ mod tests {
     #[test]
     fn test_add_member_first_member_anyone_can_add() {
         let handler = HubHandler::new("/tmp/test".into());
-        let state = json!({ "members.json": [] });  // Empty members list
+        let state = json!({ "members.json": [] }); // Empty members list
         let signers = vec!["founder_key".to_string()];
 
         let result = handler.validate_add_member(&state, &signers);

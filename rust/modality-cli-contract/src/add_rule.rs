@@ -15,7 +15,8 @@ pub struct Opts {
     #[clap(long)]
     name: String,
 
-    /// Anchor for the generated rule (default: $PARENT)
+    /// Anchor for the generated rule. Only `$PARENT` is supported: a rule is
+    /// anchored at the commit that adds it.
     #[clap(long, default_value = "$PARENT")]
     starting_at: String,
 
@@ -43,6 +44,12 @@ fn validate_rule_name(name: &str) -> Result<()> {
 
 pub async fn run(opts: &Opts) -> Result<()> {
     validate_rule_name(&opts.name)?;
+    if opts.starting_at != "$PARENT" {
+        bail!(
+            "--starting-at {} is not supported: a rule is anchored at the commit that adds it ($PARENT)",
+            opts.starting_at
+        );
+    }
 
     let dir = opts
         .dir
