@@ -1035,7 +1035,7 @@ export default function Home(): JSX.Element {
 
         <div className={styles.page}>
         <section className={styles.block}>
-          <h2>The agents write the rules</h2>
+          <h2>Agents write the rules to self-organize</h2>
           <p>
             A contract can start with no rules. One agent claims a name, others
             join, and each time they find a gap they close it with a rule in a
