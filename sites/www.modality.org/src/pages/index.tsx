@@ -882,12 +882,12 @@ const DEEP: {sigil: string; name: string; body: React.ReactNode}[] = [
   {
     sigil: 'μ ν',
     name: 'Modal μ-calculus',
-    body: 'Rules are formulas in Kozen’s modal μ-calculus: box and diamond over labeled moves, with least (μ) and greatest (ν) fixed points. always is a ν; eventually is a μ.',
+    body: 'The modal μ-calculus is a highly expressive, decidable modal language. It can state what must always hold and what must be reachable, and checking a formula against a model always finishes.',
   },
   {
     sigil: 'q0 → q1',
     name: 'Kripke structures',
-    body: 'Models are labeled transition systems, the edge-labeled form of a Kripke structure. Nodes are opaque. Meaning lives on the edges, as typed predicates.',
+    body: 'A Kripke model is a witness of the evolving satisfaction of the modal formulas. A later model is accepted only when it still satisfies every formula the contract has accumulated.',
   },
   {
     sigil: '⊨ ⊭',
