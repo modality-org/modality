@@ -101,8 +101,6 @@ config["network_config_path"] = "./network.json"
 (node / "config.json").write_text(json.dumps(config, indent=2) + "\n")
 PY
 NODE_PID=$(test_start_process "cd $NODE_DIR && modal node run-sequencer" "sequencer")
-# test_start_process runs in a subshell here, so track the PID for cleanup.
-PIDS+=("$NODE_PID")
 assert_success "test_wait_for_port 10101" "Sequencer should listen on 10101"
 sleep 3
 

@@ -8,12 +8,14 @@ use modality_common::independent_replay::{
     frozen_invoke_context, predicate_input_with_commit_replay_bundle, wasm_modules_from_commits,
     ReplayWasm,
 };
-use modality_datastore::models::{AssetBalance, Commit, ContractAsset, ReceivedSend, WasmModule};
+use modality_datastore::models::{
+    AssetBalance, Commit, ContractAsset, ReceivedSend, SendRecord, WasmModule,
+};
 use modality_datastore::DatastoreManager;
 use modality_wasm_runtime::{WasmExecutor, DEFAULT_GAS_LIMIT};
 use modality_wasm_validation::PredicateContext;
 use serde_json::Value;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
@@ -62,6 +64,124 @@ pub enum StateChange {
         gas_used: u64,
         actions_count: usize,
     },
+}
+
+/// The writes of one commit. Actions read through it, and nothing reaches
+/// the datastore until every action of the commit has passed, so a commit
+/// that fails part-way (or waits for a prefix cert and is retried) leaves no
+/// debit, post or asset behind.
+#[derive(Default)]
+struct StagedWrites {
+    assets: HashMap<(String, String), ContractAsset>,
+    balances: HashMap<(String, String, String), AssetBalance>,
+    received: HashMap<String, ReceivedSend>,
+    sends: Vec<SendRecord>,
+    data: Vec<(String, Vec<u8>)>,
+    wasm: Vec<WasmModule>,
+}
+
+impl StagedWrites {
+    async fn asset(
+        &self,
+        ds: &DatastoreManager,
+        contract_id: &str,
+        asset_id: &str,
+    ) -> Result<Option<ContractAsset>> {
+        if let Some(asset) = self
+            .assets
+            .get(&(contract_id.to_string(), asset_id.to_string()))
+        {
+            return Ok(Some(asset.clone()));
+        }
+        let keys = [
+            ("contract_id".to_string(), contract_id.to_string()),
+            ("asset_id".to_string(), asset_id.to_string()),
+        ]
+        .into_iter()
+        .collect();
+        ContractAsset::find_one_multi(ds, keys).await
+    }
+
+    fn put_asset(&mut self, asset: ContractAsset) {
+        self.assets
+            .insert((asset.contract_id.clone(), asset.asset_id.clone()), asset);
+    }
+
+    async fn balance(
+        &self,
+        ds: &DatastoreManager,
+        contract_id: &str,
+        asset_id: &str,
+        owner_contract_id: &str,
+    ) -> Result<Option<AssetBalance>> {
+        let key = (
+            contract_id.to_string(),
+            asset_id.to_string(),
+            owner_contract_id.to_string(),
+        );
+        if let Some(balance) = self.balances.get(&key) {
+            return Ok(Some(balance.clone()));
+        }
+        let keys = [
+            ("contract_id".to_string(), key.0),
+            ("asset_id".to_string(), key.1),
+            ("owner_contract_id".to_string(), key.2),
+        ]
+        .into_iter()
+        .collect();
+        AssetBalance::find_one_multi(ds, keys).await
+    }
+
+    fn put_balance(&mut self, balance: AssetBalance) {
+        self.balances.insert(
+            (
+                balance.contract_id.clone(),
+                balance.asset_id.clone(),
+                balance.owner_contract_id.clone(),
+            ),
+            balance,
+        );
+    }
+
+    async fn received(&self, ds: &DatastoreManager, key: &str) -> Result<Option<ReceivedSend>> {
+        if let Some(received) = self.received.get(key) {
+            return Ok(Some(received.clone()));
+        }
+        let keys = [("send_commit_id".to_string(), key.to_string())]
+            .into_iter()
+            .collect();
+        ReceivedSend::find_one_multi(ds, keys).await
+    }
+
+    async fn flush(self, ds: &DatastoreManager) -> Result<()> {
+        for asset in self.assets.values() {
+            asset.save_to_final(ds).await?;
+        }
+        for balance in self.balances.values() {
+            balance.save_to_final(ds).await?;
+        }
+        for received in self.received.values() {
+            received.save_to_final(ds).await?;
+        }
+        for send in &self.sends {
+            send.save_to_final(ds).await?;
+        }
+        for module in &self.wasm {
+            module.save_to_final(ds).await?;
+        }
+        for (key, value) in &self.data {
+            ds.set_data_by_key(key, value).await?;
+        }
+        Ok(())
+    }
+}
+
+fn describe_send(send_commit_id: &str, index: u64) -> String {
+    if index == 0 {
+        format!("SEND commit {send_commit_id}")
+    } else {
+        format!("SEND {index} of commit {send_commit_id}")
+    }
 }
 
 /// Processes contract commits and manages asset state during consensus
@@ -218,6 +338,8 @@ impl ContractProcessor {
         }
 
         let mut state_changes = Vec::new();
+        let mut staged = StagedWrites::default();
+        let mut send_index = 0u64;
 
         for action in &expanded.body {
             let method = action.method.as_str();
@@ -226,30 +348,48 @@ impl ContractProcessor {
             match method {
                 "create" => {
                     state_changes.push(
-                        self.process_create(contract_id, commit_id, &action.value)
+                        self.process_create(contract_id, commit_id, &action.value, &mut staged)
                             .await?,
                     );
                 }
                 "send" => {
                     state_changes.push(
-                        self.process_send(contract_id, commit_id, &action.value)
-                            .await?,
+                        self.process_send(
+                            contract_id,
+                            commit_id,
+                            send_index,
+                            &action.value,
+                            &mut staged,
+                        )
+                        .await?,
                     );
+                    send_index += 1;
                 }
                 "recv" => {
                     state_changes.push(
-                        self.process_recv(contract_id, commit_id, &action.value)
+                        self.process_recv(contract_id, commit_id, &action.value, &mut staged)
                             .await?,
                     );
                 }
                 "post" => {
-                    state_changes.push(self.process_post(contract_id, &action_value).await?);
+                    state_changes.push(
+                        self.process_post(contract_id, &action_value, &mut staged)
+                            .await?,
+                    );
                 }
                 "repost" => {
-                    state_changes.push(self.process_repost(contract_id, &action_value).await?);
+                    state_changes.push(
+                        self.process_repost(contract_id, &action_value, &mut staged)
+                            .await?,
+                    );
                 }
                 _ => {}
             }
+        }
+
+        {
+            let ds = self.datastore.lock().await;
+            staged.flush(&ds).await?;
         }
 
         if commit_has_invoke(&pending) {
@@ -390,6 +530,7 @@ impl ContractProcessor {
         contract_id: &str,
         commit_id: &str,
         value: &Value,
+        staged: &mut StagedWrites,
     ) -> Result<StateChange> {
         let asset_id = value
             .get("asset_id")
@@ -408,15 +549,7 @@ impl ContractProcessor {
 
         let ds = self.datastore.lock().await;
 
-        // Check if asset already exists
-        let mut keys = std::collections::HashMap::new();
-        keys.insert("contract_id".to_string(), contract_id.to_string());
-        keys.insert("asset_id".to_string(), asset_id.to_string());
-
-        if ContractAsset::find_one_multi(&ds, keys.clone())
-            .await?
-            .is_some()
-        {
+        if staged.asset(&ds, contract_id, asset_id).await?.is_some() {
             anyhow::bail!(
                 "Asset {} already exists in contract {}",
                 asset_id,
@@ -424,31 +557,26 @@ impl ContractProcessor {
             );
         }
 
-        // Create the asset
         let timestamp = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)?
             .as_secs();
 
-        let asset = ContractAsset {
+        staged.put_asset(ContractAsset {
             contract_id: contract_id.to_string(),
             asset_id: asset_id.to_string(),
             quantity,
             divisibility,
             created_at: timestamp,
             creator_commit_id: commit_id.to_string(),
-        };
+        });
 
-        asset.save_to_final(&ds).await?;
-
-        // Initialize balance for the creating contract
-        let balance = AssetBalance {
+        // The creating contract holds the whole quantity.
+        staged.put_balance(AssetBalance {
             contract_id: contract_id.to_string(),
             asset_id: asset_id.to_string(),
             owner_contract_id: contract_id.to_string(),
             balance: quantity,
-        };
-
-        balance.save_to_final(&ds).await?;
+        });
 
         Ok(StateChange::AssetCreated {
             contract_id: contract_id.to_string(),
@@ -467,12 +595,14 @@ impl ContractProcessor {
     ///
     /// If validation passes:
     /// - Deducts amount from sender's balance
-    /// - Records the SEND (but doesn't transfer until RECV)
+    /// - Records the SEND as the `send_index`-th of its commit, for RECV
     async fn process_send(
         &self,
         contract_id: &str,
         commit_id: &str,
+        send_index: u64,
         value: &Value,
+        staged: &mut StagedWrites,
     ) -> Result<StateChange> {
         let asset_id = value
             .get("asset_id")
@@ -491,12 +621,8 @@ impl ContractProcessor {
 
         let ds = self.datastore.lock().await;
 
-        // Verify asset exists
-        let mut asset_keys = std::collections::HashMap::new();
-        asset_keys.insert("contract_id".to_string(), contract_id.to_string());
-        asset_keys.insert("asset_id".to_string(), asset_id.to_string());
-
-        let asset = ContractAsset::find_one_multi(&ds, asset_keys)
+        let asset = staged
+            .asset(&ds, contract_id, asset_id)
             .await?
             .ok_or_else(|| {
                 anyhow::anyhow!("Asset {} not found in contract {}", asset_id, contract_id)
@@ -511,13 +637,8 @@ impl ContractProcessor {
             );
         }
 
-        // Get current balance
-        let mut balance_keys = std::collections::HashMap::new();
-        balance_keys.insert("contract_id".to_string(), contract_id.to_string());
-        balance_keys.insert("asset_id".to_string(), asset_id.to_string());
-        balance_keys.insert("owner_contract_id".to_string(), contract_id.to_string());
-
-        let mut balance = AssetBalance::find_one_multi(&ds, balance_keys)
+        let mut balance = staged
+            .balance(&ds, contract_id, asset_id, contract_id)
             .await?
             .ok_or_else(|| {
                 anyhow::anyhow!(
@@ -527,7 +648,6 @@ impl ContractProcessor {
                 )
             })?;
 
-        // Verify sufficient balance
         if balance.balance < amount {
             anyhow::bail!(
                 "Insufficient balance: have {}, need {}",
@@ -536,9 +656,16 @@ impl ContractProcessor {
             );
         }
 
-        // Deduct from sender
         balance.balance -= amount;
-        balance.save_to_final(&ds).await?;
+        staged.put_balance(balance);
+        staged.sends.push(SendRecord {
+            send_commit_id: commit_id.to_string(),
+            send_index,
+            from_contract: contract_id.to_string(),
+            asset_id: asset_id.to_string(),
+            to_contract: to_contract.to_string(),
+            amount,
+        });
 
         Ok(StateChange::AssetSent {
             contract_id: contract_id.to_string(),
@@ -551,10 +678,13 @@ impl ContractProcessor {
 
     /// Process a RECV action during consensus
     ///
+    /// `send_index` (default 0) picks which SEND of the source commit, in
+    /// order after `invoke` expansion.
+    ///
     /// Validates:
-    /// - SEND commit exists, contains a SEND action, and is sequenced
+    /// - SEND commit exists, holds that SEND, and is sequenced
     /// - When dest apply requires certs, a prefix QC through that SEND commit
-    /// - SEND has not already been received (prevents double-receive)
+    /// - That SEND has not already been received (prevents double-receive)
     /// - RECV is by the intended recipient (to_contract matches)
     ///
     /// If validation passes:
@@ -565,28 +695,32 @@ impl ContractProcessor {
         contract_id: &str,
         commit_id: &str,
         value: &Value,
+        staged: &mut StagedWrites,
     ) -> Result<StateChange> {
         let send_commit_id = value
             .get("send_commit_id")
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow::anyhow!("RECV missing send_commit_id"))?;
+        let send_index = match value.get("send_index") {
+            None | Some(Value::Null) => 0,
+            Some(v) => v
+                .as_u64()
+                .ok_or_else(|| anyhow::anyhow!("RECV send_index must be a whole number"))?,
+        };
+        let which = describe_send(send_commit_id, send_index);
 
         let ds = self.datastore.lock().await;
 
-        // Check if this SEND has already been received
-        let mut received_keys = std::collections::HashMap::new();
-        received_keys.insert("send_commit_id".to_string(), send_commit_id.to_string());
-
-        if let Some(existing) = ReceivedSend::find_one_multi(&ds, received_keys).await? {
+        let received_key = ReceivedSend::key_for(send_commit_id, send_index);
+        if let Some(existing) = staged.received(&ds, &received_key).await? {
             anyhow::bail!(
-                "SEND commit {} already received by contract {} in commit {}",
-                send_commit_id,
+                "{} already received by contract {} in commit {}",
+                which,
                 existing.recv_contract_id,
                 existing.recv_commit_id
             );
         }
 
-        // Find the SEND commit
         let send_commit_data = Commit::find_by_id_multi(&ds, send_commit_id)
             .await?
             .ok_or_else(|| {
@@ -612,86 +746,113 @@ impl ContractProcessor {
         )
         .await?;
 
-        let send_commit: serde_json::Value = serde_json::from_str(&send_commit_data.commit_data)?;
-        let send_body = send_commit
-            .get("body")
-            .and_then(|v| v.as_array())
-            .ok_or_else(|| anyhow::anyhow!("Invalid SEND commit structure"))?;
+        let send = Self::find_send(&ds, &send_commit_data, send_index).await?;
 
-        let send_action = send_body
-            .iter()
-            .find(|action| action.get("method").and_then(|v| v.as_str()) == Some("send"))
-            .ok_or_else(|| anyhow::anyhow!("No SEND action found in commit {}", send_commit_id))?;
-
-        let send_value = send_action
-            .get("value")
-            .ok_or_else(|| anyhow::anyhow!("SEND action missing value"))?;
-
-        let from_contract = &send_commit_data.contract_id;
-        let asset_id = send_value
-            .get("asset_id")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| anyhow::anyhow!("SEND action missing asset_id"))?;
-        let to_contract_in_send = send_value
-            .get("to_contract")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| anyhow::anyhow!("SEND action missing to_contract"))?;
-        let amount = send_value
-            .get("amount")
-            .and_then(|v| v.as_u64())
-            .ok_or_else(|| anyhow::anyhow!("SEND action missing amount"))?;
-
-        // Verify this RECV is for the correct recipient contract
-        if to_contract_in_send != contract_id {
+        if send.to_contract != contract_id {
             anyhow::bail!(
                 "RECV rejected: contract {} is not the intended recipient. SEND was to {}",
                 contract_id,
-                to_contract_in_send
+                send.to_contract
             );
         }
 
-        // Mark this SEND as received
         let timestamp = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)?
             .as_secs();
+        staged.received.insert(
+            received_key.clone(),
+            ReceivedSend {
+                send_commit_id: received_key,
+                recv_contract_id: contract_id.to_string(),
+                recv_commit_id: commit_id.to_string(),
+                received_at: timestamp,
+            },
+        );
 
-        let received_send = ReceivedSend {
-            send_commit_id: send_commit_id.to_string(),
-            recv_contract_id: contract_id.to_string(),
-            recv_commit_id: commit_id.to_string(),
-            received_at: timestamp,
-        };
-        received_send.save_to_final(&ds).await?;
-
-        // Get or create balance for receiving contract
-        let mut balance_keys = std::collections::HashMap::new();
-        balance_keys.insert("contract_id".to_string(), from_contract.to_string());
-        balance_keys.insert("asset_id".to_string(), asset_id.to_string());
-        balance_keys.insert("owner_contract_id".to_string(), contract_id.to_string());
-
-        let balance_opt = AssetBalance::find_one_multi(&ds, balance_keys.clone()).await?;
-
-        let mut balance = if let Some(b) = balance_opt {
-            b
-        } else {
-            AssetBalance {
-                contract_id: from_contract.to_string(),
-                asset_id: asset_id.to_string(),
+        let mut balance = staged
+            .balance(&ds, &send.from_contract, &send.asset_id, contract_id)
+            .await?
+            .unwrap_or_else(|| AssetBalance {
+                contract_id: send.from_contract.clone(),
+                asset_id: send.asset_id.clone(),
                 owner_contract_id: contract_id.to_string(),
                 balance: 0,
-            }
-        };
-
-        // Add to receiver
-        balance.balance += amount;
-        balance.save_to_final(&ds).await?;
+            });
+        balance.balance = balance
+            .balance
+            .checked_add(send.amount)
+            .ok_or_else(|| anyhow::anyhow!("RECV rejected: balance overflow"))?;
+        staged.put_balance(balance);
 
         Ok(StateChange::AssetReceived {
-            from_contract: from_contract.to_string(),
-            from_asset_id: asset_id.to_string(),
+            from_contract: send.from_contract,
+            from_asset_id: send.asset_id,
             to_contract: contract_id.to_string(),
-            amount,
+            amount: send.amount,
             send_commit_id: send_commit_id.to_string(),
+        })
+    }
+
+    /// The `index`-th SEND of a sequenced commit: its record, or, for a
+    /// commit applied before SENDs were recorded, its hand-written SENDs.
+    async fn find_send(ds: &DatastoreManager, commit: &Commit, index: u64) -> Result<SendRecord> {
+        let which = describe_send(&commit.commit_id, index);
+        if let Some(record) = SendRecord::find(ds, &commit.commit_id, index).await? {
+            if record.from_contract != commit.contract_id {
+                anyhow::bail!(
+                    "RECV rejected: {} is recorded from '{}', not '{}'",
+                    which,
+                    record.from_contract,
+                    commit.contract_id
+                );
+            }
+            return Ok(record);
+        }
+        let parsed: Value = serde_json::from_str(&commit.commit_data)?;
+        let body = parsed
+            .get("body")
+            .and_then(|v| v.as_array())
+            .ok_or_else(|| anyhow::anyhow!("Invalid SEND commit structure"))?;
+        let method_is = |action: &Value, name: &str| {
+            action
+                .get("method")
+                .and_then(|v| v.as_str())
+                .is_some_and(|m| m.eq_ignore_ascii_case(name))
+        };
+        if body.iter().any(|action| method_is(action, "invoke")) {
+            anyhow::bail!("RECV rejected: {} was not recorded", which);
+        }
+        let send_action = body
+            .iter()
+            .filter(|action| method_is(action, "send"))
+            .nth(index as usize)
+            .ok_or_else(|| {
+                if index == 0 {
+                    anyhow::anyhow!("No SEND action found in commit {}", commit.commit_id)
+                } else {
+                    anyhow::anyhow!("No {} found", which)
+                }
+            })?;
+        let send_value = send_action
+            .get("value")
+            .ok_or_else(|| anyhow::anyhow!("SEND action missing value"))?;
+        let field = |name: &str| {
+            send_value
+                .get(name)
+                .and_then(|v| v.as_str())
+                .map(str::to_string)
+                .ok_or_else(|| anyhow::anyhow!("SEND action missing {}", name))
+        };
+        Ok(SendRecord {
+            send_commit_id: commit.commit_id.clone(),
+            send_index: index,
+            from_contract: commit.contract_id.clone(),
+            asset_id: field("asset_id")?,
+            to_contract: field("to_contract")?,
+            amount: send_value
+                .get("amount")
+                .and_then(|v| v.as_u64())
+                .ok_or_else(|| anyhow::anyhow!("SEND action missing amount"))?,
         })
     }
 
@@ -835,7 +996,12 @@ impl ContractProcessor {
     /// The value is stored in the datastore with key: /contracts/{contract_id}{path}
     ///
     /// Special handling for .wasm extensions: uploads WASM modules to the datastore
-    async fn process_post(&self, contract_id: &str, action: &Value) -> Result<StateChange> {
+    async fn process_post(
+        &self,
+        contract_id: &str,
+        action: &Value,
+        staged: &mut StagedWrites,
+    ) -> Result<StateChange> {
         let path = action
             .get("path")
             .and_then(|v| v.as_str())
@@ -847,7 +1013,7 @@ impl ContractProcessor {
 
         // Check if this is a WASM upload (path ends with .wasm)
         if path.ends_with(".wasm") {
-            return self.process_wasm_post(contract_id, path, value).await;
+            return self.process_wasm_post(contract_id, path, value, staged);
         }
 
         // Convert value to string for storage
@@ -865,10 +1031,8 @@ impl ContractProcessor {
         // Store in datastore with key: /contracts/{contract_id}{path}
         let key = format!("/contracts/{}{}", contract_id, path);
 
-        let ds = self.datastore.lock().await;
-        ds.set_data_by_key(&key, value_str.as_bytes()).await?;
-
-        log::debug!("Stored POST: {} = {}", key, value_str);
+        log::debug!("Staged POST: {} = {}", key, value_str);
+        staged.data.push((key, value_str.as_bytes().to_vec()));
 
         Ok(StateChange::Posted {
             contract_id: contract_id.to_string(),
@@ -882,7 +1046,12 @@ impl ContractProcessor {
     /// Snapshot: dest path gets `value` if it matches the source contract's
     /// current value at `source_path`. Historical pin is recorded on the
     /// commit; the node KV store only has latest source state.
-    async fn process_repost(&self, contract_id: &str, action: &Value) -> Result<StateChange> {
+    async fn process_repost(
+        &self,
+        contract_id: &str,
+        action: &Value,
+        staged: &mut StagedWrites,
+    ) -> Result<StateChange> {
         let spec = modality_common::contract_store::parse_repost_json(action)?;
 
         let ds = self.datastore.lock().await;
@@ -923,7 +1092,7 @@ impl ContractProcessor {
             Value::String(s) => s.as_bytes().to_vec(),
             other => serde_json::to_vec(other)?,
         };
-        ds.set_data_by_key(&store_key, &dest_bytes).await?;
+        staged.data.push((store_key, dest_bytes));
 
         log::info!(
             "REPOST validated: {}{} <- {}:{} @ {}",
@@ -949,11 +1118,12 @@ impl ContractProcessor {
     /// The value should be an object with:
     /// - wasm_bytes: base64-encoded WASM binary
     /// - gas_limit: optional gas limit (defaults to DEFAULT_GAS_LIMIT)
-    async fn process_wasm_post(
+    fn process_wasm_post(
         &self,
         contract_id: &str,
         path: &str,
         value: &Value,
+        staged: &mut StagedWrites,
     ) -> Result<StateChange> {
         // Extract module name from path (e.g., "/validators/primary.wasm" -> "primary")
         let module_name = path
@@ -1007,11 +1177,10 @@ impl ContractProcessor {
 
         let sha256_hash = wasm_module.sha256_hash.clone();
 
-        let ds = self.datastore.lock().await;
-        wasm_module.save_to_final(&ds).await?;
+        staged.wasm.push(wasm_module);
 
         log::info!(
-            "Uploaded WASM module '{}' for contract {} via POST {}, hash: {}, gas_limit: {}",
+            "Staged WASM module '{}' for contract {} via POST {}, hash: {}, gas_limit: {}",
             module_name,
             contract_id,
             path,
@@ -3936,5 +4105,232 @@ model DeliveryOracle {
                 .expect("emitted post must be applied");
             assert_eq!(String::from_utf8(posted).unwrap(), "pwned");
         }
+    }
+
+    async fn balance_of(
+        datastore: &Arc<Mutex<DatastoreManager>>,
+        asset_contract: &str,
+        asset_id: &str,
+        owner: &str,
+    ) -> u64 {
+        let ds = datastore.lock().await;
+        let keys = [
+            ("contract_id".to_string(), asset_contract.to_string()),
+            ("asset_id".to_string(), asset_id.to_string()),
+            ("owner_contract_id".to_string(), owner.to_string()),
+        ]
+        .into_iter()
+        .collect();
+        AssetBalance::find_one_multi(&ds, keys)
+            .await
+            .unwrap()
+            .map(|b| b.balance)
+            .unwrap_or(0)
+    }
+
+    fn create_drops_json() -> serde_json::Value {
+        serde_json::json!({
+            "body": [{
+                "method": "create",
+                "value": { "asset_id": "drops", "quantity": 100, "divisibility": 1 }
+            }],
+            "head": {}
+        })
+    }
+
+    fn send_json(to: &str, amount: u64) -> serde_json::Value {
+        serde_json::json!({
+            "method": "send",
+            "value": { "asset_id": "drops", "to_contract": to, "amount": amount }
+        })
+    }
+
+    fn recv_json(send_commit_id: &str, send_index: Option<u64>) -> serde_json::Value {
+        let mut value = serde_json::json!({ "send_commit_id": send_commit_id });
+        if let Some(index) = send_index {
+            value["send_index"] = serde_json::json!(index);
+        }
+        serde_json::json!({ "body": [{ "method": "recv", "value": value }], "head": {} })
+    }
+
+    #[tokio::test]
+    async fn recv_takes_each_send_of_a_commit_by_index() {
+        let datastore = Arc::new(Mutex::new(DatastoreManager::create_in_memory().unwrap()));
+        let processor = ContractProcessor::new(datastore.clone());
+        let create = create_drops_json().to_string();
+        sequence_commit(&processor, &datastore, "faucet", "create", &create, "b1").await;
+        let split = serde_json::json!({
+            "body": [send_json("bob", 4), send_json("bob", 6), send_json("carol", 1)],
+            "head": { "parent": "create" }
+        })
+        .to_string();
+        sequence_commit(&processor, &datastore, "faucet", "split", &split, "b2").await;
+        assert_eq!(balance_of(&datastore, "faucet", "drops", "faucet").await, 89);
+
+        let recv = |id: &str, index| recv_json(id, index).to_string();
+        processor
+            .process_commit("bob", "r0", &recv("split", None))
+            .await
+            .expect("no index is the first SEND");
+        processor
+            .process_commit("bob", "r1", &recv("split", Some(1)))
+            .await
+            .expect("the second SEND is receivable too");
+        assert_eq!(balance_of(&datastore, "faucet", "drops", "bob").await, 10);
+
+        let again = processor
+            .process_commit("bob", "r1-again", &recv("split", Some(1)))
+            .await
+            .expect_err("each SEND is received once");
+        assert!(
+            again.to_string().contains("SEND 1 of commit split already received"),
+            "unexpected error: {again}"
+        );
+        let first_again = processor
+            .process_commit("bob", "r0-again", &recv("split", Some(0)))
+            .await
+            .expect_err("index 0 is the SEND a RECV without an index took");
+        assert!(first_again.to_string().contains("already received"));
+        let not_bob = processor
+            .process_commit("bob", "r2", &recv("split", Some(2)))
+            .await
+            .expect_err("the third SEND is carol's");
+        assert!(not_bob.to_string().contains("not the intended recipient"));
+        let missing = processor
+            .process_commit("bob", "r3", &recv("split", Some(3)))
+            .await
+            .expect_err("there is no fourth SEND");
+        assert!(missing.to_string().contains("No SEND 3 of commit split"));
+        processor
+            .process_commit("carol", "rc", &recv("split", Some(2)))
+            .await
+            .expect("carol receives hers");
+        assert_eq!(balance_of(&datastore, "faucet", "drops", "carol").await, 1);
+    }
+
+    #[tokio::test]
+    async fn recv_takes_a_send_a_program_emitted() {
+        let datastore = Arc::new(Mutex::new(DatastoreManager::create_in_memory().unwrap()));
+        let processor = ContractProcessor::new(datastore.clone());
+        let wasm = modality_wasm_runtime::program_that_emits(&serde_json::json!([
+            send_json("bob", 7),
+            send_json("bob", 3)
+        ]))
+        .unwrap();
+        let bootstrap = serde_json::json!({
+            "body": [
+                create_drops_json()["body"][0].clone(),
+                {
+                    "method": "post",
+                    "path": "/__programs__/pay.wasm",
+                    "value": base64::Engine::encode(
+                        &base64::engine::general_purpose::STANDARD,
+                        &wasm
+                    )
+                }
+            ],
+            "head": {}
+        })
+        .to_string();
+        sequence_commit(&processor, &datastore, "treasury", "boot", &bootstrap, "b1").await;
+        let invoke = serde_json::json!({
+            "body": [{
+                "method": "invoke",
+                "path": "/__programs__/pay.wasm",
+                "value": { "args": {} }
+            }],
+            "head": { "parent": "boot" }
+        })
+        .to_string();
+        sequence_commit(&processor, &datastore, "treasury", "pay", &invoke, "b2").await;
+        assert_eq!(balance_of(&datastore, "treasury", "drops", "treasury").await, 90);
+
+        processor
+            .process_commit("bob", "r0", &recv_json("pay", None).to_string())
+            .await
+            .expect("a SEND the program emitted is receivable");
+        processor
+            .process_commit("bob", "r1", &recv_json("pay", Some(1)).to_string())
+            .await
+            .expect("so is its second");
+        assert_eq!(balance_of(&datastore, "treasury", "drops", "bob").await, 10);
+    }
+
+    #[tokio::test]
+    async fn a_commit_that_fails_part_way_writes_nothing() {
+        let datastore = Arc::new(Mutex::new(DatastoreManager::create_in_memory().unwrap()));
+        let processor = ContractProcessor::new(datastore.clone());
+        let create = create_drops_json().to_string();
+        sequence_commit(&processor, &datastore, "faucet", "create", &create, "b1").await;
+        let overdraw = serde_json::json!({
+            "body": [
+                { "method": "post", "path": "/note.text", "value": "paid" },
+                send_json("bob", 60),
+                send_json("bob", 60)
+            ],
+            "head": { "parent": "create" }
+        })
+        .to_string();
+        let err = processor
+            .process_commit("faucet", "overdraw", &overdraw)
+            .await
+            .expect_err("the second SEND overdraws");
+        assert!(err.to_string().contains("Insufficient balance: have 40, need 60"));
+        assert_eq!(balance_of(&datastore, "faucet", "drops", "faucet").await, 100);
+        let ds = datastore.lock().await;
+        assert!(ds
+            .get_data_by_key("/contracts/faucet/note.text")
+            .await
+            .unwrap()
+            .is_none());
+        assert!(SendRecord::find(&ds, "overdraw", 0).await.unwrap().is_none());
+    }
+
+    #[tokio::test]
+    async fn a_commit_retried_for_a_prefix_cert_is_debited_once() {
+        let datastore = Arc::new(Mutex::new(DatastoreManager::create_in_memory().unwrap()));
+        let processor = setup_mod_send(&datastore, true, &["peer1"]).await;
+        let create = create_drops_json().to_string();
+        sequence_commit(&processor, &datastore, "bob", "bob-create", &create, "b1").await;
+        let send_and_recv = serde_json::json!({
+            "body": [
+                send_json("carol", 5),
+                { "method": "recv", "value": { "send_commit_id": "send-mod" } }
+            ],
+            "head": { "parent": "bob-create" }
+        })
+        .to_string();
+        for _ in 0..3 {
+            let err = processor
+                .process_commit("bob", "send-and-recv", &send_and_recv)
+                .await
+                .expect_err("no QC yet");
+            assert!(err.to_string().contains("missing prefix_cert"));
+        }
+        assert_eq!(balance_of(&datastore, "bob", "drops", "bob").await, 100);
+
+        {
+            let ds = datastore.lock().await;
+            let digest = crate::prefix_cert::build_prefix_from_store(&ds, "alice", "send-mod")
+                .await
+                .unwrap()
+                .1;
+            ds.save_prefix_cert(&serde_json::json!({
+                "type": "prefix_cert",
+                "source_contract": "alice",
+                "through_commit": "send-mod",
+                "prefix_digest": digest,
+                "validator_peer_id": "peer1",
+                "gas_used": 1,
+                "fee_quoted": 0
+            }))
+            .unwrap();
+        }
+        processor
+            .process_commit("bob", "send-and-recv", &send_and_recv)
+            .await
+            .expect("applies once the QC lands");
+        assert_eq!(balance_of(&datastore, "bob", "drops", "bob").await, 95);
+        assert_eq!(balance_of(&datastore, "alice", "MOD", "bob").await, 100);
     }
 }

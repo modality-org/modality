@@ -134,6 +134,19 @@ fn test_recv_action_validation_fails_without_send_commit_id() {
 }
 
 #[test]
+fn test_recv_send_index_must_be_a_whole_number() {
+    for (index, ok) in [(json!(1), true), (json!(null), true), (json!(-1), false), (json!("1"), false)] {
+        let mut commit = CommitFile::new();
+        commit.add_action(
+            "recv".to_string(),
+            None,
+            json!({ "send_commit_id": "commit_xyz789", "send_index": index }),
+        );
+        assert_eq!(commit.validate().is_ok(), ok, "send_index {index}");
+    }
+}
+
+#[test]
 fn test_multiple_actions_validation() {
     let mut commit = CommitFile::new();
 

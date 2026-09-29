@@ -1,7 +1,8 @@
 //! What a pending commit moves and who wrote it: the `SEND`s (`sent_eq`,
 //! `sent_lte`, `sent_to`), a key posted by its holder (`posts_own_key`), and
-//! actions a posted program emitted (`emitted_by`). Then the faucet and a
-//! program-only treasury, which need them.
+//! actions a posted program emitted (`emitted_by`), and what the commit does
+//! to a product of posted numbers (`keeps_product`). Then the faucet, a
+//! program-only treasury and a pool's swap invariant, which need them.
 
 use super::*;
 use crate::contract_store::{CommitAction, Emitter};
@@ -444,3 +445,115 @@ fn only_the_posted_program_moves_the_treasury() {
     assert!(err.to_string().contains("Model violates rule"), "{err}");
 }
 
+
+// ---------------------------------------------------------------------------
+// A pool's swap invariant: the reserve product does not fall
+// ---------------------------------------------------------------------------
+
+fn reserves(a: Value, b: Value) -> CommitFile {
+    commit(vec![("post", "/reserves/a.num", a), ("post", "/reserves/b.num", b)])
+}
+
+#[test]
+fn keeps_product_compares_the_product_after_the_commit_with_before() {
+    let state = [
+        ("/reserves/a.num", json!(100)),
+        ("/reserves/b.num", json!(100)),
+        ("/config/fee.num", json!(0.003)),
+        ("/config/fee.text", json!("0.003")),
+        ("/reserves/neg.num", json!(-1)),
+    ];
+    let k = |c: &CommitFile, args: &[&str]| holds(c, &state, "keeps_product", args);
+    let ab = ["/reserves/a.num", "/reserves/b.num"];
+    let with_fee = |fee: &'static str| ["/reserves/a.num", "/reserves/b.num", fee];
+
+    // 110 * 91 = 10010 and 110 * 90.9 = 9999, against 100 * 100.
+    assert!(k(&reserves(json!(110), json!(91)), &ab));
+    assert!(!k(&reserves(json!(110), json!(90.9)), &ab));
+    assert!(k(&CommitFile::new(), &ab), "unchanged reserves keep the product");
+    // Only 99.7% of what goes in counts: 109.97 * 90.91 < 10000 <= 110 * 90.91.
+    let no_fee_paid = reserves(json!(110), json!(90.91));
+    assert!(k(&no_fee_paid, &ab));
+    assert!(!k(&no_fee_paid, &with_fee("0.003")));
+    assert!(!k(&no_fee_paid, &with_fee("/config/fee.num")));
+    assert!(k(&reserves(json!(110), json!(91)), &with_fee("/config/fee.num")));
+    // A commit that writes one reserve twice ends at the last write.
+    let mut twice = reserves(json!(50), json!(91));
+    twice.add_action("post".to_string(), Some("/reserves/a.num".to_string()), json!(110));
+    assert!(k(&twice, &ab));
+
+    let fine = reserves(json!(110), json!(91));
+    for (args, why) in [
+        (vec!["/reserves/a.num", "/reserves/a.num"], "one path twice"),
+        (vec!["/reserves/a.text", "/reserves/b.num"], "not a .num path"),
+        (vec!["/reserves/c.num", "/reserves/b.num"], "no accepted number"),
+        (vec!["/reserves/neg.num", "/reserves/b.num"], "a negative reserve"),
+        (with_fee("1").to_vec(), "a fee of one"),
+        (with_fee("-0.1").to_vec(), "a negative fee"),
+        (with_fee("/config/fee.text").to_vec(), "a fee path of another type"),
+        (with_fee("0.3%").to_vec(), "a fee that is not a decimal"),
+        (vec!["/reserves/a.num", "/reserves/b.num", "0", "extra"], "too many arguments"),
+    ] {
+        assert!(!k(&fine, &args), "{why}");
+    }
+    assert!(!k(&reserves(json!("110"), json!(91)), &ab), "a pending write that is text");
+    assert!(!k(&reserves(json!(-5), json!(-3000)), &ab), "a pending negative reserve");
+}
+
+const POOL_PROGRAM: &str = "/__programs__/pool.wasm";
+
+/// Only the pool program writes the reserves, a swap keeps the fee-adjusted
+/// product, and neither the config nor the program changes.
+const POOL: &str = r#"
+model Pool {
+  part flow {
+    q0 --> q1
+    q1 --> q1: +POST -CREATE -modifies(/reserves) -modifies(/config) -modifies(/__programs__)
+    q1 --> q1: +POST -CREATE -modifies(/config) -modifies(/__programs__) +emitted_by(/__programs__/pool.wasm, "5f1e") +keeps_product(/reserves/a.num, /reserves/b.num, /config/fee.num)
+  }
+}
+"#;
+
+#[test]
+fn a_pool_program_that_drains_or_skips_the_fee_is_refused() {
+    let mut bootstrap = reserves(json!(100), json!(100));
+    bootstrap.add_action("model".to_string(), Some("/model/default.modality".to_string()), json!(POOL));
+    bootstrap.add_action("post".to_string(), Some("/config/fee.num".to_string()), json!(0.003));
+    let mut accepted = vec![bootstrap];
+    for rule in [
+        r#"always([+modifies(/reserves) -emitted_by(/__programs__/pool.wasm, "5f1e")] false)"#,
+        "always([+modifies(/reserves) -keeps_product(/reserves/a.num, /reserves/b.num, /config/fee.num)] false)",
+        "always([+modifies(/config)] false)",
+        "always([+modifies(/__programs__)] false)",
+    ] {
+        let pending = rule_commit(rule);
+        validate(&accepted, &pending, V2).unwrap_or_else(|e| panic!("{rule}: {e}"));
+        accepted.push(pending);
+    }
+
+    let swap = |a: Value, b: Value| emitted(reserves(a, b), POOL_PROGRAM, PAYOUT_SHA);
+    for (pending, why) in [
+        (swap(json!(110), json!(50)), "a program that drains b"),
+        (swap(json!(110), json!(90.91)), "a program that skips the fee"),
+    ] {
+        for theory in [V0, V2] {
+            let err = validate(&accepted, &pending, theory).expect_err(why);
+            assert!(err.to_string().contains("keeps_product"), "{why}: {err}");
+        }
+    }
+    let good = swap(json!(110), json!(91));
+    validate(&accepted, &good, V2).expect("a swap that pays the fee");
+    accepted.push(good);
+    // The next swap is judged against the reserves the last one left.
+    validate(&accepted, &swap(json!(100), json!(100)), V2)
+        .expect_err("swapping back at the old price loses the fee");
+
+    // A model that drops the invariant is refused: the rule outlives it.
+    let no_invariant = POOL.replace(
+        " +keeps_product(/reserves/a.num, /reserves/b.num, /config/fee.num)",
+        "",
+    );
+    let replace = commit(vec![("model", "/model/default.modality", json!(no_invariant))]);
+    let err = validate(&accepted, &replace, V2).expect_err("rules still bind");
+    assert!(err.to_string().contains("Model violates rule"), "{err}");
+}

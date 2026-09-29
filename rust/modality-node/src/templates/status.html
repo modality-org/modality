@@ -784,6 +784,14 @@
                         esc(shortId(c.head, 8)) + '</code></td><td>' + c.commits_sequenced + ' / ' + c.commits_total + '</td></tr>';
                 }}).join('') + '</tbody></table></div>';
         }}
+        function balancesTable(balances) {{
+            if (!balances || !balances.length) return '<p class="tab-copy">None</p>';
+            return '<table><thead><tr><th>Asset</th><th>Created by</th><th>Balance</th></tr></thead><tbody>' +
+                balances.map(function (b) {{
+                    return '<tr><td><code>' + esc(b.asset_id) + '</code></td><td><code>' + esc(shortId(b.asset_contract, 8)) +
+                        '</code></td><td>' + esc(String(b.balance)) + '</td></tr>';
+                }}).join('') + '</tbody></table>';
+        }}
         function renderInspect(id, inspect, commits, replay) {{
             document.title = 'Contract ' + shortId(id, 8);
             var status = inspect.sequenced
@@ -809,6 +817,7 @@
                 '<span class="chip">HEAD <code>' + esc(shortId(inspect.head, 8)) + '</code></span>' +
                 '<span class="chip">' + replayStatus + '</span></div></div>' +
                 '<div class="status-card"><h2>State</h2>' + pathsTable(inspect.state) + '</div>' +
+                '<div class="status-card"><h2>Assets held</h2>' + balancesTable(inspect.balances) + '</div>' +
                 '<div class="status-card"><h2>Model</h2>' + pathsTable(inspect.model) + '</div>' +
                 '<div class="status-card"><h2>Rules</h2>' + pathsTable(inspect.rules) + '</div>' +
                 '<div class="status-card"><h2>History</h2><table><thead><tr><th>Commit</th><th>Parent</th><th>Actions</th><th>Sequenced</th><th>Batch</th></tr></thead><tbody>' +

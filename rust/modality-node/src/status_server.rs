@@ -217,6 +217,7 @@ async fn status_json_handler(
         "named_validator_count": status.named_validators.len(),
         "validator_min_stake": status.validator_min_stake,
         "dest_apply_requires_cert": status.dest_apply_requires_cert,
+        "predicate_theory_version": status.predicate_theory_version,
         "active_roles": status.active_roles,
         "peer_list": status
             .peers

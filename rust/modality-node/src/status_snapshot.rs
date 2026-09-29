@@ -88,6 +88,7 @@ pub struct NodeStatus {
     pub validator_qc_numerator: u64,
     pub validator_qc_denominator: u64,
     pub dest_apply_requires_cert: bool,
+    pub predicate_theory_version: String,
     pub recent_prefix_certs: Vec<PrefixCertStatus>,
     pub pending_prefix_cert_requests: usize,
     /// Highest certified sequencer round seen per block author.
@@ -383,6 +384,9 @@ async fn collect_node_status_uncached(source: &NodeStatusSource) -> anyhow::Resu
     let validator_qc_numerator = mgr.validator_qc_numerator().unwrap_or(2);
     let validator_qc_denominator = mgr.validator_qc_denominator().unwrap_or(3);
     let dest_apply_requires_cert = mgr.dest_apply_requires_validator_cert().unwrap_or(false);
+    let predicate_theory_version = mgr
+        .predicate_theory_version()
+        .unwrap_or_else(|_| modality_datastore::DEFAULT_PREDICATE_THEORY_VERSION.to_string());
     let recent_prefix_certs = mgr
         .list_recent_prefix_certs(STATUS_RECENT_PREFIX_CERTS_COUNT)
         .unwrap_or_default()
@@ -443,6 +447,7 @@ async fn collect_node_status_uncached(source: &NodeStatusSource) -> anyhow::Resu
         validator_qc_numerator,
         validator_qc_denominator,
         dest_apply_requires_cert,
+        predicate_theory_version,
         recent_prefix_certs,
         pending_prefix_cert_requests,
         last_cert_round_by_author,
@@ -720,6 +725,7 @@ pub(crate) fn sample_status() -> NodeStatus {
         validator_qc_numerator: 2,
         validator_qc_denominator: 3,
         dest_apply_requires_cert: false,
+        predicate_theory_version: "v0".to_string(),
         recent_prefix_certs: vec![],
         pending_prefix_cert_requests: 0,
         last_cert_round_by_author: vec![],

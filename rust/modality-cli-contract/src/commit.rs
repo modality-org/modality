@@ -56,6 +56,11 @@ pub struct Opts {
     #[clap(long)]
     send_commit_id: Option<String>,
 
+    /// Which SEND of that commit, counting from 0 after any invoke is
+    /// expanded (for RECV method; default 0)
+    #[clap(long)]
+    send_index: Option<u64>,
+
     // Signing
     /// Passfile path or identity name for signing the commit; repeat to attach multiple signatures
     #[clap(long)]
@@ -361,6 +366,7 @@ fn is_empty_commit(opts: &Opts) -> bool {
         && opts.to_contract.is_none()
         && opts.amount.is_none()
         && opts.send_commit_id.is_none()
+        && opts.send_index.is_none()
 }
 
 fn accepted_model_content(store: &ContractStore) -> Result<Option<String>> {
@@ -679,9 +685,13 @@ fn build_recv_value(opts: &Opts) -> Result<Value> {
         .as_ref()
         .ok_or_else(|| anyhow::anyhow!("--send-commit-id is required for RECV method"))?;
 
-    Ok(serde_json::json!({
+    let mut value = serde_json::json!({
         "send_commit_id": send_commit_id
-    }))
+    });
+    if let Some(index) = opts.send_index {
+        value["send_index"] = serde_json::json!(index);
+    }
+    Ok(value)
 }
 
 fn build_invoke_value(opts: &Opts) -> Result<Value> {

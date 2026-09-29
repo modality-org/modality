@@ -36,6 +36,7 @@ local validator path.
 | `sent_to("asset", dest)` | Pending `SEND` actions, plus accepted state when `dest` is a `.text` or `.id` path | Every `SEND` of `asset` goes to `dest`; holds when there is none |
 | `posts_own_key(/path.id)` | Pending commit body `POST` actions and pending signatures | The commit posts a key to exactly `/path.id`, and that key signed the commit |
 | `emitted_by(/program.wasm)` or `emitted_by(/program.wasm, "sha256")` | Which actions an `invoke` emitted, recorded while the validator expands it | A posted program, with those bytes when a hash is given, emitted every action in the commit |
+| `keeps_product(/a.num, /b.num)` or `keeps_product(/a.num, /b.num, fee)` | Pending `POST`s to the two paths, plus accepted state | The product of the two numbers after the commit is not smaller than before it, with the growth of each discounted by the fee |
 
 Other reference predicates below describe the intended standard vocabulary.
 Treat them as requiring predicate-specific implementation and tests before
@@ -50,7 +51,7 @@ currently enforced by the local first-contract validator.
 |------------------|--------------------------------|-------|
 | Method labels such as `+POST`, `+REPOST`, and `+MODEL` | Enforced | Derived from pending commit body methods |
 | `signed_by`, `any_signed`, `all_signed`, `threshold`, `modifies`, `post_to_path`, `sets`, `has_property`, `state_exists`, `text_eq`, `text_contains`, `text_starts_with`, `text_ends_with`, `amount_in_range`, `num_eq`, `num_gt`, `num_gte`, `num_lt`, `num_lte`, `bool_true`, `bool_false` | Enforced | Derived from pending signatures, accepted state, pending methods, pending paths, accepted-state path existence, accepted-state JSON, accepted-state text, accepted-state numbers, and accepted-state booleans |
-| `sent_eq`, `sent_lte`, `sent_to`, `posts_own_key`, `emitted_by` | Enforced | What the pending commit moves and who wrote it. See [Outflow Predicates](#outflow-predicates). Every node on a network must run a release that evaluates them before a contract relies on them: an older node holds them false |
+| `sent_eq`, `sent_lte`, `sent_to`, `posts_own_key`, `emitted_by`, `keeps_product` | Enforced | What the pending commit moves and who wrote it. See [Outflow Predicates](#outflow-predicates). Every node on a network must run a release that evaluates them before a contract relies on them: an older node holds them false |
 | `timestamp_valid` | Unit-tested extension module only | Implemented in `modality-wasm-validation`; not yet replay evidence for the local first-contract validator |
 | `oracle_attests` | Replay bundle only | Holds only when the commit carries a valid replay bundle for the claim |
 | `before`, `after`, hash predicates, and `wasm` | Never holds | Intended extension vocabulary, not evaluated by the validator yet |
@@ -286,8 +287,46 @@ always([+SEND -emitted_by(/__programs__/payout.wasm, "5f1e...")] false)
 always([+modifies(/__programs__)] false)
 ```
 
-Predicate theory treats `sent_eq`, `sent_lte`, `sent_to` and `emitted_by` as
-opaque atoms: an edge that needs one is taken to be possibly open, and a
+### keeps_product
+
+A constant-product market's invariant: a commit may move two posted numbers,
+but not lower their product.
+
+```modality
++keeps_product(/reserves/a.num, /reserves/b.num)
++keeps_product(/reserves/a.num, /reserves/b.num, /config/fee.num)
+```
+
+**Arguments:**
+- `a`, `b` — Two different `.num` paths, each holding a number in accepted state
+- `fee` (optional) — A decimal in `[0, 1)` (`"0.003"`), or a `.num` path holding
+  one in accepted state
+
+**Behavior:**
+- "After" is the last `POST` the commit makes to the path, emitted or written
+  by hand; a path the commit leaves alone keeps its accepted value
+- Without a fee: true when `a_after * b_after >= a_before * b_before`
+- With a fee `f`: a number that grows counts only `1 - f` of its growth, so
+  `a_after` is read as `a_after - f * (a_after - a_before)` when it grows. A
+  swap must leave the product whole after paying the fee on what it puts in
+- Exact: the numbers are compared as fractions, with no rounding and no
+  overflow
+- Never holds when either path has no accepted number, a pending write there
+  is not a number, any of the four numbers is negative, or the fee is out of
+  range
+- Adding liquidity raises the product and removing it lowers it. Scope a rule
+  over it to swaps, and govern the other moves with their own rules
+
+**Example:**
+```modality
+// Only the pool program writes the reserves, and no write lowers the
+// fee-adjusted product
+always([+modifies(/reserves) -emitted_by(/__programs__/pool.wasm, "5f1e...")] false)
+always([+modifies(/reserves) -keeps_product(/reserves/a.num, /reserves/b.num, /config/fee.num)] false)
+```
+
+Predicate theory treats `sent_eq`, `sent_lte`, `sent_to`, `emitted_by` and
+`keeps_product` as opaque atoms: an edge that needs one is taken to be possibly open, and a
 diamond rule that needs one is refused rather than guessed. `posts_own_key`
 is known to post to its path, so an edge with `+posts_own_key(/p.id)
 -post_to_path(/p.id)` is dead. See [Predicate theory](./predicate-theory.md).

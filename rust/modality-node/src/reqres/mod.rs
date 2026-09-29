@@ -119,6 +119,14 @@ pub async fn handle_request(
             )
             .await?
         }
+        "/contract/prefix_certs" => {
+            contract::prefix_certs::handler(
+                Some(data.clone()),
+                datastore_manager,
+                consensus_tx.clone(),
+            )
+            .await?
+        }
         "/contract/pull" => {
             contract::pull::handler(Some(data.clone()), datastore_manager, consensus_tx.clone())
                 .await?

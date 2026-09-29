@@ -431,6 +431,12 @@ impl CommitAction {
             anyhow::bail!("send_commit_id cannot be empty");
         }
 
+        if let Some(index) = value_obj.get("send_index") {
+            if !index.is_null() && index.as_u64().is_none() {
+                anyhow::bail!("RECV 'send_index' must be a whole number");
+            }
+        }
+
         // Note: We can only validate structure here, not existence
         // Full validation requires datastore access and happens at consensus level
 

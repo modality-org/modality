@@ -12,7 +12,7 @@ pub use sequencer::{
     SequencerBlockMessage, SequencerSet,
 };
 
-pub use contract::{AssetBalance, Commit, Contract, ContractAsset, ReceivedSend};
+pub use contract::{AssetBalance, Commit, Contract, ContractAsset, ReceivedSend, SendRecord};
 pub use miner::{MinerBlock, MinerBlockHeight};
 pub use modality::{ModalityAction, ModalityCommitBody, ModalityContract, ModalityRule};
 pub use peer_info::PeerInfo;

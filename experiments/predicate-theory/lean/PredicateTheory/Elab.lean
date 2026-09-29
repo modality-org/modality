@@ -432,7 +432,7 @@ def evaluated : List String := [
   "post_to", "has_property", "state_exists", "text_eq", "text_contains", "text_starts_with",
   "text_ends_with", "amount_in_range", "num_eq", "num_gt", "num_gte", "num_lt", "num_lte",
   "bool_true", "bool_false", "oracle_attests", "sent_eq", "sent_lte", "sent_to",
-  "posts_own_key", "emitted_by"
+  "posts_own_key", "emitted_by", "keeps_product"
 ]
 
 /-- False in every world, both ways. -/

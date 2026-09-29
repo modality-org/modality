@@ -4513,6 +4513,7 @@ dependencies = [
  "modality-sequencer",
  "modality-sequencer-consensus",
  "modality-validator",
+ "modality-wasm-runtime",
  "rand 0.8.7",
  "reqwest",
  "self-replace",

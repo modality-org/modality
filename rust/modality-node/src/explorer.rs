@@ -4,7 +4,8 @@ use anyhow::Result;
 use modality_common::independent_replay::{
     parse_commit_file, sequenced_tips, verify_replay_artifact, ReplayArtifact, ReplayReport,
 };
-use modality_datastore::models::{Commit, Contract};
+use modality_datastore::models::{AssetBalance, Commit, Contract};
+use modality_datastore::stores::Store;
 use modality_datastore::DatastoreManager;
 use serde::Serialize;
 use serde_json::Value;
@@ -33,6 +34,16 @@ pub struct ContractInspect {
     pub state: BTreeMap<String, Value>,
     pub model: BTreeMap<String, Value>,
     pub rules: BTreeMap<String, Value>,
+    pub balances: Vec<BalanceView>,
+}
+
+/// An asset this contract holds. `asset_contract` is the contract that
+/// created it.
+#[derive(Debug, Clone, Serialize)]
+pub struct BalanceView {
+    pub asset_contract: String,
+    pub asset_id: String,
+    pub balance: u64,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -83,7 +94,17 @@ pub async fn inspect_contract(
     }
 
     let summary = summarize_from_commits(datastore, contract_id, &commits).await?;
-    let (state, model, rules) = split_state_tree(&commits);
+    let (mut state, model, rules) = split_state_tree(&commits);
+    merge_applied_state(datastore, contract_id, &mut state)?;
+    let balances = AssetBalance::find_by_owner_multi(datastore, contract_id)
+        .await?
+        .into_iter()
+        .map(|b| BalanceView {
+            asset_contract: b.contract_id,
+            asset_id: b.asset_id,
+            balance: b.balance,
+        })
+        .collect();
 
     Ok(Some(ContractInspect {
         contract_id: contract_id.to_string(),
@@ -96,7 +117,37 @@ pub async fn inspect_contract(
         state,
         model,
         rules,
+        balances,
     }))
+}
+
+/// Commit bodies hold only hand-written actions. The node's applied state
+/// also holds what programs posted (and the latest of each path), so it
+/// wins where it has a value.
+fn merge_applied_state(
+    datastore: &DatastoreManager,
+    contract_id: &str,
+    state: &mut BTreeMap<String, Value>,
+) -> Result<()> {
+    let prefix = format!("/contracts/{contract_id}");
+    for entry in datastore.node_state().iterator(&prefix) {
+        let (key, value) = entry?;
+        let key = String::from_utf8_lossy(&key);
+        let Some(path) = key.strip_prefix(prefix.as_str()) else {
+            continue;
+        };
+        if path.starts_with("/model/") || path.starts_with("/rules/") || path.ends_with(".modality")
+        {
+            continue;
+        }
+        let raw = String::from_utf8_lossy(&value).to_string();
+        let applied = match state.get(path) {
+            Some(Value::String(_)) | None => Value::String(raw),
+            Some(_) => serde_json::from_str(&raw).unwrap_or(Value::String(raw)),
+        };
+        state.insert(path.to_string(), applied);
+    }
+    Ok(())
 }
 
 pub async fn list_commits(
@@ -329,6 +380,67 @@ mod tests {
         assert!(inspect.model.contains_key("/model/default.modality"));
         assert!(inspect.rules.contains_key("/rules/ok.modality"));
         assert!(inspect.sequenced);
+    }
+
+    #[tokio::test]
+    async fn inspect_shows_program_posts_and_held_assets() {
+        let ds = Arc::new(Mutex::new(DatastoreManager::create_in_memory().unwrap()));
+        let processor = ContractProcessor::new(ds.clone());
+        let wasm =
+            modality_wasm_runtime::program_that_posts("/notes/from-program.text", "emitted")
+                .unwrap();
+        let sequence = |commit_id: &'static str, body: Value| {
+            let processor = &processor;
+            let ds = ds.clone();
+            async move {
+                processor
+                    .process_commit("treasury", commit_id, &body.to_string())
+                    .await
+                    .unwrap();
+                let mgr = ds.lock().await;
+                let keys = [
+                    ("contract_id".to_string(), "treasury".to_string()),
+                    ("commit_id".to_string(), commit_id.to_string()),
+                ]
+                .into_iter()
+                .collect();
+                let mut commit = Commit::find_one_multi(&mgr, keys).await.unwrap().unwrap();
+                commit.in_batch = Some(format!("batch-{commit_id}"));
+                commit.save_to_final(&mgr).await.unwrap();
+            }
+        };
+        sequence(
+            "boot",
+            json!({
+                "body": [
+                    { "method": "create", "value": { "asset_id": "drops", "quantity": 50, "divisibility": 1 } },
+                    {
+                        "method": "post",
+                        "path": "/__programs__/note.wasm",
+                        "value": base64::Engine::encode(&base64::engine::general_purpose::STANDARD, &wasm)
+                    }
+                ],
+                "head": {}
+            }),
+        )
+        .await;
+        sequence(
+            "run",
+            json!({
+                "body": [{ "method": "invoke", "path": "/__programs__/note.wasm", "value": { "args": {} } }],
+                "head": { "parent": "boot" }
+            }),
+        )
+        .await;
+        drop(processor);
+        let mgr = Arc::try_unwrap(ds).ok().expect("processor dropped").into_inner();
+        let inspect = inspect_contract(&mgr, "treasury").await.unwrap().unwrap();
+        assert_eq!(inspect.state["/notes/from-program.text"], "emitted");
+        assert!(inspect.state.contains_key("/__programs__/note.wasm"));
+        assert_eq!(inspect.balances.len(), 1);
+        assert_eq!(inspect.balances[0].asset_contract, "treasury");
+        assert_eq!(inspect.balances[0].asset_id, "drops");
+        assert_eq!(inspect.balances[0].balance, 50);
     }
 
     #[tokio::test]

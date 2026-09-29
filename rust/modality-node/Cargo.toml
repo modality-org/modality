@@ -68,3 +68,4 @@ warp = "0.3"
 
 [dev-dependencies]
 tempfile = "3.5"
+modality-wasm-runtime = { path = "../modality-wasm-runtime" }

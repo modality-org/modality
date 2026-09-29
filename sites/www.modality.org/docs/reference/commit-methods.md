@@ -167,10 +167,18 @@ apply also needs a prefix-cert supermajority through that SEND commit.
 {
   "method": "recv",
   "value": {
-    "send_commit_id": "abc123..."
+    "send_commit_id": "abc123...",
+    "send_index": 1
   }
 }
 ```
+
+`send_index` picks which SEND of that commit, counting from 0 (the
+default). SENDs a program emitted count too, in the order the `invoke`
+emitted them. Each SEND is received once.
+
+A commit applies whole or not at all: if any action fails, none of its
+writes are kept.
 
 ## INVOKE
 

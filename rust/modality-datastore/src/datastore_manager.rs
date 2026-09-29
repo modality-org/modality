@@ -339,6 +339,7 @@ impl DatastoreManager {
             }
         }
 
+        self.refuse_theory_change_under_contract_history(network_config)?;
         self.store_validator_config(network_config)?;
         self.apply_native_mod_genesis()?;
 
@@ -404,6 +405,53 @@ impl DatastoreManager {
 
     pub fn peek_sequencer_events(&self) -> Result<Vec<serde_json::Value>> {
         self.load_sequencer_events()
+    }
+
+    /// `predicate_theory_version` applies from genesis, so changing it under
+    /// sequenced contract commits would re-judge them by rules they were not
+    /// accepted under. A node holding any refuses the change.
+    fn refuse_theory_change_under_contract_history(
+        &self,
+        network_config: &serde_json::Value,
+    ) -> Result<()> {
+        let Some(stored) = self.node_state.get("validator_config")? else {
+            return Ok(());
+        };
+        let stored: serde_json::Value =
+            serde_json::from_slice(&stored).unwrap_or(serde_json::json!({}));
+        let version = |cfg: &serde_json::Value| {
+            cfg.get("predicate_theory_version")
+                .and_then(|v| v.as_str())
+                .unwrap_or(crate::DEFAULT_PREDICATE_THEORY_VERSION)
+                .to_string()
+        };
+        let (was, now) = (version(&stored), version(network_config));
+        if was == now {
+            return Ok(());
+        }
+        if let Some(contract_id) = self.first_contract_with_sequenced_commits()? {
+            return Err(crate::Error::InvalidData(format!(
+                "network predicate_theory_version changed from {was} to {now}, but this node \
+                 holds sequenced commits of contract {contract_id} accepted under {was}. \
+                 Keep {was}, or start a new chain with cleared storage"
+            )));
+        }
+        Ok(())
+    }
+
+    fn first_contract_with_sequenced_commits(&self) -> Result<Option<String>> {
+        for entry in self.sequencer_final.iterator("/commits") {
+            let (key, value) = entry?;
+            let sequenced = serde_json::from_slice::<serde_json::Value>(&value)
+                .ok()
+                .and_then(|commit| commit.get("in_batch").and_then(|b| b.as_str()).map(|b| !b.is_empty()))
+                .unwrap_or(false);
+            if sequenced {
+                let key = String::from_utf8_lossy(&key).to_string();
+                return Ok(key.split('/').nth(2).map(str::to_string));
+            }
+        }
+        Ok(None)
     }
 
     fn store_validator_config(&self, network_config: &serde_json::Value) -> Result<()> {
@@ -831,6 +879,44 @@ impl DatastoreManager {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    async fn save_commit(mgr: &DatastoreManager, commit_id: &str, in_batch: Option<&str>) {
+        crate::models::Commit {
+            contract_id: "c1".into(),
+            commit_id: commit_id.into(),
+            commit_data: "{}".into(),
+            timestamp: 1,
+            in_batch: in_batch.map(str::to_string),
+        }
+        .save_to_final(mgr)
+        .await
+        .unwrap();
+    }
+
+    #[tokio::test]
+    async fn theory_version_changes_only_without_sequenced_contract_commits() {
+        let mgr = DatastoreManager::create_in_memory().unwrap();
+        let v0 = serde_json::json!({ "name": "net" });
+        let v2 = serde_json::json!({ "name": "net", "predicate_theory_version": "v2" });
+        mgr.load_network_config(&v0).await.unwrap();
+        save_commit(&mgr, "pushed", None).await;
+        mgr.load_network_config(&v2)
+            .await
+            .expect("an unsequenced push was never judged");
+        assert_eq!(mgr.predicate_theory_version().unwrap(), "v2");
+        mgr.load_network_config(&v2).await.expect("same version again");
+
+        save_commit(&mgr, "accepted", Some("batch")).await;
+        let err = mgr
+            .load_network_config(&v0)
+            .await
+            .expect_err("v2 commits must not be re-judged under v0");
+        assert!(
+            err.to_string().contains("changed from v2 to v0") && err.to_string().contains("c1"),
+            "unexpected error: {err}"
+        );
+        assert_eq!(mgr.predicate_theory_version().unwrap(), "v2");
+    }
 
     #[test]
     fn test_create_in_memory() {

@@ -32,10 +32,10 @@ assert_success "modal contract create --dir $DEST_DIR" "Should create a destinat
 DEST_ID=$(modal contract id --dir "$DEST_DIR")
 
 echo ""
-echo "Compiling a payout program that always SENDs 5 drops to the destination..."
+echo "Compiling a payout program that always SENDs 5 and then 2 drops to the destination..."
 WASM_OUT="$(pwd)/tmp/payout.wasm"
 (cd ../../../rust && cargo run -q -p modality-wasm-runtime --example emit_fixed_actions -- \
-  "[{\"method\":\"send\",\"path\":null,\"value\":{\"asset_id\":\"drops\",\"to_contract\":\"$DEST_ID\",\"amount\":5}}]" \
+  "[{\"method\":\"send\",\"path\":null,\"value\":{\"asset_id\":\"drops\",\"to_contract\":\"$DEST_ID\",\"amount\":5}},{\"method\":\"send\",\"path\":null,\"value\":{\"asset_id\":\"drops\",\"to_contract\":\"$DEST_ID\",\"amount\":2}}]" \
   "$WASM_OUT")
 assert_file_exists ./tmp/payout.wasm "Payout program should be written"
 PAYOUT_SHA=$(python3 -c "import hashlib; print(hashlib.sha256(open('./tmp/payout.wasm','rb').read()).hexdigest())")
@@ -82,8 +82,6 @@ assert_success \
     "Should create sequencer node"
 modal node clear-storage --dir "$NODE_DIR" --yes >/dev/null 2>&1 || true
 NODE_PID=$(test_start_process "cd $NODE_DIR && modal node run-sequencer" "sequencer")
-# test_start_process runs in a subshell here, so track the PID for cleanup.
-PIDS+=("$NODE_PID")
 assert_success "test_wait_for_port 10101" "Sequencer should listen on 10101"
 sleep 3
 
@@ -177,6 +175,27 @@ else
     echo -e "  ${RED}✗${NC} Stranger replay re-runs the program and accepts its SEND"
     echo "$REPLAY_JSON"
 fi
+
+echo ""
+echo "The destination receives each of the program's SENDs, once..."
+push_dest() {
+    modal contract push --dir "$DEST_DIR" --remote "$REMOTE" --remote-name origin --output json >> "$CURRENT_LOG"
+}
+assert_success "modal contract commit --dir $DEST_DIR --method recv --send-commit-id $PAY_ID --output json" \
+  "The destination signs a RECV of the first emitted SEND"
+RECV_FIRST=$(cat "$DEST_DIR/.contract/HEAD")
+push_dest
+expect_log "Sequenced commit $RECV_FIRST" "The RECV of an emitted SEND should be sequenced" || true
+assert_success "modal contract commit --dir $DEST_DIR --method recv --send-commit-id $PAY_ID --send-index 1 --output json" \
+  "The destination signs a RECV of the second emitted SEND"
+RECV_SECOND=$(cat "$DEST_DIR/.contract/HEAD")
+push_dest
+expect_log "Sequenced commit $RECV_SECOND" "The RECV of the second SEND should be sequenced" || true
+assert_success "modal contract commit --dir $DEST_DIR --method recv --send-commit-id $PAY_ID --send-index 1 --output json" \
+  "The destination signs a second RECV of the second SEND"
+RECV_AGAIN=$(cat "$DEST_DIR/.contract/HEAD")
+push_dest
+expect_log "Failed to process sequenced commit $RECV_AGAIN" "Each SEND is received once" || true
 
 test_finalize
 exit $?

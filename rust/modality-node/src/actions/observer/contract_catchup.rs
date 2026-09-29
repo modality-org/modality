@@ -181,6 +181,7 @@ async fn catchup_contract(
     let processor = ContractProcessor::new(datastore.clone());
     let mut applied = 0usize;
     let mut remaining: Vec<Value> = commits.clone();
+    let mut fetched_certs_for: std::collections::HashSet<String> = Default::default();
     let mut progressed = true;
     while progressed && !remaining.is_empty() {
         progressed = false;
@@ -233,12 +234,123 @@ async fn catchup_contract(
                     applied += 1;
                     progressed = true;
                 }
-                Err(_) => next.push(commit_entry),
+                Err(err) => {
+                    if err.to_string().contains("missing prefix_cert")
+                        && fetched_certs_for.insert(commit_id.clone())
+                    {
+                        let stored =
+                            fetch_prefix_certs(swarm, reqres_txs, peer_addr, datastore, &commit_entry)
+                                .await
+                                .unwrap_or_else(|e| {
+                                    log::debug!("Prefix certs for {commit_id}: {e}");
+                                    0
+                                });
+                        if stored > 0 {
+                            progressed = true;
+                        }
+                    }
+                    next.push(commit_entry)
+                }
             }
         }
         remaining = next;
     }
     Ok(applied)
+}
+
+/// Source commits a dest `RECV` / `REPOST` in this commit waits on, as
+/// `(source contract if the action names it, through commit)`.
+fn prefix_cert_sources(commit_entry: &Value) -> Vec<(Option<String>, String)> {
+    let Some(actions) = commit_entry.get("body").and_then(|b| b.as_array()) else {
+        return Vec::new();
+    };
+    let mut out = Vec::new();
+    for action in actions {
+        let method = action
+            .get("method")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_lowercase();
+        match method.as_str() {
+            "recv" => {
+                if let Some(id) = action
+                    .get("value")
+                    .and_then(|v| v.get("send_commit_id"))
+                    .and_then(|v| v.as_str())
+                {
+                    out.push((None, id.to_string()));
+                }
+            }
+            "repost" => {
+                if let Ok(spec) = modality_common::contract_store::parse_repost_json(action) {
+                    out.push((Some(spec.source_contract), spec.source_commit));
+                }
+            }
+            _ => {}
+        }
+    }
+    out
+}
+
+/// Fetch the prefix certs a dest commit waits on from the peer, and store
+/// those a named validator signed. Returns how many were new.
+async fn fetch_prefix_certs(
+    swarm: &Arc<Mutex<crate::swarm::NodeSwarm>>,
+    reqres_txs: &Arc<
+        Mutex<
+            HashMap<
+                libp2p::request_response::OutboundRequestId,
+                tokio::sync::oneshot::Sender<reqres::Response>,
+            >,
+        >,
+    >,
+    peer_addr: &Multiaddr,
+    datastore: &Arc<Mutex<DatastoreManager>>,
+    commit_entry: &Value,
+) -> Result<usize> {
+    let mut stored = 0usize;
+    for (source_contract, through_commit) in prefix_cert_sources(commit_entry) {
+        let mut req = serde_json::json!({ "through_commit": through_commit });
+        if let Some(contract) = &source_contract {
+            req["source_contract"] = serde_json::json!(contract);
+        }
+        let resp = request_json(swarm, reqres_txs, peer_addr, "/contract/prefix_certs", Some(req))
+            .await?;
+        let certs = resp
+            .get("certs")
+            .and_then(|v| v.as_array())
+            .cloned()
+            .unwrap_or_default();
+        let mgr = datastore.lock().await;
+        let validators = mgr.validators()?;
+        for cert in certs {
+            if !cert_is_for(&cert, source_contract.as_deref(), &through_commit)
+                || modality_validator::prefix_cert::cheap_include_prefix_cert(&cert, &validators)
+                    .is_err()
+            {
+                continue;
+            }
+            let (Some(contract), Some(signer)) = (
+                cert.get("source_contract").and_then(|v| v.as_str()),
+                cert.get("validator_peer_id").and_then(|v| v.as_str()),
+            ) else {
+                continue;
+            };
+            if mgr.has_prefix_cert_from(contract, &through_commit, signer)? {
+                continue;
+            }
+            mgr.save_prefix_cert(&cert)?;
+            stored += 1;
+        }
+    }
+    Ok(stored)
+}
+
+fn cert_is_for(cert: &Value, source_contract: Option<&str>, through_commit: &str) -> bool {
+    cert.get("through_commit").and_then(|v| v.as_str()) == Some(through_commit)
+        && source_contract.is_none_or(|contract| {
+            cert.get("source_contract").and_then(|v| v.as_str()) == Some(contract)
+        })
 }
 
 async fn request_json(
@@ -285,4 +397,40 @@ async fn request_json(
         );
     }
     Ok(response.data.unwrap_or(Value::Null))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn prefix_cert_sources_name_recv_and_repost_sources() {
+        let entry = json!({
+            "body": [
+                { "method": "post", "path": "/a.text", "value": "x" },
+                { "method": "recv", "value": { "send_commit_id": "s1", "send_index": 1 } },
+                {
+                    "method": "repost",
+                    "path": "/reposts/src/a.text",
+                    "value": "x",
+                    "source_contract": "src",
+                    "source_path": "/a.text",
+                    "source_commit": "c9"
+                }
+            ]
+        });
+        let sources = prefix_cert_sources(&entry);
+        assert!(sources.contains(&(None, "s1".to_string())));
+        assert!(sources.contains(&(Some("src".to_string()), "c9".to_string())));
+    }
+
+    #[test]
+    fn a_cert_for_another_commit_is_not_taken() {
+        let cert = json!({ "source_contract": "src", "through_commit": "c1" });
+        assert!(cert_is_for(&cert, None, "c1"));
+        assert!(cert_is_for(&cert, Some("src"), "c1"));
+        assert!(!cert_is_for(&cert, Some("other"), "c1"));
+        assert!(!cert_is_for(&cert, None, "c2"));
+    }
 }

@@ -8,6 +8,9 @@ every `SEND` must be the program's output, and the program never changes.
   though the owner signs it.
 - An `invoke` of the program, whose output is that `SEND`, is sequenced.
 - A stranger replays the prefix, re-runs the program, and accepts it.
+- The program emits two `SEND`s. The destination receives the first
+  (no `--send-index`) and the second (`--send-index 1`); a second `RECV`
+  of the same `SEND` is refused.
 
 ```bash
 ./test.sh

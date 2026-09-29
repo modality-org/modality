@@ -17,6 +17,10 @@ CURRENT_TEST=""
 
 # Process management
 PIDS=()
+# `NODE_PID=$(test_start_process ...)` runs in a subshell, so its append to
+# PIDS is lost. It also records the PID here; `$$` is the test's own shell
+# in every subshell, so cleanup finds it.
+TEST_PID_FILE="${TMPDIR:-/tmp}/modality-test-pids-$$"
 
 # Logging
 LOG_DIR="${LOG_DIR:-./tmp/test-logs}"
@@ -34,6 +38,12 @@ test_init() {
 
 # Clean up processes
 test_cleanup() {
+    if [ -f "$TEST_PID_FILE" ]; then
+        while read -r pid; do
+            [ -n "$pid" ] && PIDS+=("$pid")
+        done < "$TEST_PID_FILE"
+        rm -f "$TEST_PID_FILE"
+    fi
     if [ ${#PIDS[@]} -gt 0 ]; then
         echo -e "${YELLOW}  Cleaning up ${#PIDS[@]} processes...${NC}"
         for pid in "${PIDS[@]}"; do
@@ -74,6 +84,7 @@ test_start_process() {
         pid=$modal_pid
     fi
     
+    echo "$pid" >> "$TEST_PID_FILE"
     echo "  PID: $pid" >> "$CURRENT_LOG"
     echo "$pid"
 }

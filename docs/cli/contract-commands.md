@@ -57,6 +57,7 @@ or an inline domain action.
 | `--to-contract <TO_CONTRACT>` | Destination contract ID for `SEND` commits |
 | `--amount <AMOUNT>` | Amount for `SEND` commits |
 | `--send-commit-id <SEND_COMMIT_ID>` | Source `SEND` commit ID for `RECV` commits |
+| `--send-index <N>` | Which `SEND` of that commit a `RECV` takes, from 0 (default); emitted `SEND`s count in `invoke` order |
 | `--theory <v0\|v2>` | Predicate theory local verify runs (default `v0`). Use `v2` for a network whose `network.json` sets `predicate_theory_version: "v2"`. With it, a rule that `v0` refuses, such as `always([+SEND -any_signed(/claimants)] false)`, can be committed locally. See [Predicate theory](../reference/predicate-theory.md) |
 
 **Examples:**

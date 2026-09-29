@@ -226,6 +226,7 @@ pub const KNOWN_PREDICATES: &[&str] = &[
     "sent_lte",
     "sent_to",
     "emitted_by",
+    "keeps_product",
     "state_exists",
     "has_property",
     "text_eq",

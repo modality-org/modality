@@ -39,7 +39,7 @@ impl Model for Contract {
 
 impl Contract {
     pub async fn find_all_multi(datastore: &DatastoreManager) -> Result<Vec<Self>> {
-        let prefix = "/contracts/";
+        let prefix = "/contracts";
         let mut contracts = Vec::new();
 
         let store = datastore.sequencer_final();
@@ -365,7 +365,7 @@ impl AssetBalance {
         datastore: &DatastoreManager,
         owner_contract_id: &str,
     ) -> Result<Vec<Self>> {
-        let prefix = "/balances/";
+        let prefix = "/balances";
         let mut balances = Vec::new();
 
         let store = datastore.sequencer_final();
@@ -495,6 +495,17 @@ impl Model for ReceivedSend {
 }
 
 impl ReceivedSend {
+    /// Record key for the `index`-th `SEND` of a commit. The first keeps the
+    /// bare commit id, so records written before `send_index` existed still
+    /// refuse a second receive.
+    pub fn key_for(send_commit_id: &str, index: u64) -> String {
+        if index == 0 {
+            send_commit_id.to_string()
+        } else {
+            format!("{send_commit_id}#{index}")
+        }
+    }
+
     pub async fn find_one_multi(
         datastore: &DatastoreManager,
         keys: HashMap<String, String>,
@@ -505,5 +516,112 @@ impl ReceivedSend {
     /// Save this record to the SequencerFinal store
     pub async fn save_to_final(&self, datastore: &DatastoreManager) -> Result<()> {
         self.save_to_store(datastore.sequencer_final()).await
+    }
+}
+
+/// One applied `SEND`: its commit, its place among that commit's `SEND`s
+/// after `invoke` expansion, and what it moves. `RECV` reads this, so a
+/// `SEND` a program emitted can be received like a hand-written one.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+pub struct SendRecord {
+    pub send_commit_id: String,
+    pub send_index: u64,
+    pub from_contract: String,
+    pub asset_id: String,
+    pub to_contract: String,
+    pub amount: u64,
+}
+
+#[async_trait]
+impl Model for SendRecord {
+    const ID_PATH: &'static str = "/sends/${send_commit_id}/${send_index}";
+    const FIELDS: &'static [&'static str] = &[
+        "send_commit_id",
+        "send_index",
+        "from_contract",
+        "asset_id",
+        "to_contract",
+        "amount",
+    ];
+    const FIELD_DEFAULTS: &'static [(&'static str, serde_json::Value)] = &[];
+
+    fn set_field(&mut self, field: &str, value: serde_json::Value) {
+        match field {
+            "send_commit_id" => {
+                self.send_commit_id = value.as_str().unwrap_or_default().to_string()
+            }
+            "send_index" => self.send_index = value.as_u64().unwrap_or_default(),
+            "from_contract" => self.from_contract = value.as_str().unwrap_or_default().to_string(),
+            "asset_id" => self.asset_id = value.as_str().unwrap_or_default().to_string(),
+            "to_contract" => self.to_contract = value.as_str().unwrap_or_default().to_string(),
+            "amount" => self.amount = value.as_u64().unwrap_or_default(),
+            _ => {}
+        }
+    }
+
+    fn get_id_keys(&self) -> HashMap<String, String> {
+        let mut keys = HashMap::new();
+        keys.insert("send_commit_id".to_string(), self.send_commit_id.clone());
+        keys.insert("send_index".to_string(), self.send_index.to_string());
+        keys
+    }
+}
+
+impl SendRecord {
+    pub async fn find(
+        datastore: &DatastoreManager,
+        send_commit_id: &str,
+        send_index: u64,
+    ) -> Result<Option<Self>> {
+        let keys = [
+            ("send_commit_id".to_string(), send_commit_id.to_string()),
+            ("send_index".to_string(), send_index.to_string()),
+        ]
+        .into_iter()
+        .collect();
+        Self::find_one_from_store(datastore.sequencer_final(), keys).await
+    }
+
+    pub async fn save_to_final(&self, datastore: &DatastoreManager) -> Result<()> {
+        self.save_to_store(datastore.sequencer_final()).await
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn listing_finds_contracts_and_balances() {
+        let ds = DatastoreManager::create_in_memory().unwrap();
+        Contract {
+            contract_id: "c1".into(),
+            genesis: "{}".into(),
+            created_at: 1,
+        }
+        .save_to_final(&ds)
+        .await
+        .unwrap();
+        for (asset_contract, owner, balance) in [("c1", "c1", 5), ("c1", "c2", 7), ("c3", "c2", 1)] {
+            AssetBalance {
+                contract_id: asset_contract.into(),
+                asset_id: "drops".into(),
+                owner_contract_id: owner.into(),
+                balance,
+            }
+            .save_to_final(&ds)
+            .await
+            .unwrap();
+        }
+        let contracts = Contract::find_all_multi(&ds).await.unwrap();
+        assert_eq!(contracts.len(), 1);
+        let mut held: Vec<(String, u64)> = AssetBalance::find_by_owner_multi(&ds, "c2")
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|b| (b.contract_id, b.balance))
+            .collect();
+        held.sort();
+        assert_eq!(held, vec![("c1".to_string(), 7), ("c3".to_string(), 1)]);
     }
 }

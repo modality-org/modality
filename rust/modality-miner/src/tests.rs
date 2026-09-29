@@ -86,10 +86,8 @@ mod orphan_detection_tests {
         
         let reason = orphaned.orphan_reason.unwrap();
         assert!(
-            reason.contains("Rejected by first-seen rule") || 
-            reason.contains("Fork detected") || 
-            reason.contains("fork"),
-            "Orphan reason should mention fork or first-seen rule, got: {}", 
+            reason.contains("lower or equal actualized difficulty") && reason.contains("at index 1"),
+            "Orphan reason should name the losing difficulty at index 1, got: {}", 
             reason
         );
     }

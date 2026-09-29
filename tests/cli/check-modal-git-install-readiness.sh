@@ -35,6 +35,9 @@ if [[ -n "$REPO_REV" ]]; then
   REV_ARGS=(--rev "$REPO_REV")
 fi
 
+# rustup picks the toolchain from the working directory: run from rust/ so the
+# pinned compiler in rust/rust-toolchain.toml builds the locked graph.
+cd "$ROOT_DIR/rust"
 CARGO_HOME="$TEMP_CARGO_HOME" CARGO_TARGET_DIR="$TEMP_CARGO_TARGET_DIR" \
   cargo install \
     --git "$REPO_URL" \

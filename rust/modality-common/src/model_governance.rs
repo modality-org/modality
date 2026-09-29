@@ -1,4 +1,5 @@
 use crate::contract_store::{CommitFile, ContractStore, Emitter};
+use crate::exact_num::Exact;
 use crate::model_diagnostics::{
     format_state_set, render_transition_diagnostics_for_states, FixedPointPolarity,
     FixedPointUnfoldingDiagnostic, FixedPointUnfoldingOutcome, FormulaFailureDiagnostic,
@@ -1887,6 +1888,7 @@ pub(crate) const EVALUATED_PREDICATES: &[&str] = &[
     "sent_to",
     "posts_own_key",
     "emitted_by",
+    "keeps_product",
 ];
 
 impl CommitFacts {
@@ -2113,6 +2115,12 @@ impl CommitFacts {
                 .first()
                 .map(|program| self.emitted_by(program, args.get(1).map(String::as_str)))
                 .unwrap_or(false),
+            "keeps_product" => match (args.first(), args.get(1), args.len()) {
+                (Some(a), Some(b), 2 | 3) => {
+                    self.keeps_product(a, b, args.get(2).map(String::as_str))
+                }
+                _ => false,
+            },
             "oracle_attests" => self
                 .replay_bundles
                 .get("oracle_attests")
@@ -2161,6 +2169,17 @@ impl CommitFacts {
                     Some(sent) => format!("missing {formatted} (this commit sends {sent} {asset})"),
                     None => format!("missing {formatted} (a SEND lacks asset_id, to_contract or a whole amount)"),
                 };
+            }
+        }
+
+        if property.name == "keeps_product" {
+            let args = predicate_args(property);
+            if let (Some(a), Some(b)) = (args.first(), args.get(1)) {
+                let side = |path: &str| match self.before_after(path) {
+                    Some((before, after)) => format!("{path} {before} to {after}"),
+                    None => format!("{path} has no accepted number or a pending write is not one"),
+                };
+                return format!("missing {formatted} ({}; {})", side(a), side(b));
             }
         }
 
@@ -2430,6 +2449,66 @@ impl CommitFacts {
         let mut writes = self.posts.iter().filter(|(p, _)| *p == path).peekable();
         writes.peek().is_some()
             && writes.all(|(_, key)| key.as_str().is_some_and(|k| self.signers.contains(k)))
+    }
+
+    /// `keeps_product(/a.num, /b.num[, fee])`: the product of the two numbers
+    /// after the commit is not smaller than before it. "After" is the last
+    /// pending `POST` to the path, or the accepted value when the commit
+    /// leaves it alone. With a fee `f` in `[0, 1)`, a number that grows counts
+    /// only `1 - f` of its growth, so a swap must pay the fee on what it puts in.
+    fn keeps_product(&self, a: &str, b: &str, fee: Option<&str>) -> bool {
+        if !a.ends_with(".num") || !b.ends_with(".num") || normalize_path(a) == normalize_path(b)
+        {
+            return false;
+        }
+        let fee = match fee {
+            None => Exact::zero(),
+            Some(arg) => match self.exact_arg(arg) {
+                Some(f) if !f.is_negative() && f < Exact::from_int(1) => f,
+                _ => return false,
+            },
+        };
+        let (Some((a0, a1)), Some((b0, b1))) = (self.before_after(a), self.before_after(b)) else {
+            return false;
+        };
+        if [&a0, &a1, &b0, &b1].iter().any(|n| n.is_negative()) {
+            return false;
+        }
+        let counted = |before: &Exact, after: &Exact| {
+            if after > before {
+                after.sub(&fee.mul(&after.sub(before)))
+            } else {
+                after.clone()
+            }
+        };
+        counted(&a0, &a1).mul(&counted(&b0, &b1)) >= a0.mul(&b0)
+    }
+
+    /// A `.num` path's accepted number and the number it holds after the
+    /// pending commit. `None` when there is no accepted number, or when a
+    /// pending `POST` there is not a number.
+    fn before_after(&self, path: &str) -> Option<(Exact, Exact)> {
+        let path = normalize_path(path);
+        let before = Exact::from_json(self.state.get(&path)?)?;
+        let mut after = before.clone();
+        for (posted, value) in &self.posts {
+            if *posted == path {
+                after = Exact::from_json(value)?;
+            }
+        }
+        Some((before, after))
+    }
+
+    /// A decimal literal, or a `.num` path holding a number in accepted state.
+    fn exact_arg(&self, arg: &str) -> Option<Exact> {
+        if arg.starts_with('/') {
+            if !arg.ends_with(".num") {
+                return None;
+            }
+            Exact::from_json(self.state.get(&normalize_path(arg))?)
+        } else {
+            Exact::parse(arg)
+        }
     }
 
     /// `emitted_by(/p.wasm)` or `emitted_by(/p.wasm, "sha256")`: the commit has
