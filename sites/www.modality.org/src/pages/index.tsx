@@ -1,10 +1,19 @@
-import React from 'react';
+import React, {useEffect, useRef} from 'react';
 import Layout from '@theme/Layout';
 import Link from '@docusaurus/Link';
 import styles from './index.module.css';
 
 const RIVER =
   'a verification language for AI agent cooperation   ·   negotiate and verify   ·   modal contracts   ·   append-only logs of signed commits   ·   prove commitments with temporal logic   ·   ';
+
+function visible(el: Element, root: Element): boolean {
+  let cur: Element | null = el;
+  while (cur && cur !== root) {
+    if (parseFloat(getComputedStyle(cur).opacity) < 0.4) return false;
+    cur = cur.parentElement;
+  }
+  return true;
+}
 
 function Witness({
   marker,
@@ -15,8 +24,115 @@ function Witness({
   place: string;
   children: React.ReactNode;
 }): JSX.Element {
+  const ref = useRef<SVGSVGElement>(null);
+
+  useEffect(() => {
+    const svg = ref.current;
+    const walker = svg?.querySelector<SVGCircleElement>('[data-walker]');
+    if (!svg || !walker) return;
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+    const root = svg.parentElement ?? svg;
+    let frame = 0;
+    let stopped = false;
+    let edge: SVGPathElement | null = null;
+    let hold: SVGCircleElement | null = null;
+    let started = 0;
+    let dur = 2600;
+    let departAt = 0;
+    let arm = 0;
+
+    const nodes = () =>
+      [...svg.querySelectorAll<SVGCircleElement>('[data-node]')];
+
+    const seed = () =>
+      nodes().find(n => n.dataset.seed === '1') ?? nodes()[0] ?? null;
+
+    const mark = (id: string | undefined) => {
+      for (const node of nodes()) {
+        node.dataset.hot = node.dataset.node === id ? '1' : '0';
+      }
+    };
+
+    const sit = (node: SVGCircleElement) => {
+      walker.setAttribute('cx', String(node.cx.baseVal.value));
+      walker.setAttribute('cy', String(node.cy.baseVal.value));
+      mark(node.dataset.node);
+    };
+
+    const outgoing = (id: string) =>
+      [...svg.querySelectorAll<SVGPathElement>('path[data-from]')].filter(
+        path => path.dataset.from === id && visible(path, root),
+      );
+
+    const tick = (now: number) => {
+      if (stopped) return;
+      const faded = parseFloat(getComputedStyle(svg).opacity) < 0.08;
+      if (faded) {
+        edge = null;
+        departAt = 0;
+        hold = seed();
+        walker.dataset.go = '0';
+        if (hold) sit(hold);
+        frame = requestAnimationFrame(tick);
+        return;
+      }
+      walker.dataset.go = '1';
+
+      if (edge) {
+        const t = (now - started) / dur;
+        if (t >= 1 || !visible(edge, root)) {
+          hold =
+            nodes().find(n => n.dataset.node === edge?.dataset.to) ?? seed();
+          edge = null;
+          departAt = now + 420;
+        } else {
+          const len = edge.getTotalLength() || 1;
+          const pt = edge.getPointAtLength(Math.min(1, Math.max(0, t)) * len);
+          walker.setAttribute('cx', String(pt.x));
+          walker.setAttribute('cy', String(pt.y));
+          mark(t < 0.5 ? edge.dataset.from : edge.dataset.to);
+          frame = requestAnimationFrame(tick);
+          return;
+        }
+      }
+
+      const here = hold ?? seed();
+      if (!here) {
+        frame = requestAnimationFrame(tick);
+        return;
+      }
+      sit(here);
+      if (now < departAt) {
+        frame = requestAnimationFrame(tick);
+        return;
+      }
+      const choices = outgoing(here.dataset.node ?? '');
+      const forward = choices.filter(path => path.dataset.to !== path.dataset.from);
+      const pool = forward.length > 0 ? forward : choices;
+      if (!pool.length) {
+        frame = requestAnimationFrame(tick);
+        return;
+      }
+      const next = pool[arm % pool.length];
+      arm += 1;
+      edge = next;
+      started = now;
+      dur = (Number(next.dataset.dur) || 2.6) * 1000;
+      hold = null;
+      frame = requestAnimationFrame(tick);
+    };
+
+    frame = requestAnimationFrame(tick);
+    return () => {
+      stopped = true;
+      cancelAnimationFrame(frame);
+    };
+  }, []);
+
   return (
     <svg
+      ref={ref}
       className={`${styles.model} ${place}`}
       viewBox="0 0 160 112"
       aria-hidden="true"
@@ -42,12 +158,32 @@ function Witness({
         </marker>
       </defs>
       {children}
+      <circle r="3.3" className={styles.runner} data-walker="" />
     </svg>
   );
 }
 
-function Dot({x, y, hot}: {x: number; y: number; hot?: boolean}): JSX.Element {
-  return <circle className={hot ? styles.seed : styles.dot} cx={x} cy={y} r="5.5" />;
+function Dot({
+  id,
+  x,
+  y,
+  hot,
+}: {
+  id: string;
+  x: number;
+  y: number;
+  hot?: boolean;
+}): JSX.Element {
+  return (
+    <circle
+      className={styles.dot}
+      data-node={id}
+      data-seed={hot ? '1' : undefined}
+      cx={x}
+      cy={y}
+      r="5.5"
+    />
+  );
 }
 
 function Later({
@@ -63,32 +199,26 @@ function Later({
 function Edge({
   d,
   marker,
-  dur = '3.2s',
-  begin = '0s',
+  from,
+  to,
+  dur = 2.6,
 }: {
   d: string;
   marker: string;
-  dur?: string;
-  begin?: string;
+  from: string;
+  to: string;
+  dur?: number;
 }): JSX.Element {
   return (
-    <>
-      <path
-        className={styles.edge}
-        d={d}
-        pathLength={1}
-        markerEnd={`url(#${marker})`}
-      />
-      <circle r="3.3" className={styles.runner}>
-        <animateMotion
-          dur={dur}
-          begin={begin}
-          repeatCount="indefinite"
-          rotate="0"
-          path={d}
-        />
-      </circle>
-    </>
+    <path
+      className={styles.edge}
+      d={d}
+      pathLength={1}
+      markerEnd={`url(#${marker})`}
+      data-from={from}
+      data-to={to}
+      data-dur={dur}
+    />
   );
 }
 
@@ -151,65 +281,74 @@ export default function Home(): JSX.Element {
         <section className={styles.hero}>
           <div className={styles.models} aria-hidden="true">
             <Witness marker="wm-a" place={styles.m1}>
-              <Dot x={26} y={58} hot />
-              <Dot x={80} y={30} />
-              <Edge marker="wm-a" dur="2.6s" d="M32 54 C 48 40, 62 32, 73 32" />
+              <Dot id="a0" x={26} y={58} hot />
+              <Dot id="a1" x={80} y={30} />
+              <Edge marker="wm-a" from="a0" to="a1" d="M32 54 C 48 40, 62 32, 73 32" />
               <Later step={2}>
-                <Dot x={132} y={76} />
-                <Edge marker="wm-a" dur="2.6s" begin="1.3s" d="M86 34 C 102 46, 116 60, 126 70" />
+                <Dot id="a2" x={108} y={74} />
+                <Edge marker="wm-a" from="a1" to="a2" d="M86 36 C 98 52, 102 64, 103 69" />
+              </Later>
+              <Later step={3}>
+                <Edge marker="wm-a" from="a2" to="a2" dur={2.8} d="M113 69 C 148 52, 148 98, 113 80" />
               </Later>
             </Witness>
             <Witness marker="wm-b" place={styles.m2}>
-              <Dot x={34} y={78} hot />
-              <Dot x={112} y={26} />
-              <Edge marker="wm-b" dur="2.4s" d="M38 72 C 62 46, 88 30, 106 28" />
+              <Dot id="b0" x={34} y={78} hot />
+              <Dot id="b1" x={112} y={26} />
+              <Edge marker="wm-b" from="b0" to="b1" dur={2.4} d="M38 72 C 62 46, 88 30, 106 28" />
               <Later step={2}>
-                <Dot x={124} y={82} />
-                <Edge marker="wm-b" dur="2.4s" begin="0.8s" d="M118 30 C 146 46, 146 68, 124 76" />
+                <Dot id="b2" x={124} y={82} />
+                <Edge marker="wm-b" from="b1" to="b2" dur={2.4} d="M118 30 C 146 46, 146 68, 124 76" />
               </Later>
               <Later step={3}>
-                <Edge marker="wm-b" dur="2.4s" begin="1.6s" d="M118 84 C 86 98, 52 94, 40 84" />
+                <Edge marker="wm-b" from="b2" to="b0" dur={2.4} d="M118 84 C 86 98, 52 94, 40 84" />
               </Later>
             </Witness>
             <Witness marker="wm-c" place={styles.m3}>
-              <Dot x={32} y={56} hot />
-              <Dot x={124} y={26} />
-              <Dot x={124} y={86} />
-              <Edge marker="wm-c" dur="3.4s" d="M38 52 C 68 40, 98 30, 116 28" />
-              <Edge marker="wm-c" dur="3.8s" begin="0.7s" d="M38 60 C 68 72, 98 82, 116 84" />
+              <Dot id="c0" x={32} y={56} hot />
+              <Dot id="c1" x={118} y={28} />
+              <Dot id="c2" x={118} y={84} />
+              <Edge marker="wm-c" from="c0" to="c1" dur={2.8} d="M38 52 C 66 40, 96 30, 112 30" />
+              <Edge marker="wm-c" from="c0" to="c2" dur={2.8} d="M38 60 C 66 72, 96 82, 112 82" />
+              <Later step={2}>
+                <Edge marker="wm-c" from="c1" to="c1" dur={2.6} d="M124 23 C 150 4, 150 44, 124 33" />
+                <Edge marker="wm-c" from="c2" to="c2" dur={2.6} d="M124 89 C 150 108, 150 72, 124 79" />
+              </Later>
             </Witness>
             <Witness marker="wm-d" place={styles.m4}>
-              <Dot x={30} y={56} hot />
-              <Dot x={96} y={56} />
-              <Edge marker="wm-d" dur="2.2s" d="M36 56 L 88 56" />
+              <Dot id="d0" x={30} y={56} hot />
+              <Dot id="d1" x={96} y={56} />
+              <Edge marker="wm-d" from="d0" to="d1" dur={2.2} d="M36 56 L 88 56" />
               <Later step={2}>
-                <Edge marker="wm-d" dur="3.1s" begin="1.1s" d="M102 50 C 136 22, 136 90, 102 64" />
+                <Edge marker="wm-d" from="d1" to="d1" dur={3.1} d="M102 50 C 136 22, 136 90, 102 64" />
               </Later>
             </Witness>
             <Witness marker="wm-e" place={styles.m5}>
-              <Dot x={22} y={56} hot />
-              <Dot x={78} y={24} />
-              <Edge marker="wm-e" dur="2.8s" d="M28 52 C 46 38, 60 28, 72 26" />
+              <Dot id="e0" x={22} y={56} hot />
+              <Dot id="e1" x={78} y={24} />
+              <Edge marker="wm-e" from="e0" to="e1" d="M28 52 C 46 38, 60 28, 72 26" />
               <Later step={2}>
-                <Dot x={78} y={88} />
-                <Edge marker="wm-e" dur="2.8s" begin="0.4s" d="M28 60 C 46 74, 60 84, 72 86" />
+                <Dot id="e2" x={78} y={88} />
+                <Edge marker="wm-e" from="e1" to="e2" d="M74 30 C 56 46, 56 74, 74 82" />
               </Later>
               <Later step={3}>
-                <Dot x={136} y={56} />
-                <Edge marker="wm-e" dur="2.8s" begin="1.4s" d="M84 26 C 102 34, 118 44, 128 52" />
-                <Edge marker="wm-e" dur="2.8s" begin="1.8s" d="M84 86 C 102 78, 118 68, 128 60" />
+                <Dot id="e3" x={112} y={56} />
+                <Edge marker="wm-e" from="e0" to="e2" d="M28 60 C 46 74, 60 84, 72 86" />
+                <Edge marker="wm-e" from="e1" to="e3" dur={2.4} d="M84 28 C 96 38, 104 48, 107 51" />
+                <Edge marker="wm-e" from="e2" to="e3" dur={2.4} d="M84 84 C 96 74, 104 64, 107 61" />
+                <Edge marker="wm-e" from="e3" to="e3" d="M118 51 C 152 36, 152 76, 118 61" />
               </Later>
             </Witness>
             <Witness marker="wm-f" place={styles.m6}>
-              <Dot x={28} y={30} hot />
-              <Dot x={122} y={30} />
-              <Edge marker="wm-f" dur="2.5s" d="M34 30 L 114 30" />
+              <Dot id="f0" x={28} y={30} hot />
+              <Dot id="f1" x={122} y={30} />
+              <Edge marker="wm-f" from="f0" to="f1" dur={2.5} d="M34 30 L 114 30" />
               <Later step={2}>
-                <Dot x={76} y={86} />
-                <Edge marker="wm-f" dur="2.5s" begin="0.85s" d="M122 36 C 132 56, 104 78, 82 82" />
+                <Dot id="f2" x={76} y={86} />
+                <Edge marker="wm-f" from="f1" to="f2" dur={2.5} d="M122 36 C 132 56, 104 78, 82 82" />
               </Later>
               <Later step={3}>
-                <Edge marker="wm-f" dur="2.5s" begin="1.7s" d="M70 84 C 42 74, 26 52, 28 38" />
+                <Edge marker="wm-f" from="f2" to="f0" dur={2.5} d="M70 84 C 42 74, 26 52, 28 38" />
               </Later>
             </Witness>
           </div>

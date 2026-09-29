@@ -75,6 +75,11 @@
 
 .runner {
   fill: currentColor;
+  opacity: 0;
+}
+
+.runner[data-go='1'] {
+  opacity: 1;
 }
 
 @keyframes trace {
@@ -89,7 +94,8 @@
   stroke-width: 1.4;
 }
 
-.seed {
+.seed,
+.dot[data-hot='1'] {
   fill: currentColor;
   stroke: none;
 }
@@ -584,6 +590,11 @@
 
   .runner {
     display: none;
+  }
+
+  .dot[data-seed] {
+    fill: currentColor;
+    stroke: none;
   }
 
   .riverTrack,
