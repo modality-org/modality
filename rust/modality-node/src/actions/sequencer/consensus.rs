@@ -23,6 +23,7 @@ use super::ack_collector::{
     run_finalization_task, save_certified_block, validate_certificate, AckCollector,
 };
 use super::checkpoint::{create_checkpoint_for_epoch, CheckpointTracker};
+use super::hash_lane;
 
 /// Ages, in rounds, at which an uncertified draft of ours is published again.
 const STALE_DRAFT_REBROADCAST_AGES: [u64; 1] = [3];
@@ -446,6 +447,9 @@ enum CommitApply {
     AlreadySequenced,
     /// Dest REPOST/RECV that lacks a prefix-cert quorum. Retried when a cert lands.
     WaitingForPrefixCert,
+    /// Reveal whose hash commitment this node has not indexed yet. Retried
+    /// when a certified block indexes one.
+    WaitingForAnchor,
     Failed,
 }
 
@@ -487,6 +491,23 @@ async fn apply_pushed_commit(
                     contract_id
                 );
                 return CommitApply::AlreadySequenced;
+            }
+        }
+        if hash_lane::is_reveal(commit_entry) {
+            match hash_lane::check_reveal(&mgr, contract_id, commit_id, commit_entry) {
+                Ok(()) => {}
+                Err(hash_lane::RevealRefusal::NotAnchored) => {
+                    return CommitApply::WaitingForAnchor;
+                }
+                Err(e) => {
+                    log::warn!(
+                        "Refusing reveal {} for contract {}: {}",
+                        commit_id,
+                        contract_id,
+                        e
+                    );
+                    return CommitApply::Failed;
+                }
             }
         }
     }
@@ -566,20 +587,47 @@ async fn apply_pushed_commit(
     CommitApply::Sequenced
 }
 
-const PENDING_PREFIX_CERT_COMMITS_KEY: &str = "pending_prefix_cert_commits";
-const MAX_PENDING_PREFIX_CERT_COMMITS: usize = 256;
+/// Commits a certified block carried that wait on something this node has
+/// not seen yet, kept in node state and retried when it arrives.
+struct ParkedQueue {
+    key: &'static str,
+    waits_for: CommitApply,
+    what: &'static str,
+}
 
-fn load_pending_prefix_cert_commits(mgr: &DatastoreManager) -> Vec<serde_json::Value> {
-    match mgr.node_state().get(PENDING_PREFIX_CERT_COMMITS_KEY) {
+const PREFIX_CERT_QUEUE: ParkedQueue = ParkedQueue {
+    key: "pending_prefix_cert_commits",
+    waits_for: CommitApply::WaitingForPrefixCert,
+    what: "a prefix-cert quorum",
+};
+
+const ANCHOR_QUEUE: ParkedQueue = ParkedQueue {
+    key: "pending_reveal_commits",
+    waits_for: CommitApply::WaitingForAnchor,
+    what: "its hash commitment",
+};
+
+const MAX_PARKED_COMMITS: usize = 256;
+
+fn parked_queue_for(outcome: &CommitApply) -> Option<&'static ParkedQueue> {
+    match outcome {
+        CommitApply::WaitingForPrefixCert => Some(&PREFIX_CERT_QUEUE),
+        CommitApply::WaitingForAnchor => Some(&ANCHOR_QUEUE),
+        _ => None,
+    }
+}
+
+fn load_parked(mgr: &DatastoreManager, queue: &ParkedQueue) -> Vec<serde_json::Value> {
+    match mgr.node_state().get(queue.key) {
         Ok(Some(data)) => serde_json::from_slice(&data).unwrap_or_default(),
         _ => Vec::new(),
     }
 }
 
-fn store_pending_prefix_cert_commits(mgr: &DatastoreManager, pending: &[serde_json::Value]) {
+fn store_parked(mgr: &DatastoreManager, queue: &ParkedQueue, pending: &[serde_json::Value]) {
     let data = serde_json::to_vec(pending).unwrap_or_default();
-    if let Err(e) = mgr.node_state().put(PENDING_PREFIX_CERT_COMMITS_KEY, &data) {
-        log::warn!("Failed to store commits waiting for prefix certs: {}", e);
+    if let Err(e) = mgr.node_state().put(queue.key, &data) {
+        log::warn!("Failed to store commits waiting for {}: {}", queue.what, e);
     }
 }
 
@@ -592,8 +640,9 @@ fn pending_entry_matches(entry: &serde_json::Value, contract_id: &str, commit_id
             == Some(commit_id)
 }
 
-async fn park_for_prefix_cert(
+async fn park_commit(
     datastore: &Arc<Mutex<DatastoreManager>>,
+    queue: &ParkedQueue,
     contract_id: &str,
     commit_entry: &serde_json::Value,
     batch_id: &str,
@@ -606,7 +655,7 @@ async fn park_for_prefix_cert(
         return;
     };
     let mgr = datastore.lock().await;
-    let mut pending = load_pending_prefix_cert_commits(&mgr);
+    let mut pending = load_parked(&mgr, queue);
     if pending
         .iter()
         .any(|e| pending_entry_matches(e, contract_id, commit_id))
@@ -618,31 +667,34 @@ async fn park_for_prefix_cert(
         "commit": commit_entry,
         "batch_id": batch_id,
     }));
-    if pending.len() > MAX_PENDING_PREFIX_CERT_COMMITS {
-        let excess = pending.len() - MAX_PENDING_PREFIX_CERT_COMMITS;
+    if pending.len() > MAX_PARKED_COMMITS {
+        let excess = pending.len() - MAX_PARKED_COMMITS;
         pending.drain(..excess);
     }
-    store_pending_prefix_cert_commits(&mgr, &pending);
+    store_parked(&mgr, queue, &pending);
     log::info!(
-        "Commit {} for contract {} waits for a prefix-cert quorum",
+        "Commit {} for contract {} waits for {}",
         commit_id,
-        contract_id
+        contract_id,
+        queue.what
     );
 }
 
-/// Retry dest commits that failed only for a missing prefix-cert quorum.
-async fn retry_commits_waiting_for_prefix_cert(
+/// Retry parked commits now that what they wait for may have landed.
+async fn retry_parked(
     processor: &ContractProcessor,
     datastore: &Arc<Mutex<DatastoreManager>>,
+    queue: &ParkedQueue,
 ) {
     let pending = {
         let mgr = datastore.lock().await;
-        load_pending_prefix_cert_commits(&mgr)
+        load_parked(&mgr, queue)
     };
     if pending.is_empty() {
         return;
     }
     let mut still_waiting = Vec::new();
+    let mut moved = Vec::new();
     for entry in pending {
         let (Some(contract_id), Some(commit_entry)) = (
             entry.get("contract_id").and_then(|v| v.as_str()),
@@ -654,14 +706,27 @@ async fn retry_commits_waiting_for_prefix_cert(
             .get("batch_id")
             .and_then(|v| v.as_str())
             .unwrap_or_default();
-        if apply_pushed_commit(processor, datastore, contract_id, commit_entry, batch_id).await
-            == CommitApply::WaitingForPrefixCert
-        {
+        let outcome =
+            apply_pushed_commit(processor, datastore, contract_id, commit_entry, batch_id).await;
+        if outcome == queue.waits_for {
             still_waiting.push(entry);
+        } else if let Some(other) = parked_queue_for(&outcome) {
+            moved.push((other, entry));
         }
     }
-    let mgr = datastore.lock().await;
-    store_pending_prefix_cert_commits(&mgr, &still_waiting);
+    {
+        let mgr = datastore.lock().await;
+        store_parked(&mgr, queue, &still_waiting);
+    }
+    for (other, entry) in moved {
+        if let (Some(contract_id), Some(commit_entry), Some(batch_id)) = (
+            entry.get("contract_id").and_then(|v| v.as_str()),
+            entry.get("commit"),
+            entry.get("batch_id").and_then(|v| v.as_str()),
+        ) {
+            park_commit(datastore, other, contract_id, commit_entry, batch_id).await;
+        }
+    }
 }
 
 pub(crate) async fn apply_certified_contract_events(
@@ -679,6 +744,10 @@ pub(crate) async fn apply_certified_contract_events(
         .unwrap_or_else(|| format!("round-{}", block.round_id));
 
     let processor = ContractProcessor::new(datastore.clone());
+    let anchored = {
+        let mgr = datastore.lock().await;
+        hash_lane::index_certified(block, &batch_id, &mgr)
+    };
     let events = prefix_cert::canonical_event_order(&block.events);
     let mut stored_prefix_cert = false;
 
@@ -747,17 +816,20 @@ pub(crate) async fn apply_certified_contract_events(
         }
 
         for commit_entry in commits {
-            if apply_pushed_commit(&processor, datastore, contract_id, commit_entry, &batch_id)
-                .await
-                == CommitApply::WaitingForPrefixCert
-            {
-                park_for_prefix_cert(datastore, contract_id, commit_entry, &batch_id).await;
+            let outcome =
+                apply_pushed_commit(&processor, datastore, contract_id, commit_entry, &batch_id)
+                    .await;
+            if let Some(queue) = parked_queue_for(&outcome) {
+                park_commit(datastore, queue, contract_id, commit_entry, &batch_id).await;
             }
         }
     }
 
     if stored_prefix_cert {
-        retry_commits_waiting_for_prefix_cert(&processor, datastore).await;
+        retry_parked(&processor, datastore, &PREFIX_CERT_QUEUE).await;
+    }
+    if anchored > 0 {
+        retry_parked(&processor, datastore, &ANCHOR_QUEUE).await;
     }
 }
 
@@ -1017,6 +1089,8 @@ pub async fn spawn_consensus_loop_with_checkpoints(
 
         let mut ack_collector =
             AckCollector::new(sequencer_peer_id.clone(), keypair.clone(), committee_size);
+        let lane_view = hash_lane::spawn_lane_view(datastore.clone()).await;
+        ack_collector.hash_lane = lane_view.clone();
 
         let mut checkpoint_tracker = CheckpointTracker::new(checkpoint_mode, blocks_per_epoch);
         checkpoint_tracker.on_epoch_change(sequencer_epoch);
@@ -1234,7 +1308,17 @@ pub async fn spawn_consensus_loop_with_checkpoints(
                                 }
                             };
                             let named = mgr.validators().unwrap_or_default();
-                            prefix_cert::filter_includable_events(raw, &named)
+                            let includable = prefix_cert::filter_includable_events(raw, &named);
+                            let (events, carried) = hash_lane::pick_for_proposal(
+                                includable,
+                                &hash_lane::snapshot(&lane_view),
+                            );
+                            for event in carried {
+                                if let Err(e) = mgr.enqueue_sequencer_event(event).await {
+                                    log::warn!("Failed to carry a hash commitment over: {}", e);
+                                }
+                            }
+                            events
                         }
                         None => Vec::new(),
                     };
@@ -2048,7 +2132,7 @@ model FirstContract {
             Some("batch-first")
         );
         let mgr = ds.lock().await;
-        assert!(load_pending_prefix_cert_commits(&mgr).is_empty());
+        assert!(load_parked(&mgr, &PREFIX_CERT_QUEUE).is_empty());
     }
 
     #[tokio::test]
@@ -2075,7 +2159,7 @@ model FirstContract {
         assert!(dest_in_batch(&ds, "d-park").await.is_none());
         {
             let mgr = ds.lock().await;
-            assert_eq!(load_pending_prefix_cert_commits(&mgr).len(), 1);
+            assert_eq!(load_parked(&mgr, &PREFIX_CERT_QUEUE).len(), 1);
         }
         apply_certified_contract_events(
             &certified_block(vec![prefix_cert_event("peer3", &digest)], "batch-c3"),

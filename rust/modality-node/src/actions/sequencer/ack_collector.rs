@@ -13,6 +13,8 @@ use modality_datastore::models::SequencerBlock;
 use modality_datastore::DatastoreManager;
 use std::collections::HashMap;
 
+use super::hash_lane::{self, SharedLaneView};
+
 /// Tracks acks received for blocks in a given round
 pub struct AckCollector {
     /// Our peer ID
@@ -30,6 +32,8 @@ pub struct AckCollector {
     pub incoming_blocks: HashMap<(u64, String), SequencerBlock>,
     /// Acks we already signed, resent if the author publishes the draft again
     pub already_acked: HashMap<(u64, String), Ack>,
+    /// Hash-lane parameters and anchors a draft's records are checked against.
+    pub hash_lane: SharedLaneView,
 }
 
 impl AckCollector {
@@ -43,6 +47,7 @@ impl AckCollector {
             our_pending_blocks: HashMap::new(),
             incoming_blocks: HashMap::new(),
             already_acked: HashMap::new(),
+            hash_lane: SharedLaneView::default(),
         }
     }
 
@@ -95,6 +100,16 @@ impl AckCollector {
                 "Invalid signatures on block from {} round {}",
                 &block.peer_id[..16.min(block.peer_id.len())],
                 block.round_id
+            );
+            return Ok(None);
+        }
+
+        if let Err(e) = hash_lane::check_draft(block, &hash_lane::snapshot(&self.hash_lane)) {
+            log::warn!(
+                "Not acking block from {} round {}: {}",
+                &block.peer_id[..16.min(block.peer_id.len())],
+                block.round_id,
+                e
             );
             return Ok(None);
         }

@@ -70,6 +70,10 @@ fn prefix_certs_key(contract: &str, through: &str) -> String {
     format!("prefix_certs/{}/{}", contract, through)
 }
 
+fn hash_commitment_key(contract: &str, commit: &str) -> String {
+    format!("/hash_commitments/{}/{}", contract, commit)
+}
+
 fn legacy_prefix_cert_key(contract: &str, through: &str) -> String {
     format!("prefix_cert/{}/{}", contract, through)
 }
@@ -475,6 +479,8 @@ impl DatastoreManager {
                 .get("predicate_theory_version")
                 .and_then(|v| v.as_str())
                 .unwrap_or(crate::DEFAULT_PREDICATE_THEORY_VERSION),
+            "network_name": network_config.get("name").and_then(|v| v.as_str()).unwrap_or(""),
+            "hash_lane": network_config.get("hash_lane").cloned().unwrap_or(serde_json::Value::Null),
         });
         self.node_state
             .put("validator_config", &serde_json::to_vec(&cfg)?)
@@ -555,6 +561,30 @@ impl DatastoreManager {
             .to_string())
     }
 
+    /// The network's hash-lane parameters, or `None` when the network has no
+    /// hash lane. Parameters this build cannot enforce are an error.
+    pub fn hash_lane_params(
+        &self,
+    ) -> Result<Option<modality_common::hash_commitment::HashLaneParams>> {
+        let cfg = self.validator_config()?;
+        match cfg.get("hash_lane") {
+            None | Some(serde_json::Value::Null) => Ok(None),
+            Some(value) => modality_common::hash_commitment::HashLaneParams::from_value(value)
+                .map(Some)
+                .map_err(|e| crate::Error::InvalidData(e.to_string())),
+        }
+    }
+
+    /// The network name from the network config.
+    pub fn network_name(&self) -> Result<String> {
+        let cfg = self.validator_config()?;
+        Ok(cfg
+            .get("network_name")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string())
+    }
+
     /// Queue a request for this node's validator worker. A request already
     /// queued for the same prefix is not queued twice, and on a node that
     /// runs no validator worker the queue keeps only the newest ones.
@@ -619,6 +649,49 @@ impl DatastoreManager {
             .node_state
             .delete(&legacy_prefix_cert_key(contract, through));
         Ok(())
+    }
+
+    /// Index a hash commitment from a certified sequencer block. The first
+    /// certified record for a commit stays; a later one is ignored. Returns
+    /// whether this call indexed it.
+    pub fn save_hash_commitment(&self, entry: &serde_json::Value) -> Result<bool> {
+        let field = |name: &str| {
+            entry
+                .get(name)
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| crate::Error::Database(format!("hash commitment missing {name}")))
+        };
+        let key = hash_commitment_key(field("contract_id")?, field("commit_id")?);
+        if self.sequencer_final.get(&key)?.is_some() {
+            return Ok(false);
+        }
+        self.sequencer_final.put(&key, &serde_json::to_vec(entry)?)?;
+        Ok(true)
+    }
+
+    pub fn hash_commitment(
+        &self,
+        contract_id: &str,
+        commit_id: &str,
+    ) -> Result<Option<serde_json::Value>> {
+        Ok(self
+            .sequencer_final
+            .get(&hash_commitment_key(contract_id, commit_id))?
+            .and_then(|data| serde_json::from_slice(&data).ok()))
+    }
+
+    pub fn hash_commitments_for(&self, contract_id: &str) -> Result<Vec<serde_json::Value>> {
+        let mut entries = Vec::new();
+        for item in self
+            .sequencer_final
+            .iterator(&format!("/hash_commitments/{contract_id}/"))
+        {
+            let (_, value) = item?;
+            if let Ok(entry) = serde_json::from_slice(&value) {
+                entries.push(entry);
+            }
+        }
+        Ok(entries)
     }
 
     pub fn list_prefix_certs(

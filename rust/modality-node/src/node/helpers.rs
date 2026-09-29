@@ -130,6 +130,9 @@ pub async fn load_network_config(
         if let Some(version) = network_info.predicate_theory_version {
             config_json["predicate_theory_version"] = serde_json::json!(version);
         }
+        if let Some(hash_lane) = network_info.hash_lane {
+            config_json["hash_lane"] = hash_lane;
+        }
 
         config_json["rounds"] = serde_json::json!({});
 
@@ -175,6 +178,15 @@ pub async fn load_network_config(
             "Predicate theory: {}",
             mgr.predicate_theory_version().unwrap_or_else(|_| "v0".into())
         );
+        match mgr.hash_lane_params()? {
+            Some(p) => log::info!(
+                "Hash lane: {} per sequencer block, {} bits of {} work",
+                p.quota_per_block,
+                p.floor_bits,
+                p.algorithm
+            ),
+            None => log::info!("Hash lane: off"),
+        }
     }
 
     // Load network parameters from genesis contract if present

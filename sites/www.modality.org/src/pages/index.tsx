@@ -1,4 +1,4 @@
-import React, {useEffect, useRef} from 'react';
+import React, {useEffect, useRef, useState} from 'react';
 import Layout from '@theme/Layout';
 import Link from '@docusaurus/Link';
 import styles from './index.module.css';
@@ -43,7 +43,7 @@ function Witness({
     let arm = 0;
 
     const nodes = () =>
-      [...svg.querySelectorAll<SVGCircleElement>('[data-node]')];
+      Array.from(svg.querySelectorAll<SVGCircleElement>('[data-node]'));
 
     const seed = () =>
       nodes().find(n => n.dataset.seed === '1') ?? nodes()[0] ?? null;
@@ -61,7 +61,7 @@ function Witness({
     };
 
     const outgoing = (id: string) =>
-      [...svg.querySelectorAll<SVGPathElement>('path[data-from]')].filter(
+      Array.from(svg.querySelectorAll<SVGPathElement>('path[data-from]')).filter(
         path => path.dataset.from === id && visible(path, root),
       );
 
@@ -222,59 +222,222 @@ function Edge({
   );
 }
 
-function TreasurySketch({joined}: {joined: boolean}): JSX.Element {
+type Beat = {
+  step: string;
+  title: string;
+  by: string;
+  note: string;
+  rule?: {say: string; formula: string};
+  adds: string[];
+};
+
+const BEATS: Beat[] = [
+  {
+    step: 'Empty',
+    title: 'An empty contract',
+    by: 'nobody yet',
+    note: 'No rules. Any commit is accepted.',
+    adds: [],
+  },
+  {
+    step: 'Names',
+    title: 'scout claims a name',
+    by: 'scout',
+    note: 'scout posts its key and the first rule. From the next commit on, only scout writes under /agents/scout.',
+    rule: {
+      say: "Only an agent's key writes under its name",
+      formula: 'always([+modifies(/agents/$k) -signed_by(/agents/$k.id)] false)',
+    },
+    adds: ['agents/scout.id', 'agents/scout/plan.md'],
+  },
+  {
+    step: 'Members',
+    title: 'Only agents commit',
+    by: 'builder, reviewer',
+    note: 'builder and reviewer post their keys. Then a rule: every later commit carries an agent’s signature. A stranger’s commit is refused.',
+    rule: {
+      say: 'Every commit is signed by an agent',
+      formula: 'always([-any_signed(/agents)] false)',
+    },
+    adds: ['agents/builder.id', 'agents/reviewer.id'],
+  },
+  {
+    step: 'Admission',
+    title: 'Two let a new agent in',
+    by: 'builder',
+    note: 'One agent could post a second key it holds and count it twice. Now a new key needs two agents on the commit.',
+    rule: {
+      say: 'A new key needs two agents',
+      formula:
+        'always([+post_to_path(/agents/$k.id) -state_exists(/agents/$k.id) -threshold("2", /agents)] false)',
+    },
+    adds: ['agents/builder/src/'],
+  },
+  {
+    step: 'Release',
+    title: 'Two to ship',
+    by: 'reviewer',
+    note: 'Anything under /release needs two agents on the same commit.',
+    rule: {
+      say: 'The release needs two agents',
+      formula: 'always([+modifies(/release) -threshold("2", /agents)] false)',
+    },
+    adds: ['agents/reviewer/review.md'],
+  },
+  {
+    step: 'Lock',
+    title: 'Two to add a rule',
+    by: 'scout',
+    note: 'The last rule any one agent adds alone. Rules only accumulate, so none of these can be dropped later.',
+    rule: {
+      say: 'A new rule needs two agents',
+      formula: 'always([+modifies(/rules) -threshold("2", /agents)] false)',
+    },
+    adds: [],
+  },
+  {
+    step: 'Ship',
+    title: 'They ship',
+    by: 'builder + reviewer',
+    note: 'builder alone writes /release: refused, and the log does not grow. builder and reviewer sign the same commit: accepted.',
+    adds: ['release/v1.json'],
+  },
+];
+
+function stateTree(upTo: number): {line: string; fresh: boolean}[] {
+  const rows: {line: string; fresh: boolean}[] = [];
+  BEATS.slice(0, upTo + 1).forEach((beat, i) => {
+    beat.adds.forEach(line => rows.push({line, fresh: i === upTo}));
+  });
+  return rows;
+}
+
+function RuleLog(): JSX.Element {
+  const [at, setAt] = useState(0);
+  const [auto, setAuto] = useState(true);
+  const root = useRef<HTMLDivElement>(null);
+  const last = BEATS.length - 1;
+
+  useEffect(() => {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      setAuto(false);
+      setAt(last);
+      return;
+    }
+    const el = root.current;
+    if (!el) return;
+    const seen = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setAt(0);
+          seen.disconnect();
+        }
+      },
+      {threshold: 0.35},
+    );
+    seen.observe(el);
+    return () => seen.disconnect();
+  }, [last]);
+
+  useEffect(() => {
+    if (!auto) return;
+    const wait = at === last ? 7000 : 3800;
+    const id = window.setTimeout(() => setAt(at === last ? 0 : at + 1), wait);
+    return () => window.clearTimeout(id);
+  }, [at, auto, last]);
+
+  const beat = BEATS[at];
+  const rules = BEATS.slice(0, at + 1).filter(b => b.rule);
+  const tree = stateTree(at);
+
   return (
-    <svg
-      className={styles.sketch}
-      viewBox="0 0 300 188"
-      role="img"
-      aria-hidden="true"
-    >
-      <line className={styles.spine} x1="22" y1="28" x2="22" y2="116" />
-      <circle className={styles.node} cx="22" cy="28" r="3.5" />
-      <circle className={styles.node} cx="22" cy="72" r="3.5" />
-      <circle className={styles.node} cx="22" cy="116" r="3.5" />
-      <rect className={styles.commit} x="40" y="12" width="220" height="32" rx="3" />
-      <rect className={styles.commit} x="40" y="56" width="220" height="32" rx="3" />
-      <circle className={styles.ring} cx="214" cy="72" r="5" />
-      <circle className={styles.ring} cx="230" cy="72" r="5" />
-      <rect className={styles.commit} x="40" y="100" width="220" height="32" rx="3" />
-      {joined ? (
-        <g className={styles.joining}>
-          <line className={styles.spine} x1="22" y1="116" x2="22" y2="160" />
-          <circle className={styles.nodeIn} cx="22" cy="160" r="3.5" />
-          <rect className={styles.commitIn} x="40" y="144" width="220" height="32" rx="3" />
-          <circle className={styles.keyIn} cx="214" cy="160" r="5" />
-          <circle className={styles.keyIn} cx="230" cy="160" r="5" />
-        </g>
-      ) : (
-        <g className={styles.halting}>
-          <path className={styles.mark} d="M16 154 l12 12 M28 154 l-12 12" />
-          <rect className={styles.commitOut} x="56" y="144" width="220" height="32" rx="3" />
-          <circle className={styles.keyOut} cx="246" cy="160" r="5" />
-        </g>
-      )}
-    </svg>
+    <div className={styles.ruleLog} ref={root}>
+      <ol className={styles.beats}>
+        {BEATS.map((b, i) => (
+          <li key={b.step}>
+            <button
+              type="button"
+              className={
+                i === at ? styles.beatOn : i < at ? styles.beatDone : styles.beat
+              }
+              aria-current={i === at ? 'step' : undefined}
+              onClick={() => {
+                setAuto(false);
+                setAt(i);
+              }}
+            >
+              <span className={styles.beatDot} />
+              <span className={styles.beatName}>{b.step}</span>
+            </button>
+          </li>
+        ))}
+      </ol>
+      <div className={styles.beatHead} key={`head-${at}`}>
+        <div className={styles.caption}>
+          step {at + 1} of {BEATS.length} · signed by {beat.by}
+        </div>
+        <h3>{beat.title}</h3>
+        <p>{beat.note}</p>
+      </div>
+      <div className={styles.panes}>
+        <div className={styles.pane}>
+          <div className={styles.caption}>rules/</div>
+          <pre className={styles.paneBody}>
+            {rules.length === 0 ? (
+              <span className={styles.paneEmpty}>// none yet</span>
+            ) : (
+              rules.map(b => (
+                <span
+                  key={b.step}
+                  className={b === beat ? styles.ruleFresh : styles.ruleOld}
+                >
+                  {`// ${b.rule?.say}\n${b.rule?.formula}`}
+                </span>
+              ))
+            )}
+          </pre>
+        </div>
+        <div className={styles.pane}>
+          <div className={styles.caption}>state/</div>
+          <pre className={styles.paneBody}>
+            {tree.length === 0 ? (
+              <span className={styles.paneEmpty}>// empty</span>
+            ) : (
+              tree.map(row => (
+                <span
+                  key={row.line}
+                  className={row.fresh ? styles.lineFresh : styles.lineOld}
+                >
+                  {row.line}
+                </span>
+              ))
+            )}
+          </pre>
+        </div>
+      </div>
+      <div
+        className={at === last ? styles.verdicts : styles.verdictsHidden}
+        aria-hidden={at !== last}
+      >
+        <div className={styles.verdictBad}>
+          <span className={styles.captionRefused}>Refused</span>
+          <code>--sign builder --path /release/v1.json</code>
+        </div>
+        <div className={styles.verdictOk}>
+          <span className={styles.captionOk}>Accepted</span>
+          <code>--sign builder --sign reviewer --path /release/v1.json</code>
+        </div>
+      </div>
+    </div>
   );
 }
 
 export default function Home(): JSX.Element {
   const installCmd = `curl -fsSL https://www.modality.org/install.sh | sh`;
-  const treasuryRule = `always([+modifies(/treasury) -threshold("2", /treasury)] false)`;
-  const refusedCmd = `modal c commit
-  --sign alice
-  --path /treasury/withdrawals/0001.json
-  --value '{"amount":100}'`;
-  const acceptedCmd = `modal c commit
-  --sign alice
-  --sign bob
-  --path /treasury/withdrawals/0001.json
-  --value '{"amount":100}'`;
-
   return (
     <Layout
       title="Modality"
-      description="A verification language for AI agent cooperation. One signature cannot move a treasury the rules say needs two."
+      description="A verification language for AI agent cooperation. Agents start from an empty contract and add the rules they need, one signed commit at a time."
       wrapperClassName={styles.homeWrap}
     >
       <main className={`${styles.home} homepage`}>
@@ -362,8 +525,8 @@ export default function Home(): JSX.Element {
               Built to scale.
             </h1>
             <p className={styles.sub}>
-              An agent can be told to send the funds. The log accepts a commit
-              only when the rules already on it are met.
+              Agents that have never met can share a contract. The log accepts
+              a commit only when the rules already on it are met.
             </p>
             <div className={styles.actions}>
               <Link
@@ -387,41 +550,30 @@ export default function Home(): JSX.Element {
 
         <div className={styles.page}>
         <section className={styles.block}>
-          <h2>One signature cannot spend it</h2>
+          <h2>The agents write the rules</h2>
           <p>
-            Tell an agent to move the treasury. The rule is already on the
-            log. A commit that writes under <code>/treasury</code> needs two
-            of the keys there.
+            A contract can start with no rules. One agent claims a name, others
+            join, and each time they find a gap they close it with a rule in a
+            signed commit. Each rule binds every later commit, including the
+            ones that add rules.
           </p>
-          <div className={styles.caption}>rules/treasury.modality</div>
-          <pre className={styles.cmd}>
-            <code>{treasuryRule}</code>
-          </pre>
-          <div className={styles.pair}>
-            <figure className={styles.scene}>
-              <TreasurySketch joined={false} />
-              <figcaption>
-                <div className={styles.captionRefused}>Refused</div>
-                <pre className={styles.cmd}>
-                  <code>{refusedCmd}</code>
-                </pre>
-                <p className={styles.note}>One key. The log does not grow.</p>
-              </figcaption>
-            </figure>
-            <figure className={styles.scene}>
-              <TreasurySketch joined />
-              <figcaption>
-                <div className={styles.captionOk}>Accepted</div>
-                <pre className={styles.cmd}>
-                  <code>{acceptedCmd}</code>
-                </pre>
-                <p className={styles.note}>Two keys, on the same commit.</p>
-              </figcaption>
-            </figure>
-          </div>
+          <RuleLog />
+          <p>
+            No rule here came from outside the contract. Anyone can replay the
+            log and see when each rule was added and who signed it.
+          </p>
           <div className={styles.exampleActions}>
-            <Link className={styles.btn} to="/docs/tutorials/multisig-treasury">
-              Build the treasury
+            <Link
+              className={styles.btn}
+              to="/docs/getting-started/first-contract"
+            >
+              Write a contract
+            </Link>
+            <Link
+              className={styles.btnGhost}
+              to="/docs/language/formula-cookbook"
+            >
+              Rule recipes
             </Link>
           </div>
         </section>
@@ -477,9 +629,9 @@ export default function Home(): JSX.Element {
         <section className={styles.block}>
           <h2>A program the rules can refuse</h2>
           <p>
-            A constant-product pool computes each swap. The rules bound what
-            any program may do: a payout goes to someone who paid in, and a
-            swap never lowers the fee-adjusted product.
+            An agent can post a program that computes each move. The rules
+            still bound what any program may do, so a bad output is refused
+            like a bad commit. The pool tutorial is a worked example.
           </p>
           <p>
             <Link to="/docs/tutorials/constant-product-pool">

@@ -182,11 +182,13 @@
   width: 100%;
   max-width: 100%;
   min-width: 0;
-  height: 1.4em;
+  font-size: clamp(1.05rem, 2.4vw, 1.55rem);
+  line-height: 1.5;
+  height: 1.5em;
   overflow: hidden;
   contain: paint;
   isolation: isolate;
-  margin: 0.5rem 0 2.75rem;
+  margin: 0.5rem 0 1.1rem;
   mask-image: linear-gradient(
     90deg,
     transparent,
@@ -207,10 +209,8 @@
 
 .riverTrack span {
   padding-right: 3.5rem;
-  font-size: clamp(1.05rem, 2.4vw, 1.55rem);
   font-weight: 500;
   letter-spacing: 0.04em;
-  line-height: 1.3;
   white-space: nowrap;
   color: var(--ifm-color-primary);
   opacity: 0.55;
@@ -272,108 +272,228 @@
   font-weight: 400;
 }
 
-.sketch {
-  display: block;
+.ruleLog {
+  margin: 1.75rem 0 1.5rem;
+  padding: 1.25rem 1.25rem 1.35rem;
+  border: 1px solid var(--ifm-color-emphasis-200);
+  border-radius: 6px;
+  background: var(--ifm-background-surface-color);
+}
+
+.beats {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  margin: 0 0 1.25rem;
+  padding: 0;
+  list-style: none;
+}
+
+.beats::before {
+  content: '';
+  position: absolute;
+  left: calc(100% / 14);
+  right: calc(100% / 14);
+  top: 7px;
+  border-top: 1px solid var(--ifm-color-emphasis-300);
+}
+
+.beat,
+.beatOn,
+.beatDone {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
   width: 100%;
-  height: auto;
-  margin: 0 0 0.85rem;
-  color: var(--ifm-color-emphasis-800);
+  padding: 0;
+  font: inherit;
+  background: none;
+  border: 0;
+  cursor: pointer;
 }
 
-.spine,
-.node {
-  stroke: currentColor;
-  stroke-width: 1.4;
-  fill: var(--ifm-background-color);
+.beatDot {
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  border: 1.5px solid var(--ifm-color-emphasis-400);
+  background: var(--ifm-background-surface-color);
+  transition: background 0.3s ease, border-color 0.3s ease, transform 0.3s ease;
 }
 
-.spine {
-  fill: none;
-  opacity: 0.55;
+.beatDone .beatDot {
+  border-color: var(--ifm-color-primary);
+  background: var(--ifm-color-primary-lightest);
 }
 
-.node {
-  fill: currentColor;
+.beatOn .beatDot {
+  border-color: var(--ifm-color-primary);
+  background: var(--ifm-color-primary);
+  transform: scale(1.2);
 }
 
-.commit,
-.ring {
-  fill: var(--ifm-background-color);
-  stroke: currentColor;
-  stroke-width: 1.35;
+.beatName {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 0.7rem;
+  letter-spacing: 0.04em;
+  color: var(--ifm-color-emphasis-600);
 }
 
-.commitIn,
-.nodeIn,
-.keyIn {
-  stroke: var(--ifm-color-primary);
-  stroke-width: 1.6;
+.beatOn .beatName {
+  color: var(--ifm-color-primary);
+  font-weight: 600;
 }
 
-.commitIn {
-  fill: var(--ifm-background-color);
+.beatHead {
+  min-height: 7.4rem;
+  animation: beatIn 0.45s ease both;
 }
 
-.nodeIn,
-.keyIn {
-  fill: var(--ifm-color-primary);
+.beatHead h3 {
+  margin: 0 0 0.35rem;
+  font-size: 1.35rem;
+  letter-spacing: -0.02em;
 }
 
-.commitOut {
-  fill: transparent;
-  stroke: var(--ifm-color-danger);
-  stroke-width: 1.35;
-  stroke-dasharray: 4 3;
-}
-
-.keyOut,
-.mark {
-  stroke: var(--ifm-color-danger);
-  stroke-width: 1.6;
-  fill: var(--ifm-color-danger);
-}
-
-.mark {
-  fill: none;
-  stroke-linecap: round;
-}
-
-.halting {
-  animation: halt 1.5s cubic-bezier(0.22, 1, 0.36, 1) both;
-}
-
-.joining {
-  animation: join 1.15s cubic-bezier(0.22, 1, 0.36, 1) 0.12s both;
-}
-
-@keyframes halt {
-  from {
-    transform: translate(18px, 10px);
-    opacity: 0;
-  }
-  to {
-    transform: none;
-    opacity: 1;
-  }
-}
-
-@keyframes join {
-  from {
-    transform: translateY(16px);
-    opacity: 0;
-  }
-  to {
-    transform: none;
-    opacity: 1;
-  }
-}
-
-.scene {
+.block .beatHead p {
   margin: 0;
+  font-size: 1rem;
+  line-height: 1.55;
+}
+
+.panes {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.85rem;
+  margin-top: 0.5rem;
+}
+
+@media (min-width: 768px) {
+  .panes {
+    grid-template-columns: 1.75fr 1fr;
+  }
+
+  .panes .paneBody {
+    min-height: 22.5rem;
+  }
+}
+
+.pane {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.paneBody {
+  flex: 1;
+  min-height: 8rem;
+  margin: 0;
+  padding: 0.85rem 1rem;
+  font-size: 0.78rem;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  background: var(--ifm-color-emphasis-100);
+  border: 1px solid var(--ifm-color-emphasis-200);
+  border-radius: 4px;
+}
+
+.paneEmpty {
+  color: var(--ifm-color-emphasis-500);
+}
+
+.ruleOld,
+.ruleFresh,
+.lineOld,
+.lineFresh {
+  display: block;
+}
+
+.ruleOld + .ruleOld,
+.ruleOld + .ruleFresh {
+  margin-top: 0.6rem;
+}
+
+.ruleOld,
+.lineOld {
+  color: var(--ifm-color-emphasis-700);
+}
+
+.ruleFresh,
+.lineFresh {
+  color: var(--ifm-color-primary-dark);
+  animation: beatIn 0.6s ease both;
+}
+
+:global(html[data-theme='dark']) .ruleFresh,
+:global(html[data-theme='dark']) .lineFresh {
+  color: var(--ifm-color-primary-light);
+}
+
+.verdicts,
+.verdictsHidden {
+  display: grid;
+  gap: 0.4rem;
+  margin-top: 0.85rem;
+}
+
+.verdicts {
+  animation: beatIn 0.5s ease 0.35s both;
+}
+
+.verdictsHidden {
+  visibility: hidden;
+}
+
+.verdictBad,
+.verdictOk {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.35rem 0.75rem;
+  padding: 0.55rem 0.8rem;
+  border-radius: 4px;
+  font-size: 0.8rem;
+}
+
+.verdictBad {
+  border: 1px dashed var(--ifm-color-danger);
+}
+
+.verdictOk {
+  border: 1px solid var(--ifm-color-primary);
+}
+
+.verdictBad code,
+.verdictOk code {
+  background: none;
+  border: 0;
+  padding: 0;
+}
+
+.verdictBad .captionRefused,
+.verdictOk .captionOk {
+  margin: 0;
+  min-width: 5.5rem;
+}
+
+@keyframes beatIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 .exampleActions {
   display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
   margin-top: 1.5rem;
 }
 
@@ -402,24 +522,6 @@
 
 :global(html[data-theme='dark']) .captionOk {
   color: var(--ifm-color-primary-light);
-}
-
-.pair {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 0.85rem;
-  margin-top: 0.85rem;
-}
-
-.pair .cmd {
-  margin: 0;
-}
-
-.note {
-  margin: 0.4rem 0 0;
-  font-size: 0.92rem;
-  line-height: 1.4;
-  color: var(--ifm-color-emphasis-700);
 }
 
 .actions {
@@ -530,12 +632,6 @@
   color: var(--ifm-heading-color);
 }
 
-@media (min-width: 768px) {
-  .pair {
-    grid-template-columns: 1fr 1fr;
-  }
-}
-
 @media (max-width: 1080px) {
   .models {
     display: none;
@@ -598,8 +694,10 @@
   }
 
   .riverTrack,
-  .halting,
-  .joining {
+  .beatHead,
+  .ruleFresh,
+  .lineFresh,
+  .verdicts {
     animation: none;
   }
 }

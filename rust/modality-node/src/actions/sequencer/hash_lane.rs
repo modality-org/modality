@@ -1,0 +1,406 @@
+//! The hash lane on a sequencer: which anchors are current, which records a
+//! proposer includes, which blocks get a vote, and what a certified block
+//! indexes.
+
+use anyhow::{bail, Result};
+use modality_common::contract_store::CommitFile;
+use modality_common::hash_commitment::{
+    anchor_index, check_block_events, records_to_index, select_for_block, static_anchor,
+    window_epochs, AnchorWindow, EpochAnchor, HashCommitment, HashLaneParams,
+};
+use modality_datastore::models::{MinerBlock, SequencerBlock};
+use modality_datastore::DatastoreManager;
+use serde_json::{json, Value};
+use std::sync::{Arc, RwLock};
+use tokio::sync::Mutex;
+
+/// Records beyond a block's quota wait at most this many blocks' worth.
+const CARRY_OVER_BLOCKS: usize = 4;
+
+/// How often a sequencer recomputes its anchor window.
+const WINDOW_REFRESH: std::time::Duration = std::time::Duration::from_secs(5);
+
+/// What a sequencer knows about the hash lane without touching the datastore.
+#[derive(Debug, Clone, Default)]
+pub struct LaneView {
+    pub params: Option<HashLaneParams>,
+    /// `None` until the first refresh; a block with records gets no vote
+    /// before then.
+    pub window: Option<AnchorWindow>,
+}
+
+pub type SharedLaneView = Arc<RwLock<LaneView>>;
+
+/// The anchors this node accepts: from its verified miner chain, or the
+/// fixed anchor of a network that has none.
+pub async fn anchor_window(mgr: &DatastoreManager) -> Result<AnchorWindow> {
+    let blocks = MinerBlock::find_all_canonical_multi(mgr).await?;
+    let spine = MinerBlock::verified_spine(&blocks);
+    let blocks_per_epoch = mgr.epoch_config().blocks_per_epoch;
+    let Some(tip) = spine.last() else {
+        let anchor = static_anchor(&mgr.network_name()?);
+        return Ok(AnchorWindow {
+            epoch: anchor.epoch,
+            anchors: vec![anchor],
+        });
+    };
+    let epoch = if blocks_per_epoch == 0 {
+        0
+    } else {
+        tip.index / blocks_per_epoch
+    };
+    let anchors = window_epochs(epoch)
+        .into_iter()
+        .filter_map(|e| {
+            let index = anchor_index(e, blocks_per_epoch);
+            spine
+                .iter()
+                .find(|b| b.index == index)
+                .map(|b| EpochAnchor {
+                    epoch: e,
+                    anchor: b.hash.clone(),
+                })
+        })
+        .collect();
+    Ok(AnchorWindow { epoch, anchors })
+}
+
+async fn refresh(view: &SharedLaneView, datastore: &Arc<Mutex<DatastoreManager>>) {
+    let fresh = {
+        let mgr = datastore.lock().await;
+        let params = match mgr.hash_lane_params() {
+            Ok(params) => params,
+            Err(e) => {
+                log::warn!("Hash lane parameters unreadable: {}", e);
+                None
+            }
+        };
+        if params.is_none() {
+            LaneView::default()
+        } else {
+            match anchor_window(&mgr).await {
+                Ok(window) => LaneView {
+                    params,
+                    window: Some(window),
+                },
+                Err(e) => {
+                    log::warn!("Hash lane anchor window unavailable: {}", e);
+                    LaneView {
+                        params,
+                        window: None,
+                    }
+                }
+            }
+        }
+    };
+    if let Ok(mut current) = view.write() {
+        *current = fresh;
+    }
+}
+
+/// A lane view kept current by a background task.
+pub async fn spawn_lane_view(datastore: Arc<Mutex<DatastoreManager>>) -> SharedLaneView {
+    let view = SharedLaneView::default();
+    refresh(&view, &datastore).await;
+    let task_view = view.clone();
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(WINDOW_REFRESH);
+        interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+        interval.tick().await;
+        loop {
+            interval.tick().await;
+            refresh(&task_view, &datastore).await;
+        }
+    });
+    view
+}
+
+pub fn snapshot(view: &SharedLaneView) -> LaneView {
+    view.read().map(|v| v.clone()).unwrap_or_default()
+}
+
+/// Split drained events into what this round's block carries and the hash
+/// commitments that wait for a later round. Records that fail the vote check
+/// are dropped: peers would refuse the whole block for them.
+pub fn pick_for_proposal(events: Vec<Value>, view: &LaneView) -> (Vec<Value>, Vec<Value>) {
+    let mut block_events = Vec::new();
+    let mut records = Vec::new();
+    for event in events {
+        match HashCommitment::from_event(&event) {
+            None => block_events.push(event),
+            Some(Ok(record)) => records.push(record),
+            Some(Err(e)) => log::debug!("Dropping malformed hash commitment: {}", e),
+        }
+    }
+    let (Some(params), Some(window)) = (&view.params, &view.window) else {
+        if !records.is_empty() {
+            log::info!(
+                "Dropping {} hash commitments: no hash lane or no anchor window yet",
+                records.len()
+            );
+        }
+        return (block_events, Vec::new());
+    };
+    records.retain(|r| match r.verify_for_vote(params, window) {
+        Ok(()) => true,
+        Err(e) => {
+            log::debug!("Dropping hash commitment: {}", e);
+            false
+        }
+    });
+    let (taken, mut rest) = select_for_block(records, params.quota_per_block);
+    rest.truncate(params.quota_per_block * CARRY_OVER_BLOCKS);
+    let to_event = |r: HashCommitment| r.to_event().ok();
+    block_events.extend(taken.into_iter().filter_map(to_event));
+    (block_events, rest.into_iter().filter_map(to_event).collect())
+}
+
+/// Whether this sequencer votes for a peer's draft, as far as the hash lane
+/// goes.
+pub fn check_draft(block: &SequencerBlock, view: &LaneView) -> Result<()> {
+    let carries_records = block
+        .events
+        .iter()
+        .any(|e| HashCommitment::from_event(e).is_some());
+    if !carries_records {
+        return Ok(());
+    }
+    let Some(window) = &view.window else {
+        bail!("no anchor window yet");
+    };
+    check_block_events(&block.events, view.params.as_ref(), window)
+}
+
+/// Index the hash commitments of a certified block. Returns how many were
+/// new here.
+pub fn index_certified(block: &SequencerBlock, batch_id: &str, mgr: &DatastoreManager) -> usize {
+    let has_records = block
+        .events
+        .iter()
+        .any(|e| HashCommitment::from_event(e).is_some());
+    if !has_records {
+        return 0;
+    }
+    let params = match mgr.hash_lane_params() {
+        Ok(Some(params)) => params,
+        Ok(None) => {
+            log::warn!(
+                "Certified block round {} carries hash commitments on a network without a hash lane",
+                block.round_id
+            );
+            return 0;
+        }
+        Err(e) => {
+            log::warn!("Hash lane parameters unreadable: {}", e);
+            return 0;
+        }
+    };
+    let mut indexed = 0;
+    for record in records_to_index(&block.events, &params) {
+        let mut entry = match serde_json::to_value(&record) {
+            Ok(entry) => entry,
+            Err(_) => continue,
+        };
+        entry["work_bits"] = json!(record.work_bits());
+        entry["batch_id"] = json!(batch_id);
+        entry["round_id"] = json!(block.round_id);
+        entry["sequencer"] = json!(block.peer_id);
+        match mgr.save_hash_commitment(&entry) {
+            Ok(true) => {
+                indexed += 1;
+                log::info!(
+                    "Hash commitment {} for contract {} anchored in round {}",
+                    record.commit_id,
+                    record.contract_id,
+                    block.round_id
+                );
+            }
+            Ok(false) => {}
+            Err(e) => log::warn!("Failed to index hash commitment: {}", e),
+        }
+    }
+    indexed
+}
+
+/// Why a reveal cannot be sequenced.
+#[derive(Debug, PartialEq, Eq)]
+pub enum RevealRefusal {
+    /// No certified record for the commit here yet.
+    NotAnchored,
+    /// The body is not the commit the record names.
+    Mismatch(String),
+}
+
+impl std::fmt::Display for RevealRefusal {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::NotAnchored => write!(f, "no certified hash commitment for this commit"),
+            Self::Mismatch(why) => write!(f, "{why}"),
+        }
+    }
+}
+
+pub fn is_reveal(commit_entry: &Value) -> bool {
+    commit_entry.get("reveal").and_then(Value::as_bool) == Some(true)
+}
+
+/// A reveal is sequenced only if its body hashes to its commit id and a
+/// certified hash commitment names that commit at the same parent.
+pub fn check_reveal(
+    mgr: &DatastoreManager,
+    contract_id: &str,
+    commit_id: &str,
+    commit_entry: &Value,
+) -> std::result::Result<(), RevealRefusal> {
+    let file: CommitFile = serde_json::from_value(json!({
+        "body": commit_entry.get("body").or_else(|| commit_entry.get("data")),
+        "head": commit_entry.get("head"),
+    }))
+    .map_err(|e| RevealRefusal::Mismatch(format!("reveal is not a commit: {e}")))?;
+    let computed = file
+        .compute_id()
+        .map_err(|e| RevealRefusal::Mismatch(e.to_string()))?;
+    if computed != commit_id {
+        return Err(RevealRefusal::Mismatch(format!(
+            "reveal body hashes to {computed}, not to commit {commit_id}"
+        )));
+    }
+    let Some(record) = mgr
+        .hash_commitment(contract_id, commit_id)
+        .map_err(|e| RevealRefusal::Mismatch(e.to_string()))?
+    else {
+        return Err(RevealRefusal::NotAnchored);
+    };
+    let anchored_parent = record.get("parent").and_then(Value::as_str);
+    if anchored_parent != file.head.parent.as_deref() {
+        return Err(RevealRefusal::Mismatch(format!(
+            "reveal of {commit_id} has parent {:?}, but its hash commitment names {:?}",
+            file.head.parent, anchored_parent
+        )));
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use modality_common::hash_commitment::HASHTAX_SHA256;
+    use modality_common::keypair::Keypair;
+
+    fn view(quota: usize) -> LaneView {
+        LaneView {
+            params: Some(HashLaneParams {
+                quota_per_block: quota,
+                floor_bits: 4,
+                algorithm: HASHTAX_SHA256.into(),
+            }),
+            window: Some(AnchorWindow {
+                epoch: 0,
+                anchors: vec![static_anchor("t")],
+            }),
+        }
+    }
+
+    fn record_event(keypair: &Keypair, commit: &str) -> Value {
+        let mut r = HashCommitment::signed(keypair, "c", commit, None).unwrap();
+        r.grind(&static_anchor("t"), 4).unwrap();
+        r.to_event().unwrap()
+    }
+
+    fn block(events: Vec<Value>) -> SequencerBlock {
+        SequencerBlock {
+            peer_id: "peer".into(),
+            round_id: 1,
+            prev_round_certs: Default::default(),
+            opening_sig: None,
+            events,
+            closing_sig: None,
+            hash: None,
+            acks: Default::default(),
+            late_acks: Vec::new(),
+            cert: None,
+            is_section_leader: None,
+            section_ending_block_id: None,
+            section_starting_block_id: None,
+            section_block_number: None,
+            block_number: None,
+            seen_at_block_id: None,
+        }
+    }
+
+    #[test]
+    fn the_proposer_fills_the_quota_and_carries_the_rest() {
+        let keypair = Keypair::generate().unwrap();
+        let mut events: Vec<Value> = (1..=5u8)
+            .map(|i| record_event(&keypair, &format!("{:02x}", i).repeat(32)))
+            .collect();
+        events.push(json!({"type": "contract_push", "data": {}}));
+        let (block_events, carried) = pick_for_proposal(events, &view(2));
+        assert_eq!(block_events.len(), 3);
+        assert_eq!(carried.len(), 3);
+        check_draft(&block(block_events), &view(2)).unwrap();
+    }
+
+    #[test]
+    fn no_lane_or_no_window_means_no_records_proposed_or_voted() {
+        let keypair = Keypair::generate().unwrap();
+        let events = vec![record_event(&keypair, &"11".repeat(32))];
+        let (block_events, carried) = pick_for_proposal(events.clone(), &LaneView::default());
+        assert!(block_events.is_empty() && carried.is_empty());
+        assert!(check_draft(&block(events.clone()), &LaneView::default()).is_err());
+        let mut no_window = view(2);
+        no_window.window = None;
+        assert!(check_draft(&block(events), &no_window).is_err());
+        check_draft(&block(vec![json!({"type": "contract_push"})]), &LaneView::default()).unwrap();
+    }
+
+    #[tokio::test]
+    async fn a_certified_record_is_indexed_once_and_a_reveal_must_match_it() {
+        let mgr = DatastoreManager::create_in_memory().unwrap();
+        mgr.load_network_config(&json!({
+            "name": "t",
+            "hash_lane": {"quota_per_block": 2, "floor_bits": 4}
+        }))
+        .await
+        .unwrap();
+
+        let body = json!([{"method": "post", "path": "/a.text", "value": "a"}]);
+        let head = json!({});
+        let file: CommitFile =
+            serde_json::from_value(json!({"body": body, "head": head})).unwrap();
+        let commit_id = file.compute_id().unwrap();
+        let entry = json!({"commit_id": commit_id, "body": body, "head": head, "reveal": true});
+
+        assert_eq!(
+            check_reveal(&mgr, "c", &commit_id, &entry),
+            Err(RevealRefusal::NotAnchored)
+        );
+
+        let keypair = Keypair::generate().unwrap();
+        let certified = block(vec![record_event(&keypair, &commit_id)]);
+        assert_eq!(index_certified(&certified, "batch-1", &mgr), 1);
+        assert_eq!(index_certified(&certified, "batch-2", &mgr), 0);
+        assert_eq!(
+            mgr.hash_commitment("c", &commit_id).unwrap().unwrap()["batch_id"],
+            "batch-1"
+        );
+
+        check_reveal(&mgr, "c", &commit_id, &entry).unwrap();
+
+        let tampered = json!({"commit_id": commit_id, "body": [], "head": head, "reveal": true});
+        assert!(matches!(
+            check_reveal(&mgr, "c", &commit_id, &tampered),
+            Err(RevealRefusal::Mismatch(_))
+        ));
+
+        let reparented_head = json!({"parent": "22".repeat(32)});
+        let reparented_file: CommitFile =
+            serde_json::from_value(json!({"body": body, "head": reparented_head})).unwrap();
+        let reparented_id = reparented_file.compute_id().unwrap();
+        let reparented_record = block(vec![record_event(&keypair, &reparented_id)]);
+        assert_eq!(index_certified(&reparented_record, "batch-3", &mgr), 1);
+        let entry = json!({"commit_id": reparented_id, "body": body, "head": reparented_head});
+        let err = check_reveal(&mgr, "c", &reparented_id, &entry).unwrap_err();
+        assert!(err.to_string().contains("parent"), "{err}");
+    }
+}

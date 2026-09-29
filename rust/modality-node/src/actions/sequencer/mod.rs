@@ -12,6 +12,7 @@ mod ack_collector;
 pub(crate) mod cert_sync;
 pub mod checkpoint;
 pub(crate) mod consensus;
+pub(crate) mod hash_lane;
 mod hybrid;
 
 use anyhow::Result;

@@ -134,6 +134,11 @@ pub struct NetworkInfo {
     /// running network re-judges accepted logs, so it is a hard fork.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub predicate_theory_version: Option<String>,
+
+    /// Hash-lane parameters (`quota_per_block`, `floor_bits`, `algorithm`).
+    /// Omitted = no hash lane. Fixed from genesis like the theory version.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hash_lane: Option<serde_json::Value>,
 }
 
 const DEFAULT_QC_NUMERATOR: u64 = 2;
@@ -432,6 +437,7 @@ mod tests {
             initial_difficulty: None,
             target_block_time_secs: None,
             predicate_theory_version: None,
+            hash_lane: None,
         };
         assert_eq!(network.get_checkpoint_mode(), CheckpointMode::None);
         assert!(!network.checkpoints_enabled());
@@ -457,6 +463,7 @@ mod tests {
             initial_difficulty: None,
             target_block_time_secs: None,
             predicate_theory_version: None,
+            hash_lane: None,
         };
         assert_eq!(network.get_checkpoint_mode(), CheckpointMode::Consensus);
         assert!(network.checkpoints_enabled());
@@ -481,6 +488,7 @@ mod tests {
             initial_difficulty: None,
             target_block_time_secs: None,
             predicate_theory_version: None,
+            hash_lane: None,
             checkpoints: Some(vec![
                 ManualCheckpoint {
                     block_index: 100,

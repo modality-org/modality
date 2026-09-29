@@ -6,6 +6,7 @@ pub mod commit_signatures;
 pub mod contract_store;
 pub mod encrypted_text;
 pub mod exact_num;
+pub mod hash_commitment;
 pub mod hash_tax;
 pub mod hub_client;
 pub mod independent_replay;
