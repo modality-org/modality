@@ -15,6 +15,16 @@ That installs the `modal` CLI. Then create [your first contract](./first-contrac
 Build from source when you need a development binary or the lean onboarding
 wrapper.
 
+To join the public testnet, install the testnet build. It includes
+`modal node`:
+
+```bash
+curl -fsSL https://get.modality.org/testnet/latest/install.sh | sh
+```
+
+See [Join the public testnet](../cli/join-testnet). The testnet install is a
+different binary from the language install above.
+
 ## Prerequisites (from source)
 
 - Git

@@ -26,12 +26,13 @@ one fails. So a rule that no model can meet cannot be added.
 
 That does not prove the contract can always move. A rule such as
 `always([] false)` is met by a model with no moves, and then no commit is
-ever accepted again. Under predicate theory V0, the network default, the
-validator reads each predicate label as an opaque name. A model can then meet
-a rule with an edge whose labels cannot hold together, such as
-`+num_gt(/x.num, "5") +num_lt(/x.num, "3")`. No commit takes that edge, so a
-rule that needs it can leave the contract stuck. `modal c theory` lists those
-dead edges; networks that enforce theory V2 refuse them.
+ever accepted again. The public testnet runs predicate theory v2 and refuses
+an edge whose labels cannot hold together, such as
+`+num_gt(/x.num, "5") +num_lt(/x.num, "3")`. A network that sets no version,
+such as the bundled devnets, runs v0 and reads each predicate label as an
+opaque name. On v0 a model can meet a rule with that edge, and then no commit
+takes it, so a rule that needs it can leave the contract stuck. `modal c theory`
+lists those dead edges. See [Predicate theory](../reference/predicate-theory).
 
 ## Basic Structure
 

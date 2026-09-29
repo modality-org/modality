@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# A network that enforces predicate theory V2 refuses a model with a dead edge,
-# even though local verify (V0) accepts it and only warns. The fixed model is
+# A network that enforces predicate theory V2 refuses a model with a dead edge.
+# Local verify refuses it too by default (v2); under --theory v0 it accepts it
+# and only warns, and the sequencer still refuses it. The fixed model is
 # sequenced and pulled. Unnumbered: not part of the stable numbered suite.
 
 set -e
@@ -68,8 +69,14 @@ model Escrow {
 EOF
 
 echo ""
-echo "Local verify (V0) accepts the slipped model and previews the V2 refusal..."
-SLIP_OUT=$(modal commit --all --dir "$CONTRACT_DIR" --output json --message "Escrow with a slipped refund edge")
+echo "Local verify refuses the slipped model under the default theory (v2)..."
+check "modal commit refuses the dead refund edge by default" \
+  bash -c "! modal commit --all --dir '$CONTRACT_DIR' --output json --message 'Escrow with a slipped refund edge' >> '$CURRENT_LOG' 2>&1"
+check "The refusal leaves HEAD at genesis" test "$(cat "$CONTRACT_DIR/.contract/HEAD")" = "$GENESIS_HEAD"
+
+echo ""
+echo "Under --theory v0, local verify accepts the slipped model and previews the V2 refusal..."
+SLIP_OUT=$(modal commit --all --theory v0 --dir "$CONTRACT_DIR" --output json --message "Escrow with a slipped refund edge")
 echo "$SLIP_OUT" > ./tmp/commit-slipped.json
 echo "$SLIP_OUT" >> "$CURRENT_LOG"
 SLIP_ID=$(cat "$CONTRACT_DIR/.contract/HEAD")

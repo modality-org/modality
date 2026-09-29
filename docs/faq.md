@@ -41,9 +41,11 @@ Smart contracts are programs, usually on a chain. Audits look for bugs in
 those programs.
 
 A Modality contract is specified as a model and formulas. The verifier
-rejects a commit that has no valid witness. You can start locally, or share
-through a [Contract Hub](/docs/tutorials/contract-hub). You do not need a
-chain to check an agreement.
+rejects a commit that has no valid witness. You can check one locally, share
+it through a [Contract Hub](/docs/tutorials/contract-hub), or post the log to
+the [public testnet](/docs/cli/join-testnet). A program there computes a
+move; the accumulated rules still bound what it may do. See the
+[constant-product pool](/docs/tutorials/constant-product-pool).
 
 ## How do verifiable contracts work?
 
@@ -77,14 +79,18 @@ See the [formula cookbook](/docs/language/formula-cookbook).
 
 ## Do I need a network to use Modality?
 
-No. A contract is files on disk. Start locally, or use a
-[Contract Hub](/docs/tutorials/contract-hub) when several parties need to
-push and pull.
+No. A contract is files on disk. Start locally. When other parties need to
+replay the same log, [join the public testnet](/docs/cli/join-testnet) or use
+a [Contract Hub](/docs/tutorials/contract-hub). The testnet runs predicate
+theory v2: signatures are checked, and an edge whose labels cannot hold
+together is refused.
 
 ## How do I get started?
 
 Install `modal`, then create [your first contract](/docs/getting-started/first-contract).
-Tutorials cover escrow, membership, and hub workflows.
+From there, [join the public testnet](/docs/cli/join-testnet) or read the
+[constant-product pool](/docs/tutorials/constant-product-pool). Other
+tutorials cover escrow, membership, and hub workflows.
 
 ## Is Modality open source?
 

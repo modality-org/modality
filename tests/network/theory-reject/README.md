@@ -8,8 +8,9 @@ Alice sells Bob a laptop for 100 through an escrow model. The refund edge was
 copied from the release edge and still says `num_gte(/escrow/paid.num,"100")`
 next to `num_lt(/escrow/paid.num,"100")`, so no commit can ever take it.
 
-1. `modal commit` accepts the model (local verify uses V0) and prints a V2
-   preview; `modal contract theory` names the dead edge.
+1. `modal commit` refuses the model, since local verify uses `v2` by default.
+   With `--theory v0` it accepts the model and prints a V2 preview;
+   `modal contract theory` names the dead edge.
 2. The sequencer refuses the pushed commit with the same explanation, and
    `modal contract pull` does not return it.
 3. With the stray `num_gte` deleted, the model is sequenced and pulled.

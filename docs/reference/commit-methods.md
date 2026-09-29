@@ -1,3 +1,8 @@
+---
+sidebar_position: 3
+title: Commit Methods
+---
+
 # Commit Methods
 
 Modality contracts are append-only logs of commits. Each commit contains one or more **actions**, and each action has a **method** that determines what it does.

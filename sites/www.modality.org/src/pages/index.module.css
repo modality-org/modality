@@ -13,7 +13,7 @@
 .page {
   max-width: 52rem;
   margin: 0 auto;
-  padding: 0 1.5rem 6rem;
+  padding: 4.5rem 1.5rem 6rem;
 }
 
 .hero {
@@ -36,85 +36,85 @@
   max-width: 100%;
 }
 
-.hero > .worlds {
+.hero > .models {
   max-width: none;
 }
 
-.worlds {
+.models {
   position: absolute;
   inset: 0;
-  display: block;
-  width: 100%;
-  height: 100%;
-  max-width: none;
+  z-index: 0;
   overflow: hidden;
-  contain: paint;
   pointer-events: none;
   color: var(--ifm-color-primary);
-  opacity: 0.55;
-  z-index: 0;
   mix-blend-mode: multiply;
 }
 
-:global(html[data-theme='dark']) .worlds {
+:global(html[data-theme='dark']) .models {
   mix-blend-mode: screen;
-  opacity: 0.5;
 }
 
-.orbit {
+.model {
+  position: absolute;
+  width: clamp(104px, 9vw, 138px);
+  height: auto;
+  overflow: visible;
+  opacity: 0;
+}
+
+.edge {
   fill: none;
   stroke: currentColor;
-  stroke-width: 1.15;
+  stroke-width: 1.35;
   stroke-linecap: round;
   stroke-linejoin: round;
-  stroke-dasharray: 2200;
-  stroke-dashoffset: 2200;
-  animation: drawOrbit 2.8s cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
 
-.world {
+.dot {
   fill: var(--ifm-background-color);
   stroke: currentColor;
-  stroke-width: 1.25;
-  opacity: 0;
-  animation: fadeWorld 0.9s ease forwards;
+  stroke-width: 1.4;
 }
 
-.world:nth-child(2) { animation-delay: 0.45s; }
-.world:nth-child(3) { animation-delay: 0.6s; }
-.world:nth-child(4) { animation-delay: 0.75s; }
-.world:nth-child(5) { animation-delay: 0.9s; }
-.world:nth-child(6) { animation-delay: 1.05s; }
-
-.actualG {
-  transform-box: fill-box;
-  transform-origin: center;
-}
-
-.actualRing {
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1;
-  transform-origin: 0 0;
-  animation: pulseRing 5.5s ease-in-out infinite;
-  animation-delay: 1.2s;
-}
-
-.actual {
+.seed {
   fill: currentColor;
   stroke: none;
 }
 
-.token {
-  fill: currentColor;
-  stroke: none;
-  filter: drop-shadow(0 0 6px currentColor);
+.m1 { top: 8%; left: 3.5%; animation: rise 1s ease 0.05s forwards, drift1 15s ease-in-out 1s infinite; }
+.m2 { top: 11%; right: 5%; animation: rise 1s ease 0.2s forwards, drift2 18s ease-in-out 1.2s infinite; }
+.m3 { top: 40%; left: 2.5%; animation: rise 1s ease 0.35s forwards, drift3 16s ease-in-out 1.3s infinite; }
+.m4 { top: 44%; right: 4.5%; animation: rise 1s ease 0.15s forwards, drift4 17s ease-in-out 1.1s infinite; }
+.m5 { bottom: 18%; left: 5%; animation: rise 1s ease 0.45s forwards, drift5 19s ease-in-out 1.4s infinite; }
+.m6 { bottom: 20%; right: 5%; animation: rise 1s ease 0.28s forwards, drift6 14s ease-in-out 1.2s infinite; }
+
+@keyframes rise {
+  to { opacity: 0.5; }
 }
 
-.tokenStill {
-  display: none;
-  fill: currentColor;
-  stroke: none;
+@keyframes drift1 {
+  0%, 100% { transform: rotate(-4deg) translateY(0); }
+  50% { transform: rotate(-4deg) translateY(-10px); }
+}
+@keyframes drift2 {
+  0%, 100% { transform: rotate(4deg) translate(0, 0); }
+  50% { transform: rotate(4deg) translate(-6px, 8px); }
+}
+@keyframes drift3 {
+  0%, 100% { transform: rotate(-3deg) translateY(0); }
+  50% { transform: rotate(-3deg) translateY(9px); }
+}
+@keyframes drift4 {
+  0%, 100% { transform: rotate(5deg) translate(0, 0); }
+  50% { transform: rotate(5deg) translate(5px, -8px); }
+}
+@keyframes drift5 {
+  0%, 100% { transform: rotate(3deg) translateY(0); }
+  50% { transform: rotate(3deg) translateY(-8px); }
+}
+@keyframes drift6 {
+  0%, 100% { transform: rotate(-4deg) translate(0, 0); }
+  50% { transform: rotate(-4deg) translate(-6px, -7px); }
 }
 
 .river {
@@ -155,30 +155,6 @@
   white-space: nowrap;
   color: var(--ifm-color-primary);
   opacity: 0.55;
-}
-
-@keyframes drawOrbit {
-  to {
-    stroke-dashoffset: 0;
-  }
-}
-
-@keyframes fadeWorld {
-  to {
-    opacity: 1;
-  }
-}
-
-@keyframes pulseRing {
-  0%,
-  100% {
-    transform: scale(1);
-    opacity: 0.55;
-  }
-  50% {
-    transform: scale(1.55);
-    opacity: 0.12;
-  }
 }
 
 @keyframes river {
@@ -235,6 +211,156 @@
   line-height: 1.55;
   color: var(--ifm-color-emphasis-700);
   font-weight: 400;
+}
+
+.sketch {
+  display: block;
+  width: 100%;
+  height: auto;
+  margin: 0 0 0.85rem;
+  color: var(--ifm-color-emphasis-800);
+}
+
+.spine,
+.node {
+  stroke: currentColor;
+  stroke-width: 1.4;
+  fill: var(--ifm-background-color);
+}
+
+.spine {
+  fill: none;
+  opacity: 0.55;
+}
+
+.node {
+  fill: currentColor;
+}
+
+.commit,
+.ring {
+  fill: var(--ifm-background-color);
+  stroke: currentColor;
+  stroke-width: 1.35;
+}
+
+.commitIn,
+.nodeIn,
+.keyIn {
+  stroke: var(--ifm-color-primary);
+  stroke-width: 1.6;
+}
+
+.commitIn {
+  fill: var(--ifm-background-color);
+}
+
+.nodeIn,
+.keyIn {
+  fill: var(--ifm-color-primary);
+}
+
+.commitOut {
+  fill: transparent;
+  stroke: var(--ifm-color-danger);
+  stroke-width: 1.35;
+  stroke-dasharray: 4 3;
+}
+
+.keyOut,
+.mark {
+  stroke: var(--ifm-color-danger);
+  stroke-width: 1.6;
+  fill: var(--ifm-color-danger);
+}
+
+.mark {
+  fill: none;
+  stroke-linecap: round;
+}
+
+.halting {
+  animation: halt 1.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.joining {
+  animation: join 1.15s cubic-bezier(0.22, 1, 0.36, 1) 0.12s both;
+}
+
+@keyframes halt {
+  from {
+    transform: translate(18px, 10px);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+
+@keyframes join {
+  from {
+    transform: translateY(16px);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+
+.scene {
+  margin: 0;
+}
+
+.exampleActions {
+  display: flex;
+  margin-top: 1.5rem;
+}
+
+.caption,
+.captionRefused,
+.captionOk {
+  margin: 0 0 0.35rem;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.caption {
+  color: var(--ifm-color-emphasis-600);
+}
+
+.captionRefused {
+  color: var(--ifm-color-danger);
+}
+
+.captionOk {
+  color: var(--ifm-color-primary-dark);
+}
+
+:global(html[data-theme='dark']) .captionOk {
+  color: var(--ifm-color-primary-light);
+}
+
+.pair {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.85rem;
+  margin-top: 0.85rem;
+}
+
+.pair .cmd {
+  margin: 0;
+}
+
+.note {
+  margin: 0.4rem 0 0;
+  font-size: 0.92rem;
+  line-height: 1.4;
+  color: var(--ifm-color-emphasis-700);
 }
 
 .actions {
@@ -345,6 +471,18 @@
   color: var(--ifm-heading-color);
 }
 
+@media (min-width: 768px) {
+  .pair {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 1080px) {
+  .models {
+    display: none;
+  }
+}
+
 @media (max-width: 640px) {
   .hero {
     min-height: calc(100svh - 4rem);
@@ -359,8 +497,8 @@
     font-size: clamp(2.15rem, 11vw, 3.1rem);
   }
 
-  .worlds {
-    opacity: 0.28;
+  .models {
+    display: none;
   }
 
   .cmd {
@@ -375,33 +513,14 @@
     transition: none;
   }
 
-  .worlds {
-    opacity: 0.4;
-  }
-
-  .orbit,
-  .world,
-  .actualRing {
+  .model {
     animation: none;
+    opacity: 0.45;
   }
 
-  .orbit {
-    stroke-dashoffset: 0;
-  }
-
-  .world {
-    opacity: 1;
-  }
-
-  .token {
-    display: none;
-  }
-
-  .tokenStill {
-    display: block;
-  }
-
-  .riverTrack {
+  .riverTrack,
+  .halting,
+  .joining {
     animation: none;
   }
 }

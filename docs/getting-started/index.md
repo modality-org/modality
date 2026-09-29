@@ -41,7 +41,17 @@ You can add Modality to almost any software project — the same way you might a
 | **Rust libraries** | Native services | Embed `modality-lang`, `modality-common`, and related crates directly in Rust binaries. |
 | **WASM / browser** | Client-side verification | Parse and check models in the browser via `@modality-dev/wasm` (`modality-lang` compiled to WASM). |
 
-**Local-first.** A contract starts as files on disk (`state/`, `model/`, `rules/`, commit history) — comparable to a git repo. When parties need to share, you sync to a hub.
+**Local-first.** A contract starts as files on disk (`state/`, `model/`, `rules/`, commit history) — comparable to a git repo. When parties need to share, you sync to a hub, or post the log to the public testnet.
+
+## On the public testnet
+
+The public testnet runs [predicate theory](../reference/predicate-theory) v2. Signatures are checked, and an edge whose labels cannot hold together is refused. `modal c commit` verifies under v2 by default. This testnet is not mainnet.
+
+A program there computes a move. The accumulated rules still bound what it may do. The [constant-product pool](../tutorials/constant-product-pool) is that contract: payouts go to someone who paid in, and a swap never lowers the fee-adjusted product. [`SEND`](../reference/commit-methods#send), [`RECV`](../reference/commit-methods#recv), and [`invoke`](../reference/commit-methods#invoke) are the commit methods that move assets and run the program.
+
+- [Join the public testnet](../cli/join-testnet)
+- [Predicate theory](../reference/predicate-theory)
+- [Commit methods](../reference/commit-methods)
 
 **Typical embedding patterns:**
 
@@ -56,3 +66,5 @@ You do not need to rewrite your stack. Pick the surface that fits: CLI for explo
 
 1. [Install `modal`](./installation.md)
 2. [Write your first contract](./first-contract.md)
+3. [Join the public testnet](../cli/join-testnet)
+4. [Read the constant-product pool](../tutorials/constant-product-pool)

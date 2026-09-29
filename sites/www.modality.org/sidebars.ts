@@ -61,6 +61,7 @@ const sidebars: SidebarsConfig = {
         'tutorials/multi-party-contract',
         'tutorials/multisig-treasury',
         'tutorials/oracle-escrow',
+        'tutorials/constant-product-pool',
         'tutorials/contract-hub',
         'tutorials/hub-and-assets',
         'tutorials/js-sdk-hub',
@@ -72,6 +73,7 @@ const sidebars: SidebarsConfig = {
       items: [
         'reference/standard-predicates',
         'reference/predicate-theory',
+        'reference/commit-methods',
         'reference/contract-evolution',
         'reference/verifier-rejections',
         'reference/synthesis-review',

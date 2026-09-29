@@ -89,9 +89,9 @@ pub struct Opts {
     #[clap(long)]
     action: Option<String>,
 
-    /// Predicate theory local verify runs. Use v2 for a network whose
-    /// network.json sets predicate_theory_version v2
-    #[clap(long, default_value = "v0", value_parser = ["v0", "v2"])]
+    /// Predicate theory local verify runs: v2, the testnet's. Use v0 for a
+    /// network whose network.json leaves predicate_theory_version unset
+    #[clap(long, default_value = "v2", value_parser = ["v0", "v2"])]
     theory: String,
 }
 
@@ -344,7 +344,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
         if let Some(preview) = &theory_preview {
             println!();
             println!(
-                "⚠️  Predicate theory {} preview (local verify uses V0; a network that sets predicate_theory_version v2 enforces this):",
+                "⚠️  Predicate theory {} preview (local verify used --theory v0; the testnet, and any network that sets predicate_theory_version v2, enforces this):",
                 preview.theory
             );
             for line in &preview.lines {
@@ -579,7 +579,7 @@ mod tests {
 "#;
 
     #[tokio::test]
-    async fn previews_a_dead_edge_without_refusing_the_commit() -> Result<()> {
+    async fn v2_refuses_a_dead_edge_that_v0_only_previews() -> Result<()> {
         let temp = TempDir::new()?;
         let dir = temp.path().join("escrow");
         let dir_arg = dir.to_string_lossy().to_string();
@@ -619,9 +619,22 @@ mod tests {
             preview.lines
         );
 
+        let err = crate::commit::run(&Opts::parse_from([
+            "commit",
+            "--all",
+            "--dir",
+            dir_arg.as_str(),
+            "--output",
+            "json",
+        ]))
+        .await
+        .expect_err("the default theory is v2, which refuses the dead edge");
+        assert!(err.to_string().contains("open --> refunded"), "{err}");
         crate::commit::run(&Opts::parse_from([
             "commit",
             "--all",
+            "--theory",
+            "v0",
             "--dir",
             dir_arg.as_str(),
             "--output",

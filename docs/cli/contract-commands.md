@@ -60,7 +60,7 @@ or an inline domain action.
 | `--amount <AMOUNT>` | Amount for `SEND` commits; on a `RECV`, the amount it states it receives. Apply refuses a `RECV` whose statement differs from its `SEND` |
 | `--send-commit-id <SEND_COMMIT_ID>` | Source `SEND` commit ID for `RECV` commits |
 | `--send-index <N>` | Which `SEND` of that commit a `RECV` takes, from 0 (default); emitted `SEND`s count in `invoke` order |
-| `--theory <v0\|v2>` | Predicate theory local verify runs (default `v0`). Use `v2` for a network whose `network.json` sets `predicate_theory_version: "v2"`. With it, a rule that `v0` refuses, such as `always([+SEND -any_signed(/claimants)] false)`, can be committed locally. See [Predicate theory](../reference/predicate-theory.md) |
+| `--theory <v0\|v2>` | Predicate theory local verify runs (default `v2`, what the testnet runs). Use `v0` for a network whose `network.json` leaves `predicate_theory_version` unset, such as the bundled devnets. The two differ both ways: `v2` refuses dead model edges that `v0` accepts, and accepts rules that `v0` refuses, such as `always([+SEND -any_signed(/claimants)] false)`. See [Predicate theory](../reference/predicate-theory.md) |
 
 **Examples:**
 ```bash
@@ -86,11 +86,11 @@ modal c commit --path /notes.text --value "signed update" --sign alice
 modal c commit --action '{"type":"DEPOSIT","amount":100}' --sign alice
 ```
 
-After a commit is accepted, `modal c commit` previews what predicate theory V2
-would change about it. For example, it names a model edge whose labels can never
-hold together, such as `+num_lt(/escrow/paid.num,"100")` beside
-`+num_gte(/escrow/paid.num,"100")`. Local verify still uses V0, so the preview
-is a warning. Sequencers and validators refuse the commit if the network sets
+Under the default `--theory v2`, `modal c commit` refuses a model edge whose
+labels can never hold together, such as `+num_lt(/escrow/paid.num,"100")` beside
+`+num_gte(/escrow/paid.num,"100")`. With `--theory v0`, the commit is accepted
+and the output previews what `v2` would change about it, as a warning.
+Sequencers and validators refuse the commit if the network sets
 `predicate_theory_version` to `v2`. With `--output json`, the findings are
 under `theory_preview`.
 
