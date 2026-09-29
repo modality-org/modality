@@ -246,7 +246,7 @@ impl<'a> Theory<'a> {
 
     /// What the accepted state says about every path the literals mention,
     /// as literals true in every world with that state. Lean: `stateFacts`.
-    fn state_facts(&self, lits: &[Lit]) -> Vec<Lit> {
+    pub fn state_facts(&self, lits: &[Lit]) -> Vec<Lit> {
         let mut out = Vec::new();
         for p in witness::all_paths(lits) {
             match self.state.value_at(&p) {

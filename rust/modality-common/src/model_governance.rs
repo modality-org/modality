@@ -798,14 +798,18 @@ fn anchored_rules_from_commit(
 }
 
 /// `state` is accepted state after the anchoring commit; it supplies the
-/// contract's committed declarations under a theory version above `V0`.
+/// contract's committed declarations under a theory version above `V0`,
+/// and under `V2` what every run from the anchor starts knowing.
 fn validate_anchored_rule(
     model: &Model,
     rule: &AnchoredRule,
     theory: TheoryVersion,
     state: &HashMap<String, Value>,
 ) -> Result<()> {
-    let checker = rule_checker(model, theory, state);
+    let mut checker = rule_checker(model, theory, state);
+    if theory == TheoryVersion::V2 {
+        checker = checker.with_anchor_state(Box::new(OwnedAcceptedState(state.clone())));
+    }
 
     for anchor in &rule.anchor_states {
         let result = checker.check_formula_at_state(&rule.formula, anchor);

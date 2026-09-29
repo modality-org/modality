@@ -1498,3 +1498,30 @@ model Contract {
         validate(&accepted, &signed(note(), &["KEY_A"]), theory).expect("Alice may");
     }
 }
+
+#[test]
+fn v2_rule_checks_start_from_the_accepted_state() {
+    const FLAG: &str = r#"
+model Contract {
+  part flow {
+    q0 --> q1
+    q1 --> q1: +POST -modifies(/f.bool)
+    q1 --> q1: +bool_false(/f.bool) -modifies(/f.bool)
+  }
+}
+"#;
+    let rule = || rule_commit("<+bool_false(/f.bool)> true");
+
+    let accepted = vec![model_commit(FLAG, vec![("/f.bool", json!(true))])];
+    validate(&accepted, &rule(), V1).expect("V1 knows nothing about /f.bool");
+    let err = validate(&accepted, &rule(), TheoryVersion::V2)
+        .expect_err("/f.bool is true and no edge writes it")
+        .to_string();
+    assert!(err.contains("Model violates rule"), "{err}");
+
+    let accepted = vec![model_commit(FLAG, vec![("/f.bool", json!(false))])];
+    validate(&accepted, &rule(), TheoryVersion::V2).expect("/f.bool is false");
+    let accepted = then(&accepted, &rule());
+    validate(&accepted, &note(), TheoryVersion::V2)
+        .expect("replay re-checks the rule from the state it was added in");
+}

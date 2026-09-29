@@ -5,8 +5,9 @@
 //! edge with `-modifies(q)` therefore leaves every path under `q` as it
 //! was, and a literal that reads only such paths holds after the commit
 //! if it held before. The facts at a node are the literals that hold
-//! however the contract arrived there: none at an initial node, and
-//! otherwise what every edge into it carries. An edge whose labels
+//! however the contract arrived there: at an initial node what the seed
+//! says (nothing, or what accepted state says there), and otherwise what
+//! every edge into it carries. An edge whose labels
 //! contradict the facts at its node is never taken once the contract is
 //! under way. That is a lint, never a refusal: contracts may end.
 //!
@@ -88,18 +89,27 @@ pub struct Flow {
     pub dead_after: Vec<(usize, Vec<Lit>)>,
 }
 
-/// Facts on arrival at every node from `initial`, and the edges they rule
-/// out. An edge ruled out, or dead on its own, is never taken, so it
-/// carries nothing into its target; the facts are recomputed until no
-/// more edges fall.
+/// Facts on arrival at every node from `initial`, knowing nothing there.
 pub fn flow(edges: &[FlowEdge], initial: &[String]) -> Flow {
+    flow_seeded(edges, initial, &[])
+}
+
+/// Facts on arrival at every node from `initial`, where every run starts
+/// with `seed` true, and the edges they rule out. An edge ruled out, or
+/// dead on its own, is never taken, so it carries nothing into its target;
+/// the facts are recomputed until no more edges fall. Lean: `Closed` with
+/// `seed`; from accepted state, `stateFacts_seed`.
+pub fn flow_seeded(edges: &[FlowEdge], initial: &[String], seed: &[Lit]) -> Flow {
+    let mut seed = seed.to_vec();
+    seed.sort();
+    seed.dedup();
     let mut taken: Vec<bool> = edges
         .iter()
         .map(|e| e.lits.as_ref().is_none_or(|l| dead(l).is_none()))
         .collect();
     let live = taken.clone();
     loop {
-        let facts = fixpoint(edges, initial, &taken);
+        let facts = fixpoint(edges, initial, &seed, &taken);
         let falls = falling(edges, &facts, &taken);
         if falls.is_empty() {
             // Report against the final facts: an edge out of a node that a
@@ -141,11 +151,16 @@ fn falling(
 }
 
 /// The greatest facts closed under [`post`] over the edges still taken:
-/// each node's set starts at what its first edge in carries and only
-/// shrinks, so this ends.
-fn fixpoint(edges: &[FlowEdge], initial: &[String], taken: &[bool]) -> BTreeMap<String, Vec<Lit>> {
+/// each node's set starts at the seed (initial nodes) or at what its first
+/// edge in carries, and only shrinks, so this ends.
+fn fixpoint(
+    edges: &[FlowEdge],
+    initial: &[String],
+    seed: &[Lit],
+    taken: &[bool],
+) -> BTreeMap<String, Vec<Lit>> {
     let mut facts: BTreeMap<String, Vec<Lit>> =
-        initial.iter().map(|n| (n.clone(), Vec::new())).collect();
+        initial.iter().map(|n| (n.clone(), seed.to_vec())).collect();
     loop {
         let mut changed = false;
         for (e, _) in edges.iter().zip(taken).filter(|(_, t)| **t) {

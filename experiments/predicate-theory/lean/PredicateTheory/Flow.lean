@@ -11,11 +11,14 @@ therefore leaves every path under `q` as it was, and a literal that reads
 only such paths holds after the commit if it held before (`carry_sound`).
 
 Facts `F` give each node a literal set, or nothing for a node no run
-reaches. They are **closed** when an initial node has none, and every
-edge either cannot be taken from its node (`dead` on the node's facts and
-the edge's literals) or carries its target's facts (`post`). Closed facts
-hold on every run (`flow_sound`), so an edge whose literals are `dead`
-together with its node's facts is never taken (`dead_after_sound`).
+reaches. Runs start at an initial node in a state `Start` allows, and a
+`seed` holds in every such state. Facts are **closed** when an initial
+node has only seed facts, and every edge either cannot be taken from its
+node (`dead` on the node's facts and the edge's literals) or carries its
+target's facts (`post`). Closed facts hold on every run (`flow_sound`),
+so an edge whose literals are `dead` together with its node's facts is
+never taken (`dead_after_sound`). With nothing known the seed is empty;
+from an accepted state `S₀` it is `stateFacts S₀` (`stateFacts_seed`).
 `closedB` decides closure; the harness checks the facts the Rust computes
 with it. Rust twin: `theory/flow.rs`.
 -/
@@ -152,29 +155,36 @@ structure Arc where
   dst : Node
   deriving DecidableEq, Repr
 
-/-- Facts `F` are closed over the edges `G` from the initial nodes. -/
-def Closed (G : List Arc) (init : List Node) (F : Node → Option (List Lit)) : Prop :=
-  (∀ i ∈ init, F i = some []) ∧
+/-- Facts `F` are closed over the edges `G` from the initial nodes, which
+know at most `seed`. -/
+def Closed (G : List Arc) (init : List Node) (seed : List Lit)
+    (F : Node → Option (List Lit)) : Prop :=
+  (∀ i ∈ init, ∃ Fi, F i = some Fi ∧ ∀ l ∈ Fi, l ∈ seed) ∧
   ∀ e ∈ G, ∀ Fn, F e.src = some Fn →
     dead (Fn ++ e.lits) = true ∨ ∃ Fm, F e.dst = some Fm ∧ ∀ l ∈ Fm, l ∈ post Fn e.lits
 
-/-- A run from an initial node, in any accepted state, reaches node `n`
-with accepted state `S`: each commit takes an edge out of the node it is
-at, and the state moves as `Next` says. -/
-inductive Reach (I : Interp) (G : List Arc) (init : List Node) :
-    Node → List (Path × Value) → Prop
-  | start {i : Node} {S : List (Path × Value)} : i ∈ init → Reach I G init i S
+/-- A run from an initial node, in an accepted state `Start` allows,
+reaches node `n` with accepted state `S`: each commit takes an edge out of
+the node it is at, and the state moves as `Next` says. -/
+inductive Reach (I : Interp) (G : List Arc) (init : List Node)
+    (Start : List (Path × Value) → Prop) : Node → List (Path × Value) → Prop
+  | start {i : Node} {S : List (Path × Value)} : i ∈ init → Start S → Reach I G init Start i S
   | step {e : Arc} {w : World} {S' : List (Path × Value)} :
-      e ∈ G → Reach I G init e.src w.state → (∀ l ∈ e.lits, l.sem I w = true) →
-      Next w S' → Reach I G init e.dst S'
+      e ∈ G → Reach I G init Start e.src w.state → (∀ l ∈ e.lits, l.sem I w = true) →
+      Next w S' → Reach I G init Start e.dst S'
 
 /-- **Flow.** Closed facts hold at every node a run reaches, whatever the
 next commit is. -/
-theorem flow_sound {G : List Arc} {init : List Node} {F : Node → Option (List Lit)}
-    (hc : Closed G init F) {n : Node} {S : List (Path × Value)} (hr : Reach I G init n S) :
+theorem flow_sound {G : List Arc} {init : List Node} {seed : List Lit}
+    {Start : List (Path × Value) → Prop} {F : Node → Option (List Lit)}
+    (hc : Closed G init seed F)
+    (hs : ∀ l ∈ seed, ∀ w : World, Start w.state → l.sem I w = true)
+    {n : Node} {S : List (Path × Value)} (hr : Reach I G init Start n S) :
     ∃ Fn, F n = some Fn ∧ ∀ l ∈ Fn, ∀ w : World, w.state = S → l.sem I w = true := by
   induction hr with
-  | start hi => exact ⟨[], hc.1 _ hi, by simp⟩
+  | @start i S0 hi hS =>
+    obtain ⟨Fi, hFi, hsub⟩ := hc.1 i hi
+    exact ⟨Fi, hFi, fun l hl w hw => hs l (hsub l hl) w (by rw [hw]; exact hS)⟩
   | @step e w S' heG _ hl hn ih =>
     obtain ⟨Fn, hFn, hfacts⟩ := ih
     have hall : ∀ l ∈ Fn ++ e.lits, l.sem I w = true := by
@@ -188,23 +198,38 @@ theorem flow_sound {G : List Arc} {init : List Node} {F : Node → Option (List 
 
 /-- **Dead after a step.** Labels `dead` together with the facts at a node
 are taken by no commit on any run that reaches it. -/
-theorem dead_after_sound {G : List Arc} {init : List Node} {F : Node → Option (List Lit)}
-    (hc : Closed G init F) {n : Node} {S : List (Path × Value)} (hr : Reach I G init n S)
+theorem dead_after_sound {G : List Arc} {init : List Node} {seed : List Lit}
+    {Start : List (Path × Value) → Prop} {F : Node → Option (List Lit)}
+    (hc : Closed G init seed F)
+    (hs : ∀ l ∈ seed, ∀ w : World, Start w.state → l.sem I w = true)
+    {n : Node} {S : List (Path × Value)} (hr : Reach I G init Start n S)
     {Fn e : List Lit} (hFn : F n = some Fn) (hd : dead (Fn ++ e) = true) :
     ¬ ∃ w : World, w.state = S ∧ ∀ l ∈ e, l.sem I w = true := by
   rintro ⟨w, hw, he⟩
-  obtain ⟨Fn', hFn', hfacts⟩ := flow_sound hc hr
+  obtain ⟨Fn', hFn', hfacts⟩ := flow_sound hc hs hr
   rw [hFn] at hFn'
   cases hFn'
   exact dead_sound hd ⟨w, fun l hmem =>
     (List.mem_append.mp hmem).elim (fun h => hfacts l h w hw) (he l)⟩
 
+/-- **Seeded by accepted state.** A run that starts in `S₀` starts knowing
+what `S₀` says about every path `ls` mentions. -/
+theorem stateFacts_seed {S₀ : List (Path × Value)} {ls : List Lit} :
+    ∀ l ∈ stateFacts S₀ ls, ∀ w : World, w.state = S₀ → l.sem I w = true :=
+  fun l hl _ hw => stateFacts_hold hw l hl
+
+/-- Nothing known: the empty seed holds in every state. -/
+theorem empty_seed {Start : List (Path × Value) → Prop} :
+    ∀ l ∈ ([] : List Lit), ∀ w : World, Start w.state → l.sem I w = true := by
+  simp
+
 /-! ## Deciding closure -/
 
 /-- Closure of facts listed by node (a node not listed is reached by no
-run). -/
-def closedB (G : List Arc) (init : List Node) (F : List (Node × List Lit)) : Bool :=
-  init.all (fun i => F.lookup i == some []) &&
+run), from initial nodes that know at most `seed`. -/
+def closedB (G : List Arc) (init : List Node) (seed : List Lit)
+    (F : List (Node × List Lit)) : Bool :=
+  init.all (fun i => (F.lookup i).any fun Fi => Fi.all seed.contains) &&
   G.all fun e =>
     match F.lookup e.src with
     | none => true
@@ -214,10 +239,18 @@ def closedB (G : List Arc) (init : List Node) (F : List (Node × List Lit)) : Bo
         | some Fm => Fm.all fun l => (post Fn e.lits).contains l
         | none => false
 
-theorem closed_of_closedB {G : List Arc} {init : List Node} {F : List (Node × List Lit)}
-    (h : closedB G init F = true) : Closed G init (F.lookup ·) := by
-  simp only [closedB, Bool.and_eq_true, List.all_eq_true, beq_iff_eq] at h
-  refine ⟨h.1, fun e he Fn hFn => ?_⟩
+theorem closed_of_closedB {G : List Arc} {init : List Node} {seed : List Lit}
+    {F : List (Node × List Lit)}
+    (h : closedB G init seed F = true) : Closed G init seed (F.lookup ·) := by
+  simp only [closedB, Bool.and_eq_true, List.all_eq_true] at h
+  refine ⟨fun i hi => ?_, fun e he Fn hFn => ?_⟩
+  · have hi := h.1 i hi
+    cases hFi : F.lookup i with
+    | none => rw [hFi] at hi; simp at hi
+    | some Fi =>
+      rw [hFi] at hi
+      simp only [Option.any_some, List.all_eq_true] at hi
+      exact ⟨Fi, hFi, fun l hl => List.elem_iff.mp (hi l hl)⟩
   simp only at hFn
   have := h.2 e he
   rw [hFn] at this
@@ -255,15 +288,56 @@ def g6 : List Arc :=
 def g6Facts : List (Node × List Lit) :=
   [("q0", []), ("q1", post [] (expandAll standard g6First).lits)]
 
-theorem g6_closed : closedB g6 ["q0"] g6Facts = true := by decide
+theorem g6_closed : closedB g6 ["q0"] [] g6Facts = true := by decide
 
 /-- No run takes `q1 --> q2`. -/
-theorem g6_second_step_never_taken {S : List (Path × Value)} (hr : Reach I g6 ["q0"] "q1" S) :
+theorem g6_second_step_never_taken {Start : List (Path × Value) → Prop}
+    {S : List (Path × Value)} (hr : Reach I g6 ["q0"] Start "q1" S) :
     ¬ ∃ w : World, w.state = S ∧ ∀ l ∈ (expandAll standard g6Second).lits, l.sem I w = true :=
-  dead_after_sound (closed_of_closedB g6_closed) hr rfl (by decide)
+  dead_after_sound (closed_of_closedB g6_closed) empty_seed hr rfl (by decide)
 
 /-- Without the frame (case G5) nothing is carried. -/
 theorem g5_nothing_carried :
     post [] (expandAll standard (g6First.take 2)).lits = [] := by decide
+
+/-! ## Case G19: seeded by accepted state
+
+```
+q1 --> q1: -modifies(/f.bool)
+q1 --> q1: +bool_false(/f.bool) -modifies(/f.bool)
+```
+
+A rule anchored at `q1` with `/f.bool` true in accepted state: no edge
+writes it, so no run from there takes the second loop. Unseeded, nothing
+is known at `q1` and the loop stays. -/
+
+def g19Keep : List Label := [⟨false, "modifies", ["/f.bool"], false⟩]
+def g19Flip : List Label :=
+  [⟨true, "bool_false", ["/f.bool"], false⟩, ⟨false, "modifies", ["/f.bool"], false⟩]
+
+def g19 : List Arc :=
+  [⟨"q1", (expandAll standard g19Keep).lits, "q1"⟩,
+   ⟨"q1", (expandAll standard g19Flip).lits, "q1"⟩]
+
+def g19State : List (Path × Value) := [(["f.bool"], .bool true)]
+
+def g19Seed : List Lit := stateFacts g19State (g19.flatMap Arc.lits)
+
+def g19Facts : List (Node × List Lit) := [("q1", g19Seed)]
+
+theorem g19_closed : closedB g19 ["q1"] g19Seed g19Facts = true := by decide
+
+/-- From `q1` in that state, no run takes the second loop. -/
+theorem g19_flip_never_taken {S : List (Path × Value)}
+    (hr : Reach I g19 ["q1"] (· = g19State) "q1" S) :
+    ¬ ∃ w : World, w.state = S ∧ ∀ l ∈ (expandAll standard g19Flip).lits, l.sem I w = true :=
+  dead_after_sound (closed_of_closedB g19_closed)
+    (fun l hl w hw => stateFacts_seed (S₀ := g19State) (ls := g19.flatMap Arc.lits) l hl w hw)
+    hr rfl (by decide)
+
+/-- Without the seed nothing is known at `q1`, and the loop is not ruled
+out. -/
+theorem g19_unseeded_keeps_the_loop :
+    dead ([] ++ (expandAll standard g19Flip).lits) = false := by decide
 
 end PredicateTheory

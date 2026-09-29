@@ -127,13 +127,21 @@ node are what every way into it carries, and nothing at an initial node.
 An edge whose literals are `dead` together with its node's facts is taken
 by no run. Checking a model does not refuse such an edge, because
 contracts may end; the tools warn (`modality/dead-end-after-step`). Under
-`V2` a rule check drops those edges, with the flow started at the rule's
-anchor state and nothing known there: after a model is replaced, facts
-from the model's initial states need not hold. Lean proves no run from
-the anchor takes a dropped edge (`dead_after_sound` with the anchor as
-the only initial node). That dropping it leaves every diamond and box a
-run can meet unchanged is argued, not proved: formulas are not in the
-Lean spec.
+`V2` a rule check runs the flow from the rule's anchor node, seeded with
+what accepted state at the anchor says about every path an edge
+mentions, not from the model's initial states: after a model is
+replaced, facts from those need not hold. The seed is true on the first
+step only, so the check starts at a copy of the anchor with its edges
+out and none in; a return to the anchor knows only what the edges into
+it carry. It drops the edges the flow
+rules out, and an edge meets a rule's labels only if the edge, the
+labels, and the facts at its node can hold together. Lean proves the
+seed holds (`stateFacts_seed`) and that no run from the anchor in that
+state takes a dropped edge, or an edge with labels contradicting its
+node's facts (`dead_after_sound`, whose literal list may be the edge's
+and the labels'); case G19 is `g19_flip_never_taken`. That this leaves
+every diamond and box a run can meet unchanged is argued, not proved:
+formulas are not in the Lean spec.
 
 ## Checked claims
 
@@ -211,9 +219,12 @@ harness); three seeds of 20,000 gave no disagreement.
 
 `rust_and_lean_agree_on_flow` draws models over four nodes with order,
 boolean, text, presence, and signer labels and frequent `-modifies`
-frames. It sends the facts the Rust flow (`theory/flow.rs`) computes to
-Lean. Lean must find them closed and every edge Rust reports `dead` with
-its node's facts; with `flow_sound`, no run takes a reported edge. Four
+frames. Every other model starts from a random accepted state, whose
+`state_facts` seed the flow. It sends the seed and the facts the Rust
+flow (`theory/flow.rs`) computes to Lean. Lean must find them closed
+(an initial node knowing at most the seed) and every edge Rust reports
+`dead` with its node's facts; with `flow_sound`, no run takes a
+reported edge. Four
 seeds of 50,000 models (about 740 reported edges each) were all
 certified.
 

@@ -1,5 +1,6 @@
 use crate::ast::{Formula, FormulaExpr, Model, Part, Property, PropertySign, Transition};
-use crate::theory::{standard, NoState, Registry, StateView, Theory, TheoryVersion, Tri};
+use crate::theory::flow::{flow_seeded, Flow, FlowEdge};
+use crate::theory::{standard, Lit, NoState, Registry, StateView, Theory, TheoryVersion, Tri};
 use crate::vars;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
@@ -186,8 +187,18 @@ pub struct ModelChecker {
     dead: HashSet<(usize, usize)>,
     /// Under `V2`, edges state flow proves no run from `start` takes.
     never: HashSet<(usize, usize)>,
+    /// Under `V2`, what holds on arrival at each node on every run from
+    /// `start`. Edge matching reads it: a commit from the node meets it.
+    facts: HashMap<String, Vec<Lit>>,
     /// The node a `V2` rule check is evaluated from.
     start: Option<String>,
+    /// Under `V2`, the copy of the rule's node that takes the first step,
+    /// and the node: a proposition naming the node holds at the copy too.
+    first_step: Option<(String, String)>,
+    /// Accepted state at the node a rule check starts from. Only `V2` state
+    /// flow reads it, as what every run from there starts knowing; edge
+    /// matching never does, since state changes along a run.
+    anchor_state: Option<Arc<dyn StateView + Send + Sync>>,
     /// Fixed-point variables being evaluated, bound to their states.
     bound: Mutex<HashMap<String, Vec<State>>>,
 }
@@ -238,10 +249,35 @@ impl ModelChecker {
             state,
             dead: HashSet::new(),
             never: HashSet::new(),
+            facts: HashMap::new(),
             start: None,
+            first_step: None,
+            anchor_state: None,
             bound: Mutex::new(HashMap::new()),
         };
         checker.dead = checker.compute_dead();
+        checker
+    }
+
+    /// Under `V2`, rule checks start their state flow from `state`: the
+    /// accepted state at the node they are checked at. Sound only when it
+    /// is that state, as at `RULE`-add and on replay.
+    pub fn with_anchor_state(mut self, state: Box<dyn StateView + Send + Sync>) -> Self {
+        self.anchor_state = Some(Arc::from(state));
+        self
+    }
+
+    /// A checker for another model with the same theory, registry, state
+    /// view, anchor state and first-step copy.
+    fn derived(&self, model: Model) -> ModelChecker {
+        let mut checker = ModelChecker::with_shared(
+            model,
+            self.version,
+            self.registry.clone(),
+            self.state.clone(),
+        );
+        checker.anchor_state = self.anchor_state.clone();
+        checker.first_step = self.first_step.clone();
         checker
     }
 
@@ -354,16 +390,10 @@ impl ModelChecker {
             &names,
             fprops.iter().copied().chain(mprops.iter().copied()),
         );
-        let mut ground = ModelChecker::with_shared(
-            vars::ground_model(&self.model, &names, &fill),
-            self.version,
-            self.registry.clone(),
-            self.state.clone(),
-        );
+        let mut ground = self.derived(vars::ground_model(&self.model, &names, &fill));
         if let Some(start) = &self.start {
             if !vars::any_vars(mprops.iter().copied()) {
-                ground.start = Some(start.clone());
-                ground.never = ground.never_from(start);
+                ground.scope_to(start);
             }
         }
         let formulas = vars::assignments(&rule_vars, &names)
@@ -455,7 +485,11 @@ impl ModelChecker {
     /// rule check from a node drops the edges this finds from it. The
     /// offending literals include the carried facts. Empty under `V0`.
     pub fn dead_after_step(&self, initial: &[String]) -> Vec<DeadEdge> {
-        self.flow_from(initial)
+        self.flow_edges(self.flow_from(initial, None))
+    }
+
+    fn flow_edges(&self, found: Vec<((usize, usize), Vec<String>)>) -> Vec<DeadEdge> {
+        found
             .into_iter()
             .map(|((pi, ti), offending)| {
                 let part = &self.model.parts[pi];
@@ -471,12 +505,32 @@ impl ModelChecker {
             .collect()
     }
 
-    /// State flow over every part's edges from `initial`, without accepted
-    /// state: the position of each edge dead after a step, and why.
-    fn flow_from(&self, initial: &[String]) -> Vec<((usize, usize), Vec<String>)> {
+    /// State flow over every part's edges from `initial`, where every run
+    /// starts in `seed_state` (knowing nothing when `None`): the position of
+    /// each edge dead after a step, and why.
+    fn flow_from(
+        &self,
+        initial: &[String],
+        seed_state: Option<&(dyn StateView + Send + Sync)>,
+    ) -> Vec<((usize, usize), Vec<String>)> {
         if self.version == TheoryVersion::V0 {
             return Vec::new();
         }
+        let (flow, at) = self.run_flow(initial, seed_state);
+        flow.dead_after
+            .into_iter()
+            .map(|(i, why)| (at[i], why.iter().map(ToString::to_string).collect()))
+            .collect()
+    }
+
+    /// The flow itself, and each flow edge's `(part, transition)` position.
+    /// The seed is what `seed_state` says about every path an edge mentions
+    /// (Lean: `stateFacts_seed`).
+    fn run_flow(
+        &self,
+        initial: &[String],
+        seed_state: Option<&(dyn StateView + Send + Sync)>,
+    ) -> (Flow, Vec<(usize, usize)>) {
         let registry: &dyn Registry = match &self.registry {
             Some(r) => r.as_ref(),
             None => standard(),
@@ -488,7 +542,7 @@ impl ModelChecker {
             for (ti, t) in part.transitions.iter().enumerate() {
                 let lits =
                     (!vars::any_vars(&t.properties)).then(|| theory.expand_all(&t.properties).0);
-                edges.push(crate::theory::flow::FlowEdge {
+                edges.push(FlowEdge {
                     from: t.from.clone(),
                     to: t.to.clone(),
                     lits,
@@ -496,34 +550,54 @@ impl ModelChecker {
                 at.push((pi, ti));
             }
         }
-        crate::theory::flow::flow(&edges, initial)
-            .dead_after
-            .into_iter()
-            .map(|(i, why)| (at[i], why.iter().map(ToString::to_string).collect()))
-            .collect()
+        let seed = match seed_state {
+            Some(state) => {
+                let mentioned: Vec<Lit> = edges
+                    .iter()
+                    .filter_map(|e| e.lits.clone())
+                    .flatten()
+                    .collect();
+                Theory::new(self.version, registry, state).state_facts(&mentioned)
+            }
+            None => Vec::new(),
+        };
+        (flow_seeded(&edges, initial, &seed), at)
+    }
+
+    /// Under `V2`, the flow a rule check from `node` runs, from the anchor
+    /// state when there is one. `None` otherwise, and for a model with
+    /// variables: its instances stand for edges with names the flow does
+    /// not see.
+    fn v2_flow(&self, node: &str) -> Option<(Flow, Vec<(usize, usize)>)> {
+        if self.version != TheoryVersion::V2
+            || vars::any_vars(vars::model_props(&self.model).iter().copied())
+        {
+            return None;
+        }
+        Some(self.run_flow(&[node.to_string()], self.anchor_state.as_deref()))
+    }
+
+    /// Scope a `V2` rule check to `node`: drop the edges no run from there
+    /// takes, and keep what is known at each node for edge matching.
+    fn scope_to(&mut self, node: &str) {
+        self.start = Some(node.to_string());
+        if let Some((flow, at)) = self.v2_flow(node) {
+            self.never = flow.dead_after.iter().map(|(i, _)| at[*i]).collect();
+            self.facts = flow.facts.into_iter().collect();
+        }
     }
 
     /// Under `V2`, the edges a rule check from `node` drops, with why.
     pub fn never_taken_from(&self, node: &str) -> Vec<DeadEdge> {
-        if self.never_from(node).is_empty() {
+        let Some((flow, at)) = self.v2_flow(node) else {
             return Vec::new();
-        }
-        self.dead_after_step(&[node.to_string()])
-    }
-
-    /// Under `V2`, the edges no run from `node` takes. Empty for a model
-    /// with variables: its instances stand for edges with names the flow
-    /// does not see.
-    fn never_from(&self, node: &str) -> HashSet<(usize, usize)> {
-        if self.version != TheoryVersion::V2
-            || vars::any_vars(vars::model_props(&self.model).iter().copied())
-        {
-            return HashSet::new();
-        }
-        self.flow_from(&[node.to_string()])
-            .into_iter()
-            .map(|(at, _)| at)
-            .collect()
+        };
+        self.flow_edges(
+            flow.dead_after
+                .into_iter()
+                .map(|(i, why)| (at[i], why.iter().map(ToString::to_string).collect()))
+                .collect(),
+        )
     }
 
     /// Runtime necessity: classify every outgoing edge of `node` (in every
@@ -607,28 +681,47 @@ impl ModelChecker {
     /// The formula is evaluated on [`merged_model`], the graph commits move on, so on a model
     /// with several parts it must hold for the edges of every part out of the node.
     ///
-    /// Under `V2` the check runs from `state_name` with nothing known about
-    /// accepted state there, and drops the edges no run from it takes.
+    /// Under `V2` the check runs from `state_name`, knowing what the anchor
+    /// state says there when one is set ([`Self::with_anchor_state`]) and
+    /// nothing otherwise. It drops the edges no run from it takes, and
+    /// matches edges against what every run knows at their node.
     pub fn check_formula_at_state(&self, formula: &Formula, state_name: &str) -> ModelCheckResult {
         if self.model.parts.len() > 1 || !self.model.transitions.is_empty() {
-            return ModelChecker::with_shared(
-                merged_model(&self.model),
-                self.version,
-                self.registry.clone(),
-                self.state.clone(),
-            )
-            .check_formula_at_state(formula, state_name);
+            return self
+                .derived(merged_model(&self.model))
+                .check_formula_at_state(formula, state_name);
         }
         if self.version == TheoryVersion::V2 && self.start.as_deref() != Some(state_name) {
-            let mut scoped = ModelChecker::with_shared(
-                self.model.clone(),
-                self.version,
-                self.registry.clone(),
-                self.state.clone(),
-            );
-            scoped.start = Some(state_name.to_string());
-            scoped.never = scoped.never_from(state_name);
-            return scoped.check_formula_at_state(formula, state_name);
+            // The first step from the node is taken in the anchor state; a
+            // return to the node is not. A copy of the node with its edges
+            // out and none in keeps the seed to the first step.
+            let first = format!("{state_name}#first");
+            let mut unfolded = self.model.clone();
+            let mut from_copy = false;
+            if let Some(part) = unfolded.parts.first_mut() {
+                let out: Vec<Transition> = part
+                    .transitions
+                    .iter()
+                    .filter(|t| t.from == state_name)
+                    .map(|t| Transition {
+                        from: first.clone(),
+                        ..t.clone()
+                    })
+                    .collect();
+                from_copy = !out.is_empty();
+                part.transitions.extend(out);
+            }
+            if !from_copy {
+                let mut scoped = self.derived(self.model.clone());
+                scoped.scope_to(state_name);
+                return scoped.check_formula_at_state(formula, state_name);
+            }
+            let mut scoped = self.derived(unfolded);
+            scoped.first_step = Some((first.clone(), state_name.to_string()));
+            scoped.scope_to(&first);
+            let mut result = scoped.check_formula_at_state(formula, &first);
+            result.satisfying_states.retain(|s| s.node_name != first);
+            return result;
         }
         let satisfying_states = self.satisfying(&formula.expression);
 
@@ -676,7 +769,13 @@ impl ModelChecker {
                 // Witness nodes where the opaque node id matches the proposition.
                 self.all_states()
                     .into_iter()
-                    .filter(|s| s.node_name == *name)
+                    .filter(|s| {
+                        s.node_name == *name
+                            || self
+                                .first_step
+                                .as_ref()
+                                .is_some_and(|(copy, node)| s.node_name == *copy && node == name)
+                    })
                     .collect()
             }
             FormulaExpr::And(left, right) => {
@@ -1042,7 +1141,9 @@ impl ModelChecker {
     ///
     /// and the structural rule above decides the rest. The edge is also not
     /// usable when its atoms and all the labels together are inconsistent:
-    /// one commit has to meet every label at once.
+    /// one commit has to meet every label at once. Under `V2` that includes
+    /// what is known at the edge's node on every run from the rule's start
+    /// (Lean: `dead_after_sound` on the edge's and the labels' literals).
     ///
     /// `whole_atom` is set for boxes: "mentions" then means the same predicate
     /// with the same arguments. A box has to range over every edge a commit
@@ -1065,6 +1166,13 @@ impl ModelChecker {
             with.extend(properties.iter().cloned());
             if theory.consistent(&with).tri == Tri::False {
                 return false;
+            }
+            if let Some(known) = self.facts.get(&transition.from).filter(|f| !f.is_empty()) {
+                let mut lits = theory.expand_all(&with).0;
+                lits.extend(known.iter().cloned());
+                if theory.consistent_lits(&lits, false).tri == Tri::False {
+                    return false;
+                }
             }
         }
         properties.iter().all(|property| {

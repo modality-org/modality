@@ -14,7 +14,7 @@ One JSON object per line on stdin, one per line on stdout.
   → {"verdict": ..., "exact": BOOL, "same": BOOL}
 {"edge": [LIT...], "world": WORLD}
   → {"takes": BOOL}
-{"flow": {"arcs": [[NODE, [LIT...], NODE]...], "init": [NODE...],
+{"flow": {"arcs": [[NODE, [LIT...], NODE]...], "init": [NODE...], "seed": [LIT...]?,
           "facts": [[NODE, [LIT...]]...], "dead_after": [INDEX...]}}
   → {"closed": BOOL, "dead": [BOOL...]}
 ```
@@ -25,7 +25,8 @@ One JSON object per line on stdin, one per line on stdout.
 given ones (as sets), and `verdict` is on its own. With `edge`, paths may
 hold variables (`c/$k.id`) and holes (`c/$!k`), and `takes` is `takesB`:
 whether the commit takes the edge for some names. With `flow`, `closed`
-is `closedB` on the given facts (a node not listed is reached by no run),
+is `closedB` on the given facts (a node not listed is reached by no run;
+an initial node knows at most `seed`, empty when absent),
 and `dead` says, for each listed arc, that its literals are `dead` with
 its source's facts: by `dead_after_sound`, no run takes it.
 
@@ -178,6 +179,9 @@ def flowAnswer (j : Json) : Except String Json := do
     match (← f.getArr?).toList with
     | [n, ls] => pure (← n.getStr?, ← getLits ls)
     | _ => throw "facts"
+  let seed ← match j.getObjVal? "seed" with
+    | .ok ls => getLits ls
+    | .error _ => pure []
   let deadAfter ← (← (← j.getObjVal? "dead_after").getArr?).toList.mapM fun i => i.getNat?
   let dead := deadAfter.map fun i =>
     match arcs.get? i with
@@ -187,7 +191,7 @@ def flowAnswer (j : Json) : Except String Json := do
       | none => false
     | none => false
   pure <| Json.mkObj [
-    ("closed", Json.bool (closedB arcs init facts)),
+    ("closed", Json.bool (closedB arcs init seed facts)),
     ("dead", Json.arr (dead.map Json.bool).toArray)]
 
 def answer (line : String) : Except String Json := do

@@ -1147,6 +1147,89 @@ model Contract {
     assert!(rule_accepted(m, rule, TheoryVersion::V2));
 }
 
+/// A `V2` rule check at `node`, starting from accepted state `state`.
+fn accepted_from(m: &str, rule: &str, node: &str, state: MapState) -> bool {
+    ModelChecker::with_version(model(m), TheoryVersion::V2)
+        .with_anchor_state(Box::new(state))
+        .check_formula_at_state(&formula(rule), node)
+        .is_satisfied
+}
+
+#[test]
+fn g19_v2_starts_from_the_accepted_state() {
+    let m = r#"
+model Contract {
+  part flow {
+    q0 --> q1
+    q1 --> q1: +POST -modifies(/f.bool)
+    q1 --> q1: +bool_false(/f.bool) -modifies(/f.bool)
+  }
+}
+"#;
+    let flip = "<+bool_false(/f.bool)> true";
+    let f_true = || MapState::new().with("/f.bool", "true");
+    // No edge writes /f.bool, so it stays true and no commit has it false.
+    assert!(!accepted_from(m, flip, "q1", f_true()));
+    assert!(accepted_from(
+        m,
+        "[+bool_false(/f.bool)] false",
+        "q1",
+        f_true()
+    ));
+    // What the state does not rule out is still possible.
+    assert!(accepted_from(
+        m,
+        flip,
+        "q1",
+        MapState::new().with("/f.bool", "false")
+    ));
+    // Absent, `bool_false` is false, and no edge can post the path.
+    assert!(!accepted_from(m, flip, "q1", MapState::new()));
+    // Without a state, as under V1.
+    let unseeded = ModelChecker::with_version(model(m), TheoryVersion::V2);
+    assert!(
+        unseeded
+            .check_formula_at_state(&formula(flip), "q1")
+            .is_satisfied
+    );
+    // A step that may write /f.bool ends what the state says after it,
+    // but the first step is still taken with /f.bool true.
+    let written = m.replace("q1 --> q1: +POST -modifies(/f.bool)", "q1 --> q1: +POST");
+    let after_post = "<+POST> <+bool_false(/f.bool)> true";
+    assert!(accepted_from(&written, after_post, "q1", f_true()));
+    let first = "<-POST +bool_false(/f.bool)> true";
+    assert!(!accepted_from(&written, first, "q1", f_true()));
+    assert!(accepted_from(
+        &written,
+        &format!("<+POST> {first}"),
+        "q1",
+        f_true()
+    ));
+    // A rule naming the node still holds there.
+    assert!(accepted_from(m, "q1", "q1", f_true()));
+}
+
+#[test]
+fn g20_v2_matches_edges_against_what_is_known_at_their_node() {
+    let m = r#"
+model Contract {
+  part flow {
+    q0 --> q1: +bool_true(/f.bool) -modifies(/f.bool)
+    q1 --> q2: +POST -modifies(/f.bool)
+  }
+}
+"#;
+    let diamond = "<+bool_true(/f.bool)> <+bool_false(/f.bool)> true";
+    let boxed = "[+bool_true(/f.bool)] [+bool_false(/f.bool)] false";
+    // No edge is dead after a step: q1 --> q2 is taken with /f.bool true.
+    assert!(dead_after(m).is_empty());
+    assert!(rule_accepted(m, diamond, TheoryVersion::V1));
+    assert!(!rule_accepted(m, boxed, TheoryVersion::V1));
+    // But no commit from q1 has /f.bool false.
+    assert!(!rule_accepted(m, diamond, TheoryVersion::V2));
+    assert!(rule_accepted(m, boxed, TheoryVersion::V2));
+}
+
 #[test]
 fn v2_rule_checks_match_v1_without_frames() {
     for rule in [
@@ -2264,6 +2347,26 @@ fn rust_and_lean_agree_on_variable_edges() {
 
 /// A random model over four nodes, with order, boolean, text and presence
 /// labels and frequent `-modifies` frames, so facts are carried.
+/// An accepted state over the paths [`random_flow_case`] reads; each path
+/// may be absent.
+fn random_flow_state(next: &mut impl FnMut() -> u64) -> MapState {
+    let mut pick = |n: usize| (next() % n as u64) as usize;
+    let mut state = MapState::new();
+    for (path, values) in [
+        ("/x.num", &["0", "1", "3", "5", "7"][..]),
+        ("/y.num", &["0", "1", "3", "5", "7"][..]),
+        ("/f/a.bool", &["true", "false"][..]),
+        ("/t.text", &["K", "L"][..]),
+        ("/p/a.id", &["KA"][..]),
+    ] {
+        let i = pick(values.len() + 1);
+        if let Some(v) = values.get(i) {
+            state.insert(path, v);
+        }
+    }
+    state
+}
+
 fn random_flow_case(next: &mut impl FnMut() -> u64) -> Vec<(String, Vec<Property>, String)> {
     const NODES: [&str; 4] = ["q0", "q1", "q2", "q3"];
     const CONSTS: [&str; 4] = ["0", "1", "3", "5"];
@@ -2318,12 +2421,13 @@ fn random_flow_case(next: &mut impl FnMut() -> u64) -> Vec<(String, Vec<Property
 #[test]
 #[ignore = "needs the Lean checker; set PT_CHECK"]
 fn rust_and_lean_agree_on_flow() {
-    use super::flow::{flow, FlowEdge};
+    use super::flow::{flow_seeded, FlowEdge};
     let (bin, rounds, mut next) = harness(20_000);
     let th = v1();
     let mut requests = Vec::new();
     let mut reported = 0;
-    for _ in 0..rounds {
+    let mut seeded = 0;
+    for round in 0..rounds {
         let case = random_flow_case(&mut next);
         let edges: Vec<FlowEdge> = case
             .iter()
@@ -2333,7 +2437,16 @@ fn rust_and_lean_agree_on_flow() {
                 lits: Some(th.expand_all(props).0),
             })
             .collect();
-        let f = flow(&edges, &["q0".to_string()]);
+        // Every other model starts from an accepted state.
+        let seed = if round % 2 == 1 {
+            let state = random_flow_state(&mut next);
+            let mentioned: Vec<Lit> = edges.iter().flat_map(|e| e.lits.clone().unwrap()).collect();
+            Theory::new(TheoryVersion::V1, standard(), &state).state_facts(&mentioned)
+        } else {
+            Vec::new()
+        };
+        seeded += usize::from(!seed.is_empty());
+        let f = flow_seeded(&edges, &["q0".to_string()], &seed);
         reported += f.dead_after.len();
         let lits = |ls: &[Lit]| ls.iter().map(lit_json).collect::<Vec<_>>();
         let arcs: Vec<_> = edges
@@ -2348,7 +2461,8 @@ fn rust_and_lean_agree_on_flow() {
         let dead_after: Vec<usize> = f.dead_after.iter().map(|(i, _)| *i).collect();
         requests.push(
             serde_json::json!({ "flow": {
-                "arcs": arcs, "init": ["q0"], "facts": facts, "dead_after": dead_after,
+                "arcs": arcs, "init": ["q0"], "seed": lits(&seed), "facts": facts,
+                "dead_after": dead_after,
             }})
             .to_string(),
         );
@@ -2367,7 +2481,7 @@ fn rust_and_lean_agree_on_flow() {
         .map(|(line, got)| format!("lean {got}\n  {line}"))
         .collect();
     eprintln!(
-        "{rounds} models, {reported} edges dead after a step, {} not certified",
+        "{rounds} models ({seeded} seeded by state), {reported} edges dead after a step, {} not certified",
         problems.len()
     );
     assert!(

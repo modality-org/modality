@@ -41,7 +41,8 @@ Modality's predicate theory, stated and proved in Lean (4.14, no Mathlib):
   `entailsV`, `runtime`) on labels as written, and what they mean.
 - `Flow`: state flow along a model. `carry_sound`: a literal over paths
   an edge forbids writing survives the commit; `flow_sound`: facts closed
-  under that hold on every run; `dead_after_sound`: an edge that
+  under that hold on every run, from a seed that holds at the start
+  (`stateFacts_seed` for accepted state); `dead_after_sound`: an edge that
   contradicts its node's facts is never taken. `closedB` decides closure.
 - `Cases`: an escrow edge with a copy-paste slip, decided by the proven
   checker; and a "simpler" checker that Lean proves wrong.
