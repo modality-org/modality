@@ -68,6 +68,19 @@
   stroke-width: 1.35;
   stroke-linecap: round;
   stroke-linejoin: round;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: trace 1.7s ease forwards;
+}
+
+.runner {
+  fill: currentColor;
+}
+
+@keyframes trace {
+  to {
+    stroke-dashoffset: 0;
+  }
 }
 
 .dot {
@@ -81,40 +94,80 @@
   stroke: none;
 }
 
-.m1 { top: 8%; left: 3.5%; animation: rise 1s ease 0.05s forwards, drift1 15s ease-in-out 1s infinite; }
-.m2 { top: 11%; right: 5%; animation: rise 1s ease 0.2s forwards, drift2 18s ease-in-out 1.2s infinite; }
-.m3 { top: 40%; left: 2.5%; animation: rise 1s ease 0.35s forwards, drift3 16s ease-in-out 1.3s infinite; }
-.m4 { top: 44%; right: 4.5%; animation: rise 1s ease 0.15s forwards, drift4 17s ease-in-out 1.1s infinite; }
-.m5 { bottom: 18%; left: 5%; animation: rise 1s ease 0.45s forwards, drift5 19s ease-in-out 1.4s infinite; }
-.m6 { bottom: 20%; right: 5%; animation: rise 1s ease 0.28s forwards, drift6 14s ease-in-out 1.2s infinite; }
+.m1 { --lag: 0s; top: 8%; left: 3.5%; animation: life 22s linear var(--lag) infinite, drift1 12s ease-in-out infinite; }
+.m2 { --lag: 7s; top: 11%; right: 5%; animation: life 22s linear var(--lag) infinite, drift2 14s ease-in-out infinite; }
+.m3 { --lag: 13s; top: 40%; left: 2.5%; animation: life 22s linear var(--lag) infinite, drift3 13s ease-in-out infinite; }
+.m4 { --lag: 4s; top: 44%; right: 4.5%; animation: life 22s linear var(--lag) infinite, drift4 15s ease-in-out infinite; }
+.m5 { --lag: 16s; bottom: 18%; left: 5%; animation: life 22s linear var(--lag) infinite, drift5 16s ease-in-out infinite; }
+.m6 { --lag: 10s; bottom: 20%; right: 5%; animation: life 22s linear var(--lag) infinite, drift6 11s ease-in-out infinite; }
 
-@keyframes rise {
-  to { opacity: 0.5; }
+.later,
+.further {
+  opacity: 0;
+  animation-duration: 22s;
+  animation-timing-function: linear;
+  animation-delay: var(--lag, 0s);
+  animation-iteration-count: infinite;
+  animation-fill-mode: both;
+}
+
+.later {
+  animation-name: revealLater;
+}
+
+.further {
+  animation-name: revealFurther;
+}
+
+@keyframes life {
+  0% { opacity: 0; }
+  8% { opacity: 0.55; }
+  76% { opacity: 0.55; }
+  92% { opacity: 0; }
+  100% { opacity: 0; }
+}
+
+@keyframes revealLater {
+  0%, 26% { opacity: 0; }
+  34%, 76% { opacity: 1; }
+  92%, 100% { opacity: 0; }
+}
+
+@keyframes revealFurther {
+  0%, 50% { opacity: 0; }
+  58%, 76% { opacity: 1; }
+  92%, 100% { opacity: 0; }
 }
 
 @keyframes drift1 {
-  0%, 100% { transform: rotate(-4deg) translateY(0); }
-  50% { transform: rotate(-4deg) translateY(-10px); }
+  0%, 100% { transform: rotate(-6deg) translate(0, 0); }
+  33% { transform: rotate(-2deg) translate(18px, -26px); }
+  66% { transform: rotate(-8deg) translate(-14px, 16px); }
 }
 @keyframes drift2 {
-  0%, 100% { transform: rotate(4deg) translate(0, 0); }
-  50% { transform: rotate(4deg) translate(-6px, 8px); }
+  0%, 100% { transform: rotate(5deg) translate(0, 0); }
+  33% { transform: rotate(2deg) translate(-16px, 22px); }
+  66% { transform: rotate(8deg) translate(12px, -18px); }
 }
 @keyframes drift3 {
-  0%, 100% { transform: rotate(-3deg) translateY(0); }
-  50% { transform: rotate(-3deg) translateY(9px); }
+  0%, 100% { transform: rotate(-4deg) translate(0, 0); }
+  33% { transform: rotate(-7deg) translate(14px, 24px); }
+  66% { transform: rotate(-1deg) translate(-12px, -20px); }
 }
 @keyframes drift4 {
-  0%, 100% { transform: rotate(5deg) translate(0, 0); }
-  50% { transform: rotate(5deg) translate(5px, -8px); }
+  0%, 100% { transform: rotate(6deg) translate(0, 0); }
+  33% { transform: rotate(3deg) translate(-18px, -22px); }
+  66% { transform: rotate(9deg) translate(10px, 18px); }
 }
 @keyframes drift5 {
-  0%, 100% { transform: rotate(3deg) translateY(0); }
-  50% { transform: rotate(3deg) translateY(-8px); }
+  0%, 100% { transform: rotate(3deg) translate(0, 0); }
+  33% { transform: rotate(7deg) translate(20px, -16px); }
+  66% { transform: rotate(1deg) translate(-10px, 22px); }
 }
 @keyframes drift6 {
-  0%, 100% { transform: rotate(-4deg) translate(0, 0); }
-  50% { transform: rotate(-4deg) translate(-6px, -7px); }
+  0%, 100% { transform: rotate(-5deg) translate(0, 0); }
+  33% { transform: rotate(-8deg) translate(-14px, -24px); }
+  66% { transform: rotate(-2deg) translate(16px, 12px); }
 }
 
 .river {
@@ -516,6 +569,21 @@
   .model {
     animation: none;
     opacity: 0.45;
+  }
+
+  .later,
+  .further {
+    animation: none;
+    opacity: 1;
+  }
+
+  .edge {
+    animation: none;
+    stroke-dashoffset: 0;
+  }
+
+  .runner {
+    display: none;
   }
 
   .riverTrack,
