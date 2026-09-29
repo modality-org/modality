@@ -312,6 +312,7 @@ enum MiningCommands {
 
 #[cfg(feature = "cli-contract")]
 #[derive(Subcommand)]
+#[allow(clippy::large_enum_variant)] // parsed once per run
 enum ContractCommands {
     #[command(about = "Create a new contract")]
     Create(modality_cli_contract::create::Opts),

@@ -38,7 +38,9 @@ required_patterns=(
   "\`--method <METHOD>\` | Commit method for the single-path commit"
   "\`--sign <PASSFILE>\` | Sign with a passfile path or identity name; repeat to attach multiple signatures"
   "\`--all\`, \`-a\` | Commit all changed \`state/\`, \`rules/\`, \`reposts/\`, and \`model/default.modality\` files. Staged REPOST dests emit \`method: repost\`."
-  "\`--asset-id <ASSET_ID>\` | Asset ID for \`CREATE\` commits"
+  "\`--asset-id <ASSET_ID>\` | Asset ID for \`CREATE\` and \`SEND\` commits"
+  "\`--asset-contract <CONTRACT_ID>\` | Creator of a received asset"
+  "\`--memo <JSON>\` | JSON the receiver of a \`SEND\` reads"
   "\`--to-contract <TO_CONTRACT>\` | Destination contract ID for \`SEND\` commits"
   "\`--send-commit-id <SEND_COMMIT_ID>\` | Source \`SEND\` commit ID for \`RECV\` commits"
   "modal c commit --path /notes.text --value \"signed update\" --sign alice"
@@ -92,6 +94,8 @@ for source_guard in \
   'to_contract: Option<String>' \
   'amount: Option<u64>' \
   'send_commit_id: Option<String>' \
+  'asset_contract: Option<String>' \
+  'memo: Option<String>' \
   'sign: Vec<String>' \
   'all: bool' \
   'message: Option<String>' \

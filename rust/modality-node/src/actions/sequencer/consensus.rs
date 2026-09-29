@@ -510,6 +510,21 @@ async fn apply_pushed_commit(
                 contract_id,
                 e
             );
+            if let Some(missing) = e
+                .downcast_ref::<modality_validator::MissingPrefixCert>()
+                .filter(|m| m.action == "RECV")
+            {
+                // A RECV a program emits is not in the pushed body, so the
+                // validator worker never saw it; ask for the cert here.
+                let mgr = datastore.lock().await;
+                if let Err(err) = mgr.enqueue_prefix_cert_request(serde_json::json!({
+                    "source_contract": missing.source_contract,
+                    "through_commit": missing.through_commit,
+                })) {
+                    log::warn!("Failed to queue a prefix-cert request: {}", err);
+                }
+                return CommitApply::WaitingForPrefixCert;
+            }
             if e.to_string().contains("missing prefix_cert") {
                 return CommitApply::WaitingForPrefixCert;
             }
@@ -1648,6 +1663,13 @@ mod tests {
         )
         .await;
         assert!(in_batch_of(&ds, "bob", "recv-fail").await.is_none());
+        let mgr = ds.lock().await;
+        let requests = mgr.drain_prefix_cert_requests().unwrap();
+        assert_eq!(
+            requests,
+            vec![json!({"source_contract": "alice", "through_commit": "send-mod"})],
+            "the waiting RECV asks this node's validator for the cert"
+        );
     }
 
     #[tokio::test]

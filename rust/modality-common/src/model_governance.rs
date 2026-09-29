@@ -1805,9 +1805,17 @@ struct CommitFacts {
     post_paths: Vec<String>,
     /// `(path, value)` of every `POST`, in commit order.
     posts: Vec<(String, Value)>,
-    /// Every `SEND` as `(asset_id, to_contract, amount)`; `None` where the
+    /// Every `SEND` as `(asset, to_contract, amount)`; `None` where the
     /// action lacks one of them, and every `sent_*` predicate then fails.
+    /// `asset` is [`asset_name`]: `drops` for the contract's own asset,
+    /// `<creator>:drops` for one it holds.
     sends: Vec<Option<(String, String, u64)>>,
+    /// Every `RECV` as `(asset, amount)` from what it states it receives;
+    /// `None` where it does not state both. Apply refuses a `RECV` whose
+    /// statement does not match its `SEND`.
+    recvs: Vec<Option<(String, u64)>>,
+    /// The `from_contract` each `RECV` states, where it states one.
+    recv_senders: Vec<String>,
     /// For each body action, the program whose `invoke` emitted it.
     emitters: Vec<Option<Emitter>>,
     state: HashMap<String, Value>,
@@ -1889,6 +1897,9 @@ pub(crate) const EVALUATED_PREDICATES: &[&str] = &[
     "posts_own_key",
     "emitted_by",
     "keeps_product",
+    "keeps_product_per_share",
+    "tracks",
+    "pays_senders",
 ];
 
 impl CommitFacts {
@@ -1948,11 +1959,27 @@ impl CommitFacts {
                 .map(|action| {
                     let v = &action.value;
                     Some((
-                        v.get("asset_id")?.as_str()?.to_string(),
+                        asset_name(v)?,
                         v.get("to_contract")?.as_str()?.to_string(),
                         v.get("amount")?.as_u64()?,
                     ))
                 })
+                .collect(),
+            recvs: commit
+                .body
+                .iter()
+                .filter(|action| action.method.eq_ignore_ascii_case("recv"))
+                .map(|action| {
+                    let v = &action.value;
+                    Some((asset_name(v)?, v.get("amount")?.as_u64()?))
+                })
+                .collect(),
+            recv_senders: commit
+                .body
+                .iter()
+                .filter(|action| action.method.eq_ignore_ascii_case("recv"))
+                .filter_map(|action| action.value.get("from_contract")?.as_str())
+                .map(str::to_string)
                 .collect(),
             emitters: commit
                 .body
@@ -2115,6 +2142,19 @@ impl CommitFacts {
                 .first()
                 .map(|program| self.emitted_by(program, args.get(1).map(String::as_str)))
                 .unwrap_or(false),
+            "pays_senders" => match args.as_slice() {
+                [asset] => self.pays_senders(asset),
+                _ => false,
+            },
+            "keeps_product_per_share" => match args.as_slice() {
+                [a, b, supply] => self.keeps_product_per_share(a, b, supply),
+                _ => false,
+            },
+            "tracks" => match args.as_slice() {
+                [path, asset] => self.tracks(path, asset, false),
+                [path, asset, sign] if sign == "issued" => self.tracks(path, asset, true),
+                _ => false,
+            },
             "keeps_product" => match (args.first(), args.get(1), args.len()) {
                 (Some(a), Some(b), 2 | 3) => {
                     self.keeps_product(a, b, args.get(2).map(String::as_str))
@@ -2170,6 +2210,43 @@ impl CommitFacts {
                     None => format!("missing {formatted} (a SEND lacks asset_id, to_contract or a whole amount)"),
                 };
             }
+        }
+
+        if property.name == "tracks" {
+            let args = predicate_args(property);
+            if let (Some(path), Some(asset)) = (args.first(), args.get(1)) {
+                let change = match self.before_after(path) {
+                    Some((before, after)) => format!("{path} goes from {before} to {after}"),
+                    None => format!("{path} has no accepted number or a pending write is not one"),
+                };
+                let received: u128 = self
+                    .recvs
+                    .iter()
+                    .flatten()
+                    .filter(|(id, _)| id == asset)
+                    .map(|(_, n)| u128::from(*n))
+                    .sum();
+                let unstated = self.recvs.iter().filter(|r| r.is_none()).count();
+                let sent = self
+                    .sent_total(asset)
+                    .map(|n| n.to_string())
+                    .unwrap_or_else(|| "? (a SEND is malformed)".to_string());
+                return format!(
+                    "missing {formatted} ({change}; the commit takes in {received} and sends {sent} of {asset}; {unstated} RECV(s) do not state asset and amount)"
+                );
+            }
+        }
+
+        if property.name == "keeps_product_per_share" {
+            let args = predicate_args(property);
+            let sides: Vec<String> = args
+                .iter()
+                .map(|path| match self.before_after(path) {
+                    Some((before, after)) => format!("{path} {before} to {after}"),
+                    None => format!("{path} has no accepted number or a pending write is not one"),
+                })
+                .collect();
+            return format!("missing {formatted} ({})", sides.join("; "));
         }
 
         if property.name == "keeps_product" {
@@ -2484,6 +2561,69 @@ impl CommitFacts {
         counted(&a0, &a1).mul(&counted(&b0, &b1)) >= a0.mul(&b0)
     }
 
+    /// `keeps_product_per_share(/a.num, /b.num, /supply.num)`: the product of
+    /// the two numbers per share, squared, does not fall:
+    /// `a' * b' * S^2 >= a * b * S'^2`. Adding or removing liquidity in
+    /// proportion keeps it; minting too many shares, or paying out too much
+    /// for the shares burned, breaks it.
+    fn keeps_product_per_share(&self, a: &str, b: &str, supply: &str) -> bool {
+        let paths = [a, b, supply];
+        if paths.iter().any(|p| !p.ends_with(".num"))
+            || normalize_path(a) == normalize_path(b)
+            || paths[..2].iter().any(|p| normalize_path(p) == normalize_path(supply))
+        {
+            return false;
+        }
+        let (Some((a0, a1)), Some((b0, b1)), Some((s0, s1))) = (
+            self.before_after(a),
+            self.before_after(b),
+            self.before_after(supply),
+        ) else {
+            return false;
+        };
+        if [&a0, &a1, &b0, &b1, &s0, &s1].iter().any(|n| n.is_negative()) {
+            return false;
+        }
+        a1.mul(&b1).mul(&s0).mul(&s0) >= a0.mul(&b0).mul(&s1).mul(&s1)
+    }
+
+    /// `pays_senders(asset)`: every `SEND` of `asset` goes to a contract one
+    /// of the commit's `RECV`s states it came from. Holds when the commit
+    /// sends none of it; never when a `SEND` is malformed.
+    fn pays_senders(&self, asset: &str) -> bool {
+        self.sends.iter().all(|send| match send {
+            Some((id, to, _)) => id != asset || self.recv_senders.iter().any(|from| from == to),
+            None => false,
+        })
+    }
+
+    /// `tracks(/p.num, asset)`: the commit changes `/p.num` by exactly what it
+    /// takes in of `asset` (the amounts its `RECV`s state) less what it sends.
+    /// With `"issued"`, by what it sends less what it takes in, as a supply
+    /// that grows when shares go out.
+    fn tracks(&self, path: &str, asset: &str, issued: bool) -> bool {
+        if !path.ends_with(".num") {
+            return false;
+        }
+        let Some((before, after)) = self.before_after(path) else {
+            return false;
+        };
+        let Some(sent) = self.sent_total(asset) else {
+            return false;
+        };
+        let Some(received) = self.recvs.iter().try_fold(0u128, |total, recv| {
+            let (id, amount) = recv.as_ref()?;
+            Some(if id == asset { total + u128::from(*amount) } else { total })
+        }) else {
+            return false;
+        };
+        let (Ok(sent), Ok(received)) = (i64::try_from(sent), i64::try_from(received)) else {
+            return false;
+        };
+        let (inflow, outflow) = if issued { (sent, received) } else { (received, sent) };
+        after.sub(&before) == Exact::from_int(inflow).sub(&Exact::from_int(outflow))
+    }
+
     /// A `.num` path's accepted number and the number it holds after the
     /// pending commit. `None` when there is no accepted number, or when a
     /// pending `POST` there is not a number.
@@ -2639,6 +2779,17 @@ impl CommitFacts {
             .get(&normalize_path(path))
             .and_then(Value::as_bool)
     }
+}
+
+/// How predicates name the asset a `SEND` or `RECV` value moves: its
+/// `asset_id` when the contract created it (no `asset_contract`), and
+/// `<asset_contract>:<asset_id>` when it holds another contract's asset.
+fn asset_name(value: &Value) -> Option<String> {
+    let id = value.get("asset_id")?.as_str()?;
+    Some(match value.get("asset_contract").filter(|v| !v.is_null()) {
+        None => id.to_string(),
+        Some(creator) => format!("{}:{id}", creator.as_str()?),
+    })
 }
 
 fn replay_bundle_statuses(

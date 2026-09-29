@@ -557,3 +557,210 @@ fn a_pool_program_that_drains_or_skips_the_fee_is_refused() {
     let err = validate(&accepted, &replace, V2).expect_err("rules still bind");
     assert!(err.to_string().contains("Model violates rule"), "{err}");
 }
+
+// ---------------------------------------------------------------------------
+// The full pool: reserves track what moves, payouts go back to who paid in,
+// swaps keep the fee-adjusted product, liquidity moves keep it per share
+// ---------------------------------------------------------------------------
+
+const TOK_A: &str = "KA:tokA";
+const TOK_B: &str = "KB:tokB";
+
+fn act(method: &str, path: Option<&str>, value: Value) -> CommitAction {
+    let mut c = CommitFile::new();
+    c.add_action(method.to_string(), path.map(str::to_string), value);
+    c.body.pop().unwrap()
+}
+
+fn held(asset: &str) -> (Option<&str>, &str) {
+    match asset.split_once(':') {
+        Some((creator, id)) => (Some(creator), id),
+        None => (None, asset),
+    }
+}
+
+fn recv(from: &str, asset: &str, amount: u64) -> CommitAction {
+    let (creator, id) = held(asset);
+    let mut value = json!({"send_commit_id": "s", "from_contract": from, "asset_id": id, "amount": amount});
+    if let Some(creator) = creator {
+        value["asset_contract"] = json!(creator);
+    }
+    act("recv", None, value)
+}
+
+fn send(asset: &str, to: &str, amount: u64) -> CommitAction {
+    let (creator, id) = held(asset);
+    let mut value = json!({"asset_id": id, "to_contract": to, "amount": amount});
+    if let Some(creator) = creator {
+        value["asset_contract"] = json!(creator);
+    }
+    act("send", None, value)
+}
+
+fn post(path: &str, value: Value) -> CommitAction {
+    act("post", Some(path), value)
+}
+
+fn pool_output(actions: Vec<CommitAction>) -> CommitFile {
+    let mut c = CommitFile::new();
+    c.body = actions;
+    emitted(c, POOL_PROGRAM, PAYOUT_SHA)
+}
+
+fn reserves_after(a: u64, b: u64) -> Vec<CommitAction> {
+    vec![post("/reserves/a.num", json!(a)), post("/reserves/b.num", json!(b))]
+}
+
+fn tracks_all() -> String {
+    format!(
+        r#"+tracks(/reserves/a.num, "{TOK_A}") +tracks(/reserves/b.num, "{TOK_B}") +tracks(/lp/supply.num, "lp", "issued") +keeps_product_per_share(/reserves/a.num, /reserves/b.num, /lp/supply.num) +pays_senders("{TOK_A}") +pays_senders("{TOK_B}") +pays_senders("lp")"#
+    )
+}
+
+fn full_pool_model() -> String {
+    let t = tracks_all();
+    let paid = r#"+emitted_by(/__programs__/pool.wasm, "5f1e") -CREATE -modifies(/config) -modifies(/__programs__)"#;
+    format!(
+        "model Pool {{\n  part flow {{\n    q0 --> q1\n    q1 --> q1: -SEND -RECV -CREATE -modifies(/reserves) -modifies(/lp) -modifies(/config) -modifies(/__programs__) {t}\n    q1 --> q1: {paid} {t} +keeps_product(/reserves/a.num, /reserves/b.num, /config/fee.num)\n    q1 --> q1: {paid} {t} +modifies(/lp)\n  }}\n}}\n"
+    )
+}
+
+fn full_pool_rules() -> Vec<String> {
+    let mut rules = vec![
+        r#"always([+SEND -emitted_by(/__programs__/pool.wasm, "5f1e")] false)"#.to_string(),
+        r#"always([+RECV -emitted_by(/__programs__/pool.wasm, "5f1e")] false)"#.to_string(),
+    ];
+    for asset in [TOK_A, TOK_B, "lp"] {
+        rules.push(format!(r#"always([-pays_senders("{asset}")] false)"#));
+    }
+    rules.extend([
+        format!(r#"always([-tracks(/reserves/a.num, "{TOK_A}")] false)"#),
+        format!(r#"always([-tracks(/reserves/b.num, "{TOK_B}")] false)"#),
+        r#"always([-tracks(/lp/supply.num, "lp", "issued")] false)"#.to_string(),
+        "always([+modifies(/reserves) -modifies(/lp) -keeps_product(/reserves/a.num, /reserves/b.num, /config/fee.num)] false)".to_string(),
+        "always([-keeps_product_per_share(/reserves/a.num, /reserves/b.num, /lp/supply.num)] false)".to_string(),
+        "always([+modifies(/config)] false)".to_string(),
+        "always([+modifies(/__programs__)] false)".to_string(),
+        "always([+CREATE] false)".to_string(),
+    ]);
+    rules
+}
+
+#[test]
+fn tracks_and_pays_senders_read_what_the_commit_moves() {
+    let state = [("/reserves/a.num", json!(100)), ("/lp/supply.num", json!(10))];
+    let h = |c: &CommitFile, name: &str, args: &[&str]| holds(c, &state, name, args);
+    let c = |actions: Vec<CommitAction>| {
+        let mut c = CommitFile::new();
+        c.body = actions;
+        c
+    };
+
+    let swap_in = c(vec![recv("T", TOK_A, 7), post("/reserves/a.num", json!(107))]);
+    assert!(h(&swap_in, "tracks", &["/reserves/a.num", TOK_A]));
+    assert!(!h(&swap_in, "tracks", &["/reserves/a.num", "tokA"]), "an own asset of that id is another asset");
+    let pay_out = c(vec![send(TOK_A, "T", 7), post("/reserves/a.num", json!(93))]);
+    assert!(h(&pay_out, "tracks", &["/reserves/a.num", TOK_A]));
+    let skim = c(vec![send(TOK_A, "T", 7), post("/reserves/a.num", json!(95))]);
+    assert!(!h(&skim, "tracks", &["/reserves/a.num", TOK_A]), "the reserve must fall by what left");
+    assert!(!h(&c(vec![send(TOK_A, "T", 7)]), "tracks", &["/reserves/a.num", TOK_A]), "unposted outflow");
+    assert!(h(&c(vec![]), "tracks", &["/reserves/a.num", TOK_A]), "nothing moves, nothing changes");
+    let mut unstated = recv("T", TOK_A, 7);
+    unstated.value.as_object_mut().unwrap().remove("amount");
+    assert!(!h(&c(vec![unstated, post("/reserves/a.num", json!(107))]), "tracks", &["/reserves/a.num", TOK_A]));
+
+    let mint = c(vec![send("lp", "L", 5), post("/lp/supply.num", json!(15))]);
+    assert!(h(&mint, "tracks", &["/lp/supply.num", "lp", "issued"]));
+    assert!(!h(&mint, "tracks", &["/lp/supply.num", "lp"]), "a supply grows when shares go out");
+    assert!(!h(&mint, "tracks", &["/lp/supply.num", "lp", "held"]));
+
+    assert!(h(&c(vec![recv("T", TOK_A, 7), send(TOK_B, "T", 3)]), "pays_senders", &[TOK_B]));
+    assert!(!h(&c(vec![recv("T", TOK_A, 7), send(TOK_B, "M", 3)]), "pays_senders", &[TOK_B]));
+    assert!(h(&c(vec![recv("T", TOK_A, 7), send(TOK_B, "M", 3)]), "pays_senders", &[TOK_A]), "no SEND of it");
+    assert!(!h(&c(vec![send(TOK_B, "T", 3)]), "pays_senders", &[TOK_B]), "nobody paid in");
+
+    // sent_* name a held asset by its creator, and an own asset by its id.
+    let both = c(vec![send(TOK_A, "T", 4), send("tokA", "T", 6)]);
+    assert!(h(&both, "sent_eq", &[TOK_A, "4"]));
+    assert!(h(&both, "sent_eq", &["tokA", "6"]));
+
+    // Liquidity per share: 100 * 100 * 10^2 against 150 * 150 * 15^2 after a proportional add.
+    let per = |a: u64, s: u64| {
+        let mut commit = c(vec![]);
+        commit.body = vec![post("/reserves/a.num", json!(a)), post("/reserves/b.num", json!(a)), post("/lp/supply.num", json!(s))];
+        holds(&commit, &[("/reserves/a.num", json!(100)), ("/reserves/b.num", json!(100)), ("/lp/supply.num", json!(10))], "keeps_product_per_share", &["/reserves/a.num", "/reserves/b.num", "/lp/supply.num"])
+    };
+    assert!(per(150, 15), "a proportional add");
+    assert!(!per(150, 16), "one share too many");
+    assert!(per(50, 5), "a pro-rata remove");
+    assert!(!per(49, 5), "paid out too much");
+}
+
+#[test]
+fn a_pool_pays_only_who_paid_in_and_keeps_its_product() {
+    let mut bootstrap = commit(vec![
+        ("model", "/model/default.modality", json!(full_pool_model())),
+        ("post", "/config/fee.num", json!(0.003)),
+        ("post", "/reserves/a.num", json!(0)),
+        ("post", "/reserves/b.num", json!(0)),
+        ("post", "/lp/supply.num", json!(0)),
+    ]);
+    bootstrap.add_action("create".to_string(), None, json!({"asset_id": "lp", "quantity": 1_000_000_000u64, "divisibility": 1}));
+    let mut accepted = vec![bootstrap];
+    for rule in full_pool_rules() {
+        let pending = rule_commit(&rule);
+        validate(&accepted, &pending, V2).unwrap_or_else(|e| panic!("{rule}: {e}"));
+        accepted.push(pending);
+    }
+
+    // L adds 1000 A and 4000 B; the first deposit mints sqrt(1000 * 4000) shares.
+    let add = pool_output(
+        [vec![recv("L", TOK_A, 1000), recv("L", TOK_B, 4000), send("lp", "L", 2000)], reserves_after(1000, 4000), vec![post("/lp/supply.num", json!(2000))]].concat(),
+    );
+    validate(&accepted, &add, V2).expect("the first deposit");
+    accepted.push(add);
+
+    // T swaps 100 A: out = 4000 * 100 * 997 / (1000 * 1000 + 100 * 997) = 362.6.
+    let swap = |out: u64, to: &str, a_after: u64| {
+        pool_output([vec![recv("T", TOK_A, 100), send(TOK_B, to, out)], reserves_after(a_after, 4000 - out)].concat())
+    };
+    for (pending, why, says) in [
+        (swap(400, "T", 1100), "pays more than the curve", "keeps_product"),
+        (swap(362, "M", 1100), "pays someone else", "pays_senders"),
+        (swap(362, "T", 1200), "posts reserves the flow does not explain", "tracks"),
+    ] {
+        for theory in [V0, V2] {
+            let err = validate(&accepted, &pending, theory).expect_err(why);
+            assert!(err.to_string().contains(says), "{why}: {err}");
+        }
+    }
+    let mut by_hand = swap(362, "T", 1100);
+    by_hand.body.iter_mut().for_each(|a| a.emitted_by = None);
+    validate(&accepted, &by_hand, V2).expect_err("written by hand");
+    let good = swap(362, "T", 1100);
+    validate(&accepted, &good, V2).expect("a swap on the curve");
+    accepted.push(good);
+
+    // L returns 1000 of 2000 shares: half of each reserve, rounded down.
+    let remove = |a_out: u64, b_out: u64, burned_to: u64| {
+        pool_output(
+            [
+                vec![recv("L", "lp", 1000), send(TOK_A, "L", a_out), send(TOK_B, "L", b_out)],
+                reserves_after(1100 - a_out, 3638 - b_out),
+                vec![post("/lp/supply.num", json!(burned_to))],
+            ]
+            .concat(),
+        )
+    };
+    let err = validate(&accepted, &remove(600, 1819, 1000), V2).expect_err("more than half of A");
+    assert!(err.to_string().contains("keeps_product_per_share"), "{err}");
+    let err = validate(&accepted, &remove(550, 1819, 1100), V2).expect_err("the supply falls by what came back");
+    assert!(err.to_string().contains("tracks"), "{err}");
+    validate(&accepted, &remove(550, 1819, 1000), V2).expect("a pro-rata remove");
+
+    // The rules outlive the model.
+    let lax = full_pool_model().replace(&format!(r#" +pays_senders("{TOK_B}")"#), "");
+    let replace = commit(vec![("model", "/model/default.modality", json!(lax))]);
+    let err = validate(&accepted, &replace, V2).expect_err("rules still bind");
+    assert!(err.to_string().contains("Model violates rule"), "{err}");
+}

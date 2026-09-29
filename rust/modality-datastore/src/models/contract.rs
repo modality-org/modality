@@ -530,6 +530,13 @@ pub struct SendRecord {
     pub asset_id: String,
     pub to_contract: String,
     pub amount: u64,
+    /// The contract that created the asset. Empty in records written before
+    /// held assets could be sent, which moved only `from_contract`'s own.
+    #[serde(default)]
+    pub asset_contract: String,
+    /// What the sender attached for the recipient, if anything.
+    #[serde(default)]
+    pub memo: Option<serde_json::Value>,
 }
 
 #[async_trait]
@@ -542,11 +549,17 @@ impl Model for SendRecord {
         "asset_id",
         "to_contract",
         "amount",
+        "asset_contract",
+        "memo",
     ];
     const FIELD_DEFAULTS: &'static [(&'static str, serde_json::Value)] = &[];
 
     fn set_field(&mut self, field: &str, value: serde_json::Value) {
         match field {
+            "asset_contract" => {
+                self.asset_contract = value.as_str().unwrap_or_default().to_string()
+            }
+            "memo" => self.memo = (!value.is_null()).then_some(value),
             "send_commit_id" => {
                 self.send_commit_id = value.as_str().unwrap_or_default().to_string()
             }
@@ -568,6 +581,15 @@ impl Model for SendRecord {
 }
 
 impl SendRecord {
+    /// The contract that created the asset this `SEND` moves.
+    pub fn creator(&self) -> &str {
+        if self.asset_contract.is_empty() {
+            &self.from_contract
+        } else {
+            &self.asset_contract
+        }
+    }
+
     pub async fn find(
         datastore: &DatastoreManager,
         send_commit_id: &str,

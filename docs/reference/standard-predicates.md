@@ -37,6 +37,9 @@ local validator path.
 | `posts_own_key(/path.id)` | Pending commit body `POST` actions and pending signatures | The commit posts a key to exactly `/path.id`, and that key signed the commit |
 | `emitted_by(/program.wasm)` or `emitted_by(/program.wasm, "sha256")` | Which actions an `invoke` emitted, recorded while the validator expands it | A posted program, with those bytes when a hash is given, emitted every action in the commit |
 | `keeps_product(/a.num, /b.num)` or `keeps_product(/a.num, /b.num, fee)` | Pending `POST`s to the two paths, plus accepted state | The product of the two numbers after the commit is not smaller than before it, with the growth of each discounted by the fee |
+| `keeps_product_per_share(/a.num, /b.num, /supply.num)` | Pending `POST`s to the three paths, plus accepted state | The product of the two numbers divided by the square of the supply is not smaller after the commit |
+| `tracks(/p.num, "asset")` or `tracks(/p.num, "asset", "issued")` | Pending `POST`s to the path, accepted state, and what the commit's `RECV`s state and `SEND`s move | The number changes by exactly what came in of `asset` less what went out; with `"issued"`, by what went out less what came in |
+| `pays_senders("asset")` | Pending `SEND` actions and the senders the commit's `RECV`s state | Every `SEND` of `asset` goes to a contract a `RECV` of the same commit came from |
 
 Other reference predicates below describe the intended standard vocabulary.
 Treat them as requiring predicate-specific implementation and tests before
@@ -51,7 +54,7 @@ currently enforced by the local first-contract validator.
 |------------------|--------------------------------|-------|
 | Method labels such as `+POST`, `+REPOST`, and `+MODEL` | Enforced | Derived from pending commit body methods |
 | `signed_by`, `any_signed`, `all_signed`, `threshold`, `modifies`, `post_to_path`, `sets`, `has_property`, `state_exists`, `text_eq`, `text_contains`, `text_starts_with`, `text_ends_with`, `amount_in_range`, `num_eq`, `num_gt`, `num_gte`, `num_lt`, `num_lte`, `bool_true`, `bool_false` | Enforced | Derived from pending signatures, accepted state, pending methods, pending paths, accepted-state path existence, accepted-state JSON, accepted-state text, accepted-state numbers, and accepted-state booleans |
-| `sent_eq`, `sent_lte`, `sent_to`, `posts_own_key`, `emitted_by`, `keeps_product` | Enforced | What the pending commit moves and who wrote it. See [Outflow Predicates](#outflow-predicates). Every node on a network must run a release that evaluates them before a contract relies on them: an older node holds them false |
+| `sent_eq`, `sent_lte`, `sent_to`, `posts_own_key`, `emitted_by`, `keeps_product`, `keeps_product_per_share`, `tracks`, `pays_senders` | Enforced | What the pending commit moves and who wrote it. See [Outflow Predicates](#outflow-predicates). Every node on a network must run a release that evaluates them before a contract relies on them: an older node holds them false |
 | `timestamp_valid` | Unit-tested extension module only | Implemented in `modality-wasm-validation`; not yet replay evidence for the local first-contract validator |
 | `oracle_attests` | Replay bundle only | Holds only when the commit carries a valid replay bundle for the claim |
 | `before`, `after`, hash predicates, and `wasm` | Never holds | Intended extension vocabulary, not evaluated by the validator yet |
@@ -210,12 +213,14 @@ The total that the commit's `SEND` actions of one asset move.
 ```
 
 **Arguments:**
-- `asset` — Asset id, as in the `SEND` value's `asset_id`
+- `asset` — The asset's name: its `asset_id` (`"drops"`) for one the contract
+  created, or `"<creator>:<asset_id>"` for one it received and sends on, as
+  in the `SEND` value's `asset_contract` and `asset_id`
 - `amount` — A whole number (`"10"`), or a `.num` path holding a whole number
   in accepted state
 
 **Behavior:**
-- Adds the `amount` of every `SEND` whose `asset_id` is `asset`; a commit
+- Adds the `amount` of every `SEND` of `asset`; a commit
   with none sends zero, so `+sent_eq("drops", "0")` holds on it
 - Splitting a payment does not help: two `SEND`s of 4 and 6 total 10
 - Never holds when any `SEND` in the commit is malformed, when `amount` is
@@ -231,7 +236,7 @@ Where the commit's `SEND` actions of one asset go.
 ```
 
 **Arguments:**
-- `asset` — Asset id
+- `asset` — The asset's name, as for `sent_eq`
 - `dest` — A contract id literal, or a `.text` or `.id` path holding one in
   accepted state
 
@@ -325,8 +330,93 @@ always([+modifies(/reserves) -emitted_by(/__programs__/pool.wasm, "5f1e...")] fa
 always([+modifies(/reserves) -keeps_product(/reserves/a.num, /reserves/b.num, /config/fee.num)] false)
 ```
 
-Predicate theory treats `sent_eq`, `sent_lte`, `sent_to`, `emitted_by` and
-`keeps_product` as opaque atoms: an edge that needs one is taken to be possibly open, and a
+### keeps_product_per_share
+
+A pool's liquidity invariant: what one share is worth never falls.
+
+```modality
++keeps_product_per_share(/reserves/a.num, /reserves/b.num, /lp/supply.num)
+```
+
+**Arguments:**
+- `a`, `b` — The two reserves, `.num` paths holding numbers in accepted state
+- `supply` — The shares outstanding, a third `.num` path
+
+**Behavior:**
+- "After" is read as for `keeps_product`
+- True when `a_after * b_after * supply_before² >= a_before * b_before * supply_after²`:
+  the product per share squared does not fall. A deposit mints at most its
+  proportion of shares, a withdrawal pays at most its proportion, and a swap
+  that keeps the product holds it too
+- With no supply before, it holds when a reserve was zero too or the supply
+  stays zero: an empty pool's first deposit sets the price, but shares
+  cannot be minted against reserves nobody holds shares in
+- Exact, like `keeps_product`
+- Never holds when a path has no accepted number, a pending write there is
+  not a number, a number is negative, or two of the paths are the same
+
+### tracks
+
+A posted number that follows what the commit moves.
+
+```modality
++tracks(/reserves/a.num, "12D3KooW...:tokA")
++tracks(/lp/supply.num, "lp", "issued")
+```
+
+**Arguments:**
+- `path` — A `.num` path holding a number in accepted state
+- `asset` — The asset's name, as for `sent_eq`
+- `"issued"` (optional) — The number counts an asset the contract issues, so
+  it grows when the asset goes out and shrinks when it comes back
+
+**Behavior:**
+- "Came in" is the total `amount` the commit's `RECV`s state they receive of
+  `asset`; see [RECV](./commit-methods.md#recv). Apply refuses a `RECV` whose
+  statement differs from its `SEND`, so the stated amount is the amount
+- "Went out" is the total the commit's `SEND`s of `asset` move
+- True when `after - before` is exactly came in less went out, or, with
+  `"issued"`, went out less came in. A commit that moves none of `asset` and
+  leaves the path alone holds it
+- Never holds when any `RECV` in the commit does not state its asset and
+  amount, when any `SEND` is malformed, or when the path has no accepted
+  number or a pending write there is not a number
+
+### pays_senders
+
+Payouts that go back to whoever paid in.
+
+```modality
++pays_senders("12D3KooW...:tokB")
+```
+
+**Arguments:**
+- `asset` — The asset's name, as for `sent_eq`
+
+**Behavior:**
+- True when every `SEND` of `asset` goes to a contract that a `RECV` of the
+  same commit states it came from (`from_contract`), and when the commit
+  sends none of it
+- Never holds when any `SEND` is malformed
+- Stops a program from paying a third party. Which sender gets how much is
+  the program's; pair it with `tracks` and the value invariants
+
+**Example:**
+```modality
+// A pool: only the program moves assets, the reserves follow what moved,
+// payouts go to payers, and no commit lowers the product per share
+always([+SEND -emitted_by(/__programs__/pool.wasm, "5f1e...")] false)
+always([-tracks(/reserves/a.num, "12D3KooW...:tokA")] false)
+always([-pays_senders("12D3KooW...:tokA")] false)
+always([-keeps_product_per_share(/reserves/a.num, /reserves/b.num, /lp/supply.num)] false)
+```
+
+See [A Constant-Product Pool](../tutorials/constant-product-pool.md) for the
+full rule set.
+
+Predicate theory treats `sent_eq`, `sent_lte`, `sent_to`, `emitted_by`,
+`keeps_product`, `keeps_product_per_share`, `tracks` and `pays_senders` as
+opaque atoms: an edge that needs one is taken to be possibly open, and a
 diamond rule that needs one is refused rather than guessed. `posts_own_key`
 is known to post to its path, so an edge with `+posts_own_key(/p.id)
 -post_to_path(/p.id)` is dead. See [Predicate theory](./predicate-theory.md).

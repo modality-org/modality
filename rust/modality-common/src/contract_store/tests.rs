@@ -121,6 +121,41 @@ fn test_recv_action_validation() {
 }
 
 #[test]
+fn held_assets_and_recv_statements_are_well_formed() {
+    let check = |method: &str, value: serde_json::Value| {
+        let mut commit = CommitFile::new();
+        commit.add_action(method.to_string(), None, value);
+        commit.validate()
+    };
+    let create = |id: &str| json!({"asset_id": id, "quantity": 1, "divisibility": 1});
+    assert!(check("create", create("tok")).is_ok());
+    assert!(check("create", create("KA:tok")).is_err(), "':' names a held asset");
+
+    let send = |creator: serde_json::Value| {
+        json!({"asset_contract": creator, "asset_id": "tok", "to_contract": "P", "amount": 5, "memo": {"op": "swap"}})
+    };
+    assert!(check("send", send(json!("KA"))).is_ok());
+    assert!(check("send", send(json!(null))).is_ok());
+    assert!(check("send", send(json!(""))).is_err());
+    assert!(check("send", send(json!(7))).is_err());
+
+    let recv = |field: &str, v: serde_json::Value| {
+        let mut value = json!({"send_commit_id": "s"});
+        value[field] = v;
+        check("recv", value)
+    };
+    for field in ["from_contract", "asset_contract", "asset_id"] {
+        assert!(recv(field, json!("x")).is_ok(), "{field}");
+        assert!(recv(field, json!("")).is_err(), "{field}");
+        assert!(recv(field, json!(3)).is_err(), "{field}");
+    }
+    assert!(recv("amount", json!(5)).is_ok());
+    assert!(recv("amount", json!(2.5)).is_err());
+    assert!(recv("amount", json!("5")).is_err());
+    assert!(recv("memo", json!({"op": "swap", "min_out": 3})).is_ok());
+}
+
+#[test]
 fn test_recv_action_validation_fails_without_send_commit_id() {
     let mut commit = CommitFile::new();
 

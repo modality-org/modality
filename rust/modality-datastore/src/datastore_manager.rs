@@ -555,9 +555,27 @@ impl DatastoreManager {
             .to_string())
     }
 
+    /// Queue a request for this node's validator worker. A request already
+    /// queued for the same prefix is not queued twice, and on a node that
+    /// runs no validator worker the queue keeps only the newest ones.
     pub fn enqueue_prefix_cert_request(&self, request: serde_json::Value) -> Result<()> {
+        const MAX_QUEUED: usize = 1024;
+        let key = |r: &serde_json::Value| {
+            (
+                r.get("source_contract").cloned(),
+                r.get("through_commit").cloned(),
+                r.get("source_path").cloned(),
+            )
+        };
         let mut reqs = self.load_prefix_cert_requests()?;
+        if reqs.iter().any(|r| key(r) == key(&request)) {
+            return Ok(());
+        }
         reqs.push(request);
+        if reqs.len() > MAX_QUEUED {
+            let excess = reqs.len() - MAX_QUEUED;
+            reqs.drain(..excess);
+        }
         self.store_prefix_cert_requests(&reqs)
     }
 

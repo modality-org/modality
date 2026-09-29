@@ -129,7 +129,8 @@ modal commit --all
 
 ## CREATE
 
-Creates a new asset in the contract.
+Creates a new asset in the contract. The `asset_id` may not contain `:`,
+which separates a creator from an asset id in a held asset's name.
 
 ```json
 {
@@ -157,6 +158,26 @@ Sends assets to another contract.
 }
 ```
 
+A contract sends an asset it created, or one it received. Name a received
+asset by its creator in `asset_contract`; omit it for the contract's own
+asset. Naming the contract itself is refused.
+
+An optional `memo` carries JSON the receiver reads, for example what the
+sender wants done with the asset. It is recorded with the SEND.
+
+```json
+{
+  "method": "send",
+  "value": {
+    "asset_contract": "creator_contract_id",
+    "asset_id": "token1",
+    "to_contract": "pool_contract_id",
+    "amount": 100,
+    "memo": {"op": "swap", "min_out": 300}
+  }
+}
+```
+
 ## RECV
 
 Receives assets from a SEND in another contract. The SEND commit must
@@ -176,6 +197,26 @@ apply also needs a prefix-cert supermajority through that SEND commit.
 `send_index` picks which SEND of that commit, counting from 0 (the
 default). SENDs a program emitted count too, in the order the `invoke`
 emitted them. Each SEND is received once.
+
+A RECV may also state what it receives: `from_contract`, `asset_contract`
+and `asset_id`, `amount`, and `memo`. Apply refuses a RECV whose statement
+differs from the SEND, so rules can read the statement as the fact. A
+statement of `asset_id` without `asset_contract` claims the receiver's own
+asset.
+
+```json
+{
+  "method": "recv",
+  "value": {
+    "send_commit_id": "abc123...",
+    "from_contract": "trader_contract_id",
+    "asset_contract": "creator_contract_id",
+    "asset_id": "token1",
+    "amount": 100,
+    "memo": {"op": "swap", "min_out": 300}
+  }
+}
+```
 
 A commit applies whole or not at all: if any action fails, none of its
 writes are kept.

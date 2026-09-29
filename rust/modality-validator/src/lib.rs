@@ -16,7 +16,7 @@ pub mod prefix_cert;
 pub mod program_executor;
 pub mod sequenced_rules;
 
-pub use contract_processor::{ContractProcessor, StateChange};
+pub use contract_processor::{ContractProcessor, MissingPrefixCert, StateChange};
 pub use modality_processor::{ModalityContractProcessor, ModalityError, ModalityStateChange};
 pub use predicate_executor::PredicateExecutor;
 pub use prefix_cert::{PrefixCert, PREFIX_CERT_TYPE};

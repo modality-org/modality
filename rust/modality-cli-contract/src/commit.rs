@@ -47,9 +47,18 @@ pub struct Opts {
     #[clap(long)]
     to_contract: Option<String>,
 
-    /// Amount to send (for SEND method)
+    /// Amount to send (for SEND method). With RECV, the amount the SEND must move
     #[clap(long)]
     amount: Option<u64>,
+
+    /// Contract that created the asset, when it is not this contract (for SEND,
+    /// and for RECV as the creator the SEND must move)
+    #[clap(long)]
+    asset_contract: Option<String>,
+
+    /// JSON the SEND carries for the recipient (for SEND method)
+    #[clap(long)]
+    memo: Option<String>,
 
     // RECV action fields
     /// SEND commit ID to receive from (for RECV method)
@@ -367,6 +376,8 @@ fn is_empty_commit(opts: &Opts) -> bool {
         && opts.amount.is_none()
         && opts.send_commit_id.is_none()
         && opts.send_index.is_none()
+        && opts.asset_contract.is_none()
+        && opts.memo.is_none()
 }
 
 fn accepted_model_content(store: &ContractStore) -> Result<Option<String>> {
@@ -671,12 +682,20 @@ fn build_send_value(opts: &Opts) -> Result<Value> {
         .amount
         .ok_or_else(|| anyhow::anyhow!("--amount is required for SEND method"))?;
 
-    Ok(serde_json::json!({
+    let mut value = serde_json::json!({
         "asset_id": asset_id,
         "to_contract": to_contract,
         "amount": amount,
         "identifier": null
-    }))
+    });
+    if let Some(creator) = &opts.asset_contract {
+        value["asset_contract"] = serde_json::json!(creator);
+    }
+    if let Some(memo) = &opts.memo {
+        value["memo"] = serde_json::from_str(memo)
+            .map_err(|e| anyhow::anyhow!("--memo must be JSON: {e}"))?;
+    }
+    Ok(value)
 }
 
 fn build_recv_value(opts: &Opts) -> Result<Value> {
@@ -690,6 +709,15 @@ fn build_recv_value(opts: &Opts) -> Result<Value> {
     });
     if let Some(index) = opts.send_index {
         value["send_index"] = serde_json::json!(index);
+    }
+    if let Some(asset_id) = &opts.asset_id {
+        value["asset_id"] = serde_json::json!(asset_id);
+    }
+    if let Some(creator) = &opts.asset_contract {
+        value["asset_contract"] = serde_json::json!(creator);
+    }
+    if let Some(amount) = opts.amount {
+        value["amount"] = serde_json::json!(amount);
     }
     Ok(value)
 }

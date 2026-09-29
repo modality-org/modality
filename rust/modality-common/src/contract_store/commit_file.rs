@@ -356,6 +356,9 @@ impl CommitAction {
         if asset_id.is_empty() {
             anyhow::bail!("asset_id cannot be empty");
         }
+        if asset_id.contains(':') {
+            anyhow::bail!("asset_id cannot contain ':'; predicates name a held asset as <contract>:<asset_id>");
+        }
 
         let quantity = value_obj
             .get("quantity")
@@ -403,6 +406,12 @@ impl CommitAction {
             anyhow::bail!("to_contract cannot be empty");
         }
 
+        if let Some(creator) = value_obj.get("asset_contract").filter(|v| !v.is_null()) {
+            if creator.as_str().is_none_or(str::is_empty) {
+                anyhow::bail!("SEND 'asset_contract' must be a contract id");
+            }
+        }
+
         let amount = value_obj
             .get("amount")
             .and_then(|v| v.as_u64())
@@ -434,6 +443,18 @@ impl CommitAction {
         if let Some(index) = value_obj.get("send_index") {
             if !index.is_null() && index.as_u64().is_none() {
                 anyhow::bail!("RECV 'send_index' must be a whole number");
+            }
+        }
+        for field in ["from_contract", "asset_contract", "asset_id"] {
+            if let Some(v) = value_obj.get(field).filter(|v| !v.is_null()) {
+                if v.as_str().is_none_or(str::is_empty) {
+                    anyhow::bail!("RECV '{field}' must be a non-empty string");
+                }
+            }
+        }
+        if let Some(amount) = value_obj.get("amount").filter(|v| !v.is_null()) {
+            if amount.as_u64().is_none() {
+                anyhow::bail!("RECV 'amount' must be a whole number");
             }
         }
 

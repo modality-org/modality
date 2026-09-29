@@ -51,11 +51,13 @@ or an inline domain action.
 | `--all`, `-a` | Commit all changed `state/`, `rules/`, `reposts/`, and `model/default.modality` files. Staged REPOST dests emit `method: repost`. With `--method create`, `send`, `recv` or `invoke`, that action joins the same commit, so a `SEND` and the flag it sets are one commit. |
 | `--message`, `-m <MSG>` | Commit message |
 | `--action <JSON>` | Commit an inline JSON domain action or read it from a `.json` file path |
-| `--asset-id <ASSET_ID>` | Asset ID for `CREATE` commits |
+| `--asset-id <ASSET_ID>` | Asset ID for `CREATE` and `SEND` commits; on a `RECV`, the asset it states it receives |
+| `--asset-contract <CONTRACT_ID>` | Creator of a received asset: on a `SEND`, the held asset to send on; on a `RECV`, the creator it states. Omit it for the contract's own asset |
+| `--memo <JSON>` | JSON the receiver of a `SEND` reads, recorded with it; on a `RECV`, the memo it states the `SEND` carries |
 | `--quantity <QUANTITY>` | Asset quantity for `CREATE` commits |
 | `--divisibility <DIVISIBILITY>` | Asset divisibility for `CREATE` commits |
 | `--to-contract <TO_CONTRACT>` | Destination contract ID for `SEND` commits |
-| `--amount <AMOUNT>` | Amount for `SEND` commits |
+| `--amount <AMOUNT>` | Amount for `SEND` commits; on a `RECV`, the amount it states it receives. Apply refuses a `RECV` whose statement differs from its `SEND` |
 | `--send-commit-id <SEND_COMMIT_ID>` | Source `SEND` commit ID for `RECV` commits |
 | `--send-index <N>` | Which `SEND` of that commit a `RECV` takes, from 0 (default); emitted `SEND`s count in `invoke` order |
 | `--theory <v0\|v2>` | Predicate theory local verify runs (default `v0`). Use `v2` for a network whose `network.json` sets `predicate_theory_version: "v2"`. With it, a rule that `v0` refuses, such as `always([+SEND -any_signed(/claimants)] false)`, can be committed locally. See [Predicate theory](../reference/predicate-theory.md) |
@@ -70,6 +72,12 @@ modal c commit --all --sign alice --sign bob -m "Replace witness"
 
 # Pay out and mark the flag in one commit
 modal c commit --all --method send --asset-id drops --to-contract <WALLET_ID> --amount 10 --sign carol
+
+# Send on 100 of a received asset, with a memo for the receiver
+modal c commit --method send --asset-contract <CREATOR_ID> --asset-id tokA --to-contract <POOL_ID> --amount 100 --memo '{"op":"swap","min_out":300}'
+
+# Receive it, stating what arrives; apply refuses the RECV if it differs
+modal c commit --method recv --send-commit-id <SEND_ID> --asset-contract <CREATOR_ID> --asset-id tokB --amount 362
 
 # Commit one state file
 modal c commit --path /notes.text --value "signed update" --sign alice

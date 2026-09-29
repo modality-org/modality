@@ -192,6 +192,29 @@ pub struct ContractProcessor {
     program_executor: ProgramExecutor,
 }
 
+/// A dest `RECV` or `REPOST` whose source prefix has no validator quorum yet.
+/// The commit waits; the validators that apply it are asked to certify.
+#[derive(Debug)]
+pub struct MissingPrefixCert {
+    pub action: String,
+    pub source_contract: String,
+    pub through_commit: String,
+    pub have: usize,
+    pub need: usize,
+}
+
+impl std::fmt::Display for MissingPrefixCert {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{} rejected: missing prefix_cert QC for source commit '{}' on '{}' (have {}, need {})",
+            self.action, self.through_commit, self.source_contract, self.have, self.need
+        )
+    }
+}
+
+impl std::error::Error for MissingPrefixCert {}
+
 impl ContractProcessor {
     pub fn new(datastore: Arc<Mutex<DatastoreManager>>) -> Self {
         let predicate_executor = PredicateExecutor::new(Arc::clone(&datastore), DEFAULT_GAS_LIMIT);
@@ -285,14 +308,14 @@ impl ContractProcessor {
             value,
         );
         if n == 0 || have < threshold {
-            anyhow::bail!(
-                "{} rejected: missing prefix_cert QC for source commit '{}' on '{}' (have {}, need {})",
-                action,
-                through_commit,
-                source_contract,
+            return Err(MissingPrefixCert {
+                action: action.to_string(),
+                source_contract: source_contract.to_string(),
+                through_commit: through_commit.to_string(),
                 have,
-                if n == 0 { 1 } else { threshold }
-            );
+                need: if n == 0 { 1 } else { threshold },
+            }
+            .into());
         }
         Ok(())
     }
@@ -619,13 +642,26 @@ impl ContractProcessor {
             .and_then(|v| v.as_u64())
             .ok_or_else(|| anyhow::anyhow!("SEND missing amount"))?;
 
+        let asset_contract = match value.get("asset_contract") {
+            None | Some(Value::Null) => None,
+            Some(v) => Some(
+                v.as_str()
+                    .ok_or_else(|| anyhow::anyhow!("SEND asset_contract must be a contract id"))?,
+            ),
+        };
+        if asset_contract == Some(contract_id) {
+            anyhow::bail!("SEND of the contract's own asset must omit asset_contract");
+        }
+        let creator = asset_contract.unwrap_or(contract_id);
+        let memo = value.get("memo").filter(|m| !m.is_null()).cloned();
+
         let ds = self.datastore.lock().await;
 
         let asset = staged
-            .asset(&ds, contract_id, asset_id)
+            .asset(&ds, creator, asset_id)
             .await?
             .ok_or_else(|| {
-                anyhow::anyhow!("Asset {} not found in contract {}", asset_id, contract_id)
+                anyhow::anyhow!("Asset {} not found in contract {}", asset_id, creator)
             })?;
 
         // Check if amount is valid (respects divisibility)
@@ -638,12 +674,13 @@ impl ContractProcessor {
         }
 
         let mut balance = staged
-            .balance(&ds, contract_id, asset_id, contract_id)
+            .balance(&ds, creator, asset_id, contract_id)
             .await?
             .ok_or_else(|| {
                 anyhow::anyhow!(
-                    "No balance found for asset {} in contract {}",
+                    "No balance found for asset {} of {} in contract {}",
                     asset_id,
+                    creator,
                     contract_id
                 )
             })?;
@@ -665,6 +702,8 @@ impl ContractProcessor {
             asset_id: asset_id.to_string(),
             to_contract: to_contract.to_string(),
             amount,
+            asset_contract: asset_contract.unwrap_or_default().to_string(),
+            memo,
         });
 
         Ok(StateChange::AssetSent {
@@ -755,6 +794,7 @@ impl ContractProcessor {
                 send.to_contract
             );
         }
+        Self::check_recv_claims(value, &send, contract_id, &which)?;
 
         let timestamp = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)?
@@ -770,10 +810,10 @@ impl ContractProcessor {
         );
 
         let mut balance = staged
-            .balance(&ds, &send.from_contract, &send.asset_id, contract_id)
+            .balance(&ds, send.creator(), &send.asset_id, contract_id)
             .await?
             .unwrap_or_else(|| AssetBalance {
-                contract_id: send.from_contract.clone(),
+                contract_id: send.creator().to_string(),
                 asset_id: send.asset_id.clone(),
                 owner_contract_id: contract_id.to_string(),
                 balance: 0,
@@ -791,6 +831,66 @@ impl ContractProcessor {
             amount: send.amount,
             send_commit_id: send_commit_id.to_string(),
         })
+    }
+
+    /// A `RECV` may state what it receives: `from_contract`, `asset_contract`
+    /// (omitted for an asset the receiving contract created), `asset_id`,
+    /// `amount` and `memo`. Each stated field must match the SEND, so rules
+    /// and programs can read what a commit takes in from the commit itself.
+    fn check_recv_claims(
+        value: &Value,
+        send: &SendRecord,
+        contract_id: &str,
+        which: &str,
+    ) -> Result<()> {
+        let claim = |name: &str| value.get(name).filter(|v| !v.is_null());
+        let mismatch = |name: &str, claimed: &Value, actual: String| {
+            anyhow::anyhow!("RECV rejected: {which} has {name} {actual}, not {claimed}")
+        };
+        if let Some(claimed) = claim("from_contract") {
+            if claimed.as_str() != Some(send.from_contract.as_str()) {
+                return Err(mismatch("from_contract", claimed, send.from_contract.clone()));
+            }
+        }
+        let creator = send.creator();
+        if claim("asset_id").is_some() || claim("asset_contract").is_some() {
+            let claimed_creator = match claim("asset_contract") {
+                Some(c) if c.as_str() == Some(contract_id) => {
+                    anyhow::bail!("RECV of the contract's own asset must omit asset_contract")
+                }
+                Some(c) => c.as_str(),
+                None => Some(contract_id),
+            };
+            if claimed_creator != Some(creator) {
+                return Err(match claim("asset_contract") {
+                    Some(claimed) => mismatch("asset_contract", claimed, creator.to_string()),
+                    None => anyhow::anyhow!(
+                        "RECV rejected: {which} moves an asset of {creator}, not one this contract created; name it with asset_contract"
+                    ),
+                });
+            }
+        }
+        if let Some(claimed) = claim("asset_id") {
+            if claimed.as_str() != Some(send.asset_id.as_str()) {
+                return Err(mismatch("asset_id", claimed, send.asset_id.clone()));
+            }
+        }
+        if let Some(claimed) = claim("amount") {
+            if claimed.as_u64() != Some(send.amount) {
+                return Err(mismatch("amount", claimed, send.amount.to_string()));
+            }
+        }
+        if let Some(claimed) = claim("memo") {
+            if send.memo.as_ref() != Some(claimed) {
+                let actual = send
+                    .memo
+                    .as_ref()
+                    .map(Value::to_string)
+                    .unwrap_or_else(|| "none".to_string());
+                return Err(mismatch("memo", claimed, actual));
+            }
+        }
+        Ok(())
     }
 
     /// The `index`-th SEND of a sequenced commit: its record, or, for a
@@ -853,6 +953,12 @@ impl ContractProcessor {
                 .get("amount")
                 .and_then(|v| v.as_u64())
                 .ok_or_else(|| anyhow::anyhow!("SEND action missing amount"))?,
+            asset_contract: send_value
+                .get("asset_contract")
+                .and_then(|v| v.as_str())
+                .unwrap_or_default()
+                .to_string(),
+            memo: send_value.get("memo").filter(|m| !m.is_null()).cloned(),
         })
     }
 
@@ -4206,6 +4312,113 @@ model DeliveryOracle {
             .await
             .expect("carol receives hers");
         assert_eq!(balance_of(&datastore, "faucet", "drops", "carol").await, 1);
+    }
+
+    fn held_send_json(creator: &str, to: &str, amount: u64) -> serde_json::Value {
+        serde_json::json!({
+            "method": "send",
+            "value": { "asset_id": "drops", "asset_contract": creator, "to_contract": to, "amount": amount }
+        })
+    }
+
+    fn one(action: serde_json::Value, parent: &str) -> String {
+        serde_json::json!({ "body": [action], "head": { "parent": parent } }).to_string()
+    }
+
+    #[tokio::test]
+    async fn a_received_asset_is_sent_on() {
+        let datastore = Arc::new(Mutex::new(DatastoreManager::create_in_memory().unwrap()));
+        let processor = ContractProcessor::new(datastore.clone());
+        let create = create_drops_json().to_string();
+        sequence_commit(&processor, &datastore, "faucet", "create", &create, "b1").await;
+        let to_bob = one(send_json("bob", 10), "create");
+        sequence_commit(&processor, &datastore, "faucet", "to-bob", &to_bob, "b2").await;
+        let recv = recv_json("to-bob", None).to_string();
+        sequence_commit(&processor, &datastore, "bob", "bob-recv", &recv, "b3").await;
+
+        let own = processor
+            .process_commit("bob", "own", &one(send_json("carol", 4), "bob-recv"))
+            .await
+            .expect_err("bob created no drops");
+        assert!(own.to_string().contains("Asset drops not found in contract bob"), "{own}");
+        let self_named = processor
+            .process_commit("bob", "self", &one(held_send_json("bob", "carol", 4), "bob-recv"))
+            .await
+            .expect_err("an own asset omits asset_contract");
+        assert!(self_named.to_string().contains("must omit asset_contract"), "{self_named}");
+        let too_much = processor
+            .process_commit("bob", "much", &one(held_send_json("faucet", "carol", 11), "bob-recv"))
+            .await
+            .expect_err("bob holds 10");
+        assert!(too_much.to_string().contains("Insufficient balance"), "{too_much}");
+
+        let to_carol = one(held_send_json("faucet", "carol", 4), "bob-recv");
+        sequence_commit(&processor, &datastore, "bob", "to-carol", &to_carol, "b4").await;
+        assert_eq!(balance_of(&datastore, "faucet", "drops", "bob").await, 6);
+        let recv = recv_json("to-carol", None).to_string();
+        sequence_commit(&processor, &datastore, "carol", "carol-recv", &recv, "b5").await;
+        assert_eq!(balance_of(&datastore, "faucet", "drops", "carol").await, 4);
+
+        // Back to its creator: the faucet's own supply grows again.
+        let home = one(held_send_json("faucet", "faucet", 4), "carol-recv");
+        sequence_commit(&processor, &datastore, "carol", "home", &home, "b6").await;
+        processor
+            .process_commit("faucet", "faucet-recv", &one(recv_json("home", None)["body"][0].clone(), "to-bob"))
+            .await
+            .unwrap();
+        assert_eq!(balance_of(&datastore, "faucet", "drops", "faucet").await, 94);
+        assert_eq!(balance_of(&datastore, "faucet", "drops", "carol").await, 0);
+    }
+
+    #[tokio::test]
+    async fn a_recv_that_misstates_its_send_is_refused() {
+        let datastore = Arc::new(Mutex::new(DatastoreManager::create_in_memory().unwrap()));
+        let processor = ContractProcessor::new(datastore.clone());
+        let create = create_drops_json().to_string();
+        sequence_commit(&processor, &datastore, "faucet", "create", &create, "b1").await;
+        let mut send = send_json("pool", 4);
+        send["value"]["memo"] = serde_json::json!({ "min_out": 3 });
+        sequence_commit(&processor, &datastore, "faucet", "s", &one(send, "create"), "b2").await;
+
+        let claim = |extra: serde_json::Value| {
+            let mut value = serde_json::json!({ "send_commit_id": "s" });
+            for (k, v) in extra.as_object().unwrap() {
+                value[k] = v.clone();
+            }
+            serde_json::json!({ "body": [{ "method": "recv", "value": value }], "head": {} })
+                .to_string()
+        };
+        for (extra, why, says) in [
+            (serde_json::json!({ "amount": 5 }), "the amount", "has amount 4, not 5"),
+            (serde_json::json!({ "asset_contract": "faucet", "asset_id": "gold" }), "the asset", "has asset_id drops"),
+            (serde_json::json!({ "from_contract": "mallory" }), "the sender", "has from_contract faucet"),
+            (serde_json::json!({ "asset_id": "drops" }), "an own asset", "not one this contract created"),
+            (serde_json::json!({ "asset_contract": "other" }), "the creator", "has asset_contract faucet"),
+            (serde_json::json!({ "asset_contract": "pool" }), "the receiver as creator", "must omit asset_contract"),
+            (serde_json::json!({ "memo": { "min_out": 0 } }), "the memo", "has memo {\"min_out\":3}"),
+        ] {
+            let err = processor
+                .process_commit("pool", why, &claim(extra))
+                .await
+                .expect_err(why);
+            assert!(err.to_string().contains(says), "{why}: {err}");
+        }
+        assert_eq!(balance_of(&datastore, "faucet", "drops", "pool").await, 0);
+        processor
+            .process_commit(
+                "pool",
+                "ok",
+                &claim(serde_json::json!({
+                    "from_contract": "faucet",
+                    "asset_contract": "faucet",
+                    "asset_id": "drops",
+                    "amount": 4,
+                    "memo": { "min_out": 3 }
+                })),
+            )
+            .await
+            .expect("every claim is true");
+        assert_eq!(balance_of(&datastore, "faucet", "drops", "pool").await, 4);
     }
 
     #[tokio::test]
