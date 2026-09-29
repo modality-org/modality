@@ -335,6 +335,9 @@ enum ContractCommands {
     #[command(about = "Push commits to the network for sequencing")]
     Push(modality_cli_contract::push::Opts),
 
+    #[command(about = "Anchor commit hashes on the hash lane, without their bodies")]
+    Anchor(modality_cli_contract::anchor::Opts),
+
     #[command(about = "Pull commits from the chain")]
     Pull(modality_cli_contract::pull::Opts),
 
@@ -654,6 +657,7 @@ pub async fn run() -> Result<()> {
             ContractCommands::CommitId(opts) => modality_cli_contract::commit_id::run(opts).await?,
             ContractCommands::Id(opts) => modality_cli_contract::id::run(opts).await?,
             ContractCommands::Push(opts) => modality_cli_contract::push::run(opts).await?,
+            ContractCommands::Anchor(opts) => modality_cli_contract::anchor::run(opts).await?,
             ContractCommands::Pull(opts) => modality_cli_contract::pull::run(opts).await?,
             ContractCommands::Status(opts) => modality_cli_contract::status::run(opts).await?,
             ContractCommands::Set(opts) => modality_cli_contract::set::run(opts).await?,

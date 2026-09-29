@@ -59,7 +59,7 @@
   width: clamp(104px, 9vw, 138px);
   height: auto;
   overflow: visible;
-  opacity: 0;
+  opacity: 0.55;
 }
 
 .edge {
@@ -100,12 +100,12 @@
   stroke: none;
 }
 
-.m1 { --lag: 0s; top: 8%; left: 3.5%; animation: life 22s linear var(--lag) infinite, drift1 12s ease-in-out infinite; }
-.m2 { --lag: 7s; top: 11%; right: 5%; animation: life 22s linear var(--lag) infinite, drift2 14s ease-in-out infinite; }
-.m3 { --lag: 13s; top: 40%; left: 2.5%; animation: life 22s linear var(--lag) infinite, drift3 13s ease-in-out infinite; }
-.m4 { --lag: 4s; top: 44%; right: 4.5%; animation: life 22s linear var(--lag) infinite, drift4 15s ease-in-out infinite; }
-.m5 { --lag: 16s; bottom: 18%; left: 5%; animation: life 22s linear var(--lag) infinite, drift5 16s ease-in-out infinite; }
-.m6 { --lag: 10s; bottom: 20%; right: 5%; animation: life 22s linear var(--lag) infinite, drift6 11s ease-in-out infinite; }
+.m1 { --lag: -2s; top: 8%; left: 3.5%; animation: life 22s linear var(--lag) infinite, drift1 12s ease-in-out infinite; }
+.m2 { --lag: -5s; top: 11%; right: 5%; animation: life 22s linear var(--lag) infinite, drift2 14s ease-in-out infinite; }
+.m3 { --lag: -8s; top: 40%; left: 2.5%; animation: life 22s linear var(--lag) infinite, drift3 13s ease-in-out infinite; }
+.m4 { --lag: -11s; top: 44%; right: 4.5%; animation: life 22s linear var(--lag) infinite, drift4 15s ease-in-out infinite; }
+.m5 { --lag: -14s; bottom: 18%; left: 5%; animation: life 22s linear var(--lag) infinite, drift5 16s ease-in-out infinite; }
+.m6 { --lag: -17s; bottom: 20%; right: 5%; animation: life 22s linear var(--lag) infinite, drift6 11s ease-in-out infinite; }
 
 .later,
 .further {

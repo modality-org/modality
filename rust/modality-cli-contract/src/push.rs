@@ -39,6 +39,64 @@ pub struct Opts {
     /// Output format (json or text)
     #[clap(long, default_value = "text")]
     output: String,
+
+    /// Push the commits as reveals of hash commitments made with
+    /// `modal contract anchor`. A reveal is sequenced only if a certified
+    /// hash commitment names it.
+    #[clap(long)]
+    reveal: bool,
+}
+
+/// Send one request to a node over p2p, as a short-lived local node.
+#[cfg(feature = "p2p")]
+pub(crate) async fn p2p_request(
+    node_dir: Option<&PathBuf>,
+    remote_url: &str,
+    path: &str,
+    data: &serde_json::Value,
+) -> Result<modality_node::reqres::Response> {
+    let mut node_config = if let Some(node_dir) = node_dir {
+        let config_path = node_dir.join("config.json");
+        if config_path.exists() {
+            let config_json = std::fs::read_to_string(&config_path)?;
+            let mut config: modality_node::config::Config = serde_json::from_str(&config_json)?;
+            config.storage_path = None;
+            config.logs_path = None;
+            config.data_dir = None;
+            config.bootstrappers = Some(vec![]);
+            let passfile_path = node_dir.join("node.modal_passfile");
+            if passfile_path.exists() {
+                config.passfile_path = Some(passfile_path);
+            }
+            config
+        } else {
+            modality_node::config::Config::default()
+        }
+    } else {
+        modality_node::config::Config::default()
+    };
+
+    if node_config
+        .listeners
+        .as_ref()
+        .map(|l| l.is_empty())
+        .unwrap_or(true)
+    {
+        node_config.listeners = Some(vec!["/ip4/127.0.0.1/tcp/0/ws".parse()?]);
+    }
+    node_config.bootstrappers = Some(vec![]);
+
+    let _ = modality_node::logging::init_logging(None, Some(false), None);
+    let mut node = Node::from_config(node_config.clone()).await?;
+    node.setup(&node_config).await?;
+
+    request::run(
+        &mut node,
+        remote_url.to_string(),
+        path.to_string(),
+        serde_json::to_string(data)?,
+    )
+    .await
 }
 
 pub async fn run(opts: &Opts) -> Result<()> {
@@ -94,15 +152,22 @@ pub async fn run(opts: &Opts) -> Result<()> {
     let mut commits_data = Vec::new();
     for commit_id in &unpushed {
         let commit = store.load_commit(commit_id)?;
-        commits_data.push(json!({
+        let mut entry = json!({
             "commit_id": commit_id,
             "body": commit.body,
             "head": commit.head,
-        }));
+        });
+        if opts.reveal {
+            entry["reveal"] = json!(true);
+        }
+        commits_data.push(entry);
     }
 
     // Check if this is an HTTP hub or p2p remote
     if is_hub_url(&remote_url) {
+        if opts.reveal {
+            anyhow::bail!("--reveal needs a network remote; a hub has no hash lane");
+        }
         let creds_path = opts
             .hub_creds
             .clone()
@@ -149,53 +214,16 @@ pub async fn run(opts: &Opts) -> Result<()> {
     } else {
         #[cfg(feature = "p2p")]
         {
-            // P2P node push
-            let mut node_config = if let Some(node_dir) = &opts.node_dir {
-                let config_path = node_dir.join("config.json");
-                if config_path.exists() {
-                    let config_json = std::fs::read_to_string(&config_path)?;
-                    let mut config: modality_node::config::Config =
-                        serde_json::from_str(&config_json)?;
-                    config.storage_path = None;
-                    config.logs_path = None;
-                    config.data_dir = None;
-                    config.bootstrappers = Some(vec![]);
-                    let passfile_path = node_dir.join("node.modal_passfile");
-                    if passfile_path.exists() {
-                        config.passfile_path = Some(passfile_path);
-                    }
-                    config
-                } else {
-                    modality_node::config::Config::default()
-                }
-            } else {
-                modality_node::config::Config::default()
-            };
-
-            if node_config
-                .listeners
-                .as_ref()
-                .map(|l| l.is_empty())
-                .unwrap_or(true)
-            {
-                node_config.listeners = Some(vec!["/ip4/127.0.0.1/tcp/0/ws".parse()?]);
-            }
-            node_config.bootstrappers = Some(vec![]);
-
-            let _ = modality_node::logging::init_logging(None, Some(false), None);
-            let mut node = Node::from_config(node_config.clone()).await?;
-            node.setup(&node_config).await?;
-
             let request_data = json!({
                 "contract_id": config.contract_id,
                 "commits": commits_data,
             });
 
-            let response = request::run(
-                &mut node,
-                remote_url.clone(),
-                "/contract/push".to_string(),
-                serde_json::to_string(&request_data)?,
+            let response = p2p_request(
+                opts.node_dir.as_ref(),
+                &remote_url,
+                "/contract/push",
+                &request_data,
             )
             .await?;
 

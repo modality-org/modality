@@ -15,6 +15,11 @@
   "validator_min_stake": 0,
   "repost_requires_validator_cert": true,
   "predicate_theory_version": "v2",
+  "hash_lane": {
+    "quota_per_block": 64,
+    "floor_bits": 16,
+    "algorithm": "sha256"
+  },
   "blocks_per_epoch": 40,
   "initial_difficulty": 1,
   "target_block_time_secs": 60,

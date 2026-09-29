@@ -2,6 +2,7 @@
 
 pub mod add_rule;
 pub mod ai;
+pub mod anchor;
 pub mod assets;
 pub mod checkout;
 pub mod commit;
