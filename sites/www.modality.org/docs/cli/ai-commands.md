@@ -103,7 +103,7 @@ modal ai suggest-rule --interactive "after this commit either alice or bob must 
 ```
 
 ```
-[] always([-signed_by(/parties/alice.id) -signed_by(/parties/bob.id)] false)
+always([-signed_by(/parties/alice.id) -signed_by(/parties/bob.id)] false)
 ```
 
 That printed formula is example output; yours may differ.

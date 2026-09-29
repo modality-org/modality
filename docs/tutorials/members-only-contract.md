@@ -12,15 +12,18 @@ You want a shared contract where:
 
 ### Rules Constrain Models
 
-Rules are permanent formulas over predicates. They do not validate commits directly; instead, each governing model must satisfy the accumulated rules. Commits are accepted or rejected by matching the current governing model's transition predicates.
+Rules are permanent formulas over predicates. They do not validate commits directly; instead, each governing model must satisfy the accumulated rules. Commits are accepted or rejected by matching the current governing model's transition predicates. A commit that replaces the model is judged by the model it posts, so the rules are what protect the contract.
 
 ```modality
-// WRONG - references a model-specific action label
-always(!<+ADD_MEMBER> true | <+ADD_MEMBER +all_signed(/members)> true)
-
-// RIGHT - constrains acceptable witness models with predicates
+// WRONG - says only that some membership move is unanimous. A replacement
+// model can hold a one-signer membership move beside it.
 always(!<+modifies(/members)> true | <+modifies(/members) +all_signed(/members)> true)
+
+// RIGHT - no membership move without every member's signature
+always([+modifies(/members) -all_signed(/members)] false)
 ```
+
+`modality model lint` warns on the first form.
 
 ### Dynamic Membership
 
@@ -34,54 +37,60 @@ Members are stored as identity files:
 
 ```
 /members/
-  alice.id → "abc123..."  (hex pubkey)
+  alice.id → "abc123..."  (public key)
   bob.id → "def456..."
   carol.id → "ghi789..."
 ```
 
-Each `.id` file contains that member's public key (hex-encoded).
+Each `.id` file holds that member's public key. `modal c set-named-id` writes
+it from an identity name.
 
 ## The Model
 
 Use transition predicates to encode the permissions that actually gate commits:
 
 ```modality
-model members_only {
-  initial active
-  
-  // Non-membership commits: any member can sign, but CAN'T touch /members
-  active -> active [+any_signed(/members) -modifies(/members)]
-  
-  // Membership commits: CAN modify /members, needs unanimous consent
-  active -> active [+modifies(/members) +all_signed(/members)]
+model MembersOnly {
+  part flow {
+    q0 --> q1
+    q1 --> q1: +any_signed(/members) -modifies(/members)
+    q1 --> q1: +any_signed(/members) +all_signed(/members)
+  }
 }
 ```
 
-**Key insight:** The `-modifies(/members)` on the first transition is required. Without it, that transition could be used to modify membership with just one signature — the model wouldn't enforce protection.
+The first edge is the bootstrap commit that installs Alice's key, the rules and
+the model. After it:
+- A commit that does not touch `/members` needs one member's signature.
+- A commit that touches `/members` needs every current member's signature.
 
-The two transitions partition the action space:
-- First: any commit that doesn't modify `/members` → any single member signature
-- Second: any commit that modifies `/members` → all member signatures
+**Key insight:** The `-modifies(/members)` on the first steady-state edge is
+required. Without it, that edge could be used to modify membership with just one
+signature, and the model would fail the membership rule.
 
 ## The Rules
 
 Rules are immutable once added. They constrain future witness models using predicates, so a replacement model cannot forget the protections:
 
 ```modality
-// Any commit requires at least one member signature
 rule member_required {
   formula {
-    always(<+any_signed(/members)> true)
-  }
-}
-
-// Modifying /members/ requires ALL current members
-rule membership_unanimous {
-  formula {
-    always(!<+modifies(/members)> true | <+modifies(/members) +all_signed(/members)> true)
+    always([-any_signed(/members)] false)
   }
 }
 ```
+
+```modality
+rule membership_unanimous {
+  formula {
+    always([+modifies(/members) -all_signed(/members)] false)
+  }
+}
+```
+
+The first says every commit after the one that adds it carries a member's
+signature. The second says no commit writes under `/members` without every
+member's signature.
 
 ### How rules work
 
@@ -99,114 +108,80 @@ rule membership_unanimous {
 
 ## Walkthrough
 
-### 1. Create contract and add first member
+### 1. Create the contract with Alice as the first member
 
 ```bash
-modal c create members_only
-
-# Alice adds herself as first member
-modal c commit \
-  --method post \
-  --path /members/alice.id \
-  --value "$(modal identity show alice --public-key-hex)" \
-  --sign alice.key
+modal id create --name alice
+mkdir members && cd members
+modal contract create
+modal c checkout
+modal c set-named-id /members/alice.id alice
 ```
 
-### 2. Add rules with satisfying model
-
-Each rule commit must include a **model that witnesses satisfiability**. The model proves the rule can be satisfied.
+Write the model above to `model/default.modality`, then add the rules:
 
 ```bash
-# Rule: any commit requires a member signature
-# Witness model must satisfy the rule
-modal c commit \
-  --method rule \
-  --rule 'rule member_required { formula { always(<+any_signed(/members)> true) } }' \
-  --model 'model witness { initial s; s -> s [+any_signed(/members)] }' \
-  --sign alice.key
-
-# Rule: modifying members requires unanimous consent
-# Witness must show the membership guard is satisfiable
-modal c commit \
-  --method rule \
-  --rule 'rule membership_unanimous { formula { always(!<+modifies(/members)> true | <+modifies(/members) +all_signed(/members)> true) } }' \
-  --model 'model witness { initial s; s -> s [+any_signed(/members) -modifies(/members)]; s -> s [+modifies(/members) +all_signed(/members)] }' \
-  --sign alice.key
+modal add-rule --name member_required 'always([-any_signed(/members)] false)'
+modal add-rule --name membership_unanimous 'always([+modifies(/members) -all_signed(/members)] false)'
+modal c commit --all --sign alice -m "Bootstrap members-only contract"
 ```
 
-**Why require a model with each rule?**
-- The model acts as a **witness** proving the rule is satisfiable
-- Without a satisfying model, the rule commit is rejected
-- This prevents adding unsatisfiable rules that would deadlock the contract
+The rules start after this commit. A rule commit is accepted only if the model
+meets every rule; this one does.
 
-**These rules are now permanent.**
-
-### 4. Alice adds Bob
+### 2. Alice adds Bob
 
 Alice is the only member, so only she needs to sign:
 
 ```bash
-modal c commit \
-  --method post \
-  --path /members/bob.id \
-  --value "$(modal identity show bob --public-key-hex)" \
-  --sign alice.key
+modal id create --name bob
+modal c set-named-id /members/bob.id bob
+modal c commit --all --sign alice -m "Add Bob"
 ```
 
-✓ Passes: `+modifies(/members)`=true, `+all_signed([alice])`=true ✓
+✓ Passes: `+modifies(/members)`=true, `+all_signed([alice])`=true
 
-### 5. Alice and Bob add Carol
+### 3. Alice and Bob add Carol
 
-Now BOTH must sign (commit modifies /members/):
+Now BOTH must sign (the commit modifies /members/):
 
 ```bash
-modal c commit \
-  --method post \
-  --path /members/carol.id \
-  --value "$(modal identity show carol --public-key-hex)" \
-  --sign alice.key \
-  --sign bob.key
+modal id create --name carol
+modal c set-named-id /members/carol.id carol
+modal c commit --all --sign alice --sign bob -m "Add Carol"
 ```
 
-✓ Passes: `+modifies(/members)`=true, `+all_signed([alice,bob])`=true ✓
+✓ Passes: `+modifies(/members)`=true, `+all_signed([alice,bob])`=true
 
-### 6. Any member can post data
+### 4. Any member can post data
 
 ```bash
-modal c commit \
-  --method post \
-  --path /data/meeting-notes.md \
-  --value "# Meeting Notes..." \
-  --sign bob.key
+mkdir -p state/data
+echo "Meeting notes" > state/data/notes.text
+modal c commit --all --sign bob -m "Notes"
 ```
 
-✓ Passes: `+any_signed(/members)`=true, `+modifies(/members)`=false ✓
+✓ Passes: `+any_signed(/members)`=true, `+modifies(/members)`=false
 
-### 7. Non-members rejected
+### 5. Non-members rejected
 
-```bash
-modal c commit \
-  --method post \
-  --path /data/hack.md \
-  --value "Unauthorized!" \
-  --sign stranger.key
-```
+A commit signed only by an identity that is not under `/members` is refused:
+`+any_signed(/members)` is false.
 
-✗ Rejected: `+any_signed(/members)`=false — stranger ∉ members
-
-### 8. Partial signatures rejected
+### 6. Partial signatures rejected
 
 ```bash
-modal c commit \
-  --method post \
-  --path /members/dave.id \
-  --value "$(modal identity show dave --public-key-hex)" \
-  --sign alice.key \
-  --sign bob.key
-  # Missing carol!
+modal id create --name dave
+modal c set-named-id /members/dave.id dave
+modal c commit --all --sign alice --sign bob -m "Add Dave"
 ```
 
 ✗ Rejected: `+all_signed(/members)` requires alice, bob, AND carol
+
+### 7. A weaker replacement model is rejected
+
+If Alice alone posts a model with a one-signer membership move, the commit is
+judged by that model, and the model fails `membership_unanimous`. Rejected.
 
 ## How Membership Evolves
 
@@ -218,19 +193,20 @@ The key insight: predicates are evaluated against current state, so the same tra
 | +bob | [alice, bob] | [alice, bob] |
 | +carol | [alice, bob, carol] | [alice, bob, carol] |
 
-The transition `+modifies(/members) +all_signed(/members)` stays constant. But as the member set grows, more signatures are required for membership changes.
+The transition `+any_signed(/members) +all_signed(/members)` stays constant. But as the member set grows, more signatures are required for membership changes.
 
 ## Variations
 
-### Admin bypass for member-required commits
+### Admin or member for ordinary commits
 
-This variation lets either an admin or a member authorize ordinary commits. It
-does not weaken the separate membership-change rule above.
+Use this **in place of** `member_required` to let an admin or a member
+authorize ordinary commits. Rules accumulate, so adding it beside
+`member_required` bypasses nothing.
 
 ```modality
-rule admin_bypass {
+rule admin_or_member {
   formula {
-    always(<+signed_by(/admin.id)> true | <+any_signed(/members)> true)
+    always([-signed_by(/admin.id) -any_signed(/members)] false)
   }
 }
 ```
@@ -240,18 +216,31 @@ rule admin_bypass {
 ```modality
 rule config_protected {
   formula {
-    always(!<+modifies(/config)> true | <+modifies(/config) +signed_by(/admin.id)> true)
+    always([+modifies(/config) -signed_by(/admin.id)] false)
   }
 }
 ```
 
 ### Majority for membership
 
+Use a threshold rule **in place of** `membership_unanimous`, and give the model
+the matching edge:
+
 ```modality
-model membership_majority {
-  initial active
-  active -> active [+any_signed(/members) -modifies(/members)]
-  active -> active [+modifies(/members) +threshold("2", /members)]
+rule membership_majority {
+  formula {
+    always([+modifies(/members) -threshold("2", /members)] false)
+  }
+}
+```
+
+```modality
+model MembershipMajority {
+  part flow {
+    q0 --> q1
+    q1 --> q1: +any_signed(/members) -modifies(/members)
+    q1 --> q1: +any_signed(/members) +threshold("2", /members)
+  }
 }
 ```
 
@@ -259,6 +248,8 @@ model membership_majority {
 
 1. **Model** enforces commit permissions through transition predicates
 2. **Rules** constrain acceptable witness models via **predicates**
-3. Rules should NOT reference action labels from the model
-4. **Dynamic predicates** (`+any_signed`, `+all_signed`) evolve with state
-5. **Path predicates** (`+modifies`) check what the commit touches
+3. Write "every such move needs this evidence" as a box that forbids the move
+   without it: `always([+modifies(/members) -all_signed(/members)] false)`
+4. Rules should NOT reference action labels from the model
+5. **Dynamic predicates** (`+any_signed`, `+all_signed`) evolve with state
+6. **Path predicates** (`+modifies`) check what the commit touches

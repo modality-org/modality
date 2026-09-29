@@ -7,34 +7,35 @@ model Escrow {
   initial init
   
   // Buyer deposits funds
-  init -> deposited [+signed_by(/parties/buyer.id)]
+  init -> deposited [+modifies(/escrow/deposited) +signed_by(/parties/buyer.id) -modifies(/escrow/delivered) -modifies(/escrow/released)]
   
   // Seller delivers goods/data
-  deposited -> delivered [+signed_by(/parties/seller.id)]
+  deposited -> delivered [+modifies(/escrow/delivered) +signed_by(/parties/seller.id) -modifies(/escrow/deposited) -modifies(/escrow/released)]
   
   // Buyer releases payment (happy path)
-  delivered -> released [+signed_by(/parties/buyer.id)]
+  delivered -> released [+modifies(/escrow/released) +signed_by(/parties/buyer.id) -modifies(/escrow/deposited) -modifies(/escrow/delivered)]
   
-  // Terminal state
-  released -> released []
+  // Terminal state: nothing in the escrow changes
+  released -> released [-modifies(/escrow/deposited) -modifies(/escrow/delivered) -modifies(/escrow/released)]
 }
 
-// Protection rules — these can NEVER be bypassed
+// Protection rules — these can NEVER be bypassed. Each refuses every commit
+// that changes a part of the escrow without the named party's signature.
 
 rule buyer_must_sign_deposit {
   formula {
-    always(!<+modifies(/escrow/deposited)> true | <+modifies(/escrow/deposited) +signed_by(/parties/buyer.id)> true)
+    always([+modifies(/escrow/deposited) -signed_by(/parties/buyer.id)] false)
   }
 }
 
 rule seller_must_sign_delivery {
   formula {
-    always(!<+modifies(/escrow/delivered)> true | <+modifies(/escrow/delivered) +signed_by(/parties/seller.id)> true)
+    always([+modifies(/escrow/delivered) -signed_by(/parties/seller.id)] false)
   }
 }
 
 rule buyer_must_sign_release {
   formula {
-    always(!<+modifies(/escrow/released)> true | <+modifies(/escrow/released) +signed_by(/parties/buyer.id)> true)
+    always([+modifies(/escrow/released) -signed_by(/parties/buyer.id)] false)
   }
 }

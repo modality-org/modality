@@ -43,7 +43,8 @@ pub use evolution::{
     Amendment, Approval, EvolutionRecord, EvolvableContract, Proposal, ProposalStatus,
 };
 pub use formula_lint::{
-    find_span_in_source, lint_formula, lint_formula_with_source, lint_formulas_in_content,
+    find_span_in_source, lint_added_rule, lint_formula, lint_formula_with_source,
+    lint_formulas_in_content,
     witness_node_names, FormulaLintDiagnostic, FormulaLintOptions, LintCode, LintSeverity,
     LintSpan,
 };
@@ -58,7 +59,7 @@ pub use mermaid::{
     generate_mermaid_diagram_with_styling, generate_mermaid_diagrams,
 };
 pub use model_checker::{
-    merged_model, DeadEdge, ModelCheckResult, ModelChecker, Move, MoveStatus, State,
+    merged_model, start_nodes, DeadEdge, ModelCheckResult, ModelChecker, Move, MoveStatus, State,
 };
 pub use printer::print_model;
 pub use runtime::negotiation::{

@@ -24,6 +24,7 @@ local validator path.
 | `threshold("n", /path)` | Pending commit signatures plus every accepted-state `*.id` file at `/path` or descendants | At least `n` unique listed identities must sign |
 | `modifies(/path)` | Pending commit body paths | Matches `/path` itself or descendants such as `/path/alice.id` |
 | `post_to_path(/path)` | Pending commit body methods and paths | Matches a `POST` action to `/path` itself or a descendant |
+| `sets(/path, "value")` | Pending commit body `POST` actions and values | The commit posts to exactly `/path`, and every post there writes `value` |
 | `has_property(/path, "a.b")` | Accepted-state JSON at `/path` | Reads previously committed JSON and follows dot-separated object keys |
 | `state_exists(/path)` | Accepted-state path map | Checks that a path was already committed before the pending commit |
 | `text_eq(/path, "value")` or `text_eq(/left, /right)` | Accepted-state text | Compares previously committed string values or a committed string to a literal |
@@ -44,20 +45,48 @@ currently enforced by the local first-contract validator.
 | Predicate family | Local first-contract validator | Notes |
 |------------------|--------------------------------|-------|
 | Method labels such as `+POST`, `+REPOST`, and `+MODEL` | Enforced | Derived from pending commit body methods |
-| `signed_by`, `any_signed`, `all_signed`, `threshold`, `modifies`, `post_to_path`, `has_property`, `state_exists`, `text_eq`, `text_contains`, `text_starts_with`, `text_ends_with`, `amount_in_range`, `num_eq`, `num_gt`, `num_gte`, `num_lt`, `num_lte`, `bool_true`, `bool_false` | Enforced | Derived from pending signatures, accepted state, pending methods, pending paths, accepted-state path existence, accepted-state JSON, accepted-state text, accepted-state numbers, and accepted-state booleans |
+| `signed_by`, `any_signed`, `all_signed`, `threshold`, `modifies`, `post_to_path`, `sets`, `has_property`, `state_exists`, `text_eq`, `text_contains`, `text_starts_with`, `text_ends_with`, `amount_in_range`, `num_eq`, `num_gt`, `num_gte`, `num_lt`, `num_lte`, `bool_true`, `bool_false` | Enforced | Derived from pending signatures, accepted state, pending methods, pending paths, accepted-state path existence, accepted-state JSON, accepted-state text, accepted-state numbers, and accepted-state booleans |
 | `timestamp_valid` | Unit-tested extension module only | Implemented in `modality-wasm-validation`; not yet replay evidence for the local first-contract validator |
 | `oracle_attests` | Replay bundle only | Holds only when the commit carries a valid replay bundle for the claim |
-| `before`, `after`, `sets`, other state-value predicates, hash predicates, and `wasm` | Never holds | Intended extension vocabulary, not evaluated by the validator yet |
+| `before`, `after`, hash predicates, and `wasm` | Never holds | Intended extension vocabulary, not evaluated by the validator yet |
 
 A predicate the validator does not evaluate never holds. This covers
-`before`, `after`, `timestamp_valid`, `hash_matches`, `sets(...)`,
-`+wasm(...)` and any name missing from the table. No commit takes a
+`before`, `after`, `timestamp_valid`, `hash_matches`, `+wasm(...)` and
+any name missing from the table. No commit takes a
 transition that needs `+after(...)`, and `-after(...)` holds on every
 commit. Under predicate theory `v1` and later, such a transition is a dead
 edge. A model that has one is refused, and so is a rule that promises one,
 such as `<+after(/deadlines/end.datetime)> true`. A committed `.theory.json`
 declaration does not change this for `+wasm(...)` until the validator
 evaluates `wasm`.
+
+Under predicate theory `v1` and later, a predicate whose arguments are the
+wrong kind also never holds. The numeric predicates read a `.num` path and
+a decimal number (`"5"`, `"-0.25"`, or another `.num` path), so
+`num_gt(/x.num, "five")`, `num_gt(/x.num, "1e2")` and `num_gt(/x.text, "5")`
+never hold. `text_eq` and the other text predicates read a `.text` or `.id`
+path, `bool_true` and `bool_false` a `.bool` path, `signed_by` an `.id` path,
+and `threshold` a whole number first. Path arguments start with `/`. Under
+`v0` these predicates are evaluated as before.
+
+## Commit signatures
+
+`signed_by`, `any_signed`, `all_signed` and `threshold` read the keys in the
+pending commit's `head.signatures`. Under predicate theory `v2`, validators
+first verify every entry, and refuse the commit if any does not verify. Each
+key signs the contract id and the whole commit except its signatures, as
+deterministic JSON (object keys sorted):
+
+```json
+{"commit":{"body":[...],"head":{"parent":"..."}},"contract_id":"...","type":"modality-commit-signature"}
+```
+
+A signature therefore holds for one contract at one parent, and cannot be
+moved to another commit. A key is a Modality ID, as `.id` files hold, with a
+base64 signature, or a 32-byte ed25519 public key in hex with a hex
+signature. `modal c commit --sign` signs this payload, after every other
+change to the commit. Under `v0` the keys are read as signers and the
+signatures are not checked.
 
 ## Checkpoint Review Scope
 
@@ -96,7 +125,7 @@ Checks if the commit writes to a path itself or a descendant path.
 **Example:**
 ```modality
 // Only allow membership changes if all members sign
-always(!<+modifies(/members)> true | <+modifies(/members) +all_signed(/members)> true)
+always([+modifies(/members) -all_signed(/members)] false)
 ```
 
 ### post_to_path
@@ -116,6 +145,37 @@ descendant path.
 - Ignores non-`POST` actions, even when they write under the same path
 - Returns true if any `POST` action targets the path itself or a descendant
 - Does not match sibling paths that merely share a string prefix
+
+### sets
+
+Checks what the pending commit writes at a path. `sets` is also spelled
+`post_to`.
+
+```modality
++sets(/order/status.text, "pending")
+```
+
+**Arguments:**
+- `path` — Exact path the commit writes
+- `value` — Value the commit writes there
+
+**Behavior:**
+- Looks only at the pending commit body, like `post_to_path`
+- True when the commit has at least one `POST` to exactly `path`, and every
+  `POST` to `path` writes `value`. After the commit, `path` holds `value`
+- A descendant of `path` does not count
+- `-sets(path, value)` holds when the commit leaves `path` alone or writes
+  another value
+
+**Example:**
+```modality
+// A commit that writes the status writes one of the listed values
+always([+post_to_path(/order/status.text) -sets(/order/status.text, "pending") -sets(/order/status.text, "ready")] false)
+```
+
+On a model, an edge that leaves the path alone should say so with
+`-post_to_path(/order/status.text)`. The checker does not yet know that one
+commit cannot set a path to two values.
 
 ## Signature Predicates
 
@@ -402,22 +462,25 @@ hash_matches(/commitments/secret.hash, /revealed/value.text)
 
 ## Using Predicates in Rules
 
-Predicates are combined with logical operators in rule formulas:
+Predicates are combined with logical operators in rule formulas. Every commit
+after this one is signed by Alice or Bob:
 
 ```modality
 export default rule {
   starting_at $PARENT
   formula {
-    // All commits must be signed by alice OR bob
-    always(<+signed_by(/users/alice.id)> true | <+signed_by(/users/bob.id)> true)
+    always([-signed_by(/users/alice.id) -signed_by(/users/bob.id)] false)
   }
 }
+```
 
+Once the order is marked shipped, only the buyer can commit:
+
+```modality
 export default rule {
   starting_at $PARENT
   formula {
-    // After deadline, only buyer can commit
-    always(!<+after(/deadlines/expiry.datetime)> true | <+signed_by(/users/buyer.id)> true)
+    always([+bool_true(/order/shipped.bool) -signed_by(/users/buyer.id)] false)
   }
 }
 ```
@@ -438,7 +501,7 @@ pending -> executed [+threshold("2", /treasury/signers)]
 WASM predicates are intended custom predicate modules. They are not part of the
 current local first-contract validator evidence matrix unless the predicate is
 explicitly listed above. The local validator now derives `post_to_path(/path)`
-from the pending commit body directly, `has_property(/path, "a.b")` from
+and `sets(/path, "value")` from the pending commit body directly, `has_property(/path, "a.b")` from
 accepted-state JSON directly, `text_eq`, `text_contains`, `text_starts_with`,
 and `text_ends_with` from accepted-state strings, numeric
 comparisons from accepted-state numbers, and `bool_true`/`bool_false` from

@@ -63,7 +63,7 @@ Governance placeholder (not on happy-path witness): `+sets(/certificate/in_use.t
 
 ## Adopted MUST Rules
 
-- [x] §7.1.4 — Client MUST create order before requesting authorization (ordering) → `finalize_requires_order`
+- [x] §7.1.4 — Client MUST create order before requesting authorization (ordering) → implied by `finalize_requires_ready` and `finalize_requires_authorization` (a separate `finalize_requires_order` rule was dropped as subsumed)
 - [x] §7.5 — Authorization MUST be valid before order can be finalized (ordering) → `finalize_requires_authorization`
 - [x] §7.4 — Client MUST NOT finalize until all authorizations are valid → `finalize_requires_authorization`
 - [x] §8 — CA MUST NOT issue certificate before order is finalized (ordering) → `issuance_requires_finalize`
@@ -74,7 +74,7 @@ Governance placeholder (not on happy-path witness): `+sets(/certificate/in_use.t
 - [x] §7.1.5 — Only CA may validate authorization → `only_ca_validates_authorization`
 - [x] §7.1.4 — Only account holder may create order → `only_holder_creates_order`
 - [x] §7.4 — Finalize while not ready MUST fail (orderNotReady) → `finalize_requires_ready`
-- [x] §7.1.6 — Order `valid` and `invalid` mutually exclusive on a step → `valid_excludes_invalid`
+- [x] §7.1.6 — Order `valid` and `invalid` are final: a valid order is never marked invalid → `valid_excludes_invalid`
 - [x] §7.1.6 / §7.4 — Only CA may set order `invalid` → `only_ca_marks_order_invalid`
 
 Encoded in [rules/governance.modality](./rules/governance.modality). Witness model: [model/default.modality](./model/default.modality).
@@ -86,7 +86,7 @@ Encoded in [rules/governance.modality](./rules/governance.modality). Witness mod
 | `/order/status.text` | `pending`, `ready`, `processing`, `valid`, `invalid` |
 | `/challenge/status.text` | `pending`, `processing`, `valid` |
 
-Governance rules `order_status_values` and `challenge_status_values` use `always([-sets(path, A)] false | …)` — each `[-sets(path, v)] false` requires value `v`; disjunction lists the closed enum.
+Governance rules `order_status_values` and `challenge_status_values` use `always([+post_to_path(path) -sets(path, A) -sets(path, B) …] false)`: a commit that writes `path` writes one of the closed-enum values.
 
 ## Out of Scope
 

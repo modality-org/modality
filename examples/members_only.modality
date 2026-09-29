@@ -39,7 +39,7 @@ rule member_required {
 // The RULE never changes, but its INTERPRETATION does based on state.
 rule membership_change_unanimous {
   formula {
-    always(!<+modifies(/members)> true | <+modifies(/members) +all_signed(/members)> true)
+    always([+modifies(/members) -all_signed(/members)] false)
   }
 }
 
@@ -60,7 +60,7 @@ rule membership_change_unanimous {
 //      --sign alice.key
 //
 //    modal c commit --method rule \
-//      --rule "rule membership_unanimous { formula { always(!<+modifies(/members)> true | <+modifies(/members) +all_signed(/members)> true) } }" \
+//      --rule "rule membership_unanimous { formula { always([+modifies(/members) -all_signed(/members)] false) } }" \
 //      --model "model members_only { initial active; active -> active [] }" \
 //      --sign alice.key
 //

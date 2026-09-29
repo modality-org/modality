@@ -82,11 +82,17 @@ pub fn validate_against_local_rules_for_commit_at(
 /// The predicate theory this network's validators enforce, in force from
 /// network genesis. A version this build does not know is an error, not a
 /// fallback: judged under `V0`, the commit could be accepted here and refused
-/// by every upgraded peer.
+/// by every upgraded peer. `v1` is refused too: it accepts rules that some
+/// runs of the model break.
 pub fn network_theory(ds: &DatastoreManager) -> Result<TheoryActivation> {
     let raw = ds.predicate_theory_version()?;
     let version: TheoryVersion = raw.parse().map_err(|err: String| {
         anyhow::anyhow!("network parameter predicate_theory_version: {err}; upgrade this node")
     })?;
+    if version == TheoryVersion::V1 {
+        anyhow::bail!(
+            "network parameter predicate_theory_version: v1 is withdrawn, since it accepts rules that some runs of the model break; use v2"
+        );
+    }
     Ok(TheoryActivation::always(version))
 }

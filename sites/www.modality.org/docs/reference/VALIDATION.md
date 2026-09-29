@@ -18,14 +18,14 @@ This is the most important thing to understand about Modality validation. If you
 ```modality
 model hello_world {
   initial q0
-  q0 -> q0 [+any_signed(/) -modifies(/README.md) -adds_rule]
+  q0 -> q0 [+any_signed(/members) -modifies(/README.md) -RULE]
 }
 ```
 
 This model has one transition from `q0 → q0` with three predicates:
-- `+any_signed(/)` — commit must have at least one signature
+- `+any_signed(/members)` — commit must be signed by at least one identity under `/members`
 - `-modifies(/README.md)` — commit must NOT write to `/README.md`
-- `-adds_rule` — commit must NOT be a RULE commit
+- `-RULE` — commit must NOT be a RULE commit
 
 Every incoming commit is checked against this transition. If no transition's predicates are fully satisfied, the commit is rejected.
 
@@ -44,7 +44,7 @@ Every incoming commit is checked against this transition. If no transition's pre
 | `+any_signed(/path)` | Commit signed by any member under path |
 | `+all_signed(/path)` | Commit signed by ALL members under path |
 | `+modifies(/path)` | Commit writes to path or subpath |
-| `+adds_rule` | Commit is a RULE method |
+| `+RULE` | Commit has a RULE action (any method name in capitals works the same way: `+POST`, `+MODEL`) |
 | `+threshold("n", /path)` | At least n members under path signed |
 
 Prefix `+` means "must hold". Prefix `-` means "must NOT hold".

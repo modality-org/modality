@@ -304,7 +304,7 @@ mod tests {
             "../../../experiments/ietf-autoformalization/rfc8555-acme/rules/governance.modality"
         ))
         .unwrap();
-        assert_eq!(acme.len(), 14);
+        assert_eq!(acme.len(), 13);
         assert_eq!(
             acme[0].name.as_deref(),
             Some("finalize_requires_authorization")

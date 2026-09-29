@@ -19,7 +19,7 @@ A model defines opaque witness nodes and labeled transitions:
 ```modality
 model members_only {
   initial q0
-  q0 -> q0 []
+  q0 -> q0
 }
 ```
 
@@ -43,7 +43,7 @@ Rules are added via the RULE method and accumulate permanently:
 
 ```bash
 modal contract commit --method rule \
-  --value 'rule admin_only { formula { always(!<+CHANGE_CONFIG> true | <+CHANGE_CONFIG +signed_by(/admin.id)> true) } }'
+  --value 'rule admin_only { formula { always([+CHANGE_CONFIG -signed_by(/admin.id)] false) } }'
 ```
 
 Once added, this rule:
@@ -59,8 +59,8 @@ modal contract commit --method model \
   --value 'model open { ... }' \
   --sign attacker
 
-# REJECTED: rule violation
-# attacker is not authorized
+# REJECTED: the candidate model has a CHANGE_CONFIG move
+# without the admin's signature, so it fails admin_only
 ```
 
 ## Why This Design?
@@ -86,11 +86,11 @@ Multiple rules combine with AND semantics. A commit must satisfy ALL rules:
 
 ```modality
 rule members_can_post {
-  formula { always(!<+CHANGE_DATA> true | <+CHANGE_DATA +any_signed(/members)> true) }
+  formula { always([+CHANGE_DATA -any_signed(/members)] false) }
 }
 
 rule admins_change_members {
-  formula { always(!<+CHANGE_MEMBERS> true | <+CHANGE_MEMBERS +signed_by(/admin.id)> true) }
+  formula { always([+CHANGE_MEMBERS -signed_by(/admin.id)] false) }
 }
 
 rule no_delete_history {
@@ -115,7 +115,7 @@ modal contract commit --method post --path /admin.id --value "$MY_KEY" --sign me
 
 # 3. IMMEDIATELY add protection rules
 modal contract commit --method rule \
-  --value 'rule admin_only { formula { always(!<+CHANGE_CONFIG> true | <+CHANGE_CONFIG +signed_by(/admin.id)> true) } }' \
+  --value 'rule admin_only { formula { always([+CHANGE_CONFIG -signed_by(/admin.id)] false) } }' \
   --sign me
 
 # Now the contract is protected
@@ -127,11 +127,11 @@ Members control their own expansion:
 
 ```modality
 rule members_required {
-  formula { always(!<+CHANGE_DATA> true | <+CHANGE_DATA +any_signed(/members)> true) }
+  formula { always([+CHANGE_DATA -any_signed(/members)] false) }
 }
 
 rule members_unanimous {
-  formula { always(!<+CHANGE_MEMBERS> true | <+CHANGE_MEMBERS +all_signed(/members)> true) }
+  formula { always([+CHANGE_MEMBERS -all_signed(/members)] false) }
 }
 ```
 
@@ -141,15 +141,15 @@ Different paths, different requirements:
 
 ```modality
 rule public_data {
-  formula { always(!<+CHANGE_PUBLIC> true | <+CHANGE_PUBLIC +any_signed(/members)> true) }
+  formula { always([+CHANGE_PUBLIC -any_signed(/members)] false) }
 }
 
 rule private_data {
-  formula { always(!<+CHANGE_PRIVATE> true | <+CHANGE_PRIVATE +all_signed(/members)> true) }
+  formula { always([+CHANGE_PRIVATE -all_signed(/members)] false) }
 }
 
 rule config_admin_only {
-  formula { always(!<+CHANGE_CONFIG> true | <+CHANGE_CONFIG +signed_by(/admin.id)> true) }
+  formula { always([+CHANGE_CONFIG -signed_by(/admin.id)] false) }
 }
 ```
 
@@ -183,7 +183,7 @@ Combined with logic:
 | `[-ACTION]` | No transition with ACTION |
 | `always` | Must hold for all commits |
 
-Prefer explicit Boolean form for conditional rules: `!<+CHANGE_CONFIG> true | <+CHANGE_CONFIG +signed_by(/admin.id)> true`. Formula implication sugar is parser-accepted today, but onboarding examples avoid it because it is easy to confuse with model transition arrows.
+Write "every `X` move needs `E`" as a box that forbids the move without it: `always([+CHANGE_CONFIG -signed_by(/admin.id)] false)`. Do not write `!<+CHANGE_CONFIG> true | <+CHANGE_CONFIG +signed_by(/admin.id)> true`: it holds when one such move carries the signature beside another that does not. Formula implication sugar is parser-accepted today, but onboarding examples avoid it because it is easy to confuse with model transition arrows.
 
 ## Security Checklist
 

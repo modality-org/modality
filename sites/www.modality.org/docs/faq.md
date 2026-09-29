@@ -51,27 +51,27 @@ Each commit may post state, change the witness model, or add a rule.
 
 When a rule is added, a governing model must still satisfy **all** accumulated
 rules. When a commit is added, it must match a valid transition in that model.
-Predicates on the transition (signatures, evidence, time) are checked at
-commit time.
+Predicates on the transition (signatures, evidence, state) are checked at
+commit time. Time predicates such as `after` are not evaluated yet, so they
+never hold.
 
 ## What do rules look like?
 
 Modality rules constrain who can commit, based on signatures and posted state:
 
 ```modality
-// All commits must be signed by alice or bob
-always(<+signed_by(/users/alice.id)> true | <+signed_by(/users/bob.id)> true)
+// Every commit after this one is signed by alice or bob
+always([-signed_by(/users/alice.id) -signed_by(/users/bob.id)] false)
 
 // Membership changes require every member signature
-always(!<+modifies(/members)> true | <+modifies(/members) +all_signed(/members)> true)
+always([+modifies(/members) -all_signed(/members)] false)
 
-// Time-gated: only after deadline
-always(!<+RELEASE> true | <+RELEASE +after(/deadlines/expiry.datetime) +signed_by(/users/buyer.id)> true)
+// Writes under /treasury need two of the keys under /treasury
+always([+modifies(/treasury) -threshold("2", /treasury)] false)
 ```
 
-For fixed quorum examples, use explicit signer combinations in formulas.
-Governing models can use predicate guards such as
-`+threshold("2", /treasury/signers.json)` on transitions.
+Each rule forbids the commits that lack the evidence. `threshold("2",
+/treasury)` counts the keys in the `*.id` files under `/treasury`.
 
 See the [formula cookbook](/docs/language/formula-cookbook).
 

@@ -154,6 +154,7 @@ impl CommitFile {
 const KNOWN_EXTENSIONS: &[&str] = &[
     ".bool",     // Boolean
     ".text",     // Text string
+    ".num",      // Number
     ".date",     // Date
     ".datetime", // Date and time
     ".json",     // JSON data
@@ -227,6 +228,10 @@ impl CommitAction {
                         ".md"
                     }
                 );
+            }
+        } else if path.ends_with(".num") {
+            if !self.value.is_number() {
+                anyhow::bail!("Value for .num path must be a number, got: {}", self.value);
             }
         } else if path.ends_with(".date") {
             // Must be a string in YYYY-MM-DD format

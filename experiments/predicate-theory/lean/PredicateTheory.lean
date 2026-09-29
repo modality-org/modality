@@ -30,7 +30,9 @@ Modality's predicate theory, stated and proved in Lean (4.14, no Mathlib):
 - `Witness`: `live` builds a concrete world and checks it.
 - `Sound`: `dead_sound` (no world takes a dead edge, whatever the opaque
   predicates mean), `entails_sound`, `live_sound` (the built world takes a
-  live edge), `live_not_dead`, `not_entails_of_live`.
+  live edge), `live_not_dead`, `not_entails_of_live`, and
+  `external_live_sound` (opaque atoms the commit decides, `FreeFor`, do
+  not stop an edge being live).
 - `Runtime`: the same with accepted state known (`deadIn_sound`,
   `liveIn_sound`).
 - `Vars`: variables over names (`$k`, and the hole `$!k`: every other

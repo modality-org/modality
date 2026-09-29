@@ -135,15 +135,15 @@
     },
     {
       "id": "A11",
-      "title": "Unparsable bound is opaque",
+      "title": "A bound that is not a number never holds",
       "literals": [
         "+num_gt(/x.num,\"five\")",
         "+num_lt(/x.num,\"3\")"
       ],
       "v1": {
-        "consistent": "unknown"
+        "consistent": "no"
       },
-      "explain": "conservative; do not refuse"
+      "explain": "\"five\" is the wrong kind of argument; the evaluator reads it as false, so +num_gt never holds"
     },
     {
       "id": "A12",

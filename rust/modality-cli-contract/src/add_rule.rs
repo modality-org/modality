@@ -7,7 +7,7 @@ use modality_common::contract_store::ContractStore;
 #[derive(Debug, Parser)]
 #[command(about = "Add a rule to the contract")]
 pub struct Opts {
-    /// Rule formula (e.g. "[] always([-signed_by(/parties/alice.id)] false)")
+    /// Rule formula (e.g. "always([-signed_by(/parties/alice.id)] false)")
     #[clap(index = 1)]
     formula: String,
 
@@ -65,11 +65,36 @@ pub async fn run(opts: &Opts) -> Result<()> {
     if file_path.exists() {
         bail!("Rule file already exists: {}", file_path.display());
     }
+    #[cfg(feature = "model-status")]
+    let existing_rules: Vec<(String, String)> = std::fs::read_dir(store.rules_dir())
+        .into_iter()
+        .flatten()
+        .flatten()
+        .filter(|e| e.path().extension().is_some_and(|x| x == "modality"))
+        .filter_map(|e| {
+            let content = std::fs::read_to_string(e.path()).ok()?;
+            Some((format!("rules/{}", e.file_name().to_string_lossy()), content))
+        })
+        .collect();
     store.write_rule(&rule_path, &serde_json::Value::String(rule_content.clone()))?;
 
     println!("✅ Rule '{}' added to {}", opts.name, rule_path);
     println!();
     println!("{}", rule_content);
+    #[cfg(feature = "model-status")]
+    if let Ok(linted) = modality_lang::lint_added_rule(
+        &existing_rules,
+        &format!("rules/{}.modality", opts.name),
+        &rule_content,
+        &modality_lang::FormulaLintOptions::default(),
+    ) {
+        for diag in linted {
+            println!("⚠️  {}: {}", diag.code.as_str(), diag.message);
+            if let Some(suggestion) = diag.suggestion {
+                println!("   {suggestion}");
+            }
+        }
+    }
     println!("Run 'modal commit --all' to commit this rule.");
 
     Ok(())
@@ -82,9 +107,9 @@ mod tests {
     use tempfile::TempDir;
 
     const FIRST_CONTRACT_FORMULA: &str =
-        "[] always([-signed_by(/parties/alice.id) -signed_by(/parties/bob.id)] false)";
+        "always([-signed_by(/parties/alice.id) -signed_by(/parties/bob.id)] false)";
 
-    const FIRST_CONTRACT_RULE: &str = "export default rule {\n  starting_at $PARENT\n  formula {\n    [] always([-signed_by(/parties/alice.id) -signed_by(/parties/bob.id)] false)\n  }\n}\n";
+    const FIRST_CONTRACT_RULE: &str = "export default rule {\n  starting_at $PARENT\n  formula {\n    always([-signed_by(/parties/alice.id) -signed_by(/parties/bob.id)] false)\n  }\n}\n";
 
     #[test]
     fn formats_first_contract_rule() {

@@ -13,17 +13,17 @@ export default model {
   delivered -> disputed [+signed_by(/parties/buyer.id)]
   disputed -> refunded [+signed_by(/parties/arbiter.id)]
   disputed -> released [+signed_by(/parties/arbiter.id)]
-  released -> released []
-  refunded -> refunded []
 }
 ```
+
+`released` and `refunded` have no moves: the deal is over.
 
 **Rules:**
 ```modality
 export default rule {
   starting_at $PARENT
   formula {
-    always (signed_by(/parties/buyer.id) | signed_by(/parties/seller.id) | signed_by(/parties/arbiter.id))
+    always([-signed_by(/parties/buyer.id) -signed_by(/parties/seller.id) -signed_by(/parties/arbiter.id)] false)
   }
 }
 ```
@@ -87,11 +87,11 @@ export default model {
 **Rules:**
 ```modality
 rule member_required {
-  formula { always (+any_signed(/members)) }
+  formula { always([-any_signed(/members)] false) }
 }
 
 rule membership_unanimous {
-  formula { always(!<+modifies(/members)> true | <+modifies(/members) +all_signed(/members)> true) }
+  formula { always([+modifies(/members) -all_signed(/members)] false) }
 }
 ```
 
@@ -102,7 +102,7 @@ N-of-M approval for spending.
 ```modality
 export default model {
   initial active
-  active -> active [+threshold(2, /treasury/signers) -modifies(/treasury/signers)]
+  active -> active [+threshold("2", /treasury/signers) -modifies(/treasury/signers)]
   active -> active [+modifies(/treasury/signers) +all_signed(/treasury/signers)]
 }
 ```

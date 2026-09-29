@@ -1,6 +1,8 @@
 use crate::ast::{Formula, FormulaExpr, Model, Part, Property, PropertySign, Transition};
 use crate::theory::flow::{flow_seeded, Flow, FlowEdge};
-use crate::theory::{standard, Lit, NoState, Registry, StateView, Theory, TheoryVersion, Tri};
+use crate::theory::{
+    standard, Constraint, Lit, NoState, Registry, StateView, Theory, TheoryVersion, Tri,
+};
 use crate::vars;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
@@ -84,6 +86,30 @@ pub fn merged_model(model: &Model) -> Model {
     merged
 }
 
+/// Where the first commit starts: `initial` when set, else the first edge of
+/// [`merged_model`] (in file order) whose source no edge enters, else the
+/// first edge's source, else `init`. Moving an edge between parts, without
+/// reordering, keeps the start.
+pub fn start_nodes(model: &Model) -> Vec<String> {
+    if let Some(initial) = &model.initial {
+        return vec![initial.clone()];
+    }
+    let merged = merged_model(model);
+    let edges: Vec<&Transition> = merged
+        .parts
+        .iter()
+        .flat_map(|p| p.transitions.iter())
+        .collect();
+    let entered: HashSet<&str> = edges.iter().map(|t| t.to.as_str()).collect();
+    let start = edges
+        .iter()
+        .find(|t| !entered.contains(t.from.as_str()))
+        .or_else(|| edges.first())
+        .map(|t| t.from.clone())
+        .unwrap_or_else(|| "init".to_string());
+    vec![start]
+}
+
 /// `expr` with every negation pushed down to propositions, so each box and
 /// diamond is evaluated where the formula asserts it. Edge matching errs in
 /// one direction per operator: a box counts every edge a commit might take,
@@ -91,6 +117,42 @@ pub fn merged_model(model: &Model) -> Model {
 /// un-negated; under a negation it would err the wrong way.
 fn negation_normal_form(expr: &FormulaExpr) -> FormulaExpr {
     Nnf::default().go(expr, false)
+}
+
+/// The label lists of the diamonds in `expr` (unlabeled for `eventually`,
+/// `until`, and `next`), each once.
+fn diamond_labels(expr: &FormulaExpr, out: &mut Vec<Vec<Property>>) {
+    let mut add = |ls: &[Property]| {
+        if !out.iter().any(|o| o.as_slice() == ls) {
+            out.push(ls.to_vec());
+        }
+    };
+    match expr {
+        FormulaExpr::Diamond(ls, e) | FormulaExpr::DiamondBox(ls, e) => {
+            add(ls);
+            diamond_labels(e, out);
+        }
+        FormulaExpr::Eventually(e) | FormulaExpr::Next(e) => {
+            add(&[]);
+            diamond_labels(e, out);
+        }
+        FormulaExpr::Until(a, b) => {
+            add(&[]);
+            diamond_labels(a, out);
+            diamond_labels(b, out);
+        }
+        FormulaExpr::And(a, b) | FormulaExpr::Or(a, b) | FormulaExpr::Implies(a, b) => {
+            diamond_labels(a, out);
+            diamond_labels(b, out);
+        }
+        FormulaExpr::Not(e)
+        | FormulaExpr::Paren(e)
+        | FormulaExpr::Box(_, e)
+        | FormulaExpr::Lfp(_, e)
+        | FormulaExpr::Gfp(_, e)
+        | FormulaExpr::Always(e) => diamond_labels(e, out),
+        FormulaExpr::True | FormulaExpr::False | FormulaExpr::Prop(_) | FormulaExpr::Var(_) => {}
+    }
 }
 
 #[derive(Default)]
@@ -195,9 +257,10 @@ pub struct ModelChecker {
     /// Under `V2`, the copy of the rule's node that takes the first step,
     /// and the node: a proposition naming the node holds at the copy too.
     first_step: Option<(String, String)>,
-    /// Accepted state at the node a rule check starts from. Only `V2` state
-    /// flow reads it, as what every run from there starts knowing; edge
-    /// matching never does, since state changes along a run.
+    /// Accepted state at the node a rule check starts from. `V2` state flow
+    /// reads it, as what every run from there starts knowing, and so does
+    /// diamond matching on the first step; later steps do not, since state
+    /// changes along a run.
     anchor_state: Option<Arc<dyn StateView + Send + Sync>>,
     /// Fixed-point variables being evaluated, bound to their states.
     bound: Mutex<HashMap<String, Vec<State>>>,
@@ -285,11 +348,27 @@ impl ModelChecker {
         self.version
     }
 
-    fn theory(&self) -> Theory<'_> {
-        let registry: &dyn Registry = match &self.registry {
+    fn registry(&self) -> &dyn Registry {
+        match &self.registry {
             Some(r) => r.as_ref(),
             None => standard(),
-        };
+        }
+    }
+
+    /// Under `V2`, the anchor state when `node` is the copy of the rule's
+    /// node that takes the first step: that step is taken in exactly this
+    /// state, so a diamond there is decided against it.
+    fn anchor_step(&self, node: &str) -> Option<&(dyn StateView + Send + Sync)> {
+        if self.version != TheoryVersion::V2 {
+            return None;
+        }
+        let (copy, _) = self.first_step.as_ref()?;
+        (copy == node).then_some(())?;
+        self.anchor_state.as_deref()
+    }
+
+    fn theory(&self) -> Theory<'_> {
+        let registry = self.registry();
         let state: &dyn StateView = match &self.state {
             Some(s) => s.as_ref(),
             None => &NoState,
@@ -488,6 +567,41 @@ impl ModelChecker {
         self.flow_edges(self.flow_from(initial, None))
     }
 
+    /// Live edges that a diamond of `formula` does not count because the
+    /// theory can show neither that a commit takes the edge with the
+    /// diamond's labels nor that none does (`Unknown`), each with those
+    /// labels. Empty under `V0`.
+    pub fn undecided_for(&self, formula: &Formula) -> Vec<(DeadEdge, Vec<Property>)> {
+        if self.version == TheoryVersion::V0 {
+            return Vec::new();
+        }
+        let mut labels: Vec<Vec<Property>> = Vec::new();
+        diamond_labels(&negation_normal_form(&formula.expression), &mut labels);
+        let theory = self.theory();
+        let mut out = Vec::new();
+        for part in &self.model.parts {
+            for t in self.live_transitions(part) {
+                for ls in &labels {
+                    let undecided = self.edge_instances(t).into_iter().any(|mut with| {
+                        with.extend(ls.iter().cloned());
+                        theory.consistent(&with).tri == Tri::Unknown
+                    });
+                    if undecided {
+                        let edge = DeadEdge {
+                            part_name: part.name.clone(),
+                            from: t.from.clone(),
+                            to: t.to.clone(),
+                            properties: t.properties.clone(),
+                            offending: Vec::new(),
+                        };
+                        out.push((edge, ls.clone()));
+                    }
+                }
+            }
+        }
+        out
+    }
+
     fn flow_edges(&self, found: Vec<((usize, usize), Vec<String>)>) -> Vec<DeadEdge> {
         found
             .into_iter()
@@ -552,11 +666,27 @@ impl ModelChecker {
         }
         let seed = match seed_state {
             Some(state) => {
-                let mentioned: Vec<Lit> = edges
+                let mut mentioned: Vec<Lit> = edges
                     .iter()
                     .filter_map(|e| e.lits.clone())
                     .flatten()
                     .collect();
+                // An external predicate reads the key its first argument
+                // names; knowing it is what lets a later step count on it.
+                let keys: Vec<Lit> = mentioned
+                    .iter()
+                    .filter_map(|l| match &l.c {
+                        Constraint::Opaque { name, args } if registry.external(name) => {
+                            args.first().map(|k| {
+                                Lit::pos(Constraint::Exists {
+                                    path: crate::theory::sort::norm_path(k),
+                                })
+                            })
+                        }
+                        _ => None,
+                    })
+                    .collect();
+                mentioned.extend(keys);
                 Theory::new(self.version, registry, state).state_facts(&mentioned)
             }
             None => Vec::new(),
@@ -650,18 +780,18 @@ impl ModelChecker {
         out
     }
 
-    /// Check if a formula is satisfied by the model (requires at least one state from each graph)
+    /// Check a formula the way the network checks a rule on a new contract:
+    /// on [`merged_model`], at every one of [`start_nodes`].
     pub fn check_formula(&self, formula: &Formula) -> ModelCheckResult {
-        let satisfying_states = self.satisfying(&formula.expression);
-
-        // Check if at least one state from each part satisfies the formula
-        let is_satisfied = self.check_satisfaction_per_part(&satisfying_states);
-
-        ModelCheckResult {
-            formula: formula.clone(),
-            satisfying_states: satisfying_states.clone(),
-            is_satisfied,
+        let mut result: Option<ModelCheckResult> = None;
+        for start in start_nodes(&self.model) {
+            let at = self.check_formula_at_state(formula, &start);
+            match &mut result {
+                None => result = Some(at),
+                Some(r) => r.is_satisfied &= at.is_satisfied,
+            }
         }
+        result.expect("start_nodes is never empty")
     }
 
     /// Check if any witness node satisfies the formula (original behavior)
@@ -735,22 +865,6 @@ impl ModelChecker {
         }
     }
 
-    /// Check if at least one state from each part satisfies the formula
-    fn check_satisfaction_per_part(&self, satisfying_states: &[State]) -> bool {
-        // Get all part names from the model
-        let model_parts: std::collections::HashSet<String> =
-            self.model.parts.iter().map(|p| p.name.clone()).collect();
-
-        // Get part names from states that satisfy the formula
-        let satisfying_parts: std::collections::HashSet<String> = satisfying_states
-            .iter()
-            .map(|s| s.part_name.clone())
-            .collect();
-
-        // Check if all parts in the model have at least one satisfying state
-        model_parts.is_subset(&satisfying_parts)
-    }
-
     /// Evaluate a formula expression and return all satisfying states
     fn evaluate_formula(&self, expr: &FormulaExpr) -> Vec<State> {
         match expr {
@@ -784,9 +898,6 @@ impl ModelChecker {
                 self.intersect_states(&left_states, &right_states)
             }
             FormulaExpr::Or(left, right) => {
-                if let Some((path, allowed)) = Self::minus_sets_false_disjunction(left, right) {
-                    return self.states_where_path_one_of(&path, &allowed);
-                }
                 let left_states = self.evaluate_formula(left);
                 let right_states = self.evaluate_formula(right);
                 self.union_states(&left_states, &right_states)
@@ -830,6 +941,15 @@ impl ModelChecker {
         }
     }
 
+    /// The edges an unlabeled diamond counts: `eventually`, `until` and
+    /// `next` step only where some commit can.
+    fn diamond_steps<'a>(&self, part: &'a Part) -> Vec<&'a Transition> {
+        self.live_transitions(part)
+            .into_iter()
+            .filter(|t| self.transition_satisfies_properties(t, &[], false))
+            .collect()
+    }
+
     /// Evaluate eventually(P): states from which a P-state is reachable
     /// Uses backward reachability (least fixed point)
     fn evaluate_eventually(&self, expr: &FormulaExpr) -> Vec<State> {
@@ -843,7 +963,7 @@ impl ModelChecker {
             let current_result = result.clone();
 
             for part in &self.model.parts {
-                for transition in self.live_transitions(part) {
+                for transition in self.diamond_steps(part) {
                     let from_state = State {
                         part_name: part.name.clone(),
                         node_name: transition.from.clone(),
@@ -929,7 +1049,7 @@ impl ModelChecker {
             let current_result = result.clone();
 
             for part in &self.model.parts {
-                for transition in self.live_transitions(part) {
+                for transition in self.diamond_steps(part) {
                     let from_state = State {
                         part_name: part.name.clone(),
                         node_name: transition.from.clone(),
@@ -960,7 +1080,7 @@ impl ModelChecker {
         let mut result = Vec::new();
 
         for part in &self.model.parts {
-            for transition in self.live_transitions(part) {
+            for transition in self.diamond_steps(part) {
                 let from_state = State {
                     part_name: part.name.clone(),
                     node_name: transition.from.clone(),
@@ -1077,13 +1197,6 @@ impl ModelChecker {
 
     /// Evaluate box operator: [properties] phi
     fn evaluate_box(&self, properties: &[Property], expr: &FormulaExpr) -> Vec<State> {
-        // `[-sets(path, v)] false` — path value must be exactly `v` at this witness node.
-        if properties.len() == 1 && matches!(expr, FormulaExpr::False) {
-            if let Some((path, value)) = Self::minus_sets_path_value(&properties[0]) {
-                return self.states_where_path_exactly(&path, &value);
-            }
-        }
-
         let target_states = self.evaluate_formula(expr);
         let mut result = Vec::new();
 
@@ -1161,6 +1274,29 @@ impl ModelChecker {
         } else {
             Some(self.theory())
         };
+        if let (Some(theory), false) = (&theory, whole_atom) {
+            let mut with = transition.properties.clone();
+            with.extend(properties.iter().cloned());
+            if let Some(anchor) = self.anchor_step(&transition.from) {
+                return Theory::new(self.version, self.registry(), anchor)
+                    .consistent(&with)
+                    .tri
+                    == Tri::True;
+            }
+            if theory.consistent(&with).tri != Tri::True {
+                return false;
+            }
+            let known: &[Lit] = self.facts.get(&transition.from).map_or(&[], |f| f);
+            let (mut lits, exact) = theory.expand_all(&with);
+            if self.version == TheoryVersion::V2 && !theory.robust(&lits, known) {
+                return false;
+            }
+            if known.is_empty() {
+                return true;
+            }
+            lits.extend(known.iter().cloned());
+            return theory.consistent_lits(&lits, exact).tri == Tri::True;
+        }
         if let Some(theory) = &theory {
             let mut with = transition.properties.clone();
             with.extend(properties.iter().cloned());
@@ -1285,154 +1421,6 @@ impl ModelChecker {
             .iter()
             .filter(|s| !states2.contains(s))
             .cloned()
-            .collect()
-    }
-
-    /// `[-sets(path, value)]` in a box — extract path and literal.
-    fn minus_sets_path_value(prop: &Property) -> Option<(String, String)> {
-        if prop.sign != PropertySign::Minus {
-            return None;
-        }
-        crate::validation::sets_path_value(prop)
-    }
-
-    /// Recognize `[-sets(path, a)] false | [-sets(path, b)] false | …`.
-    fn minus_sets_false_disjunction(
-        left: &FormulaExpr,
-        right: &FormulaExpr,
-    ) -> Option<(String, Vec<String>)> {
-        fn from_box(expr: &FormulaExpr) -> Option<(String, String)> {
-            match expr {
-                FormulaExpr::Box(props, inner)
-                    if props.len() == 1 && matches!(**inner, FormulaExpr::False) =>
-                {
-                    ModelChecker::minus_sets_path_value(&props[0])
-                }
-                FormulaExpr::Paren(inner) => from_box(inner),
-                _ => None,
-            }
-        }
-
-        fn collect(
-            expr: &FormulaExpr,
-            path: &mut Option<String>,
-            values: &mut Vec<String>,
-        ) -> bool {
-            match expr {
-                FormulaExpr::Or(l, r) => collect(l, path, values) && collect(r, path, values),
-                FormulaExpr::Paren(inner) => collect(inner, path, values),
-                FormulaExpr::Box(_, _) => {
-                    let Some((p, v)) = from_box(expr) else {
-                        return false;
-                    };
-                    match path {
-                        Some(existing) if existing != &p => return false,
-                        None => *path = Some(p),
-                        _ => {}
-                    }
-                    values.push(v);
-                    true
-                }
-                _ => false,
-            }
-        }
-
-        let mut path = None;
-        let mut values = Vec::new();
-        let root = FormulaExpr::Or(Box::new(left.clone()), Box::new(right.clone()));
-        if !collect(&root, &mut path, &mut values) {
-            return None;
-        }
-        path.map(|p| (p, values))
-    }
-
-    /// Possible `+sets(path, …)` values accumulated at each witness node.
-    fn possible_path_values(&self) -> HashMap<State, HashMap<String, HashSet<String>>> {
-        let mut values: HashMap<State, HashMap<String, HashSet<String>>> = HashMap::new();
-        for part in &self.model.parts {
-            for node in self.get_nodes_in_part(part) {
-                values.insert(
-                    State {
-                        part_name: part.name.clone(),
-                        node_name: node,
-                    },
-                    HashMap::new(),
-                );
-            }
-        }
-
-        loop {
-            let mut changed = false;
-            for part in &self.model.parts {
-                for transition in &part.transitions {
-                    let from = State {
-                        part_name: part.name.clone(),
-                        node_name: transition.from.clone(),
-                    };
-                    let to = State {
-                        part_name: part.name.clone(),
-                        node_name: transition.to.clone(),
-                    };
-
-                    let mut after = values.get(&from).cloned().unwrap_or_default();
-                    for prop in &transition.properties {
-                        if let Some((path, value)) = crate::validation::plus_sets_path_value(prop) {
-                            after.entry(path).or_default().insert(value);
-                        }
-                    }
-
-                    let entry = values.entry(to).or_default();
-                    for (path, vals) in after {
-                        let slot = entry.entry(path).or_default();
-                        let before = slot.len();
-                        slot.extend(vals);
-                        if slot.len() != before {
-                            changed = true;
-                        }
-                    }
-                }
-            }
-            if !changed {
-                break;
-            }
-        }
-
-        values
-    }
-
-    fn path_values_at<'a>(
-        maps: &'a HashMap<State, HashMap<String, HashSet<String>>>,
-        state: &State,
-        path: &str,
-    ) -> Option<&'a HashSet<String>> {
-        maps.get(state).and_then(|m| m.get(path))
-    }
-
-    /// `[-sets(path, v)] false` — accumulated path value is exactly `{v}`.
-    fn states_where_path_exactly(&self, path: &str, value: &str) -> Vec<State> {
-        let maps = self.possible_path_values();
-        self.all_states()
-            .into_iter()
-            .filter(|s| {
-                matches!(
-                    Self::path_values_at(&maps, s, path),
-                    Some(set) if set.len() == 1 && set.contains(value)
-                )
-            })
-            .collect()
-    }
-
-    /// `[-sets(path, a)] false | [-sets(path, b)] false | …` — value unset or in allow-list.
-    fn states_where_path_one_of(&self, path: &str, allowed: &[String]) -> Vec<State> {
-        let allowed: HashSet<&str> = allowed.iter().map(String::as_str).collect();
-        let maps = self.possible_path_values();
-        self.all_states()
-            .into_iter()
-            .filter(|s| match Self::path_values_at(&maps, s, path) {
-                None => true,
-                Some(set) if set.is_empty() => true,
-                Some(set) => set.iter().all(|v| allowed.contains(v.as_str())),
-            })
             .collect()
     }
 }

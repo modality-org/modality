@@ -26,7 +26,7 @@ required_patterns=(
   "modal c set-named-id /parties/alice.id alice"
   "modal c add-rule --name <NAME> [OPTIONS] <FORMULA>"
   "\`--name <NAME>\` | Rule name written as \`rules/<name>.modality\`"
-  "\`--starting-at <ANCHOR>\` | Rule anchor (default: \`\$PARENT\`)"
+  "\`--starting-at <ANCHOR>\` | Rule anchor; only \`\$PARENT\` (the default) is supported"
   "modal c add-rule --name authorized"
   "modal c ai suggest-rule <PROMPT>"
   "modal c ai suggest-rule \"after this commit either alice or bob must sign\""

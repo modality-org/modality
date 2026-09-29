@@ -11,8 +11,8 @@ pub struct Opts {
     #[clap(long)]
     dir: Option<PathBuf>,
 
-    /// Predicate theory version to preview (v0, v1, or v2)
-    #[clap(long, default_value = "v1")]
+    /// Predicate theory version to preview (v0, v1, or v2; networks refuse v1)
+    #[clap(long, default_value = "v2")]
     theory: String,
 
     /// Output format (json or text)

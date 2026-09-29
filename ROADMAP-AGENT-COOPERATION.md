@@ -32,7 +32,7 @@ The Prisoner's Dilemma is solved when both prisoners can read each other's sourc
    
 2. **`modality synthesize` command**
    ```bash
-   modality model synthesize --formulas "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/alice.id)> true)" --verify
+   modality model synthesize --formulas "always([+APPROVE -signed_by(/users/alice.id)] false)" --verify
    # Outputs candidate governing model
    ```
 
@@ -51,7 +51,7 @@ The Prisoner's Dilemma is solved when both prisoners can read each other's sourc
 | `[<+A>] true` (once) | Linear: start → after | 2 |
 | `<+A> true` | Permissive (neutral) | 1 |
 | Alternating | Cycle between parties | 2 |
-| `always(!<+A> true | <+A +signed_by(/users/alice.id)> true)` | +A requires the same transition to carry `+signed_by(/users/alice.id)` | 1 |
+| `always([+A -signed_by(/users/alice.id)] false)` | Every move carries `+signed_by(/users/alice.id)` | 1 |
 | Sequential | Linear progression | N |
 | Conditional | Branching | N |
 

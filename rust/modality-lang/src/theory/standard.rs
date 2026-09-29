@@ -14,7 +14,7 @@ use std::sync::OnceLock;
 /// The signature is what the evaluator (`predicate_holds`) reads at each
 /// position: e.g. `num_*` reads its first argument from state only, and
 /// `text_eq` reads a string, so `text_eq(/x.num, "5")` is not numeric
-/// equality. Arguments outside the signature leave the predicate opaque.
+/// equality. With arguments outside the signature the predicate never holds.
 const TABLE: &[(&str, &str, &str, Option<&str>)] = &[
     // numeric
     ("num_gt", "num-path num", "(> $1 $2)", None),
@@ -41,8 +41,9 @@ const TABLE: &[(&str, &str, &str, Option<&str>)] = &[
     // pending body. `posts` implies `writes` in the path lattice.
     ("modifies", "path", "(writes $1)", None),
     ("post_to_path", "path", "(posts $1)", None),
-    // `sets(path, value)` / `post_to`: the value is not modelled, so the
-    // declaration is necessary-only.
+    // `sets(path, value)` / `post_to`: every post to `path` writes `value`.
+    // The value is not modelled, so the declaration is necessary-only, and
+    // two `sets` of one path to different values are not known to clash.
     ("post_to", "path", "(posts $1)", Some("")),
     // literals. Every value constraint implies existence in the procedure.
     ("text_eq", "text-path text", "(= $1 $2)", None),
@@ -70,7 +71,7 @@ const TABLE: &[(&str, &str, &str, Option<&str>)] = &[
     ),
     // `oracle_attests`, `timestamp_valid`, `before`, `after`, hashes, custom
     // `wasm`: no row, therefore opaque here. Governance's registry declares
-    // the ones its evaluator never reads (and `post_to`) as never holding.
+    // the ones its evaluator never reads as never holding.
 ];
 
 pub struct StandardRegistry {

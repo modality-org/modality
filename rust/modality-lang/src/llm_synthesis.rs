@@ -11,7 +11,7 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 - `[+ACTION] φ` — all +ACTION transitions lead to φ
 - `<+ACTION> φ` — some +ACTION transition leads to φ  
 - `[<+ACTION>] φ` — committed to ACTION (can do, cannot refuse)
-- `[] φ` — φ holds of every successor of the current state (skips the current/bootstrap step)
+- `[] φ` — φ holds of every successor of the current state. A rule is checked from the state the commit that adds it reaches, so `always(φ)` already means "every later commit"; do not prefix it with `[]`
 - `[-P] false` — forbids a step that lacks P
 - `[-P -Q] false` — forbids a step that has neither P nor Q (P or Q is required)
 
@@ -21,7 +21,7 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 
 ### Explicit Boolean Conditionals
 - Prefer explicit Boolean conditionals such as `!A | B` for implications.
-- Action guards in conditionals should use same-transition evidence when possible, e.g. `!<+X> true | <+X +signed_by(/users/a.id)> true`.
+- To require evidence on every `X` move, forbid the move without it: `always([+X -signed_by(/users/a.id)] false)`. Do not write `!<+X> true | <+X +signed_by(/users/a.id)> true`: it holds when one `X` move carries the signature beside another that does not.
 
 ### Predicates
 - `+signed_by(/users/name.id)` — requires signature from name
@@ -32,8 +32,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 
 | Requirement | Formula |
 |-------------|---------|
-| "After this commit A or B must sign" | `[] always([-signed_by(/users/a.id) -signed_by(/users/b.id)] false)` |
-| "After this commit A must sign" | `[] always([-signed_by(/users/a.id)] false)` |
+| "After this commit A or B must sign" | `always([-signed_by(/users/a.id) -signed_by(/users/b.id)] false)` |
+| "After this commit A must sign" | `always([-signed_by(/users/a.id)] false)` |
 | "X is allowed" | `<+X> true` |
 | "Must do X once" | `[<+X>] true` |
 | "Can always do X" | `always([<+X>] true)` |
@@ -43,15 +43,15 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Must do Y before X" | `always(!<+X> true | eventually([<+Y>] true))` |
 | "Committed X requires committed Y" | `always(![<+X>] true | eventually([<+Y>] true))` |
 | "Escrow deposit before deliver before release" | `always(!<+DELIVER> true | eventually(<+DEPOSIT> true))`; `always(!<+RELEASE> true | eventually(<+DELIVER> true))` |
-| "Only A can X" | `always(!<+X> true | <+X +signed_by(/users/a.id)> true)` |
+| "Only A can X" | `always([+X -signed_by(/users/a.id)] false)` |
 | "Committed X requires A signature" | `always(![<+X>] true | <+X +signed_by(/users/a.id)> true)` |
 | "Committed X requires A and B signatures" | `always(![<+X>] true | <+X +signed_by(/users/a.id) +signed_by(/users/b.id)> true)` |
 | "Committed X requires committed A signature" | `always(![<+X>] true | [<+signed_by(/users/a.id)>] true)` |
 | "Committed X requires committed A and B signatures" | `always(![<+X>] true | [<+signed_by(/users/a.id) +signed_by(/users/b.id)>] true)` |
 | "X requires committed A signature" | `always(!<+X> true | [<+signed_by(/users/a.id)>] true)` |
-| "X requires A and B signatures" | `always(!<+X> true | <+X +signed_by(/users/a.id) +signed_by(/users/b.id)> true)` |
+| "X requires A and B signatures" | `always(([+X -signed_by(/users/a.id)] false) & ([+X -signed_by(/users/b.id)] false))` |
 | "X requires committed A and B signatures" | `always(!<+X> true | [<+signed_by(/users/a.id) +signed_by(/users/b.id)>] true)` |
-| "X requires oracle attestation" | `always(!<+X> true | <+X +oracle_attests(/oracles/a.id, "delivered", "true")> true)` |
+| "X requires oracle attestation" | `always([+X -oracle_attests(/oracles/a.id, "delivered", "true")] false)` |
 | "X requires Y and Z" | `always(!<+X> true | (eventually(<+Y> true) & eventually(<+Z> true)))` |
 | "Committed X requires Y and Z" | `always(![<+X>] true | (eventually(<+Y> true) & eventually(<+Z> true)))` |
 | "X requires committed Y and Z" | `always(!<+X> true | (eventually([<+Y>] true) & eventually([<+Z>] true)))` |
@@ -109,416 +109,416 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Committed X requires committed A signature and forbids Y or Z" | `always(![<+X>] true | ([<+signed_by(/users/a.id)>] true & (always([-Y] true) & always([-Z] true))))` |
 | "Committed X requires committed A and B signatures and forbids Y or Z" | `always(![<+X>] true | ([<+signed_by(/users/a.id) +signed_by(/users/b.id)>] true & (always([-Y] true) & always([-Z] true))))` |
 | "Agents alternate turns" | `always(!<+AGENT_A_TURN> true | eventually(<+AGENT_B_TURN> true))`; `always(!<+AGENT_B_TURN> true | eventually(<+AGENT_A_TURN> true))` |
-| "Assign task requires requester and worker signatures" | `always(!<+ASSIGN_TASK> true | <+ASSIGN_TASK +signed_by(/users/task_requester.id) +signed_by(/users/worker_agent.id)> true)` |
+| "Assign task requires requester and worker signatures" | `always(([+ASSIGN_TASK -signed_by(/users/task_requester.id)] false) & ([+ASSIGN_TASK -signed_by(/users/worker_agent.id)] false))` |
 | "Use tool requires provider signature and committed capability approval" | `always(!<+USE_TOOL> true | (<+USE_TOOL +signed_by(/users/tool_provider.id)> true & eventually([<+APPROVE_CAPABILITY>] true)))` |
-| "Dispute blocks release or refund until arbiter resolution" | `always(!<+DISPUTE> true | (always([-RELEASE] true) & always([-REFUND] true)))`; `always(!<+RESOLVE_DISPUTE> true | <+RESOLVE_DISPUTE +signed_by(/users/arbiter.id)> true)` |
-| "Cancel requires requester signature and blocks delivery" | `always(!<+CANCEL> true | <+CANCEL +signed_by(/users/requester.id)> true)`; `always(!<+CANCEL> true | always([-DELIVER] true))` |
-| "Refund requires seller signature and blocks release" | `always(!<+REFUND> true | <+REFUND +signed_by(/users/seller.id)> true)`; `always(!<+REFUND> true | always([-RELEASE] true))` |
-| "Approve requires reviewer signature and blocks rejection" | `always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)`; `always(!<+APPROVE> true | always([-REJECT] true))` |
-| "Reject requires reviewer signature and blocks approval" | `always(!<+REJECT> true | <+REJECT +signed_by(/users/reviewer.id)> true)`; `always(!<+REJECT> true | always([-APPROVE] true))` |
-| "Timeout requires clock oracle and blocks completion" | `always(!<+TIMEOUT> true | <+TIMEOUT +oracle_attests(/oracles/clock.id, "deadline_passed", "true")> true)`; `always(!<+TIMEOUT> true | always([-COMPLETE] true))` |
-| "Escalation requires manager signature and blocks close" | `always(!<+ESCALATE> true | <+ESCALATE +signed_by(/users/manager.id)> true)`; `always(!<+ESCALATE> true | always([-CLOSE] true))` |
-| "Withdrawal requires depositor signature and blocks claim" | `always(!<+WITHDRAW> true | <+WITHDRAW +signed_by(/users/depositor.id)> true)`; `always(!<+WITHDRAW> true | always([-CLAIM] true))` |
-| "Appeal requires appellant signature and blocks enforcement" | `always(!<+APPEAL> true | <+APPEAL +signed_by(/users/appellant.id)> true)`; `always(!<+APPEAL> true | always([-ENFORCE] true))` |
-| "Revocation requires issuer signature and blocks use" | `always(!<+REVOKE> true | <+REVOKE +signed_by(/users/issuer.id)> true)`; `always(!<+REVOKE> true | always([-USE] true))` |
-| "Suspension requires administrator signature and blocks access" | `always(!<+SUSPEND> true | <+SUSPEND +signed_by(/users/administrator.id)> true)`; `always(!<+SUSPEND> true | always([-ACCESS] true))` |
-| "Reinstatement requires administrator signature and blocks suspension" | `always(!<+REINSTATE> true | <+REINSTATE +signed_by(/users/administrator.id)> true)`; `always(!<+REINSTATE> true | always([-SUSPEND] true))` |
-| "Renewal requires holder signature and blocks expiration" | `always(!<+RENEW> true | <+RENEW +signed_by(/users/holder.id)> true)`; `always(!<+RENEW> true | always([-EXPIRE] true))` |
-| "Termination requires counterparty signature and blocks renewal" | `always(!<+TERMINATE> true | <+TERMINATE +signed_by(/users/counterparty.id)> true)`; `always(!<+TERMINATE> true | always([-RENEW] true))` |
-| "Extension requires owner signature and blocks termination" | `always(!<+EXTEND> true | <+EXTEND +signed_by(/users/owner.id)> true)`; `always(!<+EXTEND> true | always([-TERMINATE] true))` |
-| "Assignment requires assigner signature and blocks reassignment" | `always(!<+ASSIGN> true | <+ASSIGN +signed_by(/users/assigner.id)> true)`; `always(!<+ASSIGN> true | always([-REASSIGN] true))` |
-| "Certification requires auditor signature and blocks deployment" | `always(!<+CERTIFY> true | <+CERTIFY +signed_by(/users/auditor.id)> true)`; `always(!<+CERTIFY> true | always([-DEPLOY] true))` |
-| "Publication requires editor signature and blocks embargo" | `always(!<+PUBLISH> true | <+PUBLISH +signed_by(/users/editor.id)> true)`; `always(!<+PUBLISH> true | always([-EMBARGO] true))` |
-| "Registration requires registrar signature and blocks deletion" | `always(!<+REGISTER> true | <+REGISTER +signed_by(/users/registrar.id)> true)`; `always(!<+REGISTER> true | always([-DELETE] true))` |
-| "Acceptance requires recipient signature and blocks rejection" | `always(!<+ACCEPT> true | <+ACCEPT +signed_by(/users/recipient.id)> true)`; `always(!<+ACCEPT> true | always([-REJECT] true))` |
-| "Acknowledgement requires recipient signature and blocks dispute" | `always(!<+ACKNOWLEDGE> true | <+ACKNOWLEDGE +signed_by(/users/recipient.id)> true)`; `always(!<+ACKNOWLEDGE> true | always([-DISPUTE] true))` |
-| "Delivery confirmation requires recipient signature and blocks refund" | `always(!<+CONFIRM_DELIVERY> true | <+CONFIRM_DELIVERY +signed_by(/users/recipient.id)> true)`; `always(!<+CONFIRM_DELIVERY> true | always([-REFUND] true))` |
-| "Invoice approval requires payer signature and blocks chargeback" | `always(!<+APPROVE_INVOICE> true | <+APPROVE_INVOICE +signed_by(/users/payer.id)> true)`; `always(!<+APPROVE_INVOICE> true | always([-CHARGEBACK] true))` |
-| "Milestone acceptance requires verifier signature and blocks rework" | `always(!<+ACCEPT_MILESTONE> true | <+ACCEPT_MILESTONE +signed_by(/users/verifier.id)> true)`; `always(!<+ACCEPT_MILESTONE> true | always([-REWORK] true))` |
-| "Inspection approval requires inspector signature and blocks defect claim" | `always(!<+APPROVE_INSPECTION> true | <+APPROVE_INSPECTION +signed_by(/users/inspector.id)> true)`; `always(!<+APPROVE_INSPECTION> true | always([-DEFECT_CLAIM] true))` |
-| "Compliance attestation requires compliance officer signature and blocks noncompliance finding" | `always(!<+ATTEST_COMPLIANCE> true | <+ATTEST_COMPLIANCE +signed_by(/users/compliance_officer.id)> true)`; `always(!<+ATTEST_COMPLIANCE> true | always([-NONCOMPLIANCE_FINDING] true))` |
-| "Safety approval requires safety reviewer signature and blocks unsafe deployment" | `always(!<+APPROVE_SAFETY> true | <+APPROVE_SAFETY +signed_by(/users/safety_reviewer.id)> true)`; `always(!<+APPROVE_SAFETY> true | always([-UNSAFE_DEPLOYMENT] true))` |
-| "Risk acceptance requires risk owner signature and blocks unmitigated exposure" | `always(!<+ACCEPT_RISK> true | <+ACCEPT_RISK +signed_by(/users/risk_owner.id)> true)`; `always(!<+ACCEPT_RISK> true | always([-UNMITIGATED_EXPOSURE] true))` |
-| "Incident closure requires incident commander signature and blocks incident reopen" | `always(!<+CLOSE_INCIDENT> true | <+CLOSE_INCIDENT +signed_by(/users/incident_commander.id)> true)`; `always(!<+CLOSE_INCIDENT> true | always([-REOPEN_INCIDENT] true))` |
-| "Change freeze requires release manager signature and blocks deployment" | `always(!<+FREEZE_CHANGE> true | <+FREEZE_CHANGE +signed_by(/users/release_manager.id)> true)`; `always(!<+FREEZE_CHANGE> true | always([-DEPLOY] true))` |
-| "Regulatory filing requires applicant and regulator signatures" | `always(!<+FILE_REGULATORY_REPORT> true | <+FILE_REGULATORY_REPORT +signed_by(/users/applicant.id) +signed_by(/users/regulator.id)> true)` |
-| "Tax return filing requires tax authority, withholding agent, and revenue agency signatures" | `always(!<+FILE_TAX_RETURN> true | <+FILE_TAX_RETURN +signed_by(/users/tax_authority.id) +signed_by(/users/withholding_agent.id) +signed_by(/users/revenue_agency.id)> true)` |
-| "Data processing approval requires data protection officer signature and blocks unauthorized export" | `always(!<+APPROVE_DATA_PROCESSING> true | <+APPROVE_DATA_PROCESSING +signed_by(/users/data_protection_officer.id)> true)`; `always(!<+APPROVE_DATA_PROCESSING> true | always([-UNAUTHORIZED_EXPORT] true))` |
-| "Privacy impact acceptance requires privacy officer signature and blocks high risk processing" | `always(!<+ACCEPT_PRIVACY_IMPACT> true | <+ACCEPT_PRIVACY_IMPACT +signed_by(/users/privacy_officer.id)> true)`; `always(!<+ACCEPT_PRIVACY_IMPACT> true | always([-HIGH_RISK_PROCESSING] true))` |
-| "Access grant requires security administrator signature and blocks privilege escalation" | `always(!<+GRANT_ACCESS> true | <+GRANT_ACCESS +signed_by(/users/security_administrator.id)> true)`; `always(!<+GRANT_ACCESS> true | always([-ESCALATE_PRIVILEGE] true))` |
-| "Audit closure requires auditor signature and blocks unresolved finding" | `always(!<+CLOSE_AUDIT> true | <+CLOSE_AUDIT +signed_by(/users/auditor.id)> true)`; `always(!<+CLOSE_AUDIT> true | always([-UNRESOLVED_FINDING] true))` |
-| "Vendor onboarding requires procurement officer signature and blocks unapproved vendor payment" | `always(!<+ONBOARD_VENDOR> true | <+ONBOARD_VENDOR +signed_by(/users/procurement_officer.id)> true)`; `always(!<+ONBOARD_VENDOR> true | always([-UNAPPROVED_VENDOR_PAYMENT] true))` |
-| "Purchase order approval requires budget owner signature and blocks off contract spend" | `always(!<+APPROVE_PURCHASE_ORDER> true | <+APPROVE_PURCHASE_ORDER +signed_by(/users/budget_owner.id)> true)`; `always(!<+APPROVE_PURCHASE_ORDER> true | always([-OFF_CONTRACT_SPEND] true))` |
-| "Treasury disbursement requires treasurer signature and blocks unauthorized transfer" | `always(!<+APPROVE_TREASURY_DISBURSEMENT> true | <+APPROVE_TREASURY_DISBURSEMENT +signed_by(/users/treasurer.id)> true)`; `always(!<+APPROVE_TREASURY_DISBURSEMENT> true | always([-UNAUTHORIZED_TRANSFER] true))` |
-| "Budget release requires finance controller signature and blocks over budget spend" | `always(!<+RELEASE_BUDGET> true | <+RELEASE_BUDGET +signed_by(/users/finance_controller.id)> true)`; `always(!<+RELEASE_BUDGET> true | always([-OVER_BUDGET_SPEND] true))` |
-| "Clinical trial enrollment requires principal investigator signature and blocks ineligible enrollment" | `always(!<+ENROLL_TRIAL_PARTICIPANT> true | <+ENROLL_TRIAL_PARTICIPANT +signed_by(/users/principal_investigator.id)> true)`; `always(!<+ENROLL_TRIAL_PARTICIPANT> true | always([-INELIGIBLE_ENROLLMENT] true))` |
-| "Treatment protocol approval requires medical director signature and blocks off protocol treatment" | `always(!<+APPROVE_TREATMENT_PROTOCOL> true | <+APPROVE_TREATMENT_PROTOCOL +signed_by(/users/medical_director.id)> true)`; `always(!<+APPROVE_TREATMENT_PROTOCOL> true | always([-OFF_PROTOCOL_TREATMENT] true))` |
-| "Claim settlement requires claims adjuster signature and blocks fraudulent payout" | `always(!<+SETTLE_CLAIM> true | <+SETTLE_CLAIM +signed_by(/users/claims_adjuster.id)> true)`; `always(!<+SETTLE_CLAIM> true | always([-FRAUDULENT_PAYOUT] true))` |
-| "Underwriting exception requires underwriter signature and blocks unpriced risk binding" | `always(!<+APPROVE_UNDERWRITING_EXCEPTION> true | <+APPROVE_UNDERWRITING_EXCEPTION +signed_by(/users/underwriter.id)> true)`; `always(!<+APPROVE_UNDERWRITING_EXCEPTION> true | always([-UNPRICED_RISK_BINDING] true))` |
-| "Shipment release requires logistics coordinator signature and blocks unauthorized shipment" | `always(!<+RELEASE_SHIPMENT> true | <+RELEASE_SHIPMENT +signed_by(/users/logistics_coordinator.id)> true)`; `always(!<+RELEASE_SHIPMENT> true | always([-UNAUTHORIZED_SHIPMENT] true))` |
-| "Receiving acceptance requires warehouse manager signature and blocks inventory discrepancy" | `always(!<+ACCEPT_RECEIVING> true | <+ACCEPT_RECEIVING +signed_by(/users/warehouse_manager.id)> true)`; `always(!<+ACCEPT_RECEIVING> true | always([-INVENTORY_DISCREPANCY] true))` |
-| "Grid interconnection approval requires system operator signature and blocks unsafe energization" | `always(!<+APPROVE_GRID_INTERCONNECTION> true | <+APPROVE_GRID_INTERCONNECTION +signed_by(/users/system_operator.id)> true)`; `always(!<+APPROVE_GRID_INTERCONNECTION> true | always([-UNSAFE_ENERGIZATION] true))` |
-| "Maintenance clearance requires outage coordinator signature and blocks live work" | `always(!<+ISSUE_MAINTENANCE_CLEARANCE> true | <+ISSUE_MAINTENANCE_CLEARANCE +signed_by(/users/outage_coordinator.id)> true)`; `always(!<+ISSUE_MAINTENANCE_CLEARANCE> true | always([-LIVE_WORK] true))` |
-| "Student record release requires registrar signature and blocks unauthorized disclosure" | `always(!<+RELEASE_STUDENT_RECORD> true | <+RELEASE_STUDENT_RECORD +signed_by(/users/registrar.id)> true)`; `always(!<+RELEASE_STUDENT_RECORD> true | always([-UNAUTHORIZED_DISCLOSURE] true))` |
-| "Grant award approval requires program officer signature and blocks conflict award" | `always(!<+APPROVE_GRANT_AWARD> true | <+APPROVE_GRANT_AWARD +signed_by(/users/program_officer.id)> true)`; `always(!<+APPROVE_GRANT_AWARD> true | always([-CONFLICT_AWARD] true))` |
-| "Permit issuance requires permitting officer signature and blocks unpermitted work" | `always(!<+ISSUE_PERMIT> true | <+ISSUE_PERMIT +signed_by(/users/permitting_officer.id)> true)`; `always(!<+ISSUE_PERMIT> true | always([-UNPERMITTED_WORK] true))` |
-| "Legal matter closure requires legal counsel signature and blocks unresolved claim" | `always(!<+CLOSE_LEGAL_MATTER> true | <+CLOSE_LEGAL_MATTER +signed_by(/users/legal_counsel.id)> true)`; `always(!<+CLOSE_LEGAL_MATTER> true | always([-UNRESOLVED_CLAIM] true))` |
-| "Release promotion requires release engineer signature and blocks unreviewed deployment" | `always(!<+PROMOTE_RELEASE> true | <+PROMOTE_RELEASE +signed_by(/users/release_engineer.id)> true)`; `always(!<+PROMOTE_RELEASE> true | always([-UNREVIEWED_DEPLOYMENT] true))` |
-| "Model deployment approval requires model risk officer signature and blocks unvalidated model use" | `always(!<+APPROVE_MODEL_DEPLOYMENT> true | <+APPROVE_MODEL_DEPLOYMENT +signed_by(/users/model_risk_officer.id)> true)`; `always(!<+APPROVE_MODEL_DEPLOYMENT> true | always([-UNVALIDATED_MODEL_USE] true))` |
-| "DAO proposal execution requires governance council signature and blocks failed quorum execution" | `always(!<+EXECUTE_DAO_PROPOSAL> true | <+EXECUTE_DAO_PROPOSAL +signed_by(/users/governance_council.id)> true)`; `always(!<+EXECUTE_DAO_PROPOSAL> true | always([-FAILED_QUORUM_EXECUTION] true))` |
-| "Marketplace payout release requires platform operator signature and blocks disputed payout" | `always(!<+RELEASE_MARKETPLACE_PAYOUT> true | <+RELEASE_MARKETPLACE_PAYOUT +signed_by(/users/platform_operator.id)> true)`; `always(!<+RELEASE_MARKETPLACE_PAYOUT> true | always([-DISPUTED_PAYOUT] true))` |
-| "Construction draw approval requires project manager signature and blocks lien exposure" | `always(!<+APPROVE_CONSTRUCTION_DRAW> true | <+APPROVE_CONSTRUCTION_DRAW +signed_by(/users/project_manager.id)> true)`; `always(!<+APPROVE_CONSTRUCTION_DRAW> true | always([-LIEN_EXPOSURE] true))` |
-| "Manufacturing batch release requires quality manager signature and blocks nonconforming shipment" | `always(!<+RELEASE_MANUFACTURING_BATCH> true | <+RELEASE_MANUFACTURING_BATCH +signed_by(/users/quality_manager.id)> true)`; `always(!<+RELEASE_MANUFACTURING_BATCH> true | always([-NONCONFORMING_SHIPMENT] true))` |
-| "Content license approval requires rights manager signature and blocks unlicensed publication" | `always(!<+APPROVE_CONTENT_LICENSE> true | <+APPROVE_CONTENT_LICENSE +signed_by(/users/rights_manager.id)> true)`; `always(!<+APPROVE_CONTENT_LICENSE> true | always([-UNLICENSED_PUBLICATION] true))` |
-| "Lease amendment approval requires property manager signature and blocks unauthorized occupancy" | `always(!<+APPROVE_LEASE_AMENDMENT> true | <+APPROVE_LEASE_AMENDMENT +signed_by(/users/property_manager.id)> true)`; `always(!<+APPROVE_LEASE_AMENDMENT> true | always([-UNAUTHORIZED_OCCUPANCY] true))` |
-| "Environmental permit approval requires environmental officer signature and blocks prohibited discharge" | `always(!<+APPROVE_ENVIRONMENTAL_PERMIT> true | <+APPROVE_ENVIRONMENTAL_PERMIT +signed_by(/users/environmental_officer.id)> true)`; `always(!<+APPROVE_ENVIRONMENTAL_PERMIT> true | always([-PROHIBITED_DISCHARGE] true))` |
-| "Agricultural shipment certification requires quality inspector signature and blocks contaminated shipment" | `always(!<+CERTIFY_AGRICULTURAL_SHIPMENT> true | <+CERTIFY_AGRICULTURAL_SHIPMENT +signed_by(/users/quality_inspector.id)> true)`; `always(!<+CERTIFY_AGRICULTURAL_SHIPMENT> true | always([-CONTAMINATED_SHIPMENT] true))` |
-| "Travel itinerary approval requires travel manager signature and blocks unauthorized booking" | `always(!<+APPROVE_TRAVEL_ITINERARY> true | <+APPROVE_TRAVEL_ITINERARY +signed_by(/users/travel_manager.id)> true)`; `always(!<+APPROVE_TRAVEL_ITINERARY> true | always([-UNAUTHORIZED_BOOKING] true))` |
-| "Hotel room block release requires event coordinator signature and blocks overbooked rooms" | `always(!<+RELEASE_ROOM_BLOCK> true | <+RELEASE_ROOM_BLOCK +signed_by(/users/event_coordinator.id)> true)`; `always(!<+RELEASE_ROOM_BLOCK> true | always([-OVERBOOKED_ROOMS] true))` |
-| "Aviation maintenance release requires airworthiness inspector signature and blocks unairworthy dispatch" | `always(!<+RELEASE_AIRCRAFT_MAINTENANCE> true | <+RELEASE_AIRCRAFT_MAINTENANCE +signed_by(/users/airworthiness_inspector.id)> true)`; `always(!<+RELEASE_AIRCRAFT_MAINTENANCE> true | always([-UNAIRWORTHY_DISPATCH] true))` |
-| "Fleet route approval requires fleet manager signature and blocks unlicensed operator dispatch" | `always(!<+APPROVE_FLEET_ROUTE> true | <+APPROVE_FLEET_ROUTE +signed_by(/users/fleet_manager.id)> true)`; `always(!<+APPROVE_FLEET_ROUTE> true | always([-UNLICENSED_OPERATOR_DISPATCH] true))` |
-| "Pharmaceutical batch release requires qualified person signature and blocks uncertified distribution" | `always(!<+RELEASE_PHARMACEUTICAL_BATCH> true | <+RELEASE_PHARMACEUTICAL_BATCH +signed_by(/users/qualified_person.id)> true)`; `always(!<+RELEASE_PHARMACEUTICAL_BATCH> true | always([-UNCERTIFIED_DISTRIBUTION] true))` |
-| "Food safety recall closure requires safety officer signature and blocks unresolved contamination" | `always(!<+CLOSE_FOOD_SAFETY_RECALL> true | <+CLOSE_FOOD_SAFETY_RECALL +signed_by(/users/safety_officer.id)> true)`; `always(!<+CLOSE_FOOD_SAFETY_RECALL> true | always([-UNRESOLVED_CONTAMINATION] true))` |
-| "Telecommunications service change approval requires network operations manager signature and blocks unauthorized outage" | `always(!<+APPROVE_SERVICE_CHANGE> true | <+APPROVE_SERVICE_CHANGE +signed_by(/users/network_operations_manager.id)> true)`; `always(!<+APPROVE_SERVICE_CHANGE> true | always([-UNAUTHORIZED_OUTAGE] true))` |
-| "Spectrum assignment approval requires spectrum officer signature and blocks unlicensed transmission" | `always(!<+APPROVE_SPECTRUM_ASSIGNMENT> true | <+APPROVE_SPECTRUM_ASSIGNMENT +signed_by(/users/spectrum_officer.id)> true)`; `always(!<+APPROVE_SPECTRUM_ASSIGNMENT> true | always([-UNLICENSED_TRANSMISSION] true))` |
-| "AML case closure requires compliance analyst signature and blocks suspicious payout" | `always(!<+CLOSE_AML_CASE> true | <+CLOSE_AML_CASE +signed_by(/users/compliance_analyst.id)> true)`; `always(!<+CLOSE_AML_CASE> true | always([-SUSPICIOUS_PAYOUT] true))` |
-| "Export license approval requires export control officer signature and blocks restricted shipment" | `always(!<+APPROVE_EXPORT_LICENSE> true | <+APPROVE_EXPORT_LICENSE +signed_by(/users/export_control_officer.id)> true)`; `always(!<+APPROVE_EXPORT_LICENSE> true | always([-RESTRICTED_SHIPMENT] true))` |
-| "KYC account approval requires identity analyst signature and blocks unverified activation" | `always(!<+APPROVE_KYC_ACCOUNT> true | <+APPROVE_KYC_ACCOUNT +signed_by(/users/identity_analyst.id)> true)`; `always(!<+APPROVE_KYC_ACCOUNT> true | always([-UNVERIFIED_ACTIVATION] true))` |
-| "Sanctions screening clearance requires sanctions officer signature and blocks sanctioned transfer" | `always(!<+CLEAR_SANCTIONS_SCREENING> true | <+CLEAR_SANCTIONS_SCREENING +signed_by(/users/sanctions_officer.id)> true)`; `always(!<+CLEAR_SANCTIONS_SCREENING> true | always([-SANCTIONED_TRANSFER] true))` |
-| "Cyber incident containment requires security lead signature and blocks uncontrolled breach escalation" | `always(!<+CONTAIN_CYBER_INCIDENT> true | <+CONTAIN_CYBER_INCIDENT +signed_by(/users/security_lead.id)> true)`; `always(!<+CONTAIN_CYBER_INCIDENT> true | always([-UNCONTROLLED_BREACH_ESCALATION] true))` |
-| "Disaster recovery failover approval requires continuity manager signature and blocks untested failover" | `always(!<+APPROVE_DISASTER_RECOVERY_FAILOVER> true | <+APPROVE_DISASTER_RECOVERY_FAILOVER +signed_by(/users/continuity_manager.id)> true)`; `always(!<+APPROVE_DISASTER_RECOVERY_FAILOVER> true | always([-UNTESTED_FAILOVER] true))` |
-| "Legal hold approval requires records counsel signature and blocks premature purge" | `always(!<+APPROVE_LEGAL_HOLD> true | <+APPROVE_LEGAL_HOLD +signed_by(/users/records_counsel.id)> true)`; `always(!<+APPROVE_LEGAL_HOLD> true | always([-PREMATURE_PURGE] true))` |
-| "E-discovery production approval requires litigation support manager signature and blocks privileged disclosure" | `always(!<+APPROVE_EDISCOVERY_PRODUCTION> true | <+APPROVE_EDISCOVERY_PRODUCTION +signed_by(/users/litigation_support_manager.id)> true)`; `always(!<+APPROVE_EDISCOVERY_PRODUCTION> true | always([-PRIVILEGED_DISCLOSURE] true))` |
-| "Patent filing approval requires IP counsel signature and blocks premature public disclosure" | `always(!<+APPROVE_PATENT_FILING> true | <+APPROVE_PATENT_FILING +signed_by(/users/ip_counsel.id)> true)`; `always(!<+APPROVE_PATENT_FILING> true | always([-PREMATURE_PUBLIC_DISCLOSURE] true))` |
-| "Trademark usage approval requires brand counsel signature and blocks unauthorized mark use" | `always(!<+APPROVE_TRADEMARK_USAGE> true | <+APPROVE_TRADEMARK_USAGE +signed_by(/users/brand_counsel.id)> true)`; `always(!<+APPROVE_TRADEMARK_USAGE> true | always([-UNAUTHORIZED_MARK_USE] true))` |
-| "Employee onboarding approval requires HR manager signature and blocks unverified worker access" | `always(!<+APPROVE_EMPLOYEE_ONBOARDING> true | <+APPROVE_EMPLOYEE_ONBOARDING +signed_by(/users/hr_manager.id)> true)`; `always(!<+APPROVE_EMPLOYEE_ONBOARDING> true | always([-UNVERIFIED_WORKER_ACCESS] true))` |
-| "Labor compliance attestation requires compliance officer signature and blocks wage violation" | `always(!<+ATTEST_LABOR_COMPLIANCE> true | <+ATTEST_LABOR_COMPLIANCE +signed_by(/users/compliance_officer.id)> true)`; `always(!<+ATTEST_LABOR_COMPLIANCE> true | always([-WAGE_VIOLATION] true))` |
-| "Athlete eligibility certification requires compliance officer signature and blocks ineligible competition" | `always(!<+CERTIFY_ATHLETE_ELIGIBILITY> true | <+CERTIFY_ATHLETE_ELIGIBILITY +signed_by(/users/compliance_officer.id)> true)`; `always(!<+CERTIFY_ATHLETE_ELIGIBILITY> true | always([-INELIGIBLE_COMPETITION] true))` |
-| "Broadcast rights clearance requires rights coordinator signature and blocks unauthorized stream" | `always(!<+CLEAR_BROADCAST_RIGHTS> true | <+CLEAR_BROADCAST_RIGHTS +signed_by(/users/rights_coordinator.id)> true)`; `always(!<+CLEAR_BROADCAST_RIGHTS> true | always([-UNAUTHORIZED_STREAM] true))` |
-| "Port departure clearance requires harbor master signature and blocks unauthorized sailing" | `always(!<+CLEAR_PORT_DEPARTURE> true | <+CLEAR_PORT_DEPARTURE +signed_by(/users/harbor_master.id)> true)`; `always(!<+CLEAR_PORT_DEPARTURE> true | always([-UNAUTHORIZED_SAILING] true))` |
-| "Customs cargo release requires customs officer signature and blocks smuggled goods release" | `always(!<+RELEASE_CUSTOMS_CARGO> true | <+RELEASE_CUSTOMS_CARGO +signed_by(/users/customs_officer.id)> true)`; `always(!<+RELEASE_CUSTOMS_CARGO> true | always([-SMUGGLED_GOODS_RELEASE] true))` |
-| "Loan disbursement approval requires credit officer signature and blocks unauthorized drawdown" | `always(!<+APPROVE_LOAN_DISBURSEMENT> true | <+APPROVE_LOAN_DISBURSEMENT +signed_by(/users/credit_officer.id)> true)`; `always(!<+APPROVE_LOAN_DISBURSEMENT> true | always([-UNAUTHORIZED_DRAWDOWN] true))` |
-| "Collateral release requires lending officer signature and blocks unsecured exposure" | `always(!<+RELEASE_COLLATERAL> true | <+RELEASE_COLLATERAL +signed_by(/users/lending_officer.id)> true)`; `always(!<+RELEASE_COLLATERAL> true | always([-UNSECURED_EXPOSURE] true))` |
-| "Retail price override approval requires pricing manager signature and blocks unauthorized discount" | `always(!<+APPROVE_PRICE_OVERRIDE> true | <+APPROVE_PRICE_OVERRIDE +signed_by(/users/pricing_manager.id)> true)`; `always(!<+APPROVE_PRICE_OVERRIDE> true | always([-UNAUTHORIZED_DISCOUNT] true))` |
-| "Franchise territory change requires franchise director signature and blocks territory conflict" | `always(!<+APPROVE_TERRITORY_CHANGE> true | <+APPROVE_TERRITORY_CHANGE +signed_by(/users/franchise_director.id)> true)`; `always(!<+APPROVE_TERRITORY_CHANGE> true | always([-TERRITORY_CONFLICT] true))` |
-| "Artifact loan approval requires curator signature and blocks unauthorized transfer" | `always(!<+APPROVE_ARTIFACT_LOAN> true | <+APPROVE_ARTIFACT_LOAN +signed_by(/users/curator.id)> true)`; `always(!<+APPROVE_ARTIFACT_LOAN> true | always([-UNAUTHORIZED_TRANSFER] true))` |
-| "Archive record declassification requires archivist signature and blocks premature disclosure" | `always(!<+DECLASSIFY_ARCHIVE_RECORD> true | <+DECLASSIFY_ARCHIVE_RECORD +signed_by(/users/archivist.id)> true)`; `always(!<+DECLASSIFY_ARCHIVE_RECORD> true | always([-PREMATURE_DISCLOSURE] true))` |
-| "Election result certification requires election officer signature and blocks uncertified seating" | `always(!<+CERTIFY_ELECTION_RESULT> true | <+CERTIFY_ELECTION_RESULT +signed_by(/users/election_officer.id)> true)`; `always(!<+CERTIFY_ELECTION_RESULT> true | always([-UNCERTIFIED_SEATING] true))` |
-| "Ballot audit closure requires audit board signature and blocks unresolved ballot discrepancy" | `always(!<+CLOSE_BALLOT_AUDIT> true | <+CLOSE_BALLOT_AUDIT +signed_by(/users/audit_board.id)> true)`; `always(!<+CLOSE_BALLOT_AUDIT> true | always([-UNRESOLVED_BALLOT_DISCREPANCY] true))` |
-| "Donation release approval requires nonprofit treasurer signature and blocks restricted fund misuse" | `always(!<+APPROVE_DONATION_RELEASE> true | <+APPROVE_DONATION_RELEASE +signed_by(/users/nonprofit_treasurer.id)> true)`; `always(!<+APPROVE_DONATION_RELEASE> true | always([-RESTRICTED_FUND_MISUSE] true))` |
-| "Grant report certification requires program director signature and blocks unsubstantiated grant expense" | `always(!<+CERTIFY_GRANT_REPORT> true | <+CERTIFY_GRANT_REPORT +signed_by(/users/program_director.id)> true)`; `always(!<+CERTIFY_GRANT_REPORT> true | always([-UNSUBSTANTIATED_GRANT_EXPENSE] true))` |
-| "Zoning variance approval requires planning commissioner signature and blocks unpermitted land use" | `always(!<+APPROVE_ZONING_VARIANCE> true | <+APPROVE_ZONING_VARIANCE +signed_by(/users/planning_commissioner.id)> true)`; `always(!<+APPROVE_ZONING_VARIANCE> true | always([-UNPERMITTED_LAND_USE] true))` |
-| "Public health order closure requires health officer signature and blocks unresolved exposure" | `always(!<+CLOSE_PUBLIC_HEALTH_ORDER> true | <+CLOSE_PUBLIC_HEALTH_ORDER +signed_by(/users/health_officer.id)> true)`; `always(!<+CLOSE_PUBLIC_HEALTH_ORDER> true | always([-UNRESOLVED_EXPOSURE] true))` |
-| "Emergency resource dispatch approval requires incident commander signature and blocks unauthorized deployment" | `always(!<+APPROVE_EMERGENCY_RESOURCE_DISPATCH> true | <+APPROVE_EMERGENCY_RESOURCE_DISPATCH +signed_by(/users/incident_commander.id)> true)`; `always(!<+APPROVE_EMERGENCY_RESOURCE_DISPATCH> true | always([-UNAUTHORIZED_DEPLOYMENT] true))` |
-| "Court order enforcement requires court clerk signature and blocks stayed enforcement" | `always(!<+ENFORCE_COURT_ORDER> true | <+ENFORCE_COURT_ORDER +signed_by(/users/court_clerk.id)> true)`; `always(!<+ENFORCE_COURT_ORDER> true | always([-STAYED_ENFORCEMENT] true))` |
-| "Satellite maneuver approval requires mission director signature and blocks unauthorized orbit change" | `always(!<+APPROVE_SATELLITE_MANEUVER> true | <+APPROVE_SATELLITE_MANEUVER +signed_by(/users/mission_director.id)> true)`; `always(!<+APPROVE_SATELLITE_MANEUVER> true | always([-UNAUTHORIZED_ORBIT_CHANGE] true))` |
-| "Nuclear maintenance clearance requires radiation safety officer signature and blocks unsafe reactor work" | `always(!<+ISSUE_NUCLEAR_MAINTENANCE_CLEARANCE> true | <+ISSUE_NUCLEAR_MAINTENANCE_CLEARANCE +signed_by(/users/radiation_safety_officer.id)> true)`; `always(!<+ISSUE_NUCLEAR_MAINTENANCE_CLEARANCE> true | always([-UNSAFE_REACTOR_WORK] true))` |
-| "Water treatment discharge approval requires plant operator signature and blocks untreated release" | `always(!<+APPROVE_WATER_DISCHARGE> true | <+APPROVE_WATER_DISCHARGE +signed_by(/users/plant_operator.id)> true)`; `always(!<+APPROVE_WATER_DISCHARGE> true | always([-UNTREATED_RELEASE] true))` |
-| "Mining blast authorization requires safety superintendent signature and blocks unpermitted blast" | `always(!<+AUTHORIZE_MINING_BLAST> true | <+AUTHORIZE_MINING_BLAST +signed_by(/users/safety_superintendent.id)> true)`; `always(!<+AUTHORIZE_MINING_BLAST> true | always([-UNPERMITTED_BLAST] true))` |
-| "Fisheries catch certification requires fisheries officer signature and blocks illegal catch landing" | `always(!<+CERTIFY_FISHERIES_CATCH> true | <+CERTIFY_FISHERIES_CATCH +signed_by(/users/fisheries_officer.id)> true)`; `always(!<+CERTIFY_FISHERIES_CATCH> true | always([-ILLEGAL_CATCH_LANDING] true))` |
-| "Forestry harvest permit approval requires forest ranger signature and blocks unauthorized logging" | `always(!<+APPROVE_FORESTRY_HARVEST_PERMIT> true | <+APPROVE_FORESTRY_HARVEST_PERMIT +signed_by(/users/forest_ranger.id)> true)`; `always(!<+APPROVE_FORESTRY_HARVEST_PERMIT> true | always([-UNAUTHORIZED_LOGGING] true))` |
-| "Insurance claim payout approval requires claims adjuster signature and blocks fraudulent payout" | `always(!<+APPROVE_CLAIM_PAYOUT> true | <+APPROVE_CLAIM_PAYOUT +signed_by(/users/claims_adjuster.id)> true)`; `always(!<+APPROVE_CLAIM_PAYOUT> true | always([-FRAUDULENT_PAYOUT] true))` |
-| "Clinical trial enrollment approval requires principal investigator signature and blocks ineligible subject enrollment" | `always(!<+APPROVE_TRIAL_ENROLLMENT> true | <+APPROVE_TRIAL_ENROLLMENT +signed_by(/users/principal_investigator.id)> true)`; `always(!<+APPROVE_TRIAL_ENROLLMENT> true | always([-INELIGIBLE_SUBJECT_ENROLLMENT] true))` |
-| "Humanitarian aid disbursement approval requires field coordinator signature and blocks duplicate aid payment" | `always(!<+APPROVE_AID_DISBURSEMENT> true | <+APPROVE_AID_DISBURSEMENT +signed_by(/users/field_coordinator.id)> true)`; `always(!<+APPROVE_AID_DISBURSEMENT> true | always([-DUPLICATE_AID_PAYMENT] true))` |
-| "Carbon credit retirement certification requires registry operator signature and blocks double counted offset" | `always(!<+CERTIFY_CARBON_CREDIT_RETIREMENT> true | <+CERTIFY_CARBON_CREDIT_RETIREMENT +signed_by(/users/registry_operator.id)> true)`; `always(!<+CERTIFY_CARBON_CREDIT_RETIREMENT> true | always([-DOUBLE_COUNTED_OFFSET] true))` |
-| "Laboratory sample transfer approval requires biosafety officer signature and blocks unapproved biohazard transfer" | `always(!<+APPROVE_SAMPLE_TRANSFER> true | <+APPROVE_SAMPLE_TRANSFER +signed_by(/users/biosafety_officer.id)> true)`; `always(!<+APPROVE_SAMPLE_TRANSFER> true | always([-UNAPPROVED_BIOHAZARD_TRANSFER] true))` |
-| "Research compute allocation approval requires computing administrator signature and blocks unauthorized cluster use" | `always(!<+APPROVE_COMPUTE_ALLOCATION> true | <+APPROVE_COMPUTE_ALLOCATION +signed_by(/users/computing_administrator.id)> true)`; `always(!<+APPROVE_COMPUTE_ALLOCATION> true | always([-UNAUTHORIZED_CLUSTER_USE] true))` |
-| "Drone flight authorization requires operations lead signature and blocks unauthorized airspace operation" | `always(!<+AUTHORIZE_DRONE_FLIGHT> true | <+AUTHORIZE_DRONE_FLIGHT +signed_by(/users/operations_lead.id)> true)`; `always(!<+AUTHORIZE_DRONE_FLIGHT> true | always([-UNAUTHORIZED_AIRSPACE_OPERATION] true))` |
-| "IoT firmware rollout approval requires device security officer signature and blocks vulnerable device update" | `always(!<+APPROVE_IOT_FIRMWARE_ROLLOUT> true | <+APPROVE_IOT_FIRMWARE_ROLLOUT +signed_by(/users/device_security_officer.id)> true)`; `always(!<+APPROVE_IOT_FIRMWARE_ROLLOUT> true | always([-VULNERABLE_DEVICE_UPDATE] true))` |
-| "Autonomous vehicle route approval requires safety operator signature and blocks unsafe route dispatch" | `always(!<+APPROVE_AUTONOMOUS_VEHICLE_ROUTE> true | <+APPROVE_AUTONOMOUS_VEHICLE_ROUTE +signed_by(/users/safety_operator.id)> true)`; `always(!<+APPROVE_AUTONOMOUS_VEHICLE_ROUTE> true | always([-UNSAFE_ROUTE_DISPATCH] true))` |
-| "Robotics cell activation requires floor supervisor signature and blocks unguarded robot motion" | `always(!<+ACTIVATE_ROBOTICS_CELL> true | <+ACTIVATE_ROBOTICS_CELL +signed_by(/users/floor_supervisor.id)> true)`; `always(!<+ACTIVATE_ROBOTICS_CELL> true | always([-UNGUARDED_ROBOT_MOTION] true))` |
-| "Semiconductor wafer release requires process engineer signature and blocks contaminated lot shipment" | `always(!<+RELEASE_WAFER_LOT> true | <+RELEASE_WAFER_LOT +signed_by(/users/process_engineer.id)> true)`; `always(!<+RELEASE_WAFER_LOT> true | always([-CONTAMINATED_LOT_SHIPMENT] true))` |
-| "Battery production batch approval requires safety engineer signature and blocks thermal runaway risk" | `always(!<+APPROVE_BATTERY_BATCH> true | <+APPROVE_BATTERY_BATCH +signed_by(/users/safety_engineer.id)> true)`; `always(!<+APPROVE_BATTERY_BATCH> true | always([-THERMAL_RUNAWAY_RISK] true))` |
-| "Quantum key ceremony approval requires cryptography officer signature and blocks compromised key activation" | `always(!<+APPROVE_QUANTUM_KEY_CEREMONY> true | <+APPROVE_QUANTUM_KEY_CEREMONY +signed_by(/users/cryptography_officer.id)> true)`; `always(!<+APPROVE_QUANTUM_KEY_CEREMONY> true | always([-COMPROMISED_KEY_ACTIVATION] true))` |
-| "Edge AI model update approval requires site reliability engineer signature and blocks unsafe field model rollout" | `always(!<+APPROVE_EDGE_AI_MODEL_UPDATE> true | <+APPROVE_EDGE_AI_MODEL_UPDATE +signed_by(/users/site_reliability_engineer.id)> true)`; `always(!<+APPROVE_EDGE_AI_MODEL_UPDATE> true | always([-UNSAFE_FIELD_MODEL_ROLLOUT] true))` |
-| "Digital identity credential issuance requires identity authority signature and blocks fraudulent credential activation" | `always(!<+ISSUE_DIGITAL_CREDENTIAL> true | <+ISSUE_DIGITAL_CREDENTIAL +signed_by(/users/identity_authority.id)> true)`; `always(!<+ISSUE_DIGITAL_CREDENTIAL> true | always([-FRAUDULENT_CREDENTIAL_ACTIVATION] true))` |
-| "Confidential compute enclave attestation requires security architect signature and blocks untrusted enclave workload" | `always(!<+ATTEST_CONFIDENTIAL_ENCLAVE> true | <+ATTEST_CONFIDENTIAL_ENCLAVE +signed_by(/users/security_architect.id)> true)`; `always(!<+ATTEST_CONFIDENTIAL_ENCLAVE> true | always([-UNTRUSTED_ENCLAVE_WORKLOAD] true))` |
-| "Software artifact provenance attestation requires build attestor signature and blocks unsigned artifact deployment" | `always(!<+ATTEST_ARTIFACT_PROVENANCE> true | <+ATTEST_ARTIFACT_PROVENANCE +signed_by(/users/build_attestor.id)> true)`; `always(!<+ATTEST_ARTIFACT_PROVENANCE> true | always([-UNSIGNED_ARTIFACT_DEPLOYMENT] true))` |
-| "SBOM publication approval requires security reviewer signature and blocks undocumented dependency release" | `always(!<+APPROVE_SBOM_PUBLICATION> true | <+APPROVE_SBOM_PUBLICATION +signed_by(/users/security_reviewer.id)> true)`; `always(!<+APPROVE_SBOM_PUBLICATION> true | always([-UNDOCUMENTED_DEPENDENCY_RELEASE] true))` |
-| "Cold chain handoff certification requires logistics inspector signature and blocks temperature breach delivery" | `always(!<+CERTIFY_COLD_CHAIN_HANDOFF> true | <+CERTIFY_COLD_CHAIN_HANDOFF +signed_by(/users/logistics_inspector.id)> true)`; `always(!<+CERTIFY_COLD_CHAIN_HANDOFF> true | always([-TEMPERATURE_BREACH_DELIVERY] true))` |
-| "Medical device release authorization requires quality systems manager signature and blocks unvalidated device distribution" | `always(!<+AUTHORIZE_MEDICAL_DEVICE_RELEASE> true | <+AUTHORIZE_MEDICAL_DEVICE_RELEASE +signed_by(/users/quality_systems_manager.id)> true)`; `always(!<+AUTHORIZE_MEDICAL_DEVICE_RELEASE> true | always([-UNVALIDATED_DEVICE_DISTRIBUTION] true))` |
-| "Rail signal maintenance authorization requires signal engineer signature and blocks unsafe track occupancy" | `always(!<+AUTHORIZE_RAIL_SIGNAL_MAINTENANCE> true | <+AUTHORIZE_RAIL_SIGNAL_MAINTENANCE +signed_by(/users/signal_engineer.id)> true)`; `always(!<+AUTHORIZE_RAIL_SIGNAL_MAINTENANCE> true | always([-UNSAFE_TRACK_OCCUPANCY] true))` |
-| "Runway reopening approval requires airport operations manager signature and blocks uncleared runway use" | `always(!<+APPROVE_RUNWAY_REOPENING> true | <+APPROVE_RUNWAY_REOPENING +signed_by(/users/airport_operations_manager.id)> true)`; `always(!<+APPROVE_RUNWAY_REOPENING> true | always([-UNCLEARED_RUNWAY_USE] true))` |
-| "Datacenter maintenance window approval requires facilities lead signature and blocks unscheduled power work" | `always(!<+APPROVE_DATACENTER_MAINTENANCE_WINDOW> true | <+APPROVE_DATACENTER_MAINTENANCE_WINDOW +signed_by(/users/facilities_lead.id)> true)`; `always(!<+APPROVE_DATACENTER_MAINTENANCE_WINDOW> true | always([-UNSCHEDULED_POWER_WORK] true))` |
-| "Network peering change approval requires network architect signature and blocks unauthorized route advertisement" | `always(!<+APPROVE_NETWORK_PEERING_CHANGE> true | <+APPROVE_NETWORK_PEERING_CHANGE +signed_by(/users/network_architect.id)> true)`; `always(!<+APPROVE_NETWORK_PEERING_CHANGE> true | always([-UNAUTHORIZED_ROUTE_ADVERTISEMENT] true))` |
-| "DNS zone change approval requires DNS administrator signature and blocks unauthorized record publication" | `always(!<+APPROVE_DNS_ZONE_CHANGE> true | <+APPROVE_DNS_ZONE_CHANGE +signed_by(/users/dns_administrator.id)> true)`; `always(!<+APPROVE_DNS_ZONE_CHANGE> true | always([-UNAUTHORIZED_RECORD_PUBLICATION] true))` |
-| "TLS certificate issuance approval requires certificate authority officer signature and blocks misissued certificate activation" | `always(!<+APPROVE_TLS_CERTIFICATE_ISSUANCE> true | <+APPROVE_TLS_CERTIFICATE_ISSUANCE +signed_by(/users/certificate_authority_officer.id)> true)`; `always(!<+APPROVE_TLS_CERTIFICATE_ISSUANCE> true | always([-MISISSUED_CERTIFICATE_ACTIVATION] true))` |
-| "Secret rotation approval requires platform security officer signature and blocks stale secret reuse" | `always(!<+APPROVE_SECRET_ROTATION> true | <+APPROVE_SECRET_ROTATION +signed_by(/users/platform_security_officer.id)> true)`; `always(!<+APPROVE_SECRET_ROTATION> true | always([-STALE_SECRET_REUSE] true))` |
-| "Backup restore approval requires recovery manager signature and blocks unverified data restoration" | `always(!<+APPROVE_BACKUP_RESTORE> true | <+APPROVE_BACKUP_RESTORE +signed_by(/users/recovery_manager.id)> true)`; `always(!<+APPROVE_BACKUP_RESTORE> true | always([-UNVERIFIED_DATA_RESTORATION] true))` |
-| "Database migration approval requires database administrator signature and blocks unreviewed schema change" | `always(!<+APPROVE_DATABASE_MIGRATION> true | <+APPROVE_DATABASE_MIGRATION +signed_by(/users/database_administrator.id)> true)`; `always(!<+APPROVE_DATABASE_MIGRATION> true | always([-UNREVIEWED_SCHEMA_CHANGE] true))` |
-| "Container image promotion approval requires platform release engineer signature and blocks vulnerable image deployment" | `always(!<+APPROVE_CONTAINER_IMAGE_PROMOTION> true | <+APPROVE_CONTAINER_IMAGE_PROMOTION +signed_by(/users/platform_release_engineer.id)> true)`; `always(!<+APPROVE_CONTAINER_IMAGE_PROMOTION> true | always([-VULNERABLE_IMAGE_DEPLOYMENT] true))` |
-| "Feature flag rollout approval requires product owner signature and blocks unauthorized exposure" | `always(!<+APPROVE_FEATURE_FLAG_ROLLOUT> true | <+APPROVE_FEATURE_FLAG_ROLLOUT +signed_by(/users/product_owner.id)> true)`; `always(!<+APPROVE_FEATURE_FLAG_ROLLOUT> true | always([-UNAUTHORIZED_FEATURE_EXPOSURE] true))` |
-| "Production rollback authorization requires incident commander signature and blocks data loss rollback" | `always(!<+AUTHORIZE_PRODUCTION_ROLLBACK> true | <+AUTHORIZE_PRODUCTION_ROLLBACK +signed_by(/users/incident_commander.id)> true)`; `always(!<+AUTHORIZE_PRODUCTION_ROLLBACK> true | always([-DATA_LOSS_ROLLBACK] true))` |
-| "Observability dashboard change approval requires service owner signature and blocks unaudited alert suppression" | `always(!<+APPROVE_OBSERVABILITY_DASHBOARD_CHANGE> true | <+APPROVE_OBSERVABILITY_DASHBOARD_CHANGE +signed_by(/users/service_owner.id)> true)`; `always(!<+APPROVE_OBSERVABILITY_DASHBOARD_CHANGE> true | always([-UNAUDITED_ALERT_SUPPRESSION] true))` |
-| "Incident postmortem closure requires reliability lead signature and blocks unresolved corrective action" | `always(!<+CLOSE_INCIDENT_POSTMORTEM> true | <+CLOSE_INCIDENT_POSTMORTEM +signed_by(/users/reliability_lead.id)> true)`; `always(!<+CLOSE_INCIDENT_POSTMORTEM> true | always([-UNRESOLVED_CORRECTIVE_ACTION] true))` |
-| "SLO policy change approval requires reliability manager signature and blocks unreviewed objective downgrade" | `always(!<+APPROVE_SLO_POLICY_CHANGE> true | <+APPROVE_SLO_POLICY_CHANGE +signed_by(/users/reliability_manager.id)> true)`; `always(!<+APPROVE_SLO_POLICY_CHANGE> true | always([-UNREVIEWED_OBJECTIVE_DOWNGRADE] true))` |
-| "Error budget override authorization requires engineering director signature and blocks silent availability risk acceptance" | `always(!<+AUTHORIZE_ERROR_BUDGET_OVERRIDE> true | <+AUTHORIZE_ERROR_BUDGET_OVERRIDE +signed_by(/users/engineering_director.id)> true)`; `always(!<+AUTHORIZE_ERROR_BUDGET_OVERRIDE> true | always([-SILENT_AVAILABILITY_RISK_ACCEPTANCE] true))` |
-| "Capacity plan approval requires infrastructure owner signature and blocks unbudgeted resource commitment" | `always(!<+APPROVE_CAPACITY_PLAN> true | <+APPROVE_CAPACITY_PLAN +signed_by(/users/infrastructure_owner.id)> true)`; `always(!<+APPROVE_CAPACITY_PLAN> true | always([-UNBUDGETED_RESOURCE_COMMITMENT] true))` |
-| "Load shedding activation requires on-call lead signature and blocks customer-impacting throttling without incident" | `always(!<+ACTIVATE_LOAD_SHEDDING> true | <+ACTIVATE_LOAD_SHEDDING +signed_by(/users/on_call_lead.id)> true)`; `always(!<+ACTIVATE_LOAD_SHEDDING> true | always([-CUSTOMER_IMPACTING_THROTTLING_WITHOUT_INCIDENT] true))` |
-| "Autoscaling policy change approval requires platform owner signature and blocks runaway resource scaling" | `always(!<+APPROVE_AUTOSCALING_POLICY_CHANGE> true | <+APPROVE_AUTOSCALING_POLICY_CHANGE +signed_by(/users/platform_owner.id)> true)`; `always(!<+APPROVE_AUTOSCALING_POLICY_CHANGE> true | always([-RUNAWAY_RESOURCE_SCALING] true))` |
-| "Disaster recovery failover activation requires recovery lead signature and blocks untested failover promotion" | `always(!<+ACTIVATE_DISASTER_RECOVERY_FAILOVER> true | <+ACTIVATE_DISASTER_RECOVERY_FAILOVER +signed_by(/users/recovery_lead.id)> true)`; `always(!<+ACTIVATE_DISASTER_RECOVERY_FAILOVER> true | always([-UNTESTED_FAILOVER_PROMOTION] true))` |
-| "Traffic shift approval requires release captain signature and blocks unmonitored production diversion" | `always(!<+APPROVE_TRAFFIC_SHIFT> true | <+APPROVE_TRAFFIC_SHIFT +signed_by(/users/release_captain.id)> true)`; `always(!<+APPROVE_TRAFFIC_SHIFT> true | always([-UNMONITORED_PRODUCTION_DIVERSION] true))` |
-| "Chaos experiment authorization requires resilience engineer signature and blocks unsafe fault injection" | `always(!<+AUTHORIZE_CHAOS_EXPERIMENT> true | <+AUTHORIZE_CHAOS_EXPERIMENT +signed_by(/users/resilience_engineer.id)> true)`; `always(!<+AUTHORIZE_CHAOS_EXPERIMENT> true | always([-UNSAFE_FAULT_INJECTION] true))` |
-| "Canary analysis approval requires release analyst signature and blocks unanalyzed production promotion" | `always(!<+APPROVE_CANARY_ANALYSIS> true | <+APPROVE_CANARY_ANALYSIS +signed_by(/users/release_analyst.id)> true)`; `always(!<+APPROVE_CANARY_ANALYSIS> true | always([-UNANALYZED_PRODUCTION_PROMOTION] true))` |
-| "Synthetic monitor change approval requires observability owner signature and blocks blind availability reporting" | `always(!<+APPROVE_SYNTHETIC_MONITOR_CHANGE> true | <+APPROVE_SYNTHETIC_MONITOR_CHANGE +signed_by(/users/observability_owner.id)> true)`; `always(!<+APPROVE_SYNTHETIC_MONITOR_CHANGE> true | always([-BLIND_AVAILABILITY_REPORTING] true))` |
-| "On-call rotation change approval requires reliability manager signature and blocks unowned incident coverage" | `always(!<+APPROVE_ON_CALL_ROTATION_CHANGE> true | <+APPROVE_ON_CALL_ROTATION_CHANGE +signed_by(/users/reliability_manager.id)> true)`; `always(!<+APPROVE_ON_CALL_ROTATION_CHANGE> true | always([-UNOWNED_INCIDENT_COVERAGE] true))` |
-| "Pager escalation policy change approval requires incident response lead signature and blocks missed critical page" | `always(!<+APPROVE_PAGER_ESCALATION_POLICY_CHANGE> true | <+APPROVE_PAGER_ESCALATION_POLICY_CHANGE +signed_by(/users/incident_response_lead.id)> true)`; `always(!<+APPROVE_PAGER_ESCALATION_POLICY_CHANGE> true | always([-MISSED_CRITICAL_PAGE] true))` |
-| "Incident communication approval requires communications lead signature and blocks unapproved customer notice" | `always(!<+APPROVE_INCIDENT_COMMUNICATION> true | <+APPROVE_INCIDENT_COMMUNICATION +signed_by(/users/communications_lead.id)> true)`; `always(!<+APPROVE_INCIDENT_COMMUNICATION> true | always([-UNAPPROVED_CUSTOMER_NOTICE] true))` |
-| "Status page update approval requires support lead signature and blocks inaccurate service status" | `always(!<+APPROVE_STATUS_PAGE_UPDATE> true | <+APPROVE_STATUS_PAGE_UPDATE +signed_by(/users/support_lead.id)> true)`; `always(!<+APPROVE_STATUS_PAGE_UPDATE> true | always([-INACCURATE_SERVICE_STATUS] true))` |
-| "Dependency upgrade approval requires platform security reviewer signature and blocks untested dependency rollout" | `always(!<+APPROVE_DEPENDENCY_UPGRADE> true | <+APPROVE_DEPENDENCY_UPGRADE +signed_by(/users/platform_security_reviewer.id)> true)`; `always(!<+APPROVE_DEPENDENCY_UPGRADE> true | always([-UNTESTED_DEPENDENCY_ROLLOUT] true))` |
-| "Vulnerability exception approval requires security risk owner signature and blocks unbounded exposure acceptance" | `always(!<+APPROVE_VULNERABILITY_EXCEPTION> true | <+APPROVE_VULNERABILITY_EXCEPTION +signed_by(/users/security_risk_owner.id)> true)`; `always(!<+APPROVE_VULNERABILITY_EXCEPTION> true | always([-UNBOUNDED_EXPOSURE_ACCEPTANCE] true))` |
-| "API rate limit change approval requires platform operations lead signature and blocks abusive traffic exposure" | `always(!<+APPROVE_API_RATE_LIMIT_CHANGE> true | <+APPROVE_API_RATE_LIMIT_CHANGE +signed_by(/users/platform_operations_lead.id)> true)`; `always(!<+APPROVE_API_RATE_LIMIT_CHANGE> true | always([-ABUSIVE_TRAFFIC_EXPOSURE] true))` |
-| "Webhook endpoint registration approval requires integration owner signature and blocks unsigned callback delivery" | `always(!<+APPROVE_WEBHOOK_ENDPOINT_REGISTRATION> true | <+APPROVE_WEBHOOK_ENDPOINT_REGISTRATION +signed_by(/users/integration_owner.id)> true)`; `always(!<+APPROVE_WEBHOOK_ENDPOINT_REGISTRATION> true | always([-UNSIGNED_CALLBACK_DELIVERY] true))` |
-| "Authentication policy change approval requires identity platform owner signature and blocks weakened login assurance" | `always(!<+APPROVE_AUTHENTICATION_POLICY_CHANGE> true | <+APPROVE_AUTHENTICATION_POLICY_CHANGE +signed_by(/users/identity_platform_owner.id)> true)`; `always(!<+APPROVE_AUTHENTICATION_POLICY_CHANGE> true | always([-WEAKENED_LOGIN_ASSURANCE] true))` |
-| "Session lifetime exception approval requires security operations lead signature and blocks stale session persistence" | `always(!<+APPROVE_SESSION_LIFETIME_EXCEPTION> true | <+APPROVE_SESSION_LIFETIME_EXCEPTION +signed_by(/users/security_operations_lead.id)> true)`; `always(!<+APPROVE_SESSION_LIFETIME_EXCEPTION> true | always([-STALE_SESSION_PERSISTENCE] true))` |
-| "OAuth client registration approval requires identity security reviewer signature and blocks unreviewed redirect target" | `always(!<+APPROVE_OAUTH_CLIENT_REGISTRATION> true | <+APPROVE_OAUTH_CLIENT_REGISTRATION +signed_by(/users/identity_security_reviewer.id)> true)`; `always(!<+APPROVE_OAUTH_CLIENT_REGISTRATION> true | always([-UNREVIEWED_REDIRECT_TARGET] true))` |
-| "API key rotation approval requires service owner signature and blocks stale credential exposure" | `always(!<+APPROVE_API_KEY_ROTATION> true | <+APPROVE_API_KEY_ROTATION +signed_by(/users/service_owner.id)> true)`; `always(!<+APPROVE_API_KEY_ROTATION> true | always([-STALE_CREDENTIAL_EXPOSURE] true))` |
-| "SAML identity provider configuration approval requires identity architect signature and blocks unsigned assertion acceptance" | `always(!<+APPROVE_SAML_IDENTITY_PROVIDER_CONFIGURATION> true | <+APPROVE_SAML_IDENTITY_PROVIDER_CONFIGURATION +signed_by(/users/identity_architect.id)> true)`; `always(!<+APPROVE_SAML_IDENTITY_PROVIDER_CONFIGURATION> true | always([-UNSIGNED_ASSERTION_ACCEPTANCE] true))` |
-| "SCIM provisioning rule approval requires directory administrator signature and blocks orphaned account activation" | `always(!<+APPROVE_SCIM_PROVISIONING_RULE> true | <+APPROVE_SCIM_PROVISIONING_RULE +signed_by(/users/directory_administrator.id)> true)`; `always(!<+APPROVE_SCIM_PROVISIONING_RULE> true | always([-ORPHANED_ACCOUNT_ACTIVATION] true))` |
-| "OIDC token exchange policy approval requires identity protocol owner signature and blocks audience confusion" | `always(!<+APPROVE_OIDC_TOKEN_EXCHANGE_POLICY> true | <+APPROVE_OIDC_TOKEN_EXCHANGE_POLICY +signed_by(/users/identity_protocol_owner.id)> true)`; `always(!<+APPROVE_OIDC_TOKEN_EXCHANGE_POLICY> true | always([-AUDIENCE_CONFUSION] true))` |
-| "MFA recovery exception approval requires account security lead signature and blocks unverified factor reset" | `always(!<+APPROVE_MFA_RECOVERY_EXCEPTION> true | <+APPROVE_MFA_RECOVERY_EXCEPTION +signed_by(/users/account_security_lead.id)> true)`; `always(!<+APPROVE_MFA_RECOVERY_EXCEPTION> true | always([-UNVERIFIED_FACTOR_RESET] true))` |
-| "Passkey attestation policy approval requires identity assurance lead signature and blocks untrusted authenticator enrollment" | `always(!<+APPROVE_PASSKEY_ATTESTATION_POLICY> true | <+APPROVE_PASSKEY_ATTESTATION_POLICY +signed_by(/users/identity_assurance_lead.id)> true)`; `always(!<+APPROVE_PASSKEY_ATTESTATION_POLICY> true | always([-UNTRUSTED_AUTHENTICATOR_ENROLLMENT] true))` |
-| "Privileged access exception approval requires access governance owner signature and blocks standing admin access" | `always(!<+APPROVE_PRIVILEGED_ACCESS_EXCEPTION> true | <+APPROVE_PRIVILEGED_ACCESS_EXCEPTION +signed_by(/users/access_governance_owner.id)> true)`; `always(!<+APPROVE_PRIVILEGED_ACCESS_EXCEPTION> true | always([-STANDING_ADMIN_ACCESS] true))` |
-| "Phishing-resistant login policy approval requires authentication architect signature and blocks password-only fallback" | `always(!<+APPROVE_PHISHING_RESISTANT_LOGIN_POLICY> true | <+APPROVE_PHISHING_RESISTANT_LOGIN_POLICY +signed_by(/users/authentication_architect.id)> true)`; `always(!<+APPROVE_PHISHING_RESISTANT_LOGIN_POLICY> true | always([-PASSWORD_ONLY_FALLBACK] true))` |
-| "Device compliance exception approval requires endpoint security owner signature and blocks unmanaged device access" | `always(!<+APPROVE_DEVICE_COMPLIANCE_EXCEPTION> true | <+APPROVE_DEVICE_COMPLIANCE_EXCEPTION +signed_by(/users/endpoint_security_owner.id)> true)`; `always(!<+APPROVE_DEVICE_COMPLIANCE_EXCEPTION> true | always([-UNMANAGED_DEVICE_ACCESS] true))` |
-| "Conditional access rule approval requires zero trust architect signature and blocks bypassed location policy" | `always(!<+APPROVE_CONDITIONAL_ACCESS_RULE> true | <+APPROVE_CONDITIONAL_ACCESS_RULE +signed_by(/users/zero_trust_architect.id)> true)`; `always(!<+APPROVE_CONDITIONAL_ACCESS_RULE> true | always([-BYPASSED_LOCATION_POLICY] true))` |
-| "Identity risk threshold change approval requires fraud security lead signature and blocks undetected risky sign-in" | `always(!<+APPROVE_IDENTITY_RISK_THRESHOLD_CHANGE> true | <+APPROVE_IDENTITY_RISK_THRESHOLD_CHANGE +signed_by(/users/fraud_security_lead.id)> true)`; `always(!<+APPROVE_IDENTITY_RISK_THRESHOLD_CHANGE> true | always([-UNDETECTED_RISKY_SIGN_IN] true))` |
-| "Session token binding policy approval requires application security architect signature and blocks bearer token replay" | `always(!<+APPROVE_SESSION_TOKEN_BINDING_POLICY> true | <+APPROVE_SESSION_TOKEN_BINDING_POLICY +signed_by(/users/application_security_architect.id)> true)`; `always(!<+APPROVE_SESSION_TOKEN_BINDING_POLICY> true | always([-BEARER_TOKEN_REPLAY] true))` |
-| "Browser isolation exception approval requires enterprise security owner signature and blocks unmanaged web session exposure" | `always(!<+APPROVE_BROWSER_ISOLATION_EXCEPTION> true | <+APPROVE_BROWSER_ISOLATION_EXCEPTION +signed_by(/users/enterprise_security_owner.id)> true)`; `always(!<+APPROVE_BROWSER_ISOLATION_EXCEPTION> true | always([-UNMANAGED_WEB_SESSION_EXPOSURE] true))` |
-| "ZTNA policy change approval requires network security architect signature and blocks broad private network exposure" | `always(!<+APPROVE_ZTNA_POLICY_CHANGE> true | <+APPROVE_ZTNA_POLICY_CHANGE +signed_by(/users/network_security_architect.id)> true)`; `always(!<+APPROVE_ZTNA_POLICY_CHANGE> true | always([-BROAD_PRIVATE_NETWORK_EXPOSURE] true))` |
-| "DLP exception approval requires data security officer signature and blocks unsanctioned sensitive data egress" | `always(!<+APPROVE_DLP_EXCEPTION> true | <+APPROVE_DLP_EXCEPTION +signed_by(/users/data_security_officer.id)> true)`; `always(!<+APPROVE_DLP_EXCEPTION> true | always([-UNSANCTIONED_SENSITIVE_DATA_EGRESS] true))` |
-| "CASB policy exception approval requires cloud security owner signature and blocks shadow SaaS usage" | `always(!<+APPROVE_CASB_POLICY_EXCEPTION> true | <+APPROVE_CASB_POLICY_EXCEPTION +signed_by(/users/cloud_security_owner.id)> true)`; `always(!<+APPROVE_CASB_POLICY_EXCEPTION> true | always([-SHADOW_SAAS_USAGE] true))` |
-| "Data classification label change approval requires information governance lead signature and blocks misclassified regulated data" | `always(!<+APPROVE_DATA_CLASSIFICATION_LABEL_CHANGE> true | <+APPROVE_DATA_CLASSIFICATION_LABEL_CHANGE +signed_by(/users/information_governance_lead.id)> true)`; `always(!<+APPROVE_DATA_CLASSIFICATION_LABEL_CHANGE> true | always([-MISCLASSIFIED_REGULATED_DATA] true))` |
-| "Retention schedule change approval requires records manager signature and blocks premature record deletion" | `always(!<+APPROVE_RETENTION_SCHEDULE_CHANGE> true | <+APPROVE_RETENTION_SCHEDULE_CHANGE +signed_by(/users/records_manager.id)> true)`; `always(!<+APPROVE_RETENTION_SCHEDULE_CHANGE> true | always([-PREMATURE_RECORD_DELETION] true))` |
-| "Legal hold release approval requires counsel signature and blocks spoliation risk" | `always(!<+APPROVE_LEGAL_HOLD_RELEASE> true | <+APPROVE_LEGAL_HOLD_RELEASE +signed_by(/users/counsel.id)> true)`; `always(!<+APPROVE_LEGAL_HOLD_RELEASE> true | always([-SPOLIATION_RISK] true))` |
-| "Data subject access response approval requires privacy operations lead signature and blocks unauthorized personal data disclosure" | `always(!<+APPROVE_DATA_SUBJECT_ACCESS_RESPONSE> true | <+APPROVE_DATA_SUBJECT_ACCESS_RESPONSE +signed_by(/users/privacy_operations_lead.id)> true)`; `always(!<+APPROVE_DATA_SUBJECT_ACCESS_RESPONSE> true | always([-UNAUTHORIZED_PERSONAL_DATA_DISCLOSURE] true))` |
-| "Consent revocation processing approval requires consent governance owner signature and blocks continued processing after withdrawal" | `always(!<+APPROVE_CONSENT_REVOCATION_PROCESSING> true | <+APPROVE_CONSENT_REVOCATION_PROCESSING +signed_by(/users/consent_governance_owner.id)> true)`; `always(!<+APPROVE_CONSENT_REVOCATION_PROCESSING> true | always([-CONTINUED_PROCESSING_AFTER_WITHDRAWAL] true))` |
-| "Cross-border data transfer approval requires privacy counsel signature and blocks unlawful jurisdiction transfer" | `always(!<+APPROVE_CROSS_BORDER_DATA_TRANSFER> true | <+APPROVE_CROSS_BORDER_DATA_TRANSFER +signed_by(/users/privacy_counsel.id)> true)`; `always(!<+APPROVE_CROSS_BORDER_DATA_TRANSFER> true | always([-UNLAWFUL_JURISDICTION_TRANSFER] true))` |
-| "Processor subprocesser approval requires vendor risk owner signature and blocks unvetted subprocesser access" | `always(!<+APPROVE_PROCESSOR_SUBPROCESSER> true | <+APPROVE_PROCESSOR_SUBPROCESSER +signed_by(/users/vendor_risk_owner.id)> true)`; `always(!<+APPROVE_PROCESSOR_SUBPROCESSER> true | always([-UNVETTED_SUBPROCESSER_ACCESS] true))` |
-| "Data minimization exception approval requires privacy architect signature and blocks excessive data collection" | `always(!<+APPROVE_DATA_MINIMIZATION_EXCEPTION> true | <+APPROVE_DATA_MINIMIZATION_EXCEPTION +signed_by(/users/privacy_architect.id)> true)`; `always(!<+APPROVE_DATA_MINIMIZATION_EXCEPTION> true | always([-EXCESSIVE_DATA_COLLECTION] true))` |
-| "Purpose limitation exception approval requires data governance owner signature and blocks incompatible secondary use" | `always(!<+APPROVE_PURPOSE_LIMITATION_EXCEPTION> true | <+APPROVE_PURPOSE_LIMITATION_EXCEPTION +signed_by(/users/data_governance_owner.id)> true)`; `always(!<+APPROVE_PURPOSE_LIMITATION_EXCEPTION> true | always([-INCOMPATIBLE_SECONDARY_USE] true))` |
-| "Data sharing agreement approval requires data steward signature and blocks unapproved third-party sharing" | `always(!<+APPROVE_DATA_SHARING_AGREEMENT> true | <+APPROVE_DATA_SHARING_AGREEMENT +signed_by(/users/data_steward.id)> true)`; `always(!<+APPROVE_DATA_SHARING_AGREEMENT> true | always([-UNAPPROVED_THIRD_PARTY_SHARING] true))` |
-| "Privacy breach notification approval requires privacy incident lead signature and blocks unreported breach" | `always(!<+APPROVE_PRIVACY_BREACH_NOTIFICATION> true | <+APPROVE_PRIVACY_BREACH_NOTIFICATION +signed_by(/users/privacy_incident_lead.id)> true)`; `always(!<+APPROVE_PRIVACY_BREACH_NOTIFICATION> true | always([-UNREPORTED_BREACH] true))` |
-| "Data deletion request approval requires retention counsel signature and blocks unlawful erasure" | `always(!<+APPROVE_DATA_DELETION_REQUEST> true | <+APPROVE_DATA_DELETION_REQUEST +signed_by(/users/retention_counsel.id)> true)`; `always(!<+APPROVE_DATA_DELETION_REQUEST> true | always([-UNLAWFUL_ERASURE] true))` |
-| "Automated decisioning policy approval requires algorithmic accountability lead signature and blocks unreviewed profiling" | `always(!<+APPROVE_AUTOMATED_DECISIONING_POLICY> true | <+APPROVE_AUTOMATED_DECISIONING_POLICY +signed_by(/users/algorithmic_accountability_lead.id)> true)`; `always(!<+APPROVE_AUTOMATED_DECISIONING_POLICY> true | always([-UNREVIEWED_PROFILING] true))` |
-| "Privacy notice update approval requires privacy counsel signature and blocks undisclosed processing change" | `always(!<+APPROVE_PRIVACY_NOTICE_UPDATE> true | <+APPROVE_PRIVACY_NOTICE_UPDATE +signed_by(/users/privacy_counsel.id)> true)`; `always(!<+APPROVE_PRIVACY_NOTICE_UPDATE> true | always([-UNDISCLOSED_PROCESSING_CHANGE] true))` |
-| "Data portability export approval requires data rights coordinator signature and blocks incomplete subject export" | `always(!<+APPROVE_DATA_PORTABILITY_EXPORT> true | <+APPROVE_DATA_PORTABILITY_EXPORT +signed_by(/users/data_rights_coordinator.id)> true)`; `always(!<+APPROVE_DATA_PORTABILITY_EXPORT> true | always([-INCOMPLETE_SUBJECT_EXPORT] true))` |
-| "Data rectification request approval requires data quality owner signature and blocks inaccurate personal data retention" | `always(!<+APPROVE_DATA_RECTIFICATION_REQUEST> true | <+APPROVE_DATA_RECTIFICATION_REQUEST +signed_by(/users/data_quality_owner.id)> true)`; `always(!<+APPROVE_DATA_RECTIFICATION_REQUEST> true | always([-INACCURATE_PERSONAL_DATA_RETENTION] true))` |
-| "Processing restriction approval requires privacy operations manager signature and blocks unrestricted contested processing" | `always(!<+APPROVE_PROCESSING_RESTRICTION> true | <+APPROVE_PROCESSING_RESTRICTION +signed_by(/users/privacy_operations_manager.id)> true)`; `always(!<+APPROVE_PROCESSING_RESTRICTION> true | always([-UNRESTRICTED_CONTESTED_PROCESSING] true))` |
-| "Data retention exception approval requires records counsel signature and blocks indefinite personal data retention" | `always(!<+APPROVE_DATA_RETENTION_EXCEPTION> true | <+APPROVE_DATA_RETENTION_EXCEPTION +signed_by(/users/records_counsel.id)> true)`; `always(!<+APPROVE_DATA_RETENTION_EXCEPTION> true | always([-INDEFINITE_PERSONAL_DATA_RETENTION] true))` |
-| "Sensitive data processing approval requires privacy review board signature and blocks unapproved special category processing" | `always(!<+APPROVE_SENSITIVE_DATA_PROCESSING> true | <+APPROVE_SENSITIVE_DATA_PROCESSING +signed_by(/users/privacy_review_board.id)> true)`; `always(!<+APPROVE_SENSITIVE_DATA_PROCESSING> true | always([-UNAPPROVED_SPECIAL_CATEGORY_PROCESSING] true))` |
-| "DPIA approval requires privacy risk officer signature and blocks high-risk processing without assessment" | `always(!<+APPROVE_DPIA> true | <+APPROVE_DPIA +signed_by(/users/privacy_risk_officer.id)> true)`; `always(!<+APPROVE_DPIA> true | always([-HIGH_RISK_PROCESSING_WITHOUT_ASSESSMENT] true))` |
-| "Privacy remediation closure approval requires data protection officer signature and blocks unresolved privacy risk" | `always(!<+APPROVE_PRIVACY_REMEDIATION_CLOSURE> true | <+APPROVE_PRIVACY_REMEDIATION_CLOSURE +signed_by(/users/data_protection_officer.id)> true)`; `always(!<+APPROVE_PRIVACY_REMEDIATION_CLOSURE> true | always([-UNRESOLVED_PRIVACY_RISK] true))` |
-| "Data localization exception approval requires jurisdiction counsel signature and blocks unlawful data residency breach" | `always(!<+APPROVE_DATA_LOCALIZATION_EXCEPTION> true | <+APPROVE_DATA_LOCALIZATION_EXCEPTION +signed_by(/users/jurisdiction_counsel.id)> true)`; `always(!<+APPROVE_DATA_LOCALIZATION_EXCEPTION> true | always([-UNLAWFUL_DATA_RESIDENCY_BREACH] true))` |
-| "Data anonymization release approval requires privacy engineer signature and blocks reidentifiable dataset publication" | `always(!<+APPROVE_DATA_ANONYMIZATION_RELEASE> true | <+APPROVE_DATA_ANONYMIZATION_RELEASE +signed_by(/users/privacy_engineer.id)> true)`; `always(!<+APPROVE_DATA_ANONYMIZATION_RELEASE> true | always([-REIDENTIFIABLE_DATASET_PUBLICATION] true))` |
-| "Data subject identity verification approval requires privacy operations lead signature and blocks unauthorized rights request fulfillment" | `always(!<+APPROVE_DATA_SUBJECT_IDENTITY_VERIFICATION> true | <+APPROVE_DATA_SUBJECT_IDENTITY_VERIFICATION +signed_by(/users/privacy_operations_lead.id)> true)`; `always(!<+APPROVE_DATA_SUBJECT_IDENTITY_VERIFICATION> true | always([-UNAUTHORIZED_RIGHTS_REQUEST_FULFILLMENT] true))` |
-| "Cookie consent configuration approval requires privacy product counsel signature and blocks noncompliant tracking activation" | `always(!<+APPROVE_COOKIE_CONSENT_CONFIGURATION> true | <+APPROVE_COOKIE_CONSENT_CONFIGURATION +signed_by(/users/privacy_product_counsel.id)> true)`; `always(!<+APPROVE_COOKIE_CONSENT_CONFIGURATION> true | always([-NONCOMPLIANT_TRACKING_ACTIVATION] true))` |
-| "Data lineage correction approval requires data governance lead signature and blocks untraceable data provenance" | `always(!<+APPROVE_DATA_LINEAGE_CORRECTION> true | <+APPROVE_DATA_LINEAGE_CORRECTION +signed_by(/users/data_governance_lead.id)> true)`; `always(!<+APPROVE_DATA_LINEAGE_CORRECTION> true | always([-UNTRACEABLE_DATA_PROVENANCE] true))` |
-| "Synthetic data release approval requires model risk owner signature and blocks production data leakage" | `always(!<+APPROVE_SYNTHETIC_DATA_RELEASE> true | <+APPROVE_SYNTHETIC_DATA_RELEASE +signed_by(/users/model_risk_owner.id)> true)`; `always(!<+APPROVE_SYNTHETIC_DATA_RELEASE> true | always([-PRODUCTION_DATA_LEAKAGE] true))` |
-| "AI training dataset approval requires data ethics board signature and blocks unauthorized personal data training" | `always(!<+APPROVE_AI_TRAINING_DATASET> true | <+APPROVE_AI_TRAINING_DATASET +signed_by(/users/data_ethics_board.id)> true)`; `always(!<+APPROVE_AI_TRAINING_DATASET> true | always([-UNAUTHORIZED_PERSONAL_DATA_TRAINING] true))` |
-| "Model output logging approval requires privacy monitoring lead signature and blocks unredacted sensitive prompt retention" | `always(!<+APPROVE_MODEL_OUTPUT_LOGGING> true | <+APPROVE_MODEL_OUTPUT_LOGGING +signed_by(/users/privacy_monitoring_lead.id)> true)`; `always(!<+APPROVE_MODEL_OUTPUT_LOGGING> true | always([-UNREDACTED_SENSITIVE_PROMPT_RETENTION] true))` |
-| "Model evaluation benchmark approval requires AI quality lead signature and blocks cherry-picked performance claim" | `always(!<+APPROVE_MODEL_EVALUATION_BENCHMARK> true | <+APPROVE_MODEL_EVALUATION_BENCHMARK +signed_by(/users/ai_quality_lead.id)> true)`; `always(!<+APPROVE_MODEL_EVALUATION_BENCHMARK> true | always([-CHERRY_PICKED_PERFORMANCE_CLAIM] true))` |
-| "Prompt template release approval requires product safety owner signature and blocks unsafe instruction exposure" | `always(!<+APPROVE_PROMPT_TEMPLATE_RELEASE> true | <+APPROVE_PROMPT_TEMPLATE_RELEASE +signed_by(/users/product_safety_owner.id)> true)`; `always(!<+APPROVE_PROMPT_TEMPLATE_RELEASE> true | always([-UNSAFE_INSTRUCTION_EXPOSURE] true))` |
-| "Model rollback approval requires AI operations lead signature and blocks unreverted harmful model behavior" | `always(!<+APPROVE_MODEL_ROLLBACK> true | <+APPROVE_MODEL_ROLLBACK +signed_by(/users/ai_operations_lead.id)> true)`; `always(!<+APPROVE_MODEL_ROLLBACK> true | always([-UNREVERTED_HARMFUL_MODEL_BEHAVIOR] true))` |
-| "AI incident response approval requires responsible AI officer signature and blocks untriaged model harm report" | `always(!<+APPROVE_AI_INCIDENT_RESPONSE> true | <+APPROVE_AI_INCIDENT_RESPONSE +signed_by(/users/responsible_ai_officer.id)> true)`; `always(!<+APPROVE_AI_INCIDENT_RESPONSE> true | always([-UNTRIAGED_MODEL_HARM_REPORT] true))` |
-| "Model fine tuning job approval requires ML platform owner signature and blocks unapproved model adaptation" | `always(!<+APPROVE_MODEL_FINE_TUNING_JOB> true | <+APPROVE_MODEL_FINE_TUNING_JOB +signed_by(/users/ml_platform_owner.id)> true)`; `always(!<+APPROVE_MODEL_FINE_TUNING_JOB> true | always([-UNAPPROVED_MODEL_ADAPTATION] true))` |
-| "AI agent tool permission approval requires agent safety lead signature and blocks unauthorized tool invocation" | `always(!<+APPROVE_AI_AGENT_TOOL_PERMISSION> true | <+APPROVE_AI_AGENT_TOOL_PERMISSION +signed_by(/users/agent_safety_lead.id)> true)`; `always(!<+APPROVE_AI_AGENT_TOOL_PERMISSION> true | always([-UNAUTHORIZED_TOOL_INVOCATION] true))` |
-| "Retrieval corpus update approval requires knowledge steward signature and blocks unvetted source injection" | `always(!<+APPROVE_RETRIEVAL_CORPUS_UPDATE> true | <+APPROVE_RETRIEVAL_CORPUS_UPDATE +signed_by(/users/knowledge_steward.id)> true)`; `always(!<+APPROVE_RETRIEVAL_CORPUS_UPDATE> true | always([-UNVETTED_SOURCE_INJECTION] true))` |
-| "Embedding index rebuild approval requires AI platform owner signature and blocks stale sensitive vector exposure" | `always(!<+APPROVE_EMBEDDING_INDEX_REBUILD> true | <+APPROVE_EMBEDDING_INDEX_REBUILD +signed_by(/users/ai_platform_owner.id)> true)`; `always(!<+APPROVE_EMBEDDING_INDEX_REBUILD> true | always([-STALE_SENSITIVE_VECTOR_EXPOSURE] true))` |
-| "Vector store access approval requires data access steward signature and blocks unauthorized semantic search" | `always(!<+APPROVE_VECTOR_STORE_ACCESS> true | <+APPROVE_VECTOR_STORE_ACCESS +signed_by(/users/data_access_steward.id)> true)`; `always(!<+APPROVE_VECTOR_STORE_ACCESS> true | always([-UNAUTHORIZED_SEMANTIC_SEARCH] true))` |
-| "AI memory retention policy approval requires privacy counsel signature and blocks undeclared long term context storage" | `always(!<+APPROVE_AI_MEMORY_RETENTION_POLICY> true | <+APPROVE_AI_MEMORY_RETENTION_POLICY +signed_by(/users/privacy_counsel.id)> true)`; `always(!<+APPROVE_AI_MEMORY_RETENTION_POLICY> true | always([-UNDECLARED_LONG_TERM_CONTEXT_STORAGE] true))` |
-| "AI guardrail policy change approval requires safety reviewer signature and blocks unreviewed safety bypass" | `always(!<+APPROVE_AI_GUARDRAIL_POLICY_CHANGE> true | <+APPROVE_AI_GUARDRAIL_POLICY_CHANGE +signed_by(/users/safety_reviewer.id)> true)`; `always(!<+APPROVE_AI_GUARDRAIL_POLICY_CHANGE> true | always([-UNREVIEWED_SAFETY_BYPASS] true))` |
-| "AI red team finding closure requires model risk owner signature and blocks unresolved critical model weakness" | `always(!<+CLOSE_AI_RED_TEAM_FINDING> true | <+CLOSE_AI_RED_TEAM_FINDING +signed_by(/users/model_risk_owner.id)> true)`; `always(!<+CLOSE_AI_RED_TEAM_FINDING> true | always([-UNRESOLVED_CRITICAL_MODEL_WEAKNESS] true))` |
-| "Model card publication approval requires responsible AI documentation lead signature and blocks undocumented model limitation" | `always(!<+APPROVE_MODEL_CARD_PUBLICATION> true | <+APPROVE_MODEL_CARD_PUBLICATION +signed_by(/users/responsible_ai_documentation_lead.id)> true)`; `always(!<+APPROVE_MODEL_CARD_PUBLICATION> true | always([-UNDOCUMENTED_MODEL_LIMITATION] true))` |
-| "Human oversight exception approval requires AI governance board signature and blocks fully automated high impact decision" | `always(!<+APPROVE_HUMAN_OVERSIGHT_EXCEPTION> true | <+APPROVE_HUMAN_OVERSIGHT_EXCEPTION +signed_by(/users/ai_governance_board.id)> true)`; `always(!<+APPROVE_HUMAN_OVERSIGHT_EXCEPTION> true | always([-FULLY_AUTOMATED_HIGH_IMPACT_DECISION] true))` |
-| "Model monitoring threshold approval requires AI reliability lead signature and blocks silent model drift" | `always(!<+APPROVE_MODEL_MONITORING_THRESHOLD> true | <+APPROVE_MODEL_MONITORING_THRESHOLD +signed_by(/users/ai_reliability_lead.id)> true)`; `always(!<+APPROVE_MODEL_MONITORING_THRESHOLD> true | always([-SILENT_MODEL_DRIFT] true))` |
-| "AI safety waiver approval requires responsible AI committee signature and blocks unmitigated high severity safety risk" | `always(!<+APPROVE_AI_SAFETY_WAIVER> true | <+APPROVE_AI_SAFETY_WAIVER +signed_by(/users/responsible_ai_committee.id)> true)`; `always(!<+APPROVE_AI_SAFETY_WAIVER> true | always([-UNMITIGATED_HIGH_SEVERITY_SAFETY_RISK] true))` |
-| "Model decommission approval requires AI operations owner signature and blocks orphaned production dependency" | `always(!<+APPROVE_MODEL_DECOMMISSION> true | <+APPROVE_MODEL_DECOMMISSION +signed_by(/users/ai_operations_owner.id)> true)`; `always(!<+APPROVE_MODEL_DECOMMISSION> true | always([-ORPHANED_PRODUCTION_DEPENDENCY] true))` |
-| "Training data removal approval requires data rights officer signature and blocks retained revoked training record" | `always(!<+APPROVE_TRAINING_DATA_REMOVAL> true | <+APPROVE_TRAINING_DATA_REMOVAL +signed_by(/users/data_rights_officer.id)> true)`; `always(!<+APPROVE_TRAINING_DATA_REMOVAL> true | always([-RETAINED_REVOKED_TRAINING_RECORD] true))` |
-| "AI usage policy exception approval requires AI compliance owner signature and blocks prohibited use case" | `always(!<+APPROVE_AI_USAGE_POLICY_EXCEPTION> true | <+APPROVE_AI_USAGE_POLICY_EXCEPTION +signed_by(/users/ai_compliance_owner.id)> true)`; `always(!<+APPROVE_AI_USAGE_POLICY_EXCEPTION> true | always([-PROHIBITED_USE_CASE] true))` |
-| "Model output quarantine release approval requires trust and safety reviewer signature and blocks harmful content release" | `always(!<+APPROVE_MODEL_OUTPUT_QUARANTINE_RELEASE> true | <+APPROVE_MODEL_OUTPUT_QUARANTINE_RELEASE +signed_by(/users/trust_and_safety_reviewer.id)> true)`; `always(!<+APPROVE_MODEL_OUTPUT_QUARANTINE_RELEASE> true | always([-HARMFUL_CONTENT_RELEASE] true))` |
-| "AI vendor model onboarding approval requires third party risk owner signature and blocks unvetted external model dependency" | `always(!<+APPROVE_AI_VENDOR_MODEL_ONBOARDING> true | <+APPROVE_AI_VENDOR_MODEL_ONBOARDING +signed_by(/users/third_party_risk_owner.id)> true)`; `always(!<+APPROVE_AI_VENDOR_MODEL_ONBOARDING> true | always([-UNVETTED_EXTERNAL_MODEL_DEPENDENCY] true))` |
-| "Prompt injection finding closure requires security reviewer signature and blocks unresolved prompt injection exploit" | `always(!<+CLOSE_PROMPT_INJECTION_FINDING> true | <+CLOSE_PROMPT_INJECTION_FINDING +signed_by(/users/security_reviewer.id)> true)`; `always(!<+CLOSE_PROMPT_INJECTION_FINDING> true | always([-UNRESOLVED_PROMPT_INJECTION_EXPLOIT] true))` |
-| "AI impact assessment approval requires responsible AI assessor signature and blocks unassessed high impact deployment" | `always(!<+APPROVE_AI_IMPACT_ASSESSMENT> true | <+APPROVE_AI_IMPACT_ASSESSMENT +signed_by(/users/responsible_ai_assessor.id)> true)`; `always(!<+APPROVE_AI_IMPACT_ASSESSMENT> true | always([-UNASSESSED_HIGH_IMPACT_DEPLOYMENT] true))` |
-| "Model access tier change approval requires AI security owner signature and blocks unauthorized sensitive model access" | `always(!<+APPROVE_MODEL_ACCESS_TIER_CHANGE> true | <+APPROVE_MODEL_ACCESS_TIER_CHANGE +signed_by(/users/ai_security_owner.id)> true)`; `always(!<+APPROVE_MODEL_ACCESS_TIER_CHANGE> true | always([-UNAUTHORIZED_SENSITIVE_MODEL_ACCESS] true))` |
-| "AI deployment approval requires model release owner signature and blocks unapproved production inference" | `always(!<+APPROVE_AI_DEPLOYMENT> true | <+APPROVE_AI_DEPLOYMENT +signed_by(/users/model_release_owner.id)> true)`; `always(!<+APPROVE_AI_DEPLOYMENT> true | always([-UNAPPROVED_PRODUCTION_INFERENCE] true))` |
-| "AI agent delegation approval requires agent governance lead signature and blocks unsupervised autonomous delegation" | `always(!<+APPROVE_AI_AGENT_DELEGATION> true | <+APPROVE_AI_AGENT_DELEGATION +signed_by(/users/agent_governance_lead.id)> true)`; `always(!<+APPROVE_AI_AGENT_DELEGATION> true | always([-UNSUPERVISED_AUTONOMOUS_DELEGATION] true))` |
-| "AI audit log retention approval requires compliance auditor signature and blocks missing decision trace" | `always(!<+APPROVE_AI_AUDIT_LOG_RETENTION> true | <+APPROVE_AI_AUDIT_LOG_RETENTION +signed_by(/users/compliance_auditor.id)> true)`; `always(!<+APPROVE_AI_AUDIT_LOG_RETENTION> true | always([-MISSING_DECISION_TRACE] true))` |
-| "Model explanation release approval requires explainability lead signature and blocks misleading explanation publication" | `always(!<+APPROVE_MODEL_EXPLANATION_RELEASE> true | <+APPROVE_MODEL_EXPLANATION_RELEASE +signed_by(/users/explainability_lead.id)> true)`; `always(!<+APPROVE_MODEL_EXPLANATION_RELEASE> true | always([-MISLEADING_EXPLANATION_PUBLICATION] true))` |
-| "AI policy attestation approval requires governance officer signature and blocks stale policy evidence" | `always(!<+APPROVE_AI_POLICY_ATTESTATION> true | <+APPROVE_AI_POLICY_ATTESTATION +signed_by(/users/governance_officer.id)> true)`; `always(!<+APPROVE_AI_POLICY_ATTESTATION> true | always([-STALE_POLICY_EVIDENCE] true))` |
-| "Model risk register update approval requires model risk committee signature and blocks untracked material model risk" | `always(!<+APPROVE_MODEL_RISK_REGISTER_UPDATE> true | <+APPROVE_MODEL_RISK_REGISTER_UPDATE +signed_by(/users/model_risk_committee.id)> true)`; `always(!<+APPROVE_MODEL_RISK_REGISTER_UPDATE> true | always([-UNTRACKED_MATERIAL_MODEL_RISK] true))` |
-| "AI assurance report approval requires assurance lead signature and blocks unaudited control claim" | `always(!<+APPROVE_AI_ASSURANCE_REPORT> true | <+APPROVE_AI_ASSURANCE_REPORT +signed_by(/users/assurance_lead.id)> true)`; `always(!<+APPROVE_AI_ASSURANCE_REPORT> true | always([-UNAUDITED_CONTROL_CLAIM] true))` |
-| "Model registry promotion approval requires model registry owner signature and blocks unapproved production candidate" | `always(!<+APPROVE_MODEL_REGISTRY_PROMOTION> true | <+APPROVE_MODEL_REGISTRY_PROMOTION +signed_by(/users/model_registry_owner.id)> true)`; `always(!<+APPROVE_MODEL_REGISTRY_PROMOTION> true | always([-UNAPPROVED_PRODUCTION_CANDIDATE] true))` |
-| "AI incident disclosure approval requires AI incident commander signature and blocks undisclosed material model incident" | `always(!<+APPROVE_AI_INCIDENT_DISCLOSURE> true | <+APPROVE_AI_INCIDENT_DISCLOSURE +signed_by(/users/ai_incident_commander.id)> true)`; `always(!<+APPROVE_AI_INCIDENT_DISCLOSURE> true | always([-UNDISCLOSED_MATERIAL_MODEL_INCIDENT] true))` |
-| "Model evaluation benchmark update approval requires evaluation lead signature and blocks unvalidated benchmark substitution" | `always(!<+APPROVE_MODEL_EVALUATION_BENCHMARK_UPDATE> true | <+APPROVE_MODEL_EVALUATION_BENCHMARK_UPDATE +signed_by(/users/evaluation_lead.id)> true)`; `always(!<+APPROVE_MODEL_EVALUATION_BENCHMARK_UPDATE> true | always([-UNVALIDATED_BENCHMARK_SUBSTITUTION] true))` |
-| "AI audit trail amendment approval requires AI compliance lead signature and blocks tampered decision history" | `always(!<+APPROVE_AI_AUDIT_TRAIL_AMENDMENT> true | <+APPROVE_AI_AUDIT_TRAIL_AMENDMENT +signed_by(/users/ai_compliance_lead.id)> true)`; `always(!<+APPROVE_AI_AUDIT_TRAIL_AMENDMENT> true | always([-TAMPERED_DECISION_HISTORY] true))` |
-| "Training consent withdrawal approval requires data protection officer signature and blocks retained revoked subject data" | `always(!<+APPROVE_TRAINING_CONSENT_WITHDRAWAL> true | <+APPROVE_TRAINING_CONSENT_WITHDRAWAL +signed_by(/users/data_protection_officer.id)> true)`; `always(!<+APPROVE_TRAINING_CONSENT_WITHDRAWAL> true | always([-RETAINED_REVOKED_SUBJECT_DATA] true))` |
-| "AI transparency notice approval requires responsible AI communications lead signature and blocks undisclosed automated decision notice" | `always(!<+APPROVE_AI_TRANSPARENCY_NOTICE> true | <+APPROVE_AI_TRANSPARENCY_NOTICE +signed_by(/users/responsible_ai_communications_lead.id)> true)`; `always(!<+APPROVE_AI_TRANSPARENCY_NOTICE> true | always([-UNDISCLOSED_AUTOMATED_DECISION_NOTICE] true))` |
-| "AI decision appeal workflow approval requires accountability officer signature and blocks unavailable human review path" | `always(!<+APPROVE_AI_DECISION_APPEAL_WORKFLOW> true | <+APPROVE_AI_DECISION_APPEAL_WORKFLOW +signed_by(/users/accountability_officer.id)> true)`; `always(!<+APPROVE_AI_DECISION_APPEAL_WORKFLOW> true | always([-UNAVAILABLE_HUMAN_REVIEW_PATH] true))` |
-| "AI fairness remediation approval requires fairness reviewer signature and blocks unresolved disparate impact" | `always(!<+APPROVE_AI_FAIRNESS_REMEDIATION> true | <+APPROVE_AI_FAIRNESS_REMEDIATION +signed_by(/users/fairness_reviewer.id)> true)`; `always(!<+APPROVE_AI_FAIRNESS_REMEDIATION> true | always([-UNRESOLVED_DISPARATE_IMPACT] true))` |
-| "Model use limitation update approval requires responsible AI owner signature and blocks out of scope model use" | `always(!<+APPROVE_MODEL_USE_LIMITATION_UPDATE> true | <+APPROVE_MODEL_USE_LIMITATION_UPDATE +signed_by(/users/responsible_ai_owner.id)> true)`; `always(!<+APPROVE_MODEL_USE_LIMITATION_UPDATE> true | always([-OUT_OF_SCOPE_MODEL_USE] true))` |
-| "AI evaluation dataset approval requires evaluation steward signature and blocks contaminated test data use" | `always(!<+APPROVE_AI_EVALUATION_DATASET> true | <+APPROVE_AI_EVALUATION_DATASET +signed_by(/users/evaluation_steward.id)> true)`; `always(!<+APPROVE_AI_EVALUATION_DATASET> true | always([-CONTAMINATED_TEST_DATA_USE] true))` |
-| "AI provenance watermark policy approval requires content authenticity lead signature and blocks unverifiable synthetic media distribution" | `always(!<+APPROVE_AI_PROVENANCE_WATERMARK_POLICY> true | <+APPROVE_AI_PROVENANCE_WATERMARK_POLICY +signed_by(/users/content_authenticity_lead.id)> true)`; `always(!<+APPROVE_AI_PROVENANCE_WATERMARK_POLICY> true | always([-UNVERIFIABLE_SYNTHETIC_MEDIA_DISTRIBUTION] true))` |
-| "AI annotation quality review approval requires labeling lead signature and blocks low confidence training labels" | `always(!<+APPROVE_AI_ANNOTATION_QUALITY_REVIEW> true | <+APPROVE_AI_ANNOTATION_QUALITY_REVIEW +signed_by(/users/labeling_lead.id)> true)`; `always(!<+APPROVE_AI_ANNOTATION_QUALITY_REVIEW> true | always([-LOW_CONFIDENCE_TRAINING_LABELS] true))` |
-| "Model calibration update approval requires model validation owner signature and blocks uncalibrated confidence scores" | `always(!<+APPROVE_MODEL_CALIBRATION_UPDATE> true | <+APPROVE_MODEL_CALIBRATION_UPDATE +signed_by(/users/model_validation_owner.id)> true)`; `always(!<+APPROVE_MODEL_CALIBRATION_UPDATE> true | always([-UNCALIBRATED_CONFIDENCE_SCORES] true))` |
-| "Human feedback dataset approval requires feedback curator signature and blocks unconsented preference data use" | `always(!<+APPROVE_HUMAN_FEEDBACK_DATASET> true | <+APPROVE_HUMAN_FEEDBACK_DATASET +signed_by(/users/feedback_curator.id)> true)`; `always(!<+APPROVE_HUMAN_FEEDBACK_DATASET> true | always([-UNCONSENTED_PREFERENCE_DATA_USE] true))` |
-| "Reward model update approval requires alignment reviewer signature and blocks reward hacking regression" | `always(!<+APPROVE_REWARD_MODEL_UPDATE> true | <+APPROVE_REWARD_MODEL_UPDATE +signed_by(/users/alignment_reviewer.id)> true)`; `always(!<+APPROVE_REWARD_MODEL_UPDATE> true | always([-REWARD_HACKING_REGRESSION] true))` |
-| "AI safety case approval requires safety case owner signature and blocks unverified hazardous capability claim" | `always(!<+APPROVE_AI_SAFETY_CASE> true | <+APPROVE_AI_SAFETY_CASE +signed_by(/users/safety_case_owner.id)> true)`; `always(!<+APPROVE_AI_SAFETY_CASE> true | always([-UNVERIFIED_HAZARDOUS_CAPABILITY_CLAIM] true))` |
-| "Frontier model capability release approval requires frontier review board signature and blocks uncontrolled capability escalation" | `always(!<+APPROVE_FRONTIER_MODEL_CAPABILITY_RELEASE> true | <+APPROVE_FRONTIER_MODEL_CAPABILITY_RELEASE +signed_by(/users/frontier_review_board.id)> true)`; `always(!<+APPROVE_FRONTIER_MODEL_CAPABILITY_RELEASE> true | always([-UNCONTROLLED_CAPABILITY_ESCALATION] true))` |
-| "AI training run launch approval requires training governance owner signature and blocks unsanctioned compute intensive training" | `always(!<+APPROVE_AI_TRAINING_RUN_LAUNCH> true | <+APPROVE_AI_TRAINING_RUN_LAUNCH +signed_by(/users/training_governance_owner.id)> true)`; `always(!<+APPROVE_AI_TRAINING_RUN_LAUNCH> true | always([-UNSANCTIONED_COMPUTE_INTENSIVE_TRAINING] true))` |
-| "Autonomous agent tool budget increase approval requires agent operations owner signature and blocks unbounded tool spend" | `always(!<+APPROVE_AUTONOMOUS_AGENT_TOOL_BUDGET_INCREASE> true | <+APPROVE_AUTONOMOUS_AGENT_TOOL_BUDGET_INCREASE +signed_by(/users/agent_operations_owner.id)> true)`; `always(!<+APPROVE_AUTONOMOUS_AGENT_TOOL_BUDGET_INCREASE> true | always([-UNBOUNDED_TOOL_SPEND] true))` |
-| "AI agent capability grant approval requires agent security owner signature and blocks unauthorized privileged tool use" | `always(!<+APPROVE_AI_AGENT_CAPABILITY_GRANT> true | <+APPROVE_AI_AGENT_CAPABILITY_GRANT +signed_by(/users/agent_security_owner.id)> true)`; `always(!<+APPROVE_AI_AGENT_CAPABILITY_GRANT> true | always([-UNAUTHORIZED_PRIVILEGED_TOOL_USE] true))` |
-| "AI memory export approval requires privacy operations owner signature and blocks unapproved conversational context disclosure" | `always(!<+APPROVE_AI_MEMORY_EXPORT> true | <+APPROVE_AI_MEMORY_EXPORT +signed_by(/users/privacy_operations_owner.id)> true)`; `always(!<+APPROVE_AI_MEMORY_EXPORT> true | always([-UNAPPROVED_CONVERSATIONAL_CONTEXT_DISCLOSURE] true))` |
-| "AI agent identity binding approval requires identity governance owner signature and blocks agent impersonation" | `always(!<+APPROVE_AI_AGENT_IDENTITY_BINDING> true | <+APPROVE_AI_AGENT_IDENTITY_BINDING +signed_by(/users/identity_governance_owner.id)> true)`; `always(!<+APPROVE_AI_AGENT_IDENTITY_BINDING> true | always([-AGENT_IMPERSONATION] true))` |
-| "Autonomous contract execution approval requires contract controller signature and blocks unreviewed binding commitment" | `always(!<+APPROVE_AUTONOMOUS_CONTRACT_EXECUTION> true | <+APPROVE_AUTONOMOUS_CONTRACT_EXECUTION +signed_by(/users/contract_controller.id)> true)`; `always(!<+APPROVE_AUTONOMOUS_CONTRACT_EXECUTION> true | always([-UNREVIEWED_BINDING_COMMITMENT] true))` |
-| "Agent negotiation authority approval requires negotiation sponsor signature and blocks unauthorized counterparty commitment" | `always(!<+APPROVE_AGENT_NEGOTIATION_AUTHORITY> true | <+APPROVE_AGENT_NEGOTIATION_AUTHORITY +signed_by(/users/negotiation_sponsor.id)> true)`; `always(!<+APPROVE_AGENT_NEGOTIATION_AUTHORITY> true | always([-UNAUTHORIZED_COUNTERPARTY_COMMITMENT] true))` |
-| "Agent settlement offer approval requires principal approver signature and blocks out of mandate concession" | `always(!<+APPROVE_AGENT_SETTLEMENT_OFFER> true | <+APPROVE_AGENT_SETTLEMENT_OFFER +signed_by(/users/principal_approver.id)> true)`; `always(!<+APPROVE_AGENT_SETTLEMENT_OFFER> true | always([-OUT_OF_MANDATE_CONCESSION] true))` |
-| "Fundraising outreach approval requires founder signature and blocks unauthorized investor claim" | `always(!<+APPROVE_FUNDRAISING_OUTREACH> true | <+APPROVE_FUNDRAISING_OUTREACH +signed_by(/users/founder.id)> true)`; `always(!<+APPROVE_FUNDRAISING_OUTREACH> true | always([-UNAUTHORIZED_INVESTOR_CLAIM] true))` |
-| "Investor data room release approval requires fundraising owner signature and blocks unapproved confidential disclosure" | `always(!<+APPROVE_INVESTOR_DATA_ROOM_RELEASE> true | <+APPROVE_INVESTOR_DATA_ROOM_RELEASE +signed_by(/users/fundraising_owner.id)> true)`; `always(!<+APPROVE_INVESTOR_DATA_ROOM_RELEASE> true | always([-UNAPPROVED_CONFIDENTIAL_DISCLOSURE] true))` |
-| "Pitch deck publication approval requires fundraising owner signature and blocks unapproved public fundraising material" | `always(!<+APPROVE_PITCH_DECK_PUBLICATION> true | <+APPROVE_PITCH_DECK_PUBLICATION +signed_by(/users/fundraising_owner.id)> true)`; `always(!<+APPROVE_PITCH_DECK_PUBLICATION> true | always([-UNAPPROVED_PUBLIC_FUNDRAISING_MATERIAL] true))` |
-| "Investor diligence response approval requires legal reviewer signature and blocks inaccurate diligence representation" | `always(!<+APPROVE_INVESTOR_DILIGENCE_RESPONSE> true | <+APPROVE_INVESTOR_DILIGENCE_RESPONSE +signed_by(/users/legal_reviewer.id)> true)`; `always(!<+APPROVE_INVESTOR_DILIGENCE_RESPONSE> true | always([-INACCURATE_DILIGENCE_REPRESENTATION] true))` |
-| "Term sheet circulation approval requires board observer signature and blocks unapproved valuation term disclosure" | `always(!<+APPROVE_TERM_SHEET_CIRCULATION> true | <+APPROVE_TERM_SHEET_CIRCULATION +signed_by(/users/board_observer.id)> true)`; `always(!<+APPROVE_TERM_SHEET_CIRCULATION> true | always([-UNAPPROVED_VALUATION_TERM_DISCLOSURE] true))` |
-| "Investor update publication approval requires finance lead signature and blocks inaccurate runway statement" | `always(!<+APPROVE_INVESTOR_UPDATE_PUBLICATION> true | <+APPROVE_INVESTOR_UPDATE_PUBLICATION +signed_by(/users/finance_lead.id)> true)`; `always(!<+APPROVE_INVESTOR_UPDATE_PUBLICATION> true | always([-INACCURATE_RUNWAY_STATEMENT] true))` |
-| "Cap table update approval requires corporate secretary signature and blocks incorrect ownership record" | `always(!<+APPROVE_CAP_TABLE_UPDATE> true | <+APPROVE_CAP_TABLE_UPDATE +signed_by(/users/corporate_secretary.id)> true)`; `always(!<+APPROVE_CAP_TABLE_UPDATE> true | always([-INCORRECT_OWNERSHIP_RECORD] true))` |
-| "SAFE note issuance approval requires board designee signature and blocks unauthorized financing instrument" | `always(!<+APPROVE_SAFE_NOTE_ISSUANCE> true | <+APPROVE_SAFE_NOTE_ISSUANCE +signed_by(/users/board_designee.id)> true)`; `always(!<+APPROVE_SAFE_NOTE_ISSUANCE> true | always([-UNAUTHORIZED_FINANCING_INSTRUMENT] true))` |
-| "Equity grant approval requires board administrator signature and blocks unauthorized equity award" | `always(!<+APPROVE_EQUITY_GRANT> true | <+APPROVE_EQUITY_GRANT +signed_by(/users/board_administrator.id)> true)`; `always(!<+APPROVE_EQUITY_GRANT> true | always([-UNAUTHORIZED_EQUITY_AWARD] true))` |
-| "Option exercise processing approval requires stock plan administrator signature and blocks invalid exercise record" | `always(!<+APPROVE_OPTION_EXERCISE_PROCESSING> true | <+APPROVE_OPTION_EXERCISE_PROCESSING +signed_by(/users/stock_plan_administrator.id)> true)`; `always(!<+APPROVE_OPTION_EXERCISE_PROCESSING> true | always([-INVALID_EXERCISE_RECORD] true))` |
-| "Stock transfer approval requires corporate counsel signature and blocks restricted share transfer" | `always(!<+APPROVE_STOCK_TRANSFER> true | <+APPROVE_STOCK_TRANSFER +signed_by(/users/corporate_counsel.id)> true)`; `always(!<+APPROVE_STOCK_TRANSFER> true | always([-RESTRICTED_SHARE_TRANSFER] true))` |
-| "Vesting schedule amendment approval requires compensation committee signature and blocks unapproved vesting acceleration" | `always(!<+APPROVE_VESTING_SCHEDULE_AMENDMENT> true | <+APPROVE_VESTING_SCHEDULE_AMENDMENT +signed_by(/users/compensation_committee.id)> true)`; `always(!<+APPROVE_VESTING_SCHEDULE_AMENDMENT> true | always([-UNAPPROVED_VESTING_ACCELERATION] true))` |
-| "Board consent approval requires corporate secretary signature and blocks unauthorized corporate action" | `always(!<+APPROVE_BOARD_CONSENT> true | <+APPROVE_BOARD_CONSENT +signed_by(/users/corporate_secretary.id)> true)`; `always(!<+APPROVE_BOARD_CONSENT> true | always([-UNAUTHORIZED_CORPORATE_ACTION] true))` |
-| "Option pool increase approval requires board chair signature and blocks unapproved dilution" | `always(!<+APPROVE_OPTION_POOL_INCREASE> true | <+APPROVE_OPTION_POOL_INCREASE +signed_by(/users/board_chair.id)> true)`; `always(!<+APPROVE_OPTION_POOL_INCREASE> true | always([-UNAPPROVED_DILUTION] true))` |
-| "Bylaws amendment approval requires corporate counsel signature and blocks invalid governance change" | `always(!<+APPROVE_BYLAWS_AMENDMENT> true | <+APPROVE_BYLAWS_AMENDMENT +signed_by(/users/corporate_counsel.id)> true)`; `always(!<+APPROVE_BYLAWS_AMENDMENT> true | always([-INVALID_GOVERNANCE_CHANGE] true))` |
-| "Board minutes finalization approval requires corporate secretary signature and blocks inaccurate meeting record" | `always(!<+APPROVE_BOARD_MINUTES_FINALIZATION> true | <+APPROVE_BOARD_MINUTES_FINALIZATION +signed_by(/users/corporate_secretary.id)> true)`; `always(!<+APPROVE_BOARD_MINUTES_FINALIZATION> true | always([-INACCURATE_MEETING_RECORD] true))` |
-| "Shareholder approval requires corporate secretary signature and blocks unauthorized shareholder action" | `always(!<+APPROVE_SHAREHOLDER_ACTION> true | <+APPROVE_SHAREHOLDER_ACTION +signed_by(/users/corporate_secretary.id)> true)`; `always(!<+APPROVE_SHAREHOLDER_ACTION> true | always([-UNAUTHORIZED_SHAREHOLDER_ACTION] true))` |
-| "409A valuation approval requires finance lead signature and blocks stale valuation grant" | `always(!<+APPROVE_409A_VALUATION> true | <+APPROVE_409A_VALUATION +signed_by(/users/finance_lead.id)> true)`; `always(!<+APPROVE_409A_VALUATION> true | always([-STALE_VALUATION_GRANT] true))` |
-| "Investor information rights approval requires investor relations lead signature and blocks unauthorized financial disclosure" | `always(!<+APPROVE_INVESTOR_INFORMATION_RIGHTS> true | <+APPROVE_INVESTOR_INFORMATION_RIGHTS +signed_by(/users/investor_relations_lead.id)> true)`; `always(!<+APPROVE_INVESTOR_INFORMATION_RIGHTS> true | always([-UNAUTHORIZED_FINANCIAL_DISCLOSURE] true))` |
-| "Founder share repurchase approval requires corporate counsel signature and blocks invalid repurchase exercise" | `always(!<+APPROVE_FOUNDER_SHARE_REPURCHASE> true | <+APPROVE_FOUNDER_SHARE_REPURCHASE +signed_by(/users/corporate_counsel.id)> true)`; `always(!<+APPROVE_FOUNDER_SHARE_REPURCHASE> true | always([-INVALID_REPURCHASE_EXERCISE] true))` |
-| "Secondary share sale approval requires transfer agent signature and blocks unauthorized secondary transfer" | `always(!<+APPROVE_SECONDARY_SHARE_SALE> true | <+APPROVE_SECONDARY_SHARE_SALE +signed_by(/users/transfer_agent.id)> true)`; `always(!<+APPROVE_SECONDARY_SHARE_SALE> true | always([-UNAUTHORIZED_SECONDARY_TRANSFER] true))` |
-| "Liquidation preference amendment approval requires investor counsel signature and blocks unapproved preference change" | `always(!<+APPROVE_LIQUIDATION_PREFERENCE_AMENDMENT> true | <+APPROVE_LIQUIDATION_PREFERENCE_AMENDMENT +signed_by(/users/investor_counsel.id)> true)`; `always(!<+APPROVE_LIQUIDATION_PREFERENCE_AMENDMENT> true | always([-UNAPPROVED_PREFERENCE_CHANGE] true))` |
-| "Pro rata rights waiver approval requires investor relations lead signature and blocks improper allocation reduction" | `always(!<+APPROVE_PRO_RATA_RIGHTS_WAIVER> true | <+APPROVE_PRO_RATA_RIGHTS_WAIVER +signed_by(/users/investor_relations_lead.id)> true)`; `always(!<+APPROVE_PRO_RATA_RIGHTS_WAIVER> true | always([-IMPROPER_ALLOCATION_REDUCTION] true))` |
-| "Board observer appointment approval requires corporate secretary signature and blocks unauthorized observer access" | `always(!<+APPROVE_BOARD_OBSERVER_APPOINTMENT> true | <+APPROVE_BOARD_OBSERVER_APPOINTMENT +signed_by(/users/corporate_secretary.id)> true)`; `always(!<+APPROVE_BOARD_OBSERVER_APPOINTMENT> true | always([-UNAUTHORIZED_OBSERVER_ACCESS] true))` |
-| "Protective provision waiver approval requires investor counsel signature and blocks unconsented major action" | `always(!<+APPROVE_PROTECTIVE_PROVISION_WAIVER> true | <+APPROVE_PROTECTIVE_PROVISION_WAIVER +signed_by(/users/investor_counsel.id)> true)`; `always(!<+APPROVE_PROTECTIVE_PROVISION_WAIVER> true | always([-UNCONSENTED_MAJOR_ACTION] true))` |
-| "Right of first refusal exercise approval requires corporate counsel signature and blocks missed transfer right" | `always(!<+APPROVE_RIGHT_OF_FIRST_REFUSAL_EXERCISE> true | <+APPROVE_RIGHT_OF_FIRST_REFUSAL_EXERCISE +signed_by(/users/corporate_counsel.id)> true)`; `always(!<+APPROVE_RIGHT_OF_FIRST_REFUSAL_EXERCISE> true | always([-MISSED_TRANSFER_RIGHT] true))` |
-| "Drag along notice approval requires corporate secretary signature and blocks invalid forced sale" | `always(!<+APPROVE_DRAG_ALONG_NOTICE> true | <+APPROVE_DRAG_ALONG_NOTICE +signed_by(/users/corporate_secretary.id)> true)`; `always(!<+APPROVE_DRAG_ALONG_NOTICE> true | always([-INVALID_FORCED_SALE] true))` |
-| "Preemptive rights allocation approval requires investor relations lead signature and blocks excluded eligible investor" | `always(!<+APPROVE_PREEMPTIVE_RIGHTS_ALLOCATION> true | <+APPROVE_PREEMPTIVE_RIGHTS_ALLOCATION +signed_by(/users/investor_relations_lead.id)> true)`; `always(!<+APPROVE_PREEMPTIVE_RIGHTS_ALLOCATION> true | always([-EXCLUDED_ELIGIBLE_INVESTOR] true))` |
-| "Co-sale participation approval requires corporate counsel signature and blocks omitted eligible co-seller" | `always(!<+APPROVE_CO_SALE_PARTICIPATION> true | <+APPROVE_CO_SALE_PARTICIPATION +signed_by(/users/corporate_counsel.id)> true)`; `always(!<+APPROVE_CO_SALE_PARTICIPATION> true | always([-OMITTED_ELIGIBLE_CO_SELLER] true))` |
-| "Convertible note conversion approval requires finance lead signature and blocks incorrect conversion calculation" | `always(!<+APPROVE_CONVERTIBLE_NOTE_CONVERSION> true | <+APPROVE_CONVERTIBLE_NOTE_CONVERSION +signed_by(/users/finance_lead.id)> true)`; `always(!<+APPROVE_CONVERTIBLE_NOTE_CONVERSION> true | always([-INCORRECT_CONVERSION_CALCULATION] true))` |
-| "Warrant exercise approval requires corporate counsel signature and blocks invalid warrant exercise" | `always(!<+APPROVE_WARRANT_EXERCISE> true | <+APPROVE_WARRANT_EXERCISE +signed_by(/users/corporate_counsel.id)> true)`; `always(!<+APPROVE_WARRANT_EXERCISE> true | always([-INVALID_WARRANT_EXERCISE] true))` |
-| "Investor consent solicitation approval requires corporate secretary signature and blocks defective consent notice" | `always(!<+APPROVE_INVESTOR_CONSENT_SOLICITATION> true | <+APPROVE_INVESTOR_CONSENT_SOLICITATION +signed_by(/users/corporate_secretary.id)> true)`; `always(!<+APPROVE_INVESTOR_CONSENT_SOLICITATION> true | always([-DEFECTIVE_CONSENT_NOTICE] true))` |
-| "Side letter approval requires corporate counsel signature and blocks undisclosed investor preference" | `always(!<+APPROVE_SIDE_LETTER> true | <+APPROVE_SIDE_LETTER +signed_by(/users/corporate_counsel.id)> true)`; `always(!<+APPROVE_SIDE_LETTER> true | always([-UNDISCLOSED_INVESTOR_PREFERENCE] true))` |
-| "Information memorandum distribution approval requires fundraising owner signature and blocks misleading investor material" | `always(!<+APPROVE_INFORMATION_MEMORANDUM_DISTRIBUTION> true | <+APPROVE_INFORMATION_MEMORANDUM_DISTRIBUTION +signed_by(/users/fundraising_owner.id)> true)`; `always(!<+APPROVE_INFORMATION_MEMORANDUM_DISTRIBUTION> true | always([-MISLEADING_INVESTOR_MATERIAL] true))` |
-| "Financing closing approval requires corporate secretary signature and blocks premature share issuance" | `always(!<+APPROVE_FINANCING_CLOSING> true | <+APPROVE_FINANCING_CLOSING +signed_by(/users/corporate_secretary.id)> true)`; `always(!<+APPROVE_FINANCING_CLOSING> true | always([-PREMATURE_SHARE_ISSUANCE] true))` |
-| "Acquisition term acceptance approval requires board chair signature and blocks unauthorized change of control" | `always(!<+APPROVE_ACQUISITION_TERM_ACCEPTANCE> true | <+APPROVE_ACQUISITION_TERM_ACCEPTANCE +signed_by(/users/board_chair.id)> true)`; `always(!<+APPROVE_ACQUISITION_TERM_ACCEPTANCE> true | always([-UNAUTHORIZED_CHANGE_OF_CONTROL] true))` |
-| "Merger closing approval requires board chair signature and blocks unapproved merger consummation" | `always(!<+APPROVE_MERGER_CLOSING> true | <+APPROVE_MERGER_CLOSING +signed_by(/users/board_chair.id)> true)`; `always(!<+APPROVE_MERGER_CLOSING> true | always([-UNAPPROVED_MERGER_CONSUMMATION] true))` |
-| "Indemnity claim settlement approval requires corporate counsel signature and blocks improper escrow release" | `always(!<+APPROVE_INDEMNITY_CLAIM_SETTLEMENT> true | <+APPROVE_INDEMNITY_CLAIM_SETTLEMENT +signed_by(/users/corporate_counsel.id)> true)`; `always(!<+APPROVE_INDEMNITY_CLAIM_SETTLEMENT> true | always([-IMPROPER_ESCROW_RELEASE] true))` |
-| "Escrow holdback release approval requires finance lead signature and blocks unresolved purchase price adjustment" | `always(!<+APPROVE_ESCROW_HOLDBACK_RELEASE> true | <+APPROVE_ESCROW_HOLDBACK_RELEASE +signed_by(/users/finance_lead.id)> true)`; `always(!<+APPROVE_ESCROW_HOLDBACK_RELEASE> true | always([-UNRESOLVED_PURCHASE_PRICE_ADJUSTMENT] true))` |
-| "Representations and warranties disclosure approval requires corporate counsel signature and blocks undisclosed material exception" | `always(!<+APPROVE_REPRESENTATIONS_WARRANTIES_DISCLOSURE> true | <+APPROVE_REPRESENTATIONS_WARRANTIES_DISCLOSURE +signed_by(/users/corporate_counsel.id)> true)`; `always(!<+APPROVE_REPRESENTATIONS_WARRANTIES_DISCLOSURE> true | always([-UNDISCLOSED_MATERIAL_EXCEPTION] true))` |
-| "Closing deliverables approval requires corporate secretary signature and blocks missing officer certificate" | `always(!<+APPROVE_CLOSING_DELIVERABLES> true | <+APPROVE_CLOSING_DELIVERABLES +signed_by(/users/corporate_secretary.id)> true)`; `always(!<+APPROVE_CLOSING_DELIVERABLES> true | always([-MISSING_OFFICER_CERTIFICATE] true))` |
-| "Regulatory filing approval requires corporate counsel signature and blocks late required notice" | `always(!<+APPROVE_REGULATORY_FILING> true | <+APPROVE_REGULATORY_FILING +signed_by(/users/corporate_counsel.id)> true)`; `always(!<+APPROVE_REGULATORY_FILING> true | always([-LATE_REQUIRED_NOTICE] true))` |
-| "Post-closing integration approval requires operations lead signature and blocks unauthorized system migration" | `always(!<+APPROVE_POST_CLOSING_INTEGRATION> true | <+APPROVE_POST_CLOSING_INTEGRATION +signed_by(/users/operations_lead.id)> true)`; `always(!<+APPROVE_POST_CLOSING_INTEGRATION> true | always([-UNAUTHORIZED_SYSTEM_MIGRATION] true))` |
-| "Tax election approval requires finance lead signature and blocks missed election deadline" | `always(!<+APPROVE_TAX_ELECTION> true | <+APPROVE_TAX_ELECTION +signed_by(/users/finance_lead.id)> true)`; `always(!<+APPROVE_TAX_ELECTION> true | always([-MISSED_ELECTION_DEADLINE] true))` |
-| "Foreign qualification approval requires corporate counsel signature and blocks unauthorized state business" | `always(!<+APPROVE_FOREIGN_QUALIFICATION> true | <+APPROVE_FOREIGN_QUALIFICATION +signed_by(/users/corporate_counsel.id)> true)`; `always(!<+APPROVE_FOREIGN_QUALIFICATION> true | always([-UNAUTHORIZED_STATE_BUSINESS] true))` |
-| "Annual report filing approval requires corporate secretary signature and blocks delinquent entity status" | `always(!<+APPROVE_ANNUAL_REPORT_FILING> true | <+APPROVE_ANNUAL_REPORT_FILING +signed_by(/users/corporate_secretary.id)> true)`; `always(!<+APPROVE_ANNUAL_REPORT_FILING> true | always([-DELINQUENT_ENTITY_STATUS] true))` |
-| "Registered agent change approval requires corporate secretary signature and blocks missed service of process" | `always(!<+APPROVE_REGISTERED_AGENT_CHANGE> true | <+APPROVE_REGISTERED_AGENT_CHANGE +signed_by(/users/corporate_secretary.id)> true)`; `always(!<+APPROVE_REGISTERED_AGENT_CHANGE> true | always([-MISSED_SERVICE_OF_PROCESS] true))` |
-| "Business license renewal approval requires operations lead signature and blocks unlicensed operations" | `always(!<+APPROVE_BUSINESS_LICENSE_RENEWAL> true | <+APPROVE_BUSINESS_LICENSE_RENEWAL +signed_by(/users/operations_lead.id)> true)`; `always(!<+APPROVE_BUSINESS_LICENSE_RENEWAL> true | always([-UNLICENSED_OPERATIONS] true))` |
-| "Franchise tax payment approval requires finance lead signature and blocks tax delinquency" | `always(!<+APPROVE_FRANCHISE_TAX_PAYMENT> true | <+APPROVE_FRANCHISE_TAX_PAYMENT +signed_by(/users/finance_lead.id)> true)`; `always(!<+APPROVE_FRANCHISE_TAX_PAYMENT> true | always([-TAX_DELINQUENCY] true))` |
-| "Good standing certificate approval requires corporate secretary signature and blocks stale entity evidence" | `always(!<+APPROVE_GOOD_STANDING_CERTIFICATE> true | <+APPROVE_GOOD_STANDING_CERTIFICATE +signed_by(/users/corporate_secretary.id)> true)`; `always(!<+APPROVE_GOOD_STANDING_CERTIFICATE> true | always([-STALE_ENTITY_EVIDENCE] true))` |
-| "Entity conversion approval requires corporate counsel signature and blocks unapproved entity restructuring" | `always(!<+APPROVE_ENTITY_CONVERSION> true | <+APPROVE_ENTITY_CONVERSION +signed_by(/users/corporate_counsel.id)> true)`; `always(!<+APPROVE_ENTITY_CONVERSION> true | always([-UNAPPROVED_ENTITY_RESTRUCTURING] true))` |
-| "Assumed name filing approval requires corporate secretary signature and blocks unauthorized public name use" | `always(!<+APPROVE_ASSUMED_NAME_FILING> true | <+APPROVE_ASSUMED_NAME_FILING +signed_by(/users/corporate_secretary.id)> true)`; `always(!<+APPROVE_ASSUMED_NAME_FILING> true | always([-UNAUTHORIZED_PUBLIC_NAME_USE] true))` |
-| "Dissolution plan approval requires corporate counsel signature and blocks unauthorized wind down" | `always(!<+APPROVE_DISSOLUTION_PLAN> true | <+APPROVE_DISSOLUTION_PLAN +signed_by(/users/corporate_counsel.id)> true)`; `always(!<+APPROVE_DISSOLUTION_PLAN> true | always([-UNAUTHORIZED_WIND_DOWN] true))` |
-| "Creditor notice approval requires corporate secretary signature and blocks omitted creditor notice" | `always(!<+APPROVE_CREDITOR_NOTICE> true | <+APPROVE_CREDITOR_NOTICE +signed_by(/users/corporate_secretary.id)> true)`; `always(!<+APPROVE_CREDITOR_NOTICE> true | always([-OMITTED_CREDITOR_NOTICE] true))` |
-| "Records retention approval requires corporate secretary signature and blocks premature record destruction" | `always(!<+APPROVE_RECORDS_RETENTION> true | <+APPROVE_RECORDS_RETENTION +signed_by(/users/corporate_secretary.id)> true)`; `always(!<+APPROVE_RECORDS_RETENTION> true | always([-PREMATURE_RECORD_DESTRUCTION] true))` |
-| "Final tax clearance approval requires finance lead signature and blocks unresolved tax liability" | `always(!<+APPROVE_FINAL_TAX_CLEARANCE> true | <+APPROVE_FINAL_TAX_CLEARANCE +signed_by(/users/finance_lead.id)> true)`; `always(!<+APPROVE_FINAL_TAX_CLEARANCE> true | always([-UNRESOLVED_TAX_LIABILITY] true))` |
-| "Payroll tax registration approval requires finance lead signature and blocks unregistered payroll operation" | `always(!<+APPROVE_PAYROLL_TAX_REGISTRATION> true | <+APPROVE_PAYROLL_TAX_REGISTRATION +signed_by(/users/finance_lead.id)> true)`; `always(!<+APPROVE_PAYROLL_TAX_REGISTRATION> true | always([-UNREGISTERED_PAYROLL_OPERATION] true))` |
-| "Insurance coverage approval requires operations lead signature and blocks uninsured business activity" | `always(!<+APPROVE_INSURANCE_COVERAGE> true | <+APPROVE_INSURANCE_COVERAGE +signed_by(/users/operations_lead.id)> true)`; `always(!<+APPROVE_INSURANCE_COVERAGE> true | always([-UNINSURED_BUSINESS_ACTIVITY] true))` |
-| "Bank account opening approval requires finance lead signature and blocks unauthorized treasury account" | `always(!<+APPROVE_BANK_ACCOUNT_OPENING> true | <+APPROVE_BANK_ACCOUNT_OPENING +signed_by(/users/finance_lead.id)> true)`; `always(!<+APPROVE_BANK_ACCOUNT_OPENING> true | always([-UNAUTHORIZED_TREASURY_ACCOUNT] true))` |
-| "Payment processor onboarding approval requires operations lead signature and blocks unapproved payment collection" | `always(!<+APPROVE_PAYMENT_PROCESSOR_ONBOARDING> true | <+APPROVE_PAYMENT_PROCESSOR_ONBOARDING +signed_by(/users/operations_lead.id)> true)`; `always(!<+APPROVE_PAYMENT_PROCESSOR_ONBOARDING> true | always([-UNAPPROVED_PAYMENT_COLLECTION] true))` |
-| "Sales tax nexus review approval requires finance lead signature and blocks uncollected sales tax exposure" | `always(!<+APPROVE_SALES_TAX_NEXUS_REVIEW> true | <+APPROVE_SALES_TAX_NEXUS_REVIEW +signed_by(/users/finance_lead.id)> true)`; `always(!<+APPROVE_SALES_TAX_NEXUS_REVIEW> true | always([-UNCOLLECTED_SALES_TAX_EXPOSURE] true))` |
-| "Chargeback reserve approval requires operations lead signature and blocks unfunded dispute liability" | `always(!<+APPROVE_CHARGEBACK_RESERVE> true | <+APPROVE_CHARGEBACK_RESERVE +signed_by(/users/operations_lead.id)> true)`; `always(!<+APPROVE_CHARGEBACK_RESERVE> true | always([-UNFUNDED_DISPUTE_LIABILITY] true))` |
-| "Customer refund policy approval requires finance lead signature and blocks unauthorized refund obligation" | `always(!<+APPROVE_CUSTOMER_REFUND_POLICY> true | <+APPROVE_CUSTOMER_REFUND_POLICY +signed_by(/users/finance_lead.id)> true)`; `always(!<+APPROVE_CUSTOMER_REFUND_POLICY> true | always([-UNAUTHORIZED_REFUND_OBLIGATION] true))` |
-| "Subscription cancellation flow approval requires operations lead signature and blocks noncompliant renewal billing" | `always(!<+APPROVE_SUBSCRIPTION_CANCELLATION_FLOW> true | <+APPROVE_SUBSCRIPTION_CANCELLATION_FLOW +signed_by(/users/operations_lead.id)> true)`; `always(!<+APPROVE_SUBSCRIPTION_CANCELLATION_FLOW> true | always([-NONCOMPLIANT_RENEWAL_BILLING] true))` |
-| "Terms of service update approval requires corporate counsel signature and blocks unenforceable customer terms" | `always(!<+APPROVE_TERMS_OF_SERVICE_UPDATE> true | <+APPROVE_TERMS_OF_SERVICE_UPDATE +signed_by(/users/corporate_counsel.id)> true)`; `always(!<+APPROVE_TERMS_OF_SERVICE_UPDATE> true | always([-UNENFORCEABLE_CUSTOMER_TERMS] true))` |
-| "Cookie consent banner approval requires privacy counsel signature and blocks noncompliant tracking consent" | `always(!<+APPROVE_COOKIE_CONSENT_BANNER> true | <+APPROVE_COOKIE_CONSENT_BANNER +signed_by(/users/privacy_counsel.id)> true)`; `always(!<+APPROVE_COOKIE_CONSENT_BANNER> true | always([-NONCOMPLIANT_TRACKING_CONSENT] true))` |
-| "Marketing email campaign approval requires privacy counsel signature and blocks unsolicited commercial email" | `always(!<+APPROVE_MARKETING_EMAIL_CAMPAIGN> true | <+APPROVE_MARKETING_EMAIL_CAMPAIGN +signed_by(/users/privacy_counsel.id)> true)`; `always(!<+APPROVE_MARKETING_EMAIL_CAMPAIGN> true | always([-UNSOLICITED_COMMERCIAL_EMAIL] true))` |
-| "Affiliate referral program approval requires finance lead signature and blocks untracked referral liability" | `always(!<+APPROVE_AFFILIATE_REFERRAL_PROGRAM> true | <+APPROVE_AFFILIATE_REFERRAL_PROGRAM +signed_by(/users/finance_lead.id)> true)`; `always(!<+APPROVE_AFFILIATE_REFERRAL_PROGRAM> true | always([-UNTRACKED_REFERRAL_LIABILITY] true))` |
-| "Customer support escalation approval requires operations lead signature and blocks unresolved high severity complaint" | `always(!<+APPROVE_CUSTOMER_SUPPORT_ESCALATION> true | <+APPROVE_CUSTOMER_SUPPORT_ESCALATION +signed_by(/users/operations_lead.id)> true)`; `always(!<+APPROVE_CUSTOMER_SUPPORT_ESCALATION> true | always([-UNRESOLVED_HIGH_SEVERITY_COMPLAINT] true))` |
-| "Service credit issuance approval requires finance lead signature and blocks unauthorized customer concession" | `always(!<+APPROVE_SERVICE_CREDIT_ISSUANCE> true | <+APPROVE_SERVICE_CREDIT_ISSUANCE +signed_by(/users/finance_lead.id)> true)`; `always(!<+APPROVE_SERVICE_CREDIT_ISSUANCE> true | always([-UNAUTHORIZED_CUSTOMER_CONCESSION] true))` |
-| "Customer onboarding approval requires operations lead signature and blocks incomplete identity verification" | `always(!<+APPROVE_CUSTOMER_ONBOARDING> true | <+APPROVE_CUSTOMER_ONBOARDING +signed_by(/users/operations_lead.id)> true)`; `always(!<+APPROVE_CUSTOMER_ONBOARDING> true | always([-INCOMPLETE_IDENTITY_VERIFICATION] true))` |
-| "Customer data import approval requires privacy counsel signature and blocks unconsented personal data ingestion" | `always(!<+APPROVE_CUSTOMER_DATA_IMPORT> true | <+APPROVE_CUSTOMER_DATA_IMPORT +signed_by(/users/privacy_counsel.id)> true)`; `always(!<+APPROVE_CUSTOMER_DATA_IMPORT> true | always([-UNCONSENTED_PERSONAL_DATA_INGESTION] true))` |
-| "Trial account activation approval requires operations lead signature and blocks abuse prone signup" | `always(!<+APPROVE_TRIAL_ACCOUNT_ACTIVATION> true | <+APPROVE_TRIAL_ACCOUNT_ACTIVATION +signed_by(/users/operations_lead.id)> true)`; `always(!<+APPROVE_TRIAL_ACCOUNT_ACTIVATION> true | always([-ABUSE_PRONE_SIGNUP] true))` |
-| "Customer data export approval requires privacy counsel signature and blocks unauthorized account data disclosure" | `always(!<+APPROVE_CUSTOMER_DATA_EXPORT> true | <+APPROVE_CUSTOMER_DATA_EXPORT +signed_by(/users/privacy_counsel.id)> true)`; `always(!<+APPROVE_CUSTOMER_DATA_EXPORT> true | always([-UNAUTHORIZED_ACCOUNT_DATA_DISCLOSURE] true))` |
-| "Customer account suspension approval requires operations lead signature and blocks unsupported service cutoff" | `always(!<+APPROVE_CUSTOMER_ACCOUNT_SUSPENSION> true | <+APPROVE_CUSTOMER_ACCOUNT_SUSPENSION +signed_by(/users/operations_lead.id)> true)`; `always(!<+APPROVE_CUSTOMER_ACCOUNT_SUSPENSION> true | always([-UNSUPPORTED_SERVICE_CUTOFF] true))` |
-| "Customer workspace deletion approval requires retention counsel signature and blocks deletion under active retention duty" | `always(!<+APPROVE_CUSTOMER_WORKSPACE_DELETION> true | <+APPROVE_CUSTOMER_WORKSPACE_DELETION +signed_by(/users/retention_counsel.id)> true)`; `always(!<+APPROVE_CUSTOMER_WORKSPACE_DELETION> true | always([-ACTIVE_RETENTION_DUTY] true))` |
-| "Billing plan change approval requires finance lead signature and blocks unauthorized recurring charge" | `always(!<+APPROVE_BILLING_PLAN_CHANGE> true | <+APPROVE_BILLING_PLAN_CHANGE +signed_by(/users/finance_lead.id)> true)`; `always(!<+APPROVE_BILLING_PLAN_CHANGE> true | always([-UNAUTHORIZED_RECURRING_CHARGE] true))` |
-| "Customer entitlement provisioning approval requires operations lead signature and blocks uncontracted feature access" | `always(!<+APPROVE_CUSTOMER_ENTITLEMENT_PROVISIONING> true | <+APPROVE_CUSTOMER_ENTITLEMENT_PROVISIONING +signed_by(/users/operations_lead.id)> true)`; `always(!<+APPROVE_CUSTOMER_ENTITLEMENT_PROVISIONING> true | always([-UNCONTRACTED_FEATURE_ACCESS] true))` |
-| "Customer payment method update approval requires finance lead signature and blocks unauthorized payment method change" | `always(!<+APPROVE_CUSTOMER_PAYMENT_METHOD_UPDATE> true | <+APPROVE_CUSTOMER_PAYMENT_METHOD_UPDATE +signed_by(/users/finance_lead.id)> true)`; `always(!<+APPROVE_CUSTOMER_PAYMENT_METHOD_UPDATE> true | always([-UNAUTHORIZED_PAYMENT_METHOD_CHANGE] true))` |
-| "Dunning workflow approval requires operations lead signature and blocks noncompliant collection notice" | `always(!<+APPROVE_DUNNING_WORKFLOW> true | <+APPROVE_DUNNING_WORKFLOW +signed_by(/users/operations_lead.id)> true)`; `always(!<+APPROVE_DUNNING_WORKFLOW> true | always([-NONCOMPLIANT_COLLECTION_NOTICE] true))` |
-| "Customer invoice dispute approval requires finance lead signature and blocks unsupported billing dispute closure" | `always(!<+APPROVE_CUSTOMER_INVOICE_DISPUTE> true | <+APPROVE_CUSTOMER_INVOICE_DISPUTE +signed_by(/users/finance_lead.id)> true)`; `always(!<+APPROVE_CUSTOMER_INVOICE_DISPUTE> true | always([-UNSUPPORTED_BILLING_DISPUTE_CLOSURE] true))` |
-| "Account credit limit approval requires finance lead signature and blocks excessive receivables exposure" | `always(!<+APPROVE_ACCOUNT_CREDIT_LIMIT> true | <+APPROVE_ACCOUNT_CREDIT_LIMIT +signed_by(/users/finance_lead.id)> true)`; `always(!<+APPROVE_ACCOUNT_CREDIT_LIMIT> true | always([-EXCESSIVE_RECEIVABLES_EXPOSURE] true))` |
-| "Customer balance write off approval requires finance lead signature and blocks unauthorized receivable forgiveness" | `always(!<+APPROVE_CUSTOMER_BALANCE_WRITE_OFF> true | <+APPROVE_CUSTOMER_BALANCE_WRITE_OFF +signed_by(/users/finance_lead.id)> true)`; `always(!<+APPROVE_CUSTOMER_BALANCE_WRITE_OFF> true | always([-UNAUTHORIZED_RECEIVABLE_FORGIVENESS] true))` |
-| "Revenue recognition policy approval requires controller signature and blocks premature revenue booking" | `always(!<+APPROVE_REVENUE_RECOGNITION_POLICY> true | <+APPROVE_REVENUE_RECOGNITION_POLICY +signed_by(/users/controller.id)> true)`; `always(!<+APPROVE_REVENUE_RECOGNITION_POLICY> true | always([-PREMATURE_REVENUE_BOOKING] true))` |
-| "Tax exemption certificate approval requires finance lead signature and blocks invalid tax exempt billing" | `always(!<+APPROVE_TAX_EXEMPTION_CERTIFICATE> true | <+APPROVE_TAX_EXEMPTION_CERTIFICATE +signed_by(/users/finance_lead.id)> true)`; `always(!<+APPROVE_TAX_EXEMPTION_CERTIFICATE> true | always([-INVALID_TAX_EXEMPT_BILLING] true))` |
-| "Customer contract amendment approval requires corporate counsel signature and blocks unapproved commercial term change" | `always(!<+APPROVE_CUSTOMER_CONTRACT_AMENDMENT> true | <+APPROVE_CUSTOMER_CONTRACT_AMENDMENT +signed_by(/users/corporate_counsel.id)> true)`; `always(!<+APPROVE_CUSTOMER_CONTRACT_AMENDMENT> true | always([-UNAPPROVED_COMMERCIAL_TERM_CHANGE] true))` |
-| "Customer SLA exception approval requires operations lead signature and blocks unauthorized service level downgrade" | `always(!<+APPROVE_CUSTOMER_SLA_EXCEPTION> true | <+APPROVE_CUSTOMER_SLA_EXCEPTION +signed_by(/users/operations_lead.id)> true)`; `always(!<+APPROVE_CUSTOMER_SLA_EXCEPTION> true | always([-UNAUTHORIZED_SERVICE_LEVEL_DOWNGRADE] true))` |
-| "Custom pricing discount approval requires finance lead signature and blocks margin negative deal" | `always(!<+APPROVE_CUSTOM_PRICING_DISCOUNT> true | <+APPROVE_CUSTOM_PRICING_DISCOUNT +signed_by(/users/finance_lead.id)> true)`; `always(!<+APPROVE_CUSTOM_PRICING_DISCOUNT> true | always([-MARGIN_NEGATIVE_DEAL] true))` |
-| "Customer contract renewal approval requires corporate counsel signature and blocks lapsed service obligation" | `always(!<+APPROVE_CUSTOMER_CONTRACT_RENEWAL> true | <+APPROVE_CUSTOMER_CONTRACT_RENEWAL +signed_by(/users/corporate_counsel.id)> true)`; `always(!<+APPROVE_CUSTOMER_CONTRACT_RENEWAL> true | always([-LAPSED_SERVICE_OBLIGATION] true))` |
-| "Usage overage billing approval requires finance lead signature and blocks unapproved excess charge" | `always(!<+APPROVE_USAGE_OVERAGE_BILLING> true | <+APPROVE_USAGE_OVERAGE_BILLING +signed_by(/users/finance_lead.id)> true)`; `always(!<+APPROVE_USAGE_OVERAGE_BILLING> true | always([-UNAPPROVED_EXCESS_CHARGE] true))` |
-| "Customer success plan approval requires operations lead signature and blocks unsupported adoption commitment" | `always(!<+APPROVE_CUSTOMER_SUCCESS_PLAN> true | <+APPROVE_CUSTOMER_SUCCESS_PLAN +signed_by(/users/operations_lead.id)> true)`; `always(!<+APPROVE_CUSTOMER_SUCCESS_PLAN> true | always([-UNSUPPORTED_ADOPTION_COMMITMENT] true))` |
-| "Professional services statement of work approval requires delivery manager signature and blocks unfunded implementation obligation" | `always(!<+APPROVE_PROFESSIONAL_SERVICES_SOW> true | <+APPROVE_PROFESSIONAL_SERVICES_SOW +signed_by(/users/delivery_manager.id)> true)`; `always(!<+APPROVE_PROFESSIONAL_SERVICES_SOW> true | always([-UNFUNDED_IMPLEMENTATION_OBLIGATION] true))` |
-| "Customer health score downgrade approval requires customer success manager signature and blocks unreviewed churn risk classification" | `always(!<+APPROVE_CUSTOMER_HEALTH_SCORE_DOWNGRADE> true | <+APPROVE_CUSTOMER_HEALTH_SCORE_DOWNGRADE +signed_by(/users/customer_success_manager.id)> true)`; `always(!<+APPROVE_CUSTOMER_HEALTH_SCORE_DOWNGRADE> true | always([-UNREVIEWED_CHURN_RISK_CLASSIFICATION] true))` |
-| "Implementation milestone acceptance approval requires delivery manager signature and blocks premature services billing" | `always(!<+APPROVE_IMPLEMENTATION_MILESTONE_ACCEPTANCE> true | <+APPROVE_IMPLEMENTATION_MILESTONE_ACCEPTANCE +signed_by(/users/delivery_manager.id)> true)`; `always(!<+APPROVE_IMPLEMENTATION_MILESTONE_ACCEPTANCE> true | always([-PREMATURE_SERVICES_BILLING] true))` |
-| "Customer executive business review approval requires customer success lead signature and blocks unapproved renewal commitment" | `always(!<+APPROVE_CUSTOMER_EXECUTIVE_BUSINESS_REVIEW> true | <+APPROVE_CUSTOMER_EXECUTIVE_BUSINESS_REVIEW +signed_by(/users/customer_success_lead.id)> true)`; `always(!<+APPROVE_CUSTOMER_EXECUTIVE_BUSINESS_REVIEW> true | always([-UNAPPROVED_RENEWAL_COMMITMENT] true))` |
-| "Implementation change order approval requires delivery manager signature and blocks unpriced services scope expansion" | `always(!<+APPROVE_IMPLEMENTATION_CHANGE_ORDER> true | <+APPROVE_IMPLEMENTATION_CHANGE_ORDER +signed_by(/users/delivery_manager.id)> true)`; `always(!<+APPROVE_IMPLEMENTATION_CHANGE_ORDER> true | always([-UNPRICED_SERVICES_SCOPE_EXPANSION] true))` |
-| "Customer escalation response approval requires support lead signature and blocks unmanaged executive escalation" | `always(!<+APPROVE_CUSTOMER_ESCALATION_RESPONSE> true | <+APPROVE_CUSTOMER_ESCALATION_RESPONSE +signed_by(/users/support_lead.id)> true)`; `always(!<+APPROVE_CUSTOMER_ESCALATION_RESPONSE> true | always([-UNMANAGED_EXECUTIVE_ESCALATION] true))` |
-| "Renewal forecast adjustment approval requires revenue operations lead signature and blocks unreviewed forecast slippage" | `always(!<+APPROVE_RENEWAL_FORECAST_ADJUSTMENT> true | <+APPROVE_RENEWAL_FORECAST_ADJUSTMENT +signed_by(/users/revenue_operations_lead.id)> true)`; `always(!<+APPROVE_RENEWAL_FORECAST_ADJUSTMENT> true | always([-UNREVIEWED_FORECAST_SLIPPAGE] true))` |
-| "Customer reference approval requires marketing lead signature and blocks unauthorized public endorsement" | `always(!<+APPROVE_CUSTOMER_REFERENCE> true | <+APPROVE_CUSTOMER_REFERENCE +signed_by(/users/marketing_lead.id)> true)`; `always(!<+APPROVE_CUSTOMER_REFERENCE> true | always([-UNAUTHORIZED_PUBLIC_ENDORSEMENT] true))` |
-| "Case study publication approval requires customer success lead signature and blocks unapproved customer disclosure" | `always(!<+APPROVE_CASE_STUDY_PUBLICATION> true | <+APPROVE_CASE_STUDY_PUBLICATION +signed_by(/users/customer_success_lead.id)> true)`; `always(!<+APPROVE_CASE_STUDY_PUBLICATION> true | always([-UNAPPROVED_CUSTOMER_DISCLOSURE] true))` |
-| "Beta customer program approval requires product lead signature and blocks unsupported preview obligation" | `always(!<+APPROVE_BETA_CUSTOMER_PROGRAM> true | <+APPROVE_BETA_CUSTOMER_PROGRAM +signed_by(/users/product_lead.id)> true)`; `always(!<+APPROVE_BETA_CUSTOMER_PROGRAM> true | always([-UNSUPPORTED_PREVIEW_OBLIGATION] true))` |
-| "Early access feature enablement approval requires product owner signature and blocks uncontracted beta entitlement" | `always(!<+APPROVE_EARLY_ACCESS_FEATURE_ENABLEMENT> true | <+APPROVE_EARLY_ACCESS_FEATURE_ENABLEMENT +signed_by(/users/product_owner.id)> true)`; `always(!<+APPROVE_EARLY_ACCESS_FEATURE_ENABLEMENT> true | always([-UNCONTRACTED_BETA_ENTITLEMENT] true))` |
-| "Product deprecation notice approval requires product lead signature and blocks unannounced customer impact" | `always(!<+APPROVE_PRODUCT_DEPRECATION_NOTICE> true | <+APPROVE_PRODUCT_DEPRECATION_NOTICE +signed_by(/users/product_lead.id)> true)`; `always(!<+APPROVE_PRODUCT_DEPRECATION_NOTICE> true | always([-UNANNOUNCED_CUSTOMER_IMPACT] true))` |
-| "Customer migration plan approval requires customer success lead signature and blocks unsupported account transition" | `always(!<+APPROVE_CUSTOMER_MIGRATION_PLAN> true | <+APPROVE_CUSTOMER_MIGRATION_PLAN +signed_by(/users/customer_success_lead.id)> true)`; `always(!<+APPROVE_CUSTOMER_MIGRATION_PLAN> true | always([-UNSUPPORTED_ACCOUNT_TRANSITION] true))` |
-| "Customer tenant consolidation approval requires operations lead signature and blocks data comingling risk" | `always(!<+APPROVE_CUSTOMER_TENANT_CONSOLIDATION> true | <+APPROVE_CUSTOMER_TENANT_CONSOLIDATION +signed_by(/users/operations_lead.id)> true)`; `always(!<+APPROVE_CUSTOMER_TENANT_CONSOLIDATION> true | always([-DATA_COMINGLING_RISK] true))` |
-| "Account ownership transfer approval requires corporate counsel signature and blocks unauthorized admin transfer" | `always(!<+APPROVE_ACCOUNT_OWNERSHIP_TRANSFER> true | <+APPROVE_ACCOUNT_OWNERSHIP_TRANSFER +signed_by(/users/corporate_counsel.id)> true)`; `always(!<+APPROVE_ACCOUNT_OWNERSHIP_TRANSFER> true | always([-UNAUTHORIZED_ADMIN_TRANSFER] true))` |
-| "Customer security questionnaire approval requires security lead signature and blocks unsupported control representation" | `always(!<+APPROVE_CUSTOMER_SECURITY_QUESTIONNAIRE> true | <+APPROVE_CUSTOMER_SECURITY_QUESTIONNAIRE +signed_by(/users/security_lead.id)> true)`; `always(!<+APPROVE_CUSTOMER_SECURITY_QUESTIONNAIRE> true | always([-UNSUPPORTED_CONTROL_REPRESENTATION] true))` |
-| "Customer compliance evidence release approval requires compliance officer signature and blocks confidential audit disclosure" | `always(!<+APPROVE_CUSTOMER_COMPLIANCE_EVIDENCE_RELEASE> true | <+APPROVE_CUSTOMER_COMPLIANCE_EVIDENCE_RELEASE +signed_by(/users/compliance_officer.id)> true)`; `always(!<+APPROVE_CUSTOMER_COMPLIANCE_EVIDENCE_RELEASE> true | always([-CONFIDENTIAL_AUDIT_DISCLOSURE] true))` |
-| "Penetration test report release approval requires security lead signature and blocks unresolved critical finding disclosure" | `always(!<+APPROVE_PENETRATION_TEST_REPORT_RELEASE> true | <+APPROVE_PENETRATION_TEST_REPORT_RELEASE +signed_by(/users/security_lead.id)> true)`; `always(!<+APPROVE_PENETRATION_TEST_REPORT_RELEASE> true | always([-UNRESOLVED_CRITICAL_FINDING_DISCLOSURE] true))` |
-| "Customer security exception approval requires risk owner signature and blocks untracked compensating control gap" | `always(!<+APPROVE_CUSTOMER_SECURITY_EXCEPTION> true | <+APPROVE_CUSTOMER_SECURITY_EXCEPTION +signed_by(/users/risk_owner.id)> true)`; `always(!<+APPROVE_CUSTOMER_SECURITY_EXCEPTION> true | always([-UNTRACKED_COMPENSATING_CONTROL_GAP] true))` |
-| "Customer data processing addendum approval requires privacy counsel signature and blocks unsupported processing obligation" | `always(!<+APPROVE_CUSTOMER_DATA_PROCESSING_ADDENDUM> true | <+APPROVE_CUSTOMER_DATA_PROCESSING_ADDENDUM +signed_by(/users/privacy_counsel.id)> true)`; `always(!<+APPROVE_CUSTOMER_DATA_PROCESSING_ADDENDUM> true | always([-UNSUPPORTED_PROCESSING_OBLIGATION] true))` |
-| "Customer subprocessor notice approval requires vendor risk owner signature and blocks unapproved processor disclosure" | `always(!<+APPROVE_CUSTOMER_SUBPROCESSOR_NOTICE> true | <+APPROVE_CUSTOMER_SUBPROCESSOR_NOTICE +signed_by(/users/vendor_risk_owner.id)> true)`; `always(!<+APPROVE_CUSTOMER_SUBPROCESSOR_NOTICE> true | always([-UNAPPROVED_PROCESSOR_DISCLOSURE] true))` |
-| "Customer audit right approval requires compliance officer signature and blocks unsupported audit scope" | `always(!<+APPROVE_CUSTOMER_AUDIT_RIGHT> true | <+APPROVE_CUSTOMER_AUDIT_RIGHT +signed_by(/users/compliance_officer.id)> true)`; `always(!<+APPROVE_CUSTOMER_AUDIT_RIGHT> true | always([-UNSUPPORTED_AUDIT_SCOPE] true))` |
-| "Customer data residency commitment approval requires privacy counsel signature and blocks unlawful region commitment" | `always(!<+APPROVE_CUSTOMER_DATA_RESIDENCY_COMMITMENT> true | <+APPROVE_CUSTOMER_DATA_RESIDENCY_COMMITMENT +signed_by(/users/privacy_counsel.id)> true)`; `always(!<+APPROVE_CUSTOMER_DATA_RESIDENCY_COMMITMENT> true | always([-UNLAWFUL_REGION_COMMITMENT] true))` |
-| "Customer maintenance notice approval requires operations lead signature and blocks unannounced service interruption" | `always(!<+APPROVE_CUSTOMER_MAINTENANCE_NOTICE> true | <+APPROVE_CUSTOMER_MAINTENANCE_NOTICE +signed_by(/users/operations_lead.id)> true)`; `always(!<+APPROVE_CUSTOMER_MAINTENANCE_NOTICE> true | always([-UNANNOUNCED_SERVICE_INTERRUPTION] true))` |
-| "Customer uptime report approval requires reliability lead signature and blocks inaccurate SLA reporting" | `always(!<+APPROVE_CUSTOMER_UPTIME_REPORT> true | <+APPROVE_CUSTOMER_UPTIME_REPORT +signed_by(/users/reliability_lead.id)> true)`; `always(!<+APPROVE_CUSTOMER_UPTIME_REPORT> true | always([-INACCURATE_SLA_REPORTING] true))` |
-| "Customer incident root cause report approval requires reliability lead signature and blocks incomplete corrective action disclosure" | `always(!<+APPROVE_CUSTOMER_INCIDENT_ROOT_CAUSE_REPORT> true | <+APPROVE_CUSTOMER_INCIDENT_ROOT_CAUSE_REPORT +signed_by(/users/reliability_lead.id)> true)`; `always(!<+APPROVE_CUSTOMER_INCIDENT_ROOT_CAUSE_REPORT> true | always([-INCOMPLETE_CORRECTIVE_ACTION_DISCLOSURE] true))` |
-| "Customer service restoration confirmation approval requires operations lead signature and blocks premature all-clear notice" | `always(!<+APPROVE_CUSTOMER_SERVICE_RESTORATION_CONFIRMATION> true | <+APPROVE_CUSTOMER_SERVICE_RESTORATION_CONFIRMATION +signed_by(/users/operations_lead.id)> true)`; `always(!<+APPROVE_CUSTOMER_SERVICE_RESTORATION_CONFIRMATION> true | always([-PREMATURE_ALL_CLEAR_NOTICE] true))` |
-| "Customer incident communication approval requires communications lead signature and blocks inconsistent customer messaging" | `always(!<+APPROVE_CUSTOMER_INCIDENT_COMMUNICATION> true | <+APPROVE_CUSTOMER_INCIDENT_COMMUNICATION +signed_by(/users/communications_lead.id)> true)`; `always(!<+APPROVE_CUSTOMER_INCIDENT_COMMUNICATION> true | always([-INCONSISTENT_CUSTOMER_MESSAGING] true))` |
-| "Customer remediation milestone closure approval requires reliability lead signature and blocks unresolved customer impacting follow-up" | `always(!<+APPROVE_CUSTOMER_REMEDIATION_MILESTONE_CLOSURE> true | <+APPROVE_CUSTOMER_REMEDIATION_MILESTONE_CLOSURE +signed_by(/users/reliability_lead.id)> true)`; `always(!<+APPROVE_CUSTOMER_REMEDIATION_MILESTONE_CLOSURE> true | always([-UNRESOLVED_CUSTOMER_IMPACTING_FOLLOW_UP] true))` |
-| "Customer incident service credit approval requires finance lead signature and blocks unsupported SLA credit commitment" | `always(!<+APPROVE_CUSTOMER_INCIDENT_SERVICE_CREDIT> true | <+APPROVE_CUSTOMER_INCIDENT_SERVICE_CREDIT +signed_by(/users/finance_lead.id)> true)`; `always(!<+APPROVE_CUSTOMER_INCIDENT_SERVICE_CREDIT> true | always([-UNSUPPORTED_SLA_CREDIT_COMMITMENT] true))` |
-| "Customer incident follow-up extension approval requires customer success lead signature and blocks open reliability risk extension" | `always(!<+APPROVE_CUSTOMER_INCIDENT_FOLLOW_UP_EXTENSION> true | <+APPROVE_CUSTOMER_INCIDENT_FOLLOW_UP_EXTENSION +signed_by(/users/customer_success_lead.id)> true)`; `always(!<+APPROVE_CUSTOMER_INCIDENT_FOLLOW_UP_EXTENSION> true | always([-OPEN_RELIABILITY_RISK_EXTENSION] true))` |
-| "Customer trust center update approval requires compliance officer signature and blocks stale assurance claim" | `always(!<+APPROVE_CUSTOMER_TRUST_CENTER_UPDATE> true | <+APPROVE_CUSTOMER_TRUST_CENTER_UPDATE +signed_by(/users/compliance_officer.id)> true)`; `always(!<+APPROVE_CUSTOMER_TRUST_CENTER_UPDATE> true | always([-STALE_ASSURANCE_CLAIM] true))` |
-| "Customer regulatory disclosure approval requires corporate counsel signature and blocks inconsistent regulator notice" | `always(!<+APPROVE_CUSTOMER_REGULATORY_DISCLOSURE> true | <+APPROVE_CUSTOMER_REGULATORY_DISCLOSURE +signed_by(/users/corporate_counsel.id)> true)`; `always(!<+APPROVE_CUSTOMER_REGULATORY_DISCLOSURE> true | always([-INCONSISTENT_REGULATOR_NOTICE] true))` |
-| "Customer litigation hold approval requires corporate counsel signature and blocks premature evidence deletion" | `always(!<+APPROVE_CUSTOMER_LITIGATION_HOLD> true | <+APPROVE_CUSTOMER_LITIGATION_HOLD +signed_by(/users/corporate_counsel.id)> true)`; `always(!<+APPROVE_CUSTOMER_LITIGATION_HOLD> true | always([-PREMATURE_EVIDENCE_DELETION] true))` |
-| "Customer eDiscovery export approval requires legal operations lead signature and blocks overbroad evidence disclosure" | `always(!<+APPROVE_CUSTOMER_EDISCOVERY_EXPORT> true | <+APPROVE_CUSTOMER_EDISCOVERY_EXPORT +signed_by(/users/legal_operations_lead.id)> true)`; `always(!<+APPROVE_CUSTOMER_EDISCOVERY_EXPORT> true | always([-OVERBROAD_EVIDENCE_DISCLOSURE] true))` |
-| "Customer audit remediation plan approval requires compliance officer signature and blocks untracked customer audit finding" | `always(!<+APPROVE_CUSTOMER_AUDIT_REMEDIATION_PLAN> true | <+APPROVE_CUSTOMER_AUDIT_REMEDIATION_PLAN +signed_by(/users/compliance_officer.id)> true)`; `always(!<+APPROVE_CUSTOMER_AUDIT_REMEDIATION_PLAN> true | always([-UNTRACKED_CUSTOMER_AUDIT_FINDING] true))` |
-| "Customer access review exception approval requires security lead signature and blocks lingering unauthorized account access" | `always(!<+APPROVE_CUSTOMER_ACCESS_REVIEW_EXCEPTION> true | <+APPROVE_CUSTOMER_ACCESS_REVIEW_EXCEPTION +signed_by(/users/security_lead.id)> true)`; `always(!<+APPROVE_CUSTOMER_ACCESS_REVIEW_EXCEPTION> true | always([-LINGERING_UNAUTHORIZED_ACCOUNT_ACCESS] true))` |
-| "Customer encryption key rotation exception approval requires security lead signature and blocks stale customer encryption key" | `always(!<+APPROVE_CUSTOMER_KEY_ROTATION_EXCEPTION> true | <+APPROVE_CUSTOMER_KEY_ROTATION_EXCEPTION +signed_by(/users/security_lead.id)> true)`; `always(!<+APPROVE_CUSTOMER_KEY_ROTATION_EXCEPTION> true | always([-STALE_CUSTOMER_ENCRYPTION_KEY] true))` |
-| "Customer backup retention exception approval requires retention counsel signature and blocks recoverability gap" | `always(!<+APPROVE_CUSTOMER_BACKUP_RETENTION_EXCEPTION> true | <+APPROVE_CUSTOMER_BACKUP_RETENTION_EXCEPTION +signed_by(/users/retention_counsel.id)> true)`; `always(!<+APPROVE_CUSTOMER_BACKUP_RETENTION_EXCEPTION> true | always([-RECOVERABILITY_GAP] true))` |
-| "Customer production support access approval requires support lead signature and blocks unauthorized customer environment access" | `always(!<+APPROVE_CUSTOMER_PRODUCTION_SUPPORT_ACCESS> true | <+APPROVE_CUSTOMER_PRODUCTION_SUPPORT_ACCESS +signed_by(/users/support_lead.id)> true)`; `always(!<+APPROVE_CUSTOMER_PRODUCTION_SUPPORT_ACCESS> true | always([-UNAUTHORIZED_CUSTOMER_ENVIRONMENT_ACCESS] true))` |
-| "Customer data correction approval requires privacy counsel signature and blocks unreviewed customer record mutation" | `always(!<+APPROVE_CUSTOMER_DATA_CORRECTION> true | <+APPROVE_CUSTOMER_DATA_CORRECTION +signed_by(/users/privacy_counsel.id)> true)`; `always(!<+APPROVE_CUSTOMER_DATA_CORRECTION> true | always([-UNREVIEWED_CUSTOMER_RECORD_MUTATION] true))` |
-| "Customer SSO configuration approval requires security lead signature and blocks misconfigured customer authentication" | `always(!<+APPROVE_CUSTOMER_SSO_CONFIGURATION> true | <+APPROVE_CUSTOMER_SSO_CONFIGURATION +signed_by(/users/security_lead.id)> true)`; `always(!<+APPROVE_CUSTOMER_SSO_CONFIGURATION> true | always([-MISCONFIGURED_CUSTOMER_AUTHENTICATION] true))` |
-| "Customer SCIM deprovisioning exception approval requires identity governance lead signature and blocks orphaned customer account access" | `always(!<+APPROVE_CUSTOMER_SCIM_DEPROVISIONING_EXCEPTION> true | <+APPROVE_CUSTOMER_SCIM_DEPROVISIONING_EXCEPTION +signed_by(/users/identity_governance_lead.id)> true)`; `always(!<+APPROVE_CUSTOMER_SCIM_DEPROVISIONING_EXCEPTION> true | always([-ORPHANED_CUSTOMER_ACCOUNT_ACCESS] true))` |
-| "Customer breach notification approval requires privacy incident lead signature and blocks delayed customer breach disclosure" | `always(!<+APPROVE_CUSTOMER_BREACH_NOTIFICATION> true | <+APPROVE_CUSTOMER_BREACH_NOTIFICATION +signed_by(/users/privacy_incident_lead.id)> true)`; `always(!<+APPROVE_CUSTOMER_BREACH_NOTIFICATION> true | always([-DELAYED_CUSTOMER_BREACH_DISCLOSURE] true))` |
-| "Customer data subject access response approval requires privacy operations lead signature and blocks incomplete customer rights response" | `always(!<+APPROVE_CUSTOMER_DATA_SUBJECT_ACCESS_RESPONSE> true | <+APPROVE_CUSTOMER_DATA_SUBJECT_ACCESS_RESPONSE +signed_by(/users/privacy_operations_lead.id)> true)`; `always(!<+APPROVE_CUSTOMER_DATA_SUBJECT_ACCESS_RESPONSE> true | always([-INCOMPLETE_CUSTOMER_RIGHTS_RESPONSE] true))` |
-| "Customer tenant offboarding approval requires customer success lead signature and blocks incomplete customer data return" | `always(!<+APPROVE_CUSTOMER_TENANT_OFFBOARDING> true | <+APPROVE_CUSTOMER_TENANT_OFFBOARDING +signed_by(/users/customer_success_lead.id)> true)`; `always(!<+APPROVE_CUSTOMER_TENANT_OFFBOARDING> true | always([-INCOMPLETE_CUSTOMER_DATA_RETURN] true))` |
-| "Customer contract termination approval requires corporate counsel signature and blocks unapproved service discontinuation" | `always(!<+APPROVE_CUSTOMER_CONTRACT_TERMINATION> true | <+APPROVE_CUSTOMER_CONTRACT_TERMINATION +signed_by(/users/corporate_counsel.id)> true)`; `always(!<+APPROVE_CUSTOMER_CONTRACT_TERMINATION> true | always([-UNAPPROVED_SERVICE_DISCONTINUATION] true))` |
-| "Customer data purge approval requires privacy operations lead signature and blocks retained deleted customer data" | `always(!<+APPROVE_CUSTOMER_DATA_PURGE> true | <+APPROVE_CUSTOMER_DATA_PURGE +signed_by(/users/privacy_operations_lead.id)> true)`; `always(!<+APPROVE_CUSTOMER_DATA_PURGE> true | always([-RETAINED_DELETED_CUSTOMER_DATA] true))` |
-| "Customer account reactivation approval requires support lead signature and blocks unauthorized service restoration" | `always(!<+APPROVE_CUSTOMER_ACCOUNT_REACTIVATION> true | <+APPROVE_CUSTOMER_ACCOUNT_REACTIVATION +signed_by(/users/support_lead.id)> true)`; `always(!<+APPROVE_CUSTOMER_ACCOUNT_REACTIVATION> true | always([-UNAUTHORIZED_SERVICE_RESTORATION] true))` |
-| "Customer sandbox refresh approval requires privacy operations lead signature and blocks production data leakage" | `always(!<+APPROVE_CUSTOMER_SANDBOX_REFRESH> true | <+APPROVE_CUSTOMER_SANDBOX_REFRESH +signed_by(/users/privacy_operations_lead.id)> true)`; `always(!<+APPROVE_CUSTOMER_SANDBOX_REFRESH> true | always([-PRODUCTION_DATA_LEAKAGE] true))` |
-| "Customer instance archival approval requires retention counsel signature and blocks premature account archive" | `always(!<+APPROVE_CUSTOMER_INSTANCE_ARCHIVAL> true | <+APPROVE_CUSTOMER_INSTANCE_ARCHIVAL +signed_by(/users/retention_counsel.id)> true)`; `always(!<+APPROVE_CUSTOMER_INSTANCE_ARCHIVAL> true | always([-PREMATURE_ACCOUNT_ARCHIVE] true))` |
-| "Customer data retention exception approval requires retention counsel signature and blocks unbounded customer record retention" | `always(!<+APPROVE_CUSTOMER_DATA_RETENTION_EXCEPTION> true | <+APPROVE_CUSTOMER_DATA_RETENTION_EXCEPTION +signed_by(/users/retention_counsel.id)> true)`; `always(!<+APPROVE_CUSTOMER_DATA_RETENTION_EXCEPTION> true | always([-UNBOUNDED_CUSTOMER_RECORD_RETENTION] true))` |
-| "Customer anonymization waiver approval requires privacy counsel signature and blocks identifiable analytics reuse" | `always(!<+APPROVE_CUSTOMER_ANONYMIZATION_WAIVER> true | <+APPROVE_CUSTOMER_ANONYMIZATION_WAIVER +signed_by(/users/privacy_counsel.id)> true)`; `always(!<+APPROVE_CUSTOMER_ANONYMIZATION_WAIVER> true | always([-IDENTIFIABLE_ANALYTICS_REUSE] true))` |
-| "Customer data warehouse sync approval requires data governance lead signature and blocks unscoped customer data replication" | `always(!<+APPROVE_CUSTOMER_DATA_WAREHOUSE_SYNC> true | <+APPROVE_CUSTOMER_DATA_WAREHOUSE_SYNC +signed_by(/users/data_governance_lead.id)> true)`; `always(!<+APPROVE_CUSTOMER_DATA_WAREHOUSE_SYNC> true | always([-UNSCOPED_CUSTOMER_DATA_REPLICATION] true))` |
-| "Customer analytics training approval requires privacy counsel signature and blocks unauthorized customer behavior modeling" | `always(!<+APPROVE_CUSTOMER_ANALYTICS_TRAINING> true | <+APPROVE_CUSTOMER_ANALYTICS_TRAINING +signed_by(/users/privacy_counsel.id)> true)`; `always(!<+APPROVE_CUSTOMER_ANALYTICS_TRAINING> true | always([-UNAUTHORIZED_CUSTOMER_BEHAVIOR_MODELING] true))` |
+| "Dispute blocks release or refund until arbiter resolution" | `always(!<+DISPUTE> true | (always([-RELEASE] true) & always([-REFUND] true)))`; `always([+RESOLVE_DISPUTE -signed_by(/users/arbiter.id)] false)` |
+| "Cancel requires requester signature and blocks delivery" | `always([+CANCEL -signed_by(/users/requester.id)] false)`; `always(!<+CANCEL> true | always([-DELIVER] true))` |
+| "Refund requires seller signature and blocks release" | `always([+REFUND -signed_by(/users/seller.id)] false)`; `always(!<+REFUND> true | always([-RELEASE] true))` |
+| "Approve requires reviewer signature and blocks rejection" | `always([+APPROVE -signed_by(/users/reviewer.id)] false)`; `always(!<+APPROVE> true | always([-REJECT] true))` |
+| "Reject requires reviewer signature and blocks approval" | `always([+REJECT -signed_by(/users/reviewer.id)] false)`; `always(!<+REJECT> true | always([-APPROVE] true))` |
+| "Timeout requires clock oracle and blocks completion" | `always([+TIMEOUT -oracle_attests(/oracles/clock.id, "deadline_passed", "true")] false)`; `always(!<+TIMEOUT> true | always([-COMPLETE] true))` |
+| "Escalation requires manager signature and blocks close" | `always([+ESCALATE -signed_by(/users/manager.id)] false)`; `always(!<+ESCALATE> true | always([-CLOSE] true))` |
+| "Withdrawal requires depositor signature and blocks claim" | `always([+WITHDRAW -signed_by(/users/depositor.id)] false)`; `always(!<+WITHDRAW> true | always([-CLAIM] true))` |
+| "Appeal requires appellant signature and blocks enforcement" | `always([+APPEAL -signed_by(/users/appellant.id)] false)`; `always(!<+APPEAL> true | always([-ENFORCE] true))` |
+| "Revocation requires issuer signature and blocks use" | `always([+REVOKE -signed_by(/users/issuer.id)] false)`; `always(!<+REVOKE> true | always([-USE] true))` |
+| "Suspension requires administrator signature and blocks access" | `always([+SUSPEND -signed_by(/users/administrator.id)] false)`; `always(!<+SUSPEND> true | always([-ACCESS] true))` |
+| "Reinstatement requires administrator signature and blocks suspension" | `always([+REINSTATE -signed_by(/users/administrator.id)] false)`; `always(!<+REINSTATE> true | always([-SUSPEND] true))` |
+| "Renewal requires holder signature and blocks expiration" | `always([+RENEW -signed_by(/users/holder.id)] false)`; `always(!<+RENEW> true | always([-EXPIRE] true))` |
+| "Termination requires counterparty signature and blocks renewal" | `always([+TERMINATE -signed_by(/users/counterparty.id)] false)`; `always(!<+TERMINATE> true | always([-RENEW] true))` |
+| "Extension requires owner signature and blocks termination" | `always([+EXTEND -signed_by(/users/owner.id)] false)`; `always(!<+EXTEND> true | always([-TERMINATE] true))` |
+| "Assignment requires assigner signature and blocks reassignment" | `always([+ASSIGN -signed_by(/users/assigner.id)] false)`; `always(!<+ASSIGN> true | always([-REASSIGN] true))` |
+| "Certification requires auditor signature and blocks deployment" | `always([+CERTIFY -signed_by(/users/auditor.id)] false)`; `always(!<+CERTIFY> true | always([-DEPLOY] true))` |
+| "Publication requires editor signature and blocks embargo" | `always([+PUBLISH -signed_by(/users/editor.id)] false)`; `always(!<+PUBLISH> true | always([-EMBARGO] true))` |
+| "Registration requires registrar signature and blocks deletion" | `always([+REGISTER -signed_by(/users/registrar.id)] false)`; `always(!<+REGISTER> true | always([-DELETE] true))` |
+| "Acceptance requires recipient signature and blocks rejection" | `always([+ACCEPT -signed_by(/users/recipient.id)] false)`; `always(!<+ACCEPT> true | always([-REJECT] true))` |
+| "Acknowledgement requires recipient signature and blocks dispute" | `always([+ACKNOWLEDGE -signed_by(/users/recipient.id)] false)`; `always(!<+ACKNOWLEDGE> true | always([-DISPUTE] true))` |
+| "Delivery confirmation requires recipient signature and blocks refund" | `always([+CONFIRM_DELIVERY -signed_by(/users/recipient.id)] false)`; `always(!<+CONFIRM_DELIVERY> true | always([-REFUND] true))` |
+| "Invoice approval requires payer signature and blocks chargeback" | `always([+APPROVE_INVOICE -signed_by(/users/payer.id)] false)`; `always(!<+APPROVE_INVOICE> true | always([-CHARGEBACK] true))` |
+| "Milestone acceptance requires verifier signature and blocks rework" | `always([+ACCEPT_MILESTONE -signed_by(/users/verifier.id)] false)`; `always(!<+ACCEPT_MILESTONE> true | always([-REWORK] true))` |
+| "Inspection approval requires inspector signature and blocks defect claim" | `always([+APPROVE_INSPECTION -signed_by(/users/inspector.id)] false)`; `always(!<+APPROVE_INSPECTION> true | always([-DEFECT_CLAIM] true))` |
+| "Compliance attestation requires compliance officer signature and blocks noncompliance finding" | `always([+ATTEST_COMPLIANCE -signed_by(/users/compliance_officer.id)] false)`; `always(!<+ATTEST_COMPLIANCE> true | always([-NONCOMPLIANCE_FINDING] true))` |
+| "Safety approval requires safety reviewer signature and blocks unsafe deployment" | `always([+APPROVE_SAFETY -signed_by(/users/safety_reviewer.id)] false)`; `always(!<+APPROVE_SAFETY> true | always([-UNSAFE_DEPLOYMENT] true))` |
+| "Risk acceptance requires risk owner signature and blocks unmitigated exposure" | `always([+ACCEPT_RISK -signed_by(/users/risk_owner.id)] false)`; `always(!<+ACCEPT_RISK> true | always([-UNMITIGATED_EXPOSURE] true))` |
+| "Incident closure requires incident commander signature and blocks incident reopen" | `always([+CLOSE_INCIDENT -signed_by(/users/incident_commander.id)] false)`; `always(!<+CLOSE_INCIDENT> true | always([-REOPEN_INCIDENT] true))` |
+| "Change freeze requires release manager signature and blocks deployment" | `always([+FREEZE_CHANGE -signed_by(/users/release_manager.id)] false)`; `always(!<+FREEZE_CHANGE> true | always([-DEPLOY] true))` |
+| "Regulatory filing requires applicant and regulator signatures" | `always(([+FILE_REGULATORY_REPORT -signed_by(/users/applicant.id)] false) & ([+FILE_REGULATORY_REPORT -signed_by(/users/regulator.id)] false))` |
+| "Tax return filing requires tax authority, withholding agent, and revenue agency signatures" | `always(([+FILE_TAX_RETURN -signed_by(/users/tax_authority.id)] false) & ([+FILE_TAX_RETURN -signed_by(/users/withholding_agent.id)] false) & ([+FILE_TAX_RETURN -signed_by(/users/revenue_agency.id)] false))` |
+| "Data processing approval requires data protection officer signature and blocks unauthorized export" | `always([+APPROVE_DATA_PROCESSING -signed_by(/users/data_protection_officer.id)] false)`; `always(!<+APPROVE_DATA_PROCESSING> true | always([-UNAUTHORIZED_EXPORT] true))` |
+| "Privacy impact acceptance requires privacy officer signature and blocks high risk processing" | `always([+ACCEPT_PRIVACY_IMPACT -signed_by(/users/privacy_officer.id)] false)`; `always(!<+ACCEPT_PRIVACY_IMPACT> true | always([-HIGH_RISK_PROCESSING] true))` |
+| "Access grant requires security administrator signature and blocks privilege escalation" | `always([+GRANT_ACCESS -signed_by(/users/security_administrator.id)] false)`; `always(!<+GRANT_ACCESS> true | always([-ESCALATE_PRIVILEGE] true))` |
+| "Audit closure requires auditor signature and blocks unresolved finding" | `always([+CLOSE_AUDIT -signed_by(/users/auditor.id)] false)`; `always(!<+CLOSE_AUDIT> true | always([-UNRESOLVED_FINDING] true))` |
+| "Vendor onboarding requires procurement officer signature and blocks unapproved vendor payment" | `always([+ONBOARD_VENDOR -signed_by(/users/procurement_officer.id)] false)`; `always(!<+ONBOARD_VENDOR> true | always([-UNAPPROVED_VENDOR_PAYMENT] true))` |
+| "Purchase order approval requires budget owner signature and blocks off contract spend" | `always([+APPROVE_PURCHASE_ORDER -signed_by(/users/budget_owner.id)] false)`; `always(!<+APPROVE_PURCHASE_ORDER> true | always([-OFF_CONTRACT_SPEND] true))` |
+| "Treasury disbursement requires treasurer signature and blocks unauthorized transfer" | `always([+APPROVE_TREASURY_DISBURSEMENT -signed_by(/users/treasurer.id)] false)`; `always(!<+APPROVE_TREASURY_DISBURSEMENT> true | always([-UNAUTHORIZED_TRANSFER] true))` |
+| "Budget release requires finance controller signature and blocks over budget spend" | `always([+RELEASE_BUDGET -signed_by(/users/finance_controller.id)] false)`; `always(!<+RELEASE_BUDGET> true | always([-OVER_BUDGET_SPEND] true))` |
+| "Clinical trial enrollment requires principal investigator signature and blocks ineligible enrollment" | `always([+ENROLL_TRIAL_PARTICIPANT -signed_by(/users/principal_investigator.id)] false)`; `always(!<+ENROLL_TRIAL_PARTICIPANT> true | always([-INELIGIBLE_ENROLLMENT] true))` |
+| "Treatment protocol approval requires medical director signature and blocks off protocol treatment" | `always([+APPROVE_TREATMENT_PROTOCOL -signed_by(/users/medical_director.id)] false)`; `always(!<+APPROVE_TREATMENT_PROTOCOL> true | always([-OFF_PROTOCOL_TREATMENT] true))` |
+| "Claim settlement requires claims adjuster signature and blocks fraudulent payout" | `always([+SETTLE_CLAIM -signed_by(/users/claims_adjuster.id)] false)`; `always(!<+SETTLE_CLAIM> true | always([-FRAUDULENT_PAYOUT] true))` |
+| "Underwriting exception requires underwriter signature and blocks unpriced risk binding" | `always([+APPROVE_UNDERWRITING_EXCEPTION -signed_by(/users/underwriter.id)] false)`; `always(!<+APPROVE_UNDERWRITING_EXCEPTION> true | always([-UNPRICED_RISK_BINDING] true))` |
+| "Shipment release requires logistics coordinator signature and blocks unauthorized shipment" | `always([+RELEASE_SHIPMENT -signed_by(/users/logistics_coordinator.id)] false)`; `always(!<+RELEASE_SHIPMENT> true | always([-UNAUTHORIZED_SHIPMENT] true))` |
+| "Receiving acceptance requires warehouse manager signature and blocks inventory discrepancy" | `always([+ACCEPT_RECEIVING -signed_by(/users/warehouse_manager.id)] false)`; `always(!<+ACCEPT_RECEIVING> true | always([-INVENTORY_DISCREPANCY] true))` |
+| "Grid interconnection approval requires system operator signature and blocks unsafe energization" | `always([+APPROVE_GRID_INTERCONNECTION -signed_by(/users/system_operator.id)] false)`; `always(!<+APPROVE_GRID_INTERCONNECTION> true | always([-UNSAFE_ENERGIZATION] true))` |
+| "Maintenance clearance requires outage coordinator signature and blocks live work" | `always([+ISSUE_MAINTENANCE_CLEARANCE -signed_by(/users/outage_coordinator.id)] false)`; `always(!<+ISSUE_MAINTENANCE_CLEARANCE> true | always([-LIVE_WORK] true))` |
+| "Student record release requires registrar signature and blocks unauthorized disclosure" | `always([+RELEASE_STUDENT_RECORD -signed_by(/users/registrar.id)] false)`; `always(!<+RELEASE_STUDENT_RECORD> true | always([-UNAUTHORIZED_DISCLOSURE] true))` |
+| "Grant award approval requires program officer signature and blocks conflict award" | `always([+APPROVE_GRANT_AWARD -signed_by(/users/program_officer.id)] false)`; `always(!<+APPROVE_GRANT_AWARD> true | always([-CONFLICT_AWARD] true))` |
+| "Permit issuance requires permitting officer signature and blocks unpermitted work" | `always([+ISSUE_PERMIT -signed_by(/users/permitting_officer.id)] false)`; `always(!<+ISSUE_PERMIT> true | always([-UNPERMITTED_WORK] true))` |
+| "Legal matter closure requires legal counsel signature and blocks unresolved claim" | `always([+CLOSE_LEGAL_MATTER -signed_by(/users/legal_counsel.id)] false)`; `always(!<+CLOSE_LEGAL_MATTER> true | always([-UNRESOLVED_CLAIM] true))` |
+| "Release promotion requires release engineer signature and blocks unreviewed deployment" | `always([+PROMOTE_RELEASE -signed_by(/users/release_engineer.id)] false)`; `always(!<+PROMOTE_RELEASE> true | always([-UNREVIEWED_DEPLOYMENT] true))` |
+| "Model deployment approval requires model risk officer signature and blocks unvalidated model use" | `always([+APPROVE_MODEL_DEPLOYMENT -signed_by(/users/model_risk_officer.id)] false)`; `always(!<+APPROVE_MODEL_DEPLOYMENT> true | always([-UNVALIDATED_MODEL_USE] true))` |
+| "DAO proposal execution requires governance council signature and blocks failed quorum execution" | `always([+EXECUTE_DAO_PROPOSAL -signed_by(/users/governance_council.id)] false)`; `always(!<+EXECUTE_DAO_PROPOSAL> true | always([-FAILED_QUORUM_EXECUTION] true))` |
+| "Marketplace payout release requires platform operator signature and blocks disputed payout" | `always([+RELEASE_MARKETPLACE_PAYOUT -signed_by(/users/platform_operator.id)] false)`; `always(!<+RELEASE_MARKETPLACE_PAYOUT> true | always([-DISPUTED_PAYOUT] true))` |
+| "Construction draw approval requires project manager signature and blocks lien exposure" | `always([+APPROVE_CONSTRUCTION_DRAW -signed_by(/users/project_manager.id)] false)`; `always(!<+APPROVE_CONSTRUCTION_DRAW> true | always([-LIEN_EXPOSURE] true))` |
+| "Manufacturing batch release requires quality manager signature and blocks nonconforming shipment" | `always([+RELEASE_MANUFACTURING_BATCH -signed_by(/users/quality_manager.id)] false)`; `always(!<+RELEASE_MANUFACTURING_BATCH> true | always([-NONCONFORMING_SHIPMENT] true))` |
+| "Content license approval requires rights manager signature and blocks unlicensed publication" | `always([+APPROVE_CONTENT_LICENSE -signed_by(/users/rights_manager.id)] false)`; `always(!<+APPROVE_CONTENT_LICENSE> true | always([-UNLICENSED_PUBLICATION] true))` |
+| "Lease amendment approval requires property manager signature and blocks unauthorized occupancy" | `always([+APPROVE_LEASE_AMENDMENT -signed_by(/users/property_manager.id)] false)`; `always(!<+APPROVE_LEASE_AMENDMENT> true | always([-UNAUTHORIZED_OCCUPANCY] true))` |
+| "Environmental permit approval requires environmental officer signature and blocks prohibited discharge" | `always([+APPROVE_ENVIRONMENTAL_PERMIT -signed_by(/users/environmental_officer.id)] false)`; `always(!<+APPROVE_ENVIRONMENTAL_PERMIT> true | always([-PROHIBITED_DISCHARGE] true))` |
+| "Agricultural shipment certification requires quality inspector signature and blocks contaminated shipment" | `always([+CERTIFY_AGRICULTURAL_SHIPMENT -signed_by(/users/quality_inspector.id)] false)`; `always(!<+CERTIFY_AGRICULTURAL_SHIPMENT> true | always([-CONTAMINATED_SHIPMENT] true))` |
+| "Travel itinerary approval requires travel manager signature and blocks unauthorized booking" | `always([+APPROVE_TRAVEL_ITINERARY -signed_by(/users/travel_manager.id)] false)`; `always(!<+APPROVE_TRAVEL_ITINERARY> true | always([-UNAUTHORIZED_BOOKING] true))` |
+| "Hotel room block release requires event coordinator signature and blocks overbooked rooms" | `always([+RELEASE_ROOM_BLOCK -signed_by(/users/event_coordinator.id)] false)`; `always(!<+RELEASE_ROOM_BLOCK> true | always([-OVERBOOKED_ROOMS] true))` |
+| "Aviation maintenance release requires airworthiness inspector signature and blocks unairworthy dispatch" | `always([+RELEASE_AIRCRAFT_MAINTENANCE -signed_by(/users/airworthiness_inspector.id)] false)`; `always(!<+RELEASE_AIRCRAFT_MAINTENANCE> true | always([-UNAIRWORTHY_DISPATCH] true))` |
+| "Fleet route approval requires fleet manager signature and blocks unlicensed operator dispatch" | `always([+APPROVE_FLEET_ROUTE -signed_by(/users/fleet_manager.id)] false)`; `always(!<+APPROVE_FLEET_ROUTE> true | always([-UNLICENSED_OPERATOR_DISPATCH] true))` |
+| "Pharmaceutical batch release requires qualified person signature and blocks uncertified distribution" | `always([+RELEASE_PHARMACEUTICAL_BATCH -signed_by(/users/qualified_person.id)] false)`; `always(!<+RELEASE_PHARMACEUTICAL_BATCH> true | always([-UNCERTIFIED_DISTRIBUTION] true))` |
+| "Food safety recall closure requires safety officer signature and blocks unresolved contamination" | `always([+CLOSE_FOOD_SAFETY_RECALL -signed_by(/users/safety_officer.id)] false)`; `always(!<+CLOSE_FOOD_SAFETY_RECALL> true | always([-UNRESOLVED_CONTAMINATION] true))` |
+| "Telecommunications service change approval requires network operations manager signature and blocks unauthorized outage" | `always([+APPROVE_SERVICE_CHANGE -signed_by(/users/network_operations_manager.id)] false)`; `always(!<+APPROVE_SERVICE_CHANGE> true | always([-UNAUTHORIZED_OUTAGE] true))` |
+| "Spectrum assignment approval requires spectrum officer signature and blocks unlicensed transmission" | `always([+APPROVE_SPECTRUM_ASSIGNMENT -signed_by(/users/spectrum_officer.id)] false)`; `always(!<+APPROVE_SPECTRUM_ASSIGNMENT> true | always([-UNLICENSED_TRANSMISSION] true))` |
+| "AML case closure requires compliance analyst signature and blocks suspicious payout" | `always([+CLOSE_AML_CASE -signed_by(/users/compliance_analyst.id)] false)`; `always(!<+CLOSE_AML_CASE> true | always([-SUSPICIOUS_PAYOUT] true))` |
+| "Export license approval requires export control officer signature and blocks restricted shipment" | `always([+APPROVE_EXPORT_LICENSE -signed_by(/users/export_control_officer.id)] false)`; `always(!<+APPROVE_EXPORT_LICENSE> true | always([-RESTRICTED_SHIPMENT] true))` |
+| "KYC account approval requires identity analyst signature and blocks unverified activation" | `always([+APPROVE_KYC_ACCOUNT -signed_by(/users/identity_analyst.id)] false)`; `always(!<+APPROVE_KYC_ACCOUNT> true | always([-UNVERIFIED_ACTIVATION] true))` |
+| "Sanctions screening clearance requires sanctions officer signature and blocks sanctioned transfer" | `always([+CLEAR_SANCTIONS_SCREENING -signed_by(/users/sanctions_officer.id)] false)`; `always(!<+CLEAR_SANCTIONS_SCREENING> true | always([-SANCTIONED_TRANSFER] true))` |
+| "Cyber incident containment requires security lead signature and blocks uncontrolled breach escalation" | `always([+CONTAIN_CYBER_INCIDENT -signed_by(/users/security_lead.id)] false)`; `always(!<+CONTAIN_CYBER_INCIDENT> true | always([-UNCONTROLLED_BREACH_ESCALATION] true))` |
+| "Disaster recovery failover approval requires continuity manager signature and blocks untested failover" | `always([+APPROVE_DISASTER_RECOVERY_FAILOVER -signed_by(/users/continuity_manager.id)] false)`; `always(!<+APPROVE_DISASTER_RECOVERY_FAILOVER> true | always([-UNTESTED_FAILOVER] true))` |
+| "Legal hold approval requires records counsel signature and blocks premature purge" | `always([+APPROVE_LEGAL_HOLD -signed_by(/users/records_counsel.id)] false)`; `always(!<+APPROVE_LEGAL_HOLD> true | always([-PREMATURE_PURGE] true))` |
+| "E-discovery production approval requires litigation support manager signature and blocks privileged disclosure" | `always([+APPROVE_EDISCOVERY_PRODUCTION -signed_by(/users/litigation_support_manager.id)] false)`; `always(!<+APPROVE_EDISCOVERY_PRODUCTION> true | always([-PRIVILEGED_DISCLOSURE] true))` |
+| "Patent filing approval requires IP counsel signature and blocks premature public disclosure" | `always([+APPROVE_PATENT_FILING -signed_by(/users/ip_counsel.id)] false)`; `always(!<+APPROVE_PATENT_FILING> true | always([-PREMATURE_PUBLIC_DISCLOSURE] true))` |
+| "Trademark usage approval requires brand counsel signature and blocks unauthorized mark use" | `always([+APPROVE_TRADEMARK_USAGE -signed_by(/users/brand_counsel.id)] false)`; `always(!<+APPROVE_TRADEMARK_USAGE> true | always([-UNAUTHORIZED_MARK_USE] true))` |
+| "Employee onboarding approval requires HR manager signature and blocks unverified worker access" | `always([+APPROVE_EMPLOYEE_ONBOARDING -signed_by(/users/hr_manager.id)] false)`; `always(!<+APPROVE_EMPLOYEE_ONBOARDING> true | always([-UNVERIFIED_WORKER_ACCESS] true))` |
+| "Labor compliance attestation requires compliance officer signature and blocks wage violation" | `always([+ATTEST_LABOR_COMPLIANCE -signed_by(/users/compliance_officer.id)] false)`; `always(!<+ATTEST_LABOR_COMPLIANCE> true | always([-WAGE_VIOLATION] true))` |
+| "Athlete eligibility certification requires compliance officer signature and blocks ineligible competition" | `always([+CERTIFY_ATHLETE_ELIGIBILITY -signed_by(/users/compliance_officer.id)] false)`; `always(!<+CERTIFY_ATHLETE_ELIGIBILITY> true | always([-INELIGIBLE_COMPETITION] true))` |
+| "Broadcast rights clearance requires rights coordinator signature and blocks unauthorized stream" | `always([+CLEAR_BROADCAST_RIGHTS -signed_by(/users/rights_coordinator.id)] false)`; `always(!<+CLEAR_BROADCAST_RIGHTS> true | always([-UNAUTHORIZED_STREAM] true))` |
+| "Port departure clearance requires harbor master signature and blocks unauthorized sailing" | `always([+CLEAR_PORT_DEPARTURE -signed_by(/users/harbor_master.id)] false)`; `always(!<+CLEAR_PORT_DEPARTURE> true | always([-UNAUTHORIZED_SAILING] true))` |
+| "Customs cargo release requires customs officer signature and blocks smuggled goods release" | `always([+RELEASE_CUSTOMS_CARGO -signed_by(/users/customs_officer.id)] false)`; `always(!<+RELEASE_CUSTOMS_CARGO> true | always([-SMUGGLED_GOODS_RELEASE] true))` |
+| "Loan disbursement approval requires credit officer signature and blocks unauthorized drawdown" | `always([+APPROVE_LOAN_DISBURSEMENT -signed_by(/users/credit_officer.id)] false)`; `always(!<+APPROVE_LOAN_DISBURSEMENT> true | always([-UNAUTHORIZED_DRAWDOWN] true))` |
+| "Collateral release requires lending officer signature and blocks unsecured exposure" | `always([+RELEASE_COLLATERAL -signed_by(/users/lending_officer.id)] false)`; `always(!<+RELEASE_COLLATERAL> true | always([-UNSECURED_EXPOSURE] true))` |
+| "Retail price override approval requires pricing manager signature and blocks unauthorized discount" | `always([+APPROVE_PRICE_OVERRIDE -signed_by(/users/pricing_manager.id)] false)`; `always(!<+APPROVE_PRICE_OVERRIDE> true | always([-UNAUTHORIZED_DISCOUNT] true))` |
+| "Franchise territory change requires franchise director signature and blocks territory conflict" | `always([+APPROVE_TERRITORY_CHANGE -signed_by(/users/franchise_director.id)] false)`; `always(!<+APPROVE_TERRITORY_CHANGE> true | always([-TERRITORY_CONFLICT] true))` |
+| "Artifact loan approval requires curator signature and blocks unauthorized transfer" | `always([+APPROVE_ARTIFACT_LOAN -signed_by(/users/curator.id)] false)`; `always(!<+APPROVE_ARTIFACT_LOAN> true | always([-UNAUTHORIZED_TRANSFER] true))` |
+| "Archive record declassification requires archivist signature and blocks premature disclosure" | `always([+DECLASSIFY_ARCHIVE_RECORD -signed_by(/users/archivist.id)] false)`; `always(!<+DECLASSIFY_ARCHIVE_RECORD> true | always([-PREMATURE_DISCLOSURE] true))` |
+| "Election result certification requires election officer signature and blocks uncertified seating" | `always([+CERTIFY_ELECTION_RESULT -signed_by(/users/election_officer.id)] false)`; `always(!<+CERTIFY_ELECTION_RESULT> true | always([-UNCERTIFIED_SEATING] true))` |
+| "Ballot audit closure requires audit board signature and blocks unresolved ballot discrepancy" | `always([+CLOSE_BALLOT_AUDIT -signed_by(/users/audit_board.id)] false)`; `always(!<+CLOSE_BALLOT_AUDIT> true | always([-UNRESOLVED_BALLOT_DISCREPANCY] true))` |
+| "Donation release approval requires nonprofit treasurer signature and blocks restricted fund misuse" | `always([+APPROVE_DONATION_RELEASE -signed_by(/users/nonprofit_treasurer.id)] false)`; `always(!<+APPROVE_DONATION_RELEASE> true | always([-RESTRICTED_FUND_MISUSE] true))` |
+| "Grant report certification requires program director signature and blocks unsubstantiated grant expense" | `always([+CERTIFY_GRANT_REPORT -signed_by(/users/program_director.id)] false)`; `always(!<+CERTIFY_GRANT_REPORT> true | always([-UNSUBSTANTIATED_GRANT_EXPENSE] true))` |
+| "Zoning variance approval requires planning commissioner signature and blocks unpermitted land use" | `always([+APPROVE_ZONING_VARIANCE -signed_by(/users/planning_commissioner.id)] false)`; `always(!<+APPROVE_ZONING_VARIANCE> true | always([-UNPERMITTED_LAND_USE] true))` |
+| "Public health order closure requires health officer signature and blocks unresolved exposure" | `always([+CLOSE_PUBLIC_HEALTH_ORDER -signed_by(/users/health_officer.id)] false)`; `always(!<+CLOSE_PUBLIC_HEALTH_ORDER> true | always([-UNRESOLVED_EXPOSURE] true))` |
+| "Emergency resource dispatch approval requires incident commander signature and blocks unauthorized deployment" | `always([+APPROVE_EMERGENCY_RESOURCE_DISPATCH -signed_by(/users/incident_commander.id)] false)`; `always(!<+APPROVE_EMERGENCY_RESOURCE_DISPATCH> true | always([-UNAUTHORIZED_DEPLOYMENT] true))` |
+| "Court order enforcement requires court clerk signature and blocks stayed enforcement" | `always([+ENFORCE_COURT_ORDER -signed_by(/users/court_clerk.id)] false)`; `always(!<+ENFORCE_COURT_ORDER> true | always([-STAYED_ENFORCEMENT] true))` |
+| "Satellite maneuver approval requires mission director signature and blocks unauthorized orbit change" | `always([+APPROVE_SATELLITE_MANEUVER -signed_by(/users/mission_director.id)] false)`; `always(!<+APPROVE_SATELLITE_MANEUVER> true | always([-UNAUTHORIZED_ORBIT_CHANGE] true))` |
+| "Nuclear maintenance clearance requires radiation safety officer signature and blocks unsafe reactor work" | `always([+ISSUE_NUCLEAR_MAINTENANCE_CLEARANCE -signed_by(/users/radiation_safety_officer.id)] false)`; `always(!<+ISSUE_NUCLEAR_MAINTENANCE_CLEARANCE> true | always([-UNSAFE_REACTOR_WORK] true))` |
+| "Water treatment discharge approval requires plant operator signature and blocks untreated release" | `always([+APPROVE_WATER_DISCHARGE -signed_by(/users/plant_operator.id)] false)`; `always(!<+APPROVE_WATER_DISCHARGE> true | always([-UNTREATED_RELEASE] true))` |
+| "Mining blast authorization requires safety superintendent signature and blocks unpermitted blast" | `always([+AUTHORIZE_MINING_BLAST -signed_by(/users/safety_superintendent.id)] false)`; `always(!<+AUTHORIZE_MINING_BLAST> true | always([-UNPERMITTED_BLAST] true))` |
+| "Fisheries catch certification requires fisheries officer signature and blocks illegal catch landing" | `always([+CERTIFY_FISHERIES_CATCH -signed_by(/users/fisheries_officer.id)] false)`; `always(!<+CERTIFY_FISHERIES_CATCH> true | always([-ILLEGAL_CATCH_LANDING] true))` |
+| "Forestry harvest permit approval requires forest ranger signature and blocks unauthorized logging" | `always([+APPROVE_FORESTRY_HARVEST_PERMIT -signed_by(/users/forest_ranger.id)] false)`; `always(!<+APPROVE_FORESTRY_HARVEST_PERMIT> true | always([-UNAUTHORIZED_LOGGING] true))` |
+| "Insurance claim payout approval requires claims adjuster signature and blocks fraudulent payout" | `always([+APPROVE_CLAIM_PAYOUT -signed_by(/users/claims_adjuster.id)] false)`; `always(!<+APPROVE_CLAIM_PAYOUT> true | always([-FRAUDULENT_PAYOUT] true))` |
+| "Clinical trial enrollment approval requires principal investigator signature and blocks ineligible subject enrollment" | `always([+APPROVE_TRIAL_ENROLLMENT -signed_by(/users/principal_investigator.id)] false)`; `always(!<+APPROVE_TRIAL_ENROLLMENT> true | always([-INELIGIBLE_SUBJECT_ENROLLMENT] true))` |
+| "Humanitarian aid disbursement approval requires field coordinator signature and blocks duplicate aid payment" | `always([+APPROVE_AID_DISBURSEMENT -signed_by(/users/field_coordinator.id)] false)`; `always(!<+APPROVE_AID_DISBURSEMENT> true | always([-DUPLICATE_AID_PAYMENT] true))` |
+| "Carbon credit retirement certification requires registry operator signature and blocks double counted offset" | `always([+CERTIFY_CARBON_CREDIT_RETIREMENT -signed_by(/users/registry_operator.id)] false)`; `always(!<+CERTIFY_CARBON_CREDIT_RETIREMENT> true | always([-DOUBLE_COUNTED_OFFSET] true))` |
+| "Laboratory sample transfer approval requires biosafety officer signature and blocks unapproved biohazard transfer" | `always([+APPROVE_SAMPLE_TRANSFER -signed_by(/users/biosafety_officer.id)] false)`; `always(!<+APPROVE_SAMPLE_TRANSFER> true | always([-UNAPPROVED_BIOHAZARD_TRANSFER] true))` |
+| "Research compute allocation approval requires computing administrator signature and blocks unauthorized cluster use" | `always([+APPROVE_COMPUTE_ALLOCATION -signed_by(/users/computing_administrator.id)] false)`; `always(!<+APPROVE_COMPUTE_ALLOCATION> true | always([-UNAUTHORIZED_CLUSTER_USE] true))` |
+| "Drone flight authorization requires operations lead signature and blocks unauthorized airspace operation" | `always([+AUTHORIZE_DRONE_FLIGHT -signed_by(/users/operations_lead.id)] false)`; `always(!<+AUTHORIZE_DRONE_FLIGHT> true | always([-UNAUTHORIZED_AIRSPACE_OPERATION] true))` |
+| "IoT firmware rollout approval requires device security officer signature and blocks vulnerable device update" | `always([+APPROVE_IOT_FIRMWARE_ROLLOUT -signed_by(/users/device_security_officer.id)] false)`; `always(!<+APPROVE_IOT_FIRMWARE_ROLLOUT> true | always([-VULNERABLE_DEVICE_UPDATE] true))` |
+| "Autonomous vehicle route approval requires safety operator signature and blocks unsafe route dispatch" | `always([+APPROVE_AUTONOMOUS_VEHICLE_ROUTE -signed_by(/users/safety_operator.id)] false)`; `always(!<+APPROVE_AUTONOMOUS_VEHICLE_ROUTE> true | always([-UNSAFE_ROUTE_DISPATCH] true))` |
+| "Robotics cell activation requires floor supervisor signature and blocks unguarded robot motion" | `always([+ACTIVATE_ROBOTICS_CELL -signed_by(/users/floor_supervisor.id)] false)`; `always(!<+ACTIVATE_ROBOTICS_CELL> true | always([-UNGUARDED_ROBOT_MOTION] true))` |
+| "Semiconductor wafer release requires process engineer signature and blocks contaminated lot shipment" | `always([+RELEASE_WAFER_LOT -signed_by(/users/process_engineer.id)] false)`; `always(!<+RELEASE_WAFER_LOT> true | always([-CONTAMINATED_LOT_SHIPMENT] true))` |
+| "Battery production batch approval requires safety engineer signature and blocks thermal runaway risk" | `always([+APPROVE_BATTERY_BATCH -signed_by(/users/safety_engineer.id)] false)`; `always(!<+APPROVE_BATTERY_BATCH> true | always([-THERMAL_RUNAWAY_RISK] true))` |
+| "Quantum key ceremony approval requires cryptography officer signature and blocks compromised key activation" | `always([+APPROVE_QUANTUM_KEY_CEREMONY -signed_by(/users/cryptography_officer.id)] false)`; `always(!<+APPROVE_QUANTUM_KEY_CEREMONY> true | always([-COMPROMISED_KEY_ACTIVATION] true))` |
+| "Edge AI model update approval requires site reliability engineer signature and blocks unsafe field model rollout" | `always([+APPROVE_EDGE_AI_MODEL_UPDATE -signed_by(/users/site_reliability_engineer.id)] false)`; `always(!<+APPROVE_EDGE_AI_MODEL_UPDATE> true | always([-UNSAFE_FIELD_MODEL_ROLLOUT] true))` |
+| "Digital identity credential issuance requires identity authority signature and blocks fraudulent credential activation" | `always([+ISSUE_DIGITAL_CREDENTIAL -signed_by(/users/identity_authority.id)] false)`; `always(!<+ISSUE_DIGITAL_CREDENTIAL> true | always([-FRAUDULENT_CREDENTIAL_ACTIVATION] true))` |
+| "Confidential compute enclave attestation requires security architect signature and blocks untrusted enclave workload" | `always([+ATTEST_CONFIDENTIAL_ENCLAVE -signed_by(/users/security_architect.id)] false)`; `always(!<+ATTEST_CONFIDENTIAL_ENCLAVE> true | always([-UNTRUSTED_ENCLAVE_WORKLOAD] true))` |
+| "Software artifact provenance attestation requires build attestor signature and blocks unsigned artifact deployment" | `always([+ATTEST_ARTIFACT_PROVENANCE -signed_by(/users/build_attestor.id)] false)`; `always(!<+ATTEST_ARTIFACT_PROVENANCE> true | always([-UNSIGNED_ARTIFACT_DEPLOYMENT] true))` |
+| "SBOM publication approval requires security reviewer signature and blocks undocumented dependency release" | `always([+APPROVE_SBOM_PUBLICATION -signed_by(/users/security_reviewer.id)] false)`; `always(!<+APPROVE_SBOM_PUBLICATION> true | always([-UNDOCUMENTED_DEPENDENCY_RELEASE] true))` |
+| "Cold chain handoff certification requires logistics inspector signature and blocks temperature breach delivery" | `always([+CERTIFY_COLD_CHAIN_HANDOFF -signed_by(/users/logistics_inspector.id)] false)`; `always(!<+CERTIFY_COLD_CHAIN_HANDOFF> true | always([-TEMPERATURE_BREACH_DELIVERY] true))` |
+| "Medical device release authorization requires quality systems manager signature and blocks unvalidated device distribution" | `always([+AUTHORIZE_MEDICAL_DEVICE_RELEASE -signed_by(/users/quality_systems_manager.id)] false)`; `always(!<+AUTHORIZE_MEDICAL_DEVICE_RELEASE> true | always([-UNVALIDATED_DEVICE_DISTRIBUTION] true))` |
+| "Rail signal maintenance authorization requires signal engineer signature and blocks unsafe track occupancy" | `always([+AUTHORIZE_RAIL_SIGNAL_MAINTENANCE -signed_by(/users/signal_engineer.id)] false)`; `always(!<+AUTHORIZE_RAIL_SIGNAL_MAINTENANCE> true | always([-UNSAFE_TRACK_OCCUPANCY] true))` |
+| "Runway reopening approval requires airport operations manager signature and blocks uncleared runway use" | `always([+APPROVE_RUNWAY_REOPENING -signed_by(/users/airport_operations_manager.id)] false)`; `always(!<+APPROVE_RUNWAY_REOPENING> true | always([-UNCLEARED_RUNWAY_USE] true))` |
+| "Datacenter maintenance window approval requires facilities lead signature and blocks unscheduled power work" | `always([+APPROVE_DATACENTER_MAINTENANCE_WINDOW -signed_by(/users/facilities_lead.id)] false)`; `always(!<+APPROVE_DATACENTER_MAINTENANCE_WINDOW> true | always([-UNSCHEDULED_POWER_WORK] true))` |
+| "Network peering change approval requires network architect signature and blocks unauthorized route advertisement" | `always([+APPROVE_NETWORK_PEERING_CHANGE -signed_by(/users/network_architect.id)] false)`; `always(!<+APPROVE_NETWORK_PEERING_CHANGE> true | always([-UNAUTHORIZED_ROUTE_ADVERTISEMENT] true))` |
+| "DNS zone change approval requires DNS administrator signature and blocks unauthorized record publication" | `always([+APPROVE_DNS_ZONE_CHANGE -signed_by(/users/dns_administrator.id)] false)`; `always(!<+APPROVE_DNS_ZONE_CHANGE> true | always([-UNAUTHORIZED_RECORD_PUBLICATION] true))` |
+| "TLS certificate issuance approval requires certificate authority officer signature and blocks misissued certificate activation" | `always([+APPROVE_TLS_CERTIFICATE_ISSUANCE -signed_by(/users/certificate_authority_officer.id)] false)`; `always(!<+APPROVE_TLS_CERTIFICATE_ISSUANCE> true | always([-MISISSUED_CERTIFICATE_ACTIVATION] true))` |
+| "Secret rotation approval requires platform security officer signature and blocks stale secret reuse" | `always([+APPROVE_SECRET_ROTATION -signed_by(/users/platform_security_officer.id)] false)`; `always(!<+APPROVE_SECRET_ROTATION> true | always([-STALE_SECRET_REUSE] true))` |
+| "Backup restore approval requires recovery manager signature and blocks unverified data restoration" | `always([+APPROVE_BACKUP_RESTORE -signed_by(/users/recovery_manager.id)] false)`; `always(!<+APPROVE_BACKUP_RESTORE> true | always([-UNVERIFIED_DATA_RESTORATION] true))` |
+| "Database migration approval requires database administrator signature and blocks unreviewed schema change" | `always([+APPROVE_DATABASE_MIGRATION -signed_by(/users/database_administrator.id)] false)`; `always(!<+APPROVE_DATABASE_MIGRATION> true | always([-UNREVIEWED_SCHEMA_CHANGE] true))` |
+| "Container image promotion approval requires platform release engineer signature and blocks vulnerable image deployment" | `always([+APPROVE_CONTAINER_IMAGE_PROMOTION -signed_by(/users/platform_release_engineer.id)] false)`; `always(!<+APPROVE_CONTAINER_IMAGE_PROMOTION> true | always([-VULNERABLE_IMAGE_DEPLOYMENT] true))` |
+| "Feature flag rollout approval requires product owner signature and blocks unauthorized exposure" | `always([+APPROVE_FEATURE_FLAG_ROLLOUT -signed_by(/users/product_owner.id)] false)`; `always(!<+APPROVE_FEATURE_FLAG_ROLLOUT> true | always([-UNAUTHORIZED_FEATURE_EXPOSURE] true))` |
+| "Production rollback authorization requires incident commander signature and blocks data loss rollback" | `always([+AUTHORIZE_PRODUCTION_ROLLBACK -signed_by(/users/incident_commander.id)] false)`; `always(!<+AUTHORIZE_PRODUCTION_ROLLBACK> true | always([-DATA_LOSS_ROLLBACK] true))` |
+| "Observability dashboard change approval requires service owner signature and blocks unaudited alert suppression" | `always([+APPROVE_OBSERVABILITY_DASHBOARD_CHANGE -signed_by(/users/service_owner.id)] false)`; `always(!<+APPROVE_OBSERVABILITY_DASHBOARD_CHANGE> true | always([-UNAUDITED_ALERT_SUPPRESSION] true))` |
+| "Incident postmortem closure requires reliability lead signature and blocks unresolved corrective action" | `always([+CLOSE_INCIDENT_POSTMORTEM -signed_by(/users/reliability_lead.id)] false)`; `always(!<+CLOSE_INCIDENT_POSTMORTEM> true | always([-UNRESOLVED_CORRECTIVE_ACTION] true))` |
+| "SLO policy change approval requires reliability manager signature and blocks unreviewed objective downgrade" | `always([+APPROVE_SLO_POLICY_CHANGE -signed_by(/users/reliability_manager.id)] false)`; `always(!<+APPROVE_SLO_POLICY_CHANGE> true | always([-UNREVIEWED_OBJECTIVE_DOWNGRADE] true))` |
+| "Error budget override authorization requires engineering director signature and blocks silent availability risk acceptance" | `always([+AUTHORIZE_ERROR_BUDGET_OVERRIDE -signed_by(/users/engineering_director.id)] false)`; `always(!<+AUTHORIZE_ERROR_BUDGET_OVERRIDE> true | always([-SILENT_AVAILABILITY_RISK_ACCEPTANCE] true))` |
+| "Capacity plan approval requires infrastructure owner signature and blocks unbudgeted resource commitment" | `always([+APPROVE_CAPACITY_PLAN -signed_by(/users/infrastructure_owner.id)] false)`; `always(!<+APPROVE_CAPACITY_PLAN> true | always([-UNBUDGETED_RESOURCE_COMMITMENT] true))` |
+| "Load shedding activation requires on-call lead signature and blocks customer-impacting throttling without incident" | `always([+ACTIVATE_LOAD_SHEDDING -signed_by(/users/on_call_lead.id)] false)`; `always(!<+ACTIVATE_LOAD_SHEDDING> true | always([-CUSTOMER_IMPACTING_THROTTLING_WITHOUT_INCIDENT] true))` |
+| "Autoscaling policy change approval requires platform owner signature and blocks runaway resource scaling" | `always([+APPROVE_AUTOSCALING_POLICY_CHANGE -signed_by(/users/platform_owner.id)] false)`; `always(!<+APPROVE_AUTOSCALING_POLICY_CHANGE> true | always([-RUNAWAY_RESOURCE_SCALING] true))` |
+| "Disaster recovery failover activation requires recovery lead signature and blocks untested failover promotion" | `always([+ACTIVATE_DISASTER_RECOVERY_FAILOVER -signed_by(/users/recovery_lead.id)] false)`; `always(!<+ACTIVATE_DISASTER_RECOVERY_FAILOVER> true | always([-UNTESTED_FAILOVER_PROMOTION] true))` |
+| "Traffic shift approval requires release captain signature and blocks unmonitored production diversion" | `always([+APPROVE_TRAFFIC_SHIFT -signed_by(/users/release_captain.id)] false)`; `always(!<+APPROVE_TRAFFIC_SHIFT> true | always([-UNMONITORED_PRODUCTION_DIVERSION] true))` |
+| "Chaos experiment authorization requires resilience engineer signature and blocks unsafe fault injection" | `always([+AUTHORIZE_CHAOS_EXPERIMENT -signed_by(/users/resilience_engineer.id)] false)`; `always(!<+AUTHORIZE_CHAOS_EXPERIMENT> true | always([-UNSAFE_FAULT_INJECTION] true))` |
+| "Canary analysis approval requires release analyst signature and blocks unanalyzed production promotion" | `always([+APPROVE_CANARY_ANALYSIS -signed_by(/users/release_analyst.id)] false)`; `always(!<+APPROVE_CANARY_ANALYSIS> true | always([-UNANALYZED_PRODUCTION_PROMOTION] true))` |
+| "Synthetic monitor change approval requires observability owner signature and blocks blind availability reporting" | `always([+APPROVE_SYNTHETIC_MONITOR_CHANGE -signed_by(/users/observability_owner.id)] false)`; `always(!<+APPROVE_SYNTHETIC_MONITOR_CHANGE> true | always([-BLIND_AVAILABILITY_REPORTING] true))` |
+| "On-call rotation change approval requires reliability manager signature and blocks unowned incident coverage" | `always([+APPROVE_ON_CALL_ROTATION_CHANGE -signed_by(/users/reliability_manager.id)] false)`; `always(!<+APPROVE_ON_CALL_ROTATION_CHANGE> true | always([-UNOWNED_INCIDENT_COVERAGE] true))` |
+| "Pager escalation policy change approval requires incident response lead signature and blocks missed critical page" | `always([+APPROVE_PAGER_ESCALATION_POLICY_CHANGE -signed_by(/users/incident_response_lead.id)] false)`; `always(!<+APPROVE_PAGER_ESCALATION_POLICY_CHANGE> true | always([-MISSED_CRITICAL_PAGE] true))` |
+| "Incident communication approval requires communications lead signature and blocks unapproved customer notice" | `always([+APPROVE_INCIDENT_COMMUNICATION -signed_by(/users/communications_lead.id)] false)`; `always(!<+APPROVE_INCIDENT_COMMUNICATION> true | always([-UNAPPROVED_CUSTOMER_NOTICE] true))` |
+| "Status page update approval requires support lead signature and blocks inaccurate service status" | `always([+APPROVE_STATUS_PAGE_UPDATE -signed_by(/users/support_lead.id)] false)`; `always(!<+APPROVE_STATUS_PAGE_UPDATE> true | always([-INACCURATE_SERVICE_STATUS] true))` |
+| "Dependency upgrade approval requires platform security reviewer signature and blocks untested dependency rollout" | `always([+APPROVE_DEPENDENCY_UPGRADE -signed_by(/users/platform_security_reviewer.id)] false)`; `always(!<+APPROVE_DEPENDENCY_UPGRADE> true | always([-UNTESTED_DEPENDENCY_ROLLOUT] true))` |
+| "Vulnerability exception approval requires security risk owner signature and blocks unbounded exposure acceptance" | `always([+APPROVE_VULNERABILITY_EXCEPTION -signed_by(/users/security_risk_owner.id)] false)`; `always(!<+APPROVE_VULNERABILITY_EXCEPTION> true | always([-UNBOUNDED_EXPOSURE_ACCEPTANCE] true))` |
+| "API rate limit change approval requires platform operations lead signature and blocks abusive traffic exposure" | `always([+APPROVE_API_RATE_LIMIT_CHANGE -signed_by(/users/platform_operations_lead.id)] false)`; `always(!<+APPROVE_API_RATE_LIMIT_CHANGE> true | always([-ABUSIVE_TRAFFIC_EXPOSURE] true))` |
+| "Webhook endpoint registration approval requires integration owner signature and blocks unsigned callback delivery" | `always([+APPROVE_WEBHOOK_ENDPOINT_REGISTRATION -signed_by(/users/integration_owner.id)] false)`; `always(!<+APPROVE_WEBHOOK_ENDPOINT_REGISTRATION> true | always([-UNSIGNED_CALLBACK_DELIVERY] true))` |
+| "Authentication policy change approval requires identity platform owner signature and blocks weakened login assurance" | `always([+APPROVE_AUTHENTICATION_POLICY_CHANGE -signed_by(/users/identity_platform_owner.id)] false)`; `always(!<+APPROVE_AUTHENTICATION_POLICY_CHANGE> true | always([-WEAKENED_LOGIN_ASSURANCE] true))` |
+| "Session lifetime exception approval requires security operations lead signature and blocks stale session persistence" | `always([+APPROVE_SESSION_LIFETIME_EXCEPTION -signed_by(/users/security_operations_lead.id)] false)`; `always(!<+APPROVE_SESSION_LIFETIME_EXCEPTION> true | always([-STALE_SESSION_PERSISTENCE] true))` |
+| "OAuth client registration approval requires identity security reviewer signature and blocks unreviewed redirect target" | `always([+APPROVE_OAUTH_CLIENT_REGISTRATION -signed_by(/users/identity_security_reviewer.id)] false)`; `always(!<+APPROVE_OAUTH_CLIENT_REGISTRATION> true | always([-UNREVIEWED_REDIRECT_TARGET] true))` |
+| "API key rotation approval requires service owner signature and blocks stale credential exposure" | `always([+APPROVE_API_KEY_ROTATION -signed_by(/users/service_owner.id)] false)`; `always(!<+APPROVE_API_KEY_ROTATION> true | always([-STALE_CREDENTIAL_EXPOSURE] true))` |
+| "SAML identity provider configuration approval requires identity architect signature and blocks unsigned assertion acceptance" | `always([+APPROVE_SAML_IDENTITY_PROVIDER_CONFIGURATION -signed_by(/users/identity_architect.id)] false)`; `always(!<+APPROVE_SAML_IDENTITY_PROVIDER_CONFIGURATION> true | always([-UNSIGNED_ASSERTION_ACCEPTANCE] true))` |
+| "SCIM provisioning rule approval requires directory administrator signature and blocks orphaned account activation" | `always([+APPROVE_SCIM_PROVISIONING_RULE -signed_by(/users/directory_administrator.id)] false)`; `always(!<+APPROVE_SCIM_PROVISIONING_RULE> true | always([-ORPHANED_ACCOUNT_ACTIVATION] true))` |
+| "OIDC token exchange policy approval requires identity protocol owner signature and blocks audience confusion" | `always([+APPROVE_OIDC_TOKEN_EXCHANGE_POLICY -signed_by(/users/identity_protocol_owner.id)] false)`; `always(!<+APPROVE_OIDC_TOKEN_EXCHANGE_POLICY> true | always([-AUDIENCE_CONFUSION] true))` |
+| "MFA recovery exception approval requires account security lead signature and blocks unverified factor reset" | `always([+APPROVE_MFA_RECOVERY_EXCEPTION -signed_by(/users/account_security_lead.id)] false)`; `always(!<+APPROVE_MFA_RECOVERY_EXCEPTION> true | always([-UNVERIFIED_FACTOR_RESET] true))` |
+| "Passkey attestation policy approval requires identity assurance lead signature and blocks untrusted authenticator enrollment" | `always([+APPROVE_PASSKEY_ATTESTATION_POLICY -signed_by(/users/identity_assurance_lead.id)] false)`; `always(!<+APPROVE_PASSKEY_ATTESTATION_POLICY> true | always([-UNTRUSTED_AUTHENTICATOR_ENROLLMENT] true))` |
+| "Privileged access exception approval requires access governance owner signature and blocks standing admin access" | `always([+APPROVE_PRIVILEGED_ACCESS_EXCEPTION -signed_by(/users/access_governance_owner.id)] false)`; `always(!<+APPROVE_PRIVILEGED_ACCESS_EXCEPTION> true | always([-STANDING_ADMIN_ACCESS] true))` |
+| "Phishing-resistant login policy approval requires authentication architect signature and blocks password-only fallback" | `always([+APPROVE_PHISHING_RESISTANT_LOGIN_POLICY -signed_by(/users/authentication_architect.id)] false)`; `always(!<+APPROVE_PHISHING_RESISTANT_LOGIN_POLICY> true | always([-PASSWORD_ONLY_FALLBACK] true))` |
+| "Device compliance exception approval requires endpoint security owner signature and blocks unmanaged device access" | `always([+APPROVE_DEVICE_COMPLIANCE_EXCEPTION -signed_by(/users/endpoint_security_owner.id)] false)`; `always(!<+APPROVE_DEVICE_COMPLIANCE_EXCEPTION> true | always([-UNMANAGED_DEVICE_ACCESS] true))` |
+| "Conditional access rule approval requires zero trust architect signature and blocks bypassed location policy" | `always([+APPROVE_CONDITIONAL_ACCESS_RULE -signed_by(/users/zero_trust_architect.id)] false)`; `always(!<+APPROVE_CONDITIONAL_ACCESS_RULE> true | always([-BYPASSED_LOCATION_POLICY] true))` |
+| "Identity risk threshold change approval requires fraud security lead signature and blocks undetected risky sign-in" | `always([+APPROVE_IDENTITY_RISK_THRESHOLD_CHANGE -signed_by(/users/fraud_security_lead.id)] false)`; `always(!<+APPROVE_IDENTITY_RISK_THRESHOLD_CHANGE> true | always([-UNDETECTED_RISKY_SIGN_IN] true))` |
+| "Session token binding policy approval requires application security architect signature and blocks bearer token replay" | `always([+APPROVE_SESSION_TOKEN_BINDING_POLICY -signed_by(/users/application_security_architect.id)] false)`; `always(!<+APPROVE_SESSION_TOKEN_BINDING_POLICY> true | always([-BEARER_TOKEN_REPLAY] true))` |
+| "Browser isolation exception approval requires enterprise security owner signature and blocks unmanaged web session exposure" | `always([+APPROVE_BROWSER_ISOLATION_EXCEPTION -signed_by(/users/enterprise_security_owner.id)] false)`; `always(!<+APPROVE_BROWSER_ISOLATION_EXCEPTION> true | always([-UNMANAGED_WEB_SESSION_EXPOSURE] true))` |
+| "ZTNA policy change approval requires network security architect signature and blocks broad private network exposure" | `always([+APPROVE_ZTNA_POLICY_CHANGE -signed_by(/users/network_security_architect.id)] false)`; `always(!<+APPROVE_ZTNA_POLICY_CHANGE> true | always([-BROAD_PRIVATE_NETWORK_EXPOSURE] true))` |
+| "DLP exception approval requires data security officer signature and blocks unsanctioned sensitive data egress" | `always([+APPROVE_DLP_EXCEPTION -signed_by(/users/data_security_officer.id)] false)`; `always(!<+APPROVE_DLP_EXCEPTION> true | always([-UNSANCTIONED_SENSITIVE_DATA_EGRESS] true))` |
+| "CASB policy exception approval requires cloud security owner signature and blocks shadow SaaS usage" | `always([+APPROVE_CASB_POLICY_EXCEPTION -signed_by(/users/cloud_security_owner.id)] false)`; `always(!<+APPROVE_CASB_POLICY_EXCEPTION> true | always([-SHADOW_SAAS_USAGE] true))` |
+| "Data classification label change approval requires information governance lead signature and blocks misclassified regulated data" | `always([+APPROVE_DATA_CLASSIFICATION_LABEL_CHANGE -signed_by(/users/information_governance_lead.id)] false)`; `always(!<+APPROVE_DATA_CLASSIFICATION_LABEL_CHANGE> true | always([-MISCLASSIFIED_REGULATED_DATA] true))` |
+| "Retention schedule change approval requires records manager signature and blocks premature record deletion" | `always([+APPROVE_RETENTION_SCHEDULE_CHANGE -signed_by(/users/records_manager.id)] false)`; `always(!<+APPROVE_RETENTION_SCHEDULE_CHANGE> true | always([-PREMATURE_RECORD_DELETION] true))` |
+| "Legal hold release approval requires counsel signature and blocks spoliation risk" | `always([+APPROVE_LEGAL_HOLD_RELEASE -signed_by(/users/counsel.id)] false)`; `always(!<+APPROVE_LEGAL_HOLD_RELEASE> true | always([-SPOLIATION_RISK] true))` |
+| "Data subject access response approval requires privacy operations lead signature and blocks unauthorized personal data disclosure" | `always([+APPROVE_DATA_SUBJECT_ACCESS_RESPONSE -signed_by(/users/privacy_operations_lead.id)] false)`; `always(!<+APPROVE_DATA_SUBJECT_ACCESS_RESPONSE> true | always([-UNAUTHORIZED_PERSONAL_DATA_DISCLOSURE] true))` |
+| "Consent revocation processing approval requires consent governance owner signature and blocks continued processing after withdrawal" | `always([+APPROVE_CONSENT_REVOCATION_PROCESSING -signed_by(/users/consent_governance_owner.id)] false)`; `always(!<+APPROVE_CONSENT_REVOCATION_PROCESSING> true | always([-CONTINUED_PROCESSING_AFTER_WITHDRAWAL] true))` |
+| "Cross-border data transfer approval requires privacy counsel signature and blocks unlawful jurisdiction transfer" | `always([+APPROVE_CROSS_BORDER_DATA_TRANSFER -signed_by(/users/privacy_counsel.id)] false)`; `always(!<+APPROVE_CROSS_BORDER_DATA_TRANSFER> true | always([-UNLAWFUL_JURISDICTION_TRANSFER] true))` |
+| "Processor subprocesser approval requires vendor risk owner signature and blocks unvetted subprocesser access" | `always([+APPROVE_PROCESSOR_SUBPROCESSER -signed_by(/users/vendor_risk_owner.id)] false)`; `always(!<+APPROVE_PROCESSOR_SUBPROCESSER> true | always([-UNVETTED_SUBPROCESSER_ACCESS] true))` |
+| "Data minimization exception approval requires privacy architect signature and blocks excessive data collection" | `always([+APPROVE_DATA_MINIMIZATION_EXCEPTION -signed_by(/users/privacy_architect.id)] false)`; `always(!<+APPROVE_DATA_MINIMIZATION_EXCEPTION> true | always([-EXCESSIVE_DATA_COLLECTION] true))` |
+| "Purpose limitation exception approval requires data governance owner signature and blocks incompatible secondary use" | `always([+APPROVE_PURPOSE_LIMITATION_EXCEPTION -signed_by(/users/data_governance_owner.id)] false)`; `always(!<+APPROVE_PURPOSE_LIMITATION_EXCEPTION> true | always([-INCOMPATIBLE_SECONDARY_USE] true))` |
+| "Data sharing agreement approval requires data steward signature and blocks unapproved third-party sharing" | `always([+APPROVE_DATA_SHARING_AGREEMENT -signed_by(/users/data_steward.id)] false)`; `always(!<+APPROVE_DATA_SHARING_AGREEMENT> true | always([-UNAPPROVED_THIRD_PARTY_SHARING] true))` |
+| "Privacy breach notification approval requires privacy incident lead signature and blocks unreported breach" | `always([+APPROVE_PRIVACY_BREACH_NOTIFICATION -signed_by(/users/privacy_incident_lead.id)] false)`; `always(!<+APPROVE_PRIVACY_BREACH_NOTIFICATION> true | always([-UNREPORTED_BREACH] true))` |
+| "Data deletion request approval requires retention counsel signature and blocks unlawful erasure" | `always([+APPROVE_DATA_DELETION_REQUEST -signed_by(/users/retention_counsel.id)] false)`; `always(!<+APPROVE_DATA_DELETION_REQUEST> true | always([-UNLAWFUL_ERASURE] true))` |
+| "Automated decisioning policy approval requires algorithmic accountability lead signature and blocks unreviewed profiling" | `always([+APPROVE_AUTOMATED_DECISIONING_POLICY -signed_by(/users/algorithmic_accountability_lead.id)] false)`; `always(!<+APPROVE_AUTOMATED_DECISIONING_POLICY> true | always([-UNREVIEWED_PROFILING] true))` |
+| "Privacy notice update approval requires privacy counsel signature and blocks undisclosed processing change" | `always([+APPROVE_PRIVACY_NOTICE_UPDATE -signed_by(/users/privacy_counsel.id)] false)`; `always(!<+APPROVE_PRIVACY_NOTICE_UPDATE> true | always([-UNDISCLOSED_PROCESSING_CHANGE] true))` |
+| "Data portability export approval requires data rights coordinator signature and blocks incomplete subject export" | `always([+APPROVE_DATA_PORTABILITY_EXPORT -signed_by(/users/data_rights_coordinator.id)] false)`; `always(!<+APPROVE_DATA_PORTABILITY_EXPORT> true | always([-INCOMPLETE_SUBJECT_EXPORT] true))` |
+| "Data rectification request approval requires data quality owner signature and blocks inaccurate personal data retention" | `always([+APPROVE_DATA_RECTIFICATION_REQUEST -signed_by(/users/data_quality_owner.id)] false)`; `always(!<+APPROVE_DATA_RECTIFICATION_REQUEST> true | always([-INACCURATE_PERSONAL_DATA_RETENTION] true))` |
+| "Processing restriction approval requires privacy operations manager signature and blocks unrestricted contested processing" | `always([+APPROVE_PROCESSING_RESTRICTION -signed_by(/users/privacy_operations_manager.id)] false)`; `always(!<+APPROVE_PROCESSING_RESTRICTION> true | always([-UNRESTRICTED_CONTESTED_PROCESSING] true))` |
+| "Data retention exception approval requires records counsel signature and blocks indefinite personal data retention" | `always([+APPROVE_DATA_RETENTION_EXCEPTION -signed_by(/users/records_counsel.id)] false)`; `always(!<+APPROVE_DATA_RETENTION_EXCEPTION> true | always([-INDEFINITE_PERSONAL_DATA_RETENTION] true))` |
+| "Sensitive data processing approval requires privacy review board signature and blocks unapproved special category processing" | `always([+APPROVE_SENSITIVE_DATA_PROCESSING -signed_by(/users/privacy_review_board.id)] false)`; `always(!<+APPROVE_SENSITIVE_DATA_PROCESSING> true | always([-UNAPPROVED_SPECIAL_CATEGORY_PROCESSING] true))` |
+| "DPIA approval requires privacy risk officer signature and blocks high-risk processing without assessment" | `always([+APPROVE_DPIA -signed_by(/users/privacy_risk_officer.id)] false)`; `always(!<+APPROVE_DPIA> true | always([-HIGH_RISK_PROCESSING_WITHOUT_ASSESSMENT] true))` |
+| "Privacy remediation closure approval requires data protection officer signature and blocks unresolved privacy risk" | `always([+APPROVE_PRIVACY_REMEDIATION_CLOSURE -signed_by(/users/data_protection_officer.id)] false)`; `always(!<+APPROVE_PRIVACY_REMEDIATION_CLOSURE> true | always([-UNRESOLVED_PRIVACY_RISK] true))` |
+| "Data localization exception approval requires jurisdiction counsel signature and blocks unlawful data residency breach" | `always([+APPROVE_DATA_LOCALIZATION_EXCEPTION -signed_by(/users/jurisdiction_counsel.id)] false)`; `always(!<+APPROVE_DATA_LOCALIZATION_EXCEPTION> true | always([-UNLAWFUL_DATA_RESIDENCY_BREACH] true))` |
+| "Data anonymization release approval requires privacy engineer signature and blocks reidentifiable dataset publication" | `always([+APPROVE_DATA_ANONYMIZATION_RELEASE -signed_by(/users/privacy_engineer.id)] false)`; `always(!<+APPROVE_DATA_ANONYMIZATION_RELEASE> true | always([-REIDENTIFIABLE_DATASET_PUBLICATION] true))` |
+| "Data subject identity verification approval requires privacy operations lead signature and blocks unauthorized rights request fulfillment" | `always([+APPROVE_DATA_SUBJECT_IDENTITY_VERIFICATION -signed_by(/users/privacy_operations_lead.id)] false)`; `always(!<+APPROVE_DATA_SUBJECT_IDENTITY_VERIFICATION> true | always([-UNAUTHORIZED_RIGHTS_REQUEST_FULFILLMENT] true))` |
+| "Cookie consent configuration approval requires privacy product counsel signature and blocks noncompliant tracking activation" | `always([+APPROVE_COOKIE_CONSENT_CONFIGURATION -signed_by(/users/privacy_product_counsel.id)] false)`; `always(!<+APPROVE_COOKIE_CONSENT_CONFIGURATION> true | always([-NONCOMPLIANT_TRACKING_ACTIVATION] true))` |
+| "Data lineage correction approval requires data governance lead signature and blocks untraceable data provenance" | `always([+APPROVE_DATA_LINEAGE_CORRECTION -signed_by(/users/data_governance_lead.id)] false)`; `always(!<+APPROVE_DATA_LINEAGE_CORRECTION> true | always([-UNTRACEABLE_DATA_PROVENANCE] true))` |
+| "Synthetic data release approval requires model risk owner signature and blocks production data leakage" | `always([+APPROVE_SYNTHETIC_DATA_RELEASE -signed_by(/users/model_risk_owner.id)] false)`; `always(!<+APPROVE_SYNTHETIC_DATA_RELEASE> true | always([-PRODUCTION_DATA_LEAKAGE] true))` |
+| "AI training dataset approval requires data ethics board signature and blocks unauthorized personal data training" | `always([+APPROVE_AI_TRAINING_DATASET -signed_by(/users/data_ethics_board.id)] false)`; `always(!<+APPROVE_AI_TRAINING_DATASET> true | always([-UNAUTHORIZED_PERSONAL_DATA_TRAINING] true))` |
+| "Model output logging approval requires privacy monitoring lead signature and blocks unredacted sensitive prompt retention" | `always([+APPROVE_MODEL_OUTPUT_LOGGING -signed_by(/users/privacy_monitoring_lead.id)] false)`; `always(!<+APPROVE_MODEL_OUTPUT_LOGGING> true | always([-UNREDACTED_SENSITIVE_PROMPT_RETENTION] true))` |
+| "Model evaluation benchmark approval requires AI quality lead signature and blocks cherry-picked performance claim" | `always([+APPROVE_MODEL_EVALUATION_BENCHMARK -signed_by(/users/ai_quality_lead.id)] false)`; `always(!<+APPROVE_MODEL_EVALUATION_BENCHMARK> true | always([-CHERRY_PICKED_PERFORMANCE_CLAIM] true))` |
+| "Prompt template release approval requires product safety owner signature and blocks unsafe instruction exposure" | `always([+APPROVE_PROMPT_TEMPLATE_RELEASE -signed_by(/users/product_safety_owner.id)] false)`; `always(!<+APPROVE_PROMPT_TEMPLATE_RELEASE> true | always([-UNSAFE_INSTRUCTION_EXPOSURE] true))` |
+| "Model rollback approval requires AI operations lead signature and blocks unreverted harmful model behavior" | `always([+APPROVE_MODEL_ROLLBACK -signed_by(/users/ai_operations_lead.id)] false)`; `always(!<+APPROVE_MODEL_ROLLBACK> true | always([-UNREVERTED_HARMFUL_MODEL_BEHAVIOR] true))` |
+| "AI incident response approval requires responsible AI officer signature and blocks untriaged model harm report" | `always([+APPROVE_AI_INCIDENT_RESPONSE -signed_by(/users/responsible_ai_officer.id)] false)`; `always(!<+APPROVE_AI_INCIDENT_RESPONSE> true | always([-UNTRIAGED_MODEL_HARM_REPORT] true))` |
+| "Model fine tuning job approval requires ML platform owner signature and blocks unapproved model adaptation" | `always([+APPROVE_MODEL_FINE_TUNING_JOB -signed_by(/users/ml_platform_owner.id)] false)`; `always(!<+APPROVE_MODEL_FINE_TUNING_JOB> true | always([-UNAPPROVED_MODEL_ADAPTATION] true))` |
+| "AI agent tool permission approval requires agent safety lead signature and blocks unauthorized tool invocation" | `always([+APPROVE_AI_AGENT_TOOL_PERMISSION -signed_by(/users/agent_safety_lead.id)] false)`; `always(!<+APPROVE_AI_AGENT_TOOL_PERMISSION> true | always([-UNAUTHORIZED_TOOL_INVOCATION] true))` |
+| "Retrieval corpus update approval requires knowledge steward signature and blocks unvetted source injection" | `always([+APPROVE_RETRIEVAL_CORPUS_UPDATE -signed_by(/users/knowledge_steward.id)] false)`; `always(!<+APPROVE_RETRIEVAL_CORPUS_UPDATE> true | always([-UNVETTED_SOURCE_INJECTION] true))` |
+| "Embedding index rebuild approval requires AI platform owner signature and blocks stale sensitive vector exposure" | `always([+APPROVE_EMBEDDING_INDEX_REBUILD -signed_by(/users/ai_platform_owner.id)] false)`; `always(!<+APPROVE_EMBEDDING_INDEX_REBUILD> true | always([-STALE_SENSITIVE_VECTOR_EXPOSURE] true))` |
+| "Vector store access approval requires data access steward signature and blocks unauthorized semantic search" | `always([+APPROVE_VECTOR_STORE_ACCESS -signed_by(/users/data_access_steward.id)] false)`; `always(!<+APPROVE_VECTOR_STORE_ACCESS> true | always([-UNAUTHORIZED_SEMANTIC_SEARCH] true))` |
+| "AI memory retention policy approval requires privacy counsel signature and blocks undeclared long term context storage" | `always([+APPROVE_AI_MEMORY_RETENTION_POLICY -signed_by(/users/privacy_counsel.id)] false)`; `always(!<+APPROVE_AI_MEMORY_RETENTION_POLICY> true | always([-UNDECLARED_LONG_TERM_CONTEXT_STORAGE] true))` |
+| "AI guardrail policy change approval requires safety reviewer signature and blocks unreviewed safety bypass" | `always([+APPROVE_AI_GUARDRAIL_POLICY_CHANGE -signed_by(/users/safety_reviewer.id)] false)`; `always(!<+APPROVE_AI_GUARDRAIL_POLICY_CHANGE> true | always([-UNREVIEWED_SAFETY_BYPASS] true))` |
+| "AI red team finding closure requires model risk owner signature and blocks unresolved critical model weakness" | `always([+CLOSE_AI_RED_TEAM_FINDING -signed_by(/users/model_risk_owner.id)] false)`; `always(!<+CLOSE_AI_RED_TEAM_FINDING> true | always([-UNRESOLVED_CRITICAL_MODEL_WEAKNESS] true))` |
+| "Model card publication approval requires responsible AI documentation lead signature and blocks undocumented model limitation" | `always([+APPROVE_MODEL_CARD_PUBLICATION -signed_by(/users/responsible_ai_documentation_lead.id)] false)`; `always(!<+APPROVE_MODEL_CARD_PUBLICATION> true | always([-UNDOCUMENTED_MODEL_LIMITATION] true))` |
+| "Human oversight exception approval requires AI governance board signature and blocks fully automated high impact decision" | `always([+APPROVE_HUMAN_OVERSIGHT_EXCEPTION -signed_by(/users/ai_governance_board.id)] false)`; `always(!<+APPROVE_HUMAN_OVERSIGHT_EXCEPTION> true | always([-FULLY_AUTOMATED_HIGH_IMPACT_DECISION] true))` |
+| "Model monitoring threshold approval requires AI reliability lead signature and blocks silent model drift" | `always([+APPROVE_MODEL_MONITORING_THRESHOLD -signed_by(/users/ai_reliability_lead.id)] false)`; `always(!<+APPROVE_MODEL_MONITORING_THRESHOLD> true | always([-SILENT_MODEL_DRIFT] true))` |
+| "AI safety waiver approval requires responsible AI committee signature and blocks unmitigated high severity safety risk" | `always([+APPROVE_AI_SAFETY_WAIVER -signed_by(/users/responsible_ai_committee.id)] false)`; `always(!<+APPROVE_AI_SAFETY_WAIVER> true | always([-UNMITIGATED_HIGH_SEVERITY_SAFETY_RISK] true))` |
+| "Model decommission approval requires AI operations owner signature and blocks orphaned production dependency" | `always([+APPROVE_MODEL_DECOMMISSION -signed_by(/users/ai_operations_owner.id)] false)`; `always(!<+APPROVE_MODEL_DECOMMISSION> true | always([-ORPHANED_PRODUCTION_DEPENDENCY] true))` |
+| "Training data removal approval requires data rights officer signature and blocks retained revoked training record" | `always([+APPROVE_TRAINING_DATA_REMOVAL -signed_by(/users/data_rights_officer.id)] false)`; `always(!<+APPROVE_TRAINING_DATA_REMOVAL> true | always([-RETAINED_REVOKED_TRAINING_RECORD] true))` |
+| "AI usage policy exception approval requires AI compliance owner signature and blocks prohibited use case" | `always([+APPROVE_AI_USAGE_POLICY_EXCEPTION -signed_by(/users/ai_compliance_owner.id)] false)`; `always(!<+APPROVE_AI_USAGE_POLICY_EXCEPTION> true | always([-PROHIBITED_USE_CASE] true))` |
+| "Model output quarantine release approval requires trust and safety reviewer signature and blocks harmful content release" | `always([+APPROVE_MODEL_OUTPUT_QUARANTINE_RELEASE -signed_by(/users/trust_and_safety_reviewer.id)] false)`; `always(!<+APPROVE_MODEL_OUTPUT_QUARANTINE_RELEASE> true | always([-HARMFUL_CONTENT_RELEASE] true))` |
+| "AI vendor model onboarding approval requires third party risk owner signature and blocks unvetted external model dependency" | `always([+APPROVE_AI_VENDOR_MODEL_ONBOARDING -signed_by(/users/third_party_risk_owner.id)] false)`; `always(!<+APPROVE_AI_VENDOR_MODEL_ONBOARDING> true | always([-UNVETTED_EXTERNAL_MODEL_DEPENDENCY] true))` |
+| "Prompt injection finding closure requires security reviewer signature and blocks unresolved prompt injection exploit" | `always([+CLOSE_PROMPT_INJECTION_FINDING -signed_by(/users/security_reviewer.id)] false)`; `always(!<+CLOSE_PROMPT_INJECTION_FINDING> true | always([-UNRESOLVED_PROMPT_INJECTION_EXPLOIT] true))` |
+| "AI impact assessment approval requires responsible AI assessor signature and blocks unassessed high impact deployment" | `always([+APPROVE_AI_IMPACT_ASSESSMENT -signed_by(/users/responsible_ai_assessor.id)] false)`; `always(!<+APPROVE_AI_IMPACT_ASSESSMENT> true | always([-UNASSESSED_HIGH_IMPACT_DEPLOYMENT] true))` |
+| "Model access tier change approval requires AI security owner signature and blocks unauthorized sensitive model access" | `always([+APPROVE_MODEL_ACCESS_TIER_CHANGE -signed_by(/users/ai_security_owner.id)] false)`; `always(!<+APPROVE_MODEL_ACCESS_TIER_CHANGE> true | always([-UNAUTHORIZED_SENSITIVE_MODEL_ACCESS] true))` |
+| "AI deployment approval requires model release owner signature and blocks unapproved production inference" | `always([+APPROVE_AI_DEPLOYMENT -signed_by(/users/model_release_owner.id)] false)`; `always(!<+APPROVE_AI_DEPLOYMENT> true | always([-UNAPPROVED_PRODUCTION_INFERENCE] true))` |
+| "AI agent delegation approval requires agent governance lead signature and blocks unsupervised autonomous delegation" | `always([+APPROVE_AI_AGENT_DELEGATION -signed_by(/users/agent_governance_lead.id)] false)`; `always(!<+APPROVE_AI_AGENT_DELEGATION> true | always([-UNSUPERVISED_AUTONOMOUS_DELEGATION] true))` |
+| "AI audit log retention approval requires compliance auditor signature and blocks missing decision trace" | `always([+APPROVE_AI_AUDIT_LOG_RETENTION -signed_by(/users/compliance_auditor.id)] false)`; `always(!<+APPROVE_AI_AUDIT_LOG_RETENTION> true | always([-MISSING_DECISION_TRACE] true))` |
+| "Model explanation release approval requires explainability lead signature and blocks misleading explanation publication" | `always([+APPROVE_MODEL_EXPLANATION_RELEASE -signed_by(/users/explainability_lead.id)] false)`; `always(!<+APPROVE_MODEL_EXPLANATION_RELEASE> true | always([-MISLEADING_EXPLANATION_PUBLICATION] true))` |
+| "AI policy attestation approval requires governance officer signature and blocks stale policy evidence" | `always([+APPROVE_AI_POLICY_ATTESTATION -signed_by(/users/governance_officer.id)] false)`; `always(!<+APPROVE_AI_POLICY_ATTESTATION> true | always([-STALE_POLICY_EVIDENCE] true))` |
+| "Model risk register update approval requires model risk committee signature and blocks untracked material model risk" | `always([+APPROVE_MODEL_RISK_REGISTER_UPDATE -signed_by(/users/model_risk_committee.id)] false)`; `always(!<+APPROVE_MODEL_RISK_REGISTER_UPDATE> true | always([-UNTRACKED_MATERIAL_MODEL_RISK] true))` |
+| "AI assurance report approval requires assurance lead signature and blocks unaudited control claim" | `always([+APPROVE_AI_ASSURANCE_REPORT -signed_by(/users/assurance_lead.id)] false)`; `always(!<+APPROVE_AI_ASSURANCE_REPORT> true | always([-UNAUDITED_CONTROL_CLAIM] true))` |
+| "Model registry promotion approval requires model registry owner signature and blocks unapproved production candidate" | `always([+APPROVE_MODEL_REGISTRY_PROMOTION -signed_by(/users/model_registry_owner.id)] false)`; `always(!<+APPROVE_MODEL_REGISTRY_PROMOTION> true | always([-UNAPPROVED_PRODUCTION_CANDIDATE] true))` |
+| "AI incident disclosure approval requires AI incident commander signature and blocks undisclosed material model incident" | `always([+APPROVE_AI_INCIDENT_DISCLOSURE -signed_by(/users/ai_incident_commander.id)] false)`; `always(!<+APPROVE_AI_INCIDENT_DISCLOSURE> true | always([-UNDISCLOSED_MATERIAL_MODEL_INCIDENT] true))` |
+| "Model evaluation benchmark update approval requires evaluation lead signature and blocks unvalidated benchmark substitution" | `always([+APPROVE_MODEL_EVALUATION_BENCHMARK_UPDATE -signed_by(/users/evaluation_lead.id)] false)`; `always(!<+APPROVE_MODEL_EVALUATION_BENCHMARK_UPDATE> true | always([-UNVALIDATED_BENCHMARK_SUBSTITUTION] true))` |
+| "AI audit trail amendment approval requires AI compliance lead signature and blocks tampered decision history" | `always([+APPROVE_AI_AUDIT_TRAIL_AMENDMENT -signed_by(/users/ai_compliance_lead.id)] false)`; `always(!<+APPROVE_AI_AUDIT_TRAIL_AMENDMENT> true | always([-TAMPERED_DECISION_HISTORY] true))` |
+| "Training consent withdrawal approval requires data protection officer signature and blocks retained revoked subject data" | `always([+APPROVE_TRAINING_CONSENT_WITHDRAWAL -signed_by(/users/data_protection_officer.id)] false)`; `always(!<+APPROVE_TRAINING_CONSENT_WITHDRAWAL> true | always([-RETAINED_REVOKED_SUBJECT_DATA] true))` |
+| "AI transparency notice approval requires responsible AI communications lead signature and blocks undisclosed automated decision notice" | `always([+APPROVE_AI_TRANSPARENCY_NOTICE -signed_by(/users/responsible_ai_communications_lead.id)] false)`; `always(!<+APPROVE_AI_TRANSPARENCY_NOTICE> true | always([-UNDISCLOSED_AUTOMATED_DECISION_NOTICE] true))` |
+| "AI decision appeal workflow approval requires accountability officer signature and blocks unavailable human review path" | `always([+APPROVE_AI_DECISION_APPEAL_WORKFLOW -signed_by(/users/accountability_officer.id)] false)`; `always(!<+APPROVE_AI_DECISION_APPEAL_WORKFLOW> true | always([-UNAVAILABLE_HUMAN_REVIEW_PATH] true))` |
+| "AI fairness remediation approval requires fairness reviewer signature and blocks unresolved disparate impact" | `always([+APPROVE_AI_FAIRNESS_REMEDIATION -signed_by(/users/fairness_reviewer.id)] false)`; `always(!<+APPROVE_AI_FAIRNESS_REMEDIATION> true | always([-UNRESOLVED_DISPARATE_IMPACT] true))` |
+| "Model use limitation update approval requires responsible AI owner signature and blocks out of scope model use" | `always([+APPROVE_MODEL_USE_LIMITATION_UPDATE -signed_by(/users/responsible_ai_owner.id)] false)`; `always(!<+APPROVE_MODEL_USE_LIMITATION_UPDATE> true | always([-OUT_OF_SCOPE_MODEL_USE] true))` |
+| "AI evaluation dataset approval requires evaluation steward signature and blocks contaminated test data use" | `always([+APPROVE_AI_EVALUATION_DATASET -signed_by(/users/evaluation_steward.id)] false)`; `always(!<+APPROVE_AI_EVALUATION_DATASET> true | always([-CONTAMINATED_TEST_DATA_USE] true))` |
+| "AI provenance watermark policy approval requires content authenticity lead signature and blocks unverifiable synthetic media distribution" | `always([+APPROVE_AI_PROVENANCE_WATERMARK_POLICY -signed_by(/users/content_authenticity_lead.id)] false)`; `always(!<+APPROVE_AI_PROVENANCE_WATERMARK_POLICY> true | always([-UNVERIFIABLE_SYNTHETIC_MEDIA_DISTRIBUTION] true))` |
+| "AI annotation quality review approval requires labeling lead signature and blocks low confidence training labels" | `always([+APPROVE_AI_ANNOTATION_QUALITY_REVIEW -signed_by(/users/labeling_lead.id)] false)`; `always(!<+APPROVE_AI_ANNOTATION_QUALITY_REVIEW> true | always([-LOW_CONFIDENCE_TRAINING_LABELS] true))` |
+| "Model calibration update approval requires model validation owner signature and blocks uncalibrated confidence scores" | `always([+APPROVE_MODEL_CALIBRATION_UPDATE -signed_by(/users/model_validation_owner.id)] false)`; `always(!<+APPROVE_MODEL_CALIBRATION_UPDATE> true | always([-UNCALIBRATED_CONFIDENCE_SCORES] true))` |
+| "Human feedback dataset approval requires feedback curator signature and blocks unconsented preference data use" | `always([+APPROVE_HUMAN_FEEDBACK_DATASET -signed_by(/users/feedback_curator.id)] false)`; `always(!<+APPROVE_HUMAN_FEEDBACK_DATASET> true | always([-UNCONSENTED_PREFERENCE_DATA_USE] true))` |
+| "Reward model update approval requires alignment reviewer signature and blocks reward hacking regression" | `always([+APPROVE_REWARD_MODEL_UPDATE -signed_by(/users/alignment_reviewer.id)] false)`; `always(!<+APPROVE_REWARD_MODEL_UPDATE> true | always([-REWARD_HACKING_REGRESSION] true))` |
+| "AI safety case approval requires safety case owner signature and blocks unverified hazardous capability claim" | `always([+APPROVE_AI_SAFETY_CASE -signed_by(/users/safety_case_owner.id)] false)`; `always(!<+APPROVE_AI_SAFETY_CASE> true | always([-UNVERIFIED_HAZARDOUS_CAPABILITY_CLAIM] true))` |
+| "Frontier model capability release approval requires frontier review board signature and blocks uncontrolled capability escalation" | `always([+APPROVE_FRONTIER_MODEL_CAPABILITY_RELEASE -signed_by(/users/frontier_review_board.id)] false)`; `always(!<+APPROVE_FRONTIER_MODEL_CAPABILITY_RELEASE> true | always([-UNCONTROLLED_CAPABILITY_ESCALATION] true))` |
+| "AI training run launch approval requires training governance owner signature and blocks unsanctioned compute intensive training" | `always([+APPROVE_AI_TRAINING_RUN_LAUNCH -signed_by(/users/training_governance_owner.id)] false)`; `always(!<+APPROVE_AI_TRAINING_RUN_LAUNCH> true | always([-UNSANCTIONED_COMPUTE_INTENSIVE_TRAINING] true))` |
+| "Autonomous agent tool budget increase approval requires agent operations owner signature and blocks unbounded tool spend" | `always([+APPROVE_AUTONOMOUS_AGENT_TOOL_BUDGET_INCREASE -signed_by(/users/agent_operations_owner.id)] false)`; `always(!<+APPROVE_AUTONOMOUS_AGENT_TOOL_BUDGET_INCREASE> true | always([-UNBOUNDED_TOOL_SPEND] true))` |
+| "AI agent capability grant approval requires agent security owner signature and blocks unauthorized privileged tool use" | `always([+APPROVE_AI_AGENT_CAPABILITY_GRANT -signed_by(/users/agent_security_owner.id)] false)`; `always(!<+APPROVE_AI_AGENT_CAPABILITY_GRANT> true | always([-UNAUTHORIZED_PRIVILEGED_TOOL_USE] true))` |
+| "AI memory export approval requires privacy operations owner signature and blocks unapproved conversational context disclosure" | `always([+APPROVE_AI_MEMORY_EXPORT -signed_by(/users/privacy_operations_owner.id)] false)`; `always(!<+APPROVE_AI_MEMORY_EXPORT> true | always([-UNAPPROVED_CONVERSATIONAL_CONTEXT_DISCLOSURE] true))` |
+| "AI agent identity binding approval requires identity governance owner signature and blocks agent impersonation" | `always([+APPROVE_AI_AGENT_IDENTITY_BINDING -signed_by(/users/identity_governance_owner.id)] false)`; `always(!<+APPROVE_AI_AGENT_IDENTITY_BINDING> true | always([-AGENT_IMPERSONATION] true))` |
+| "Autonomous contract execution approval requires contract controller signature and blocks unreviewed binding commitment" | `always([+APPROVE_AUTONOMOUS_CONTRACT_EXECUTION -signed_by(/users/contract_controller.id)] false)`; `always(!<+APPROVE_AUTONOMOUS_CONTRACT_EXECUTION> true | always([-UNREVIEWED_BINDING_COMMITMENT] true))` |
+| "Agent negotiation authority approval requires negotiation sponsor signature and blocks unauthorized counterparty commitment" | `always([+APPROVE_AGENT_NEGOTIATION_AUTHORITY -signed_by(/users/negotiation_sponsor.id)] false)`; `always(!<+APPROVE_AGENT_NEGOTIATION_AUTHORITY> true | always([-UNAUTHORIZED_COUNTERPARTY_COMMITMENT] true))` |
+| "Agent settlement offer approval requires principal approver signature and blocks out of mandate concession" | `always([+APPROVE_AGENT_SETTLEMENT_OFFER -signed_by(/users/principal_approver.id)] false)`; `always(!<+APPROVE_AGENT_SETTLEMENT_OFFER> true | always([-OUT_OF_MANDATE_CONCESSION] true))` |
+| "Fundraising outreach approval requires founder signature and blocks unauthorized investor claim" | `always([+APPROVE_FUNDRAISING_OUTREACH -signed_by(/users/founder.id)] false)`; `always(!<+APPROVE_FUNDRAISING_OUTREACH> true | always([-UNAUTHORIZED_INVESTOR_CLAIM] true))` |
+| "Investor data room release approval requires fundraising owner signature and blocks unapproved confidential disclosure" | `always([+APPROVE_INVESTOR_DATA_ROOM_RELEASE -signed_by(/users/fundraising_owner.id)] false)`; `always(!<+APPROVE_INVESTOR_DATA_ROOM_RELEASE> true | always([-UNAPPROVED_CONFIDENTIAL_DISCLOSURE] true))` |
+| "Pitch deck publication approval requires fundraising owner signature and blocks unapproved public fundraising material" | `always([+APPROVE_PITCH_DECK_PUBLICATION -signed_by(/users/fundraising_owner.id)] false)`; `always(!<+APPROVE_PITCH_DECK_PUBLICATION> true | always([-UNAPPROVED_PUBLIC_FUNDRAISING_MATERIAL] true))` |
+| "Investor diligence response approval requires legal reviewer signature and blocks inaccurate diligence representation" | `always([+APPROVE_INVESTOR_DILIGENCE_RESPONSE -signed_by(/users/legal_reviewer.id)] false)`; `always(!<+APPROVE_INVESTOR_DILIGENCE_RESPONSE> true | always([-INACCURATE_DILIGENCE_REPRESENTATION] true))` |
+| "Term sheet circulation approval requires board observer signature and blocks unapproved valuation term disclosure" | `always([+APPROVE_TERM_SHEET_CIRCULATION -signed_by(/users/board_observer.id)] false)`; `always(!<+APPROVE_TERM_SHEET_CIRCULATION> true | always([-UNAPPROVED_VALUATION_TERM_DISCLOSURE] true))` |
+| "Investor update publication approval requires finance lead signature and blocks inaccurate runway statement" | `always([+APPROVE_INVESTOR_UPDATE_PUBLICATION -signed_by(/users/finance_lead.id)] false)`; `always(!<+APPROVE_INVESTOR_UPDATE_PUBLICATION> true | always([-INACCURATE_RUNWAY_STATEMENT] true))` |
+| "Cap table update approval requires corporate secretary signature and blocks incorrect ownership record" | `always([+APPROVE_CAP_TABLE_UPDATE -signed_by(/users/corporate_secretary.id)] false)`; `always(!<+APPROVE_CAP_TABLE_UPDATE> true | always([-INCORRECT_OWNERSHIP_RECORD] true))` |
+| "SAFE note issuance approval requires board designee signature and blocks unauthorized financing instrument" | `always([+APPROVE_SAFE_NOTE_ISSUANCE -signed_by(/users/board_designee.id)] false)`; `always(!<+APPROVE_SAFE_NOTE_ISSUANCE> true | always([-UNAUTHORIZED_FINANCING_INSTRUMENT] true))` |
+| "Equity grant approval requires board administrator signature and blocks unauthorized equity award" | `always([+APPROVE_EQUITY_GRANT -signed_by(/users/board_administrator.id)] false)`; `always(!<+APPROVE_EQUITY_GRANT> true | always([-UNAUTHORIZED_EQUITY_AWARD] true))` |
+| "Option exercise processing approval requires stock plan administrator signature and blocks invalid exercise record" | `always([+APPROVE_OPTION_EXERCISE_PROCESSING -signed_by(/users/stock_plan_administrator.id)] false)`; `always(!<+APPROVE_OPTION_EXERCISE_PROCESSING> true | always([-INVALID_EXERCISE_RECORD] true))` |
+| "Stock transfer approval requires corporate counsel signature and blocks restricted share transfer" | `always([+APPROVE_STOCK_TRANSFER -signed_by(/users/corporate_counsel.id)] false)`; `always(!<+APPROVE_STOCK_TRANSFER> true | always([-RESTRICTED_SHARE_TRANSFER] true))` |
+| "Vesting schedule amendment approval requires compensation committee signature and blocks unapproved vesting acceleration" | `always([+APPROVE_VESTING_SCHEDULE_AMENDMENT -signed_by(/users/compensation_committee.id)] false)`; `always(!<+APPROVE_VESTING_SCHEDULE_AMENDMENT> true | always([-UNAPPROVED_VESTING_ACCELERATION] true))` |
+| "Board consent approval requires corporate secretary signature and blocks unauthorized corporate action" | `always([+APPROVE_BOARD_CONSENT -signed_by(/users/corporate_secretary.id)] false)`; `always(!<+APPROVE_BOARD_CONSENT> true | always([-UNAUTHORIZED_CORPORATE_ACTION] true))` |
+| "Option pool increase approval requires board chair signature and blocks unapproved dilution" | `always([+APPROVE_OPTION_POOL_INCREASE -signed_by(/users/board_chair.id)] false)`; `always(!<+APPROVE_OPTION_POOL_INCREASE> true | always([-UNAPPROVED_DILUTION] true))` |
+| "Bylaws amendment approval requires corporate counsel signature and blocks invalid governance change" | `always([+APPROVE_BYLAWS_AMENDMENT -signed_by(/users/corporate_counsel.id)] false)`; `always(!<+APPROVE_BYLAWS_AMENDMENT> true | always([-INVALID_GOVERNANCE_CHANGE] true))` |
+| "Board minutes finalization approval requires corporate secretary signature and blocks inaccurate meeting record" | `always([+APPROVE_BOARD_MINUTES_FINALIZATION -signed_by(/users/corporate_secretary.id)] false)`; `always(!<+APPROVE_BOARD_MINUTES_FINALIZATION> true | always([-INACCURATE_MEETING_RECORD] true))` |
+| "Shareholder approval requires corporate secretary signature and blocks unauthorized shareholder action" | `always([+APPROVE_SHAREHOLDER_ACTION -signed_by(/users/corporate_secretary.id)] false)`; `always(!<+APPROVE_SHAREHOLDER_ACTION> true | always([-UNAUTHORIZED_SHAREHOLDER_ACTION] true))` |
+| "409A valuation approval requires finance lead signature and blocks stale valuation grant" | `always([+APPROVE_409A_VALUATION -signed_by(/users/finance_lead.id)] false)`; `always(!<+APPROVE_409A_VALUATION> true | always([-STALE_VALUATION_GRANT] true))` |
+| "Investor information rights approval requires investor relations lead signature and blocks unauthorized financial disclosure" | `always([+APPROVE_INVESTOR_INFORMATION_RIGHTS -signed_by(/users/investor_relations_lead.id)] false)`; `always(!<+APPROVE_INVESTOR_INFORMATION_RIGHTS> true | always([-UNAUTHORIZED_FINANCIAL_DISCLOSURE] true))` |
+| "Founder share repurchase approval requires corporate counsel signature and blocks invalid repurchase exercise" | `always([+APPROVE_FOUNDER_SHARE_REPURCHASE -signed_by(/users/corporate_counsel.id)] false)`; `always(!<+APPROVE_FOUNDER_SHARE_REPURCHASE> true | always([-INVALID_REPURCHASE_EXERCISE] true))` |
+| "Secondary share sale approval requires transfer agent signature and blocks unauthorized secondary transfer" | `always([+APPROVE_SECONDARY_SHARE_SALE -signed_by(/users/transfer_agent.id)] false)`; `always(!<+APPROVE_SECONDARY_SHARE_SALE> true | always([-UNAUTHORIZED_SECONDARY_TRANSFER] true))` |
+| "Liquidation preference amendment approval requires investor counsel signature and blocks unapproved preference change" | `always([+APPROVE_LIQUIDATION_PREFERENCE_AMENDMENT -signed_by(/users/investor_counsel.id)] false)`; `always(!<+APPROVE_LIQUIDATION_PREFERENCE_AMENDMENT> true | always([-UNAPPROVED_PREFERENCE_CHANGE] true))` |
+| "Pro rata rights waiver approval requires investor relations lead signature and blocks improper allocation reduction" | `always([+APPROVE_PRO_RATA_RIGHTS_WAIVER -signed_by(/users/investor_relations_lead.id)] false)`; `always(!<+APPROVE_PRO_RATA_RIGHTS_WAIVER> true | always([-IMPROPER_ALLOCATION_REDUCTION] true))` |
+| "Board observer appointment approval requires corporate secretary signature and blocks unauthorized observer access" | `always([+APPROVE_BOARD_OBSERVER_APPOINTMENT -signed_by(/users/corporate_secretary.id)] false)`; `always(!<+APPROVE_BOARD_OBSERVER_APPOINTMENT> true | always([-UNAUTHORIZED_OBSERVER_ACCESS] true))` |
+| "Protective provision waiver approval requires investor counsel signature and blocks unconsented major action" | `always([+APPROVE_PROTECTIVE_PROVISION_WAIVER -signed_by(/users/investor_counsel.id)] false)`; `always(!<+APPROVE_PROTECTIVE_PROVISION_WAIVER> true | always([-UNCONSENTED_MAJOR_ACTION] true))` |
+| "Right of first refusal exercise approval requires corporate counsel signature and blocks missed transfer right" | `always([+APPROVE_RIGHT_OF_FIRST_REFUSAL_EXERCISE -signed_by(/users/corporate_counsel.id)] false)`; `always(!<+APPROVE_RIGHT_OF_FIRST_REFUSAL_EXERCISE> true | always([-MISSED_TRANSFER_RIGHT] true))` |
+| "Drag along notice approval requires corporate secretary signature and blocks invalid forced sale" | `always([+APPROVE_DRAG_ALONG_NOTICE -signed_by(/users/corporate_secretary.id)] false)`; `always(!<+APPROVE_DRAG_ALONG_NOTICE> true | always([-INVALID_FORCED_SALE] true))` |
+| "Preemptive rights allocation approval requires investor relations lead signature and blocks excluded eligible investor" | `always([+APPROVE_PREEMPTIVE_RIGHTS_ALLOCATION -signed_by(/users/investor_relations_lead.id)] false)`; `always(!<+APPROVE_PREEMPTIVE_RIGHTS_ALLOCATION> true | always([-EXCLUDED_ELIGIBLE_INVESTOR] true))` |
+| "Co-sale participation approval requires corporate counsel signature and blocks omitted eligible co-seller" | `always([+APPROVE_CO_SALE_PARTICIPATION -signed_by(/users/corporate_counsel.id)] false)`; `always(!<+APPROVE_CO_SALE_PARTICIPATION> true | always([-OMITTED_ELIGIBLE_CO_SELLER] true))` |
+| "Convertible note conversion approval requires finance lead signature and blocks incorrect conversion calculation" | `always([+APPROVE_CONVERTIBLE_NOTE_CONVERSION -signed_by(/users/finance_lead.id)] false)`; `always(!<+APPROVE_CONVERTIBLE_NOTE_CONVERSION> true | always([-INCORRECT_CONVERSION_CALCULATION] true))` |
+| "Warrant exercise approval requires corporate counsel signature and blocks invalid warrant exercise" | `always([+APPROVE_WARRANT_EXERCISE -signed_by(/users/corporate_counsel.id)] false)`; `always(!<+APPROVE_WARRANT_EXERCISE> true | always([-INVALID_WARRANT_EXERCISE] true))` |
+| "Investor consent solicitation approval requires corporate secretary signature and blocks defective consent notice" | `always([+APPROVE_INVESTOR_CONSENT_SOLICITATION -signed_by(/users/corporate_secretary.id)] false)`; `always(!<+APPROVE_INVESTOR_CONSENT_SOLICITATION> true | always([-DEFECTIVE_CONSENT_NOTICE] true))` |
+| "Side letter approval requires corporate counsel signature and blocks undisclosed investor preference" | `always([+APPROVE_SIDE_LETTER -signed_by(/users/corporate_counsel.id)] false)`; `always(!<+APPROVE_SIDE_LETTER> true | always([-UNDISCLOSED_INVESTOR_PREFERENCE] true))` |
+| "Information memorandum distribution approval requires fundraising owner signature and blocks misleading investor material" | `always([+APPROVE_INFORMATION_MEMORANDUM_DISTRIBUTION -signed_by(/users/fundraising_owner.id)] false)`; `always(!<+APPROVE_INFORMATION_MEMORANDUM_DISTRIBUTION> true | always([-MISLEADING_INVESTOR_MATERIAL] true))` |
+| "Financing closing approval requires corporate secretary signature and blocks premature share issuance" | `always([+APPROVE_FINANCING_CLOSING -signed_by(/users/corporate_secretary.id)] false)`; `always(!<+APPROVE_FINANCING_CLOSING> true | always([-PREMATURE_SHARE_ISSUANCE] true))` |
+| "Acquisition term acceptance approval requires board chair signature and blocks unauthorized change of control" | `always([+APPROVE_ACQUISITION_TERM_ACCEPTANCE -signed_by(/users/board_chair.id)] false)`; `always(!<+APPROVE_ACQUISITION_TERM_ACCEPTANCE> true | always([-UNAUTHORIZED_CHANGE_OF_CONTROL] true))` |
+| "Merger closing approval requires board chair signature and blocks unapproved merger consummation" | `always([+APPROVE_MERGER_CLOSING -signed_by(/users/board_chair.id)] false)`; `always(!<+APPROVE_MERGER_CLOSING> true | always([-UNAPPROVED_MERGER_CONSUMMATION] true))` |
+| "Indemnity claim settlement approval requires corporate counsel signature and blocks improper escrow release" | `always([+APPROVE_INDEMNITY_CLAIM_SETTLEMENT -signed_by(/users/corporate_counsel.id)] false)`; `always(!<+APPROVE_INDEMNITY_CLAIM_SETTLEMENT> true | always([-IMPROPER_ESCROW_RELEASE] true))` |
+| "Escrow holdback release approval requires finance lead signature and blocks unresolved purchase price adjustment" | `always([+APPROVE_ESCROW_HOLDBACK_RELEASE -signed_by(/users/finance_lead.id)] false)`; `always(!<+APPROVE_ESCROW_HOLDBACK_RELEASE> true | always([-UNRESOLVED_PURCHASE_PRICE_ADJUSTMENT] true))` |
+| "Representations and warranties disclosure approval requires corporate counsel signature and blocks undisclosed material exception" | `always([+APPROVE_REPRESENTATIONS_WARRANTIES_DISCLOSURE -signed_by(/users/corporate_counsel.id)] false)`; `always(!<+APPROVE_REPRESENTATIONS_WARRANTIES_DISCLOSURE> true | always([-UNDISCLOSED_MATERIAL_EXCEPTION] true))` |
+| "Closing deliverables approval requires corporate secretary signature and blocks missing officer certificate" | `always([+APPROVE_CLOSING_DELIVERABLES -signed_by(/users/corporate_secretary.id)] false)`; `always(!<+APPROVE_CLOSING_DELIVERABLES> true | always([-MISSING_OFFICER_CERTIFICATE] true))` |
+| "Regulatory filing approval requires corporate counsel signature and blocks late required notice" | `always([+APPROVE_REGULATORY_FILING -signed_by(/users/corporate_counsel.id)] false)`; `always(!<+APPROVE_REGULATORY_FILING> true | always([-LATE_REQUIRED_NOTICE] true))` |
+| "Post-closing integration approval requires operations lead signature and blocks unauthorized system migration" | `always([+APPROVE_POST_CLOSING_INTEGRATION -signed_by(/users/operations_lead.id)] false)`; `always(!<+APPROVE_POST_CLOSING_INTEGRATION> true | always([-UNAUTHORIZED_SYSTEM_MIGRATION] true))` |
+| "Tax election approval requires finance lead signature and blocks missed election deadline" | `always([+APPROVE_TAX_ELECTION -signed_by(/users/finance_lead.id)] false)`; `always(!<+APPROVE_TAX_ELECTION> true | always([-MISSED_ELECTION_DEADLINE] true))` |
+| "Foreign qualification approval requires corporate counsel signature and blocks unauthorized state business" | `always([+APPROVE_FOREIGN_QUALIFICATION -signed_by(/users/corporate_counsel.id)] false)`; `always(!<+APPROVE_FOREIGN_QUALIFICATION> true | always([-UNAUTHORIZED_STATE_BUSINESS] true))` |
+| "Annual report filing approval requires corporate secretary signature and blocks delinquent entity status" | `always([+APPROVE_ANNUAL_REPORT_FILING -signed_by(/users/corporate_secretary.id)] false)`; `always(!<+APPROVE_ANNUAL_REPORT_FILING> true | always([-DELINQUENT_ENTITY_STATUS] true))` |
+| "Registered agent change approval requires corporate secretary signature and blocks missed service of process" | `always([+APPROVE_REGISTERED_AGENT_CHANGE -signed_by(/users/corporate_secretary.id)] false)`; `always(!<+APPROVE_REGISTERED_AGENT_CHANGE> true | always([-MISSED_SERVICE_OF_PROCESS] true))` |
+| "Business license renewal approval requires operations lead signature and blocks unlicensed operations" | `always([+APPROVE_BUSINESS_LICENSE_RENEWAL -signed_by(/users/operations_lead.id)] false)`; `always(!<+APPROVE_BUSINESS_LICENSE_RENEWAL> true | always([-UNLICENSED_OPERATIONS] true))` |
+| "Franchise tax payment approval requires finance lead signature and blocks tax delinquency" | `always([+APPROVE_FRANCHISE_TAX_PAYMENT -signed_by(/users/finance_lead.id)] false)`; `always(!<+APPROVE_FRANCHISE_TAX_PAYMENT> true | always([-TAX_DELINQUENCY] true))` |
+| "Good standing certificate approval requires corporate secretary signature and blocks stale entity evidence" | `always([+APPROVE_GOOD_STANDING_CERTIFICATE -signed_by(/users/corporate_secretary.id)] false)`; `always(!<+APPROVE_GOOD_STANDING_CERTIFICATE> true | always([-STALE_ENTITY_EVIDENCE] true))` |
+| "Entity conversion approval requires corporate counsel signature and blocks unapproved entity restructuring" | `always([+APPROVE_ENTITY_CONVERSION -signed_by(/users/corporate_counsel.id)] false)`; `always(!<+APPROVE_ENTITY_CONVERSION> true | always([-UNAPPROVED_ENTITY_RESTRUCTURING] true))` |
+| "Assumed name filing approval requires corporate secretary signature and blocks unauthorized public name use" | `always([+APPROVE_ASSUMED_NAME_FILING -signed_by(/users/corporate_secretary.id)] false)`; `always(!<+APPROVE_ASSUMED_NAME_FILING> true | always([-UNAUTHORIZED_PUBLIC_NAME_USE] true))` |
+| "Dissolution plan approval requires corporate counsel signature and blocks unauthorized wind down" | `always([+APPROVE_DISSOLUTION_PLAN -signed_by(/users/corporate_counsel.id)] false)`; `always(!<+APPROVE_DISSOLUTION_PLAN> true | always([-UNAUTHORIZED_WIND_DOWN] true))` |
+| "Creditor notice approval requires corporate secretary signature and blocks omitted creditor notice" | `always([+APPROVE_CREDITOR_NOTICE -signed_by(/users/corporate_secretary.id)] false)`; `always(!<+APPROVE_CREDITOR_NOTICE> true | always([-OMITTED_CREDITOR_NOTICE] true))` |
+| "Records retention approval requires corporate secretary signature and blocks premature record destruction" | `always([+APPROVE_RECORDS_RETENTION -signed_by(/users/corporate_secretary.id)] false)`; `always(!<+APPROVE_RECORDS_RETENTION> true | always([-PREMATURE_RECORD_DESTRUCTION] true))` |
+| "Final tax clearance approval requires finance lead signature and blocks unresolved tax liability" | `always([+APPROVE_FINAL_TAX_CLEARANCE -signed_by(/users/finance_lead.id)] false)`; `always(!<+APPROVE_FINAL_TAX_CLEARANCE> true | always([-UNRESOLVED_TAX_LIABILITY] true))` |
+| "Payroll tax registration approval requires finance lead signature and blocks unregistered payroll operation" | `always([+APPROVE_PAYROLL_TAX_REGISTRATION -signed_by(/users/finance_lead.id)] false)`; `always(!<+APPROVE_PAYROLL_TAX_REGISTRATION> true | always([-UNREGISTERED_PAYROLL_OPERATION] true))` |
+| "Insurance coverage approval requires operations lead signature and blocks uninsured business activity" | `always([+APPROVE_INSURANCE_COVERAGE -signed_by(/users/operations_lead.id)] false)`; `always(!<+APPROVE_INSURANCE_COVERAGE> true | always([-UNINSURED_BUSINESS_ACTIVITY] true))` |
+| "Bank account opening approval requires finance lead signature and blocks unauthorized treasury account" | `always([+APPROVE_BANK_ACCOUNT_OPENING -signed_by(/users/finance_lead.id)] false)`; `always(!<+APPROVE_BANK_ACCOUNT_OPENING> true | always([-UNAUTHORIZED_TREASURY_ACCOUNT] true))` |
+| "Payment processor onboarding approval requires operations lead signature and blocks unapproved payment collection" | `always([+APPROVE_PAYMENT_PROCESSOR_ONBOARDING -signed_by(/users/operations_lead.id)] false)`; `always(!<+APPROVE_PAYMENT_PROCESSOR_ONBOARDING> true | always([-UNAPPROVED_PAYMENT_COLLECTION] true))` |
+| "Sales tax nexus review approval requires finance lead signature and blocks uncollected sales tax exposure" | `always([+APPROVE_SALES_TAX_NEXUS_REVIEW -signed_by(/users/finance_lead.id)] false)`; `always(!<+APPROVE_SALES_TAX_NEXUS_REVIEW> true | always([-UNCOLLECTED_SALES_TAX_EXPOSURE] true))` |
+| "Chargeback reserve approval requires operations lead signature and blocks unfunded dispute liability" | `always([+APPROVE_CHARGEBACK_RESERVE -signed_by(/users/operations_lead.id)] false)`; `always(!<+APPROVE_CHARGEBACK_RESERVE> true | always([-UNFUNDED_DISPUTE_LIABILITY] true))` |
+| "Customer refund policy approval requires finance lead signature and blocks unauthorized refund obligation" | `always([+APPROVE_CUSTOMER_REFUND_POLICY -signed_by(/users/finance_lead.id)] false)`; `always(!<+APPROVE_CUSTOMER_REFUND_POLICY> true | always([-UNAUTHORIZED_REFUND_OBLIGATION] true))` |
+| "Subscription cancellation flow approval requires operations lead signature and blocks noncompliant renewal billing" | `always([+APPROVE_SUBSCRIPTION_CANCELLATION_FLOW -signed_by(/users/operations_lead.id)] false)`; `always(!<+APPROVE_SUBSCRIPTION_CANCELLATION_FLOW> true | always([-NONCOMPLIANT_RENEWAL_BILLING] true))` |
+| "Terms of service update approval requires corporate counsel signature and blocks unenforceable customer terms" | `always([+APPROVE_TERMS_OF_SERVICE_UPDATE -signed_by(/users/corporate_counsel.id)] false)`; `always(!<+APPROVE_TERMS_OF_SERVICE_UPDATE> true | always([-UNENFORCEABLE_CUSTOMER_TERMS] true))` |
+| "Cookie consent banner approval requires privacy counsel signature and blocks noncompliant tracking consent" | `always([+APPROVE_COOKIE_CONSENT_BANNER -signed_by(/users/privacy_counsel.id)] false)`; `always(!<+APPROVE_COOKIE_CONSENT_BANNER> true | always([-NONCOMPLIANT_TRACKING_CONSENT] true))` |
+| "Marketing email campaign approval requires privacy counsel signature and blocks unsolicited commercial email" | `always([+APPROVE_MARKETING_EMAIL_CAMPAIGN -signed_by(/users/privacy_counsel.id)] false)`; `always(!<+APPROVE_MARKETING_EMAIL_CAMPAIGN> true | always([-UNSOLICITED_COMMERCIAL_EMAIL] true))` |
+| "Affiliate referral program approval requires finance lead signature and blocks untracked referral liability" | `always([+APPROVE_AFFILIATE_REFERRAL_PROGRAM -signed_by(/users/finance_lead.id)] false)`; `always(!<+APPROVE_AFFILIATE_REFERRAL_PROGRAM> true | always([-UNTRACKED_REFERRAL_LIABILITY] true))` |
+| "Customer support escalation approval requires operations lead signature and blocks unresolved high severity complaint" | `always([+APPROVE_CUSTOMER_SUPPORT_ESCALATION -signed_by(/users/operations_lead.id)] false)`; `always(!<+APPROVE_CUSTOMER_SUPPORT_ESCALATION> true | always([-UNRESOLVED_HIGH_SEVERITY_COMPLAINT] true))` |
+| "Service credit issuance approval requires finance lead signature and blocks unauthorized customer concession" | `always([+APPROVE_SERVICE_CREDIT_ISSUANCE -signed_by(/users/finance_lead.id)] false)`; `always(!<+APPROVE_SERVICE_CREDIT_ISSUANCE> true | always([-UNAUTHORIZED_CUSTOMER_CONCESSION] true))` |
+| "Customer onboarding approval requires operations lead signature and blocks incomplete identity verification" | `always([+APPROVE_CUSTOMER_ONBOARDING -signed_by(/users/operations_lead.id)] false)`; `always(!<+APPROVE_CUSTOMER_ONBOARDING> true | always([-INCOMPLETE_IDENTITY_VERIFICATION] true))` |
+| "Customer data import approval requires privacy counsel signature and blocks unconsented personal data ingestion" | `always([+APPROVE_CUSTOMER_DATA_IMPORT -signed_by(/users/privacy_counsel.id)] false)`; `always(!<+APPROVE_CUSTOMER_DATA_IMPORT> true | always([-UNCONSENTED_PERSONAL_DATA_INGESTION] true))` |
+| "Trial account activation approval requires operations lead signature and blocks abuse prone signup" | `always([+APPROVE_TRIAL_ACCOUNT_ACTIVATION -signed_by(/users/operations_lead.id)] false)`; `always(!<+APPROVE_TRIAL_ACCOUNT_ACTIVATION> true | always([-ABUSE_PRONE_SIGNUP] true))` |
+| "Customer data export approval requires privacy counsel signature and blocks unauthorized account data disclosure" | `always([+APPROVE_CUSTOMER_DATA_EXPORT -signed_by(/users/privacy_counsel.id)] false)`; `always(!<+APPROVE_CUSTOMER_DATA_EXPORT> true | always([-UNAUTHORIZED_ACCOUNT_DATA_DISCLOSURE] true))` |
+| "Customer account suspension approval requires operations lead signature and blocks unsupported service cutoff" | `always([+APPROVE_CUSTOMER_ACCOUNT_SUSPENSION -signed_by(/users/operations_lead.id)] false)`; `always(!<+APPROVE_CUSTOMER_ACCOUNT_SUSPENSION> true | always([-UNSUPPORTED_SERVICE_CUTOFF] true))` |
+| "Customer workspace deletion approval requires retention counsel signature and blocks deletion under active retention duty" | `always([+APPROVE_CUSTOMER_WORKSPACE_DELETION -signed_by(/users/retention_counsel.id)] false)`; `always(!<+APPROVE_CUSTOMER_WORKSPACE_DELETION> true | always([-ACTIVE_RETENTION_DUTY] true))` |
+| "Billing plan change approval requires finance lead signature and blocks unauthorized recurring charge" | `always([+APPROVE_BILLING_PLAN_CHANGE -signed_by(/users/finance_lead.id)] false)`; `always(!<+APPROVE_BILLING_PLAN_CHANGE> true | always([-UNAUTHORIZED_RECURRING_CHARGE] true))` |
+| "Customer entitlement provisioning approval requires operations lead signature and blocks uncontracted feature access" | `always([+APPROVE_CUSTOMER_ENTITLEMENT_PROVISIONING -signed_by(/users/operations_lead.id)] false)`; `always(!<+APPROVE_CUSTOMER_ENTITLEMENT_PROVISIONING> true | always([-UNCONTRACTED_FEATURE_ACCESS] true))` |
+| "Customer payment method update approval requires finance lead signature and blocks unauthorized payment method change" | `always([+APPROVE_CUSTOMER_PAYMENT_METHOD_UPDATE -signed_by(/users/finance_lead.id)] false)`; `always(!<+APPROVE_CUSTOMER_PAYMENT_METHOD_UPDATE> true | always([-UNAUTHORIZED_PAYMENT_METHOD_CHANGE] true))` |
+| "Dunning workflow approval requires operations lead signature and blocks noncompliant collection notice" | `always([+APPROVE_DUNNING_WORKFLOW -signed_by(/users/operations_lead.id)] false)`; `always(!<+APPROVE_DUNNING_WORKFLOW> true | always([-NONCOMPLIANT_COLLECTION_NOTICE] true))` |
+| "Customer invoice dispute approval requires finance lead signature and blocks unsupported billing dispute closure" | `always([+APPROVE_CUSTOMER_INVOICE_DISPUTE -signed_by(/users/finance_lead.id)] false)`; `always(!<+APPROVE_CUSTOMER_INVOICE_DISPUTE> true | always([-UNSUPPORTED_BILLING_DISPUTE_CLOSURE] true))` |
+| "Account credit limit approval requires finance lead signature and blocks excessive receivables exposure" | `always([+APPROVE_ACCOUNT_CREDIT_LIMIT -signed_by(/users/finance_lead.id)] false)`; `always(!<+APPROVE_ACCOUNT_CREDIT_LIMIT> true | always([-EXCESSIVE_RECEIVABLES_EXPOSURE] true))` |
+| "Customer balance write off approval requires finance lead signature and blocks unauthorized receivable forgiveness" | `always([+APPROVE_CUSTOMER_BALANCE_WRITE_OFF -signed_by(/users/finance_lead.id)] false)`; `always(!<+APPROVE_CUSTOMER_BALANCE_WRITE_OFF> true | always([-UNAUTHORIZED_RECEIVABLE_FORGIVENESS] true))` |
+| "Revenue recognition policy approval requires controller signature and blocks premature revenue booking" | `always([+APPROVE_REVENUE_RECOGNITION_POLICY -signed_by(/users/controller.id)] false)`; `always(!<+APPROVE_REVENUE_RECOGNITION_POLICY> true | always([-PREMATURE_REVENUE_BOOKING] true))` |
+| "Tax exemption certificate approval requires finance lead signature and blocks invalid tax exempt billing" | `always([+APPROVE_TAX_EXEMPTION_CERTIFICATE -signed_by(/users/finance_lead.id)] false)`; `always(!<+APPROVE_TAX_EXEMPTION_CERTIFICATE> true | always([-INVALID_TAX_EXEMPT_BILLING] true))` |
+| "Customer contract amendment approval requires corporate counsel signature and blocks unapproved commercial term change" | `always([+APPROVE_CUSTOMER_CONTRACT_AMENDMENT -signed_by(/users/corporate_counsel.id)] false)`; `always(!<+APPROVE_CUSTOMER_CONTRACT_AMENDMENT> true | always([-UNAPPROVED_COMMERCIAL_TERM_CHANGE] true))` |
+| "Customer SLA exception approval requires operations lead signature and blocks unauthorized service level downgrade" | `always([+APPROVE_CUSTOMER_SLA_EXCEPTION -signed_by(/users/operations_lead.id)] false)`; `always(!<+APPROVE_CUSTOMER_SLA_EXCEPTION> true | always([-UNAUTHORIZED_SERVICE_LEVEL_DOWNGRADE] true))` |
+| "Custom pricing discount approval requires finance lead signature and blocks margin negative deal" | `always([+APPROVE_CUSTOM_PRICING_DISCOUNT -signed_by(/users/finance_lead.id)] false)`; `always(!<+APPROVE_CUSTOM_PRICING_DISCOUNT> true | always([-MARGIN_NEGATIVE_DEAL] true))` |
+| "Customer contract renewal approval requires corporate counsel signature and blocks lapsed service obligation" | `always([+APPROVE_CUSTOMER_CONTRACT_RENEWAL -signed_by(/users/corporate_counsel.id)] false)`; `always(!<+APPROVE_CUSTOMER_CONTRACT_RENEWAL> true | always([-LAPSED_SERVICE_OBLIGATION] true))` |
+| "Usage overage billing approval requires finance lead signature and blocks unapproved excess charge" | `always([+APPROVE_USAGE_OVERAGE_BILLING -signed_by(/users/finance_lead.id)] false)`; `always(!<+APPROVE_USAGE_OVERAGE_BILLING> true | always([-UNAPPROVED_EXCESS_CHARGE] true))` |
+| "Customer success plan approval requires operations lead signature and blocks unsupported adoption commitment" | `always([+APPROVE_CUSTOMER_SUCCESS_PLAN -signed_by(/users/operations_lead.id)] false)`; `always(!<+APPROVE_CUSTOMER_SUCCESS_PLAN> true | always([-UNSUPPORTED_ADOPTION_COMMITMENT] true))` |
+| "Professional services statement of work approval requires delivery manager signature and blocks unfunded implementation obligation" | `always([+APPROVE_PROFESSIONAL_SERVICES_SOW -signed_by(/users/delivery_manager.id)] false)`; `always(!<+APPROVE_PROFESSIONAL_SERVICES_SOW> true | always([-UNFUNDED_IMPLEMENTATION_OBLIGATION] true))` |
+| "Customer health score downgrade approval requires customer success manager signature and blocks unreviewed churn risk classification" | `always([+APPROVE_CUSTOMER_HEALTH_SCORE_DOWNGRADE -signed_by(/users/customer_success_manager.id)] false)`; `always(!<+APPROVE_CUSTOMER_HEALTH_SCORE_DOWNGRADE> true | always([-UNREVIEWED_CHURN_RISK_CLASSIFICATION] true))` |
+| "Implementation milestone acceptance approval requires delivery manager signature and blocks premature services billing" | `always([+APPROVE_IMPLEMENTATION_MILESTONE_ACCEPTANCE -signed_by(/users/delivery_manager.id)] false)`; `always(!<+APPROVE_IMPLEMENTATION_MILESTONE_ACCEPTANCE> true | always([-PREMATURE_SERVICES_BILLING] true))` |
+| "Customer executive business review approval requires customer success lead signature and blocks unapproved renewal commitment" | `always([+APPROVE_CUSTOMER_EXECUTIVE_BUSINESS_REVIEW -signed_by(/users/customer_success_lead.id)] false)`; `always(!<+APPROVE_CUSTOMER_EXECUTIVE_BUSINESS_REVIEW> true | always([-UNAPPROVED_RENEWAL_COMMITMENT] true))` |
+| "Implementation change order approval requires delivery manager signature and blocks unpriced services scope expansion" | `always([+APPROVE_IMPLEMENTATION_CHANGE_ORDER -signed_by(/users/delivery_manager.id)] false)`; `always(!<+APPROVE_IMPLEMENTATION_CHANGE_ORDER> true | always([-UNPRICED_SERVICES_SCOPE_EXPANSION] true))` |
+| "Customer escalation response approval requires support lead signature and blocks unmanaged executive escalation" | `always([+APPROVE_CUSTOMER_ESCALATION_RESPONSE -signed_by(/users/support_lead.id)] false)`; `always(!<+APPROVE_CUSTOMER_ESCALATION_RESPONSE> true | always([-UNMANAGED_EXECUTIVE_ESCALATION] true))` |
+| "Renewal forecast adjustment approval requires revenue operations lead signature and blocks unreviewed forecast slippage" | `always([+APPROVE_RENEWAL_FORECAST_ADJUSTMENT -signed_by(/users/revenue_operations_lead.id)] false)`; `always(!<+APPROVE_RENEWAL_FORECAST_ADJUSTMENT> true | always([-UNREVIEWED_FORECAST_SLIPPAGE] true))` |
+| "Customer reference approval requires marketing lead signature and blocks unauthorized public endorsement" | `always([+APPROVE_CUSTOMER_REFERENCE -signed_by(/users/marketing_lead.id)] false)`; `always(!<+APPROVE_CUSTOMER_REFERENCE> true | always([-UNAUTHORIZED_PUBLIC_ENDORSEMENT] true))` |
+| "Case study publication approval requires customer success lead signature and blocks unapproved customer disclosure" | `always([+APPROVE_CASE_STUDY_PUBLICATION -signed_by(/users/customer_success_lead.id)] false)`; `always(!<+APPROVE_CASE_STUDY_PUBLICATION> true | always([-UNAPPROVED_CUSTOMER_DISCLOSURE] true))` |
+| "Beta customer program approval requires product lead signature and blocks unsupported preview obligation" | `always([+APPROVE_BETA_CUSTOMER_PROGRAM -signed_by(/users/product_lead.id)] false)`; `always(!<+APPROVE_BETA_CUSTOMER_PROGRAM> true | always([-UNSUPPORTED_PREVIEW_OBLIGATION] true))` |
+| "Early access feature enablement approval requires product owner signature and blocks uncontracted beta entitlement" | `always([+APPROVE_EARLY_ACCESS_FEATURE_ENABLEMENT -signed_by(/users/product_owner.id)] false)`; `always(!<+APPROVE_EARLY_ACCESS_FEATURE_ENABLEMENT> true | always([-UNCONTRACTED_BETA_ENTITLEMENT] true))` |
+| "Product deprecation notice approval requires product lead signature and blocks unannounced customer impact" | `always([+APPROVE_PRODUCT_DEPRECATION_NOTICE -signed_by(/users/product_lead.id)] false)`; `always(!<+APPROVE_PRODUCT_DEPRECATION_NOTICE> true | always([-UNANNOUNCED_CUSTOMER_IMPACT] true))` |
+| "Customer migration plan approval requires customer success lead signature and blocks unsupported account transition" | `always([+APPROVE_CUSTOMER_MIGRATION_PLAN -signed_by(/users/customer_success_lead.id)] false)`; `always(!<+APPROVE_CUSTOMER_MIGRATION_PLAN> true | always([-UNSUPPORTED_ACCOUNT_TRANSITION] true))` |
+| "Customer tenant consolidation approval requires operations lead signature and blocks data comingling risk" | `always([+APPROVE_CUSTOMER_TENANT_CONSOLIDATION -signed_by(/users/operations_lead.id)] false)`; `always(!<+APPROVE_CUSTOMER_TENANT_CONSOLIDATION> true | always([-DATA_COMINGLING_RISK] true))` |
+| "Account ownership transfer approval requires corporate counsel signature and blocks unauthorized admin transfer" | `always([+APPROVE_ACCOUNT_OWNERSHIP_TRANSFER -signed_by(/users/corporate_counsel.id)] false)`; `always(!<+APPROVE_ACCOUNT_OWNERSHIP_TRANSFER> true | always([-UNAUTHORIZED_ADMIN_TRANSFER] true))` |
+| "Customer security questionnaire approval requires security lead signature and blocks unsupported control representation" | `always([+APPROVE_CUSTOMER_SECURITY_QUESTIONNAIRE -signed_by(/users/security_lead.id)] false)`; `always(!<+APPROVE_CUSTOMER_SECURITY_QUESTIONNAIRE> true | always([-UNSUPPORTED_CONTROL_REPRESENTATION] true))` |
+| "Customer compliance evidence release approval requires compliance officer signature and blocks confidential audit disclosure" | `always([+APPROVE_CUSTOMER_COMPLIANCE_EVIDENCE_RELEASE -signed_by(/users/compliance_officer.id)] false)`; `always(!<+APPROVE_CUSTOMER_COMPLIANCE_EVIDENCE_RELEASE> true | always([-CONFIDENTIAL_AUDIT_DISCLOSURE] true))` |
+| "Penetration test report release approval requires security lead signature and blocks unresolved critical finding disclosure" | `always([+APPROVE_PENETRATION_TEST_REPORT_RELEASE -signed_by(/users/security_lead.id)] false)`; `always(!<+APPROVE_PENETRATION_TEST_REPORT_RELEASE> true | always([-UNRESOLVED_CRITICAL_FINDING_DISCLOSURE] true))` |
+| "Customer security exception approval requires risk owner signature and blocks untracked compensating control gap" | `always([+APPROVE_CUSTOMER_SECURITY_EXCEPTION -signed_by(/users/risk_owner.id)] false)`; `always(!<+APPROVE_CUSTOMER_SECURITY_EXCEPTION> true | always([-UNTRACKED_COMPENSATING_CONTROL_GAP] true))` |
+| "Customer data processing addendum approval requires privacy counsel signature and blocks unsupported processing obligation" | `always([+APPROVE_CUSTOMER_DATA_PROCESSING_ADDENDUM -signed_by(/users/privacy_counsel.id)] false)`; `always(!<+APPROVE_CUSTOMER_DATA_PROCESSING_ADDENDUM> true | always([-UNSUPPORTED_PROCESSING_OBLIGATION] true))` |
+| "Customer subprocessor notice approval requires vendor risk owner signature and blocks unapproved processor disclosure" | `always([+APPROVE_CUSTOMER_SUBPROCESSOR_NOTICE -signed_by(/users/vendor_risk_owner.id)] false)`; `always(!<+APPROVE_CUSTOMER_SUBPROCESSOR_NOTICE> true | always([-UNAPPROVED_PROCESSOR_DISCLOSURE] true))` |
+| "Customer audit right approval requires compliance officer signature and blocks unsupported audit scope" | `always([+APPROVE_CUSTOMER_AUDIT_RIGHT -signed_by(/users/compliance_officer.id)] false)`; `always(!<+APPROVE_CUSTOMER_AUDIT_RIGHT> true | always([-UNSUPPORTED_AUDIT_SCOPE] true))` |
+| "Customer data residency commitment approval requires privacy counsel signature and blocks unlawful region commitment" | `always([+APPROVE_CUSTOMER_DATA_RESIDENCY_COMMITMENT -signed_by(/users/privacy_counsel.id)] false)`; `always(!<+APPROVE_CUSTOMER_DATA_RESIDENCY_COMMITMENT> true | always([-UNLAWFUL_REGION_COMMITMENT] true))` |
+| "Customer maintenance notice approval requires operations lead signature and blocks unannounced service interruption" | `always([+APPROVE_CUSTOMER_MAINTENANCE_NOTICE -signed_by(/users/operations_lead.id)] false)`; `always(!<+APPROVE_CUSTOMER_MAINTENANCE_NOTICE> true | always([-UNANNOUNCED_SERVICE_INTERRUPTION] true))` |
+| "Customer uptime report approval requires reliability lead signature and blocks inaccurate SLA reporting" | `always([+APPROVE_CUSTOMER_UPTIME_REPORT -signed_by(/users/reliability_lead.id)] false)`; `always(!<+APPROVE_CUSTOMER_UPTIME_REPORT> true | always([-INACCURATE_SLA_REPORTING] true))` |
+| "Customer incident root cause report approval requires reliability lead signature and blocks incomplete corrective action disclosure" | `always([+APPROVE_CUSTOMER_INCIDENT_ROOT_CAUSE_REPORT -signed_by(/users/reliability_lead.id)] false)`; `always(!<+APPROVE_CUSTOMER_INCIDENT_ROOT_CAUSE_REPORT> true | always([-INCOMPLETE_CORRECTIVE_ACTION_DISCLOSURE] true))` |
+| "Customer service restoration confirmation approval requires operations lead signature and blocks premature all-clear notice" | `always([+APPROVE_CUSTOMER_SERVICE_RESTORATION_CONFIRMATION -signed_by(/users/operations_lead.id)] false)`; `always(!<+APPROVE_CUSTOMER_SERVICE_RESTORATION_CONFIRMATION> true | always([-PREMATURE_ALL_CLEAR_NOTICE] true))` |
+| "Customer incident communication approval requires communications lead signature and blocks inconsistent customer messaging" | `always([+APPROVE_CUSTOMER_INCIDENT_COMMUNICATION -signed_by(/users/communications_lead.id)] false)`; `always(!<+APPROVE_CUSTOMER_INCIDENT_COMMUNICATION> true | always([-INCONSISTENT_CUSTOMER_MESSAGING] true))` |
+| "Customer remediation milestone closure approval requires reliability lead signature and blocks unresolved customer impacting follow-up" | `always([+APPROVE_CUSTOMER_REMEDIATION_MILESTONE_CLOSURE -signed_by(/users/reliability_lead.id)] false)`; `always(!<+APPROVE_CUSTOMER_REMEDIATION_MILESTONE_CLOSURE> true | always([-UNRESOLVED_CUSTOMER_IMPACTING_FOLLOW_UP] true))` |
+| "Customer incident service credit approval requires finance lead signature and blocks unsupported SLA credit commitment" | `always([+APPROVE_CUSTOMER_INCIDENT_SERVICE_CREDIT -signed_by(/users/finance_lead.id)] false)`; `always(!<+APPROVE_CUSTOMER_INCIDENT_SERVICE_CREDIT> true | always([-UNSUPPORTED_SLA_CREDIT_COMMITMENT] true))` |
+| "Customer incident follow-up extension approval requires customer success lead signature and blocks open reliability risk extension" | `always([+APPROVE_CUSTOMER_INCIDENT_FOLLOW_UP_EXTENSION -signed_by(/users/customer_success_lead.id)] false)`; `always(!<+APPROVE_CUSTOMER_INCIDENT_FOLLOW_UP_EXTENSION> true | always([-OPEN_RELIABILITY_RISK_EXTENSION] true))` |
+| "Customer trust center update approval requires compliance officer signature and blocks stale assurance claim" | `always([+APPROVE_CUSTOMER_TRUST_CENTER_UPDATE -signed_by(/users/compliance_officer.id)] false)`; `always(!<+APPROVE_CUSTOMER_TRUST_CENTER_UPDATE> true | always([-STALE_ASSURANCE_CLAIM] true))` |
+| "Customer regulatory disclosure approval requires corporate counsel signature and blocks inconsistent regulator notice" | `always([+APPROVE_CUSTOMER_REGULATORY_DISCLOSURE -signed_by(/users/corporate_counsel.id)] false)`; `always(!<+APPROVE_CUSTOMER_REGULATORY_DISCLOSURE> true | always([-INCONSISTENT_REGULATOR_NOTICE] true))` |
+| "Customer litigation hold approval requires corporate counsel signature and blocks premature evidence deletion" | `always([+APPROVE_CUSTOMER_LITIGATION_HOLD -signed_by(/users/corporate_counsel.id)] false)`; `always(!<+APPROVE_CUSTOMER_LITIGATION_HOLD> true | always([-PREMATURE_EVIDENCE_DELETION] true))` |
+| "Customer eDiscovery export approval requires legal operations lead signature and blocks overbroad evidence disclosure" | `always([+APPROVE_CUSTOMER_EDISCOVERY_EXPORT -signed_by(/users/legal_operations_lead.id)] false)`; `always(!<+APPROVE_CUSTOMER_EDISCOVERY_EXPORT> true | always([-OVERBROAD_EVIDENCE_DISCLOSURE] true))` |
+| "Customer audit remediation plan approval requires compliance officer signature and blocks untracked customer audit finding" | `always([+APPROVE_CUSTOMER_AUDIT_REMEDIATION_PLAN -signed_by(/users/compliance_officer.id)] false)`; `always(!<+APPROVE_CUSTOMER_AUDIT_REMEDIATION_PLAN> true | always([-UNTRACKED_CUSTOMER_AUDIT_FINDING] true))` |
+| "Customer access review exception approval requires security lead signature and blocks lingering unauthorized account access" | `always([+APPROVE_CUSTOMER_ACCESS_REVIEW_EXCEPTION -signed_by(/users/security_lead.id)] false)`; `always(!<+APPROVE_CUSTOMER_ACCESS_REVIEW_EXCEPTION> true | always([-LINGERING_UNAUTHORIZED_ACCOUNT_ACCESS] true))` |
+| "Customer encryption key rotation exception approval requires security lead signature and blocks stale customer encryption key" | `always([+APPROVE_CUSTOMER_KEY_ROTATION_EXCEPTION -signed_by(/users/security_lead.id)] false)`; `always(!<+APPROVE_CUSTOMER_KEY_ROTATION_EXCEPTION> true | always([-STALE_CUSTOMER_ENCRYPTION_KEY] true))` |
+| "Customer backup retention exception approval requires retention counsel signature and blocks recoverability gap" | `always([+APPROVE_CUSTOMER_BACKUP_RETENTION_EXCEPTION -signed_by(/users/retention_counsel.id)] false)`; `always(!<+APPROVE_CUSTOMER_BACKUP_RETENTION_EXCEPTION> true | always([-RECOVERABILITY_GAP] true))` |
+| "Customer production support access approval requires support lead signature and blocks unauthorized customer environment access" | `always([+APPROVE_CUSTOMER_PRODUCTION_SUPPORT_ACCESS -signed_by(/users/support_lead.id)] false)`; `always(!<+APPROVE_CUSTOMER_PRODUCTION_SUPPORT_ACCESS> true | always([-UNAUTHORIZED_CUSTOMER_ENVIRONMENT_ACCESS] true))` |
+| "Customer data correction approval requires privacy counsel signature and blocks unreviewed customer record mutation" | `always([+APPROVE_CUSTOMER_DATA_CORRECTION -signed_by(/users/privacy_counsel.id)] false)`; `always(!<+APPROVE_CUSTOMER_DATA_CORRECTION> true | always([-UNREVIEWED_CUSTOMER_RECORD_MUTATION] true))` |
+| "Customer SSO configuration approval requires security lead signature and blocks misconfigured customer authentication" | `always([+APPROVE_CUSTOMER_SSO_CONFIGURATION -signed_by(/users/security_lead.id)] false)`; `always(!<+APPROVE_CUSTOMER_SSO_CONFIGURATION> true | always([-MISCONFIGURED_CUSTOMER_AUTHENTICATION] true))` |
+| "Customer SCIM deprovisioning exception approval requires identity governance lead signature and blocks orphaned customer account access" | `always([+APPROVE_CUSTOMER_SCIM_DEPROVISIONING_EXCEPTION -signed_by(/users/identity_governance_lead.id)] false)`; `always(!<+APPROVE_CUSTOMER_SCIM_DEPROVISIONING_EXCEPTION> true | always([-ORPHANED_CUSTOMER_ACCOUNT_ACCESS] true))` |
+| "Customer breach notification approval requires privacy incident lead signature and blocks delayed customer breach disclosure" | `always([+APPROVE_CUSTOMER_BREACH_NOTIFICATION -signed_by(/users/privacy_incident_lead.id)] false)`; `always(!<+APPROVE_CUSTOMER_BREACH_NOTIFICATION> true | always([-DELAYED_CUSTOMER_BREACH_DISCLOSURE] true))` |
+| "Customer data subject access response approval requires privacy operations lead signature and blocks incomplete customer rights response" | `always([+APPROVE_CUSTOMER_DATA_SUBJECT_ACCESS_RESPONSE -signed_by(/users/privacy_operations_lead.id)] false)`; `always(!<+APPROVE_CUSTOMER_DATA_SUBJECT_ACCESS_RESPONSE> true | always([-INCOMPLETE_CUSTOMER_RIGHTS_RESPONSE] true))` |
+| "Customer tenant offboarding approval requires customer success lead signature and blocks incomplete customer data return" | `always([+APPROVE_CUSTOMER_TENANT_OFFBOARDING -signed_by(/users/customer_success_lead.id)] false)`; `always(!<+APPROVE_CUSTOMER_TENANT_OFFBOARDING> true | always([-INCOMPLETE_CUSTOMER_DATA_RETURN] true))` |
+| "Customer contract termination approval requires corporate counsel signature and blocks unapproved service discontinuation" | `always([+APPROVE_CUSTOMER_CONTRACT_TERMINATION -signed_by(/users/corporate_counsel.id)] false)`; `always(!<+APPROVE_CUSTOMER_CONTRACT_TERMINATION> true | always([-UNAPPROVED_SERVICE_DISCONTINUATION] true))` |
+| "Customer data purge approval requires privacy operations lead signature and blocks retained deleted customer data" | `always([+APPROVE_CUSTOMER_DATA_PURGE -signed_by(/users/privacy_operations_lead.id)] false)`; `always(!<+APPROVE_CUSTOMER_DATA_PURGE> true | always([-RETAINED_DELETED_CUSTOMER_DATA] true))` |
+| "Customer account reactivation approval requires support lead signature and blocks unauthorized service restoration" | `always([+APPROVE_CUSTOMER_ACCOUNT_REACTIVATION -signed_by(/users/support_lead.id)] false)`; `always(!<+APPROVE_CUSTOMER_ACCOUNT_REACTIVATION> true | always([-UNAUTHORIZED_SERVICE_RESTORATION] true))` |
+| "Customer sandbox refresh approval requires privacy operations lead signature and blocks production data leakage" | `always([+APPROVE_CUSTOMER_SANDBOX_REFRESH -signed_by(/users/privacy_operations_lead.id)] false)`; `always(!<+APPROVE_CUSTOMER_SANDBOX_REFRESH> true | always([-PRODUCTION_DATA_LEAKAGE] true))` |
+| "Customer instance archival approval requires retention counsel signature and blocks premature account archive" | `always([+APPROVE_CUSTOMER_INSTANCE_ARCHIVAL -signed_by(/users/retention_counsel.id)] false)`; `always(!<+APPROVE_CUSTOMER_INSTANCE_ARCHIVAL> true | always([-PREMATURE_ACCOUNT_ARCHIVE] true))` |
+| "Customer data retention exception approval requires retention counsel signature and blocks unbounded customer record retention" | `always([+APPROVE_CUSTOMER_DATA_RETENTION_EXCEPTION -signed_by(/users/retention_counsel.id)] false)`; `always(!<+APPROVE_CUSTOMER_DATA_RETENTION_EXCEPTION> true | always([-UNBOUNDED_CUSTOMER_RECORD_RETENTION] true))` |
+| "Customer anonymization waiver approval requires privacy counsel signature and blocks identifiable analytics reuse" | `always([+APPROVE_CUSTOMER_ANONYMIZATION_WAIVER -signed_by(/users/privacy_counsel.id)] false)`; `always(!<+APPROVE_CUSTOMER_ANONYMIZATION_WAIVER> true | always([-IDENTIFIABLE_ANALYTICS_REUSE] true))` |
+| "Customer data warehouse sync approval requires data governance lead signature and blocks unscoped customer data replication" | `always([+APPROVE_CUSTOMER_DATA_WAREHOUSE_SYNC -signed_by(/users/data_governance_lead.id)] false)`; `always(!<+APPROVE_CUSTOMER_DATA_WAREHOUSE_SYNC> true | always([-UNSCOPED_CUSTOMER_DATA_REPLICATION] true))` |
+| "Customer analytics training approval requires privacy counsel signature and blocks unauthorized customer behavior modeling" | `always([+APPROVE_CUSTOMER_ANALYTICS_TRAINING -signed_by(/users/privacy_counsel.id)] false)`; `always(!<+APPROVE_CUSTOMER_ANALYTICS_TRAINING> true | always([-UNAUTHORIZED_CUSTOMER_BEHAVIOR_MODELING] true))` |
 
 ## Output Format
 
@@ -527,7 +527,7 @@ No explanations, no markdown, just formulas.
 
 Example output:
 F1: always(!<+RELEASE> true | eventually(<+DELIVER> true))
-F2: always(!<+RELEASE> true | <+RELEASE +signed_by(/users/alice.id)> true)
+F2: always([+RELEASE -signed_by(/users/alice.id)] false)
 "#;
 
 /// Generate LLM prompt for NL → Formula conversion
@@ -3562,8 +3562,8 @@ mod tests {
     fn test_parse_llm_response() {
         let response = r#"
 F1: always(!<+RELEASE> true | eventually(<+DELIVER> true))
-F2: always(!<+RELEASE> true | <+RELEASE +signed_by(/users/alice.id)> true)
-F3: always(!<+DELIVER> true | <+DELIVER +signed_by(/users/bob.id)> true)
+F2: always([+RELEASE -signed_by(/users/alice.id)] false)
+F3: always([+DELIVER -signed_by(/users/bob.id)] false)
 "#;
 
         let formulas = parse_llm_response(response);
@@ -3601,7 +3601,7 @@ F3: always(!<+DELIVER> true | <+DELIVER +signed_by(/users/bob.id)> true)
         let response = r#"
 Rule 1: always(!<+PAY> true | eventually(<+WORK> true))
 Expression 2: <+CANCEL> true
-Rule: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)
+Rule: always([+APPROVE -signed_by(/users/reviewer.id)] false)
 "#;
 
         let formulas = parse_llm_response(response);
@@ -3610,7 +3610,7 @@ Rule: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)
             vec![
                 "always(!<+PAY> true | eventually(<+WORK> true))",
                 "<+CANCEL> true",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)"
             ]
         );
     }
@@ -3981,7 +3981,7 @@ Formula 2: "<+CANCEL> true",
   },
   {
     "label": "F3",
-    "rule_text": "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"
+    "rule_text": "always([+APPROVE -signed_by(/users/reviewer.id)] false)"
   },
   {
     "label": "F4",
@@ -3996,7 +3996,7 @@ Formula 2: "<+CANCEL> true",
             vec![
                 "always(!<+PAY> true | eventually(<+WORK> true))",
                 "<+CANCEL> true",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)",
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)",
                 "<+ESCALATE> true"
             ]
         );
@@ -4007,7 +4007,7 @@ Formula 2: "<+CANCEL> true",
         let response = r#"
 formula_text: always(!<+PAY> true | eventually(<+WORK> true))
 rule_text: <+CANCEL> true
-expression: `always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)`
+expression: `always([+APPROVE -signed_by(/users/reviewer.id)] false)`
 message: This is explanatory text, not a formula.
 "#;
 
@@ -4017,7 +4017,7 @@ message: This is explanatory text, not a formula.
             vec![
                 "always(!<+PAY> true | eventually(<+WORK> true))",
                 "<+CANCEL> true",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)"
             ]
         );
     }
@@ -4027,7 +4027,7 @@ message: This is explanatory text, not a formula.
         let response = r#"
 formulas: always(!<+PAY> true | eventually(<+WORK> true))
 rules: <+CANCEL> true
-expressions: `always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)`
+expressions: `always([+APPROVE -signed_by(/users/reviewer.id)] false)`
 content: This is explanatory text, not a formula.
 "#;
 
@@ -4037,7 +4037,7 @@ content: This is explanatory text, not a formula.
             vec![
                 "always(!<+PAY> true | eventually(<+WORK> true))",
                 "<+CANCEL> true",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)"
             ]
         );
     }
@@ -4048,7 +4048,7 @@ content: This is explanatory text, not a formula.
 [
   {"formula-text": "always(!<+PAY> true | eventually(<+WORK> true))"},
   {"rule-text": "<+CANCEL> true"},
-  {"output-text": "Formula 3: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"},
+  {"output-text": "Formula 3: always([+APPROVE -signed_by(/users/reviewer.id)] false)"},
   {"answer-text": "Formula 4: <+ESCALATE> true"}
 ]
 "#;
@@ -4059,7 +4059,7 @@ content: This is explanatory text, not a formula.
             vec![
                 "always(!<+PAY> true | eventually(<+WORK> true))",
                 "<+CANCEL> true",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)",
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)",
                 "<+ESCALATE> true"
             ]
         );
@@ -4070,7 +4070,7 @@ content: This is explanatory text, not a formula.
         let response = r#"
 formula-text: always(!<+PAY> true | eventually(<+WORK> true))
 rule-text: <+CANCEL> true
-expression: `always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)`
+expression: `always([+APPROVE -signed_by(/users/reviewer.id)] false)`
 message: This is explanatory text, not a formula.
 "#;
 
@@ -4080,7 +4080,7 @@ message: This is explanatory text, not a formula.
             vec![
                 "always(!<+PAY> true | eventually(<+WORK> true))",
                 "<+CANCEL> true",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)"
             ]
         );
     }
@@ -4091,7 +4091,7 @@ message: This is explanatory text, not a formula.
 content: F1: always(!<+PAY> true | eventually(<+WORK> true))
 output-text: Formula 2: <+CANCEL> true
 message: This is explanatory text, not a formula.
-finalAnswer: `always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)`
+finalAnswer: `always([+APPROVE -signed_by(/users/reviewer.id)] false)`
 "#;
 
         let formulas = parse_llm_response(response);
@@ -4100,7 +4100,7 @@ finalAnswer: `always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)
             vec![
                 "always(!<+PAY> true | eventually(<+WORK> true))",
                 "<+CANCEL> true",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)"
             ]
         );
     }
@@ -4366,7 +4366,7 @@ finalAnswer: `always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)
       "content": [
         {
           "type": "output_text",
-          "text": "F1: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"
+          "text": "F1: always([+APPROVE -signed_by(/users/reviewer.id)] false)"
         },
         {
           "type": "output_text",
@@ -4382,7 +4382,7 @@ finalAnswer: `always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)
         assert_eq!(
             formulas,
             vec![
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)",
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)",
                 "<+ESCALATE> true"
             ]
         );
@@ -4426,14 +4426,14 @@ finalAnswer: `always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)
     fn test_parse_llm_response_accepts_json_response_text() {
         let response = r#"
 {
-  "response": "F1: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"
+  "response": "F1: always([+APPROVE -signed_by(/users/reviewer.id)] false)"
 }
 "#;
 
         let formulas = parse_llm_response(response);
         assert_eq!(
             formulas,
-            vec!["always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"]
+            vec!["always([+APPROVE -signed_by(/users/reviewer.id)] false)"]
         );
     }
 
@@ -4483,7 +4483,7 @@ finalAnswer: `always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)
 {
   "final_answer": "F1: always(!<+PAY> true | eventually(<+WORK> true))",
   "finalAnswer": "F2: <+CANCEL> true",
-  "final": "Formula 3: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"
+  "final": "Formula 3: always([+APPROVE -signed_by(/users/reviewer.id)] false)"
 }
 "#;
 
@@ -4491,7 +4491,7 @@ finalAnswer: `always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)
         assert_eq!(
             formulas,
             vec![
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)",
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)",
                 "<+CANCEL> true",
                 "always(!<+PAY> true | eventually(<+WORK> true))"
             ]
@@ -4506,7 +4506,7 @@ finalAnswer: `always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)
   "finalMessage": "Plain explanation.\nFormula 2: <+REFUND> true",
   "assistant_response": "No valid formula in this explanation.",
   "assistantMessage": "Formula 3: <+ESCALATE> true",
-  "modelOutput": "F4: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"
+  "modelOutput": "F4: always([+APPROVE -signed_by(/users/reviewer.id)] false)"
 }
 "#;
 
@@ -4517,7 +4517,7 @@ finalAnswer: `always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)
                 "<+ESCALATE> true",
                 "<+REFUND> true",
                 "always(!<+SHIP> true | eventually(<+PAY> true))",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)"
             ]
         );
     }
@@ -4530,7 +4530,7 @@ finalAnswer: `always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)
   "model_response": "Plain explanation.\nFormula 2: <+REFUND> true",
   "llm_response": "No valid formula in this explanation.",
   "providerOutput": "Formula 3: <+ESCALATE> true",
-  "raw_output": "F4: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"
+  "raw_output": "F4: always([+APPROVE -signed_by(/users/reviewer.id)] false)"
 }
 "#;
 
@@ -4541,7 +4541,7 @@ finalAnswer: `always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)
                 "always(!<+SHIP> true | eventually(<+PAY> true))",
                 "<+REFUND> true",
                 "<+ESCALATE> true",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)"
             ]
         );
     }
@@ -4552,7 +4552,7 @@ finalAnswer: `always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)
 {
   "message": "F1: always(!<+PAY> true | eventually(<+WORK> true))",
   "reply": "F2: <+CANCEL> true",
-  "generated_text": "Formula 3: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"
+  "generated_text": "Formula 3: always([+APPROVE -signed_by(/users/reviewer.id)] false)"
 }
 "#;
 
@@ -4560,7 +4560,7 @@ finalAnswer: `always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)
         assert_eq!(
             formulas,
             vec![
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)",
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)",
                 "always(!<+PAY> true | eventually(<+WORK> true))",
                 "<+CANCEL> true"
             ]
@@ -4574,7 +4574,7 @@ finalAnswer: `always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)
   "contentText": "F4: always(!<+CONTENT> true | eventually(<+VERIFY> true))",
   "generatedText": "F1: always(!<+PAY> true | eventually(<+WORK> true))",
   "outputText": "F2: <+CANCEL> true",
-  "responseText": "Formula 3: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"
+  "responseText": "Formula 3: always([+APPROVE -signed_by(/users/reviewer.id)] false)"
 }
 "#;
 
@@ -4585,7 +4585,7 @@ finalAnswer: `always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)
                 "always(!<+CONTENT> true | eventually(<+VERIFY> true))",
                 "always(!<+PAY> true | eventually(<+WORK> true))",
                 "<+CANCEL> true",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)"
             ]
         );
     }
@@ -4633,16 +4633,16 @@ finalAnswer: `always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)
   ],
   "results": [
     "Explanation only.",
-    "Formula 12: always(!<+EXPORT> true | <+EXPORT +signed_by(/users/exporter.id)> true)"
+    "Formula 12: always([+EXPORT -signed_by(/users/exporter.id)] false)"
   ],
   "responses": [
-    "Formula 15: always(!<+RESPOND> true | <+RESPOND +signed_by(/users/responder.id)> true)"
+    "Formula 15: always([+RESPOND -signed_by(/users/responder.id)] false)"
   ],
   "segments": [
     "Formula 7: always(!<+AUDIT> true | eventually(<+REPORT> true))"
   ],
   "outputs": [
-    "Formula 3: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"
+    "Formula 3: always([+APPROVE -signed_by(/users/reviewer.id)] false)"
   ],
   "variants": [
     "Formula 17: <+VARIANT> true"
@@ -4665,10 +4665,10 @@ finalAnswer: `always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)
                 "always(!<+SHIP> true | eventually(<+CONFIRM> true))",
                 "always(!<+REVIEW> true | eventually(<+APPROVE> true))",
                 "<+NOTIFY> true",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)",
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)",
                 "<+ARCHIVE> true",
-                "always(!<+RESPOND> true | <+RESPOND +signed_by(/users/responder.id)> true)",
-                "always(!<+EXPORT> true | <+EXPORT +signed_by(/users/exporter.id)> true)",
+                "always([+RESPOND -signed_by(/users/responder.id)] false)",
+                "always([+EXPORT -signed_by(/users/exporter.id)] false)",
                 "always(!<+AUDIT> true | eventually(<+REPORT> true))",
                 "<+VARIANT> true"
             ]
@@ -4723,7 +4723,7 @@ data: [DONE]
 <formulas>
 <formula>always(!<+TAGGED> true | eventually(<+REVIEW> true))</formula>
 <formula_text name="commit"><+COMMIT> true</formula_text>
-<rule>`always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)`</rule>
+<rule>`always([+APPROVE -signed_by(/users/reviewer.id)] false)`</rule>
 </formulas>
 "#;
 
@@ -4733,7 +4733,7 @@ data: [DONE]
             vec![
                 "always(!<+TAGGED> true | eventually(<+REVIEW> true))",
                 "<+COMMIT> true",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)"
             ]
         );
     }
@@ -4749,7 +4749,7 @@ always(!<+TAGGED> true | eventually(<+REVIEW> true))
 <+COMMIT> true
 </formula_text>
 <rule>
-`always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)`
+`always([+APPROVE -signed_by(/users/reviewer.id)] false)`
 </rule>
 </formulas>
 "#;
@@ -4760,7 +4760,7 @@ always(!<+TAGGED> true | eventually(<+REVIEW> true))
             vec![
                 "always(!<+TAGGED> true | eventually(<+REVIEW> true))",
                 "<+COMMIT> true",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)"
             ]
         );
     }
@@ -4772,7 +4772,7 @@ always(!<+TAGGED> true | eventually(<+REVIEW> true))
 <rule-text>
 <+CANCEL> true
 </rule-text>
-<expression>always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)</expression>
+<expression>always([+APPROVE -signed_by(/users/reviewer.id)] false)</expression>
 "#;
 
         let formulas = parse_llm_response(response);
@@ -4781,7 +4781,7 @@ always(!<+TAGGED> true | eventually(<+REVIEW> true))
             vec![
                 "always(!<+PAY> true | eventually(<+WORK> true))",
                 "<+CANCEL> true",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)"
             ]
         );
     }
@@ -4810,7 +4810,7 @@ always(!<+TAGGED> true | eventually(<+REVIEW> true))
         let response = r#"
 <formula>F1: always(!<+PAY> true | eventually(<+WORK> true))</formula>
 <rule>Formula 2: <+CANCEL> true</rule>
-<formula_text>F3 - always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)</formula_text>
+<formula_text>F3 - always([+APPROVE -signed_by(/users/reviewer.id)] false)</formula_text>
 "#;
 
         let formulas = parse_llm_response(response);
@@ -4819,7 +4819,7 @@ always(!<+TAGGED> true | eventually(<+REVIEW> true))
             vec![
                 "always(!<+PAY> true | eventually(<+WORK> true))",
                 "<+CANCEL> true",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)"
             ]
         );
     }
@@ -4831,7 +4831,7 @@ always(!<+TAGGED> true | eventually(<+REVIEW> true))
 <rule>
 <![CDATA[<+CANCEL> true]]>
 </rule>
-formula_text: <![CDATA[always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)]]>
+formula_text: <![CDATA[always([+APPROVE -signed_by(/users/reviewer.id)] false)]]>
 "#;
 
         let formulas = parse_llm_response(response);
@@ -4840,7 +4840,7 @@ formula_text: <![CDATA[always(!<+APPROVE> true | <+APPROVE +signed_by(/users/rev
             vec![
                 "always(!<+PAY> true | eventually(<+WORK> true))",
                 "<+CANCEL> true",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)"
             ]
         );
     }
@@ -4916,7 +4916,7 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
   "candidate": "Candidate text\nFormula 2: <+APPROVE> true",
   "predictions": [
     "Explanatory prediction.",
-    "F3: always(!<+PUBLISH> true | <+PUBLISH +signed_by(/users/editor.id)> true)"
+    "F3: always([+PUBLISH -signed_by(/users/editor.id)] false)"
   ]
 }
 "#;
@@ -4927,7 +4927,7 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
             vec![
                 "<+APPROVE> true",
                 "always(!<+GENERATE> true | eventually(<+REVIEW> true))",
-                "always(!<+PUBLISH> true | <+PUBLISH +signed_by(/users/editor.id)> true)"
+                "always([+PUBLISH -signed_by(/users/editor.id)] false)"
             ]
         );
     }
@@ -4938,7 +4938,7 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
 {
   "answer_text": "F1: always(!<+ANSWER> true | eventually(<+CHECK> true))",
   "completion_text": "F2: <+COMPLETE> true",
-  "response_text": "Plain explanation.\nFormula 3: always(!<+RESPOND> true | <+RESPOND +signed_by(/users/responder.id)> true)"
+  "response_text": "Plain explanation.\nFormula 3: always([+RESPOND -signed_by(/users/responder.id)] false)"
 }
 "#;
 
@@ -4948,7 +4948,7 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
             vec![
                 "always(!<+ANSWER> true | eventually(<+CHECK> true))",
                 "<+COMPLETE> true",
-                "always(!<+RESPOND> true | <+RESPOND +signed_by(/users/responder.id)> true)"
+                "always([+RESPOND -signed_by(/users/responder.id)] false)"
             ]
         );
     }
@@ -4968,7 +4968,7 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
   ],
   "structured": {
     "items": [
-      "Formula 3: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"
+      "Formula 3: always([+APPROVE -signed_by(/users/reviewer.id)] false)"
     ]
   }
 }
@@ -4979,7 +4979,7 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
             formulas,
             vec![
                 "always(!<+PARSE> true | eventually(<+CHECK> true))",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)",
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)",
                 "<+STRUCTURE> true"
             ]
         );
@@ -4996,7 +4996,7 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
     "Formula 2: <+CANCEL> true"
   ],
   "revision": {
-    "fixed formula": "F3: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"
+    "fixed formula": "F3: always([+APPROVE -signed_by(/users/reviewer.id)] false)"
   }
 }
 "#;
@@ -5006,7 +5006,7 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
             formulas,
             vec![
                 "always(!<+PAY> true | eventually(<+DELIVER> true))",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)",
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)",
                 "<+CANCEL> true"
             ]
         );
@@ -5022,7 +5022,7 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
     "Formula 2: <+CANCEL> true"
   ],
   "remediation": {
-    "repair": "F3: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"
+    "repair": "F3: always([+APPROVE -signed_by(/users/reviewer.id)] false)"
   },
   "fixes": [
     { "recommended formula": "F4: <+ESCALATE> true" }
@@ -5037,7 +5037,7 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
                 "<+ESCALATE> true",
                 "always(!<+PAY> true | eventually(<+DELIVER> true))",
                 "<+CANCEL> true",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)",
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)",
             ]
         );
     }
@@ -5049,7 +5049,7 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
   "corrected": "always(!<+SHIP> true | eventually(<+PAY> true))",
   "recommended": "Formula 2: <+REFUND> true",
   "revised": {
-    "text": "F3: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"
+    "text": "F3: always([+APPROVE -signed_by(/users/reviewer.id)] false)"
   },
   "remediated": "This response only explains the repair."
 }
@@ -5061,7 +5061,7 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
             vec![
                 "always(!<+SHIP> true | eventually(<+PAY> true))",
                 "<+REFUND> true",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)"
             ]
         );
     }
@@ -5073,7 +5073,7 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
   "updated_formula": "always(!<+SHIP> true | eventually(<+PAY> true))",
   "edited_formula": "Formula 2: <+REFUND> true",
   "patched": {
-    "text": "F3: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"
+    "text": "F3: always([+APPROVE -signed_by(/users/reviewer.id)] false)"
   },
   "replacement": "This response only explains the replacement."
 }
@@ -5084,7 +5084,7 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
             formulas,
             vec![
                 "<+REFUND> true",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)",
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)",
                 "always(!<+SHIP> true | eventually(<+PAY> true))"
             ]
         );
@@ -5097,7 +5097,7 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
   "corrected_text": "always(!<+SHIP> true | eventually(<+PAY> true))",
   "repair_text": "Formula 2: <+REFUND> true",
   "updated text": {
-    "text": "F3: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"
+    "text": "F3: always([+APPROVE -signed_by(/users/reviewer.id)] false)"
   },
   "replacement_text": "This response only explains the replacement."
 }
@@ -5109,7 +5109,7 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
             vec![
                 "always(!<+SHIP> true | eventually(<+PAY> true))",
                 "<+REFUND> true",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)"
             ]
         );
     }
@@ -5121,7 +5121,7 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
   "improved_formula": "always(!<+SHIP> true | eventually(<+PAY> true))",
   "refined": "Formula 2: <+REFUND> true",
   "resolved_text": {
-    "text": "F3: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"
+    "text": "F3: always([+APPROVE -signed_by(/users/reviewer.id)] false)"
   },
   "improved_text": "This response only explains the improvement."
 }
@@ -5133,7 +5133,7 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
             vec![
                 "always(!<+SHIP> true | eventually(<+PAY> true))",
                 "<+REFUND> true",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)"
             ]
         );
     }
@@ -5146,7 +5146,7 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
   "analysis": "This only explains why the first draft failed.",
   "critique_text": "Formula 2: <+REFUND> true",
   "assessment": {
-    "review": "F3: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"
+    "review": "F3: always([+APPROVE -signed_by(/users/reviewer.id)] false)"
   }
 }
 "#;
@@ -5155,7 +5155,7 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
         assert_eq!(
             formulas,
             vec![
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)",
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)",
                 "<+REFUND> true",
                 "always(!<+SHIP> true | eventually(<+PAY> true))"
             ]
@@ -5169,7 +5169,7 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
   "solution_formula": "always(!<+SHIP> true | eventually(<+PAY> true))",
   "diagnosis_text": "Formula 2: <+REFUND> true",
   "solution": {
-    "text": "F3: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"
+    "text": "F3: always([+APPROVE -signed_by(/users/reviewer.id)] false)"
   },
   "diagnosis": "This only explains the parse failure."
 }
@@ -5180,7 +5180,7 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
             formulas,
             vec![
                 "<+REFUND> true",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)",
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)",
                 "always(!<+SHIP> true | eventually(<+PAY> true))"
             ]
         );
@@ -5194,7 +5194,7 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
   "explanation_text": "This only explains why the repair was needed.",
   "rationale": "F2: <+REFUND> true",
   "reasoning": {
-    "text": "Formula 3: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"
+    "text": "Formula 3: always([+APPROVE -signed_by(/users/reviewer.id)] false)"
   }
 }
 "#;
@@ -5205,7 +5205,7 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
             vec![
                 "always(!<+SHIP> true | eventually(<+PAY> true))",
                 "<+REFUND> true",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)"
             ]
         );
     }
@@ -5219,7 +5219,7 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
   "validation_error": {
     "text": "F2: <+REFUND> true"
   },
-  "verifier_output": "Formula 3: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"
+  "verifier_output": "Formula 3: always([+APPROVE -signed_by(/users/reviewer.id)] false)"
 }
 "#;
 
@@ -5229,7 +5229,7 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
             vec![
                 "always(!<+SHIP> true | eventually(<+PAY> true))",
                 "<+REFUND> true",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)"
             ]
         );
     }
@@ -5245,7 +5245,7 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
     "trace text without a formula"
   ],
   "trace": {
-    "text": "Formula 3: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"
+    "text": "Formula 3: always([+APPROVE -signed_by(/users/reviewer.id)] false)"
   }
 }
 "#;
@@ -5256,7 +5256,7 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
             vec![
                 "<+REFUND> true",
                 "always(!<+SHIP> true | eventually(<+PAY> true))",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)"
             ]
         );
     }
@@ -5271,7 +5271,7 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
     "details without a formula"
   ],
   "reason": {
-    "text": "Formula 3: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"
+    "text": "Formula 3: always([+APPROVE -signed_by(/users/reviewer.id)] false)"
   },
   "hint": "This only suggests trying a simpler rule."
 }
@@ -5283,7 +5283,7 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
             vec![
                 "always(!<+SHIP> true | eventually(<+PAY> true))",
                 "<+REFUND> true",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)"
             ]
         );
     }
@@ -5334,7 +5334,7 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
 {
   "formula_draft": "Formula 1: always(!<+SHIP> true | eventually(<+PAY> true))",
   "draft_formula": "F2: <+REFUND> true",
-  "rule_draft": "Formula 3: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)",
+  "rule_draft": "Formula 3: always([+APPROVE -signed_by(/users/reviewer.id)] false)",
   "draft": "This draft is only explained in prose."
 }
 "#;
@@ -5345,7 +5345,7 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
             vec![
                 "<+REFUND> true",
                 "always(!<+SHIP> true | eventually(<+PAY> true))",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)"
             ]
         );
     }
@@ -5356,7 +5356,7 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
 {
   "formula_revision": "Formula 1: always(!<+SHIP> true | eventually(<+PAY> true))",
   "revision_formula": "F2: <+REFUND> true",
-  "rule_revision": "Formula 3: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)",
+  "rule_revision": "Formula 3: always([+APPROVE -signed_by(/users/reviewer.id)] false)",
   "revision": "This revision is only explained in prose."
 }
 "#;
@@ -5367,7 +5367,7 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
             vec![
                 "always(!<+SHIP> true | eventually(<+PAY> true))",
                 "<+REFUND> true",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)"
             ]
         );
     }
@@ -5378,7 +5378,7 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
 {
   "formula_fix": "Formula 1: always(!<+SHIP> true | eventually(<+PAY> true))",
   "fix_formula": "F2: <+REFUND> true",
-  "rule_fix": "Formula 3: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)",
+  "rule_fix": "Formula 3: always([+APPROVE -signed_by(/users/reviewer.id)] false)",
   "fix": "This fix is only explained in prose."
 }
 "#;
@@ -5389,7 +5389,7 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
             vec![
                 "<+REFUND> true",
                 "always(!<+SHIP> true | eventually(<+PAY> true))",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)"
             ]
         );
     }
@@ -5400,7 +5400,7 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
 {
   "formula_amendment": "Formula 1: always(!<+SHIP> true | eventually(<+PAY> true))",
   "amendment_formula": "F2: <+REFUND> true",
-  "rule_amendment": "Formula 3: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)",
+  "rule_amendment": "Formula 3: always([+APPROVE -signed_by(/users/reviewer.id)] false)",
   "amendment": "This amendment is only explained in prose."
 }
 "#;
@@ -5411,7 +5411,7 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
             vec![
                 "<+REFUND> true",
                 "always(!<+SHIP> true | eventually(<+PAY> true))",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)"
             ]
         );
     }
@@ -5422,7 +5422,7 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
 {
   "formula_patch": "Formula 1: always(!<+SHIP> true | eventually(<+PAY> true))",
   "patch_formula": "F2: <+REFUND> true",
-  "rule_patch": "Formula 3: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)",
+  "rule_patch": "Formula 3: always([+APPROVE -signed_by(/users/reviewer.id)] false)",
   "patch": "This patch is only explained in prose."
 }
 "#;
@@ -5433,7 +5433,7 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
             vec![
                 "always(!<+SHIP> true | eventually(<+PAY> true))",
                 "<+REFUND> true",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)"
             ]
         );
     }
@@ -5444,7 +5444,7 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
 {
   "formula_update": "Formula 1: always(!<+SHIP> true | eventually(<+PAY> true))",
   "update_formula": "F2: <+REFUND> true",
-  "rule_update": "Formula 3: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)",
+  "rule_update": "Formula 3: always([+APPROVE -signed_by(/users/reviewer.id)] false)",
   "update": "This update is only explained in prose."
 }
 "#;
@@ -5454,7 +5454,7 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
             formulas,
             vec![
                 "always(!<+SHIP> true | eventually(<+PAY> true))",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)",
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)",
                 "<+REFUND> true"
             ]
         );
@@ -5466,7 +5466,7 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
 {
   "formula_change": "Formula 1: always(!<+SHIP> true | eventually(<+PAY> true))",
   "change_formula": "F2: <+REFUND> true",
-  "rule_change": "Formula 3: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)",
+  "rule_change": "Formula 3: always([+APPROVE -signed_by(/users/reviewer.id)] false)",
   "change": "This change is only explained in prose."
 }
 "#;
@@ -5477,7 +5477,7 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
             vec![
                 "<+REFUND> true",
                 "always(!<+SHIP> true | eventually(<+PAY> true))",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)"
             ]
         );
     }
@@ -5488,7 +5488,7 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
 {
   "formula_correction": "Formula 1: always(!<+SHIP> true | eventually(<+PAY> true))",
   "correction_formula": "F2: <+REFUND> true",
-  "rule_correction": "Formula 3: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)",
+  "rule_correction": "Formula 3: always([+APPROVE -signed_by(/users/reviewer.id)] false)",
   "correction": "This correction is only explained in prose."
 }
 "#;
@@ -5499,7 +5499,7 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
             vec![
                 "<+REFUND> true",
                 "always(!<+SHIP> true | eventually(<+PAY> true))",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)"
             ]
         );
     }
@@ -5510,7 +5510,7 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
 {
   "formula_diagnostic": "Formula 1: always(!<+SHIP> true | eventually(<+PAY> true))",
   "diagnostic_formula": "F2: <+REFUND> true",
-  "rule_diagnostic": "Formula 3: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)",
+  "rule_diagnostic": "Formula 3: always([+APPROVE -signed_by(/users/reviewer.id)] false)",
   "diagnostic": "This diagnostic is only prose."
 }
 "#;
@@ -5521,7 +5521,7 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
             vec![
                 "<+REFUND> true",
                 "always(!<+SHIP> true | eventually(<+PAY> true))",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)"
             ]
         );
     }
@@ -5532,7 +5532,7 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
 {
   "formula_diagnosis": "Formula 1: always(!<+SHIP> true | eventually(<+PAY> true))",
   "diagnosis_formula": "F2: <+REFUND> true",
-  "rule_diagnosis": "Formula 3: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)",
+  "rule_diagnosis": "Formula 3: always([+APPROVE -signed_by(/users/reviewer.id)] false)",
   "diagnosis": "This diagnosis is only prose."
 }
 "#;
@@ -5543,7 +5543,7 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
             vec![
                 "<+REFUND> true",
                 "always(!<+SHIP> true | eventually(<+PAY> true))",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)"
             ]
         );
     }
@@ -5554,7 +5554,7 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
 {
   "formula_suggestion": "Formula 1: always(!<+SHIP> true | eventually(<+PAY> true))",
   "suggestion_formula": "F2: <+REFUND> true",
-  "rule_suggestion": "Formula 3: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)",
+  "rule_suggestion": "Formula 3: always([+APPROVE -signed_by(/users/reviewer.id)] false)",
   "suggestion": "This suggestion is only explained in prose."
 }
 "#;
@@ -5564,7 +5564,7 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
             formulas,
             vec![
                 "always(!<+SHIP> true | eventually(<+PAY> true))",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)",
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)",
                 "<+REFUND> true"
             ]
         );
@@ -5576,7 +5576,7 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
 {
   "formula_recommendation": "Formula 1: always(!<+SHIP> true | eventually(<+PAY> true))",
   "recommendation_formula": "F2: <+REFUND> true",
-  "rule_recommendation": "Formula 3: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)",
+  "rule_recommendation": "Formula 3: always([+APPROVE -signed_by(/users/reviewer.id)] false)",
   "recommendation": "This recommendation is only explained in prose."
 }
 "#;
@@ -5587,7 +5587,7 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
             vec![
                 "always(!<+SHIP> true | eventually(<+PAY> true))",
                 "<+REFUND> true",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)"
             ]
         );
     }
@@ -5598,7 +5598,7 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
 {
   "formula_advice": "Formula 1: always(!<+SHIP> true | eventually(<+PAY> true))",
   "advice_formula": "F2: <+REFUND> true",
-  "rule_advice": "Formula 3: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)",
+  "rule_advice": "Formula 3: always([+APPROVE -signed_by(/users/reviewer.id)] false)",
   "advice": "This advice is only explained in prose."
 }
 "#;
@@ -5609,7 +5609,7 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
             vec![
                 "<+REFUND> true",
                 "always(!<+SHIP> true | eventually(<+PAY> true))",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)"
             ]
         );
     }
@@ -5620,7 +5620,7 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
 {
   "formula_review": "Formula 1: always(!<+SHIP> true | eventually(<+PAY> true))",
   "review_formula": "F2: <+REFUND> true",
-  "rule_review": "Formula 3: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)",
+  "rule_review": "Formula 3: always([+APPROVE -signed_by(/users/reviewer.id)] false)",
   "review": "This review is only explained in prose."
 }
 "#;
@@ -5631,7 +5631,7 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
             vec![
                 "always(!<+SHIP> true | eventually(<+PAY> true))",
                 "<+REFUND> true",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)"
             ]
         );
     }
@@ -5642,7 +5642,7 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
 {
   "formula_assessment": "Formula 1: always(!<+SHIP> true | eventually(<+PAY> true))",
   "assessment_formula": "F2: <+REFUND> true",
-  "rule_assessment": "Formula 3: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)",
+  "rule_assessment": "Formula 3: always([+APPROVE -signed_by(/users/reviewer.id)] false)",
   "assessment": "This assessment is only explained in prose."
 }
 "#;
@@ -5653,7 +5653,7 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
             vec![
                 "<+REFUND> true",
                 "always(!<+SHIP> true | eventually(<+PAY> true))",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)"
             ]
         );
     }
@@ -5664,7 +5664,7 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
 {
   "formula_critique": "Formula 1: always(!<+SHIP> true | eventually(<+PAY> true))",
   "critique_formula": "F2: <+REFUND> true",
-  "rule_critique": "Formula 3: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)",
+  "rule_critique": "Formula 3: always([+APPROVE -signed_by(/users/reviewer.id)] false)",
   "critique": "This critique is only explained in prose."
 }
 "#;
@@ -5675,7 +5675,7 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
             vec![
                 "<+REFUND> true",
                 "always(!<+SHIP> true | eventually(<+PAY> true))",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)"
             ]
         );
     }
@@ -5686,7 +5686,7 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
 {
   "formula_evaluation": "Formula 1: always(!<+SHIP> true | eventually(<+PAY> true))",
   "evaluation_formula": "F2: <+REFUND> true",
-  "rule_evaluation": "Formula 3: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)",
+  "rule_evaluation": "Formula 3: always([+APPROVE -signed_by(/users/reviewer.id)] false)",
   "evaluation": "This evaluation is only explained in prose."
 }
 "#;
@@ -5697,7 +5697,7 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
             vec![
                 "<+REFUND> true",
                 "always(!<+SHIP> true | eventually(<+PAY> true))",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)"
             ]
         );
     }
@@ -5708,7 +5708,7 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
 {
   "formula_analysis": "Formula 1: always(!<+SHIP> true | eventually(<+PAY> true))",
   "analysis_formula": "F2: <+REFUND> true",
-  "rule_analysis": "Formula 3: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)",
+  "rule_analysis": "Formula 3: always([+APPROVE -signed_by(/users/reviewer.id)] false)",
   "analysis": "This analysis is only explained in prose."
 }
 "#;
@@ -5719,7 +5719,7 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
             vec![
                 "<+REFUND> true",
                 "always(!<+SHIP> true | eventually(<+PAY> true))",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)"
             ]
         );
     }
@@ -5730,7 +5730,7 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
 {
   "formula_reasoning": "Formula 1: always(!<+SHIP> true | eventually(<+PAY> true))",
   "reasoning_formula": "F2: <+REFUND> true",
-  "rule_reasoning": "Formula 3: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)",
+  "rule_reasoning": "Formula 3: always([+APPROVE -signed_by(/users/reviewer.id)] false)",
   "reasoning": "This reasoning is only explained in prose."
 }
 "#;
@@ -5741,7 +5741,7 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
             vec![
                 "always(!<+SHIP> true | eventually(<+PAY> true))",
                 "<+REFUND> true",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)"
             ]
         );
     }
@@ -5752,7 +5752,7 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
 {
   "formula_explanation": "Formula 1: always(!<+SHIP> true | eventually(<+PAY> true))",
   "explanation_formula": "F2: <+REFUND> true",
-  "rule_explanation": "Formula 3: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)",
+  "rule_explanation": "Formula 3: always([+APPROVE -signed_by(/users/reviewer.id)] false)",
   "explanation": "This explanation is only prose."
 }
 "#;
@@ -5763,7 +5763,7 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
             vec![
                 "<+REFUND> true",
                 "always(!<+SHIP> true | eventually(<+PAY> true))",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)"
             ]
         );
     }
@@ -5774,7 +5774,7 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
 {
   "formula_rationale": "Formula 1: always(!<+SHIP> true | eventually(<+PAY> true))",
   "rationale_formula": "F2: <+REFUND> true",
-  "rule_rationale": "Formula 3: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)",
+  "rule_rationale": "Formula 3: always([+APPROVE -signed_by(/users/reviewer.id)] false)",
   "rationale": "This rationale is only prose."
 }
 "#;
@@ -5785,7 +5785,7 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
             vec![
                 "always(!<+SHIP> true | eventually(<+PAY> true))",
                 "<+REFUND> true",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)"
             ]
         );
     }
@@ -5796,7 +5796,7 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
 {
   "formula_justification": "Formula 1: always(!<+SHIP> true | eventually(<+PAY> true))",
   "justification_formula": "F2: <+REFUND> true",
-  "rule_justification": "Formula 3: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)",
+  "rule_justification": "Formula 3: always([+APPROVE -signed_by(/users/reviewer.id)] false)",
   "justification": "This justification is only prose."
 }
 "#;
@@ -5807,7 +5807,7 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
             vec![
                 "always(!<+SHIP> true | eventually(<+PAY> true))",
                 "<+REFUND> true",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)"
             ]
         );
     }
@@ -5818,7 +5818,7 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
 {
   "formula_proof": "Formula 1: always(!<+SHIP> true | eventually(<+PAY> true))",
   "proof_formula": "F2: <+REFUND> true",
-  "rule_proof": "Formula 3: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)",
+  "rule_proof": "Formula 3: always([+APPROVE -signed_by(/users/reviewer.id)] false)",
   "proof": "This proof is only prose."
 }
 "#;
@@ -5829,7 +5829,7 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
             vec![
                 "always(!<+SHIP> true | eventually(<+PAY> true))",
                 "<+REFUND> true",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)"
             ]
         );
     }
@@ -5840,7 +5840,7 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
 {
   "formula_evidence": "Formula 1: always(!<+SHIP> true | eventually(<+PAY> true))",
   "evidence_formula": "F2: <+REFUND> true",
-  "rule_evidence": "Formula 3: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)",
+  "rule_evidence": "Formula 3: always([+APPROVE -signed_by(/users/reviewer.id)] false)",
   "evidence": "This evidence is only prose."
 }
 "#;
@@ -5851,7 +5851,7 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
             vec![
                 "<+REFUND> true",
                 "always(!<+SHIP> true | eventually(<+PAY> true))",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)"
             ]
         );
     }
@@ -5862,7 +5862,7 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
 {
   "formula_argument": "Formula 1: always(!<+SHIP> true | eventually(<+PAY> true))",
   "argument_formula": "F2: <+REFUND> true",
-  "rule_argument": "Formula 3: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)",
+  "rule_argument": "Formula 3: always([+APPROVE -signed_by(/users/reviewer.id)] false)",
   "argument": "This argument is only prose."
 }
 "#;
@@ -5873,7 +5873,7 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
             vec![
                 "<+REFUND> true",
                 "always(!<+SHIP> true | eventually(<+PAY> true))",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)"
             ]
         );
     }
@@ -5884,7 +5884,7 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
 {
   "formula_claim": "Formula 1: always(!<+SHIP> true | eventually(<+PAY> true))",
   "claim_formula": "F2: <+REFUND> true",
-  "rule_claim": "Formula 3: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)",
+  "rule_claim": "Formula 3: always([+APPROVE -signed_by(/users/reviewer.id)] false)",
   "claim": "This claim is only prose."
 }
 "#;
@@ -5895,7 +5895,7 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
             vec![
                 "<+REFUND> true",
                 "always(!<+SHIP> true | eventually(<+PAY> true))",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)"
             ]
         );
     }
@@ -5906,7 +5906,7 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
 {
   "formula_conclusion": "Formula 1: always(!<+SHIP> true | eventually(<+PAY> true))",
   "conclusion_formula": "F2: <+REFUND> true",
-  "rule_conclusion": "Formula 3: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)",
+  "rule_conclusion": "Formula 3: always([+APPROVE -signed_by(/users/reviewer.id)] false)",
   "conclusion": "This conclusion is only prose."
 }
 "#;
@@ -5917,7 +5917,7 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
             vec![
                 "<+REFUND> true",
                 "always(!<+SHIP> true | eventually(<+PAY> true))",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)"
             ]
         );
     }
@@ -5928,7 +5928,7 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
 {
   "formula_support": "Formula 1: always(!<+SHIP> true | eventually(<+PAY> true))",
   "support_formula": "F2: <+REFUND> true",
-  "rule_support": "Formula 3: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)",
+  "rule_support": "Formula 3: always([+APPROVE -signed_by(/users/reviewer.id)] false)",
   "support": "This support is only prose."
 }
 "#;
@@ -5938,7 +5938,7 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
             formulas,
             vec![
                 "always(!<+SHIP> true | eventually(<+PAY> true))",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)",
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)",
                 "<+REFUND> true"
             ]
         );
@@ -5950,7 +5950,7 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
 {
   "formula_summary": "Formula 1: always(!<+SHIP> true | eventually(<+PAY> true))",
   "summary_formula": "F2: <+REFUND> true",
-  "rule_summary": "Formula 3: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)",
+  "rule_summary": "Formula 3: always([+APPROVE -signed_by(/users/reviewer.id)] false)",
   "summary": "This summary is only prose."
 }
 "#;
@@ -5960,7 +5960,7 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
             formulas,
             vec![
                 "always(!<+SHIP> true | eventually(<+PAY> true))",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)",
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)",
                 "<+REFUND> true"
             ]
         );
@@ -5972,7 +5972,7 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
 {
   "formula_validation": "Formula 1: always(!<+SHIP> true | eventually(<+PAY> true))",
   "validation_formula": "F2: <+REFUND> true",
-  "rule_validation": "Formula 3: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)",
+  "rule_validation": "Formula 3: always([+APPROVE -signed_by(/users/reviewer.id)] false)",
   "validation": "This validation is only explained in prose."
 }
 "#;
@@ -5982,7 +5982,7 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
             formulas,
             vec![
                 "always(!<+SHIP> true | eventually(<+PAY> true))",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)",
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)",
                 "<+REFUND> true"
             ]
         );
@@ -5994,7 +5994,7 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
 {
   "formula_verification": "Formula 1: always(!<+SHIP> true | eventually(<+PAY> true))",
   "verification_formula": "F2: <+REFUND> true",
-  "rule_verification": "Formula 3: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)",
+  "rule_verification": "Formula 3: always([+APPROVE -signed_by(/users/reviewer.id)] false)",
   "verification": "This verification is only explained in prose."
 }
 "#;
@@ -6004,7 +6004,7 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
             formulas,
             vec![
                 "always(!<+SHIP> true | eventually(<+PAY> true))",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)",
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)",
                 "<+REFUND> true"
             ]
         );
@@ -6016,10 +6016,10 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
 {
   "formula_valid": "Formula 1: always(!<+SHIP> true | eventually(<+PAY> true))",
   "formula_verified": "F2: <+REFUND> true",
-  "rule_valid": "Formula 3: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)",
+  "rule_valid": "Formula 3: always([+APPROVE -signed_by(/users/reviewer.id)] false)",
   "rule_verified": "Formula 4: <+ESCALATE> true",
   "formula_validated": "Formula 5: <+ARCHIVE> true",
-  "rule_validated": "Formula 6: always(!<+CLOSE> true | <+CLOSE +signed_by(/users/closer.id)> true)",
+  "rule_validated": "Formula 6: always([+CLOSE -signed_by(/users/closer.id)] false)",
   "valid": "This valid candidate is only prose.",
   "verified": "This verified candidate is only prose.",
   "validated": "This validated candidate is only prose."
@@ -6033,8 +6033,8 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
                 "always(!<+SHIP> true | eventually(<+PAY> true))",
                 "<+ARCHIVE> true",
                 "<+REFUND> true",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)",
-                "always(!<+CLOSE> true | <+CLOSE +signed_by(/users/closer.id)> true)",
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)",
+                "always([+CLOSE -signed_by(/users/closer.id)] false)",
                 "<+ESCALATE> true"
             ]
         );
@@ -6046,15 +6046,15 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
 {
   "formula_compliant": "Formula 1: always(!<+SHIP> true | eventually(<+PAY> true))",
   "compliant_formula": "F2: <+REFUND> true",
-  "rule_compliant": "Formula 3: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)",
+  "rule_compliant": "Formula 3: always([+APPROVE -signed_by(/users/reviewer.id)] false)",
   "formula_satisfied": "Formula 4: <+ESCALATE> true",
   "satisfied_formula": "Formula 5: <+ARCHIVE> true",
-  "rule_satisfied": "Formula 6: always(!<+CLOSE> true | <+CLOSE +signed_by(/users/closer.id)> true)",
+  "rule_satisfied": "Formula 6: always([+CLOSE -signed_by(/users/closer.id)] false)",
   "noncompliance_formula": "Formula 7: <+NONCOMPLIANCE_ALERT> true",
-  "formula_noncompliance": "Formula 8: always(!<+REMEDIATE> true | <+REMEDIATE +signed_by(/users/compliance.id)> true)",
+  "formula_noncompliance": "Formula 8: always([+REMEDIATE -signed_by(/users/compliance.id)] false)",
   "rule_noncompliance": "Formula 9: <+REPORT_NONCOMPLIANCE> true",
   "noncompliant_formula": "Formula 10: <+NONCOMPLIANT_ESCALATE> true",
-  "formula_noncompliant": "Formula 11: always(!<+BLOCK> true | <+BLOCK +signed_by(/users/auditor.id)> true)",
+  "formula_noncompliant": "Formula 11: always([+BLOCK -signed_by(/users/auditor.id)] false)",
   "rule_noncompliant": "Formula 12: <+ARCHIVE_NONCOMPLIANT> true",
   "compliant": "This compliant candidate is only prose.",
   "satisfied": "This satisfied candidate is only prose.",
@@ -6069,15 +6069,15 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
             vec![
                 "<+REFUND> true",
                 "always(!<+SHIP> true | eventually(<+PAY> true))",
-                "always(!<+REMEDIATE> true | <+REMEDIATE +signed_by(/users/compliance.id)> true)",
-                "always(!<+BLOCK> true | <+BLOCK +signed_by(/users/auditor.id)> true)",
+                "always([+REMEDIATE -signed_by(/users/compliance.id)] false)",
+                "always([+BLOCK -signed_by(/users/auditor.id)] false)",
                 "<+ESCALATE> true",
                 "<+NONCOMPLIANCE_ALERT> true",
                 "<+NONCOMPLIANT_ESCALATE> true",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)",
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)",
                 "<+REPORT_NONCOMPLIANCE> true",
                 "<+ARCHIVE_NONCOMPLIANT> true",
-                "always(!<+CLOSE> true | <+CLOSE +signed_by(/users/closer.id)> true)",
+                "always([+CLOSE -signed_by(/users/closer.id)] false)",
                 "<+ARCHIVE> true"
             ]
         );
@@ -6089,10 +6089,10 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
 {
   "formula_conformance": "Formula 1: always(!<+SHIP> true | eventually(<+PAY> true))",
   "conformant_formula": "F2: <+REFUND> true",
-  "rule_conformance": "Formula 3: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)",
+  "rule_conformance": "Formula 3: always([+APPROVE -signed_by(/users/reviewer.id)] false)",
   "formula_conforms": "Formula 4: <+ESCALATE> true",
   "conforms_formula": "Formula 5: <+ARCHIVE> true",
-  "rule_conformant": "Formula 6: always(!<+CLOSE> true | <+CLOSE +signed_by(/users/closer.id)> true)",
+  "rule_conformant": "Formula 6: always([+CLOSE -signed_by(/users/closer.id)] false)",
   "conformance": "This conformance result is only prose.",
   "conformant": "This conformant candidate is only prose.",
   "conforms": "This conforms result is only prose."
@@ -6107,8 +6107,8 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
                 "<+ARCHIVE> true",
                 "always(!<+SHIP> true | eventually(<+PAY> true))",
                 "<+ESCALATE> true",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)",
-                "always(!<+CLOSE> true | <+CLOSE +signed_by(/users/closer.id)> true)"
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)",
+                "always([+CLOSE -signed_by(/users/closer.id)] false)"
             ]
         );
     }
@@ -6119,10 +6119,10 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
 {
   "formula_fulfillment": "Formula 1: always(!<+SHIP> true | eventually(<+PAY> true))",
   "fulfilled_formula": "F2: <+REFUND> true",
-  "rule_fulfillment": "Formula 3: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)",
+  "rule_fulfillment": "Formula 3: always([+APPROVE -signed_by(/users/reviewer.id)] false)",
   "formula_fulfilled": "Formula 4: <+ESCALATE> true",
   "fulfillment_formula": "Formula 5: <+ARCHIVE> true",
-  "rule_fulfilled": "Formula 6: always(!<+CLOSE> true | <+CLOSE +signed_by(/users/closer.id)> true)",
+  "rule_fulfilled": "Formula 6: always([+CLOSE -signed_by(/users/closer.id)] false)",
   "fulfilled": "This fulfilled result is only prose.",
   "fulfillment": "This fulfillment result is only prose."
 }
@@ -6136,8 +6136,8 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
                 "always(!<+SHIP> true | eventually(<+PAY> true))",
                 "<+REFUND> true",
                 "<+ARCHIVE> true",
-                "always(!<+CLOSE> true | <+CLOSE +signed_by(/users/closer.id)> true)",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"
+                "always([+CLOSE -signed_by(/users/closer.id)] false)",
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)"
             ]
         );
     }
@@ -6148,10 +6148,10 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
 {
   "formula_failure": "Formula 1: always(!<+SHIP> true | eventually(<+PAY> true))",
   "failure_formula": "F2: <+REFUND> true",
-  "rule_failure": "Formula 3: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)",
+  "rule_failure": "Formula 3: always([+APPROVE -signed_by(/users/reviewer.id)] false)",
   "formula_failed": "Formula 4: <+ESCALATE> true",
   "failed_formula": "Formula 5: <+ARCHIVE> true",
-  "rule_failed": "Formula 6: always(!<+CLOSE> true | <+CLOSE +signed_by(/users/closer.id)> true)",
+  "rule_failed": "Formula 6: always([+CLOSE -signed_by(/users/closer.id)] false)",
   "failed": "This failed result is only prose.",
   "failure": "This failure result is only prose."
 }
@@ -6165,8 +6165,8 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
                 "<+REFUND> true",
                 "<+ESCALATE> true",
                 "always(!<+SHIP> true | eventually(<+PAY> true))",
-                "always(!<+CLOSE> true | <+CLOSE +signed_by(/users/closer.id)> true)",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"
+                "always([+CLOSE -signed_by(/users/closer.id)] false)",
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)"
             ]
         );
     }
@@ -6177,7 +6177,7 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
 {
   "counterexample_formula": "Formula 1: always(!<+SHIP> true | eventually(<+PAY> true))",
   "formula_counterexample": "F2: <+REFUND> true",
-  "rule_counterexample": "Formula 3: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)",
+  "rule_counterexample": "Formula 3: always([+APPROVE -signed_by(/users/reviewer.id)] false)",
   "counterexample": "This counterexample result is only prose."
 }
 "#;
@@ -6188,7 +6188,7 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
             vec![
                 "always(!<+SHIP> true | eventually(<+PAY> true))",
                 "<+REFUND> true",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)"
             ]
         );
     }
@@ -6199,10 +6199,10 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
 {
   "violation_formula": "Formula 1: always(!<+SHIP> true | eventually(<+PAY> true))",
   "formula_violation": "F2: <+REFUND> true",
-  "rule_violation": "Formula 3: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)",
+  "rule_violation": "Formula 3: always([+APPROVE -signed_by(/users/reviewer.id)] false)",
   "violated_formula": "Formula 4: <+ESCALATE> true",
   "formula_violated": "Formula 5: <+ARCHIVE> true",
-  "rule_violated": "Formula 6: always(!<+CLOSE> true | <+CLOSE +signed_by(/users/closer.id)> true)",
+  "rule_violated": "Formula 6: always([+CLOSE -signed_by(/users/closer.id)] false)",
   "violation": "This violation result is only prose.",
   "violated": "This violated result is only prose."
 }
@@ -6214,8 +6214,8 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
             vec![
                 "<+ARCHIVE> true",
                 "<+REFUND> true",
-                "always(!<+CLOSE> true | <+CLOSE +signed_by(/users/closer.id)> true)",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)",
+                "always([+CLOSE -signed_by(/users/closer.id)] false)",
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)",
                 "<+ESCALATE> true",
                 "always(!<+SHIP> true | eventually(<+PAY> true))"
             ]
@@ -6228,10 +6228,10 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
 {
   "breach_formula": "Formula 1: always(!<+SHIP> true | eventually(<+PAY> true))",
   "formula_breach": "F2: <+REFUND> true",
-  "rule_breach": "Formula 3: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)",
+  "rule_breach": "Formula 3: always([+APPROVE -signed_by(/users/reviewer.id)] false)",
   "breached_formula": "Formula 4: <+ESCALATE> true",
   "formula_breached": "Formula 5: <+ARCHIVE> true",
-  "rule_breached": "Formula 6: always(!<+CLOSE> true | <+CLOSE +signed_by(/users/closer.id)> true)",
+  "rule_breached": "Formula 6: always([+CLOSE -signed_by(/users/closer.id)] false)",
   "breach": "This breach result is only prose.",
   "breached": "This breached result is only prose."
 }
@@ -6245,8 +6245,8 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
                 "<+ESCALATE> true",
                 "<+REFUND> true",
                 "<+ARCHIVE> true",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)",
-                "always(!<+CLOSE> true | <+CLOSE +signed_by(/users/closer.id)> true)"
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)",
+                "always([+CLOSE -signed_by(/users/closer.id)] false)"
             ]
         );
     }
@@ -6257,9 +6257,9 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
 {
   "best_formula": "always(!<+PAY> true | eventually(<+DELIVER> true))",
   "candidate_formula": "F2: <+CANCEL> true",
-  "selected formula": "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)",
+  "selected formula": "always([+APPROVE -signed_by(/users/reviewer.id)] false)",
   "validated_formula": "<+ESCALATE> true",
-  "chosen_formula": "Formula 5: always(!<+MERGE> true | <+MERGE +signed_by(/users/maintainer.id)> true)",
+  "chosen_formula": "Formula 5: always([+MERGE -signed_by(/users/maintainer.id)] false)",
   "accepted formula": "explanation without a formula",
   "verified_formula": "F6: <+DEPLOY> true"
 }
@@ -6271,8 +6271,8 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
             vec![
                 "always(!<+PAY> true | eventually(<+DELIVER> true))",
                 "<+CANCEL> true",
-                "always(!<+MERGE> true | <+MERGE +signed_by(/users/maintainer.id)> true)",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)",
+                "always([+MERGE -signed_by(/users/maintainer.id)] false)",
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)",
                 "<+ESCALATE> true",
                 "<+DEPLOY> true"
             ]
@@ -6286,7 +6286,7 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
   "generated_formula": "always(!<+PAY> true | eventually(<+DELIVER> true))",
   "final_formula": "F2: <+CANCEL> true",
   "output formula": "explanation without a formula",
-  "response_formula": "Formula 4: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"
+  "response_formula": "Formula 4: always([+APPROVE -signed_by(/users/reviewer.id)] false)"
 }
 "#;
 
@@ -6296,7 +6296,7 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
             vec![
                 "<+CANCEL> true",
                 "always(!<+PAY> true | eventually(<+DELIVER> true))",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)"
             ]
         );
     }
@@ -6308,7 +6308,7 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
   "formula_generated": "Formula 1: always(!<+SHIP> true | eventually(<+PAY> true))",
   "formula_final": "F2: <+REFUND> true",
   "formula_output": "This output is only prose.",
-  "formula_response": "Formula 3: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)",
+  "formula_response": "Formula 3: always([+APPROVE -signed_by(/users/reviewer.id)] false)",
   "rule_generated": "Formula 4: <+ESCALATE> true"
 }
 "#;
@@ -6319,7 +6319,7 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
             vec![
                 "<+REFUND> true",
                 "always(!<+SHIP> true | eventually(<+PAY> true))",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)",
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)",
                 "<+ESCALATE> true"
             ]
         );
@@ -6332,7 +6332,7 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
   "best": "always(!<+PAY> true | eventually(<+DELIVER> true))",
   "chosen": "F2: <+CANCEL> true",
   "accepted": "explanation without a formula",
-  "selected": "Formula 4: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)",
+  "selected": "Formula 4: always([+APPROVE -signed_by(/users/reviewer.id)] false)",
   "validated": "<+ESCALATE> true",
   "verified": "This candidate is syntactically valid."
 }
@@ -6344,7 +6344,7 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
             vec![
                 "always(!<+PAY> true | eventually(<+DELIVER> true))",
                 "<+CANCEL> true",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)",
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)",
                 "<+ESCALATE> true"
             ]
         );
@@ -6356,7 +6356,7 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
 {
   "formula_best": "Formula 1: always(!<+SHIP> true | eventually(<+PAY> true))",
   "formula_chosen": "F2: <+REFUND> true",
-  "formula_accepted": "Formula 3: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)",
+  "formula_accepted": "Formula 3: always([+APPROVE -signed_by(/users/reviewer.id)] false)",
   "rule_selected": "Formula 4: <+ESCALATE> true",
   "accepted": "This accepted candidate is only described in prose."
 }
@@ -6366,7 +6366,7 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
         assert_eq!(
             formulas,
             vec![
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)",
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)",
                 "always(!<+SHIP> true | eventually(<+PAY> true))",
                 "<+REFUND> true",
                 "<+ESCALATE> true"
@@ -6380,7 +6380,7 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
 {
   "formula_approved": "Formula 1: always(!<+SHIP> true | eventually(<+PAY> true))",
   "confirmed_formula": "F2: <+REFUND> true",
-  "rule_passed": "Formula 3: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)",
+  "rule_passed": "Formula 3: always([+APPROVE -signed_by(/users/reviewer.id)] false)",
   "approved": "This approved candidate is only prose.",
   "confirmed": "This confirmed candidate is only prose.",
   "passed": "This passed candidate is only prose."
@@ -6393,7 +6393,7 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
             vec![
                 "<+REFUND> true",
                 "always(!<+SHIP> true | eventually(<+PAY> true))",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)"
             ]
         );
     }
@@ -6402,11 +6402,11 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
     fn test_parse_llm_response_accepts_json_authorization_field_order_aliases() {
         let response = r#"
 {
-  "formula_authorized": "Formula 1: always(!<+USE_TOOL> true | <+USE_TOOL +signed_by(/users/provider.id)> true)",
+  "formula_authorized": "Formula 1: always([+USE_TOOL -signed_by(/users/provider.id)] false)",
   "authorized_formula": "F2: <+APPROVE_ACCESS> true",
   "rule_authorization": "Formula 3: always(!<+AUTHORIZE> true | always([-REVOKE] true))",
   "authorization_formula": "Formula 4: <+GRANT_CAPABILITY> true",
-  "rule_authorized": "Formula 5: always(!<+AUTHORIZE> true | <+AUTHORIZE +signed_by(/users/issuer.id)> true)",
+  "rule_authorized": "Formula 5: always([+AUTHORIZE -signed_by(/users/issuer.id)] false)",
   "authorized": "This authorized candidate is only prose.",
   "authorization": "This authorization rationale is only prose."
 }
@@ -6418,9 +6418,9 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
             vec![
                 "<+GRANT_CAPABILITY> true",
                 "<+APPROVE_ACCESS> true",
-                "always(!<+USE_TOOL> true | <+USE_TOOL +signed_by(/users/provider.id)> true)",
+                "always([+USE_TOOL -signed_by(/users/provider.id)] false)",
                 "always(!<+AUTHORIZE> true | always([-REVOKE] true))",
-                "always(!<+AUTHORIZE> true | <+AUTHORIZE +signed_by(/users/issuer.id)> true)"
+                "always([+AUTHORIZE -signed_by(/users/issuer.id)] false)"
             ]
         );
     }
@@ -6429,11 +6429,11 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
     fn test_parse_llm_response_accepts_json_permission_field_order_aliases() {
         let response = r#"
 {
-  "formula_permission": "Formula 1: always(!<+USE_TOOL> true | <+USE_TOOL +signed_by(/users/provider.id)> true)",
+  "formula_permission": "Formula 1: always([+USE_TOOL -signed_by(/users/provider.id)] false)",
   "permission_formula": "F2: <+APPROVE_ACCESS> true",
   "rule_access": "Formula 3: always(!<+ACCESS> true | always([-REVOKE] true))",
   "access_formula": "Formula 4: <+GRANT_ACCESS> true",
-  "formula_capability": "Formula 5: always(!<+USE_CAPABILITY> true | <+USE_CAPABILITY +signed_by(/users/issuer.id)> true)",
+  "formula_capability": "Formula 5: always([+USE_CAPABILITY -signed_by(/users/issuer.id)] false)",
   "rule_permission": "Formula 6: <+ASSUME_PERMISSION> true",
   "access": "This access rationale is only prose.",
   "capability": "This capability rationale is only prose.",
@@ -6446,8 +6446,8 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
             formulas,
             vec![
                 "<+GRANT_ACCESS> true",
-                "always(!<+USE_CAPABILITY> true | <+USE_CAPABILITY +signed_by(/users/issuer.id)> true)",
-                "always(!<+USE_TOOL> true | <+USE_TOOL +signed_by(/users/provider.id)> true)",
+                "always([+USE_CAPABILITY -signed_by(/users/issuer.id)] false)",
+                "always([+USE_TOOL -signed_by(/users/provider.id)] false)",
                 "<+APPROVE_ACCESS> true",
                 "always(!<+ACCESS> true | always([-REVOKE] true))",
                 "<+ASSUME_PERMISSION> true"
@@ -6459,13 +6459,13 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
     fn test_parse_llm_response_accepts_json_consent_field_order_aliases() {
         let response = r#"
 {
-  "formula_consent": "Formula 1: always(!<+SHARE_DATA> true | <+SHARE_DATA +signed_by(/users/subject.id)> true)",
+  "formula_consent": "Formula 1: always([+SHARE_DATA -signed_by(/users/subject.id)] false)",
   "consent_formula": "F2: <+RECORD_CONSENT> true",
   "rule_grant": "Formula 3: always(!<+GRANT> true | always([-REVOKE] true))",
   "grant_formula": "Formula 4: <+GRANT_RIGHTS> true",
-  "formula_entitlement": "Formula 5: always(!<+CLAIM_ENTITLEMENT> true | <+CLAIM_ENTITLEMENT +signed_by(/users/issuer.id)> true)",
+  "formula_entitlement": "Formula 5: always([+CLAIM_ENTITLEMENT -signed_by(/users/issuer.id)] false)",
   "privilege_formula": "Formula 6: <+ASSERT_PRIVILEGE> true",
-  "rule_privilege": "Formula 7: always(!<+USE_PRIVILEGE> true | <+USE_PRIVILEGE +signed_by(/users/admin.id)> true)",
+  "rule_privilege": "Formula 7: always([+USE_PRIVILEGE -signed_by(/users/admin.id)] false)",
   "entitlement": "This entitlement rationale is only prose.",
   "grant": "This grant rationale is only prose.",
   "privilege": "This privilege rationale is only prose.",
@@ -6478,12 +6478,12 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
             formulas,
             vec![
                 "<+RECORD_CONSENT> true",
-                "always(!<+SHARE_DATA> true | <+SHARE_DATA +signed_by(/users/subject.id)> true)",
-                "always(!<+CLAIM_ENTITLEMENT> true | <+CLAIM_ENTITLEMENT +signed_by(/users/issuer.id)> true)",
+                "always([+SHARE_DATA -signed_by(/users/subject.id)] false)",
+                "always([+CLAIM_ENTITLEMENT -signed_by(/users/issuer.id)] false)",
                 "<+GRANT_RIGHTS> true",
                 "<+ASSERT_PRIVILEGE> true",
                 "always(!<+GRANT> true | always([-REVOKE] true))",
-                "always(!<+USE_PRIVILEGE> true | <+USE_PRIVILEGE +signed_by(/users/admin.id)> true)"
+                "always([+USE_PRIVILEGE -signed_by(/users/admin.id)] false)"
             ]
         );
     }
@@ -6492,13 +6492,13 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
     fn test_parse_llm_response_accepts_json_obligation_field_order_aliases() {
         let response = r#"
 {
-  "formula_obligation": "Formula 1: always(!<+PAY> true | <+PAY +signed_by(/users/debtor.id)> true)",
+  "formula_obligation": "Formula 1: always([+PAY -signed_by(/users/debtor.id)] false)",
   "obligation_formula": "F2: <+ACK_OBLIGATION> true",
-  "rule_duty": "Formula 3: always(!<+PERFORM_DUTY> true | <+PERFORM_DUTY +signed_by(/users/obligor.id)> true)",
+  "rule_duty": "Formula 3: always([+PERFORM_DUTY -signed_by(/users/obligor.id)] false)",
   "duty_formula": "Formula 4: <+PERFORM_DUTY> true",
   "formula_covenant": "Formula 5: always(!<+COVENANT> true | always([-BREACH] true))",
   "commitment_formula": "Formula 6: <+RECORD_COMMITMENT> true",
-  "rule_commitment": "Formula 7: always(!<+HONOR_COMMITMENT> true | <+HONOR_COMMITMENT +signed_by(/users/committer.id)> true)",
+  "rule_commitment": "Formula 7: always([+HONOR_COMMITMENT -signed_by(/users/committer.id)] false)",
   "obligation": "This obligation rationale is only prose.",
   "duty": "This duty rationale is only prose.",
   "covenant": "This covenant rationale is only prose.",
@@ -6513,10 +6513,10 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
                 "<+RECORD_COMMITMENT> true",
                 "<+PERFORM_DUTY> true",
                 "always(!<+COVENANT> true | always([-BREACH] true))",
-                "always(!<+PAY> true | <+PAY +signed_by(/users/debtor.id)> true)",
+                "always([+PAY -signed_by(/users/debtor.id)] false)",
                 "<+ACK_OBLIGATION> true",
-                "always(!<+HONOR_COMMITMENT> true | <+HONOR_COMMITMENT +signed_by(/users/committer.id)> true)",
-                "always(!<+PERFORM_DUTY> true | <+PERFORM_DUTY +signed_by(/users/obligor.id)> true)"
+                "always([+HONOR_COMMITMENT -signed_by(/users/committer.id)] false)",
+                "always([+PERFORM_DUTY -signed_by(/users/obligor.id)] false)"
             ]
         );
     }
@@ -6525,14 +6525,14 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
     fn test_parse_llm_response_accepts_json_liability_field_order_aliases() {
         let response = r#"
 {
-  "formula_liability": "Formula 1: always(!<+ASSUME_LIABILITY> true | <+ASSUME_LIABILITY +signed_by(/users/liable_party.id)> true)",
+  "formula_liability": "Formula 1: always([+ASSUME_LIABILITY -signed_by(/users/liable_party.id)] false)",
   "liability_formula": "F2: <+ACCEPT_LIABILITY> true",
-  "rule_liability": "Formula 3: always(!<+CLAIM_LIABILITY> true | <+CLAIM_LIABILITY +signed_by(/users/claimant.id)> true)",
+  "rule_liability": "Formula 3: always([+CLAIM_LIABILITY -signed_by(/users/claimant.id)] false)",
   "formula_warranty": "Formula 4: always(!<+ASSERT_WARRANTY> true | always([-DISCLAIM_WARRANTY] true))",
   "warranty_formula": "Formula 5: <+HONOR_WARRANTY> true",
-  "rule_warranty": "Formula 6: always(!<+REPAIR> true | <+REPAIR +signed_by(/users/warrantor.id)> true)",
+  "rule_warranty": "Formula 6: always([+REPAIR -signed_by(/users/warrantor.id)] false)",
   "formula_indemnity": "Formula 7: <+INDEMNIFY> true",
-  "indemnity_formula": "Formula 8: always(!<+INDEMNIFY> true | <+INDEMNIFY +signed_by(/users/indemnitor.id)> true)",
+  "indemnity_formula": "Formula 8: always([+INDEMNIFY -signed_by(/users/indemnitor.id)] false)",
   "rule_indemnification": "Formula 9: <+NOTICE_INDEMNIFICATION> true",
   "liability": "This liability allocation is only prose.",
   "warranty": "This warranty rationale is only prose.",
@@ -6545,13 +6545,13 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
             formulas,
             vec![
                 "<+INDEMNIFY> true",
-                "always(!<+ASSUME_LIABILITY> true | <+ASSUME_LIABILITY +signed_by(/users/liable_party.id)> true)",
+                "always([+ASSUME_LIABILITY -signed_by(/users/liable_party.id)] false)",
                 "always(!<+ASSERT_WARRANTY> true | always([-DISCLAIM_WARRANTY] true))",
-                "always(!<+INDEMNIFY> true | <+INDEMNIFY +signed_by(/users/indemnitor.id)> true)",
+                "always([+INDEMNIFY -signed_by(/users/indemnitor.id)] false)",
                 "<+ACCEPT_LIABILITY> true",
                 "<+NOTICE_INDEMNIFICATION> true",
-                "always(!<+CLAIM_LIABILITY> true | <+CLAIM_LIABILITY +signed_by(/users/claimant.id)> true)",
-                "always(!<+REPAIR> true | <+REPAIR +signed_by(/users/warrantor.id)> true)",
+                "always([+CLAIM_LIABILITY -signed_by(/users/claimant.id)] false)",
+                "always([+REPAIR -signed_by(/users/warrantor.id)] false)",
                 "<+HONOR_WARRANTY> true"
             ]
         );
@@ -6561,13 +6561,13 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
     fn test_parse_llm_response_accepts_json_remedy_field_order_aliases() {
         let response = r#"
 {
-  "formula_remedy": "Formula 1: always(!<+REMEDY> true | <+REMEDY +signed_by(/users/remedial_party.id)> true)",
+  "formula_remedy": "Formula 1: always([+REMEDY -signed_by(/users/remedial_party.id)] false)",
   "remedy_formula": "F2: <+PROVIDE_REMEDY> true",
-  "rule_remedy": "Formula 3: always(!<+SEEK_REMEDY> true | <+SEEK_REMEDY +signed_by(/users/claimant.id)> true)",
-  "formula_damages": "Formula 4: always(!<+PAY_DAMAGES> true | <+PAY_DAMAGES +signed_by(/users/liable_party.id)> true)",
+  "rule_remedy": "Formula 3: always([+SEEK_REMEDY -signed_by(/users/claimant.id)] false)",
+  "formula_damages": "Formula 4: always([+PAY_DAMAGES -signed_by(/users/liable_party.id)] false)",
   "damages_formula": "Formula 5: <+AWARD_DAMAGES> true",
   "compensation_formula": "Formula 6: <+PAY_COMPENSATION> true",
-  "rule_compensation": "Formula 7: always(!<+COMPENSATE> true | <+COMPENSATE +signed_by(/users/payer.id)> true)",
+  "rule_compensation": "Formula 7: always([+COMPENSATE -signed_by(/users/payer.id)] false)",
   "remedy": "This remedy description is only prose.",
   "damages": "This damages discussion is only prose.",
   "compensation": "This compensation rationale is only prose."
@@ -6580,11 +6580,11 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
             vec![
                 "<+PAY_COMPENSATION> true",
                 "<+AWARD_DAMAGES> true",
-                "always(!<+PAY_DAMAGES> true | <+PAY_DAMAGES +signed_by(/users/liable_party.id)> true)",
-                "always(!<+REMEDY> true | <+REMEDY +signed_by(/users/remedial_party.id)> true)",
+                "always([+PAY_DAMAGES -signed_by(/users/liable_party.id)] false)",
+                "always([+REMEDY -signed_by(/users/remedial_party.id)] false)",
                 "<+PROVIDE_REMEDY> true",
-                "always(!<+COMPENSATE> true | <+COMPENSATE +signed_by(/users/payer.id)> true)",
-                "always(!<+SEEK_REMEDY> true | <+SEEK_REMEDY +signed_by(/users/claimant.id)> true)"
+                "always([+COMPENSATE -signed_by(/users/payer.id)] false)",
+                "always([+SEEK_REMEDY -signed_by(/users/claimant.id)] false)"
             ]
         );
     }
@@ -6593,13 +6593,13 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
     fn test_parse_llm_response_accepts_json_termination_field_order_aliases() {
         let response = r#"
 {
-  "formula_termination": "Formula 1: always(!<+TERMINATE> true | <+TERMINATE +signed_by(/users/owner.id)> true)",
+  "formula_termination": "Formula 1: always([+TERMINATE -signed_by(/users/owner.id)] false)",
   "termination_formula": "F2: always(!<+EXTEND> true | always([-TERMINATE] true))",
   "rule_termination": "Formula 3: <+NOTICE_TERMINATION> true",
-  "formula_cancellation": "Formula 4: always(!<+CANCEL> true | <+CANCEL +signed_by(/users/requester.id)> true)",
+  "formula_cancellation": "Formula 4: always([+CANCEL -signed_by(/users/requester.id)] false)",
   "cancellation_formula": "Formula 5: <+CANCEL_ORDER> true",
   "rule_cancellation": "Formula 6: always(!<+CANCEL> true | always([-SHIP] true))",
-  "formula_refund": "Formula 7: always(!<+REFUND> true | <+REFUND +signed_by(/users/issuer.id)> true)",
+  "formula_refund": "Formula 7: always([+REFUND -signed_by(/users/issuer.id)] false)",
   "refund_formula": "Formula 8: <+ISSUE_REFUND> true",
   "rule_refund": "Formula 9: always(!<+DISPUTE> true | always([-REFUND] true))",
   "termination": "This termination explanation is only prose.",
@@ -6613,9 +6613,9 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
             formulas,
             vec![
                 "<+CANCEL_ORDER> true",
-                "always(!<+CANCEL> true | <+CANCEL +signed_by(/users/requester.id)> true)",
-                "always(!<+REFUND> true | <+REFUND +signed_by(/users/issuer.id)> true)",
-                "always(!<+TERMINATE> true | <+TERMINATE +signed_by(/users/owner.id)> true)",
+                "always([+CANCEL -signed_by(/users/requester.id)] false)",
+                "always([+REFUND -signed_by(/users/issuer.id)] false)",
+                "always([+TERMINATE -signed_by(/users/owner.id)] false)",
                 "<+ISSUE_REFUND> true",
                 "always(!<+CANCEL> true | always([-SHIP] true))",
                 "always(!<+DISPUTE> true | always([-REFUND] true))",
@@ -6629,10 +6629,10 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
     fn test_parse_llm_response_accepts_json_assignment_extension_field_order_aliases() {
         let response = r#"
 {
-  "formula_assignment": "Formula 1: always(!<+ASSIGN> true | <+ASSIGN +signed_by(/users/assigner.id)> true)",
+  "formula_assignment": "Formula 1: always([+ASSIGN -signed_by(/users/assigner.id)] false)",
   "assignment_formula": "F2: always(!<+ASSIGN> true | always([-REASSIGN] true))",
   "rule_assignment": "Formula 3: <+RECORD_ASSIGNMENT> true",
-  "formula_extension": "Formula 4: always(!<+EXTEND> true | <+EXTEND +signed_by(/users/owner.id)> true)",
+  "formula_extension": "Formula 4: always([+EXTEND -signed_by(/users/owner.id)] false)",
   "extension_formula": "Formula 5: always(!<+EXTEND> true | always([-TERMINATE] true))",
   "rule_extension": "Formula 6: <+NOTICE_EXTENSION> true",
   "assignment": "This assignment explanation is only prose.",
@@ -6646,8 +6646,8 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
             vec![
                 "always(!<+ASSIGN> true | always([-REASSIGN] true))",
                 "always(!<+EXTEND> true | always([-TERMINATE] true))",
-                "always(!<+ASSIGN> true | <+ASSIGN +signed_by(/users/assigner.id)> true)",
-                "always(!<+EXTEND> true | <+EXTEND +signed_by(/users/owner.id)> true)",
+                "always([+ASSIGN -signed_by(/users/assigner.id)] false)",
+                "always([+EXTEND -signed_by(/users/owner.id)] false)",
                 "<+RECORD_ASSIGNMENT> true",
                 "<+NOTICE_EXTENSION> true"
             ]
@@ -6658,13 +6658,13 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
     fn test_parse_llm_response_accepts_json_delegation_field_order_aliases() {
         let response = r#"
 {
-  "formula_delegate": "Formula 1: always(!<+DELEGATE> true | <+DELEGATE +signed_by(/users/delegator.id)> true)",
+  "formula_delegate": "Formula 1: always([+DELEGATE -signed_by(/users/delegator.id)] false)",
   "delegate_formula": "F2: always(!<+DELEGATE> true | always([-REVOKE_DELEGATION] true))",
   "rule_delegate": "Formula 3: <+RECORD_DELEGATION> true",
-  "formula_delegation": "Formula 4: always(!<+ACCEPT_DELEGATION> true | <+ACCEPT_DELEGATION +signed_by(/users/delegate.id)> true)",
+  "formula_delegation": "Formula 4: always([+ACCEPT_DELEGATION -signed_by(/users/delegate.id)] false)",
   "delegation_formula": "Formula 5: <+NOTICE_DELEGATION> true",
-  "rule_delegation": "Formula 6: always(!<+REVOKE_DELEGATION> true | <+REVOKE_DELEGATION +signed_by(/users/delegator.id)> true)",
-  "delegated_formula": "Formula 7: always(!<+USE_DELEGATED_AUTHORITY> true | <+USE_DELEGATED_AUTHORITY +signed_by(/users/delegate.id)> true)",
+  "rule_delegation": "Formula 6: always([+REVOKE_DELEGATION -signed_by(/users/delegator.id)] false)",
+  "delegated_formula": "Formula 7: always([+USE_DELEGATED_AUTHORITY -signed_by(/users/delegate.id)] false)",
   "formula_delegated": "Formula 8: <+CONFIRM_DELEGATED_AUTHORITY> true",
   "rule_delegated": "Formula 9: always(!<+USE_DELEGATED_AUTHORITY> true | always([-REASSIGN] true))",
   "delegate": "This delegate explanation is only prose.",
@@ -6678,14 +6678,14 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
             formulas,
             vec![
                 "always(!<+DELEGATE> true | always([-REVOKE_DELEGATION] true))",
-                "always(!<+USE_DELEGATED_AUTHORITY> true | <+USE_DELEGATED_AUTHORITY +signed_by(/users/delegate.id)> true)",
+                "always([+USE_DELEGATED_AUTHORITY -signed_by(/users/delegate.id)] false)",
                 "<+NOTICE_DELEGATION> true",
-                "always(!<+DELEGATE> true | <+DELEGATE +signed_by(/users/delegator.id)> true)",
+                "always([+DELEGATE -signed_by(/users/delegator.id)] false)",
                 "<+CONFIRM_DELEGATED_AUTHORITY> true",
-                "always(!<+ACCEPT_DELEGATION> true | <+ACCEPT_DELEGATION +signed_by(/users/delegate.id)> true)",
+                "always([+ACCEPT_DELEGATION -signed_by(/users/delegate.id)] false)",
                 "<+RECORD_DELEGATION> true",
                 "always(!<+USE_DELEGATED_AUTHORITY> true | always([-REASSIGN] true))",
-                "always(!<+REVOKE_DELEGATION> true | <+REVOKE_DELEGATION +signed_by(/users/delegator.id)> true)"
+                "always([+REVOKE_DELEGATION -signed_by(/users/delegator.id)] false)"
             ]
         );
     }
@@ -6694,11 +6694,11 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
     fn test_parse_llm_response_accepts_json_authority_field_order_aliases() {
         let response = r#"
 {
-  "formula_authority": "Formula 1: always(!<+GRANT_AUTHORITY> true | <+GRANT_AUTHORITY +signed_by(/users/grantor.id)> true)",
-  "authority_formula": "F2: always(!<+USE_AUTHORITY> true | <+USE_AUTHORITY +signed_by(/users/authorized_agent.id)> true)",
-  "rule_authority": "Formula 3: always(!<+REVOKE_AUTHORITY> true | <+REVOKE_AUTHORITY +signed_by(/users/grantor.id)> true)",
+  "formula_authority": "Formula 1: always([+GRANT_AUTHORITY -signed_by(/users/grantor.id)] false)",
+  "authority_formula": "F2: always([+USE_AUTHORITY -signed_by(/users/authorized_agent.id)] false)",
+  "rule_authority": "Formula 3: always([+REVOKE_AUTHORITY -signed_by(/users/grantor.id)] false)",
   "formula_delegated_authority": "Formula 4: <+CONFIRM_DELEGATED_AUTHORITY> true",
-  "delegated_authority_formula": "Formula 5: always(!<+USE_DELEGATED_AUTHORITY> true | <+USE_DELEGATED_AUTHORITY +signed_by(/users/delegate.id)> true)",
+  "delegated_authority_formula": "Formula 5: always([+USE_DELEGATED_AUTHORITY -signed_by(/users/delegate.id)] false)",
   "rule_delegated_authority": "Formula 6: always(!<+USE_DELEGATED_AUTHORITY> true | always([-REASSIGN] true))",
   "authority": "This authority explanation is only prose.",
   "delegated_authority": "This delegated authority summary is only prose."
@@ -6709,11 +6709,11 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
         assert_eq!(
             formulas,
             vec![
-                "always(!<+USE_AUTHORITY> true | <+USE_AUTHORITY +signed_by(/users/authorized_agent.id)> true)",
-                "always(!<+USE_DELEGATED_AUTHORITY> true | <+USE_DELEGATED_AUTHORITY +signed_by(/users/delegate.id)> true)",
-                "always(!<+GRANT_AUTHORITY> true | <+GRANT_AUTHORITY +signed_by(/users/grantor.id)> true)",
+                "always([+USE_AUTHORITY -signed_by(/users/authorized_agent.id)] false)",
+                "always([+USE_DELEGATED_AUTHORITY -signed_by(/users/delegate.id)] false)",
+                "always([+GRANT_AUTHORITY -signed_by(/users/grantor.id)] false)",
                 "<+CONFIRM_DELEGATED_AUTHORITY> true",
-                "always(!<+REVOKE_AUTHORITY> true | <+REVOKE_AUTHORITY +signed_by(/users/grantor.id)> true)",
+                "always([+REVOKE_AUTHORITY -signed_by(/users/grantor.id)] false)",
                 "always(!<+USE_DELEGATED_AUTHORITY> true | always([-REASSIGN] true))"
             ]
         );
@@ -6723,13 +6723,13 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
     fn test_parse_llm_response_accepts_json_certification_publication_registration_aliases() {
         let response = r#"
 {
-  "formula_certification": "Formula 1: always(!<+CERTIFY> true | <+CERTIFY +signed_by(/users/auditor.id)> true)",
+  "formula_certification": "Formula 1: always([+CERTIFY -signed_by(/users/auditor.id)] false)",
   "certification_formula": "F2: always(!<+CERTIFY> true | always([-DEPLOY] true))",
   "rule_certification": "Formula 3: <+RECORD_CERTIFICATION> true",
-  "formula_publication": "Formula 4: always(!<+PUBLISH> true | <+PUBLISH +signed_by(/users/editor.id)> true)",
+  "formula_publication": "Formula 4: always([+PUBLISH -signed_by(/users/editor.id)] false)",
   "publication_formula": "Formula 5: always(!<+PUBLISH> true | always([-EMBARGO] true))",
   "rule_publication": "Formula 6: <+NOTICE_PUBLICATION> true",
-  "formula_registration": "Formula 7: always(!<+REGISTER> true | <+REGISTER +signed_by(/users/registrar.id)> true)",
+  "formula_registration": "Formula 7: always([+REGISTER -signed_by(/users/registrar.id)] false)",
   "registration_formula": "Formula 8: always(!<+REGISTER> true | always([-DELETE] true))",
   "rule_registration": "Formula 9: <+RECORD_REGISTRATION> true",
   "certification": "This certification discussion is only prose.",
@@ -6743,9 +6743,9 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
             formulas,
             vec![
                 "always(!<+CERTIFY> true | always([-DEPLOY] true))",
-                "always(!<+CERTIFY> true | <+CERTIFY +signed_by(/users/auditor.id)> true)",
-                "always(!<+PUBLISH> true | <+PUBLISH +signed_by(/users/editor.id)> true)",
-                "always(!<+REGISTER> true | <+REGISTER +signed_by(/users/registrar.id)> true)",
+                "always([+CERTIFY -signed_by(/users/auditor.id)] false)",
+                "always([+PUBLISH -signed_by(/users/editor.id)] false)",
+                "always([+REGISTER -signed_by(/users/registrar.id)] false)",
                 "always(!<+PUBLISH> true | always([-EMBARGO] true))",
                 "always(!<+REGISTER> true | always([-DELETE] true))",
                 "<+RECORD_CERTIFICATION> true",
@@ -6759,16 +6759,16 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
     fn test_parse_llm_response_accepts_json_acceptance_delivery_invoice_aliases() {
         let response = r#"
 {
-  "formula_acceptance": "Formula 1: always(!<+ACCEPT> true | <+ACCEPT +signed_by(/users/recipient.id)> true)",
+  "formula_acceptance": "Formula 1: always([+ACCEPT -signed_by(/users/recipient.id)] false)",
   "acceptance_formula": "F2: always(!<+ACCEPT> true | always([-REJECT] true))",
   "rule_acceptance": "Formula 3: <+RECORD_ACCEPTANCE> true",
-  "formula_acknowledgement": "Formula 4: always(!<+ACKNOWLEDGE> true | <+ACKNOWLEDGE +signed_by(/users/recipient.id)> true)",
+  "formula_acknowledgement": "Formula 4: always([+ACKNOWLEDGE -signed_by(/users/recipient.id)] false)",
   "acknowledgement_formula": "Formula 5: always(!<+ACKNOWLEDGE> true | always([-DISPUTE] true))",
   "rule_acknowledgment": "Formula 6: <+RECORD_ACKNOWLEDGMENT> true",
-  "formula_delivery": "Formula 7: always(!<+CONFIRM_DELIVERY> true | <+CONFIRM_DELIVERY +signed_by(/users/recipient.id)> true)",
+  "formula_delivery": "Formula 7: always([+CONFIRM_DELIVERY -signed_by(/users/recipient.id)] false)",
   "delivery_formula": "Formula 8: always(!<+CONFIRM_DELIVERY> true | always([-REFUND] true))",
   "rule_delivery": "Formula 9: <+RECORD_DELIVERY> true",
-  "formula_invoice": "Formula 10: always(!<+APPROVE_INVOICE> true | <+APPROVE_INVOICE +signed_by(/users/payer.id)> true)",
+  "formula_invoice": "Formula 10: always([+APPROVE_INVOICE -signed_by(/users/payer.id)] false)",
   "invoice_formula": "Formula 11: always(!<+APPROVE_INVOICE> true | always([-CHARGEBACK] true))",
   "rule_invoice": "Formula 12: <+RECORD_INVOICE> true",
   "acceptance": "This acceptance explanation is only prose.",
@@ -6785,10 +6785,10 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
                 "always(!<+ACCEPT> true | always([-REJECT] true))",
                 "always(!<+ACKNOWLEDGE> true | always([-DISPUTE] true))",
                 "always(!<+CONFIRM_DELIVERY> true | always([-REFUND] true))",
-                "always(!<+ACCEPT> true | <+ACCEPT +signed_by(/users/recipient.id)> true)",
-                "always(!<+ACKNOWLEDGE> true | <+ACKNOWLEDGE +signed_by(/users/recipient.id)> true)",
-                "always(!<+CONFIRM_DELIVERY> true | <+CONFIRM_DELIVERY +signed_by(/users/recipient.id)> true)",
-                "always(!<+APPROVE_INVOICE> true | <+APPROVE_INVOICE +signed_by(/users/payer.id)> true)",
+                "always([+ACCEPT -signed_by(/users/recipient.id)] false)",
+                "always([+ACKNOWLEDGE -signed_by(/users/recipient.id)] false)",
+                "always([+CONFIRM_DELIVERY -signed_by(/users/recipient.id)] false)",
+                "always([+APPROVE_INVOICE -signed_by(/users/payer.id)] false)",
                 "always(!<+APPROVE_INVOICE> true | always([-CHARGEBACK] true))",
                 "<+RECORD_ACCEPTANCE> true",
                 "<+RECORD_ACKNOWLEDGMENT> true",
@@ -6802,19 +6802,19 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
     fn test_parse_llm_response_accepts_json_compliance_risk_aliases() {
         let response = r#"
 {
-  "formula_compliance": "Formula 1: always(!<+CERTIFY_COMPLIANCE> true | <+CERTIFY_COMPLIANCE +signed_by(/users/auditor.id)> true)",
+  "formula_compliance": "Formula 1: always([+CERTIFY_COMPLIANCE -signed_by(/users/auditor.id)] false)",
   "compliance_formula": "F2: always(!<+CERTIFY_COMPLIANCE> true | always([-NONCOMPLIANCE] true))",
   "rule_compliance": "Formula 3: <+RECORD_COMPLIANCE> true",
-  "formula_inspection": "Formula 4: always(!<+INSPECT> true | <+INSPECT +signed_by(/users/inspector.id)> true)",
+  "formula_inspection": "Formula 4: always([+INSPECT -signed_by(/users/inspector.id)] false)",
   "inspection_formula": "Formula 5: always(!<+INSPECT> true | always([-BYPASS_REVIEW] true))",
   "rule_inspection": "Formula 6: <+RECORD_INSPECTION> true",
-  "formula_milestone": "Formula 7: always(!<+ACCEPT_MILESTONE> true | <+ACCEPT_MILESTONE +signed_by(/users/verifier.id)> true)",
+  "formula_milestone": "Formula 7: always([+ACCEPT_MILESTONE -signed_by(/users/verifier.id)] false)",
   "milestone_formula": "Formula 8: always(!<+ACCEPT_MILESTONE> true | always([-REWORK] true))",
   "rule_milestone": "Formula 9: <+RECORD_MILESTONE> true",
-  "formula_risk": "Formula 10: always(!<+ACCEPT_RISK> true | <+ACCEPT_RISK +signed_by(/users/risk_owner.id)> true)",
+  "formula_risk": "Formula 10: always([+ACCEPT_RISK -signed_by(/users/risk_owner.id)] false)",
   "risk_formula": "Formula 11: always(!<+ACCEPT_RISK> true | always([-UNMITIGATED_EXPOSURE] true))",
   "rule_risk": "Formula 12: <+RECORD_RISK> true",
-  "formula_safety": "Formula 13: always(!<+SAFETY_REVIEW> true | <+SAFETY_REVIEW +signed_by(/users/safety_officer.id)> true)",
+  "formula_safety": "Formula 13: always([+SAFETY_REVIEW -signed_by(/users/safety_officer.id)] false)",
   "safety_formula": "Formula 14: always(!<+SAFETY_REVIEW> true | always([-UNSAFE_RELEASE] true))",
   "rule_safety": "Formula 15: <+RECORD_SAFETY> true",
   "compliance": "This compliance summary is only prose.",
@@ -6830,11 +6830,11 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
             formulas,
             vec![
                 "always(!<+CERTIFY_COMPLIANCE> true | always([-NONCOMPLIANCE] true))",
-                "always(!<+CERTIFY_COMPLIANCE> true | <+CERTIFY_COMPLIANCE +signed_by(/users/auditor.id)> true)",
-                "always(!<+INSPECT> true | <+INSPECT +signed_by(/users/inspector.id)> true)",
-                "always(!<+ACCEPT_MILESTONE> true | <+ACCEPT_MILESTONE +signed_by(/users/verifier.id)> true)",
-                "always(!<+ACCEPT_RISK> true | <+ACCEPT_RISK +signed_by(/users/risk_owner.id)> true)",
-                "always(!<+SAFETY_REVIEW> true | <+SAFETY_REVIEW +signed_by(/users/safety_officer.id)> true)",
+                "always([+CERTIFY_COMPLIANCE -signed_by(/users/auditor.id)] false)",
+                "always([+INSPECT -signed_by(/users/inspector.id)] false)",
+                "always([+ACCEPT_MILESTONE -signed_by(/users/verifier.id)] false)",
+                "always([+ACCEPT_RISK -signed_by(/users/risk_owner.id)] false)",
+                "always([+SAFETY_REVIEW -signed_by(/users/safety_officer.id)] false)",
                 "always(!<+INSPECT> true | always([-BYPASS_REVIEW] true))",
                 "always(!<+ACCEPT_MILESTONE> true | always([-REWORK] true))",
                 "always(!<+ACCEPT_RISK> true | always([-UNMITIGATED_EXPOSURE] true))",
@@ -6852,19 +6852,19 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
     fn test_parse_llm_response_accepts_json_incident_freeze_aliases() {
         let response = r#"
 {
-  "formula_incident": "Formula 1: always(!<+CLOSE_INCIDENT> true | <+CLOSE_INCIDENT +signed_by(/users/incident_commander.id)> true)",
+  "formula_incident": "Formula 1: always([+CLOSE_INCIDENT -signed_by(/users/incident_commander.id)] false)",
   "incident_formula": "F2: always(!<+CLOSE_INCIDENT> true | always([-REOPEN_INCIDENT] true))",
   "rule_incident": "Formula 3: <+RECORD_INCIDENT> true",
-  "formula_closure": "Formula 4: always(!<+CLOSE_INCIDENT> true | <+CLOSE_INCIDENT +signed_by(/users/incident_commander.id)> true)",
+  "formula_closure": "Formula 4: always([+CLOSE_INCIDENT -signed_by(/users/incident_commander.id)] false)",
   "closure_formula": "Formula 5: always(!<+CLOSE_INCIDENT> true | always([-REOPEN_INCIDENT] true))",
   "rule_closure": "Formula 6: <+RECORD_CLOSURE> true",
-  "formula_freeze": "Formula 7: always(!<+FREEZE_CHANGE> true | <+FREEZE_CHANGE +signed_by(/users/release_manager.id)> true)",
+  "formula_freeze": "Formula 7: always([+FREEZE_CHANGE -signed_by(/users/release_manager.id)] false)",
   "freeze_formula": "Formula 8: always(!<+FREEZE_CHANGE> true | always([-DEPLOY] true))",
   "rule_freeze": "Formula 9: <+RECORD_FREEZE> true",
-  "formula_change_freeze": "Formula 10: always(!<+FREEZE_CHANGE> true | <+FREEZE_CHANGE +signed_by(/users/release_manager.id)> true)",
+  "formula_change_freeze": "Formula 10: always([+FREEZE_CHANGE -signed_by(/users/release_manager.id)] false)",
   "change_freeze_formula": "Formula 11: always(!<+FREEZE_CHANGE> true | always([-DEPLOY] true))",
   "rule_change_freeze": "Formula 12: <+RECORD_CHANGE_FREEZE> true",
-  "formula_deployment": "Formula 13: always(!<+DEPLOY> true | <+DEPLOY +signed_by(/users/release_manager.id)> true)",
+  "formula_deployment": "Formula 13: always([+DEPLOY -signed_by(/users/release_manager.id)] false)",
   "deployment_formula": "Formula 14: always(!<+FREEZE_CHANGE> true | always([-DEPLOY] true))",
   "rule_deployment": "Formula 15: <+RECORD_DEPLOYMENT> true",
   "incident": "This incident summary is only prose.",
@@ -6882,11 +6882,11 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
                 "always(!<+FREEZE_CHANGE> true | always([-DEPLOY] true))",
                 "always(!<+CLOSE_INCIDENT> true | always([-REOPEN_INCIDENT] true))",
                 "always(!<+FREEZE_CHANGE> true | always([-DEPLOY] true))",
-                "always(!<+FREEZE_CHANGE> true | <+FREEZE_CHANGE +signed_by(/users/release_manager.id)> true)",
-                "always(!<+CLOSE_INCIDENT> true | <+CLOSE_INCIDENT +signed_by(/users/incident_commander.id)> true)",
-                "always(!<+DEPLOY> true | <+DEPLOY +signed_by(/users/release_manager.id)> true)",
-                "always(!<+FREEZE_CHANGE> true | <+FREEZE_CHANGE +signed_by(/users/release_manager.id)> true)",
-                "always(!<+CLOSE_INCIDENT> true | <+CLOSE_INCIDENT +signed_by(/users/incident_commander.id)> true)",
+                "always([+FREEZE_CHANGE -signed_by(/users/release_manager.id)] false)",
+                "always([+CLOSE_INCIDENT -signed_by(/users/incident_commander.id)] false)",
+                "always([+DEPLOY -signed_by(/users/release_manager.id)] false)",
+                "always([+FREEZE_CHANGE -signed_by(/users/release_manager.id)] false)",
+                "always([+CLOSE_INCIDENT -signed_by(/users/incident_commander.id)] false)",
                 "always(!<+FREEZE_CHANGE> true | always([-DEPLOY] true))",
                 "always(!<+CLOSE_INCIDENT> true | always([-REOPEN_INCIDENT] true))",
                 "<+RECORD_CHANGE_FREEZE> true",
@@ -6902,19 +6902,19 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
     fn test_parse_llm_response_accepts_json_lifecycle_action_aliases() {
         let response = r#"
 {
-  "formula_appeal": "Formula 1: always(!<+APPEAL> true | <+APPEAL +signed_by(/users/appellant.id)> true)",
+  "formula_appeal": "Formula 1: always([+APPEAL -signed_by(/users/appellant.id)] false)",
   "appeal_formula": "F2: always(!<+APPEAL> true | always([-ENFORCE] true))",
   "rule_appeal": "Formula 3: <+RECORD_APPEAL> true",
-  "formula_revocation": "Formula 4: always(!<+REVOKE> true | <+REVOKE +signed_by(/users/issuer.id)> true)",
+  "formula_revocation": "Formula 4: always([+REVOKE -signed_by(/users/issuer.id)] false)",
   "revocation_formula": "Formula 5: always(!<+REVOKE> true | always([-USE] true))",
   "rule_revocation": "Formula 6: <+RECORD_REVOCATION> true",
-  "formula_suspension": "Formula 7: always(!<+SUSPEND> true | <+SUSPEND +signed_by(/users/administrator.id)> true)",
+  "formula_suspension": "Formula 7: always([+SUSPEND -signed_by(/users/administrator.id)] false)",
   "suspension_formula": "Formula 8: always(!<+SUSPEND> true | always([-ACCESS] true))",
   "rule_suspension": "Formula 9: <+RECORD_SUSPENSION> true",
-  "formula_reinstatement": "Formula 10: always(!<+REINSTATE> true | <+REINSTATE +signed_by(/users/administrator.id)> true)",
+  "formula_reinstatement": "Formula 10: always([+REINSTATE -signed_by(/users/administrator.id)] false)",
   "reinstatement_formula": "Formula 11: always(!<+REINSTATE> true | always([-SUSPEND] true))",
   "rule_reinstatement": "Formula 12: <+RECORD_REINSTATEMENT> true",
-  "formula_renewal": "Formula 13: always(!<+RENEW> true | <+RENEW +signed_by(/users/holder.id)> true)",
+  "formula_renewal": "Formula 13: always([+RENEW -signed_by(/users/holder.id)] false)",
   "renewal_formula": "Formula 14: always(!<+RENEW> true | always([-EXPIRE] true))",
   "rule_renewal": "Formula 15: <+RECORD_RENEWAL> true",
   "appeal": "This appeal summary is only prose.",
@@ -6930,11 +6930,11 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
             formulas,
             vec![
                 "always(!<+APPEAL> true | always([-ENFORCE] true))",
-                "always(!<+APPEAL> true | <+APPEAL +signed_by(/users/appellant.id)> true)",
-                "always(!<+REINSTATE> true | <+REINSTATE +signed_by(/users/administrator.id)> true)",
-                "always(!<+RENEW> true | <+RENEW +signed_by(/users/holder.id)> true)",
-                "always(!<+REVOKE> true | <+REVOKE +signed_by(/users/issuer.id)> true)",
-                "always(!<+SUSPEND> true | <+SUSPEND +signed_by(/users/administrator.id)> true)",
+                "always([+APPEAL -signed_by(/users/appellant.id)] false)",
+                "always([+REINSTATE -signed_by(/users/administrator.id)] false)",
+                "always([+RENEW -signed_by(/users/holder.id)] false)",
+                "always([+REVOKE -signed_by(/users/issuer.id)] false)",
+                "always([+SUSPEND -signed_by(/users/administrator.id)] false)",
                 "always(!<+REINSTATE> true | always([-SUSPEND] true))",
                 "always(!<+RENEW> true | always([-EXPIRE] true))",
                 "always(!<+REVOKE> true | always([-USE] true))",
@@ -6952,13 +6952,13 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
     fn test_parse_llm_response_accepts_json_timeout_escalation_aliases() {
         let response = r#"
 {
-  "formula_timeout": "Formula 1: always(!<+TIMEOUT> true | <+TIMEOUT +oracle_attests(/oracles/clock.id, \"deadline_passed\", \"true\")> true)",
+  "formula_timeout": "Formula 1: always([+TIMEOUT -oracle_attests(/oracles/clock.id, \"deadline_passed\", \"true\")] false)",
   "timeout_formula": "F2: always(!<+TIMEOUT> true | always([-COMPLETE] true))",
   "rule_timeout": "Formula 3: <+RECORD_TIMEOUT> true",
-  "formula_escalation": "Formula 4: always(!<+ESCALATE> true | <+ESCALATE +signed_by(/users/manager.id)> true)",
+  "formula_escalation": "Formula 4: always([+ESCALATE -signed_by(/users/manager.id)] false)",
   "escalation_formula": "Formula 5: always(!<+ESCALATE> true | always([-CLOSE] true))",
   "rule_escalation": "Formula 6: <+RECORD_ESCALATION> true",
-  "formula_withdrawal": "Formula 7: always(!<+WITHDRAW> true | <+WITHDRAW +signed_by(/users/depositor.id)> true)",
+  "formula_withdrawal": "Formula 7: always([+WITHDRAW -signed_by(/users/depositor.id)] false)",
   "withdrawal_formula": "Formula 8: always(!<+WITHDRAW> true | always([-CLAIM] true))",
   "rule_withdrawal": "Formula 9: <+RECORD_WITHDRAWAL> true",
   "timeout": "This timeout summary is only prose.",
@@ -6972,9 +6972,9 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
             formulas,
             vec![
                 "always(!<+ESCALATE> true | always([-CLOSE] true))",
-                "always(!<+ESCALATE> true | <+ESCALATE +signed_by(/users/manager.id)> true)",
-                "always(!<+TIMEOUT> true | <+TIMEOUT +oracle_attests(/oracles/clock.id, \"deadline_passed\", \"true\")> true)",
-                "always(!<+WITHDRAW> true | <+WITHDRAW +signed_by(/users/depositor.id)> true)",
+                "always([+ESCALATE -signed_by(/users/manager.id)] false)",
+                "always([+TIMEOUT -oracle_attests(/oracles/clock.id, \"deadline_passed\", \"true\")] false)",
+                "always([+WITHDRAW -signed_by(/users/depositor.id)] false)",
                 "<+RECORD_ESCALATION> true",
                 "<+RECORD_TIMEOUT> true",
                 "<+RECORD_WITHDRAWAL> true",
@@ -6988,13 +6988,13 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
     fn test_parse_llm_response_accepts_json_deadline_expiry_aliases() {
         let response = r#"
 {
-  "formula_deadline": "Formula 1: always(!<+DEADLINE> true | <+DEADLINE +oracle_attests(/oracles/clock.id, \"due\", \"true\")> true)",
+  "formula_deadline": "Formula 1: always([+DEADLINE -oracle_attests(/oracles/clock.id, \"due\", \"true\")] false)",
   "deadline_formula": "F2: always(!<+DEADLINE> true | always([-SUBMIT] true))",
   "rule_deadline": "Formula 3: <+RECORD_DEADLINE> true",
-  "formula_expiry": "Formula 4: always(!<+EXPIRE> true | <+EXPIRE +signed_by(/users/issuer.id)> true)",
+  "formula_expiry": "Formula 4: always([+EXPIRE -signed_by(/users/issuer.id)] false)",
   "expiry_formula": "Formula 5: always(!<+EXPIRE> true | always([-RENEW] true))",
   "rule_expiry": "Formula 6: <+RECORD_EXPIRY> true",
-  "formula_expiration": "Formula 7: always(!<+EXPIRATION> true | <+EXPIRATION +signed_by(/users/admin.id)> true)",
+  "formula_expiration": "Formula 7: always([+EXPIRATION -signed_by(/users/admin.id)] false)",
   "expiration_formula": "Formula 8: always(!<+EXPIRATION> true | always([-ACCESS] true))",
   "rule_expiration": "Formula 9: <+RECORD_EXPIRATION> true",
   "deadline": "This deadline summary is only prose.",
@@ -7010,9 +7010,9 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
                 "always(!<+DEADLINE> true | always([-SUBMIT] true))",
                 "always(!<+EXPIRATION> true | always([-ACCESS] true))",
                 "always(!<+EXPIRE> true | always([-RENEW] true))",
-                "always(!<+DEADLINE> true | <+DEADLINE +oracle_attests(/oracles/clock.id, \"due\", \"true\")> true)",
-                "always(!<+EXPIRATION> true | <+EXPIRATION +signed_by(/users/admin.id)> true)",
-                "always(!<+EXPIRE> true | <+EXPIRE +signed_by(/users/issuer.id)> true)",
+                "always([+DEADLINE -oracle_attests(/oracles/clock.id, \"due\", \"true\")] false)",
+                "always([+EXPIRATION -signed_by(/users/admin.id)] false)",
+                "always([+EXPIRE -signed_by(/users/issuer.id)] false)",
                 "<+RECORD_DEADLINE> true",
                 "<+RECORD_EXPIRATION> true",
                 "<+RECORD_EXPIRY> true"
@@ -7024,16 +7024,16 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
     fn test_parse_llm_response_accepts_json_payment_settlement_aliases() {
         let response = r#"
 {
-  "formula_payment": "Formula 1: always(!<+PAY> true | <+PAY +signed_by(/users/payer.id)> true)",
+  "formula_payment": "Formula 1: always([+PAY -signed_by(/users/payer.id)] false)",
   "payment_formula": "F2: always(!<+PAY> true | eventually(<+RECEIPT> true))",
   "rule_payment": "Formula 3: <+RECORD_PAYMENT> true",
-  "formula_payout": "Formula 4: always(!<+PAYOUT> true | <+PAYOUT +signed_by(/users/treasurer.id)> true)",
+  "formula_payout": "Formula 4: always([+PAYOUT -signed_by(/users/treasurer.id)] false)",
   "payout_formula": "Formula 5: always(!<+PAYOUT> true | always([-CHARGEBACK] true))",
   "rule_payout": "Formula 6: <+RECORD_PAYOUT> true",
-  "formula_settlement": "Formula 7: always(!<+SETTLE> true | <+SETTLE +signed_by(/users/clearinghouse.id)> true)",
+  "formula_settlement": "Formula 7: always([+SETTLE -signed_by(/users/clearinghouse.id)] false)",
   "settlement_formula": "Formula 8: always(!<+SETTLE> true | always([-DISPUTE] true))",
   "rule_settlement": "Formula 9: <+RECORD_SETTLEMENT> true",
-  "formula_transfer": "Formula 10: always(!<+TRANSFER> true | <+TRANSFER +signed_by(/users/custodian.id)> true)",
+  "formula_transfer": "Formula 10: always([+TRANSFER -signed_by(/users/custodian.id)] false)",
   "transfer_formula": "Formula 11: always(!<+TRANSFER> true | always([-REVOKE] true))",
   "rule_transfer": "Formula 12: <+RECORD_TRANSFER> true",
   "payment": "This payment summary is only prose.",
@@ -7047,10 +7047,10 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
         assert_eq!(
             formulas,
             vec![
-                "always(!<+PAY> true | <+PAY +signed_by(/users/payer.id)> true)",
-                "always(!<+PAYOUT> true | <+PAYOUT +signed_by(/users/treasurer.id)> true)",
-                "always(!<+SETTLE> true | <+SETTLE +signed_by(/users/clearinghouse.id)> true)",
-                "always(!<+TRANSFER> true | <+TRANSFER +signed_by(/users/custodian.id)> true)",
+                "always([+PAY -signed_by(/users/payer.id)] false)",
+                "always([+PAYOUT -signed_by(/users/treasurer.id)] false)",
+                "always([+SETTLE -signed_by(/users/clearinghouse.id)] false)",
+                "always([+TRANSFER -signed_by(/users/custodian.id)] false)",
                 "always(!<+PAY> true | eventually(<+RECEIPT> true))",
                 "always(!<+PAYOUT> true | always([-CHARGEBACK] true))",
                 "<+RECORD_PAYMENT> true",
@@ -7067,16 +7067,16 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
     fn test_parse_llm_response_accepts_json_charge_deposit_aliases() {
         let response = r#"
 {
-  "formula_charge": "Formula 1: always(!<+CHARGE> true | <+CHARGE +signed_by(/users/merchant.id)> true)",
+  "formula_charge": "Formula 1: always([+CHARGE -signed_by(/users/merchant.id)] false)",
   "charge_formula": "F2: always(!<+CHARGE> true | always([-REFUND] true))",
   "rule_charge": "Formula 3: <+RECORD_CHARGE> true",
-  "formula_deposit": "Formula 4: always(!<+DEPOSIT> true | <+DEPOSIT +signed_by(/users/depositor.id)> true)",
+  "formula_deposit": "Formula 4: always([+DEPOSIT -signed_by(/users/depositor.id)] false)",
   "deposit_formula": "Formula 5: always(!<+DEPOSIT> true | eventually(<+RELEASE> true))",
   "rule_deposit": "Formula 6: <+RECORD_DEPOSIT> true",
-  "formula_escrow": "Formula 7: always(!<+ESCROW> true | <+ESCROW +signed_by(/users/escrow_agent.id)> true)",
+  "formula_escrow": "Formula 7: always([+ESCROW -signed_by(/users/escrow_agent.id)] false)",
   "escrow_formula": "Formula 8: always(!<+ESCROW> true | always([-WITHDRAW] true))",
   "rule_escrow": "Formula 9: <+RECORD_ESCROW> true",
-  "formula_fee": "Formula 10: always(!<+COLLECT_FEE> true | <+COLLECT_FEE +signed_by(/users/platform.id)> true)",
+  "formula_fee": "Formula 10: always([+COLLECT_FEE -signed_by(/users/platform.id)] false)",
   "fee_formula": "Formula 11: always(!<+COLLECT_FEE> true | eventually(<+SERVICE> true))",
   "rule_fee": "Formula 12: <+RECORD_FEE> true",
   "charge": "This charge summary is only prose.",
@@ -7094,10 +7094,10 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
                 "always(!<+DEPOSIT> true | eventually(<+RELEASE> true))",
                 "always(!<+ESCROW> true | always([-WITHDRAW] true))",
                 "always(!<+COLLECT_FEE> true | eventually(<+SERVICE> true))",
-                "always(!<+CHARGE> true | <+CHARGE +signed_by(/users/merchant.id)> true)",
-                "always(!<+DEPOSIT> true | <+DEPOSIT +signed_by(/users/depositor.id)> true)",
-                "always(!<+ESCROW> true | <+ESCROW +signed_by(/users/escrow_agent.id)> true)",
-                "always(!<+COLLECT_FEE> true | <+COLLECT_FEE +signed_by(/users/platform.id)> true)",
+                "always([+CHARGE -signed_by(/users/merchant.id)] false)",
+                "always([+DEPOSIT -signed_by(/users/depositor.id)] false)",
+                "always([+ESCROW -signed_by(/users/escrow_agent.id)] false)",
+                "always([+COLLECT_FEE -signed_by(/users/platform.id)] false)",
                 "<+RECORD_CHARGE> true",
                 "<+RECORD_DEPOSIT> true",
                 "<+RECORD_ESCROW> true",
@@ -7110,16 +7110,16 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
     fn test_parse_llm_response_accepts_json_dispute_adverse_event_aliases() {
         let response = r#"
 {
-  "formula_dispute": "Formula 1: always(!<+DISPUTE> true | <+DISPUTE +signed_by(/users/claimant.id)> true)",
+  "formula_dispute": "Formula 1: always([+DISPUTE -signed_by(/users/claimant.id)] false)",
   "dispute_formula": "F2: always(!<+DISPUTE> true | always([-RELEASE] true))",
   "rule_dispute": "Formula 3: <+RECORD_DISPUTE> true",
-  "formula_chargeback": "Formula 4: always(!<+CHARGEBACK> true | <+CHARGEBACK +signed_by(/users/cardholder.id)> true)",
+  "formula_chargeback": "Formula 4: always([+CHARGEBACK -signed_by(/users/cardholder.id)] false)",
   "chargeback_formula": "Formula 5: always(!<+CHARGEBACK> true | always([-PAYOUT] true))",
   "rule_chargeback": "Formula 6: <+RECORD_CHARGEBACK> true",
-  "formula_rework": "Formula 7: always(!<+REWORK> true | <+REWORK +signed_by(/users/verifier.id)> true)",
+  "formula_rework": "Formula 7: always([+REWORK -signed_by(/users/verifier.id)] false)",
   "rework_formula": "Formula 8: always(!<+REWORK> true | eventually(<+REINSPECT> true))",
   "rule_rework": "Formula 9: <+RECORD_REWORK> true",
-  "formula_defect_claim": "Formula 10: always(!<+DEFECT_CLAIM> true | <+DEFECT_CLAIM +signed_by(/users/inspector.id)> true)",
+  "formula_defect_claim": "Formula 10: always([+DEFECT_CLAIM -signed_by(/users/inspector.id)] false)",
   "defect_claim_formula": "Formula 11: always(!<+DEFECT_CLAIM> true | always([-ACCEPT] true))",
   "rule_defect_claim": "Formula 12: <+RECORD_DEFECT_CLAIM> true",
   "dispute": "This dispute summary is only prose.",
@@ -7136,10 +7136,10 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
                 "always(!<+CHARGEBACK> true | always([-PAYOUT] true))",
                 "always(!<+DEFECT_CLAIM> true | always([-ACCEPT] true))",
                 "always(!<+DISPUTE> true | always([-RELEASE] true))",
-                "always(!<+CHARGEBACK> true | <+CHARGEBACK +signed_by(/users/cardholder.id)> true)",
-                "always(!<+DEFECT_CLAIM> true | <+DEFECT_CLAIM +signed_by(/users/inspector.id)> true)",
-                "always(!<+DISPUTE> true | <+DISPUTE +signed_by(/users/claimant.id)> true)",
-                "always(!<+REWORK> true | <+REWORK +signed_by(/users/verifier.id)> true)",
+                "always([+CHARGEBACK -signed_by(/users/cardholder.id)] false)",
+                "always([+DEFECT_CLAIM -signed_by(/users/inspector.id)] false)",
+                "always([+DISPUTE -signed_by(/users/claimant.id)] false)",
+                "always([+REWORK -signed_by(/users/verifier.id)] false)",
                 "always(!<+REWORK> true | eventually(<+REINSPECT> true))",
                 "<+RECORD_CHARGEBACK> true",
                 "<+RECORD_DEFECT_CLAIM> true",
@@ -7153,16 +7153,16 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
     fn test_parse_llm_response_accepts_json_control_policy_aliases() {
         let response = r#"
 {
-  "formula_audit": "Formula 1: always(!<+AUDIT> true | <+AUDIT +signed_by(/users/auditor.id)> true)",
+  "formula_audit": "Formula 1: always([+AUDIT -signed_by(/users/auditor.id)] false)",
   "audit_formula": "F2: always(!<+AUDIT> true | eventually(<+REPORT> true))",
   "rule_audit": "Formula 3: <+RECORD_AUDIT> true",
-  "formula_confidentiality": "Formula 4: always(!<+DISCLOSE> true | <+DISCLOSE +signed_by(/users/data_owner.id)> true)",
+  "formula_confidentiality": "Formula 4: always([+DISCLOSE -signed_by(/users/data_owner.id)] false)",
   "confidentiality_formula": "Formula 5: always(!<+DISCLOSE> true | always([-PUBLIC_RELEASE] true))",
   "rule_confidentiality": "Formula 6: <+RECORD_CONFIDENTIALITY> true",
-  "formula_privacy": "Formula 7: always(!<+PROCESS_DATA> true | <+PROCESS_DATA +signed_by(/users/subject.id)> true)",
+  "formula_privacy": "Formula 7: always([+PROCESS_DATA -signed_by(/users/subject.id)] false)",
   "privacy_formula": "Formula 8: always(!<+PROCESS_DATA> true | always([-UNAUTHORIZED_SHARE] true))",
   "rule_privacy": "Formula 9: <+RECORD_PRIVACY> true",
-  "formula_security": "Formula 10: always(!<+ROTATE_KEY> true | <+ROTATE_KEY +signed_by(/users/security_admin.id)> true)",
+  "formula_security": "Formula 10: always([+ROTATE_KEY -signed_by(/users/security_admin.id)] false)",
   "security_formula": "Formula 11: always(!<+DEPLOY> true | eventually(<+SECURITY_REVIEW> true))",
   "rule_security": "Formula 12: <+RECORD_SECURITY> true",
   "audit": "This audit summary is only prose.",
@@ -7178,10 +7178,10 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
             vec![
                 "always(!<+AUDIT> true | eventually(<+REPORT> true))",
                 "always(!<+DISCLOSE> true | always([-PUBLIC_RELEASE] true))",
-                "always(!<+AUDIT> true | <+AUDIT +signed_by(/users/auditor.id)> true)",
-                "always(!<+DISCLOSE> true | <+DISCLOSE +signed_by(/users/data_owner.id)> true)",
-                "always(!<+PROCESS_DATA> true | <+PROCESS_DATA +signed_by(/users/subject.id)> true)",
-                "always(!<+ROTATE_KEY> true | <+ROTATE_KEY +signed_by(/users/security_admin.id)> true)",
+                "always([+AUDIT -signed_by(/users/auditor.id)] false)",
+                "always([+DISCLOSE -signed_by(/users/data_owner.id)] false)",
+                "always([+PROCESS_DATA -signed_by(/users/subject.id)] false)",
+                "always([+ROTATE_KEY -signed_by(/users/security_admin.id)] false)",
                 "always(!<+PROCESS_DATA> true | always([-UNAUTHORIZED_SHARE] true))",
                 "<+RECORD_AUDIT> true",
                 "<+RECORD_CONFIDENTIALITY> true",
@@ -7196,16 +7196,16 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
     fn test_parse_llm_response_accepts_json_policy_notice_aliases() {
         let response = r#"
 {
-  "formula_policy": "Formula 1: always(!<+APPROVE_POLICY> true | <+APPROVE_POLICY +signed_by(/users/policy_owner.id)> true)",
+  "formula_policy": "Formula 1: always([+APPROVE_POLICY -signed_by(/users/policy_owner.id)] false)",
   "policy_formula": "F2: always(!<+APPROVE_POLICY> true | always([-REJECT_POLICY] true))",
   "rule_policy": "Formula 3: <+RECORD_POLICY> true",
-  "formula_notice": "Formula 4: always(!<+SEND_NOTICE> true | <+SEND_NOTICE +signed_by(/users/notifier.id)> true)",
+  "formula_notice": "Formula 4: always([+SEND_NOTICE -signed_by(/users/notifier.id)] false)",
   "notice_formula": "Formula 5: always(!<+SEND_NOTICE> true | eventually(<+ACKNOWLEDGE_NOTICE> true))",
   "rule_notice": "Formula 6: <+RECORD_NOTICE> true",
-  "formula_notification": "Formula 7: always(!<+NOTIFY> true | <+NOTIFY +signed_by(/users/notifier.id)> true)",
+  "formula_notification": "Formula 7: always([+NOTIFY -signed_by(/users/notifier.id)] false)",
   "notification_formula": "Formula 8: always(!<+NOTIFY> true | eventually(<+CONFIRM_NOTIFICATION> true))",
   "rule_notification": "Formula 9: <+RECORD_NOTIFICATION> true",
-  "formula_retention": "Formula 10: always(!<+RETENTION_REVIEW> true | <+RETENTION_REVIEW +signed_by(/users/records_admin.id)> true)",
+  "formula_retention": "Formula 10: always([+RETENTION_REVIEW -signed_by(/users/records_admin.id)] false)",
   "retention_formula": "Formula 11: always(!<+PURGE_RECORDS> true | eventually(<+RETENTION_REVIEW> true))",
   "rule_retention": "Formula 12: <+RECORD_RETENTION> true",
   "policy": "This policy summary is only prose.",
@@ -7219,10 +7219,10 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
         assert_eq!(
             formulas,
             vec![
-                "always(!<+SEND_NOTICE> true | <+SEND_NOTICE +signed_by(/users/notifier.id)> true)",
-                "always(!<+NOTIFY> true | <+NOTIFY +signed_by(/users/notifier.id)> true)",
-                "always(!<+APPROVE_POLICY> true | <+APPROVE_POLICY +signed_by(/users/policy_owner.id)> true)",
-                "always(!<+RETENTION_REVIEW> true | <+RETENTION_REVIEW +signed_by(/users/records_admin.id)> true)",
+                "always([+SEND_NOTICE -signed_by(/users/notifier.id)] false)",
+                "always([+NOTIFY -signed_by(/users/notifier.id)] false)",
+                "always([+APPROVE_POLICY -signed_by(/users/policy_owner.id)] false)",
+                "always([+RETENTION_REVIEW -signed_by(/users/records_admin.id)] false)",
                 "always(!<+SEND_NOTICE> true | eventually(<+ACKNOWLEDGE_NOTICE> true))",
                 "always(!<+NOTIFY> true | eventually(<+CONFIRM_NOTIFICATION> true))",
                 "always(!<+APPROVE_POLICY> true | always([-REJECT_POLICY] true))",
@@ -7239,19 +7239,19 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
     fn test_parse_llm_response_accepts_json_license_exception_aliases() {
         let response = r#"
 {
-  "formula_license": "Formula 1: always(!<+ISSUE_LICENSE> true | <+ISSUE_LICENSE +signed_by(/users/licensor.id)> true)",
+  "formula_license": "Formula 1: always([+ISSUE_LICENSE -signed_by(/users/licensor.id)] false)",
   "license_formula": "F2: always(!<+USE_LICENSE> true | eventually(<+ISSUE_LICENSE> true))",
   "rule_license": "Formula 3: <+RECORD_LICENSE> true",
-  "formula_permit": "Formula 4: always(!<+ISSUE_PERMIT> true | <+ISSUE_PERMIT +signed_by(/users/issuer.id)> true)",
+  "formula_permit": "Formula 4: always([+ISSUE_PERMIT -signed_by(/users/issuer.id)] false)",
   "permit_formula": "Formula 5: always(!<+USE_PERMIT> true | eventually(<+ISSUE_PERMIT> true))",
   "rule_permit": "Formula 6: <+RECORD_PERMIT> true",
-  "formula_waiver": "Formula 7: always(!<+GRANT_WAIVER> true | <+GRANT_WAIVER +signed_by(/users/waiver_authority.id)> true)",
+  "formula_waiver": "Formula 7: always([+GRANT_WAIVER -signed_by(/users/waiver_authority.id)] false)",
   "waiver_formula": "Formula 8: always(!<+GRANT_WAIVER> true | always([-ENFORCE_REQUIREMENT] true))",
   "rule_waiver": "Formula 9: <+RECORD_WAIVER> true",
-  "formula_exception": "Formula 10: always(!<+ALLOW_EXCEPTION> true | <+ALLOW_EXCEPTION +signed_by(/users/approver.id)> true)",
+  "formula_exception": "Formula 10: always([+ALLOW_EXCEPTION -signed_by(/users/approver.id)] false)",
   "exception_formula": "Formula 11: always(!<+ALLOW_EXCEPTION> true | eventually(<+REVIEW_EXCEPTION> true))",
   "rule_exception": "Formula 12: <+RECORD_EXCEPTION> true",
-  "formula_exemption": "Formula 13: always(!<+GRANT_EXEMPTION> true | <+GRANT_EXEMPTION +signed_by(/users/approver.id)> true)",
+  "formula_exemption": "Formula 13: always([+GRANT_EXEMPTION -signed_by(/users/approver.id)] false)",
   "exemption_formula": "Formula 14: always(!<+GRANT_EXEMPTION> true | always([-APPLY_STANDARD] true))",
   "rule_exemption": "Formula 15: <+RECORD_EXEMPTION> true",
   "license": "This license summary is only prose.",
@@ -7268,11 +7268,11 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
             vec![
                 "always(!<+ALLOW_EXCEPTION> true | eventually(<+REVIEW_EXCEPTION> true))",
                 "always(!<+GRANT_EXEMPTION> true | always([-APPLY_STANDARD] true))",
-                "always(!<+ALLOW_EXCEPTION> true | <+ALLOW_EXCEPTION +signed_by(/users/approver.id)> true)",
-                "always(!<+GRANT_EXEMPTION> true | <+GRANT_EXEMPTION +signed_by(/users/approver.id)> true)",
-                "always(!<+ISSUE_LICENSE> true | <+ISSUE_LICENSE +signed_by(/users/licensor.id)> true)",
-                "always(!<+ISSUE_PERMIT> true | <+ISSUE_PERMIT +signed_by(/users/issuer.id)> true)",
-                "always(!<+GRANT_WAIVER> true | <+GRANT_WAIVER +signed_by(/users/waiver_authority.id)> true)",
+                "always([+ALLOW_EXCEPTION -signed_by(/users/approver.id)] false)",
+                "always([+GRANT_EXEMPTION -signed_by(/users/approver.id)] false)",
+                "always([+ISSUE_LICENSE -signed_by(/users/licensor.id)] false)",
+                "always([+ISSUE_PERMIT -signed_by(/users/issuer.id)] false)",
+                "always([+GRANT_WAIVER -signed_by(/users/waiver_authority.id)] false)",
                 "always(!<+USE_LICENSE> true | eventually(<+ISSUE_LICENSE> true))",
                 "always(!<+USE_PERMIT> true | eventually(<+ISSUE_PERMIT> true))",
                 "<+RECORD_EXCEPTION> true",
@@ -7289,19 +7289,19 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
     fn test_parse_llm_response_accepts_json_jurisdiction_forum_aliases() {
         let response = r#"
 {
-  "formula_jurisdiction": "Formula 1: always(!<+SELECT_JURISDICTION> true | <+SELECT_JURISDICTION +signed_by(/users/counsel.id)> true)",
+  "formula_jurisdiction": "Formula 1: always([+SELECT_JURISDICTION -signed_by(/users/counsel.id)] false)",
   "jurisdiction_formula": "F2: always(!<+FILE_CLAIM> true | eventually(<+SELECT_JURISDICTION> true))",
   "rule_jurisdiction": "Formula 3: <+RECORD_JURISDICTION> true",
-  "formula_governing_law": "Formula 4: always(!<+CHOOSE_GOVERNING_LAW> true | <+CHOOSE_GOVERNING_LAW +signed_by(/users/counsel.id)> true)",
+  "formula_governing_law": "Formula 4: always([+CHOOSE_GOVERNING_LAW -signed_by(/users/counsel.id)] false)",
   "governing_law_formula": "Formula 5: always(!<+APPLY_GOVERNING_LAW> true | eventually(<+CHOOSE_GOVERNING_LAW> true))",
   "rule_governing_law": "Formula 6: <+RECORD_GOVERNING_LAW> true",
-  "formula_venue": "Formula 7: always(!<+SELECT_VENUE> true | <+SELECT_VENUE +signed_by(/users/counsel.id)> true)",
+  "formula_venue": "Formula 7: always([+SELECT_VENUE -signed_by(/users/counsel.id)] false)",
   "venue_formula": "Formula 8: always(!<+FILE_CLAIM> true | eventually(<+SELECT_VENUE> true))",
   "rule_venue": "Formula 9: <+RECORD_VENUE> true",
-  "formula_forum": "Formula 10: always(!<+SELECT_FORUM> true | <+SELECT_FORUM +signed_by(/users/counsel.id)> true)",
+  "formula_forum": "Formula 10: always([+SELECT_FORUM -signed_by(/users/counsel.id)] false)",
   "forum_formula": "Formula 11: always(!<+FILE_CLAIM> true | eventually(<+SELECT_FORUM> true))",
   "rule_forum": "Formula 12: <+RECORD_FORUM> true",
-  "formula_arbitration": "Formula 13: always(!<+START_ARBITRATION> true | <+START_ARBITRATION +signed_by(/users/arbiter.id)> true)",
+  "formula_arbitration": "Formula 13: always([+START_ARBITRATION -signed_by(/users/arbiter.id)] false)",
   "arbitration_formula": "Formula 14: always(!<+START_ARBITRATION> true | always([-FILE_COURT_CLAIM] true))",
   "rule_arbitration": "Formula 15: <+RECORD_ARBITRATION> true",
   "jurisdiction": "This jurisdiction summary is only prose.",
@@ -7317,11 +7317,11 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
             formulas,
             vec![
                 "always(!<+START_ARBITRATION> true | always([-FILE_COURT_CLAIM] true))",
-                "always(!<+START_ARBITRATION> true | <+START_ARBITRATION +signed_by(/users/arbiter.id)> true)",
-                "always(!<+SELECT_FORUM> true | <+SELECT_FORUM +signed_by(/users/counsel.id)> true)",
-                "always(!<+CHOOSE_GOVERNING_LAW> true | <+CHOOSE_GOVERNING_LAW +signed_by(/users/counsel.id)> true)",
-                "always(!<+SELECT_JURISDICTION> true | <+SELECT_JURISDICTION +signed_by(/users/counsel.id)> true)",
-                "always(!<+SELECT_VENUE> true | <+SELECT_VENUE +signed_by(/users/counsel.id)> true)",
+                "always([+START_ARBITRATION -signed_by(/users/arbiter.id)] false)",
+                "always([+SELECT_FORUM -signed_by(/users/counsel.id)] false)",
+                "always([+CHOOSE_GOVERNING_LAW -signed_by(/users/counsel.id)] false)",
+                "always([+SELECT_JURISDICTION -signed_by(/users/counsel.id)] false)",
+                "always([+SELECT_VENUE -signed_by(/users/counsel.id)] false)",
                 "always(!<+FILE_CLAIM> true | eventually(<+SELECT_FORUM> true))",
                 "always(!<+APPLY_GOVERNING_LAW> true | eventually(<+CHOOSE_GOVERNING_LAW> true))",
                 "always(!<+FILE_CLAIM> true | eventually(<+SELECT_JURISDICTION> true))",
@@ -7339,11 +7339,11 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
     fn test_parse_llm_response_accepts_json_rejection_field_order_aliases() {
         let response = r#"
 {
-  "formula_rejected": "Formula 1: always(!<+REJECT> true | <+REJECT +signed_by(/users/reviewer.id)> true)",
+  "formula_rejected": "Formula 1: always([+REJECT -signed_by(/users/reviewer.id)] false)",
   "rejected_formula": "F2: <+ESCALATE_REJECTION> true",
   "rule_rejection": "Formula 3: always(!<+REJECT> true | always([-APPROVE] true))",
   "formula_denied": "Formula 4: <+DENY_REQUEST> true",
-  "denial_formula": "Formula 5: always(!<+DENY> true | <+DENY +signed_by(/users/approver.id)> true)",
+  "denial_formula": "Formula 5: always([+DENY -signed_by(/users/approver.id)] false)",
   "rule_denied": "Formula 6: <+ARCHIVE_DENIAL> true",
   "rejected": "This rejected candidate is only prose.",
   "rejection": "This rejection rationale is only prose.",
@@ -7356,9 +7356,9 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
         assert_eq!(
             formulas,
             vec![
-                "always(!<+DENY> true | <+DENY +signed_by(/users/approver.id)> true)",
+                "always([+DENY -signed_by(/users/approver.id)] false)",
                 "<+DENY_REQUEST> true",
-                "always(!<+REJECT> true | <+REJECT +signed_by(/users/reviewer.id)> true)",
+                "always([+REJECT -signed_by(/users/reviewer.id)] false)",
                 "<+ESCALATE_REJECTION> true",
                 "<+ARCHIVE_DENIAL> true",
                 "always(!<+REJECT> true | always([-APPROVE] true))"
@@ -7408,7 +7408,7 @@ remediation: emit a formula label before prose
         let response = r#"
 corrected: always(!<+SHIP> true | eventually(<+PAY> true))
 recommended: Formula 2: <+REFUND> true
-revised: F3: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)
+revised: F3: always([+APPROVE -signed_by(/users/reviewer.id)] false)
 remediated: this response only explains the repair
 "#;
 
@@ -7418,7 +7418,7 @@ remediated: this response only explains the repair
             vec![
                 "always(!<+SHIP> true | eventually(<+PAY> true))",
                 "<+REFUND> true",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)"
             ]
         );
     }
@@ -7428,7 +7428,7 @@ remediated: this response only explains the repair
         let response = r#"
 updated formula: always(!<+SHIP> true | eventually(<+PAY> true))
 edit: Formula 2: <+REFUND> true
-patch: F3: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)
+patch: F3: always([+APPROVE -signed_by(/users/reviewer.id)] false)
 replacement: this response only explains the replacement
 "#;
 
@@ -7438,7 +7438,7 @@ replacement: this response only explains the replacement
             vec![
                 "always(!<+SHIP> true | eventually(<+PAY> true))",
                 "<+REFUND> true",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)"
             ]
         );
     }
@@ -7448,7 +7448,7 @@ replacement: this response only explains the replacement
         let response = r#"
 corrected formula: Formula 1: always(!<+SHIP> true | eventually(<+PAY> true))
 proposal formula: F2: <+REFUND> true
-updated formula: Formula 3: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)
+updated formula: Formula 3: always([+APPROVE -signed_by(/users/reviewer.id)] false)
 "#;
 
         let formulas = parse_llm_response(response);
@@ -7457,7 +7457,7 @@ updated formula: Formula 3: always(!<+APPROVE> true | <+APPROVE +signed_by(/user
             vec![
                 "always(!<+SHIP> true | eventually(<+PAY> true))",
                 "<+REFUND> true",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)"
             ]
         );
     }
@@ -7467,7 +7467,7 @@ updated formula: Formula 3: always(!<+APPROVE> true | <+APPROVE +signed_by(/user
         let response = r#"
 corrected text: always(!<+SHIP> true | eventually(<+PAY> true))
 repair text: Formula 2: <+REFUND> true
-updated text: F3: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)
+updated text: F3: always([+APPROVE -signed_by(/users/reviewer.id)] false)
 replacement text: this response only explains the replacement
 "#;
 
@@ -7477,7 +7477,7 @@ replacement text: this response only explains the replacement
             vec![
                 "always(!<+SHIP> true | eventually(<+PAY> true))",
                 "<+REFUND> true",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)"
             ]
         );
     }
@@ -7487,7 +7487,7 @@ replacement text: this response only explains the replacement
         let response = r#"
 corrected formula = always(!<+SHIP> true | eventually(<+PAY> true))
 repair = Formula 2: <+REFUND> true
-updated text = F3: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)
+updated text = F3: always([+APPROVE -signed_by(/users/reviewer.id)] false)
 replacement = this response only explains the replacement
 "#;
 
@@ -7497,7 +7497,7 @@ replacement = this response only explains the replacement
             vec![
                 "always(!<+SHIP> true | eventually(<+PAY> true))",
                 "<+REFUND> true",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)"
             ]
         );
     }
@@ -7507,7 +7507,7 @@ replacement = this response only explains the replacement
         let response = r#"
 improved formula: always(!<+SHIP> true | eventually(<+PAY> true))
 refined = Formula 2: <+REFUND> true
-resolved text: F3: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)
+resolved text: F3: always([+APPROVE -signed_by(/users/reviewer.id)] false)
 improved text: this response only explains the improvement
 "#;
 
@@ -7517,7 +7517,7 @@ improved text: this response only explains the improvement
             vec![
                 "always(!<+SHIP> true | eventually(<+PAY> true))",
                 "<+REFUND> true",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)"
             ]
         );
     }
@@ -7528,7 +7528,7 @@ improved text: this response only explains the improvement
 feedback: always(!<+SHIP> true | eventually(<+PAY> true))
 analysis: this only explains why the first draft failed
 critique text: Formula 2: <+REFUND> true
-review: F3: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)
+review: F3: always([+APPROVE -signed_by(/users/reviewer.id)] false)
 assessment: prose only
 "#;
 
@@ -7538,7 +7538,7 @@ assessment: prose only
             vec![
                 "always(!<+SHIP> true | eventually(<+PAY> true))",
                 "<+REFUND> true",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)"
             ]
         );
     }
@@ -7548,7 +7548,7 @@ assessment: prose only
         let response = r#"
 diagnosis text: Formula 1: always(!<+SHIP> true | eventually(<+PAY> true))
 solution = Formula 2: <+REFUND> true
-solution formula: F3: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)
+solution formula: F3: always([+APPROVE -signed_by(/users/reviewer.id)] false)
 diagnosis: this only explains the parse failure
 "#;
 
@@ -7558,7 +7558,7 @@ diagnosis: this only explains the parse failure
             vec![
                 "always(!<+SHIP> true | eventually(<+PAY> true))",
                 "<+REFUND> true",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)"
             ]
         );
     }
@@ -7568,7 +7568,7 @@ diagnosis: this only explains the parse failure
         let response = r#"
 explanation: Formula 1: always(!<+SHIP> true | eventually(<+PAY> true))
 rationale text: Formula 2: <+REFUND> true
-reasoning = F3: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)
+reasoning = F3: always([+APPROVE -signed_by(/users/reviewer.id)] false)
 reasoning text: this only explains the repair
 "#;
 
@@ -7578,7 +7578,7 @@ reasoning text: this only explains the repair
             vec![
                 "always(!<+SHIP> true | eventually(<+PAY> true))",
                 "<+REFUND> true",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)"
             ]
         );
     }
@@ -7589,25 +7589,25 @@ reasoning text: this only explains the repair
 error: Formula 1: always(!<+SHIP> true | eventually(<+PAY> true))
 error message: this only explains why parsing failed
 validation error = F2: <+REFUND> true
-verifier output: Formula 3: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)
+verifier output: Formula 3: always([+APPROVE -signed_by(/users/reviewer.id)] false)
 formula failure: Formula 4: <+ESCALATE> true
 failed formula: Formula 5: <+ARCHIVE> true
-rule failure: Formula 6: always(!<+CLOSE> true | <+CLOSE +signed_by(/users/closer.id)> true)
+rule failure: Formula 6: always([+CLOSE -signed_by(/users/closer.id)] false)
 counterexample formula: Formula 7: <+ROLLBACK> true
 formula counterexample: Formula 8: <+COMPENSATE> true
-rule counterexample: Formula 9: always(!<+RETRY> true | <+RETRY +signed_by(/users/operator.id)> true)
+rule counterexample: Formula 9: always([+RETRY -signed_by(/users/operator.id)] false)
 violation formula: Formula 10: <+ALERT> true
 formula violation: Formula 11: <+ESCALATE_VIOLATION> true
-rule violation: Formula 12: always(!<+BLOCK> true | <+BLOCK +signed_by(/users/compliance.id)> true)
+rule violation: Formula 12: always([+BLOCK -signed_by(/users/compliance.id)] false)
 violated formula: Formula 13: <+NOTIFY> true
 formula violated: Formula 14: <+ARCHIVE_VIOLATION> true
-rule violated: Formula 15: always(!<+REOPEN> true | <+REOPEN +signed_by(/users/reviewer.id)> true)
+rule violated: Formula 15: always([+REOPEN -signed_by(/users/reviewer.id)] false)
 breach formula: Formula 16: <+BREACH_ALERT> true
 formula breach: Formula 17: <+ESCALATE_BREACH> true
-rule breach: Formula 18: always(!<+LOCK> true | <+LOCK +signed_by(/users/compliance.id)> true)
+rule breach: Formula 18: always([+LOCK -signed_by(/users/compliance.id)] false)
 breached formula: Formula 19: <+REPORT_BREACH> true
 formula breached: Formula 20: <+ARCHIVE_BREACH> true
-rule breached: Formula 21: always(!<+REMEDIATE> true | <+REMEDIATE +signed_by(/users/reviewer.id)> true)
+rule breached: Formula 21: always([+REMEDIATE -signed_by(/users/reviewer.id)] false)
 failure = this failure result is only prose
 failed = this failed result is only prose
 counterexample = this counterexample result is only prose
@@ -7623,25 +7623,25 @@ breached = this breached result is only prose
             vec![
                 "always(!<+SHIP> true | eventually(<+PAY> true))",
                 "<+REFUND> true",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)",
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)",
                 "<+ESCALATE> true",
                 "<+ARCHIVE> true",
-                "always(!<+CLOSE> true | <+CLOSE +signed_by(/users/closer.id)> true)",
+                "always([+CLOSE -signed_by(/users/closer.id)] false)",
                 "<+ROLLBACK> true",
                 "<+COMPENSATE> true",
-                "always(!<+RETRY> true | <+RETRY +signed_by(/users/operator.id)> true)",
+                "always([+RETRY -signed_by(/users/operator.id)] false)",
                 "<+ALERT> true",
                 "<+ESCALATE_VIOLATION> true",
-                "always(!<+BLOCK> true | <+BLOCK +signed_by(/users/compliance.id)> true)",
+                "always([+BLOCK -signed_by(/users/compliance.id)] false)",
                 "<+NOTIFY> true",
                 "<+ARCHIVE_VIOLATION> true",
-                "always(!<+REOPEN> true | <+REOPEN +signed_by(/users/reviewer.id)> true)",
+                "always([+REOPEN -signed_by(/users/reviewer.id)] false)",
                 "<+BREACH_ALERT> true",
                 "<+ESCALATE_BREACH> true",
-                "always(!<+LOCK> true | <+LOCK +signed_by(/users/compliance.id)> true)",
+                "always([+LOCK -signed_by(/users/compliance.id)] false)",
                 "<+REPORT_BREACH> true",
                 "<+ARCHIVE_BREACH> true",
-                "always(!<+REMEDIATE> true | <+REMEDIATE +signed_by(/users/reviewer.id)> true)"
+                "always([+REMEDIATE -signed_by(/users/reviewer.id)] false)"
             ]
         );
     }
@@ -7652,7 +7652,7 @@ breached = this breached result is only prose
 stdout: Formula 1: always(!<+SHIP> true | eventually(<+PAY> true))
 stderr: verifier diagnostics without a formula
 logs: F2: <+REFUND> true
-trace = Formula 3: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)
+trace = Formula 3: always([+APPROVE -signed_by(/users/reviewer.id)] false)
 "#;
 
         let formulas = parse_llm_response(response);
@@ -7661,7 +7661,7 @@ trace = Formula 3: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewe
             vec![
                 "always(!<+SHIP> true | eventually(<+PAY> true))",
                 "<+REFUND> true",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)"
             ]
         );
     }
@@ -7671,7 +7671,7 @@ trace = Formula 3: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewe
         let response = r#"
 detail: Formula 1: always(!<+SHIP> true | eventually(<+PAY> true))
 details: F2: <+REFUND> true
-reason = Formula 3: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)
+reason = Formula 3: always([+APPROVE -signed_by(/users/reviewer.id)] false)
 hint text: this only suggests trying a simpler rule
 "#;
 
@@ -7681,7 +7681,7 @@ hint text: this only suggests trying a simpler rule
             vec![
                 "always(!<+SHIP> true | eventually(<+PAY> true))",
                 "<+REFUND> true",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)"
             ]
         );
     }
@@ -7727,7 +7727,7 @@ formula proposal = this proposal is only explained in prose
         let response = r#"
 formula draft: Formula 1: always(!<+SHIP> true | eventually(<+PAY> true))
 draft formula: F2: <+REFUND> true
-rule draft: Formula 3: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)
+rule draft: Formula 3: always([+APPROVE -signed_by(/users/reviewer.id)] false)
 draft = this draft is only explained in prose
 "#;
 
@@ -7737,7 +7737,7 @@ draft = this draft is only explained in prose
             vec![
                 "always(!<+SHIP> true | eventually(<+PAY> true))",
                 "<+REFUND> true",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)"
             ]
         );
     }
@@ -7747,7 +7747,7 @@ draft = this draft is only explained in prose
         let response = r#"
 formula revision: Formula 1: always(!<+SHIP> true | eventually(<+PAY> true))
 revision formula: F2: <+REFUND> true
-rule revision: Formula 3: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)
+rule revision: Formula 3: always([+APPROVE -signed_by(/users/reviewer.id)] false)
 revision = this revision is only explained in prose
 "#;
 
@@ -7757,7 +7757,7 @@ revision = this revision is only explained in prose
             vec![
                 "always(!<+SHIP> true | eventually(<+PAY> true))",
                 "<+REFUND> true",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)"
             ]
         );
     }
@@ -7767,7 +7767,7 @@ revision = this revision is only explained in prose
         let response = r#"
 formula fix: Formula 1: always(!<+SHIP> true | eventually(<+PAY> true))
 fix formula: F2: <+REFUND> true
-rule fix: Formula 3: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)
+rule fix: Formula 3: always([+APPROVE -signed_by(/users/reviewer.id)] false)
 fix = this fix is only explained in prose
 "#;
 
@@ -7777,7 +7777,7 @@ fix = this fix is only explained in prose
             vec![
                 "always(!<+SHIP> true | eventually(<+PAY> true))",
                 "<+REFUND> true",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)"
             ]
         );
     }
@@ -7787,7 +7787,7 @@ fix = this fix is only explained in prose
         let response = r#"
 formula amendment: Formula 1: always(!<+SHIP> true | eventually(<+PAY> true))
 amendment formula: F2: <+REFUND> true
-rule amendment: Formula 3: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)
+rule amendment: Formula 3: always([+APPROVE -signed_by(/users/reviewer.id)] false)
 amendment = this amendment is only explained in prose
 "#;
 
@@ -7797,7 +7797,7 @@ amendment = this amendment is only explained in prose
             vec![
                 "always(!<+SHIP> true | eventually(<+PAY> true))",
                 "<+REFUND> true",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)"
             ]
         );
     }
@@ -7807,7 +7807,7 @@ amendment = this amendment is only explained in prose
         let response = r#"
 formula patch: Formula 1: always(!<+SHIP> true | eventually(<+PAY> true))
 patch formula: F2: <+REFUND> true
-rule patch: Formula 3: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)
+rule patch: Formula 3: always([+APPROVE -signed_by(/users/reviewer.id)] false)
 patch = this patch is only explained in prose
 "#;
 
@@ -7817,7 +7817,7 @@ patch = this patch is only explained in prose
             vec![
                 "always(!<+SHIP> true | eventually(<+PAY> true))",
                 "<+REFUND> true",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)"
             ]
         );
     }
@@ -7827,7 +7827,7 @@ patch = this patch is only explained in prose
         let response = r#"
 formula update: Formula 1: always(!<+SHIP> true | eventually(<+PAY> true))
 update formula: F2: <+REFUND> true
-rule update: Formula 3: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)
+rule update: Formula 3: always([+APPROVE -signed_by(/users/reviewer.id)] false)
 update = this update is only explained in prose
 "#;
 
@@ -7837,7 +7837,7 @@ update = this update is only explained in prose
             vec![
                 "always(!<+SHIP> true | eventually(<+PAY> true))",
                 "<+REFUND> true",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)"
             ]
         );
     }
@@ -7847,7 +7847,7 @@ update = this update is only explained in prose
         let response = r#"
 formula change: Formula 1: always(!<+SHIP> true | eventually(<+PAY> true))
 change formula: F2: <+REFUND> true
-rule change: Formula 3: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)
+rule change: Formula 3: always([+APPROVE -signed_by(/users/reviewer.id)] false)
 change = this change is only explained in prose
 "#;
 
@@ -7857,7 +7857,7 @@ change = this change is only explained in prose
             vec![
                 "always(!<+SHIP> true | eventually(<+PAY> true))",
                 "<+REFUND> true",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)"
             ]
         );
     }
@@ -7867,7 +7867,7 @@ change = this change is only explained in prose
         let response = r#"
 formula correction: Formula 1: always(!<+SHIP> true | eventually(<+PAY> true))
 correction formula: F2: <+REFUND> true
-rule correction: Formula 3: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)
+rule correction: Formula 3: always([+APPROVE -signed_by(/users/reviewer.id)] false)
 correction = this correction is only explained in prose
 "#;
 
@@ -7877,7 +7877,7 @@ correction = this correction is only explained in prose
             vec![
                 "always(!<+SHIP> true | eventually(<+PAY> true))",
                 "<+REFUND> true",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)"
             ]
         );
     }
@@ -7887,7 +7887,7 @@ correction = this correction is only explained in prose
         let response = r#"
 formula diagnostic: Formula 1: always(!<+SHIP> true | eventually(<+PAY> true))
 diagnostic formula: F2: <+REFUND> true
-rule diagnostic: Formula 3: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)
+rule diagnostic: Formula 3: always([+APPROVE -signed_by(/users/reviewer.id)] false)
 diagnostic = this diagnostic is only prose
 "#;
 
@@ -7897,7 +7897,7 @@ diagnostic = this diagnostic is only prose
             vec![
                 "always(!<+SHIP> true | eventually(<+PAY> true))",
                 "<+REFUND> true",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)"
             ]
         );
     }
@@ -7907,7 +7907,7 @@ diagnostic = this diagnostic is only prose
         let response = r#"
 formula diagnosis: Formula 1: always(!<+SHIP> true | eventually(<+PAY> true))
 diagnosis formula: F2: <+REFUND> true
-rule diagnosis: Formula 3: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)
+rule diagnosis: Formula 3: always([+APPROVE -signed_by(/users/reviewer.id)] false)
 diagnosis = this diagnosis is only prose
 "#;
 
@@ -7917,7 +7917,7 @@ diagnosis = this diagnosis is only prose
             vec![
                 "always(!<+SHIP> true | eventually(<+PAY> true))",
                 "<+REFUND> true",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)"
             ]
         );
     }
@@ -7927,7 +7927,7 @@ diagnosis = this diagnosis is only prose
         let response = r#"
 formula suggestion: Formula 1: always(!<+SHIP> true | eventually(<+PAY> true))
 suggestion formula: F2: <+REFUND> true
-rule suggestion: Formula 3: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)
+rule suggestion: Formula 3: always([+APPROVE -signed_by(/users/reviewer.id)] false)
 suggestion = this suggestion is only explained in prose
 "#;
 
@@ -7937,7 +7937,7 @@ suggestion = this suggestion is only explained in prose
             vec![
                 "always(!<+SHIP> true | eventually(<+PAY> true))",
                 "<+REFUND> true",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)"
             ]
         );
     }
@@ -7947,7 +7947,7 @@ suggestion = this suggestion is only explained in prose
         let response = r#"
 formula recommendation: Formula 1: always(!<+SHIP> true | eventually(<+PAY> true))
 recommendation formula: F2: <+REFUND> true
-rule recommendation: Formula 3: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)
+rule recommendation: Formula 3: always([+APPROVE -signed_by(/users/reviewer.id)] false)
 recommendation = this recommendation is only explained in prose
 "#;
 
@@ -7957,7 +7957,7 @@ recommendation = this recommendation is only explained in prose
             vec![
                 "always(!<+SHIP> true | eventually(<+PAY> true))",
                 "<+REFUND> true",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)"
             ]
         );
     }
@@ -7967,7 +7967,7 @@ recommendation = this recommendation is only explained in prose
         let response = r#"
 formula advice: Formula 1: always(!<+SHIP> true | eventually(<+PAY> true))
 advice formula: F2: <+REFUND> true
-rule advice: Formula 3: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)
+rule advice: Formula 3: always([+APPROVE -signed_by(/users/reviewer.id)] false)
 advice = this advice is only explained in prose
 "#;
 
@@ -7977,7 +7977,7 @@ advice = this advice is only explained in prose
             vec![
                 "always(!<+SHIP> true | eventually(<+PAY> true))",
                 "<+REFUND> true",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)"
             ]
         );
     }
@@ -7987,7 +7987,7 @@ advice = this advice is only explained in prose
         let response = r#"
 formula review: Formula 1: always(!<+SHIP> true | eventually(<+PAY> true))
 review formula: F2: <+REFUND> true
-rule review: Formula 3: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)
+rule review: Formula 3: always([+APPROVE -signed_by(/users/reviewer.id)] false)
 review = this review is only explained in prose
 "#;
 
@@ -7997,7 +7997,7 @@ review = this review is only explained in prose
             vec![
                 "always(!<+SHIP> true | eventually(<+PAY> true))",
                 "<+REFUND> true",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)"
             ]
         );
     }
@@ -8007,7 +8007,7 @@ review = this review is only explained in prose
         let response = r#"
 formula assessment: Formula 1: always(!<+SHIP> true | eventually(<+PAY> true))
 assessment formula: F2: <+REFUND> true
-rule assessment: Formula 3: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)
+rule assessment: Formula 3: always([+APPROVE -signed_by(/users/reviewer.id)] false)
 assessment = this assessment is only explained in prose
 "#;
 
@@ -8017,7 +8017,7 @@ assessment = this assessment is only explained in prose
             vec![
                 "always(!<+SHIP> true | eventually(<+PAY> true))",
                 "<+REFUND> true",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)"
             ]
         );
     }
@@ -8027,7 +8027,7 @@ assessment = this assessment is only explained in prose
         let response = r#"
 formula critique: Formula 1: always(!<+SHIP> true | eventually(<+PAY> true))
 critique formula: F2: <+REFUND> true
-rule critique: Formula 3: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)
+rule critique: Formula 3: always([+APPROVE -signed_by(/users/reviewer.id)] false)
 critique = this critique is only explained in prose
 "#;
 
@@ -8037,7 +8037,7 @@ critique = this critique is only explained in prose
             vec![
                 "always(!<+SHIP> true | eventually(<+PAY> true))",
                 "<+REFUND> true",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)"
             ]
         );
     }
@@ -8047,7 +8047,7 @@ critique = this critique is only explained in prose
         let response = r#"
 formula evaluation: Formula 1: always(!<+SHIP> true | eventually(<+PAY> true))
 evaluation formula: F2: <+REFUND> true
-rule evaluation: Formula 3: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)
+rule evaluation: Formula 3: always([+APPROVE -signed_by(/users/reviewer.id)] false)
 evaluation = this evaluation is only explained in prose
 "#;
 
@@ -8057,7 +8057,7 @@ evaluation = this evaluation is only explained in prose
             vec![
                 "always(!<+SHIP> true | eventually(<+PAY> true))",
                 "<+REFUND> true",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)"
             ]
         );
     }
@@ -8067,7 +8067,7 @@ evaluation = this evaluation is only explained in prose
         let response = r#"
 formula analysis: Formula 1: always(!<+SHIP> true | eventually(<+PAY> true))
 analysis formula: F2: <+REFUND> true
-rule analysis: Formula 3: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)
+rule analysis: Formula 3: always([+APPROVE -signed_by(/users/reviewer.id)] false)
 analysis = this analysis is only explained in prose
 "#;
 
@@ -8077,7 +8077,7 @@ analysis = this analysis is only explained in prose
             vec![
                 "always(!<+SHIP> true | eventually(<+PAY> true))",
                 "<+REFUND> true",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)"
             ]
         );
     }
@@ -8087,7 +8087,7 @@ analysis = this analysis is only explained in prose
         let response = r#"
 formula reasoning: Formula 1: always(!<+SHIP> true | eventually(<+PAY> true))
 reasoning formula: F2: <+REFUND> true
-rule reasoning: Formula 3: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)
+rule reasoning: Formula 3: always([+APPROVE -signed_by(/users/reviewer.id)] false)
 reasoning = this reasoning is only explained in prose
 "#;
 
@@ -8097,7 +8097,7 @@ reasoning = this reasoning is only explained in prose
             vec![
                 "always(!<+SHIP> true | eventually(<+PAY> true))",
                 "<+REFUND> true",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)"
             ]
         );
     }
@@ -8107,7 +8107,7 @@ reasoning = this reasoning is only explained in prose
         let response = r#"
 formula explanation: Formula 1: always(!<+SHIP> true | eventually(<+PAY> true))
 explanation formula: F2: <+REFUND> true
-rule explanation: Formula 3: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)
+rule explanation: Formula 3: always([+APPROVE -signed_by(/users/reviewer.id)] false)
 explanation = this explanation is only prose
 "#;
 
@@ -8117,7 +8117,7 @@ explanation = this explanation is only prose
             vec![
                 "always(!<+SHIP> true | eventually(<+PAY> true))",
                 "<+REFUND> true",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)"
             ]
         );
     }
@@ -8127,7 +8127,7 @@ explanation = this explanation is only prose
         let response = r#"
 formula rationale: Formula 1: always(!<+SHIP> true | eventually(<+PAY> true))
 rationale formula: F2: <+REFUND> true
-rule rationale: Formula 3: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)
+rule rationale: Formula 3: always([+APPROVE -signed_by(/users/reviewer.id)] false)
 rationale = this rationale is only prose
 "#;
 
@@ -8137,7 +8137,7 @@ rationale = this rationale is only prose
             vec![
                 "always(!<+SHIP> true | eventually(<+PAY> true))",
                 "<+REFUND> true",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)"
             ]
         );
     }
@@ -8147,7 +8147,7 @@ rationale = this rationale is only prose
         let response = r#"
 formula justification: Formula 1: always(!<+SHIP> true | eventually(<+PAY> true))
 justification formula: F2: <+REFUND> true
-rule justification: Formula 3: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)
+rule justification: Formula 3: always([+APPROVE -signed_by(/users/reviewer.id)] false)
 justification = this justification is only prose
 "#;
 
@@ -8157,7 +8157,7 @@ justification = this justification is only prose
             vec![
                 "always(!<+SHIP> true | eventually(<+PAY> true))",
                 "<+REFUND> true",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)"
             ]
         );
     }
@@ -8167,7 +8167,7 @@ justification = this justification is only prose
         let response = r#"
 formula proof: Formula 1: always(!<+SHIP> true | eventually(<+PAY> true))
 proof formula: F2: <+REFUND> true
-rule proof: Formula 3: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)
+rule proof: Formula 3: always([+APPROVE -signed_by(/users/reviewer.id)] false)
 proof = this proof is only prose
 "#;
 
@@ -8177,7 +8177,7 @@ proof = this proof is only prose
             vec![
                 "always(!<+SHIP> true | eventually(<+PAY> true))",
                 "<+REFUND> true",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)"
             ]
         );
     }
@@ -8187,7 +8187,7 @@ proof = this proof is only prose
         let response = r#"
 formula evidence: Formula 1: always(!<+SHIP> true | eventually(<+PAY> true))
 evidence formula: F2: <+REFUND> true
-rule evidence: Formula 3: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)
+rule evidence: Formula 3: always([+APPROVE -signed_by(/users/reviewer.id)] false)
 evidence = this evidence is only prose
 "#;
 
@@ -8197,7 +8197,7 @@ evidence = this evidence is only prose
             vec![
                 "always(!<+SHIP> true | eventually(<+PAY> true))",
                 "<+REFUND> true",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)"
             ]
         );
     }
@@ -8207,7 +8207,7 @@ evidence = this evidence is only prose
         let response = r#"
 formula argument: Formula 1: always(!<+SHIP> true | eventually(<+PAY> true))
 argument formula: F2: <+REFUND> true
-rule argument: Formula 3: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)
+rule argument: Formula 3: always([+APPROVE -signed_by(/users/reviewer.id)] false)
 argument = this argument is only prose
 "#;
 
@@ -8217,7 +8217,7 @@ argument = this argument is only prose
             vec![
                 "always(!<+SHIP> true | eventually(<+PAY> true))",
                 "<+REFUND> true",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)"
             ]
         );
     }
@@ -8227,7 +8227,7 @@ argument = this argument is only prose
         let response = r#"
 formula claim: Formula 1: always(!<+SHIP> true | eventually(<+PAY> true))
 claim formula: F2: <+REFUND> true
-rule claim: Formula 3: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)
+rule claim: Formula 3: always([+APPROVE -signed_by(/users/reviewer.id)] false)
 claim = this claim is only prose
 "#;
 
@@ -8237,7 +8237,7 @@ claim = this claim is only prose
             vec![
                 "always(!<+SHIP> true | eventually(<+PAY> true))",
                 "<+REFUND> true",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)"
             ]
         );
     }
@@ -8247,7 +8247,7 @@ claim = this claim is only prose
         let response = r#"
 formula conclusion: Formula 1: always(!<+SHIP> true | eventually(<+PAY> true))
 conclusion formula: F2: <+REFUND> true
-rule conclusion: Formula 3: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)
+rule conclusion: Formula 3: always([+APPROVE -signed_by(/users/reviewer.id)] false)
 conclusion = this conclusion is only prose
 "#;
 
@@ -8257,7 +8257,7 @@ conclusion = this conclusion is only prose
             vec![
                 "always(!<+SHIP> true | eventually(<+PAY> true))",
                 "<+REFUND> true",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)"
             ]
         );
     }
@@ -8267,7 +8267,7 @@ conclusion = this conclusion is only prose
         let response = r#"
 formula support: Formula 1: always(!<+SHIP> true | eventually(<+PAY> true))
 support formula: F2: <+REFUND> true
-rule support: Formula 3: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)
+rule support: Formula 3: always([+APPROVE -signed_by(/users/reviewer.id)] false)
 support = this support is only prose
 "#;
 
@@ -8277,7 +8277,7 @@ support = this support is only prose
             vec![
                 "always(!<+SHIP> true | eventually(<+PAY> true))",
                 "<+REFUND> true",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)"
             ]
         );
     }
@@ -8287,7 +8287,7 @@ support = this support is only prose
         let response = r#"
 formula summary: Formula 1: always(!<+SHIP> true | eventually(<+PAY> true))
 summary formula: F2: <+REFUND> true
-rule summary: Formula 3: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)
+rule summary: Formula 3: always([+APPROVE -signed_by(/users/reviewer.id)] false)
 summary = this summary is only prose
 "#;
 
@@ -8297,7 +8297,7 @@ summary = this summary is only prose
             vec![
                 "always(!<+SHIP> true | eventually(<+PAY> true))",
                 "<+REFUND> true",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)"
             ]
         );
     }
@@ -8307,7 +8307,7 @@ summary = this summary is only prose
         let response = r#"
 formula validation: Formula 1: always(!<+SHIP> true | eventually(<+PAY> true))
 validation formula: F2: <+REFUND> true
-rule validation: Formula 3: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)
+rule validation: Formula 3: always([+APPROVE -signed_by(/users/reviewer.id)] false)
 validation = this validation is only explained in prose
 "#;
 
@@ -8317,7 +8317,7 @@ validation = this validation is only explained in prose
             vec![
                 "always(!<+SHIP> true | eventually(<+PAY> true))",
                 "<+REFUND> true",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)"
             ]
         );
     }
@@ -8327,7 +8327,7 @@ validation = this validation is only explained in prose
         let response = r#"
 formula verification: Formula 1: always(!<+SHIP> true | eventually(<+PAY> true))
 verification formula: F2: <+REFUND> true
-rule verification: Formula 3: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)
+rule verification: Formula 3: always([+APPROVE -signed_by(/users/reviewer.id)] false)
 verification = this verification is only explained in prose
 "#;
 
@@ -8337,7 +8337,7 @@ verification = this verification is only explained in prose
             vec![
                 "always(!<+SHIP> true | eventually(<+PAY> true))",
                 "<+REFUND> true",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)"
             ]
         );
     }
@@ -8347,10 +8347,10 @@ verification = this verification is only explained in prose
         let response = r#"
 formula valid: Formula 1: always(!<+SHIP> true | eventually(<+PAY> true))
 formula verified: F2: <+REFUND> true
-rule valid: Formula 3: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)
+rule valid: Formula 3: always([+APPROVE -signed_by(/users/reviewer.id)] false)
 rule verified: Formula 4: <+ESCALATE> true
 formula validated: Formula 5: <+ARCHIVE> true
-rule validated: Formula 6: always(!<+CLOSE> true | <+CLOSE +signed_by(/users/closer.id)> true)
+rule validated: Formula 6: always([+CLOSE -signed_by(/users/closer.id)] false)
 valid = this valid candidate is only prose
 verified = this verified candidate is only prose
 validated = this validated candidate is only prose
@@ -8362,10 +8362,10 @@ validated = this validated candidate is only prose
             vec![
                 "always(!<+SHIP> true | eventually(<+PAY> true))",
                 "<+REFUND> true",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)",
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)",
                 "<+ESCALATE> true",
                 "<+ARCHIVE> true",
-                "always(!<+CLOSE> true | <+CLOSE +signed_by(/users/closer.id)> true)"
+                "always([+CLOSE -signed_by(/users/closer.id)] false)"
             ]
         );
     }
@@ -8375,15 +8375,15 @@ validated = this validated candidate is only prose
         let response = r#"
 formula compliant: Formula 1: always(!<+SHIP> true | eventually(<+PAY> true))
 compliant formula: F2: <+REFUND> true
-rule compliant: Formula 3: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)
+rule compliant: Formula 3: always([+APPROVE -signed_by(/users/reviewer.id)] false)
 formula satisfied: Formula 4: <+ESCALATE> true
 satisfied formula: Formula 5: <+ARCHIVE> true
-rule satisfied: Formula 6: always(!<+CLOSE> true | <+CLOSE +signed_by(/users/closer.id)> true)
+rule satisfied: Formula 6: always([+CLOSE -signed_by(/users/closer.id)] false)
 noncompliance formula: Formula 7: <+NONCOMPLIANCE_ALERT> true
-formula noncompliance: Formula 8: always(!<+REMEDIATE> true | <+REMEDIATE +signed_by(/users/compliance.id)> true)
+formula noncompliance: Formula 8: always([+REMEDIATE -signed_by(/users/compliance.id)] false)
 rule noncompliance: Formula 9: <+REPORT_NONCOMPLIANCE> true
 noncompliant formula: Formula 10: <+NONCOMPLIANT_ESCALATE> true
-formula noncompliant: Formula 11: always(!<+BLOCK> true | <+BLOCK +signed_by(/users/auditor.id)> true)
+formula noncompliant: Formula 11: always([+BLOCK -signed_by(/users/auditor.id)] false)
 rule noncompliant: Formula 12: <+ARCHIVE_NONCOMPLIANT> true
 compliant = this compliant candidate is only prose
 satisfied = this satisfied candidate is only prose
@@ -8397,15 +8397,15 @@ noncompliant = this noncompliant result is only prose
             vec![
                 "always(!<+SHIP> true | eventually(<+PAY> true))",
                 "<+REFUND> true",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)",
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)",
                 "<+ESCALATE> true",
                 "<+ARCHIVE> true",
-                "always(!<+CLOSE> true | <+CLOSE +signed_by(/users/closer.id)> true)",
+                "always([+CLOSE -signed_by(/users/closer.id)] false)",
                 "<+NONCOMPLIANCE_ALERT> true",
-                "always(!<+REMEDIATE> true | <+REMEDIATE +signed_by(/users/compliance.id)> true)",
+                "always([+REMEDIATE -signed_by(/users/compliance.id)] false)",
                 "<+REPORT_NONCOMPLIANCE> true",
                 "<+NONCOMPLIANT_ESCALATE> true",
-                "always(!<+BLOCK> true | <+BLOCK +signed_by(/users/auditor.id)> true)",
+                "always([+BLOCK -signed_by(/users/auditor.id)] false)",
                 "<+ARCHIVE_NONCOMPLIANT> true"
             ]
         );
@@ -8416,10 +8416,10 @@ noncompliant = this noncompliant result is only prose
         let response = r#"
 formula conformance: Formula 1: always(!<+SHIP> true | eventually(<+PAY> true))
 conformant formula: F2: <+REFUND> true
-rule conformance: Formula 3: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)
+rule conformance: Formula 3: always([+APPROVE -signed_by(/users/reviewer.id)] false)
 formula conforms: Formula 4: <+ESCALATE> true
 conforms formula: Formula 5: <+ARCHIVE> true
-rule conformant: Formula 6: always(!<+CLOSE> true | <+CLOSE +signed_by(/users/closer.id)> true)
+rule conformant: Formula 6: always([+CLOSE -signed_by(/users/closer.id)] false)
 conformance = this conformance result is only prose
 conformant = this conformant candidate is only prose
 conforms = this conforms result is only prose
@@ -8431,10 +8431,10 @@ conforms = this conforms result is only prose
             vec![
                 "always(!<+SHIP> true | eventually(<+PAY> true))",
                 "<+REFUND> true",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)",
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)",
                 "<+ESCALATE> true",
                 "<+ARCHIVE> true",
-                "always(!<+CLOSE> true | <+CLOSE +signed_by(/users/closer.id)> true)"
+                "always([+CLOSE -signed_by(/users/closer.id)] false)"
             ]
         );
     }
@@ -8444,10 +8444,10 @@ conforms = this conforms result is only prose
         let response = r#"
 formula fulfillment: Formula 1: always(!<+SHIP> true | eventually(<+PAY> true))
 fulfilled formula: F2: <+REFUND> true
-rule fulfillment: Formula 3: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)
+rule fulfillment: Formula 3: always([+APPROVE -signed_by(/users/reviewer.id)] false)
 formula fulfilled: Formula 4: <+ESCALATE> true
 fulfillment formula: Formula 5: <+ARCHIVE> true
-rule fulfilled: Formula 6: always(!<+CLOSE> true | <+CLOSE +signed_by(/users/closer.id)> true)
+rule fulfilled: Formula 6: always([+CLOSE -signed_by(/users/closer.id)] false)
 fulfilled = this fulfilled result is only prose
 fulfillment = this fulfillment result is only prose
 "#;
@@ -8458,10 +8458,10 @@ fulfillment = this fulfillment result is only prose
             vec![
                 "always(!<+SHIP> true | eventually(<+PAY> true))",
                 "<+REFUND> true",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)",
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)",
                 "<+ESCALATE> true",
                 "<+ARCHIVE> true",
-                "always(!<+CLOSE> true | <+CLOSE +signed_by(/users/closer.id)> true)"
+                "always([+CLOSE -signed_by(/users/closer.id)] false)"
             ]
         );
     }
@@ -8471,7 +8471,7 @@ fulfillment = this fulfillment result is only prose
         let response = r#"
 formula best: Formula 1: always(!<+SHIP> true | eventually(<+PAY> true))
 formula chosen: F2: <+REFUND> true
-formula accepted: Formula 3: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)
+formula accepted: Formula 3: always([+APPROVE -signed_by(/users/reviewer.id)] false)
 rule selected: Formula 4: <+ESCALATE> true
 accepted = this accepted candidate is only explained in prose
 "#;
@@ -8482,7 +8482,7 @@ accepted = this accepted candidate is only explained in prose
             vec![
                 "always(!<+SHIP> true | eventually(<+PAY> true))",
                 "<+REFUND> true",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)",
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)",
                 "<+ESCALATE> true"
             ]
         );
@@ -8493,7 +8493,7 @@ accepted = this accepted candidate is only explained in prose
         let response = r#"
 formula approved: Formula 1: always(!<+SHIP> true | eventually(<+PAY> true))
 confirmed formula: F2: <+REFUND> true
-rule passed: Formula 3: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)
+rule passed: Formula 3: always([+APPROVE -signed_by(/users/reviewer.id)] false)
 approved = this approved candidate is only prose
 confirmed = this confirmed candidate is only prose
 passed = this passed candidate is only prose
@@ -8505,7 +8505,7 @@ passed = this passed candidate is only prose
             vec![
                 "always(!<+SHIP> true | eventually(<+PAY> true))",
                 "<+REFUND> true",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)"
             ]
         );
     }
@@ -8513,11 +8513,11 @@ passed = this passed candidate is only prose
     #[test]
     fn test_parse_llm_response_accepts_plain_authorization_field_order_aliases() {
         let response = r#"
-formula authorized: Formula 1: always(!<+USE_TOOL> true | <+USE_TOOL +signed_by(/users/provider.id)> true)
+formula authorized: Formula 1: always([+USE_TOOL -signed_by(/users/provider.id)] false)
 authorized formula: F2: <+APPROVE_ACCESS> true
 rule authorization: Formula 3: always(!<+AUTHORIZE> true | always([-REVOKE] true))
 authorization formula: Formula 4: <+GRANT_CAPABILITY> true
-rule authorized: Formula 5: always(!<+AUTHORIZE> true | <+AUTHORIZE +signed_by(/users/issuer.id)> true)
+rule authorized: Formula 5: always([+AUTHORIZE -signed_by(/users/issuer.id)] false)
 authorized = this authorized candidate is only prose
 authorization = this authorization rationale is only prose
 "#;
@@ -8526,11 +8526,11 @@ authorization = this authorization rationale is only prose
         assert_eq!(
             formulas,
             vec![
-                "always(!<+USE_TOOL> true | <+USE_TOOL +signed_by(/users/provider.id)> true)",
+                "always([+USE_TOOL -signed_by(/users/provider.id)] false)",
                 "<+APPROVE_ACCESS> true",
                 "always(!<+AUTHORIZE> true | always([-REVOKE] true))",
                 "<+GRANT_CAPABILITY> true",
-                "always(!<+AUTHORIZE> true | <+AUTHORIZE +signed_by(/users/issuer.id)> true)"
+                "always([+AUTHORIZE -signed_by(/users/issuer.id)] false)"
             ]
         );
     }
@@ -8538,11 +8538,11 @@ authorization = this authorization rationale is only prose
     #[test]
     fn test_parse_llm_response_accepts_plain_permission_field_order_aliases() {
         let response = r#"
-formula permission: Formula 1: always(!<+USE_TOOL> true | <+USE_TOOL +signed_by(/users/provider.id)> true)
+formula permission: Formula 1: always([+USE_TOOL -signed_by(/users/provider.id)] false)
 permission formula: F2: <+APPROVE_ACCESS> true
 rule access: Formula 3: always(!<+ACCESS> true | always([-REVOKE] true))
 access formula: Formula 4: <+GRANT_ACCESS> true
-formula capability: Formula 5: always(!<+USE_CAPABILITY> true | <+USE_CAPABILITY +signed_by(/users/issuer.id)> true)
+formula capability: Formula 5: always([+USE_CAPABILITY -signed_by(/users/issuer.id)] false)
 rule permission: Formula 6: <+ASSUME_PERMISSION> true
 access = this access rationale is only prose
 capability = this capability rationale is only prose
@@ -8553,11 +8553,11 @@ permission = this permission rationale is only prose
         assert_eq!(
             formulas,
             vec![
-                "always(!<+USE_TOOL> true | <+USE_TOOL +signed_by(/users/provider.id)> true)",
+                "always([+USE_TOOL -signed_by(/users/provider.id)] false)",
                 "<+APPROVE_ACCESS> true",
                 "always(!<+ACCESS> true | always([-REVOKE] true))",
                 "<+GRANT_ACCESS> true",
-                "always(!<+USE_CAPABILITY> true | <+USE_CAPABILITY +signed_by(/users/issuer.id)> true)",
+                "always([+USE_CAPABILITY -signed_by(/users/issuer.id)] false)",
                 "<+ASSUME_PERMISSION> true"
             ]
         );
@@ -8566,13 +8566,13 @@ permission = this permission rationale is only prose
     #[test]
     fn test_parse_llm_response_accepts_plain_consent_field_order_aliases() {
         let response = r#"
-formula consent: Formula 1: always(!<+SHARE_DATA> true | <+SHARE_DATA +signed_by(/users/subject.id)> true)
+formula consent: Formula 1: always([+SHARE_DATA -signed_by(/users/subject.id)] false)
 consent formula: F2: <+RECORD_CONSENT> true
 rule grant: Formula 3: always(!<+GRANT> true | always([-REVOKE] true))
 grant formula: Formula 4: <+GRANT_RIGHTS> true
-formula entitlement: Formula 5: always(!<+CLAIM_ENTITLEMENT> true | <+CLAIM_ENTITLEMENT +signed_by(/users/issuer.id)> true)
+formula entitlement: Formula 5: always([+CLAIM_ENTITLEMENT -signed_by(/users/issuer.id)] false)
 privilege formula: Formula 6: <+ASSERT_PRIVILEGE> true
-rule privilege: Formula 7: always(!<+USE_PRIVILEGE> true | <+USE_PRIVILEGE +signed_by(/users/admin.id)> true)
+rule privilege: Formula 7: always([+USE_PRIVILEGE -signed_by(/users/admin.id)] false)
 entitlement = this entitlement rationale is only prose
 grant = this grant rationale is only prose
 privilege = this privilege rationale is only prose
@@ -8583,13 +8583,13 @@ consent = this consent rationale is only prose
         assert_eq!(
             formulas,
             vec![
-                "always(!<+SHARE_DATA> true | <+SHARE_DATA +signed_by(/users/subject.id)> true)",
+                "always([+SHARE_DATA -signed_by(/users/subject.id)] false)",
                 "<+RECORD_CONSENT> true",
                 "always(!<+GRANT> true | always([-REVOKE] true))",
                 "<+GRANT_RIGHTS> true",
-                "always(!<+CLAIM_ENTITLEMENT> true | <+CLAIM_ENTITLEMENT +signed_by(/users/issuer.id)> true)",
+                "always([+CLAIM_ENTITLEMENT -signed_by(/users/issuer.id)] false)",
                 "<+ASSERT_PRIVILEGE> true",
-                "always(!<+USE_PRIVILEGE> true | <+USE_PRIVILEGE +signed_by(/users/admin.id)> true)"
+                "always([+USE_PRIVILEGE -signed_by(/users/admin.id)] false)"
             ]
         );
     }
@@ -8597,13 +8597,13 @@ consent = this consent rationale is only prose
     #[test]
     fn test_parse_llm_response_accepts_plain_obligation_field_order_aliases() {
         let response = r#"
-formula obligation: Formula 1: always(!<+PAY> true | <+PAY +signed_by(/users/debtor.id)> true)
+formula obligation: Formula 1: always([+PAY -signed_by(/users/debtor.id)] false)
 obligation formula: F2: <+ACK_OBLIGATION> true
-rule duty: Formula 3: always(!<+PERFORM_DUTY> true | <+PERFORM_DUTY +signed_by(/users/obligor.id)> true)
+rule duty: Formula 3: always([+PERFORM_DUTY -signed_by(/users/obligor.id)] false)
 duty formula: Formula 4: <+PERFORM_DUTY> true
 formula covenant: Formula 5: always(!<+COVENANT> true | always([-BREACH] true))
 commitment formula: Formula 6: <+RECORD_COMMITMENT> true
-rule commitment: Formula 7: always(!<+HONOR_COMMITMENT> true | <+HONOR_COMMITMENT +signed_by(/users/committer.id)> true)
+rule commitment: Formula 7: always([+HONOR_COMMITMENT -signed_by(/users/committer.id)] false)
 obligation = this obligation rationale is only prose
 duty = this duty rationale is only prose
 covenant = this covenant rationale is only prose
@@ -8614,13 +8614,13 @@ commitment = this commitment rationale is only prose
         assert_eq!(
             formulas,
             vec![
-                "always(!<+PAY> true | <+PAY +signed_by(/users/debtor.id)> true)",
+                "always([+PAY -signed_by(/users/debtor.id)] false)",
                 "<+ACK_OBLIGATION> true",
-                "always(!<+PERFORM_DUTY> true | <+PERFORM_DUTY +signed_by(/users/obligor.id)> true)",
+                "always([+PERFORM_DUTY -signed_by(/users/obligor.id)] false)",
                 "<+PERFORM_DUTY> true",
                 "always(!<+COVENANT> true | always([-BREACH] true))",
                 "<+RECORD_COMMITMENT> true",
-                "always(!<+HONOR_COMMITMENT> true | <+HONOR_COMMITMENT +signed_by(/users/committer.id)> true)"
+                "always([+HONOR_COMMITMENT -signed_by(/users/committer.id)] false)"
             ]
         );
     }
@@ -8628,14 +8628,14 @@ commitment = this commitment rationale is only prose
     #[test]
     fn test_parse_llm_response_accepts_plain_liability_field_order_aliases() {
         let response = r#"
-formula liability: Formula 1: always(!<+ASSUME_LIABILITY> true | <+ASSUME_LIABILITY +signed_by(/users/liable_party.id)> true)
+formula liability: Formula 1: always([+ASSUME_LIABILITY -signed_by(/users/liable_party.id)] false)
 liability formula: F2: <+ACCEPT_LIABILITY> true
-rule liability: Formula 3: always(!<+CLAIM_LIABILITY> true | <+CLAIM_LIABILITY +signed_by(/users/claimant.id)> true)
+rule liability: Formula 3: always([+CLAIM_LIABILITY -signed_by(/users/claimant.id)] false)
 formula warranty: Formula 4: always(!<+ASSERT_WARRANTY> true | always([-DISCLAIM_WARRANTY] true))
 warranty formula: Formula 5: <+HONOR_WARRANTY> true
-rule warranty: Formula 6: always(!<+REPAIR> true | <+REPAIR +signed_by(/users/warrantor.id)> true)
+rule warranty: Formula 6: always([+REPAIR -signed_by(/users/warrantor.id)] false)
 formula indemnity: Formula 7: <+INDEMNIFY> true
-indemnity formula: Formula 8: always(!<+INDEMNIFY> true | <+INDEMNIFY +signed_by(/users/indemnitor.id)> true)
+indemnity formula: Formula 8: always([+INDEMNIFY -signed_by(/users/indemnitor.id)] false)
 rule indemnification: Formula 9: <+NOTICE_INDEMNIFICATION> true
 liability = this liability allocation is only prose
 warranty = this warranty rationale is only prose
@@ -8646,14 +8646,14 @@ indemnity = this indemnity rationale is only prose
         assert_eq!(
             formulas,
             vec![
-                "always(!<+ASSUME_LIABILITY> true | <+ASSUME_LIABILITY +signed_by(/users/liable_party.id)> true)",
+                "always([+ASSUME_LIABILITY -signed_by(/users/liable_party.id)] false)",
                 "<+ACCEPT_LIABILITY> true",
-                "always(!<+CLAIM_LIABILITY> true | <+CLAIM_LIABILITY +signed_by(/users/claimant.id)> true)",
+                "always([+CLAIM_LIABILITY -signed_by(/users/claimant.id)] false)",
                 "always(!<+ASSERT_WARRANTY> true | always([-DISCLAIM_WARRANTY] true))",
                 "<+HONOR_WARRANTY> true",
-                "always(!<+REPAIR> true | <+REPAIR +signed_by(/users/warrantor.id)> true)",
+                "always([+REPAIR -signed_by(/users/warrantor.id)] false)",
                 "<+INDEMNIFY> true",
-                "always(!<+INDEMNIFY> true | <+INDEMNIFY +signed_by(/users/indemnitor.id)> true)",
+                "always([+INDEMNIFY -signed_by(/users/indemnitor.id)] false)",
                 "<+NOTICE_INDEMNIFICATION> true"
             ]
         );
@@ -8662,13 +8662,13 @@ indemnity = this indemnity rationale is only prose
     #[test]
     fn test_parse_llm_response_accepts_plain_remedy_field_order_aliases() {
         let response = r#"
-formula remedy: Formula 1: always(!<+REMEDY> true | <+REMEDY +signed_by(/users/remedial_party.id)> true)
+formula remedy: Formula 1: always([+REMEDY -signed_by(/users/remedial_party.id)] false)
 remedy formula: F2: <+PROVIDE_REMEDY> true
-rule remedy: Formula 3: always(!<+SEEK_REMEDY> true | <+SEEK_REMEDY +signed_by(/users/claimant.id)> true)
-formula damages: Formula 4: always(!<+PAY_DAMAGES> true | <+PAY_DAMAGES +signed_by(/users/liable_party.id)> true)
+rule remedy: Formula 3: always([+SEEK_REMEDY -signed_by(/users/claimant.id)] false)
+formula damages: Formula 4: always([+PAY_DAMAGES -signed_by(/users/liable_party.id)] false)
 damages formula: Formula 5: <+AWARD_DAMAGES> true
 compensation formula: Formula 6: <+PAY_COMPENSATION> true
-rule compensation: Formula 7: always(!<+COMPENSATE> true | <+COMPENSATE +signed_by(/users/payer.id)> true)
+rule compensation: Formula 7: always([+COMPENSATE -signed_by(/users/payer.id)] false)
 remedy = this remedy description is only prose
 damages = this damages discussion is only prose
 compensation = this compensation rationale is only prose
@@ -8678,13 +8678,13 @@ compensation = this compensation rationale is only prose
         assert_eq!(
             formulas,
             vec![
-                "always(!<+REMEDY> true | <+REMEDY +signed_by(/users/remedial_party.id)> true)",
+                "always([+REMEDY -signed_by(/users/remedial_party.id)] false)",
                 "<+PROVIDE_REMEDY> true",
-                "always(!<+SEEK_REMEDY> true | <+SEEK_REMEDY +signed_by(/users/claimant.id)> true)",
-                "always(!<+PAY_DAMAGES> true | <+PAY_DAMAGES +signed_by(/users/liable_party.id)> true)",
+                "always([+SEEK_REMEDY -signed_by(/users/claimant.id)] false)",
+                "always([+PAY_DAMAGES -signed_by(/users/liable_party.id)] false)",
                 "<+AWARD_DAMAGES> true",
                 "<+PAY_COMPENSATION> true",
-                "always(!<+COMPENSATE> true | <+COMPENSATE +signed_by(/users/payer.id)> true)"
+                "always([+COMPENSATE -signed_by(/users/payer.id)] false)"
             ]
         );
     }
@@ -8692,13 +8692,13 @@ compensation = this compensation rationale is only prose
     #[test]
     fn test_parse_llm_response_accepts_plain_termination_field_order_aliases() {
         let response = r#"
-formula termination: Formula 1: always(!<+TERMINATE> true | <+TERMINATE +signed_by(/users/owner.id)> true)
+formula termination: Formula 1: always([+TERMINATE -signed_by(/users/owner.id)] false)
 termination formula: F2: always(!<+EXTEND> true | always([-TERMINATE] true))
 rule termination: Formula 3: <+NOTICE_TERMINATION> true
-formula cancellation: Formula 4: always(!<+CANCEL> true | <+CANCEL +signed_by(/users/requester.id)> true)
+formula cancellation: Formula 4: always([+CANCEL -signed_by(/users/requester.id)] false)
 cancellation formula: Formula 5: <+CANCEL_ORDER> true
 rule cancellation: Formula 6: always(!<+CANCEL> true | always([-SHIP] true))
-formula refund: Formula 7: always(!<+REFUND> true | <+REFUND +signed_by(/users/issuer.id)> true)
+formula refund: Formula 7: always([+REFUND -signed_by(/users/issuer.id)] false)
 refund formula: Formula 8: <+ISSUE_REFUND> true
 rule refund: Formula 9: always(!<+DISPUTE> true | always([-REFUND] true))
 termination = this termination explanation is only prose
@@ -8710,13 +8710,13 @@ refund = this refund policy summary is only prose
         assert_eq!(
             formulas,
             vec![
-                "always(!<+TERMINATE> true | <+TERMINATE +signed_by(/users/owner.id)> true)",
+                "always([+TERMINATE -signed_by(/users/owner.id)] false)",
                 "always(!<+EXTEND> true | always([-TERMINATE] true))",
                 "<+NOTICE_TERMINATION> true",
-                "always(!<+CANCEL> true | <+CANCEL +signed_by(/users/requester.id)> true)",
+                "always([+CANCEL -signed_by(/users/requester.id)] false)",
                 "<+CANCEL_ORDER> true",
                 "always(!<+CANCEL> true | always([-SHIP] true))",
-                "always(!<+REFUND> true | <+REFUND +signed_by(/users/issuer.id)> true)",
+                "always([+REFUND -signed_by(/users/issuer.id)] false)",
                 "<+ISSUE_REFUND> true",
                 "always(!<+DISPUTE> true | always([-REFUND] true))"
             ]
@@ -8726,10 +8726,10 @@ refund = this refund policy summary is only prose
     #[test]
     fn test_parse_llm_response_accepts_plain_assignment_extension_field_order_aliases() {
         let response = r#"
-formula assignment: Formula 1: always(!<+ASSIGN> true | <+ASSIGN +signed_by(/users/assigner.id)> true)
+formula assignment: Formula 1: always([+ASSIGN -signed_by(/users/assigner.id)] false)
 assignment formula: F2: always(!<+ASSIGN> true | always([-REASSIGN] true))
 rule assignment: Formula 3: <+RECORD_ASSIGNMENT> true
-formula extension: Formula 4: always(!<+EXTEND> true | <+EXTEND +signed_by(/users/owner.id)> true)
+formula extension: Formula 4: always([+EXTEND -signed_by(/users/owner.id)] false)
 extension formula: Formula 5: always(!<+EXTEND> true | always([-TERMINATE] true))
 rule extension: Formula 6: <+NOTICE_EXTENSION> true
 assignment = this assignment explanation is only prose
@@ -8740,10 +8740,10 @@ extension = this extension rationale is only prose
         assert_eq!(
             formulas,
             vec![
-                "always(!<+ASSIGN> true | <+ASSIGN +signed_by(/users/assigner.id)> true)",
+                "always([+ASSIGN -signed_by(/users/assigner.id)] false)",
                 "always(!<+ASSIGN> true | always([-REASSIGN] true))",
                 "<+RECORD_ASSIGNMENT> true",
-                "always(!<+EXTEND> true | <+EXTEND +signed_by(/users/owner.id)> true)",
+                "always([+EXTEND -signed_by(/users/owner.id)] false)",
                 "always(!<+EXTEND> true | always([-TERMINATE] true))",
                 "<+NOTICE_EXTENSION> true"
             ]
@@ -8753,13 +8753,13 @@ extension = this extension rationale is only prose
     #[test]
     fn test_parse_llm_response_accepts_plain_delegation_field_order_aliases() {
         let response = r#"
-formula delegate: Formula 1: always(!<+DELEGATE> true | <+DELEGATE +signed_by(/users/delegator.id)> true)
+formula delegate: Formula 1: always([+DELEGATE -signed_by(/users/delegator.id)] false)
 delegate formula: F2: always(!<+DELEGATE> true | always([-REVOKE_DELEGATION] true))
 rule delegate: Formula 3: <+RECORD_DELEGATION> true
-formula delegation: Formula 4: always(!<+ACCEPT_DELEGATION> true | <+ACCEPT_DELEGATION +signed_by(/users/delegate.id)> true)
+formula delegation: Formula 4: always([+ACCEPT_DELEGATION -signed_by(/users/delegate.id)] false)
 delegation formula: Formula 5: <+NOTICE_DELEGATION> true
-rule delegation: Formula 6: always(!<+REVOKE_DELEGATION> true | <+REVOKE_DELEGATION +signed_by(/users/delegator.id)> true)
-delegated formula: Formula 7: always(!<+USE_DELEGATED_AUTHORITY> true | <+USE_DELEGATED_AUTHORITY +signed_by(/users/delegate.id)> true)
+rule delegation: Formula 6: always([+REVOKE_DELEGATION -signed_by(/users/delegator.id)] false)
+delegated formula: Formula 7: always([+USE_DELEGATED_AUTHORITY -signed_by(/users/delegate.id)] false)
 formula delegated: Formula 8: <+CONFIRM_DELEGATED_AUTHORITY> true
 rule delegated: Formula 9: always(!<+USE_DELEGATED_AUTHORITY> true | always([-REASSIGN] true))
 delegate = this delegate explanation is only prose
@@ -8771,13 +8771,13 @@ delegated = this delegated authority summary is only prose
         assert_eq!(
             formulas,
             vec![
-                "always(!<+DELEGATE> true | <+DELEGATE +signed_by(/users/delegator.id)> true)",
+                "always([+DELEGATE -signed_by(/users/delegator.id)] false)",
                 "always(!<+DELEGATE> true | always([-REVOKE_DELEGATION] true))",
                 "<+RECORD_DELEGATION> true",
-                "always(!<+ACCEPT_DELEGATION> true | <+ACCEPT_DELEGATION +signed_by(/users/delegate.id)> true)",
+                "always([+ACCEPT_DELEGATION -signed_by(/users/delegate.id)] false)",
                 "<+NOTICE_DELEGATION> true",
-                "always(!<+REVOKE_DELEGATION> true | <+REVOKE_DELEGATION +signed_by(/users/delegator.id)> true)",
-                "always(!<+USE_DELEGATED_AUTHORITY> true | <+USE_DELEGATED_AUTHORITY +signed_by(/users/delegate.id)> true)",
+                "always([+REVOKE_DELEGATION -signed_by(/users/delegator.id)] false)",
+                "always([+USE_DELEGATED_AUTHORITY -signed_by(/users/delegate.id)] false)",
                 "<+CONFIRM_DELEGATED_AUTHORITY> true",
                 "always(!<+USE_DELEGATED_AUTHORITY> true | always([-REASSIGN] true))"
             ]
@@ -8787,11 +8787,11 @@ delegated = this delegated authority summary is only prose
     #[test]
     fn test_parse_llm_response_accepts_plain_authority_field_order_aliases() {
         let response = r#"
-formula authority: Formula 1: always(!<+GRANT_AUTHORITY> true | <+GRANT_AUTHORITY +signed_by(/users/grantor.id)> true)
-authority formula: F2: always(!<+USE_AUTHORITY> true | <+USE_AUTHORITY +signed_by(/users/authorized_agent.id)> true)
-rule authority: Formula 3: always(!<+REVOKE_AUTHORITY> true | <+REVOKE_AUTHORITY +signed_by(/users/grantor.id)> true)
+formula authority: Formula 1: always([+GRANT_AUTHORITY -signed_by(/users/grantor.id)] false)
+authority formula: F2: always([+USE_AUTHORITY -signed_by(/users/authorized_agent.id)] false)
+rule authority: Formula 3: always([+REVOKE_AUTHORITY -signed_by(/users/grantor.id)] false)
 formula delegated authority: Formula 4: <+CONFIRM_DELEGATED_AUTHORITY> true
-delegated authority formula: Formula 5: always(!<+USE_DELEGATED_AUTHORITY> true | <+USE_DELEGATED_AUTHORITY +signed_by(/users/delegate.id)> true)
+delegated authority formula: Formula 5: always([+USE_DELEGATED_AUTHORITY -signed_by(/users/delegate.id)] false)
 rule delegated authority: Formula 6: always(!<+USE_DELEGATED_AUTHORITY> true | always([-REASSIGN] true))
 authority = this authority explanation is only prose
 delegated authority = this delegated authority summary is only prose
@@ -8801,11 +8801,11 @@ delegated authority = this delegated authority summary is only prose
         assert_eq!(
             formulas,
             vec![
-                "always(!<+GRANT_AUTHORITY> true | <+GRANT_AUTHORITY +signed_by(/users/grantor.id)> true)",
-                "always(!<+USE_AUTHORITY> true | <+USE_AUTHORITY +signed_by(/users/authorized_agent.id)> true)",
-                "always(!<+REVOKE_AUTHORITY> true | <+REVOKE_AUTHORITY +signed_by(/users/grantor.id)> true)",
+                "always([+GRANT_AUTHORITY -signed_by(/users/grantor.id)] false)",
+                "always([+USE_AUTHORITY -signed_by(/users/authorized_agent.id)] false)",
+                "always([+REVOKE_AUTHORITY -signed_by(/users/grantor.id)] false)",
                 "<+CONFIRM_DELEGATED_AUTHORITY> true",
-                "always(!<+USE_DELEGATED_AUTHORITY> true | <+USE_DELEGATED_AUTHORITY +signed_by(/users/delegate.id)> true)",
+                "always([+USE_DELEGATED_AUTHORITY -signed_by(/users/delegate.id)] false)",
                 "always(!<+USE_DELEGATED_AUTHORITY> true | always([-REASSIGN] true))"
             ]
         );
@@ -8814,13 +8814,13 @@ delegated authority = this delegated authority summary is only prose
     #[test]
     fn test_parse_llm_response_accepts_plain_certification_publication_registration_aliases() {
         let response = r#"
-formula certification: Formula 1: always(!<+CERTIFY> true | <+CERTIFY +signed_by(/users/auditor.id)> true)
+formula certification: Formula 1: always([+CERTIFY -signed_by(/users/auditor.id)] false)
 certification formula: F2: always(!<+CERTIFY> true | always([-DEPLOY] true))
 rule certification: Formula 3: <+RECORD_CERTIFICATION> true
-formula publication: Formula 4: always(!<+PUBLISH> true | <+PUBLISH +signed_by(/users/editor.id)> true)
+formula publication: Formula 4: always([+PUBLISH -signed_by(/users/editor.id)] false)
 publication formula: Formula 5: always(!<+PUBLISH> true | always([-EMBARGO] true))
 rule publication: Formula 6: <+NOTICE_PUBLICATION> true
-formula registration: Formula 7: always(!<+REGISTER> true | <+REGISTER +signed_by(/users/registrar.id)> true)
+formula registration: Formula 7: always([+REGISTER -signed_by(/users/registrar.id)] false)
 registration formula: Formula 8: always(!<+REGISTER> true | always([-DELETE] true))
 rule registration: Formula 9: <+RECORD_REGISTRATION> true
 certification = this certification discussion is only prose
@@ -8832,13 +8832,13 @@ registration = this registration summary is only prose
         assert_eq!(
             formulas,
             vec![
-                "always(!<+CERTIFY> true | <+CERTIFY +signed_by(/users/auditor.id)> true)",
+                "always([+CERTIFY -signed_by(/users/auditor.id)] false)",
                 "always(!<+CERTIFY> true | always([-DEPLOY] true))",
                 "<+RECORD_CERTIFICATION> true",
-                "always(!<+PUBLISH> true | <+PUBLISH +signed_by(/users/editor.id)> true)",
+                "always([+PUBLISH -signed_by(/users/editor.id)] false)",
                 "always(!<+PUBLISH> true | always([-EMBARGO] true))",
                 "<+NOTICE_PUBLICATION> true",
-                "always(!<+REGISTER> true | <+REGISTER +signed_by(/users/registrar.id)> true)",
+                "always([+REGISTER -signed_by(/users/registrar.id)] false)",
                 "always(!<+REGISTER> true | always([-DELETE] true))",
                 "<+RECORD_REGISTRATION> true"
             ]
@@ -8848,16 +8848,16 @@ registration = this registration summary is only prose
     #[test]
     fn test_parse_llm_response_accepts_plain_acceptance_delivery_invoice_aliases() {
         let response = r#"
-formula acceptance: Formula 1: always(!<+ACCEPT> true | <+ACCEPT +signed_by(/users/recipient.id)> true)
+formula acceptance: Formula 1: always([+ACCEPT -signed_by(/users/recipient.id)] false)
 acceptance formula: F2: always(!<+ACCEPT> true | always([-REJECT] true))
 rule acceptance: Formula 3: <+RECORD_ACCEPTANCE> true
-formula acknowledgement: Formula 4: always(!<+ACKNOWLEDGE> true | <+ACKNOWLEDGE +signed_by(/users/recipient.id)> true)
+formula acknowledgement: Formula 4: always([+ACKNOWLEDGE -signed_by(/users/recipient.id)] false)
 acknowledgment formula: Formula 5: always(!<+ACKNOWLEDGE> true | always([-DISPUTE] true))
 rule acknowledgement: Formula 6: <+RECORD_ACKNOWLEDGEMENT> true
-formula delivery: Formula 7: always(!<+CONFIRM_DELIVERY> true | <+CONFIRM_DELIVERY +signed_by(/users/recipient.id)> true)
+formula delivery: Formula 7: always([+CONFIRM_DELIVERY -signed_by(/users/recipient.id)] false)
 delivery formula: Formula 8: always(!<+CONFIRM_DELIVERY> true | always([-REFUND] true))
 rule delivery: Formula 9: <+RECORD_DELIVERY> true
-formula invoice: Formula 10: always(!<+APPROVE_INVOICE> true | <+APPROVE_INVOICE +signed_by(/users/payer.id)> true)
+formula invoice: Formula 10: always([+APPROVE_INVOICE -signed_by(/users/payer.id)] false)
 invoice formula: Formula 11: always(!<+APPROVE_INVOICE> true | always([-CHARGEBACK] true))
 rule invoice: Formula 12: <+RECORD_INVOICE> true
 acceptance = this acceptance explanation is only prose
@@ -8870,16 +8870,16 @@ invoice = this invoice approval summary is only prose
         assert_eq!(
             formulas,
             vec![
-                "always(!<+ACCEPT> true | <+ACCEPT +signed_by(/users/recipient.id)> true)",
+                "always([+ACCEPT -signed_by(/users/recipient.id)] false)",
                 "always(!<+ACCEPT> true | always([-REJECT] true))",
                 "<+RECORD_ACCEPTANCE> true",
-                "always(!<+ACKNOWLEDGE> true | <+ACKNOWLEDGE +signed_by(/users/recipient.id)> true)",
+                "always([+ACKNOWLEDGE -signed_by(/users/recipient.id)] false)",
                 "always(!<+ACKNOWLEDGE> true | always([-DISPUTE] true))",
                 "<+RECORD_ACKNOWLEDGEMENT> true",
-                "always(!<+CONFIRM_DELIVERY> true | <+CONFIRM_DELIVERY +signed_by(/users/recipient.id)> true)",
+                "always([+CONFIRM_DELIVERY -signed_by(/users/recipient.id)] false)",
                 "always(!<+CONFIRM_DELIVERY> true | always([-REFUND] true))",
                 "<+RECORD_DELIVERY> true",
-                "always(!<+APPROVE_INVOICE> true | <+APPROVE_INVOICE +signed_by(/users/payer.id)> true)",
+                "always([+APPROVE_INVOICE -signed_by(/users/payer.id)] false)",
                 "always(!<+APPROVE_INVOICE> true | always([-CHARGEBACK] true))",
                 "<+RECORD_INVOICE> true"
             ]
@@ -8889,19 +8889,19 @@ invoice = this invoice approval summary is only prose
     #[test]
     fn test_parse_llm_response_accepts_plain_compliance_risk_aliases() {
         let response = r#"
-formula compliance: Formula 1: always(!<+CERTIFY_COMPLIANCE> true | <+CERTIFY_COMPLIANCE +signed_by(/users/auditor.id)> true)
+formula compliance: Formula 1: always([+CERTIFY_COMPLIANCE -signed_by(/users/auditor.id)] false)
 compliance formula: F2: always(!<+CERTIFY_COMPLIANCE> true | always([-NONCOMPLIANCE] true))
 rule compliance: Formula 3: <+RECORD_COMPLIANCE> true
-formula inspection: Formula 4: always(!<+INSPECT> true | <+INSPECT +signed_by(/users/inspector.id)> true)
+formula inspection: Formula 4: always([+INSPECT -signed_by(/users/inspector.id)] false)
 inspection formula: Formula 5: always(!<+INSPECT> true | always([-BYPASS_REVIEW] true))
 rule inspection: Formula 6: <+RECORD_INSPECTION> true
-formula milestone: Formula 7: always(!<+ACCEPT_MILESTONE> true | <+ACCEPT_MILESTONE +signed_by(/users/verifier.id)> true)
+formula milestone: Formula 7: always([+ACCEPT_MILESTONE -signed_by(/users/verifier.id)] false)
 milestone formula: Formula 8: always(!<+ACCEPT_MILESTONE> true | always([-REWORK] true))
 rule milestone: Formula 9: <+RECORD_MILESTONE> true
-formula risk: Formula 10: always(!<+ACCEPT_RISK> true | <+ACCEPT_RISK +signed_by(/users/risk_owner.id)> true)
+formula risk: Formula 10: always([+ACCEPT_RISK -signed_by(/users/risk_owner.id)] false)
 risk formula: Formula 11: always(!<+ACCEPT_RISK> true | always([-UNMITIGATED_EXPOSURE] true))
 rule risk: Formula 12: <+RECORD_RISK> true
-formula safety: Formula 13: always(!<+SAFETY_REVIEW> true | <+SAFETY_REVIEW +signed_by(/users/safety_officer.id)> true)
+formula safety: Formula 13: always([+SAFETY_REVIEW -signed_by(/users/safety_officer.id)] false)
 safety formula: Formula 14: always(!<+SAFETY_REVIEW> true | always([-UNSAFE_RELEASE] true))
 rule safety: Formula 15: <+RECORD_SAFETY> true
 compliance = this compliance summary is only prose
@@ -8915,19 +8915,19 @@ safety = this safety explanation is only prose
         assert_eq!(
             formulas,
             vec![
-                "always(!<+CERTIFY_COMPLIANCE> true | <+CERTIFY_COMPLIANCE +signed_by(/users/auditor.id)> true)",
+                "always([+CERTIFY_COMPLIANCE -signed_by(/users/auditor.id)] false)",
                 "always(!<+CERTIFY_COMPLIANCE> true | always([-NONCOMPLIANCE] true))",
                 "<+RECORD_COMPLIANCE> true",
-                "always(!<+INSPECT> true | <+INSPECT +signed_by(/users/inspector.id)> true)",
+                "always([+INSPECT -signed_by(/users/inspector.id)] false)",
                 "always(!<+INSPECT> true | always([-BYPASS_REVIEW] true))",
                 "<+RECORD_INSPECTION> true",
-                "always(!<+ACCEPT_MILESTONE> true | <+ACCEPT_MILESTONE +signed_by(/users/verifier.id)> true)",
+                "always([+ACCEPT_MILESTONE -signed_by(/users/verifier.id)] false)",
                 "always(!<+ACCEPT_MILESTONE> true | always([-REWORK] true))",
                 "<+RECORD_MILESTONE> true",
-                "always(!<+ACCEPT_RISK> true | <+ACCEPT_RISK +signed_by(/users/risk_owner.id)> true)",
+                "always([+ACCEPT_RISK -signed_by(/users/risk_owner.id)] false)",
                 "always(!<+ACCEPT_RISK> true | always([-UNMITIGATED_EXPOSURE] true))",
                 "<+RECORD_RISK> true",
-                "always(!<+SAFETY_REVIEW> true | <+SAFETY_REVIEW +signed_by(/users/safety_officer.id)> true)",
+                "always([+SAFETY_REVIEW -signed_by(/users/safety_officer.id)] false)",
                 "always(!<+SAFETY_REVIEW> true | always([-UNSAFE_RELEASE] true))",
                 "<+RECORD_SAFETY> true"
             ]
@@ -8937,19 +8937,19 @@ safety = this safety explanation is only prose
     #[test]
     fn test_parse_llm_response_accepts_plain_incident_freeze_aliases() {
         let response = r#"
-formula incident: Formula 1: always(!<+CLOSE_INCIDENT> true | <+CLOSE_INCIDENT +signed_by(/users/incident_commander.id)> true)
+formula incident: Formula 1: always([+CLOSE_INCIDENT -signed_by(/users/incident_commander.id)] false)
 incident formula: F2: always(!<+CLOSE_INCIDENT> true | always([-REOPEN_INCIDENT] true))
 rule incident: Formula 3: <+RECORD_INCIDENT> true
-formula closure: Formula 4: always(!<+CLOSE_INCIDENT> true | <+CLOSE_INCIDENT +signed_by(/users/incident_commander.id)> true)
+formula closure: Formula 4: always([+CLOSE_INCIDENT -signed_by(/users/incident_commander.id)] false)
 closure formula: Formula 5: always(!<+CLOSE_INCIDENT> true | always([-REOPEN_INCIDENT] true))
 rule closure: Formula 6: <+RECORD_CLOSURE> true
-formula freeze: Formula 7: always(!<+FREEZE_CHANGE> true | <+FREEZE_CHANGE +signed_by(/users/release_manager.id)> true)
+formula freeze: Formula 7: always([+FREEZE_CHANGE -signed_by(/users/release_manager.id)] false)
 freeze formula: Formula 8: always(!<+FREEZE_CHANGE> true | always([-DEPLOY] true))
 rule freeze: Formula 9: <+RECORD_FREEZE> true
-formula change freeze: Formula 10: always(!<+FREEZE_CHANGE> true | <+FREEZE_CHANGE +signed_by(/users/release_manager.id)> true)
+formula change freeze: Formula 10: always([+FREEZE_CHANGE -signed_by(/users/release_manager.id)] false)
 change freeze formula: Formula 11: always(!<+FREEZE_CHANGE> true | always([-DEPLOY] true))
 rule change freeze: Formula 12: <+RECORD_CHANGE_FREEZE> true
-formula deployment: Formula 13: always(!<+DEPLOY> true | <+DEPLOY +signed_by(/users/release_manager.id)> true)
+formula deployment: Formula 13: always([+DEPLOY -signed_by(/users/release_manager.id)] false)
 deployment formula: Formula 14: always(!<+FREEZE_CHANGE> true | always([-DEPLOY] true))
 rule deployment: Formula 15: <+RECORD_DEPLOYMENT> true
 incident = this incident summary is only prose
@@ -8963,19 +8963,19 @@ deployment = this deployment summary is only prose
         assert_eq!(
             formulas,
             vec![
-                "always(!<+CLOSE_INCIDENT> true | <+CLOSE_INCIDENT +signed_by(/users/incident_commander.id)> true)",
+                "always([+CLOSE_INCIDENT -signed_by(/users/incident_commander.id)] false)",
                 "always(!<+CLOSE_INCIDENT> true | always([-REOPEN_INCIDENT] true))",
                 "<+RECORD_INCIDENT> true",
-                "always(!<+CLOSE_INCIDENT> true | <+CLOSE_INCIDENT +signed_by(/users/incident_commander.id)> true)",
+                "always([+CLOSE_INCIDENT -signed_by(/users/incident_commander.id)] false)",
                 "always(!<+CLOSE_INCIDENT> true | always([-REOPEN_INCIDENT] true))",
                 "<+RECORD_CLOSURE> true",
-                "always(!<+FREEZE_CHANGE> true | <+FREEZE_CHANGE +signed_by(/users/release_manager.id)> true)",
+                "always([+FREEZE_CHANGE -signed_by(/users/release_manager.id)] false)",
                 "always(!<+FREEZE_CHANGE> true | always([-DEPLOY] true))",
                 "<+RECORD_FREEZE> true",
-                "always(!<+FREEZE_CHANGE> true | <+FREEZE_CHANGE +signed_by(/users/release_manager.id)> true)",
+                "always([+FREEZE_CHANGE -signed_by(/users/release_manager.id)] false)",
                 "always(!<+FREEZE_CHANGE> true | always([-DEPLOY] true))",
                 "<+RECORD_CHANGE_FREEZE> true",
-                "always(!<+DEPLOY> true | <+DEPLOY +signed_by(/users/release_manager.id)> true)",
+                "always([+DEPLOY -signed_by(/users/release_manager.id)] false)",
                 "always(!<+FREEZE_CHANGE> true | always([-DEPLOY] true))",
                 "<+RECORD_DEPLOYMENT> true"
             ]
@@ -8985,19 +8985,19 @@ deployment = this deployment summary is only prose
     #[test]
     fn test_parse_llm_response_accepts_plain_lifecycle_action_aliases() {
         let response = r#"
-formula appeal: Formula 1: always(!<+APPEAL> true | <+APPEAL +signed_by(/users/appellant.id)> true)
+formula appeal: Formula 1: always([+APPEAL -signed_by(/users/appellant.id)] false)
 appeal formula: F2: always(!<+APPEAL> true | always([-ENFORCE] true))
 rule appeal: Formula 3: <+RECORD_APPEAL> true
-formula revocation: Formula 4: always(!<+REVOKE> true | <+REVOKE +signed_by(/users/issuer.id)> true)
+formula revocation: Formula 4: always([+REVOKE -signed_by(/users/issuer.id)] false)
 revocation formula: Formula 5: always(!<+REVOKE> true | always([-USE] true))
 rule revocation: Formula 6: <+RECORD_REVOCATION> true
-formula suspension: Formula 7: always(!<+SUSPEND> true | <+SUSPEND +signed_by(/users/administrator.id)> true)
+formula suspension: Formula 7: always([+SUSPEND -signed_by(/users/administrator.id)] false)
 suspension formula: Formula 8: always(!<+SUSPEND> true | always([-ACCESS] true))
 rule suspension: Formula 9: <+RECORD_SUSPENSION> true
-formula reinstatement: Formula 10: always(!<+REINSTATE> true | <+REINSTATE +signed_by(/users/administrator.id)> true)
+formula reinstatement: Formula 10: always([+REINSTATE -signed_by(/users/administrator.id)] false)
 reinstatement formula: Formula 11: always(!<+REINSTATE> true | always([-SUSPEND] true))
 rule reinstatement: Formula 12: <+RECORD_REINSTATEMENT> true
-formula renewal: Formula 13: always(!<+RENEW> true | <+RENEW +signed_by(/users/holder.id)> true)
+formula renewal: Formula 13: always([+RENEW -signed_by(/users/holder.id)] false)
 renewal formula: Formula 14: always(!<+RENEW> true | always([-EXPIRE] true))
 rule renewal: Formula 15: <+RECORD_RENEWAL> true
 appeal = this appeal summary is only prose
@@ -9011,19 +9011,19 @@ renewal = this renewal summary is only prose
         assert_eq!(
             formulas,
             vec![
-                "always(!<+APPEAL> true | <+APPEAL +signed_by(/users/appellant.id)> true)",
+                "always([+APPEAL -signed_by(/users/appellant.id)] false)",
                 "always(!<+APPEAL> true | always([-ENFORCE] true))",
                 "<+RECORD_APPEAL> true",
-                "always(!<+REVOKE> true | <+REVOKE +signed_by(/users/issuer.id)> true)",
+                "always([+REVOKE -signed_by(/users/issuer.id)] false)",
                 "always(!<+REVOKE> true | always([-USE] true))",
                 "<+RECORD_REVOCATION> true",
-                "always(!<+SUSPEND> true | <+SUSPEND +signed_by(/users/administrator.id)> true)",
+                "always([+SUSPEND -signed_by(/users/administrator.id)] false)",
                 "always(!<+SUSPEND> true | always([-ACCESS] true))",
                 "<+RECORD_SUSPENSION> true",
-                "always(!<+REINSTATE> true | <+REINSTATE +signed_by(/users/administrator.id)> true)",
+                "always([+REINSTATE -signed_by(/users/administrator.id)] false)",
                 "always(!<+REINSTATE> true | always([-SUSPEND] true))",
                 "<+RECORD_REINSTATEMENT> true",
-                "always(!<+RENEW> true | <+RENEW +signed_by(/users/holder.id)> true)",
+                "always([+RENEW -signed_by(/users/holder.id)] false)",
                 "always(!<+RENEW> true | always([-EXPIRE] true))",
                 "<+RECORD_RENEWAL> true"
             ]
@@ -9033,13 +9033,13 @@ renewal = this renewal summary is only prose
     #[test]
     fn test_parse_llm_response_accepts_plain_timeout_escalation_aliases() {
         let response = r#"
-formula timeout: Formula 1: always(!<+TIMEOUT> true | <+TIMEOUT +oracle_attests(/oracles/clock.id, "deadline_passed", "true")> true)
+formula timeout: Formula 1: always([+TIMEOUT -oracle_attests(/oracles/clock.id, "deadline_passed", "true")] false)
 timeout formula: F2: always(!<+TIMEOUT> true | always([-COMPLETE] true))
 rule timeout: Formula 3: <+RECORD_TIMEOUT> true
-formula escalation: Formula 4: always(!<+ESCALATE> true | <+ESCALATE +signed_by(/users/manager.id)> true)
+formula escalation: Formula 4: always([+ESCALATE -signed_by(/users/manager.id)] false)
 escalation formula: Formula 5: always(!<+ESCALATE> true | always([-CLOSE] true))
 rule escalation: Formula 6: <+RECORD_ESCALATION> true
-formula withdrawal: Formula 7: always(!<+WITHDRAW> true | <+WITHDRAW +signed_by(/users/depositor.id)> true)
+formula withdrawal: Formula 7: always([+WITHDRAW -signed_by(/users/depositor.id)] false)
 withdrawal formula: Formula 8: always(!<+WITHDRAW> true | always([-CLAIM] true))
 rule withdrawal: Formula 9: <+RECORD_WITHDRAWAL> true
 timeout = this timeout summary is only prose
@@ -9051,13 +9051,13 @@ withdrawal = this withdrawal explanation is only prose
         assert_eq!(
             formulas,
             vec![
-                "always(!<+TIMEOUT> true | <+TIMEOUT +oracle_attests(/oracles/clock.id, \"deadline_passed\", \"true\")> true)",
+                "always([+TIMEOUT -oracle_attests(/oracles/clock.id, \"deadline_passed\", \"true\")] false)",
                 "always(!<+TIMEOUT> true | always([-COMPLETE] true))",
                 "<+RECORD_TIMEOUT> true",
-                "always(!<+ESCALATE> true | <+ESCALATE +signed_by(/users/manager.id)> true)",
+                "always([+ESCALATE -signed_by(/users/manager.id)] false)",
                 "always(!<+ESCALATE> true | always([-CLOSE] true))",
                 "<+RECORD_ESCALATION> true",
-                "always(!<+WITHDRAW> true | <+WITHDRAW +signed_by(/users/depositor.id)> true)",
+                "always([+WITHDRAW -signed_by(/users/depositor.id)] false)",
                 "always(!<+WITHDRAW> true | always([-CLAIM] true))",
                 "<+RECORD_WITHDRAWAL> true"
             ]
@@ -9067,13 +9067,13 @@ withdrawal = this withdrawal explanation is only prose
     #[test]
     fn test_parse_llm_response_accepts_plain_deadline_expiry_aliases() {
         let response = r#"
-formula deadline: Formula 1: always(!<+DEADLINE> true | <+DEADLINE +oracle_attests(/oracles/clock.id, "due", "true")> true)
+formula deadline: Formula 1: always([+DEADLINE -oracle_attests(/oracles/clock.id, "due", "true")] false)
 deadline formula: F2: always(!<+DEADLINE> true | always([-SUBMIT] true))
 rule deadline: Formula 3: <+RECORD_DEADLINE> true
-formula expiry: Formula 4: always(!<+EXPIRE> true | <+EXPIRE +signed_by(/users/issuer.id)> true)
+formula expiry: Formula 4: always([+EXPIRE -signed_by(/users/issuer.id)] false)
 expiry formula: Formula 5: always(!<+EXPIRE> true | always([-RENEW] true))
 rule expiry: Formula 6: <+RECORD_EXPIRY> true
-formula expiration: Formula 7: always(!<+EXPIRATION> true | <+EXPIRATION +signed_by(/users/admin.id)> true)
+formula expiration: Formula 7: always([+EXPIRATION -signed_by(/users/admin.id)] false)
 expiration formula: Formula 8: always(!<+EXPIRATION> true | always([-ACCESS] true))
 rule expiration: Formula 9: <+RECORD_EXPIRATION> true
 deadline = this deadline summary is only prose
@@ -9085,13 +9085,13 @@ expiration = this expiration summary is only prose
         assert_eq!(
             formulas,
             vec![
-                "always(!<+DEADLINE> true | <+DEADLINE +oracle_attests(/oracles/clock.id, \"due\", \"true\")> true)",
+                "always([+DEADLINE -oracle_attests(/oracles/clock.id, \"due\", \"true\")] false)",
                 "always(!<+DEADLINE> true | always([-SUBMIT] true))",
                 "<+RECORD_DEADLINE> true",
-                "always(!<+EXPIRE> true | <+EXPIRE +signed_by(/users/issuer.id)> true)",
+                "always([+EXPIRE -signed_by(/users/issuer.id)] false)",
                 "always(!<+EXPIRE> true | always([-RENEW] true))",
                 "<+RECORD_EXPIRY> true",
-                "always(!<+EXPIRATION> true | <+EXPIRATION +signed_by(/users/admin.id)> true)",
+                "always([+EXPIRATION -signed_by(/users/admin.id)] false)",
                 "always(!<+EXPIRATION> true | always([-ACCESS] true))",
                 "<+RECORD_EXPIRATION> true"
             ]
@@ -9101,16 +9101,16 @@ expiration = this expiration summary is only prose
     #[test]
     fn test_parse_llm_response_accepts_plain_payment_settlement_aliases() {
         let response = r#"
-formula payment: Formula 1: always(!<+PAY> true | <+PAY +signed_by(/users/payer.id)> true)
+formula payment: Formula 1: always([+PAY -signed_by(/users/payer.id)] false)
 payment formula: F2: always(!<+PAY> true | eventually(<+RECEIPT> true))
 rule payment: Formula 3: <+RECORD_PAYMENT> true
-formula payout: Formula 4: always(!<+PAYOUT> true | <+PAYOUT +signed_by(/users/treasurer.id)> true)
+formula payout: Formula 4: always([+PAYOUT -signed_by(/users/treasurer.id)] false)
 payout formula: Formula 5: always(!<+PAYOUT> true | always([-CHARGEBACK] true))
 rule payout: Formula 6: <+RECORD_PAYOUT> true
-formula settlement: Formula 7: always(!<+SETTLE> true | <+SETTLE +signed_by(/users/clearinghouse.id)> true)
+formula settlement: Formula 7: always([+SETTLE -signed_by(/users/clearinghouse.id)] false)
 settlement formula: Formula 8: always(!<+SETTLE> true | always([-DISPUTE] true))
 rule settlement: Formula 9: <+RECORD_SETTLEMENT> true
-formula transfer: Formula 10: always(!<+TRANSFER> true | <+TRANSFER +signed_by(/users/custodian.id)> true)
+formula transfer: Formula 10: always([+TRANSFER -signed_by(/users/custodian.id)] false)
 transfer formula: Formula 11: always(!<+TRANSFER> true | always([-REVOKE] true))
 rule transfer: Formula 12: <+RECORD_TRANSFER> true
 payment = this payment summary is only prose
@@ -9123,16 +9123,16 @@ transfer = this transfer summary is only prose
         assert_eq!(
             formulas,
             vec![
-                "always(!<+PAY> true | <+PAY +signed_by(/users/payer.id)> true)",
+                "always([+PAY -signed_by(/users/payer.id)] false)",
                 "always(!<+PAY> true | eventually(<+RECEIPT> true))",
                 "<+RECORD_PAYMENT> true",
-                "always(!<+PAYOUT> true | <+PAYOUT +signed_by(/users/treasurer.id)> true)",
+                "always([+PAYOUT -signed_by(/users/treasurer.id)] false)",
                 "always(!<+PAYOUT> true | always([-CHARGEBACK] true))",
                 "<+RECORD_PAYOUT> true",
-                "always(!<+SETTLE> true | <+SETTLE +signed_by(/users/clearinghouse.id)> true)",
+                "always([+SETTLE -signed_by(/users/clearinghouse.id)] false)",
                 "always(!<+SETTLE> true | always([-DISPUTE] true))",
                 "<+RECORD_SETTLEMENT> true",
-                "always(!<+TRANSFER> true | <+TRANSFER +signed_by(/users/custodian.id)> true)",
+                "always([+TRANSFER -signed_by(/users/custodian.id)] false)",
                 "always(!<+TRANSFER> true | always([-REVOKE] true))",
                 "<+RECORD_TRANSFER> true"
             ]
@@ -9142,16 +9142,16 @@ transfer = this transfer summary is only prose
     #[test]
     fn test_parse_llm_response_accepts_plain_charge_deposit_aliases() {
         let response = r#"
-formula charge: Formula 1: always(!<+CHARGE> true | <+CHARGE +signed_by(/users/merchant.id)> true)
+formula charge: Formula 1: always([+CHARGE -signed_by(/users/merchant.id)] false)
 charge formula: F2: always(!<+CHARGE> true | always([-REFUND] true))
 rule charge: Formula 3: <+RECORD_CHARGE> true
-formula deposit: Formula 4: always(!<+DEPOSIT> true | <+DEPOSIT +signed_by(/users/depositor.id)> true)
+formula deposit: Formula 4: always([+DEPOSIT -signed_by(/users/depositor.id)] false)
 deposit formula: Formula 5: always(!<+DEPOSIT> true | eventually(<+RELEASE> true))
 rule deposit: Formula 6: <+RECORD_DEPOSIT> true
-formula escrow: Formula 7: always(!<+ESCROW> true | <+ESCROW +signed_by(/users/escrow_agent.id)> true)
+formula escrow: Formula 7: always([+ESCROW -signed_by(/users/escrow_agent.id)] false)
 escrow formula: Formula 8: always(!<+ESCROW> true | always([-WITHDRAW] true))
 rule escrow: Formula 9: <+RECORD_ESCROW> true
-formula fee: Formula 10: always(!<+COLLECT_FEE> true | <+COLLECT_FEE +signed_by(/users/platform.id)> true)
+formula fee: Formula 10: always([+COLLECT_FEE -signed_by(/users/platform.id)] false)
 fee formula: Formula 11: always(!<+COLLECT_FEE> true | eventually(<+SERVICE> true))
 rule fee: Formula 12: <+RECORD_FEE> true
 charge = this charge summary is only prose
@@ -9164,16 +9164,16 @@ fee = this fee summary is only prose
         assert_eq!(
             formulas,
             vec![
-                "always(!<+CHARGE> true | <+CHARGE +signed_by(/users/merchant.id)> true)",
+                "always([+CHARGE -signed_by(/users/merchant.id)] false)",
                 "always(!<+CHARGE> true | always([-REFUND] true))",
                 "<+RECORD_CHARGE> true",
-                "always(!<+DEPOSIT> true | <+DEPOSIT +signed_by(/users/depositor.id)> true)",
+                "always([+DEPOSIT -signed_by(/users/depositor.id)] false)",
                 "always(!<+DEPOSIT> true | eventually(<+RELEASE> true))",
                 "<+RECORD_DEPOSIT> true",
-                "always(!<+ESCROW> true | <+ESCROW +signed_by(/users/escrow_agent.id)> true)",
+                "always([+ESCROW -signed_by(/users/escrow_agent.id)] false)",
                 "always(!<+ESCROW> true | always([-WITHDRAW] true))",
                 "<+RECORD_ESCROW> true",
-                "always(!<+COLLECT_FEE> true | <+COLLECT_FEE +signed_by(/users/platform.id)> true)",
+                "always([+COLLECT_FEE -signed_by(/users/platform.id)] false)",
                 "always(!<+COLLECT_FEE> true | eventually(<+SERVICE> true))",
                 "<+RECORD_FEE> true"
             ]
@@ -9183,16 +9183,16 @@ fee = this fee summary is only prose
     #[test]
     fn test_parse_llm_response_accepts_plain_dispute_adverse_event_aliases() {
         let response = r#"
-formula dispute: Formula 1: always(!<+DISPUTE> true | <+DISPUTE +signed_by(/users/claimant.id)> true)
+formula dispute: Formula 1: always([+DISPUTE -signed_by(/users/claimant.id)] false)
 dispute formula: F2: always(!<+DISPUTE> true | always([-RELEASE] true))
 rule dispute: Formula 3: <+RECORD_DISPUTE> true
-formula chargeback: Formula 4: always(!<+CHARGEBACK> true | <+CHARGEBACK +signed_by(/users/cardholder.id)> true)
+formula chargeback: Formula 4: always([+CHARGEBACK -signed_by(/users/cardholder.id)] false)
 chargeback formula: Formula 5: always(!<+CHARGEBACK> true | always([-PAYOUT] true))
 rule chargeback: Formula 6: <+RECORD_CHARGEBACK> true
-formula rework: Formula 7: always(!<+REWORK> true | <+REWORK +signed_by(/users/verifier.id)> true)
+formula rework: Formula 7: always([+REWORK -signed_by(/users/verifier.id)] false)
 rework formula: Formula 8: always(!<+REWORK> true | eventually(<+REINSPECT> true))
 rule rework: Formula 9: <+RECORD_REWORK> true
-formula defect claim: Formula 10: always(!<+DEFECT_CLAIM> true | <+DEFECT_CLAIM +signed_by(/users/inspector.id)> true)
+formula defect claim: Formula 10: always([+DEFECT_CLAIM -signed_by(/users/inspector.id)] false)
 defect claim formula: Formula 11: always(!<+DEFECT_CLAIM> true | always([-ACCEPT] true))
 rule defect claim: Formula 12: <+RECORD_DEFECT_CLAIM> true
 dispute = this dispute summary is only prose
@@ -9205,16 +9205,16 @@ defect claim = this defect claim summary is only prose
         assert_eq!(
             formulas,
             vec![
-                "always(!<+DISPUTE> true | <+DISPUTE +signed_by(/users/claimant.id)> true)",
+                "always([+DISPUTE -signed_by(/users/claimant.id)] false)",
                 "always(!<+DISPUTE> true | always([-RELEASE] true))",
                 "<+RECORD_DISPUTE> true",
-                "always(!<+CHARGEBACK> true | <+CHARGEBACK +signed_by(/users/cardholder.id)> true)",
+                "always([+CHARGEBACK -signed_by(/users/cardholder.id)] false)",
                 "always(!<+CHARGEBACK> true | always([-PAYOUT] true))",
                 "<+RECORD_CHARGEBACK> true",
-                "always(!<+REWORK> true | <+REWORK +signed_by(/users/verifier.id)> true)",
+                "always([+REWORK -signed_by(/users/verifier.id)] false)",
                 "always(!<+REWORK> true | eventually(<+REINSPECT> true))",
                 "<+RECORD_REWORK> true",
-                "always(!<+DEFECT_CLAIM> true | <+DEFECT_CLAIM +signed_by(/users/inspector.id)> true)",
+                "always([+DEFECT_CLAIM -signed_by(/users/inspector.id)] false)",
                 "always(!<+DEFECT_CLAIM> true | always([-ACCEPT] true))",
                 "<+RECORD_DEFECT_CLAIM> true"
             ]
@@ -9224,16 +9224,16 @@ defect claim = this defect claim summary is only prose
     #[test]
     fn test_parse_llm_response_accepts_plain_control_policy_aliases() {
         let response = r#"
-formula audit: Formula 1: always(!<+AUDIT> true | <+AUDIT +signed_by(/users/auditor.id)> true)
+formula audit: Formula 1: always([+AUDIT -signed_by(/users/auditor.id)] false)
 audit formula: F2: always(!<+AUDIT> true | eventually(<+REPORT> true))
 rule audit: Formula 3: <+RECORD_AUDIT> true
-formula confidentiality: Formula 4: always(!<+DISCLOSE> true | <+DISCLOSE +signed_by(/users/data_owner.id)> true)
+formula confidentiality: Formula 4: always([+DISCLOSE -signed_by(/users/data_owner.id)] false)
 confidentiality formula: Formula 5: always(!<+DISCLOSE> true | always([-PUBLIC_RELEASE] true))
 rule confidentiality: Formula 6: <+RECORD_CONFIDENTIALITY> true
-formula privacy: Formula 7: always(!<+PROCESS_DATA> true | <+PROCESS_DATA +signed_by(/users/subject.id)> true)
+formula privacy: Formula 7: always([+PROCESS_DATA -signed_by(/users/subject.id)] false)
 privacy formula: Formula 8: always(!<+PROCESS_DATA> true | always([-UNAUTHORIZED_SHARE] true))
 rule privacy: Formula 9: <+RECORD_PRIVACY> true
-formula security: Formula 10: always(!<+ROTATE_KEY> true | <+ROTATE_KEY +signed_by(/users/security_admin.id)> true)
+formula security: Formula 10: always([+ROTATE_KEY -signed_by(/users/security_admin.id)] false)
 security formula: Formula 11: always(!<+DEPLOY> true | eventually(<+SECURITY_REVIEW> true))
 rule security: Formula 12: <+RECORD_SECURITY> true
 audit = this audit summary is only prose
@@ -9246,16 +9246,16 @@ security = this security explanation is only prose
         assert_eq!(
             formulas,
             vec![
-                "always(!<+AUDIT> true | <+AUDIT +signed_by(/users/auditor.id)> true)",
+                "always([+AUDIT -signed_by(/users/auditor.id)] false)",
                 "always(!<+AUDIT> true | eventually(<+REPORT> true))",
                 "<+RECORD_AUDIT> true",
-                "always(!<+DISCLOSE> true | <+DISCLOSE +signed_by(/users/data_owner.id)> true)",
+                "always([+DISCLOSE -signed_by(/users/data_owner.id)] false)",
                 "always(!<+DISCLOSE> true | always([-PUBLIC_RELEASE] true))",
                 "<+RECORD_CONFIDENTIALITY> true",
-                "always(!<+PROCESS_DATA> true | <+PROCESS_DATA +signed_by(/users/subject.id)> true)",
+                "always([+PROCESS_DATA -signed_by(/users/subject.id)] false)",
                 "always(!<+PROCESS_DATA> true | always([-UNAUTHORIZED_SHARE] true))",
                 "<+RECORD_PRIVACY> true",
-                "always(!<+ROTATE_KEY> true | <+ROTATE_KEY +signed_by(/users/security_admin.id)> true)",
+                "always([+ROTATE_KEY -signed_by(/users/security_admin.id)] false)",
                 "always(!<+DEPLOY> true | eventually(<+SECURITY_REVIEW> true))",
                 "<+RECORD_SECURITY> true"
             ]
@@ -9265,16 +9265,16 @@ security = this security explanation is only prose
     #[test]
     fn test_parse_llm_response_accepts_plain_policy_notice_aliases() {
         let response = r#"
-formula policy: Formula 1: always(!<+APPROVE_POLICY> true | <+APPROVE_POLICY +signed_by(/users/policy_owner.id)> true)
+formula policy: Formula 1: always([+APPROVE_POLICY -signed_by(/users/policy_owner.id)] false)
 policy formula: F2: always(!<+APPROVE_POLICY> true | always([-REJECT_POLICY] true))
 rule policy: Formula 3: <+RECORD_POLICY> true
-formula notice: Formula 4: always(!<+SEND_NOTICE> true | <+SEND_NOTICE +signed_by(/users/notifier.id)> true)
+formula notice: Formula 4: always([+SEND_NOTICE -signed_by(/users/notifier.id)] false)
 notice formula: Formula 5: always(!<+SEND_NOTICE> true | eventually(<+ACKNOWLEDGE_NOTICE> true))
 rule notice: Formula 6: <+RECORD_NOTICE> true
-formula notification: Formula 7: always(!<+NOTIFY> true | <+NOTIFY +signed_by(/users/notifier.id)> true)
+formula notification: Formula 7: always([+NOTIFY -signed_by(/users/notifier.id)] false)
 notification formula: Formula 8: always(!<+NOTIFY> true | eventually(<+CONFIRM_NOTIFICATION> true))
 rule notification: Formula 9: <+RECORD_NOTIFICATION> true
-formula retention: Formula 10: always(!<+RETENTION_REVIEW> true | <+RETENTION_REVIEW +signed_by(/users/records_admin.id)> true)
+formula retention: Formula 10: always([+RETENTION_REVIEW -signed_by(/users/records_admin.id)] false)
 retention formula: Formula 11: always(!<+PURGE_RECORDS> true | eventually(<+RETENTION_REVIEW> true))
 rule retention: Formula 12: <+RECORD_RETENTION> true
 policy = this policy summary is only prose
@@ -9287,16 +9287,16 @@ retention = this retention explanation is only prose
         assert_eq!(
             formulas,
             vec![
-                "always(!<+APPROVE_POLICY> true | <+APPROVE_POLICY +signed_by(/users/policy_owner.id)> true)",
+                "always([+APPROVE_POLICY -signed_by(/users/policy_owner.id)] false)",
                 "always(!<+APPROVE_POLICY> true | always([-REJECT_POLICY] true))",
                 "<+RECORD_POLICY> true",
-                "always(!<+SEND_NOTICE> true | <+SEND_NOTICE +signed_by(/users/notifier.id)> true)",
+                "always([+SEND_NOTICE -signed_by(/users/notifier.id)] false)",
                 "always(!<+SEND_NOTICE> true | eventually(<+ACKNOWLEDGE_NOTICE> true))",
                 "<+RECORD_NOTICE> true",
-                "always(!<+NOTIFY> true | <+NOTIFY +signed_by(/users/notifier.id)> true)",
+                "always([+NOTIFY -signed_by(/users/notifier.id)] false)",
                 "always(!<+NOTIFY> true | eventually(<+CONFIRM_NOTIFICATION> true))",
                 "<+RECORD_NOTIFICATION> true",
-                "always(!<+RETENTION_REVIEW> true | <+RETENTION_REVIEW +signed_by(/users/records_admin.id)> true)",
+                "always([+RETENTION_REVIEW -signed_by(/users/records_admin.id)] false)",
                 "always(!<+PURGE_RECORDS> true | eventually(<+RETENTION_REVIEW> true))",
                 "<+RECORD_RETENTION> true"
             ]
@@ -9306,19 +9306,19 @@ retention = this retention explanation is only prose
     #[test]
     fn test_parse_llm_response_accepts_plain_license_exception_aliases() {
         let response = r#"
-formula license: Formula 1: always(!<+ISSUE_LICENSE> true | <+ISSUE_LICENSE +signed_by(/users/licensor.id)> true)
+formula license: Formula 1: always([+ISSUE_LICENSE -signed_by(/users/licensor.id)] false)
 license formula: F2: always(!<+USE_LICENSE> true | eventually(<+ISSUE_LICENSE> true))
 rule license: Formula 3: <+RECORD_LICENSE> true
-formula permit: Formula 4: always(!<+ISSUE_PERMIT> true | <+ISSUE_PERMIT +signed_by(/users/issuer.id)> true)
+formula permit: Formula 4: always([+ISSUE_PERMIT -signed_by(/users/issuer.id)] false)
 permit formula: Formula 5: always(!<+USE_PERMIT> true | eventually(<+ISSUE_PERMIT> true))
 rule permit: Formula 6: <+RECORD_PERMIT> true
-formula waiver: Formula 7: always(!<+GRANT_WAIVER> true | <+GRANT_WAIVER +signed_by(/users/waiver_authority.id)> true)
+formula waiver: Formula 7: always([+GRANT_WAIVER -signed_by(/users/waiver_authority.id)] false)
 waiver formula: Formula 8: always(!<+GRANT_WAIVER> true | always([-ENFORCE_REQUIREMENT] true))
 rule waiver: Formula 9: <+RECORD_WAIVER> true
-formula exception: Formula 10: always(!<+ALLOW_EXCEPTION> true | <+ALLOW_EXCEPTION +signed_by(/users/approver.id)> true)
+formula exception: Formula 10: always([+ALLOW_EXCEPTION -signed_by(/users/approver.id)] false)
 exception formula: Formula 11: always(!<+ALLOW_EXCEPTION> true | eventually(<+REVIEW_EXCEPTION> true))
 rule exception: Formula 12: <+RECORD_EXCEPTION> true
-formula exemption: Formula 13: always(!<+GRANT_EXEMPTION> true | <+GRANT_EXEMPTION +signed_by(/users/approver.id)> true)
+formula exemption: Formula 13: always([+GRANT_EXEMPTION -signed_by(/users/approver.id)] false)
 exemption formula: Formula 14: always(!<+GRANT_EXEMPTION> true | always([-APPLY_STANDARD] true))
 rule exemption: Formula 15: <+RECORD_EXEMPTION> true
 license = this license summary is only prose
@@ -9332,19 +9332,19 @@ exemption = this exemption explanation is only prose
         assert_eq!(
             formulas,
             vec![
-                "always(!<+ISSUE_LICENSE> true | <+ISSUE_LICENSE +signed_by(/users/licensor.id)> true)",
+                "always([+ISSUE_LICENSE -signed_by(/users/licensor.id)] false)",
                 "always(!<+USE_LICENSE> true | eventually(<+ISSUE_LICENSE> true))",
                 "<+RECORD_LICENSE> true",
-                "always(!<+ISSUE_PERMIT> true | <+ISSUE_PERMIT +signed_by(/users/issuer.id)> true)",
+                "always([+ISSUE_PERMIT -signed_by(/users/issuer.id)] false)",
                 "always(!<+USE_PERMIT> true | eventually(<+ISSUE_PERMIT> true))",
                 "<+RECORD_PERMIT> true",
-                "always(!<+GRANT_WAIVER> true | <+GRANT_WAIVER +signed_by(/users/waiver_authority.id)> true)",
+                "always([+GRANT_WAIVER -signed_by(/users/waiver_authority.id)] false)",
                 "always(!<+GRANT_WAIVER> true | always([-ENFORCE_REQUIREMENT] true))",
                 "<+RECORD_WAIVER> true",
-                "always(!<+ALLOW_EXCEPTION> true | <+ALLOW_EXCEPTION +signed_by(/users/approver.id)> true)",
+                "always([+ALLOW_EXCEPTION -signed_by(/users/approver.id)] false)",
                 "always(!<+ALLOW_EXCEPTION> true | eventually(<+REVIEW_EXCEPTION> true))",
                 "<+RECORD_EXCEPTION> true",
-                "always(!<+GRANT_EXEMPTION> true | <+GRANT_EXEMPTION +signed_by(/users/approver.id)> true)",
+                "always([+GRANT_EXEMPTION -signed_by(/users/approver.id)] false)",
                 "always(!<+GRANT_EXEMPTION> true | always([-APPLY_STANDARD] true))",
                 "<+RECORD_EXEMPTION> true"
             ]
@@ -9354,19 +9354,19 @@ exemption = this exemption explanation is only prose
     #[test]
     fn test_parse_llm_response_accepts_plain_jurisdiction_forum_aliases() {
         let response = r#"
-formula jurisdiction: Formula 1: always(!<+SELECT_JURISDICTION> true | <+SELECT_JURISDICTION +signed_by(/users/counsel.id)> true)
+formula jurisdiction: Formula 1: always([+SELECT_JURISDICTION -signed_by(/users/counsel.id)] false)
 jurisdiction formula: F2: always(!<+FILE_CLAIM> true | eventually(<+SELECT_JURISDICTION> true))
 rule jurisdiction: Formula 3: <+RECORD_JURISDICTION> true
-formula governing law: Formula 4: always(!<+CHOOSE_GOVERNING_LAW> true | <+CHOOSE_GOVERNING_LAW +signed_by(/users/counsel.id)> true)
+formula governing law: Formula 4: always([+CHOOSE_GOVERNING_LAW -signed_by(/users/counsel.id)] false)
 governing law formula: Formula 5: always(!<+APPLY_GOVERNING_LAW> true | eventually(<+CHOOSE_GOVERNING_LAW> true))
 rule governing law: Formula 6: <+RECORD_GOVERNING_LAW> true
-formula venue: Formula 7: always(!<+SELECT_VENUE> true | <+SELECT_VENUE +signed_by(/users/counsel.id)> true)
+formula venue: Formula 7: always([+SELECT_VENUE -signed_by(/users/counsel.id)] false)
 venue formula: Formula 8: always(!<+FILE_CLAIM> true | eventually(<+SELECT_VENUE> true))
 rule venue: Formula 9: <+RECORD_VENUE> true
-formula forum: Formula 10: always(!<+SELECT_FORUM> true | <+SELECT_FORUM +signed_by(/users/counsel.id)> true)
+formula forum: Formula 10: always([+SELECT_FORUM -signed_by(/users/counsel.id)] false)
 forum formula: Formula 11: always(!<+FILE_CLAIM> true | eventually(<+SELECT_FORUM> true))
 rule forum: Formula 12: <+RECORD_FORUM> true
-formula arbitration: Formula 13: always(!<+START_ARBITRATION> true | <+START_ARBITRATION +signed_by(/users/arbiter.id)> true)
+formula arbitration: Formula 13: always([+START_ARBITRATION -signed_by(/users/arbiter.id)] false)
 arbitration formula: Formula 14: always(!<+START_ARBITRATION> true | always([-FILE_COURT_CLAIM] true))
 rule arbitration: Formula 15: <+RECORD_ARBITRATION> true
 jurisdiction = this jurisdiction summary is only prose
@@ -9380,19 +9380,19 @@ arbitration = this arbitration explanation is only prose
         assert_eq!(
             formulas,
             vec![
-                "always(!<+SELECT_JURISDICTION> true | <+SELECT_JURISDICTION +signed_by(/users/counsel.id)> true)",
+                "always([+SELECT_JURISDICTION -signed_by(/users/counsel.id)] false)",
                 "always(!<+FILE_CLAIM> true | eventually(<+SELECT_JURISDICTION> true))",
                 "<+RECORD_JURISDICTION> true",
-                "always(!<+CHOOSE_GOVERNING_LAW> true | <+CHOOSE_GOVERNING_LAW +signed_by(/users/counsel.id)> true)",
+                "always([+CHOOSE_GOVERNING_LAW -signed_by(/users/counsel.id)] false)",
                 "always(!<+APPLY_GOVERNING_LAW> true | eventually(<+CHOOSE_GOVERNING_LAW> true))",
                 "<+RECORD_GOVERNING_LAW> true",
-                "always(!<+SELECT_VENUE> true | <+SELECT_VENUE +signed_by(/users/counsel.id)> true)",
+                "always([+SELECT_VENUE -signed_by(/users/counsel.id)] false)",
                 "always(!<+FILE_CLAIM> true | eventually(<+SELECT_VENUE> true))",
                 "<+RECORD_VENUE> true",
-                "always(!<+SELECT_FORUM> true | <+SELECT_FORUM +signed_by(/users/counsel.id)> true)",
+                "always([+SELECT_FORUM -signed_by(/users/counsel.id)] false)",
                 "always(!<+FILE_CLAIM> true | eventually(<+SELECT_FORUM> true))",
                 "<+RECORD_FORUM> true",
-                "always(!<+START_ARBITRATION> true | <+START_ARBITRATION +signed_by(/users/arbiter.id)> true)",
+                "always([+START_ARBITRATION -signed_by(/users/arbiter.id)] false)",
                 "always(!<+START_ARBITRATION> true | always([-FILE_COURT_CLAIM] true))",
                 "<+RECORD_ARBITRATION> true"
             ]
@@ -9402,11 +9402,11 @@ arbitration = this arbitration explanation is only prose
     #[test]
     fn test_parse_llm_response_accepts_plain_rejection_field_order_aliases() {
         let response = r#"
-formula rejected: Formula 1: always(!<+REJECT> true | <+REJECT +signed_by(/users/reviewer.id)> true)
+formula rejected: Formula 1: always([+REJECT -signed_by(/users/reviewer.id)] false)
 rejected formula: F2: <+ESCALATE_REJECTION> true
 rule rejection: Formula 3: always(!<+REJECT> true | always([-APPROVE] true))
 formula denied: Formula 4: <+DENY_REQUEST> true
-denial formula: Formula 5: always(!<+DENY> true | <+DENY +signed_by(/users/approver.id)> true)
+denial formula: Formula 5: always([+DENY -signed_by(/users/approver.id)] false)
 rule denied: Formula 6: <+ARCHIVE_DENIAL> true
 rejected = this rejected candidate is only prose
 rejection = this rejection rationale is only prose
@@ -9418,11 +9418,11 @@ denial = this denial rationale is only prose
         assert_eq!(
             formulas,
             vec![
-                "always(!<+REJECT> true | <+REJECT +signed_by(/users/reviewer.id)> true)",
+                "always([+REJECT -signed_by(/users/reviewer.id)] false)",
                 "<+ESCALATE_REJECTION> true",
                 "always(!<+REJECT> true | always([-APPROVE] true))",
                 "<+DENY_REQUEST> true",
-                "always(!<+DENY> true | <+DENY +signed_by(/users/approver.id)> true)",
+                "always([+DENY -signed_by(/users/approver.id)] false)",
                 "<+ARCHIVE_DENIAL> true"
             ]
         );
@@ -9435,7 +9435,7 @@ best formula: always(!<+SHIP> true | eventually(<+PAY> true))
 candidate formula: F2: <+REFUND> true
 selected formula: explanation without a formula
 validated formula: <+ESCALATE> true
-chosen formula: Formula 4: always(!<+MERGE> true | <+MERGE +signed_by(/users/maintainer.id)> true)
+chosen formula: Formula 4: always([+MERGE -signed_by(/users/maintainer.id)] false)
 accepted formula: this is only prose
 verified formula: F5: <+DEPLOY> true
 "#;
@@ -9447,7 +9447,7 @@ verified formula: F5: <+DEPLOY> true
                 "always(!<+SHIP> true | eventually(<+PAY> true))",
                 "<+REFUND> true",
                 "<+ESCALATE> true",
-                "always(!<+MERGE> true | <+MERGE +signed_by(/users/maintainer.id)> true)",
+                "always([+MERGE -signed_by(/users/maintainer.id)] false)",
                 "<+DEPLOY> true"
             ]
         );
@@ -9459,7 +9459,7 @@ verified formula: F5: <+DEPLOY> true
 generated formula: always(!<+SHIP> true | eventually(<+PAY> true))
 final formula: Formula 2: <+REFUND> true
 output formula: this is only prose
-response formula: F4: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)
+response formula: F4: always([+APPROVE -signed_by(/users/reviewer.id)] false)
 "#;
 
         let formulas = parse_llm_response(response);
@@ -9468,7 +9468,7 @@ response formula: F4: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/revi
             vec![
                 "always(!<+SHIP> true | eventually(<+PAY> true))",
                 "<+REFUND> true",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)"
             ]
         );
     }
@@ -9479,7 +9479,7 @@ response formula: F4: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/revi
 formula generated: Formula 1: always(!<+SHIP> true | eventually(<+PAY> true))
 formula final: F2: <+REFUND> true
 formula output: this output is only prose
-formula response: Formula 3: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)
+formula response: Formula 3: always([+APPROVE -signed_by(/users/reviewer.id)] false)
 rule generated: Formula 4: <+ESCALATE> true
 "#;
 
@@ -9489,7 +9489,7 @@ rule generated: Formula 4: <+ESCALATE> true
             vec![
                 "always(!<+SHIP> true | eventually(<+PAY> true))",
                 "<+REFUND> true",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)",
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)",
                 "<+ESCALATE> true"
             ]
         );
@@ -9501,7 +9501,7 @@ rule generated: Formula 4: <+ESCALATE> true
 best: always(!<+SHIP> true | eventually(<+PAY> true))
 chosen: Formula 2: <+REFUND> true
 accepted: explanation without a formula
-selected: F4: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)
+selected: F4: always([+APPROVE -signed_by(/users/reviewer.id)] false)
 validated: <+ESCALATE> true
 verified: this candidate passed validation
 "#;
@@ -9512,7 +9512,7 @@ verified: this candidate passed validation
             vec![
                 "always(!<+SHIP> true | eventually(<+PAY> true))",
                 "<+REFUND> true",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)",
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)",
                 "<+ESCALATE> true"
             ]
         );
@@ -9524,7 +9524,7 @@ verified: this candidate passed validation
 candidate: always(!<+SHIP> true | eventually(<+PAY> true))
 alternative: Formula 2: <+REFUND> true
 choice: explanation without a formula
-chunk: F4: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)
+chunk: F4: always([+APPROVE -signed_by(/users/reviewer.id)] false)
 part: <+ESCALATE> true
 segment: prose only
 variant: Formula 7: <+DEPLOY> true
@@ -9536,7 +9536,7 @@ variant: Formula 7: <+DEPLOY> true
             vec![
                 "always(!<+SHIP> true | eventually(<+PAY> true))",
                 "<+REFUND> true",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)",
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)",
                 "<+ESCALATE> true",
                 "<+DEPLOY> true"
             ]
@@ -9549,7 +9549,7 @@ variant: Formula 7: <+DEPLOY> true
 answers: always(!<+SHIP> true | eventually(<+PAY> true))
 completions: Formula 2: <+REFUND> true
 responses: explanation without a formula
-blocks: F4: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)
+blocks: F4: always([+APPROVE -signed_by(/users/reviewer.id)] false)
 deltas: <+ESCALATE> true
 "#;
 
@@ -9559,7 +9559,7 @@ deltas: <+ESCALATE> true
             vec![
                 "always(!<+SHIP> true | eventually(<+PAY> true))",
                 "<+REFUND> true",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)",
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)",
                 "<+ESCALATE> true"
             ]
         );
@@ -9572,7 +9572,7 @@ final response: always(!<+SHIP> true | eventually(<+PAY> true))
 final message: Formula 2: <+REFUND> true
 assistant response: explanation without a formula
 assistant message: Formula 3: <+ESCALATE> true
-model output: F4: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)
+model output: F4: always([+APPROVE -signed_by(/users/reviewer.id)] false)
 "#;
 
         let formulas = parse_llm_response(response);
@@ -9582,7 +9582,7 @@ model output: F4: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer
                 "always(!<+SHIP> true | eventually(<+PAY> true))",
                 "<+REFUND> true",
                 "<+ESCALATE> true",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)"
             ]
         );
     }
@@ -9594,7 +9594,7 @@ assistant output: always(!<+SHIP> true | eventually(<+PAY> true))
 model response: Formula 2: <+REFUND> true
 llm response: explanation without a formula
 provider output: Formula 3: <+ESCALATE> true
-raw output: F4: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)
+raw output: F4: always([+APPROVE -signed_by(/users/reviewer.id)] false)
 "#;
 
         let formulas = parse_llm_response(response);
@@ -9604,7 +9604,7 @@ raw output: F4: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.i
                 "always(!<+SHIP> true | eventually(<+PAY> true))",
                 "<+REFUND> true",
                 "<+ESCALATE> true",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)"
             ]
         );
     }
@@ -9654,7 +9654,7 @@ raw output: F4: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.i
     {
       "type": "tool_use",
       "name": "emit_formulas",
-      "input": "{\"rules\":[\"always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)\",\"<+ESCALATE> true\"]}"
+      "input": "{\"rules\":[\"always([+APPROVE -signed_by(/users/reviewer.id)] false)\",\"<+ESCALATE> true\"]}"
     }
   ]
 }
@@ -9664,7 +9664,7 @@ raw output: F4: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.i
         assert_eq!(formulas.len(), 2);
         assert_eq!(
             formulas[0],
-            "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"
+            "always([+APPROVE -signed_by(/users/reviewer.id)] false)"
         );
         assert_eq!(formulas[1], "<+ESCALATE> true");
     }
@@ -9691,7 +9691,7 @@ raw output: F4: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.i
         "name": "emit_structured_formulas",
         "parameters": {
           "formulas": [
-            "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"
+            "always([+APPROVE -signed_by(/users/reviewer.id)] false)"
           ]
         }
       }
@@ -9706,7 +9706,7 @@ raw output: F4: always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.i
             vec![
                 "always(!<+PAY> true | eventually(<+WORK> true))",
                 "<+CANCEL> true",
-                "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"
+                "always([+APPROVE -signed_by(/users/reviewer.id)] false)"
             ]
         );
     }
@@ -10402,11 +10402,11 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("after this commit either alice or bob must sign");
 
         assert!(
-            prompt.contains("[] always([-signed_by(/users/a.id) -signed_by(/users/b.id)] false)")
+            prompt.contains("always([-signed_by(/users/a.id) -signed_by(/users/b.id)] false)")
         );
-        assert!(prompt.contains("[] always([-signed_by(/users/a.id)] false)"));
+        assert!(prompt.contains("always([-signed_by(/users/a.id)] false)"));
         assert!(prompt.contains(
-            "`[] φ` — φ holds of every successor of the current state (skips the current/bootstrap step)"
+            "`[] φ` — φ holds of every successor of the current state. A rule is checked from the state the commit that adds it reaches, so `always(φ)` already means \"every later commit\"; do not prefix it with `[]`"
         ));
     }
 
@@ -10423,7 +10423,7 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Release requires oracle attestation");
 
         assert!(prompt.contains(
-            r#"always(!<+X> true | <+X +oracle_attests(/oracles/a.id, "delivered", "true")> true)"#
+            r#"always([+X -oracle_attests(/oracles/a.id, "delivered", "true")] false)"#
         ));
     }
 
@@ -10669,7 +10669,7 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         assert!(prompt.contains("always(!<+AGENT_A_TURN> true | eventually(<+AGENT_B_TURN> true))"));
         assert!(prompt.contains("always(!<+AGENT_B_TURN> true | eventually(<+AGENT_A_TURN> true))"));
         assert!(prompt.contains(
-            "always(!<+ASSIGN_TASK> true | <+ASSIGN_TASK +signed_by(/users/task_requester.id) +signed_by(/users/worker_agent.id)> true)"
+            "always(([+ASSIGN_TASK -signed_by(/users/task_requester.id)] false) & ([+ASSIGN_TASK -signed_by(/users/worker_agent.id)] false))"
         ));
         assert!(prompt.contains(
             "always(!<+USE_TOOL> true | (<+USE_TOOL +signed_by(/users/tool_provider.id)> true & eventually([<+APPROVE_CAPABILITY>] true)))"
@@ -10692,7 +10692,7 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
             "always(!<+DISPUTE> true | (always([-RELEASE] true) & always([-REFUND] true)))"
         ));
         assert!(prompt
-            .contains("always(!<+RESOLVE_DISPUTE> true | <+RESOLVE_DISPUTE +signed_by(/users/arbiter.id)> true)"));
+            .contains("always([+RESOLVE_DISPUTE -signed_by(/users/arbiter.id)] false)"));
     }
 
     #[test]
@@ -10700,7 +10700,7 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Cancel requires requester signature and blocks delivery");
 
         assert!(prompt
-            .contains("always(!<+CANCEL> true | <+CANCEL +signed_by(/users/requester.id)> true)"));
+            .contains("always([+CANCEL -signed_by(/users/requester.id)] false)"));
         assert!(prompt.contains("always(!<+CANCEL> true | always([-DELIVER] true))"));
     }
 
@@ -10709,7 +10709,7 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Refund requires seller signature and blocks release");
 
         assert!(prompt
-            .contains("always(!<+REFUND> true | <+REFUND +signed_by(/users/seller.id)> true)"));
+            .contains("always([+REFUND -signed_by(/users/seller.id)] false)"));
         assert!(prompt.contains("always(!<+REFUND> true | always([-RELEASE] true))"));
     }
 
@@ -10718,7 +10718,7 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Approve requires reviewer signature and blocks rejection");
 
         assert!(prompt
-            .contains("always(!<+APPROVE> true | <+APPROVE +signed_by(/users/reviewer.id)> true)"));
+            .contains("always([+APPROVE -signed_by(/users/reviewer.id)] false)"));
         assert!(prompt.contains("always(!<+APPROVE> true | always([-REJECT] true))"));
     }
 
@@ -10727,7 +10727,7 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Reject requires reviewer signature and blocks approval");
 
         assert!(prompt
-            .contains("always(!<+REJECT> true | <+REJECT +signed_by(/users/reviewer.id)> true)"));
+            .contains("always([+REJECT -signed_by(/users/reviewer.id)] false)"));
         assert!(prompt.contains("always(!<+REJECT> true | always([-APPROVE] true))"));
     }
 
@@ -10736,7 +10736,7 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Timeout requires clock oracle and blocks completion");
 
         assert!(prompt.contains(
-            "always(!<+TIMEOUT> true | <+TIMEOUT +oracle_attests(/oracles/clock.id, \"deadline_passed\", \"true\")> true)"
+            "always([+TIMEOUT -oracle_attests(/oracles/clock.id, \"deadline_passed\", \"true\")] false)"
         ));
         assert!(prompt.contains("always(!<+TIMEOUT> true | always([-COMPLETE] true))"));
     }
@@ -10746,7 +10746,7 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Escalation requires manager signature and blocks close");
 
         assert!(prompt.contains(
-            "always(!<+ESCALATE> true | <+ESCALATE +signed_by(/users/manager.id)> true)"
+            "always([+ESCALATE -signed_by(/users/manager.id)] false)"
         ));
         assert!(prompt.contains("always(!<+ESCALATE> true | always([-CLOSE] true))"));
     }
@@ -10756,7 +10756,7 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Withdrawal requires depositor signature and blocks claim");
 
         assert!(prompt.contains(
-            "always(!<+WITHDRAW> true | <+WITHDRAW +signed_by(/users/depositor.id)> true)"
+            "always([+WITHDRAW -signed_by(/users/depositor.id)] false)"
         ));
         assert!(prompt.contains("always(!<+WITHDRAW> true | always([-CLAIM] true))"));
     }
@@ -10766,7 +10766,7 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Appeal requires appellant signature and blocks enforcement");
 
         assert!(prompt
-            .contains("always(!<+APPEAL> true | <+APPEAL +signed_by(/users/appellant.id)> true)"));
+            .contains("always([+APPEAL -signed_by(/users/appellant.id)] false)"));
         assert!(prompt.contains("always(!<+APPEAL> true | always([-ENFORCE] true))"));
     }
 
@@ -10775,7 +10775,7 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Revocation requires issuer signature and blocks use");
 
         assert!(prompt
-            .contains("always(!<+REVOKE> true | <+REVOKE +signed_by(/users/issuer.id)> true)"));
+            .contains("always([+REVOKE -signed_by(/users/issuer.id)] false)"));
         assert!(prompt.contains("always(!<+REVOKE> true | always([-USE] true))"));
     }
 
@@ -10785,7 +10785,7 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
             generate_prompt("Suspension requires administrator signature and blocks access");
 
         assert!(prompt.contains(
-            "always(!<+SUSPEND> true | <+SUSPEND +signed_by(/users/administrator.id)> true)"
+            "always([+SUSPEND -signed_by(/users/administrator.id)] false)"
         ));
         assert!(prompt.contains("always(!<+SUSPEND> true | always([-ACCESS] true))"));
     }
@@ -10796,7 +10796,7 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
             generate_prompt("Reinstatement requires administrator signature and blocks suspension");
 
         assert!(prompt.contains(
-            "always(!<+REINSTATE> true | <+REINSTATE +signed_by(/users/administrator.id)> true)"
+            "always([+REINSTATE -signed_by(/users/administrator.id)] false)"
         ));
         assert!(prompt.contains("always(!<+REINSTATE> true | always([-SUSPEND] true))"));
     }
@@ -10806,7 +10806,7 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Renewal requires holder signature and blocks expiration");
 
         assert!(
-            prompt.contains("always(!<+RENEW> true | <+RENEW +signed_by(/users/holder.id)> true)")
+            prompt.contains("always([+RENEW -signed_by(/users/holder.id)] false)")
         );
         assert!(prompt.contains("always(!<+RENEW> true | always([-EXPIRE] true))"));
     }
@@ -10817,7 +10817,7 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
             generate_prompt("Termination requires counterparty signature and blocks renewal");
 
         assert!(prompt.contains(
-            "always(!<+TERMINATE> true | <+TERMINATE +signed_by(/users/counterparty.id)> true)"
+            "always([+TERMINATE -signed_by(/users/counterparty.id)] false)"
         ));
         assert!(prompt.contains("always(!<+TERMINATE> true | always([-RENEW] true))"));
     }
@@ -10827,7 +10827,7 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Extension requires owner signature and blocks termination");
 
         assert!(
-            prompt.contains("always(!<+EXTEND> true | <+EXTEND +signed_by(/users/owner.id)> true)")
+            prompt.contains("always([+EXTEND -signed_by(/users/owner.id)] false)")
         );
         assert!(prompt.contains("always(!<+EXTEND> true | always([-TERMINATE] true))"));
     }
@@ -10838,7 +10838,7 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
             generate_prompt("Assignment requires assigner signature and blocks reassignment");
 
         assert!(prompt
-            .contains("always(!<+ASSIGN> true | <+ASSIGN +signed_by(/users/assigner.id)> true)"));
+            .contains("always([+ASSIGN -signed_by(/users/assigner.id)] false)"));
         assert!(prompt.contains("always(!<+ASSIGN> true | always([-REASSIGN] true))"));
     }
 
@@ -10848,7 +10848,7 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
             generate_prompt("Certification requires auditor signature and blocks deployment");
 
         assert!(prompt
-            .contains("always(!<+CERTIFY> true | <+CERTIFY +signed_by(/users/auditor.id)> true)"));
+            .contains("always([+CERTIFY -signed_by(/users/auditor.id)] false)"));
         assert!(prompt.contains("always(!<+CERTIFY> true | always([-DEPLOY] true))"));
     }
 
@@ -10857,7 +10857,7 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Publication requires editor signature and blocks embargo");
 
         assert!(prompt
-            .contains("always(!<+PUBLISH> true | <+PUBLISH +signed_by(/users/editor.id)> true)"));
+            .contains("always([+PUBLISH -signed_by(/users/editor.id)] false)"));
         assert!(prompt.contains("always(!<+PUBLISH> true | always([-EMBARGO] true))"));
     }
 
@@ -10867,7 +10867,7 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
             generate_prompt("Registration requires registrar signature and blocks deletion");
 
         assert!(prompt.contains(
-            "always(!<+REGISTER> true | <+REGISTER +signed_by(/users/registrar.id)> true)"
+            "always([+REGISTER -signed_by(/users/registrar.id)] false)"
         ));
         assert!(prompt.contains("always(!<+REGISTER> true | always([-DELETE] true))"));
     }
@@ -10878,7 +10878,7 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
             generate_prompt("Acceptance requires recipient signature and blocks rejection");
 
         assert!(prompt
-            .contains("always(!<+ACCEPT> true | <+ACCEPT +signed_by(/users/recipient.id)> true)"));
+            .contains("always([+ACCEPT -signed_by(/users/recipient.id)] false)"));
         assert!(prompt.contains("always(!<+ACCEPT> true | always([-REJECT] true))"));
     }
 
@@ -10888,7 +10888,7 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
             generate_prompt("Acknowledgement requires recipient signature and blocks dispute");
 
         assert!(prompt.contains(
-            "always(!<+ACKNOWLEDGE> true | <+ACKNOWLEDGE +signed_by(/users/recipient.id)> true)"
+            "always([+ACKNOWLEDGE -signed_by(/users/recipient.id)] false)"
         ));
         assert!(prompt.contains("always(!<+ACKNOWLEDGE> true | always([-DISPUTE] true))"));
     }
@@ -10899,7 +10899,7 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
             generate_prompt("Delivery confirmation requires recipient signature and blocks refund");
 
         assert!(prompt.contains(
-            "always(!<+CONFIRM_DELIVERY> true | <+CONFIRM_DELIVERY +signed_by(/users/recipient.id)> true)"
+            "always([+CONFIRM_DELIVERY -signed_by(/users/recipient.id)] false)"
         ));
         assert!(prompt.contains("always(!<+CONFIRM_DELIVERY> true | always([-REFUND] true))"));
     }
@@ -10910,7 +10910,7 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
             generate_prompt("Invoice approval requires payer signature and blocks chargeback");
 
         assert!(prompt
-            .contains("always(!<+APPROVE_INVOICE> true | <+APPROVE_INVOICE +signed_by(/users/payer.id)> true)"));
+            .contains("always([+APPROVE_INVOICE -signed_by(/users/payer.id)] false)"));
         assert!(prompt.contains("always(!<+APPROVE_INVOICE> true | always([-CHARGEBACK] true))"));
     }
 
@@ -10920,7 +10920,7 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
             generate_prompt("Milestone acceptance requires verifier signature and blocks rework");
 
         assert!(prompt
-            .contains("always(!<+ACCEPT_MILESTONE> true | <+ACCEPT_MILESTONE +signed_by(/users/verifier.id)> true)"));
+            .contains("always([+ACCEPT_MILESTONE -signed_by(/users/verifier.id)] false)"));
         assert!(prompt.contains("always(!<+ACCEPT_MILESTONE> true | always([-REWORK] true))"));
     }
 
@@ -10931,7 +10931,7 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         );
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_INSPECTION> true | <+APPROVE_INSPECTION +signed_by(/users/inspector.id)> true)"
+            "always([+APPROVE_INSPECTION -signed_by(/users/inspector.id)] false)"
         ));
         assert!(
             prompt.contains("always(!<+APPROVE_INSPECTION> true | always([-DEFECT_CLAIM] true))")
@@ -10945,7 +10945,7 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         );
 
         assert!(prompt.contains(
-            "always(!<+ATTEST_COMPLIANCE> true | <+ATTEST_COMPLIANCE +signed_by(/users/compliance_officer.id)> true)"
+            "always([+ATTEST_COMPLIANCE -signed_by(/users/compliance_officer.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+ATTEST_COMPLIANCE> true | always([-NONCOMPLIANCE_FINDING] true))"
@@ -10959,7 +10959,7 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         );
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_SAFETY> true | <+APPROVE_SAFETY +signed_by(/users/safety_reviewer.id)> true)"
+            "always([+APPROVE_SAFETY -signed_by(/users/safety_reviewer.id)] false)"
         ));
         assert!(
             prompt.contains("always(!<+APPROVE_SAFETY> true | always([-UNSAFE_DEPLOYMENT] true))")
@@ -10973,7 +10973,7 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         );
 
         assert!(prompt.contains(
-            "always(!<+ACCEPT_RISK> true | <+ACCEPT_RISK +signed_by(/users/risk_owner.id)> true)"
+            "always([+ACCEPT_RISK -signed_by(/users/risk_owner.id)] false)"
         ));
         assert!(
             prompt.contains("always(!<+ACCEPT_RISK> true | always([-UNMITIGATED_EXPOSURE] true))")
@@ -10987,7 +10987,7 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         );
 
         assert!(prompt.contains(
-            "always(!<+CLOSE_INCIDENT> true | <+CLOSE_INCIDENT +signed_by(/users/incident_commander.id)> true)"
+            "always([+CLOSE_INCIDENT -signed_by(/users/incident_commander.id)] false)"
         ));
         assert!(
             prompt.contains("always(!<+CLOSE_INCIDENT> true | always([-REOPEN_INCIDENT] true))")
@@ -11001,7 +11001,7 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         );
 
         assert!(prompt.contains(
-            "always(!<+FREEZE_CHANGE> true | <+FREEZE_CHANGE +signed_by(/users/release_manager.id)> true)"
+            "always([+FREEZE_CHANGE -signed_by(/users/release_manager.id)] false)"
         ));
         assert!(prompt.contains("always(!<+FREEZE_CHANGE> true | always([-DEPLOY] true))"));
     }
@@ -11011,10 +11011,10 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Tax return filing requires multiple agency approvals");
 
         assert!(prompt.contains(
-            "always(!<+FILE_REGULATORY_REPORT> true | <+FILE_REGULATORY_REPORT +signed_by(/users/applicant.id) +signed_by(/users/regulator.id)> true)"
+            "always(([+FILE_REGULATORY_REPORT -signed_by(/users/applicant.id)] false) & ([+FILE_REGULATORY_REPORT -signed_by(/users/regulator.id)] false))"
         ));
         assert!(prompt.contains(
-            "always(!<+FILE_TAX_RETURN> true | <+FILE_TAX_RETURN +signed_by(/users/tax_authority.id) +signed_by(/users/withholding_agent.id) +signed_by(/users/revenue_agency.id)> true)"
+            "always(([+FILE_TAX_RETURN -signed_by(/users/tax_authority.id)] false) & ([+FILE_TAX_RETURN -signed_by(/users/withholding_agent.id)] false) & ([+FILE_TAX_RETURN -signed_by(/users/revenue_agency.id)] false))"
         ));
     }
 
@@ -11024,13 +11024,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
             generate_prompt("Data processing approval requires privacy governance controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_DATA_PROCESSING> true | <+APPROVE_DATA_PROCESSING +signed_by(/users/data_protection_officer.id)> true)"
+            "always([+APPROVE_DATA_PROCESSING -signed_by(/users/data_protection_officer.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_DATA_PROCESSING> true | always([-UNAUTHORIZED_EXPORT] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+ACCEPT_PRIVACY_IMPACT> true | <+ACCEPT_PRIVACY_IMPACT +signed_by(/users/privacy_officer.id)> true)"
+            "always([+ACCEPT_PRIVACY_IMPACT -signed_by(/users/privacy_officer.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+ACCEPT_PRIVACY_IMPACT> true | always([-HIGH_RISK_PROCESSING] true))"
@@ -11042,13 +11042,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Access grants and audit closure require governance controls");
 
         assert!(prompt.contains(
-            "always(!<+GRANT_ACCESS> true | <+GRANT_ACCESS +signed_by(/users/security_administrator.id)> true)"
+            "always([+GRANT_ACCESS -signed_by(/users/security_administrator.id)] false)"
         ));
         assert!(
             prompt.contains("always(!<+GRANT_ACCESS> true | always([-ESCALATE_PRIVILEGE] true))")
         );
         assert!(prompt.contains(
-            "always(!<+CLOSE_AUDIT> true | <+CLOSE_AUDIT +signed_by(/users/auditor.id)> true)"
+            "always([+CLOSE_AUDIT -signed_by(/users/auditor.id)] false)"
         ));
         assert!(
             prompt.contains("always(!<+CLOSE_AUDIT> true | always([-UNRESOLVED_FINDING] true))")
@@ -11061,13 +11061,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
             generate_prompt("Vendor onboarding and purchase orders require procurement controls");
 
         assert!(prompt.contains(
-            "always(!<+ONBOARD_VENDOR> true | <+ONBOARD_VENDOR +signed_by(/users/procurement_officer.id)> true)"
+            "always([+ONBOARD_VENDOR -signed_by(/users/procurement_officer.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+ONBOARD_VENDOR> true | always([-UNAPPROVED_VENDOR_PAYMENT] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_PURCHASE_ORDER> true | <+APPROVE_PURCHASE_ORDER +signed_by(/users/budget_owner.id)> true)"
+            "always([+APPROVE_PURCHASE_ORDER -signed_by(/users/budget_owner.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_PURCHASE_ORDER> true | always([-OFF_CONTRACT_SPEND] true))"
@@ -11079,13 +11079,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Treasury disbursements and budget releases need controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_TREASURY_DISBURSEMENT> true | <+APPROVE_TREASURY_DISBURSEMENT +signed_by(/users/treasurer.id)> true)"
+            "always([+APPROVE_TREASURY_DISBURSEMENT -signed_by(/users/treasurer.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_TREASURY_DISBURSEMENT> true | always([-UNAUTHORIZED_TRANSFER] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+RELEASE_BUDGET> true | <+RELEASE_BUDGET +signed_by(/users/finance_controller.id)> true)"
+            "always([+RELEASE_BUDGET -signed_by(/users/finance_controller.id)] false)"
         ));
         assert!(
             prompt.contains("always(!<+RELEASE_BUDGET> true | always([-OVER_BUDGET_SPEND] true))")
@@ -11098,13 +11098,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
             generate_prompt("Clinical enrollment and treatment protocol approval need controls");
 
         assert!(prompt.contains(
-            "always(!<+ENROLL_TRIAL_PARTICIPANT> true | <+ENROLL_TRIAL_PARTICIPANT +signed_by(/users/principal_investigator.id)> true)"
+            "always([+ENROLL_TRIAL_PARTICIPANT -signed_by(/users/principal_investigator.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+ENROLL_TRIAL_PARTICIPANT> true | always([-INELIGIBLE_ENROLLMENT] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_TREATMENT_PROTOCOL> true | <+APPROVE_TREATMENT_PROTOCOL +signed_by(/users/medical_director.id)> true)"
+            "always([+APPROVE_TREATMENT_PROTOCOL -signed_by(/users/medical_director.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_TREATMENT_PROTOCOL> true | always([-OFF_PROTOCOL_TREATMENT] true))"
@@ -11117,13 +11117,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
             generate_prompt("Claim settlement and underwriting exceptions require controls");
 
         assert!(prompt.contains(
-            "always(!<+SETTLE_CLAIM> true | <+SETTLE_CLAIM +signed_by(/users/claims_adjuster.id)> true)"
+            "always([+SETTLE_CLAIM -signed_by(/users/claims_adjuster.id)] false)"
         ));
         assert!(
             prompt.contains("always(!<+SETTLE_CLAIM> true | always([-FRAUDULENT_PAYOUT] true))")
         );
         assert!(prompt.contains(
-            "always(!<+APPROVE_UNDERWRITING_EXCEPTION> true | <+APPROVE_UNDERWRITING_EXCEPTION +signed_by(/users/underwriter.id)> true)"
+            "always([+APPROVE_UNDERWRITING_EXCEPTION -signed_by(/users/underwriter.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_UNDERWRITING_EXCEPTION> true | always([-UNPRICED_RISK_BINDING] true))"
@@ -11135,12 +11135,12 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Shipment release and receiving acceptance require controls");
 
         assert!(prompt.contains(
-            "always(!<+RELEASE_SHIPMENT> true | <+RELEASE_SHIPMENT +signed_by(/users/logistics_coordinator.id)> true)"
+            "always([+RELEASE_SHIPMENT -signed_by(/users/logistics_coordinator.id)] false)"
         ));
         assert!(prompt
             .contains("always(!<+RELEASE_SHIPMENT> true | always([-UNAUTHORIZED_SHIPMENT] true))"));
         assert!(prompt.contains(
-            "always(!<+ACCEPT_RECEIVING> true | <+ACCEPT_RECEIVING +signed_by(/users/warehouse_manager.id)> true)"
+            "always([+ACCEPT_RECEIVING -signed_by(/users/warehouse_manager.id)] false)"
         ));
         assert!(prompt
             .contains("always(!<+ACCEPT_RECEIVING> true | always([-INVENTORY_DISCREPANCY] true))"));
@@ -11153,13 +11153,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         );
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_GRID_INTERCONNECTION> true | <+APPROVE_GRID_INTERCONNECTION +signed_by(/users/system_operator.id)> true)"
+            "always([+APPROVE_GRID_INTERCONNECTION -signed_by(/users/system_operator.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_GRID_INTERCONNECTION> true | always([-UNSAFE_ENERGIZATION] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+ISSUE_MAINTENANCE_CLEARANCE> true | <+ISSUE_MAINTENANCE_CLEARANCE +signed_by(/users/outage_coordinator.id)> true)"
+            "always([+ISSUE_MAINTENANCE_CLEARANCE -signed_by(/users/outage_coordinator.id)] false)"
         ));
         assert!(prompt
             .contains("always(!<+ISSUE_MAINTENANCE_CLEARANCE> true | always([-LIVE_WORK] true))"));
@@ -11171,13 +11171,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
             generate_prompt("Student record release and grant award approval require controls");
 
         assert!(prompt.contains(
-            "always(!<+RELEASE_STUDENT_RECORD> true | <+RELEASE_STUDENT_RECORD +signed_by(/users/registrar.id)> true)"
+            "always([+RELEASE_STUDENT_RECORD -signed_by(/users/registrar.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+RELEASE_STUDENT_RECORD> true | always([-UNAUTHORIZED_DISCLOSURE] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_GRANT_AWARD> true | <+APPROVE_GRANT_AWARD +signed_by(/users/program_officer.id)> true)"
+            "always([+APPROVE_GRANT_AWARD -signed_by(/users/program_officer.id)] false)"
         ));
         assert!(prompt
             .contains("always(!<+APPROVE_GRANT_AWARD> true | always([-CONFLICT_AWARD] true))"));
@@ -11188,11 +11188,11 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Permit issuance and legal matter closure require controls");
 
         assert!(prompt.contains(
-            "always(!<+ISSUE_PERMIT> true | <+ISSUE_PERMIT +signed_by(/users/permitting_officer.id)> true)"
+            "always([+ISSUE_PERMIT -signed_by(/users/permitting_officer.id)] false)"
         ));
         assert!(prompt.contains("always(!<+ISSUE_PERMIT> true | always([-UNPERMITTED_WORK] true))"));
         assert!(prompt.contains(
-            "always(!<+CLOSE_LEGAL_MATTER> true | <+CLOSE_LEGAL_MATTER +signed_by(/users/legal_counsel.id)> true)"
+            "always([+CLOSE_LEGAL_MATTER -signed_by(/users/legal_counsel.id)] false)"
         ));
         assert!(prompt
             .contains("always(!<+CLOSE_LEGAL_MATTER> true | always([-UNRESOLVED_CLAIM] true))"));
@@ -11203,12 +11203,12 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Release promotion and model deployment require controls");
 
         assert!(prompt.contains(
-            "always(!<+PROMOTE_RELEASE> true | <+PROMOTE_RELEASE +signed_by(/users/release_engineer.id)> true)"
+            "always([+PROMOTE_RELEASE -signed_by(/users/release_engineer.id)] false)"
         ));
         assert!(prompt
             .contains("always(!<+PROMOTE_RELEASE> true | always([-UNREVIEWED_DEPLOYMENT] true))"));
         assert!(prompt.contains(
-            "always(!<+APPROVE_MODEL_DEPLOYMENT> true | <+APPROVE_MODEL_DEPLOYMENT +signed_by(/users/model_risk_officer.id)> true)"
+            "always([+APPROVE_MODEL_DEPLOYMENT -signed_by(/users/model_risk_officer.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_MODEL_DEPLOYMENT> true | always([-UNVALIDATED_MODEL_USE] true))"
@@ -11220,13 +11220,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("DAO execution and marketplace payout require controls");
 
         assert!(prompt.contains(
-            "always(!<+EXECUTE_DAO_PROPOSAL> true | <+EXECUTE_DAO_PROPOSAL +signed_by(/users/governance_council.id)> true)"
+            "always([+EXECUTE_DAO_PROPOSAL -signed_by(/users/governance_council.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+EXECUTE_DAO_PROPOSAL> true | always([-FAILED_QUORUM_EXECUTION] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+RELEASE_MARKETPLACE_PAYOUT> true | <+RELEASE_MARKETPLACE_PAYOUT +signed_by(/users/platform_operator.id)> true)"
+            "always([+RELEASE_MARKETPLACE_PAYOUT -signed_by(/users/platform_operator.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+RELEASE_MARKETPLACE_PAYOUT> true | always([-DISPUTED_PAYOUT] true))"
@@ -11239,13 +11239,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
             generate_prompt("Construction draws and manufacturing batch release require controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_CONSTRUCTION_DRAW> true | <+APPROVE_CONSTRUCTION_DRAW +signed_by(/users/project_manager.id)> true)"
+            "always([+APPROVE_CONSTRUCTION_DRAW -signed_by(/users/project_manager.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_CONSTRUCTION_DRAW> true | always([-LIEN_EXPOSURE] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+RELEASE_MANUFACTURING_BATCH> true | <+RELEASE_MANUFACTURING_BATCH +signed_by(/users/quality_manager.id)> true)"
+            "always([+RELEASE_MANUFACTURING_BATCH -signed_by(/users/quality_manager.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+RELEASE_MANUFACTURING_BATCH> true | always([-NONCONFORMING_SHIPMENT] true))"
@@ -11257,13 +11257,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Content licensing and lease amendments require controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_CONTENT_LICENSE> true | <+APPROVE_CONTENT_LICENSE +signed_by(/users/rights_manager.id)> true)"
+            "always([+APPROVE_CONTENT_LICENSE -signed_by(/users/rights_manager.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_CONTENT_LICENSE> true | always([-UNLICENSED_PUBLICATION] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_LEASE_AMENDMENT> true | <+APPROVE_LEASE_AMENDMENT +signed_by(/users/property_manager.id)> true)"
+            "always([+APPROVE_LEASE_AMENDMENT -signed_by(/users/property_manager.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_LEASE_AMENDMENT> true | always([-UNAUTHORIZED_OCCUPANCY] true))"
@@ -11276,13 +11276,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
             generate_prompt("Environmental permits and agricultural shipments require controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_ENVIRONMENTAL_PERMIT> true | <+APPROVE_ENVIRONMENTAL_PERMIT +signed_by(/users/environmental_officer.id)> true)"
+            "always([+APPROVE_ENVIRONMENTAL_PERMIT -signed_by(/users/environmental_officer.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_ENVIRONMENTAL_PERMIT> true | always([-PROHIBITED_DISCHARGE] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+CERTIFY_AGRICULTURAL_SHIPMENT> true | <+CERTIFY_AGRICULTURAL_SHIPMENT +signed_by(/users/quality_inspector.id)> true)"
+            "always([+CERTIFY_AGRICULTURAL_SHIPMENT -signed_by(/users/quality_inspector.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+CERTIFY_AGRICULTURAL_SHIPMENT> true | always([-CONTAMINATED_SHIPMENT] true))"
@@ -11294,13 +11294,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Travel itineraries and room blocks require controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_TRAVEL_ITINERARY> true | <+APPROVE_TRAVEL_ITINERARY +signed_by(/users/travel_manager.id)> true)"
+            "always([+APPROVE_TRAVEL_ITINERARY -signed_by(/users/travel_manager.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_TRAVEL_ITINERARY> true | always([-UNAUTHORIZED_BOOKING] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+RELEASE_ROOM_BLOCK> true | <+RELEASE_ROOM_BLOCK +signed_by(/users/event_coordinator.id)> true)"
+            "always([+RELEASE_ROOM_BLOCK -signed_by(/users/event_coordinator.id)] false)"
         ));
         assert!(prompt
             .contains("always(!<+RELEASE_ROOM_BLOCK> true | always([-OVERBOOKED_ROOMS] true))"));
@@ -11311,13 +11311,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Aircraft maintenance and fleet routes require controls");
 
         assert!(prompt.contains(
-            "always(!<+RELEASE_AIRCRAFT_MAINTENANCE> true | <+RELEASE_AIRCRAFT_MAINTENANCE +signed_by(/users/airworthiness_inspector.id)> true)"
+            "always([+RELEASE_AIRCRAFT_MAINTENANCE -signed_by(/users/airworthiness_inspector.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+RELEASE_AIRCRAFT_MAINTENANCE> true | always([-UNAIRWORTHY_DISPATCH] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_FLEET_ROUTE> true | <+APPROVE_FLEET_ROUTE +signed_by(/users/fleet_manager.id)> true)"
+            "always([+APPROVE_FLEET_ROUTE -signed_by(/users/fleet_manager.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_FLEET_ROUTE> true | always([-UNLICENSED_OPERATOR_DISPATCH] true))"
@@ -11329,13 +11329,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Pharmaceutical batches and food recalls require controls");
 
         assert!(prompt.contains(
-            "always(!<+RELEASE_PHARMACEUTICAL_BATCH> true | <+RELEASE_PHARMACEUTICAL_BATCH +signed_by(/users/qualified_person.id)> true)"
+            "always([+RELEASE_PHARMACEUTICAL_BATCH -signed_by(/users/qualified_person.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+RELEASE_PHARMACEUTICAL_BATCH> true | always([-UNCERTIFIED_DISTRIBUTION] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+CLOSE_FOOD_SAFETY_RECALL> true | <+CLOSE_FOOD_SAFETY_RECALL +signed_by(/users/safety_officer.id)> true)"
+            "always([+CLOSE_FOOD_SAFETY_RECALL -signed_by(/users/safety_officer.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+CLOSE_FOOD_SAFETY_RECALL> true | always([-UNRESOLVED_CONTAMINATION] true))"
@@ -11348,13 +11348,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
             generate_prompt("Telecom service changes and spectrum assignments need controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_SERVICE_CHANGE> true | <+APPROVE_SERVICE_CHANGE +signed_by(/users/network_operations_manager.id)> true)"
+            "always([+APPROVE_SERVICE_CHANGE -signed_by(/users/network_operations_manager.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_SERVICE_CHANGE> true | always([-UNAUTHORIZED_OUTAGE] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_SPECTRUM_ASSIGNMENT> true | <+APPROVE_SPECTRUM_ASSIGNMENT +signed_by(/users/spectrum_officer.id)> true)"
+            "always([+APPROVE_SPECTRUM_ASSIGNMENT -signed_by(/users/spectrum_officer.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_SPECTRUM_ASSIGNMENT> true | always([-UNLICENSED_TRANSMISSION] true))"
@@ -11366,13 +11366,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("AML case closure and export licenses need controls");
 
         assert!(prompt.contains(
-            "always(!<+CLOSE_AML_CASE> true | <+CLOSE_AML_CASE +signed_by(/users/compliance_analyst.id)> true)"
+            "always([+CLOSE_AML_CASE -signed_by(/users/compliance_analyst.id)] false)"
         ));
         assert!(
             prompt.contains("always(!<+CLOSE_AML_CASE> true | always([-SUSPICIOUS_PAYOUT] true))")
         );
         assert!(prompt.contains(
-            "always(!<+APPROVE_EXPORT_LICENSE> true | <+APPROVE_EXPORT_LICENSE +signed_by(/users/export_control_officer.id)> true)"
+            "always([+APPROVE_EXPORT_LICENSE -signed_by(/users/export_control_officer.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_EXPORT_LICENSE> true | always([-RESTRICTED_SHIPMENT] true))"
@@ -11384,13 +11384,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("KYC approval and sanctions clearance need controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_KYC_ACCOUNT> true | <+APPROVE_KYC_ACCOUNT +signed_by(/users/identity_analyst.id)> true)"
+            "always([+APPROVE_KYC_ACCOUNT -signed_by(/users/identity_analyst.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_KYC_ACCOUNT> true | always([-UNVERIFIED_ACTIVATION] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+CLEAR_SANCTIONS_SCREENING> true | <+CLEAR_SANCTIONS_SCREENING +signed_by(/users/sanctions_officer.id)> true)"
+            "always([+CLEAR_SANCTIONS_SCREENING -signed_by(/users/sanctions_officer.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+CLEAR_SANCTIONS_SCREENING> true | always([-SANCTIONED_TRANSFER] true))"
@@ -11402,13 +11402,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Cyber incident and disaster recovery controls");
 
         assert!(prompt.contains(
-            "always(!<+CONTAIN_CYBER_INCIDENT> true | <+CONTAIN_CYBER_INCIDENT +signed_by(/users/security_lead.id)> true)"
+            "always([+CONTAIN_CYBER_INCIDENT -signed_by(/users/security_lead.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+CONTAIN_CYBER_INCIDENT> true | always([-UNCONTROLLED_BREACH_ESCALATION] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_DISASTER_RECOVERY_FAILOVER> true | <+APPROVE_DISASTER_RECOVERY_FAILOVER +signed_by(/users/continuity_manager.id)> true)"
+            "always([+APPROVE_DISASTER_RECOVERY_FAILOVER -signed_by(/users/continuity_manager.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_DISASTER_RECOVERY_FAILOVER> true | always([-UNTESTED_FAILOVER] true))"
@@ -11420,12 +11420,12 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Legal hold and e-discovery controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_LEGAL_HOLD> true | <+APPROVE_LEGAL_HOLD +signed_by(/users/records_counsel.id)> true)"
+            "always([+APPROVE_LEGAL_HOLD -signed_by(/users/records_counsel.id)] false)"
         ));
         assert!(prompt
             .contains("always(!<+APPROVE_LEGAL_HOLD> true | always([-PREMATURE_PURGE] true))"));
         assert!(prompt.contains(
-            "always(!<+APPROVE_EDISCOVERY_PRODUCTION> true | <+APPROVE_EDISCOVERY_PRODUCTION +signed_by(/users/litigation_support_manager.id)> true)"
+            "always([+APPROVE_EDISCOVERY_PRODUCTION -signed_by(/users/litigation_support_manager.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_EDISCOVERY_PRODUCTION> true | always([-PRIVILEGED_DISCLOSURE] true))"
@@ -11437,13 +11437,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Patent filing and trademark usage controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_PATENT_FILING> true | <+APPROVE_PATENT_FILING +signed_by(/users/ip_counsel.id)> true)"
+            "always([+APPROVE_PATENT_FILING -signed_by(/users/ip_counsel.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_PATENT_FILING> true | always([-PREMATURE_PUBLIC_DISCLOSURE] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_TRADEMARK_USAGE> true | <+APPROVE_TRADEMARK_USAGE +signed_by(/users/brand_counsel.id)> true)"
+            "always([+APPROVE_TRADEMARK_USAGE -signed_by(/users/brand_counsel.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_TRADEMARK_USAGE> true | always([-UNAUTHORIZED_MARK_USE] true))"
@@ -11455,13 +11455,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Employee onboarding and labor compliance controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_EMPLOYEE_ONBOARDING> true | <+APPROVE_EMPLOYEE_ONBOARDING +signed_by(/users/hr_manager.id)> true)"
+            "always([+APPROVE_EMPLOYEE_ONBOARDING -signed_by(/users/hr_manager.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_EMPLOYEE_ONBOARDING> true | always([-UNVERIFIED_WORKER_ACCESS] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+ATTEST_LABOR_COMPLIANCE> true | <+ATTEST_LABOR_COMPLIANCE +signed_by(/users/compliance_officer.id)> true)"
+            "always([+ATTEST_LABOR_COMPLIANCE -signed_by(/users/compliance_officer.id)] false)"
         ));
         assert!(prompt
             .contains("always(!<+ATTEST_LABOR_COMPLIANCE> true | always([-WAGE_VIOLATION] true))"));
@@ -11472,13 +11472,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Athlete eligibility and broadcast rights controls");
 
         assert!(prompt.contains(
-            "always(!<+CERTIFY_ATHLETE_ELIGIBILITY> true | <+CERTIFY_ATHLETE_ELIGIBILITY +signed_by(/users/compliance_officer.id)> true)"
+            "always([+CERTIFY_ATHLETE_ELIGIBILITY -signed_by(/users/compliance_officer.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+CERTIFY_ATHLETE_ELIGIBILITY> true | always([-INELIGIBLE_COMPETITION] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+CLEAR_BROADCAST_RIGHTS> true | <+CLEAR_BROADCAST_RIGHTS +signed_by(/users/rights_coordinator.id)> true)"
+            "always([+CLEAR_BROADCAST_RIGHTS -signed_by(/users/rights_coordinator.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+CLEAR_BROADCAST_RIGHTS> true | always([-UNAUTHORIZED_STREAM] true))"
@@ -11490,13 +11490,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Port departure and customs cargo controls");
 
         assert!(prompt.contains(
-            "always(!<+CLEAR_PORT_DEPARTURE> true | <+CLEAR_PORT_DEPARTURE +signed_by(/users/harbor_master.id)> true)"
+            "always([+CLEAR_PORT_DEPARTURE -signed_by(/users/harbor_master.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+CLEAR_PORT_DEPARTURE> true | always([-UNAUTHORIZED_SAILING] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+RELEASE_CUSTOMS_CARGO> true | <+RELEASE_CUSTOMS_CARGO +signed_by(/users/customs_officer.id)> true)"
+            "always([+RELEASE_CUSTOMS_CARGO -signed_by(/users/customs_officer.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+RELEASE_CUSTOMS_CARGO> true | always([-SMUGGLED_GOODS_RELEASE] true))"
@@ -11508,13 +11508,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Loan disbursement and collateral release controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_LOAN_DISBURSEMENT> true | <+APPROVE_LOAN_DISBURSEMENT +signed_by(/users/credit_officer.id)> true)"
+            "always([+APPROVE_LOAN_DISBURSEMENT -signed_by(/users/credit_officer.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_LOAN_DISBURSEMENT> true | always([-UNAUTHORIZED_DRAWDOWN] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+RELEASE_COLLATERAL> true | <+RELEASE_COLLATERAL +signed_by(/users/lending_officer.id)> true)"
+            "always([+RELEASE_COLLATERAL -signed_by(/users/lending_officer.id)] false)"
         ));
         assert!(prompt
             .contains("always(!<+RELEASE_COLLATERAL> true | always([-UNSECURED_EXPOSURE] true))"));
@@ -11525,13 +11525,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Retail price override and franchise territory controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_PRICE_OVERRIDE> true | <+APPROVE_PRICE_OVERRIDE +signed_by(/users/pricing_manager.id)> true)"
+            "always([+APPROVE_PRICE_OVERRIDE -signed_by(/users/pricing_manager.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_PRICE_OVERRIDE> true | always([-UNAUTHORIZED_DISCOUNT] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_TERRITORY_CHANGE> true | <+APPROVE_TERRITORY_CHANGE +signed_by(/users/franchise_director.id)> true)"
+            "always([+APPROVE_TERRITORY_CHANGE -signed_by(/users/franchise_director.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_TERRITORY_CHANGE> true | always([-TERRITORY_CONFLICT] true))"
@@ -11543,13 +11543,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Artifact loan and archive declassification controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_ARTIFACT_LOAN> true | <+APPROVE_ARTIFACT_LOAN +signed_by(/users/curator.id)> true)"
+            "always([+APPROVE_ARTIFACT_LOAN -signed_by(/users/curator.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_ARTIFACT_LOAN> true | always([-UNAUTHORIZED_TRANSFER] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+DECLASSIFY_ARCHIVE_RECORD> true | <+DECLASSIFY_ARCHIVE_RECORD +signed_by(/users/archivist.id)> true)"
+            "always([+DECLASSIFY_ARCHIVE_RECORD -signed_by(/users/archivist.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+DECLASSIFY_ARCHIVE_RECORD> true | always([-PREMATURE_DISCLOSURE] true))"
@@ -11561,13 +11561,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Election certification and ballot audit controls");
 
         assert!(prompt.contains(
-            "always(!<+CERTIFY_ELECTION_RESULT> true | <+CERTIFY_ELECTION_RESULT +signed_by(/users/election_officer.id)> true)"
+            "always([+CERTIFY_ELECTION_RESULT -signed_by(/users/election_officer.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+CERTIFY_ELECTION_RESULT> true | always([-UNCERTIFIED_SEATING] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+CLOSE_BALLOT_AUDIT> true | <+CLOSE_BALLOT_AUDIT +signed_by(/users/audit_board.id)> true)"
+            "always([+CLOSE_BALLOT_AUDIT -signed_by(/users/audit_board.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+CLOSE_BALLOT_AUDIT> true | always([-UNRESOLVED_BALLOT_DISCREPANCY] true))"
@@ -11579,13 +11579,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Donation release and grant reporting controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_DONATION_RELEASE> true | <+APPROVE_DONATION_RELEASE +signed_by(/users/nonprofit_treasurer.id)> true)"
+            "always([+APPROVE_DONATION_RELEASE -signed_by(/users/nonprofit_treasurer.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_DONATION_RELEASE> true | always([-RESTRICTED_FUND_MISUSE] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+CERTIFY_GRANT_REPORT> true | <+CERTIFY_GRANT_REPORT +signed_by(/users/program_director.id)> true)"
+            "always([+CERTIFY_GRANT_REPORT -signed_by(/users/program_director.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+CERTIFY_GRANT_REPORT> true | always([-UNSUBSTANTIATED_GRANT_EXPENSE] true))"
@@ -11597,13 +11597,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Zoning variance and public health order controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_ZONING_VARIANCE> true | <+APPROVE_ZONING_VARIANCE +signed_by(/users/planning_commissioner.id)> true)"
+            "always([+APPROVE_ZONING_VARIANCE -signed_by(/users/planning_commissioner.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_ZONING_VARIANCE> true | always([-UNPERMITTED_LAND_USE] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+CLOSE_PUBLIC_HEALTH_ORDER> true | <+CLOSE_PUBLIC_HEALTH_ORDER +signed_by(/users/health_officer.id)> true)"
+            "always([+CLOSE_PUBLIC_HEALTH_ORDER -signed_by(/users/health_officer.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+CLOSE_PUBLIC_HEALTH_ORDER> true | always([-UNRESOLVED_EXPOSURE] true))"
@@ -11615,13 +11615,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Emergency dispatch and court enforcement controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_EMERGENCY_RESOURCE_DISPATCH> true | <+APPROVE_EMERGENCY_RESOURCE_DISPATCH +signed_by(/users/incident_commander.id)> true)"
+            "always([+APPROVE_EMERGENCY_RESOURCE_DISPATCH -signed_by(/users/incident_commander.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_EMERGENCY_RESOURCE_DISPATCH> true | always([-UNAUTHORIZED_DEPLOYMENT] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+ENFORCE_COURT_ORDER> true | <+ENFORCE_COURT_ORDER +signed_by(/users/court_clerk.id)> true)"
+            "always([+ENFORCE_COURT_ORDER -signed_by(/users/court_clerk.id)] false)"
         ));
         assert!(prompt
             .contains("always(!<+ENFORCE_COURT_ORDER> true | always([-STAYED_ENFORCEMENT] true))"));
@@ -11632,13 +11632,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Satellite maneuver and nuclear maintenance controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_SATELLITE_MANEUVER> true | <+APPROVE_SATELLITE_MANEUVER +signed_by(/users/mission_director.id)> true)"
+            "always([+APPROVE_SATELLITE_MANEUVER -signed_by(/users/mission_director.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_SATELLITE_MANEUVER> true | always([-UNAUTHORIZED_ORBIT_CHANGE] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+ISSUE_NUCLEAR_MAINTENANCE_CLEARANCE> true | <+ISSUE_NUCLEAR_MAINTENANCE_CLEARANCE +signed_by(/users/radiation_safety_officer.id)> true)"
+            "always([+ISSUE_NUCLEAR_MAINTENANCE_CLEARANCE -signed_by(/users/radiation_safety_officer.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+ISSUE_NUCLEAR_MAINTENANCE_CLEARANCE> true | always([-UNSAFE_REACTOR_WORK] true))"
@@ -11650,13 +11650,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Water discharge and mining blast controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_WATER_DISCHARGE> true | <+APPROVE_WATER_DISCHARGE +signed_by(/users/plant_operator.id)> true)"
+            "always([+APPROVE_WATER_DISCHARGE -signed_by(/users/plant_operator.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_WATER_DISCHARGE> true | always([-UNTREATED_RELEASE] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+AUTHORIZE_MINING_BLAST> true | <+AUTHORIZE_MINING_BLAST +signed_by(/users/safety_superintendent.id)> true)"
+            "always([+AUTHORIZE_MINING_BLAST -signed_by(/users/safety_superintendent.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+AUTHORIZE_MINING_BLAST> true | always([-UNPERMITTED_BLAST] true))"
@@ -11668,13 +11668,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Fisheries catch and forestry harvest controls");
 
         assert!(prompt.contains(
-            "always(!<+CERTIFY_FISHERIES_CATCH> true | <+CERTIFY_FISHERIES_CATCH +signed_by(/users/fisheries_officer.id)> true)"
+            "always([+CERTIFY_FISHERIES_CATCH -signed_by(/users/fisheries_officer.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+CERTIFY_FISHERIES_CATCH> true | always([-ILLEGAL_CATCH_LANDING] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_FORESTRY_HARVEST_PERMIT> true | <+APPROVE_FORESTRY_HARVEST_PERMIT +signed_by(/users/forest_ranger.id)> true)"
+            "always([+APPROVE_FORESTRY_HARVEST_PERMIT -signed_by(/users/forest_ranger.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_FORESTRY_HARVEST_PERMIT> true | always([-UNAUTHORIZED_LOGGING] true))"
@@ -11686,12 +11686,12 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Insurance payout and clinical enrollment controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_CLAIM_PAYOUT> true | <+APPROVE_CLAIM_PAYOUT +signed_by(/users/claims_adjuster.id)> true)"
+            "always([+APPROVE_CLAIM_PAYOUT -signed_by(/users/claims_adjuster.id)] false)"
         ));
         assert!(prompt
             .contains("always(!<+APPROVE_CLAIM_PAYOUT> true | always([-FRAUDULENT_PAYOUT] true))"));
         assert!(prompt.contains(
-            "always(!<+APPROVE_TRIAL_ENROLLMENT> true | <+APPROVE_TRIAL_ENROLLMENT +signed_by(/users/principal_investigator.id)> true)"
+            "always([+APPROVE_TRIAL_ENROLLMENT -signed_by(/users/principal_investigator.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_TRIAL_ENROLLMENT> true | always([-INELIGIBLE_SUBJECT_ENROLLMENT] true))"
@@ -11703,13 +11703,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Humanitarian aid and carbon credit controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_AID_DISBURSEMENT> true | <+APPROVE_AID_DISBURSEMENT +signed_by(/users/field_coordinator.id)> true)"
+            "always([+APPROVE_AID_DISBURSEMENT -signed_by(/users/field_coordinator.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_AID_DISBURSEMENT> true | always([-DUPLICATE_AID_PAYMENT] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+CERTIFY_CARBON_CREDIT_RETIREMENT> true | <+CERTIFY_CARBON_CREDIT_RETIREMENT +signed_by(/users/registry_operator.id)> true)"
+            "always([+CERTIFY_CARBON_CREDIT_RETIREMENT -signed_by(/users/registry_operator.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+CERTIFY_CARBON_CREDIT_RETIREMENT> true | always([-DOUBLE_COUNTED_OFFSET] true))"
@@ -11721,13 +11721,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Laboratory sample and research compute controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_SAMPLE_TRANSFER> true | <+APPROVE_SAMPLE_TRANSFER +signed_by(/users/biosafety_officer.id)> true)"
+            "always([+APPROVE_SAMPLE_TRANSFER -signed_by(/users/biosafety_officer.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_SAMPLE_TRANSFER> true | always([-UNAPPROVED_BIOHAZARD_TRANSFER] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_COMPUTE_ALLOCATION> true | <+APPROVE_COMPUTE_ALLOCATION +signed_by(/users/computing_administrator.id)> true)"
+            "always([+APPROVE_COMPUTE_ALLOCATION -signed_by(/users/computing_administrator.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_COMPUTE_ALLOCATION> true | always([-UNAUTHORIZED_CLUSTER_USE] true))"
@@ -11739,13 +11739,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Drone flight and IoT firmware controls");
 
         assert!(prompt.contains(
-            "always(!<+AUTHORIZE_DRONE_FLIGHT> true | <+AUTHORIZE_DRONE_FLIGHT +signed_by(/users/operations_lead.id)> true)"
+            "always([+AUTHORIZE_DRONE_FLIGHT -signed_by(/users/operations_lead.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+AUTHORIZE_DRONE_FLIGHT> true | always([-UNAUTHORIZED_AIRSPACE_OPERATION] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_IOT_FIRMWARE_ROLLOUT> true | <+APPROVE_IOT_FIRMWARE_ROLLOUT +signed_by(/users/device_security_officer.id)> true)"
+            "always([+APPROVE_IOT_FIRMWARE_ROLLOUT -signed_by(/users/device_security_officer.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_IOT_FIRMWARE_ROLLOUT> true | always([-VULNERABLE_DEVICE_UPDATE] true))"
@@ -11757,13 +11757,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Autonomous vehicle and robotics cell controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_AUTONOMOUS_VEHICLE_ROUTE> true | <+APPROVE_AUTONOMOUS_VEHICLE_ROUTE +signed_by(/users/safety_operator.id)> true)"
+            "always([+APPROVE_AUTONOMOUS_VEHICLE_ROUTE -signed_by(/users/safety_operator.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_AUTONOMOUS_VEHICLE_ROUTE> true | always([-UNSAFE_ROUTE_DISPATCH] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+ACTIVATE_ROBOTICS_CELL> true | <+ACTIVATE_ROBOTICS_CELL +signed_by(/users/floor_supervisor.id)> true)"
+            "always([+ACTIVATE_ROBOTICS_CELL -signed_by(/users/floor_supervisor.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+ACTIVATE_ROBOTICS_CELL> true | always([-UNGUARDED_ROBOT_MOTION] true))"
@@ -11775,13 +11775,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Semiconductor wafer and battery production controls");
 
         assert!(prompt.contains(
-            "always(!<+RELEASE_WAFER_LOT> true | <+RELEASE_WAFER_LOT +signed_by(/users/process_engineer.id)> true)"
+            "always([+RELEASE_WAFER_LOT -signed_by(/users/process_engineer.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+RELEASE_WAFER_LOT> true | always([-CONTAMINATED_LOT_SHIPMENT] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_BATTERY_BATCH> true | <+APPROVE_BATTERY_BATCH +signed_by(/users/safety_engineer.id)> true)"
+            "always([+APPROVE_BATTERY_BATCH -signed_by(/users/safety_engineer.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_BATTERY_BATCH> true | always([-THERMAL_RUNAWAY_RISK] true))"
@@ -11793,13 +11793,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Quantum key ceremony and edge AI model update controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_QUANTUM_KEY_CEREMONY> true | <+APPROVE_QUANTUM_KEY_CEREMONY +signed_by(/users/cryptography_officer.id)> true)"
+            "always([+APPROVE_QUANTUM_KEY_CEREMONY -signed_by(/users/cryptography_officer.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_QUANTUM_KEY_CEREMONY> true | always([-COMPROMISED_KEY_ACTIVATION] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_EDGE_AI_MODEL_UPDATE> true | <+APPROVE_EDGE_AI_MODEL_UPDATE +signed_by(/users/site_reliability_engineer.id)> true)"
+            "always([+APPROVE_EDGE_AI_MODEL_UPDATE -signed_by(/users/site_reliability_engineer.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_EDGE_AI_MODEL_UPDATE> true | always([-UNSAFE_FIELD_MODEL_ROLLOUT] true))"
@@ -11811,13 +11811,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Digital identity and confidential compute controls");
 
         assert!(prompt.contains(
-            "always(!<+ISSUE_DIGITAL_CREDENTIAL> true | <+ISSUE_DIGITAL_CREDENTIAL +signed_by(/users/identity_authority.id)> true)"
+            "always([+ISSUE_DIGITAL_CREDENTIAL -signed_by(/users/identity_authority.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+ISSUE_DIGITAL_CREDENTIAL> true | always([-FRAUDULENT_CREDENTIAL_ACTIVATION] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+ATTEST_CONFIDENTIAL_ENCLAVE> true | <+ATTEST_CONFIDENTIAL_ENCLAVE +signed_by(/users/security_architect.id)> true)"
+            "always([+ATTEST_CONFIDENTIAL_ENCLAVE -signed_by(/users/security_architect.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+ATTEST_CONFIDENTIAL_ENCLAVE> true | always([-UNTRUSTED_ENCLAVE_WORKLOAD] true))"
@@ -11829,13 +11829,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Artifact provenance and SBOM publication controls");
 
         assert!(prompt.contains(
-            "always(!<+ATTEST_ARTIFACT_PROVENANCE> true | <+ATTEST_ARTIFACT_PROVENANCE +signed_by(/users/build_attestor.id)> true)"
+            "always([+ATTEST_ARTIFACT_PROVENANCE -signed_by(/users/build_attestor.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+ATTEST_ARTIFACT_PROVENANCE> true | always([-UNSIGNED_ARTIFACT_DEPLOYMENT] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_SBOM_PUBLICATION> true | <+APPROVE_SBOM_PUBLICATION +signed_by(/users/security_reviewer.id)> true)"
+            "always([+APPROVE_SBOM_PUBLICATION -signed_by(/users/security_reviewer.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_SBOM_PUBLICATION> true | always([-UNDOCUMENTED_DEPENDENCY_RELEASE] true))"
@@ -11847,13 +11847,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Cold chain and medical device release controls");
 
         assert!(prompt.contains(
-            "always(!<+CERTIFY_COLD_CHAIN_HANDOFF> true | <+CERTIFY_COLD_CHAIN_HANDOFF +signed_by(/users/logistics_inspector.id)> true)"
+            "always([+CERTIFY_COLD_CHAIN_HANDOFF -signed_by(/users/logistics_inspector.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+CERTIFY_COLD_CHAIN_HANDOFF> true | always([-TEMPERATURE_BREACH_DELIVERY] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+AUTHORIZE_MEDICAL_DEVICE_RELEASE> true | <+AUTHORIZE_MEDICAL_DEVICE_RELEASE +signed_by(/users/quality_systems_manager.id)> true)"
+            "always([+AUTHORIZE_MEDICAL_DEVICE_RELEASE -signed_by(/users/quality_systems_manager.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+AUTHORIZE_MEDICAL_DEVICE_RELEASE> true | always([-UNVALIDATED_DEVICE_DISTRIBUTION] true))"
@@ -11865,13 +11865,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Rail signal and runway reopening controls");
 
         assert!(prompt.contains(
-            "always(!<+AUTHORIZE_RAIL_SIGNAL_MAINTENANCE> true | <+AUTHORIZE_RAIL_SIGNAL_MAINTENANCE +signed_by(/users/signal_engineer.id)> true)"
+            "always([+AUTHORIZE_RAIL_SIGNAL_MAINTENANCE -signed_by(/users/signal_engineer.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+AUTHORIZE_RAIL_SIGNAL_MAINTENANCE> true | always([-UNSAFE_TRACK_OCCUPANCY] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_RUNWAY_REOPENING> true | <+APPROVE_RUNWAY_REOPENING +signed_by(/users/airport_operations_manager.id)> true)"
+            "always([+APPROVE_RUNWAY_REOPENING -signed_by(/users/airport_operations_manager.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_RUNWAY_REOPENING> true | always([-UNCLEARED_RUNWAY_USE] true))"
@@ -11883,13 +11883,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Datacenter maintenance and network peering controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_DATACENTER_MAINTENANCE_WINDOW> true | <+APPROVE_DATACENTER_MAINTENANCE_WINDOW +signed_by(/users/facilities_lead.id)> true)"
+            "always([+APPROVE_DATACENTER_MAINTENANCE_WINDOW -signed_by(/users/facilities_lead.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_DATACENTER_MAINTENANCE_WINDOW> true | always([-UNSCHEDULED_POWER_WORK] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_NETWORK_PEERING_CHANGE> true | <+APPROVE_NETWORK_PEERING_CHANGE +signed_by(/users/network_architect.id)> true)"
+            "always([+APPROVE_NETWORK_PEERING_CHANGE -signed_by(/users/network_architect.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_NETWORK_PEERING_CHANGE> true | always([-UNAUTHORIZED_ROUTE_ADVERTISEMENT] true))"
@@ -11901,13 +11901,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("DNS zone and certificate issuance controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_DNS_ZONE_CHANGE> true | <+APPROVE_DNS_ZONE_CHANGE +signed_by(/users/dns_administrator.id)> true)"
+            "always([+APPROVE_DNS_ZONE_CHANGE -signed_by(/users/dns_administrator.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_DNS_ZONE_CHANGE> true | always([-UNAUTHORIZED_RECORD_PUBLICATION] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_TLS_CERTIFICATE_ISSUANCE> true | <+APPROVE_TLS_CERTIFICATE_ISSUANCE +signed_by(/users/certificate_authority_officer.id)> true)"
+            "always([+APPROVE_TLS_CERTIFICATE_ISSUANCE -signed_by(/users/certificate_authority_officer.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_TLS_CERTIFICATE_ISSUANCE> true | always([-MISISSUED_CERTIFICATE_ACTIVATION] true))"
@@ -11919,13 +11919,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Secret rotation and backup restore controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_SECRET_ROTATION> true | <+APPROVE_SECRET_ROTATION +signed_by(/users/platform_security_officer.id)> true)"
+            "always([+APPROVE_SECRET_ROTATION -signed_by(/users/platform_security_officer.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_SECRET_ROTATION> true | always([-STALE_SECRET_REUSE] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_BACKUP_RESTORE> true | <+APPROVE_BACKUP_RESTORE +signed_by(/users/recovery_manager.id)> true)"
+            "always([+APPROVE_BACKUP_RESTORE -signed_by(/users/recovery_manager.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_BACKUP_RESTORE> true | always([-UNVERIFIED_DATA_RESTORATION] true))"
@@ -11937,13 +11937,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Database migration and container image controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_DATABASE_MIGRATION> true | <+APPROVE_DATABASE_MIGRATION +signed_by(/users/database_administrator.id)> true)"
+            "always([+APPROVE_DATABASE_MIGRATION -signed_by(/users/database_administrator.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_DATABASE_MIGRATION> true | always([-UNREVIEWED_SCHEMA_CHANGE] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_CONTAINER_IMAGE_PROMOTION> true | <+APPROVE_CONTAINER_IMAGE_PROMOTION +signed_by(/users/platform_release_engineer.id)> true)"
+            "always([+APPROVE_CONTAINER_IMAGE_PROMOTION -signed_by(/users/platform_release_engineer.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_CONTAINER_IMAGE_PROMOTION> true | always([-VULNERABLE_IMAGE_DEPLOYMENT] true))"
@@ -11955,13 +11955,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Feature flag rollout and production rollback controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_FEATURE_FLAG_ROLLOUT> true | <+APPROVE_FEATURE_FLAG_ROLLOUT +signed_by(/users/product_owner.id)> true)"
+            "always([+APPROVE_FEATURE_FLAG_ROLLOUT -signed_by(/users/product_owner.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_FEATURE_FLAG_ROLLOUT> true | always([-UNAUTHORIZED_FEATURE_EXPOSURE] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+AUTHORIZE_PRODUCTION_ROLLBACK> true | <+AUTHORIZE_PRODUCTION_ROLLBACK +signed_by(/users/incident_commander.id)> true)"
+            "always([+AUTHORIZE_PRODUCTION_ROLLBACK -signed_by(/users/incident_commander.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+AUTHORIZE_PRODUCTION_ROLLBACK> true | always([-DATA_LOSS_ROLLBACK] true))"
@@ -11973,13 +11973,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Observability dashboard and incident postmortem controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_OBSERVABILITY_DASHBOARD_CHANGE> true | <+APPROVE_OBSERVABILITY_DASHBOARD_CHANGE +signed_by(/users/service_owner.id)> true)"
+            "always([+APPROVE_OBSERVABILITY_DASHBOARD_CHANGE -signed_by(/users/service_owner.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_OBSERVABILITY_DASHBOARD_CHANGE> true | always([-UNAUDITED_ALERT_SUPPRESSION] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+CLOSE_INCIDENT_POSTMORTEM> true | <+CLOSE_INCIDENT_POSTMORTEM +signed_by(/users/reliability_lead.id)> true)"
+            "always([+CLOSE_INCIDENT_POSTMORTEM -signed_by(/users/reliability_lead.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+CLOSE_INCIDENT_POSTMORTEM> true | always([-UNRESOLVED_CORRECTIVE_ACTION] true))"
@@ -11991,13 +11991,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("SLO policy and error budget override controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_SLO_POLICY_CHANGE> true | <+APPROVE_SLO_POLICY_CHANGE +signed_by(/users/reliability_manager.id)> true)"
+            "always([+APPROVE_SLO_POLICY_CHANGE -signed_by(/users/reliability_manager.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_SLO_POLICY_CHANGE> true | always([-UNREVIEWED_OBJECTIVE_DOWNGRADE] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+AUTHORIZE_ERROR_BUDGET_OVERRIDE> true | <+AUTHORIZE_ERROR_BUDGET_OVERRIDE +signed_by(/users/engineering_director.id)> true)"
+            "always([+AUTHORIZE_ERROR_BUDGET_OVERRIDE -signed_by(/users/engineering_director.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+AUTHORIZE_ERROR_BUDGET_OVERRIDE> true | always([-SILENT_AVAILABILITY_RISK_ACCEPTANCE] true))"
@@ -12009,13 +12009,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Capacity planning and load shedding controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_CAPACITY_PLAN> true | <+APPROVE_CAPACITY_PLAN +signed_by(/users/infrastructure_owner.id)> true)"
+            "always([+APPROVE_CAPACITY_PLAN -signed_by(/users/infrastructure_owner.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_CAPACITY_PLAN> true | always([-UNBUDGETED_RESOURCE_COMMITMENT] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+ACTIVATE_LOAD_SHEDDING> true | <+ACTIVATE_LOAD_SHEDDING +signed_by(/users/on_call_lead.id)> true)"
+            "always([+ACTIVATE_LOAD_SHEDDING -signed_by(/users/on_call_lead.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+ACTIVATE_LOAD_SHEDDING> true | always([-CUSTOMER_IMPACTING_THROTTLING_WITHOUT_INCIDENT] true))"
@@ -12027,13 +12027,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Autoscaling policy and disaster recovery failover controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_AUTOSCALING_POLICY_CHANGE> true | <+APPROVE_AUTOSCALING_POLICY_CHANGE +signed_by(/users/platform_owner.id)> true)"
+            "always([+APPROVE_AUTOSCALING_POLICY_CHANGE -signed_by(/users/platform_owner.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_AUTOSCALING_POLICY_CHANGE> true | always([-RUNAWAY_RESOURCE_SCALING] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+ACTIVATE_DISASTER_RECOVERY_FAILOVER> true | <+ACTIVATE_DISASTER_RECOVERY_FAILOVER +signed_by(/users/recovery_lead.id)> true)"
+            "always([+ACTIVATE_DISASTER_RECOVERY_FAILOVER -signed_by(/users/recovery_lead.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+ACTIVATE_DISASTER_RECOVERY_FAILOVER> true | always([-UNTESTED_FAILOVER_PROMOTION] true))"
@@ -12045,13 +12045,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Traffic shift and chaos experiment controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_TRAFFIC_SHIFT> true | <+APPROVE_TRAFFIC_SHIFT +signed_by(/users/release_captain.id)> true)"
+            "always([+APPROVE_TRAFFIC_SHIFT -signed_by(/users/release_captain.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_TRAFFIC_SHIFT> true | always([-UNMONITORED_PRODUCTION_DIVERSION] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+AUTHORIZE_CHAOS_EXPERIMENT> true | <+AUTHORIZE_CHAOS_EXPERIMENT +signed_by(/users/resilience_engineer.id)> true)"
+            "always([+AUTHORIZE_CHAOS_EXPERIMENT -signed_by(/users/resilience_engineer.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+AUTHORIZE_CHAOS_EXPERIMENT> true | always([-UNSAFE_FAULT_INJECTION] true))"
@@ -12063,13 +12063,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Canary analysis and synthetic monitor controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_CANARY_ANALYSIS> true | <+APPROVE_CANARY_ANALYSIS +signed_by(/users/release_analyst.id)> true)"
+            "always([+APPROVE_CANARY_ANALYSIS -signed_by(/users/release_analyst.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_CANARY_ANALYSIS> true | always([-UNANALYZED_PRODUCTION_PROMOTION] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_SYNTHETIC_MONITOR_CHANGE> true | <+APPROVE_SYNTHETIC_MONITOR_CHANGE +signed_by(/users/observability_owner.id)> true)"
+            "always([+APPROVE_SYNTHETIC_MONITOR_CHANGE -signed_by(/users/observability_owner.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_SYNTHETIC_MONITOR_CHANGE> true | always([-BLIND_AVAILABILITY_REPORTING] true))"
@@ -12081,13 +12081,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("On-call rotation and pager escalation policy controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_ON_CALL_ROTATION_CHANGE> true | <+APPROVE_ON_CALL_ROTATION_CHANGE +signed_by(/users/reliability_manager.id)> true)"
+            "always([+APPROVE_ON_CALL_ROTATION_CHANGE -signed_by(/users/reliability_manager.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_ON_CALL_ROTATION_CHANGE> true | always([-UNOWNED_INCIDENT_COVERAGE] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_PAGER_ESCALATION_POLICY_CHANGE> true | <+APPROVE_PAGER_ESCALATION_POLICY_CHANGE +signed_by(/users/incident_response_lead.id)> true)"
+            "always([+APPROVE_PAGER_ESCALATION_POLICY_CHANGE -signed_by(/users/incident_response_lead.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_PAGER_ESCALATION_POLICY_CHANGE> true | always([-MISSED_CRITICAL_PAGE] true))"
@@ -12099,13 +12099,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Incident communication and status page controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_INCIDENT_COMMUNICATION> true | <+APPROVE_INCIDENT_COMMUNICATION +signed_by(/users/communications_lead.id)> true)"
+            "always([+APPROVE_INCIDENT_COMMUNICATION -signed_by(/users/communications_lead.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_INCIDENT_COMMUNICATION> true | always([-UNAPPROVED_CUSTOMER_NOTICE] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_STATUS_PAGE_UPDATE> true | <+APPROVE_STATUS_PAGE_UPDATE +signed_by(/users/support_lead.id)> true)"
+            "always([+APPROVE_STATUS_PAGE_UPDATE -signed_by(/users/support_lead.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_STATUS_PAGE_UPDATE> true | always([-INACCURATE_SERVICE_STATUS] true))"
@@ -12117,13 +12117,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Dependency upgrade and vulnerability exception controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_DEPENDENCY_UPGRADE> true | <+APPROVE_DEPENDENCY_UPGRADE +signed_by(/users/platform_security_reviewer.id)> true)"
+            "always([+APPROVE_DEPENDENCY_UPGRADE -signed_by(/users/platform_security_reviewer.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_DEPENDENCY_UPGRADE> true | always([-UNTESTED_DEPENDENCY_ROLLOUT] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_VULNERABILITY_EXCEPTION> true | <+APPROVE_VULNERABILITY_EXCEPTION +signed_by(/users/security_risk_owner.id)> true)"
+            "always([+APPROVE_VULNERABILITY_EXCEPTION -signed_by(/users/security_risk_owner.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_VULNERABILITY_EXCEPTION> true | always([-UNBOUNDED_EXPOSURE_ACCEPTANCE] true))"
@@ -12135,13 +12135,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("API rate limit and webhook endpoint controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_API_RATE_LIMIT_CHANGE> true | <+APPROVE_API_RATE_LIMIT_CHANGE +signed_by(/users/platform_operations_lead.id)> true)"
+            "always([+APPROVE_API_RATE_LIMIT_CHANGE -signed_by(/users/platform_operations_lead.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_API_RATE_LIMIT_CHANGE> true | always([-ABUSIVE_TRAFFIC_EXPOSURE] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_WEBHOOK_ENDPOINT_REGISTRATION> true | <+APPROVE_WEBHOOK_ENDPOINT_REGISTRATION +signed_by(/users/integration_owner.id)> true)"
+            "always([+APPROVE_WEBHOOK_ENDPOINT_REGISTRATION -signed_by(/users/integration_owner.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_WEBHOOK_ENDPOINT_REGISTRATION> true | always([-UNSIGNED_CALLBACK_DELIVERY] true))"
@@ -12153,13 +12153,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Authentication policy and session lifetime controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_AUTHENTICATION_POLICY_CHANGE> true | <+APPROVE_AUTHENTICATION_POLICY_CHANGE +signed_by(/users/identity_platform_owner.id)> true)"
+            "always([+APPROVE_AUTHENTICATION_POLICY_CHANGE -signed_by(/users/identity_platform_owner.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_AUTHENTICATION_POLICY_CHANGE> true | always([-WEAKENED_LOGIN_ASSURANCE] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_SESSION_LIFETIME_EXCEPTION> true | <+APPROVE_SESSION_LIFETIME_EXCEPTION +signed_by(/users/security_operations_lead.id)> true)"
+            "always([+APPROVE_SESSION_LIFETIME_EXCEPTION -signed_by(/users/security_operations_lead.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_SESSION_LIFETIME_EXCEPTION> true | always([-STALE_SESSION_PERSISTENCE] true))"
@@ -12171,13 +12171,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("OAuth client registration and API key rotation controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_OAUTH_CLIENT_REGISTRATION> true | <+APPROVE_OAUTH_CLIENT_REGISTRATION +signed_by(/users/identity_security_reviewer.id)> true)"
+            "always([+APPROVE_OAUTH_CLIENT_REGISTRATION -signed_by(/users/identity_security_reviewer.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_OAUTH_CLIENT_REGISTRATION> true | always([-UNREVIEWED_REDIRECT_TARGET] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_API_KEY_ROTATION> true | <+APPROVE_API_KEY_ROTATION +signed_by(/users/service_owner.id)> true)"
+            "always([+APPROVE_API_KEY_ROTATION -signed_by(/users/service_owner.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_API_KEY_ROTATION> true | always([-STALE_CREDENTIAL_EXPOSURE] true))"
@@ -12189,13 +12189,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("SAML identity provider and SCIM provisioning controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_SAML_IDENTITY_PROVIDER_CONFIGURATION> true | <+APPROVE_SAML_IDENTITY_PROVIDER_CONFIGURATION +signed_by(/users/identity_architect.id)> true)"
+            "always([+APPROVE_SAML_IDENTITY_PROVIDER_CONFIGURATION -signed_by(/users/identity_architect.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_SAML_IDENTITY_PROVIDER_CONFIGURATION> true | always([-UNSIGNED_ASSERTION_ACCEPTANCE] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_SCIM_PROVISIONING_RULE> true | <+APPROVE_SCIM_PROVISIONING_RULE +signed_by(/users/directory_administrator.id)> true)"
+            "always([+APPROVE_SCIM_PROVISIONING_RULE -signed_by(/users/directory_administrator.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_SCIM_PROVISIONING_RULE> true | always([-ORPHANED_ACCOUNT_ACTIVATION] true))"
@@ -12207,13 +12207,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("OIDC token exchange and MFA recovery controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_OIDC_TOKEN_EXCHANGE_POLICY> true | <+APPROVE_OIDC_TOKEN_EXCHANGE_POLICY +signed_by(/users/identity_protocol_owner.id)> true)"
+            "always([+APPROVE_OIDC_TOKEN_EXCHANGE_POLICY -signed_by(/users/identity_protocol_owner.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_OIDC_TOKEN_EXCHANGE_POLICY> true | always([-AUDIENCE_CONFUSION] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_MFA_RECOVERY_EXCEPTION> true | <+APPROVE_MFA_RECOVERY_EXCEPTION +signed_by(/users/account_security_lead.id)> true)"
+            "always([+APPROVE_MFA_RECOVERY_EXCEPTION -signed_by(/users/account_security_lead.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_MFA_RECOVERY_EXCEPTION> true | always([-UNVERIFIED_FACTOR_RESET] true))"
@@ -12225,13 +12225,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Passkey attestation and privileged access controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_PASSKEY_ATTESTATION_POLICY> true | <+APPROVE_PASSKEY_ATTESTATION_POLICY +signed_by(/users/identity_assurance_lead.id)> true)"
+            "always([+APPROVE_PASSKEY_ATTESTATION_POLICY -signed_by(/users/identity_assurance_lead.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_PASSKEY_ATTESTATION_POLICY> true | always([-UNTRUSTED_AUTHENTICATOR_ENROLLMENT] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_PRIVILEGED_ACCESS_EXCEPTION> true | <+APPROVE_PRIVILEGED_ACCESS_EXCEPTION +signed_by(/users/access_governance_owner.id)> true)"
+            "always([+APPROVE_PRIVILEGED_ACCESS_EXCEPTION -signed_by(/users/access_governance_owner.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_PRIVILEGED_ACCESS_EXCEPTION> true | always([-STANDING_ADMIN_ACCESS] true))"
@@ -12244,13 +12244,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
             generate_prompt("Phishing-resistant login and device compliance exception controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_PHISHING_RESISTANT_LOGIN_POLICY> true | <+APPROVE_PHISHING_RESISTANT_LOGIN_POLICY +signed_by(/users/authentication_architect.id)> true)"
+            "always([+APPROVE_PHISHING_RESISTANT_LOGIN_POLICY -signed_by(/users/authentication_architect.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_PHISHING_RESISTANT_LOGIN_POLICY> true | always([-PASSWORD_ONLY_FALLBACK] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_DEVICE_COMPLIANCE_EXCEPTION> true | <+APPROVE_DEVICE_COMPLIANCE_EXCEPTION +signed_by(/users/endpoint_security_owner.id)> true)"
+            "always([+APPROVE_DEVICE_COMPLIANCE_EXCEPTION -signed_by(/users/endpoint_security_owner.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_DEVICE_COMPLIANCE_EXCEPTION> true | always([-UNMANAGED_DEVICE_ACCESS] true))"
@@ -12262,13 +12262,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Conditional access and identity risk controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_CONDITIONAL_ACCESS_RULE> true | <+APPROVE_CONDITIONAL_ACCESS_RULE +signed_by(/users/zero_trust_architect.id)> true)"
+            "always([+APPROVE_CONDITIONAL_ACCESS_RULE -signed_by(/users/zero_trust_architect.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_CONDITIONAL_ACCESS_RULE> true | always([-BYPASSED_LOCATION_POLICY] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_IDENTITY_RISK_THRESHOLD_CHANGE> true | <+APPROVE_IDENTITY_RISK_THRESHOLD_CHANGE +signed_by(/users/fraud_security_lead.id)> true)"
+            "always([+APPROVE_IDENTITY_RISK_THRESHOLD_CHANGE -signed_by(/users/fraud_security_lead.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_IDENTITY_RISK_THRESHOLD_CHANGE> true | always([-UNDETECTED_RISKY_SIGN_IN] true))"
@@ -12280,13 +12280,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Session token binding and browser isolation controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_SESSION_TOKEN_BINDING_POLICY> true | <+APPROVE_SESSION_TOKEN_BINDING_POLICY +signed_by(/users/application_security_architect.id)> true)"
+            "always([+APPROVE_SESSION_TOKEN_BINDING_POLICY -signed_by(/users/application_security_architect.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_SESSION_TOKEN_BINDING_POLICY> true | always([-BEARER_TOKEN_REPLAY] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_BROWSER_ISOLATION_EXCEPTION> true | <+APPROVE_BROWSER_ISOLATION_EXCEPTION +signed_by(/users/enterprise_security_owner.id)> true)"
+            "always([+APPROVE_BROWSER_ISOLATION_EXCEPTION -signed_by(/users/enterprise_security_owner.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_BROWSER_ISOLATION_EXCEPTION> true | always([-UNMANAGED_WEB_SESSION_EXPOSURE] true))"
@@ -12298,13 +12298,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("ZTNA policy and DLP exception controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_ZTNA_POLICY_CHANGE> true | <+APPROVE_ZTNA_POLICY_CHANGE +signed_by(/users/network_security_architect.id)> true)"
+            "always([+APPROVE_ZTNA_POLICY_CHANGE -signed_by(/users/network_security_architect.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_ZTNA_POLICY_CHANGE> true | always([-BROAD_PRIVATE_NETWORK_EXPOSURE] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_DLP_EXCEPTION> true | <+APPROVE_DLP_EXCEPTION +signed_by(/users/data_security_officer.id)> true)"
+            "always([+APPROVE_DLP_EXCEPTION -signed_by(/users/data_security_officer.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_DLP_EXCEPTION> true | always([-UNSANCTIONED_SENSITIVE_DATA_EGRESS] true))"
@@ -12316,13 +12316,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("CASB and data classification controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_CASB_POLICY_EXCEPTION> true | <+APPROVE_CASB_POLICY_EXCEPTION +signed_by(/users/cloud_security_owner.id)> true)"
+            "always([+APPROVE_CASB_POLICY_EXCEPTION -signed_by(/users/cloud_security_owner.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_CASB_POLICY_EXCEPTION> true | always([-SHADOW_SAAS_USAGE] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_DATA_CLASSIFICATION_LABEL_CHANGE> true | <+APPROVE_DATA_CLASSIFICATION_LABEL_CHANGE +signed_by(/users/information_governance_lead.id)> true)"
+            "always([+APPROVE_DATA_CLASSIFICATION_LABEL_CHANGE -signed_by(/users/information_governance_lead.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_DATA_CLASSIFICATION_LABEL_CHANGE> true | always([-MISCLASSIFIED_REGULATED_DATA] true))"
@@ -12334,13 +12334,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Retention and legal hold controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_RETENTION_SCHEDULE_CHANGE> true | <+APPROVE_RETENTION_SCHEDULE_CHANGE +signed_by(/users/records_manager.id)> true)"
+            "always([+APPROVE_RETENTION_SCHEDULE_CHANGE -signed_by(/users/records_manager.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_RETENTION_SCHEDULE_CHANGE> true | always([-PREMATURE_RECORD_DELETION] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_LEGAL_HOLD_RELEASE> true | <+APPROVE_LEGAL_HOLD_RELEASE +signed_by(/users/counsel.id)> true)"
+            "always([+APPROVE_LEGAL_HOLD_RELEASE -signed_by(/users/counsel.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_LEGAL_HOLD_RELEASE> true | always([-SPOLIATION_RISK] true))"
@@ -12352,13 +12352,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Data subject access and consent revocation controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_DATA_SUBJECT_ACCESS_RESPONSE> true | <+APPROVE_DATA_SUBJECT_ACCESS_RESPONSE +signed_by(/users/privacy_operations_lead.id)> true)"
+            "always([+APPROVE_DATA_SUBJECT_ACCESS_RESPONSE -signed_by(/users/privacy_operations_lead.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_DATA_SUBJECT_ACCESS_RESPONSE> true | always([-UNAUTHORIZED_PERSONAL_DATA_DISCLOSURE] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_CONSENT_REVOCATION_PROCESSING> true | <+APPROVE_CONSENT_REVOCATION_PROCESSING +signed_by(/users/consent_governance_owner.id)> true)"
+            "always([+APPROVE_CONSENT_REVOCATION_PROCESSING -signed_by(/users/consent_governance_owner.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_CONSENT_REVOCATION_PROCESSING> true | always([-CONTINUED_PROCESSING_AFTER_WITHDRAWAL] true))"
@@ -12370,13 +12370,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Cross-border transfer and subprocesser controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_CROSS_BORDER_DATA_TRANSFER> true | <+APPROVE_CROSS_BORDER_DATA_TRANSFER +signed_by(/users/privacy_counsel.id)> true)"
+            "always([+APPROVE_CROSS_BORDER_DATA_TRANSFER -signed_by(/users/privacy_counsel.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_CROSS_BORDER_DATA_TRANSFER> true | always([-UNLAWFUL_JURISDICTION_TRANSFER] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_PROCESSOR_SUBPROCESSER> true | <+APPROVE_PROCESSOR_SUBPROCESSER +signed_by(/users/vendor_risk_owner.id)> true)"
+            "always([+APPROVE_PROCESSOR_SUBPROCESSER -signed_by(/users/vendor_risk_owner.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_PROCESSOR_SUBPROCESSER> true | always([-UNVETTED_SUBPROCESSER_ACCESS] true))"
@@ -12388,13 +12388,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Data minimization and purpose limitation controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_DATA_MINIMIZATION_EXCEPTION> true | <+APPROVE_DATA_MINIMIZATION_EXCEPTION +signed_by(/users/privacy_architect.id)> true)"
+            "always([+APPROVE_DATA_MINIMIZATION_EXCEPTION -signed_by(/users/privacy_architect.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_DATA_MINIMIZATION_EXCEPTION> true | always([-EXCESSIVE_DATA_COLLECTION] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_PURPOSE_LIMITATION_EXCEPTION> true | <+APPROVE_PURPOSE_LIMITATION_EXCEPTION +signed_by(/users/data_governance_owner.id)> true)"
+            "always([+APPROVE_PURPOSE_LIMITATION_EXCEPTION -signed_by(/users/data_governance_owner.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_PURPOSE_LIMITATION_EXCEPTION> true | always([-INCOMPATIBLE_SECONDARY_USE] true))"
@@ -12406,13 +12406,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Data sharing and privacy breach controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_DATA_SHARING_AGREEMENT> true | <+APPROVE_DATA_SHARING_AGREEMENT +signed_by(/users/data_steward.id)> true)"
+            "always([+APPROVE_DATA_SHARING_AGREEMENT -signed_by(/users/data_steward.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_DATA_SHARING_AGREEMENT> true | always([-UNAPPROVED_THIRD_PARTY_SHARING] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_PRIVACY_BREACH_NOTIFICATION> true | <+APPROVE_PRIVACY_BREACH_NOTIFICATION +signed_by(/users/privacy_incident_lead.id)> true)"
+            "always([+APPROVE_PRIVACY_BREACH_NOTIFICATION -signed_by(/users/privacy_incident_lead.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_PRIVACY_BREACH_NOTIFICATION> true | always([-UNREPORTED_BREACH] true))"
@@ -12424,13 +12424,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Deletion and automated decisioning controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_DATA_DELETION_REQUEST> true | <+APPROVE_DATA_DELETION_REQUEST +signed_by(/users/retention_counsel.id)> true)"
+            "always([+APPROVE_DATA_DELETION_REQUEST -signed_by(/users/retention_counsel.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_DATA_DELETION_REQUEST> true | always([-UNLAWFUL_ERASURE] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_AUTOMATED_DECISIONING_POLICY> true | <+APPROVE_AUTOMATED_DECISIONING_POLICY +signed_by(/users/algorithmic_accountability_lead.id)> true)"
+            "always([+APPROVE_AUTOMATED_DECISIONING_POLICY -signed_by(/users/algorithmic_accountability_lead.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_AUTOMATED_DECISIONING_POLICY> true | always([-UNREVIEWED_PROFILING] true))"
@@ -12442,13 +12442,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Privacy notice and data portability controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_PRIVACY_NOTICE_UPDATE> true | <+APPROVE_PRIVACY_NOTICE_UPDATE +signed_by(/users/privacy_counsel.id)> true)"
+            "always([+APPROVE_PRIVACY_NOTICE_UPDATE -signed_by(/users/privacy_counsel.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_PRIVACY_NOTICE_UPDATE> true | always([-UNDISCLOSED_PROCESSING_CHANGE] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_DATA_PORTABILITY_EXPORT> true | <+APPROVE_DATA_PORTABILITY_EXPORT +signed_by(/users/data_rights_coordinator.id)> true)"
+            "always([+APPROVE_DATA_PORTABILITY_EXPORT -signed_by(/users/data_rights_coordinator.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_DATA_PORTABILITY_EXPORT> true | always([-INCOMPLETE_SUBJECT_EXPORT] true))"
@@ -12460,13 +12460,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Data rectification and processing restriction controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_DATA_RECTIFICATION_REQUEST> true | <+APPROVE_DATA_RECTIFICATION_REQUEST +signed_by(/users/data_quality_owner.id)> true)"
+            "always([+APPROVE_DATA_RECTIFICATION_REQUEST -signed_by(/users/data_quality_owner.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_DATA_RECTIFICATION_REQUEST> true | always([-INACCURATE_PERSONAL_DATA_RETENTION] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_PROCESSING_RESTRICTION> true | <+APPROVE_PROCESSING_RESTRICTION +signed_by(/users/privacy_operations_manager.id)> true)"
+            "always([+APPROVE_PROCESSING_RESTRICTION -signed_by(/users/privacy_operations_manager.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_PROCESSING_RESTRICTION> true | always([-UNRESTRICTED_CONTESTED_PROCESSING] true))"
@@ -12478,13 +12478,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Data retention and sensitive data controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_DATA_RETENTION_EXCEPTION> true | <+APPROVE_DATA_RETENTION_EXCEPTION +signed_by(/users/records_counsel.id)> true)"
+            "always([+APPROVE_DATA_RETENTION_EXCEPTION -signed_by(/users/records_counsel.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_DATA_RETENTION_EXCEPTION> true | always([-INDEFINITE_PERSONAL_DATA_RETENTION] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_SENSITIVE_DATA_PROCESSING> true | <+APPROVE_SENSITIVE_DATA_PROCESSING +signed_by(/users/privacy_review_board.id)> true)"
+            "always([+APPROVE_SENSITIVE_DATA_PROCESSING -signed_by(/users/privacy_review_board.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_SENSITIVE_DATA_PROCESSING> true | always([-UNAPPROVED_SPECIAL_CATEGORY_PROCESSING] true))"
@@ -12496,13 +12496,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("DPIA and privacy remediation controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_DPIA> true | <+APPROVE_DPIA +signed_by(/users/privacy_risk_officer.id)> true)"
+            "always([+APPROVE_DPIA -signed_by(/users/privacy_risk_officer.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_DPIA> true | always([-HIGH_RISK_PROCESSING_WITHOUT_ASSESSMENT] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_PRIVACY_REMEDIATION_CLOSURE> true | <+APPROVE_PRIVACY_REMEDIATION_CLOSURE +signed_by(/users/data_protection_officer.id)> true)"
+            "always([+APPROVE_PRIVACY_REMEDIATION_CLOSURE -signed_by(/users/data_protection_officer.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_PRIVACY_REMEDIATION_CLOSURE> true | always([-UNRESOLVED_PRIVACY_RISK] true))"
@@ -12514,13 +12514,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Data localization and anonymization controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_DATA_LOCALIZATION_EXCEPTION> true | <+APPROVE_DATA_LOCALIZATION_EXCEPTION +signed_by(/users/jurisdiction_counsel.id)> true)"
+            "always([+APPROVE_DATA_LOCALIZATION_EXCEPTION -signed_by(/users/jurisdiction_counsel.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_DATA_LOCALIZATION_EXCEPTION> true | always([-UNLAWFUL_DATA_RESIDENCY_BREACH] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_DATA_ANONYMIZATION_RELEASE> true | <+APPROVE_DATA_ANONYMIZATION_RELEASE +signed_by(/users/privacy_engineer.id)> true)"
+            "always([+APPROVE_DATA_ANONYMIZATION_RELEASE -signed_by(/users/privacy_engineer.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_DATA_ANONYMIZATION_RELEASE> true | always([-REIDENTIFIABLE_DATASET_PUBLICATION] true))"
@@ -12532,13 +12532,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Data subject identity and cookie consent controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_DATA_SUBJECT_IDENTITY_VERIFICATION> true | <+APPROVE_DATA_SUBJECT_IDENTITY_VERIFICATION +signed_by(/users/privacy_operations_lead.id)> true)"
+            "always([+APPROVE_DATA_SUBJECT_IDENTITY_VERIFICATION -signed_by(/users/privacy_operations_lead.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_DATA_SUBJECT_IDENTITY_VERIFICATION> true | always([-UNAUTHORIZED_RIGHTS_REQUEST_FULFILLMENT] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_COOKIE_CONSENT_CONFIGURATION> true | <+APPROVE_COOKIE_CONSENT_CONFIGURATION +signed_by(/users/privacy_product_counsel.id)> true)"
+            "always([+APPROVE_COOKIE_CONSENT_CONFIGURATION -signed_by(/users/privacy_product_counsel.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_COOKIE_CONSENT_CONFIGURATION> true | always([-NONCOMPLIANT_TRACKING_ACTIVATION] true))"
@@ -12550,13 +12550,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Data lineage and synthetic data controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_DATA_LINEAGE_CORRECTION> true | <+APPROVE_DATA_LINEAGE_CORRECTION +signed_by(/users/data_governance_lead.id)> true)"
+            "always([+APPROVE_DATA_LINEAGE_CORRECTION -signed_by(/users/data_governance_lead.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_DATA_LINEAGE_CORRECTION> true | always([-UNTRACEABLE_DATA_PROVENANCE] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_SYNTHETIC_DATA_RELEASE> true | <+APPROVE_SYNTHETIC_DATA_RELEASE +signed_by(/users/model_risk_owner.id)> true)"
+            "always([+APPROVE_SYNTHETIC_DATA_RELEASE -signed_by(/users/model_risk_owner.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_SYNTHETIC_DATA_RELEASE> true | always([-PRODUCTION_DATA_LEAKAGE] true))"
@@ -12568,13 +12568,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("AI training data and model logging controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_AI_TRAINING_DATASET> true | <+APPROVE_AI_TRAINING_DATASET +signed_by(/users/data_ethics_board.id)> true)"
+            "always([+APPROVE_AI_TRAINING_DATASET -signed_by(/users/data_ethics_board.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_AI_TRAINING_DATASET> true | always([-UNAUTHORIZED_PERSONAL_DATA_TRAINING] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_MODEL_OUTPUT_LOGGING> true | <+APPROVE_MODEL_OUTPUT_LOGGING +signed_by(/users/privacy_monitoring_lead.id)> true)"
+            "always([+APPROVE_MODEL_OUTPUT_LOGGING -signed_by(/users/privacy_monitoring_lead.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_MODEL_OUTPUT_LOGGING> true | always([-UNREDACTED_SENSITIVE_PROMPT_RETENTION] true))"
@@ -12586,13 +12586,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Model evaluation and prompt template controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_MODEL_EVALUATION_BENCHMARK> true | <+APPROVE_MODEL_EVALUATION_BENCHMARK +signed_by(/users/ai_quality_lead.id)> true)"
+            "always([+APPROVE_MODEL_EVALUATION_BENCHMARK -signed_by(/users/ai_quality_lead.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_MODEL_EVALUATION_BENCHMARK> true | always([-CHERRY_PICKED_PERFORMANCE_CLAIM] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_PROMPT_TEMPLATE_RELEASE> true | <+APPROVE_PROMPT_TEMPLATE_RELEASE +signed_by(/users/product_safety_owner.id)> true)"
+            "always([+APPROVE_PROMPT_TEMPLATE_RELEASE -signed_by(/users/product_safety_owner.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_PROMPT_TEMPLATE_RELEASE> true | always([-UNSAFE_INSTRUCTION_EXPOSURE] true))"
@@ -12604,13 +12604,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Model rollback and AI incident controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_MODEL_ROLLBACK> true | <+APPROVE_MODEL_ROLLBACK +signed_by(/users/ai_operations_lead.id)> true)"
+            "always([+APPROVE_MODEL_ROLLBACK -signed_by(/users/ai_operations_lead.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_MODEL_ROLLBACK> true | always([-UNREVERTED_HARMFUL_MODEL_BEHAVIOR] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_AI_INCIDENT_RESPONSE> true | <+APPROVE_AI_INCIDENT_RESPONSE +signed_by(/users/responsible_ai_officer.id)> true)"
+            "always([+APPROVE_AI_INCIDENT_RESPONSE -signed_by(/users/responsible_ai_officer.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_AI_INCIDENT_RESPONSE> true | always([-UNTRIAGED_MODEL_HARM_REPORT] true))"
@@ -12622,13 +12622,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Model tuning and agent tool permission controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_MODEL_FINE_TUNING_JOB> true | <+APPROVE_MODEL_FINE_TUNING_JOB +signed_by(/users/ml_platform_owner.id)> true)"
+            "always([+APPROVE_MODEL_FINE_TUNING_JOB -signed_by(/users/ml_platform_owner.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_MODEL_FINE_TUNING_JOB> true | always([-UNAPPROVED_MODEL_ADAPTATION] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_AI_AGENT_TOOL_PERMISSION> true | <+APPROVE_AI_AGENT_TOOL_PERMISSION +signed_by(/users/agent_safety_lead.id)> true)"
+            "always([+APPROVE_AI_AGENT_TOOL_PERMISSION -signed_by(/users/agent_safety_lead.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_AI_AGENT_TOOL_PERMISSION> true | always([-UNAUTHORIZED_TOOL_INVOCATION] true))"
@@ -12640,13 +12640,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Retrieval corpus and embedding index controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_RETRIEVAL_CORPUS_UPDATE> true | <+APPROVE_RETRIEVAL_CORPUS_UPDATE +signed_by(/users/knowledge_steward.id)> true)"
+            "always([+APPROVE_RETRIEVAL_CORPUS_UPDATE -signed_by(/users/knowledge_steward.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_RETRIEVAL_CORPUS_UPDATE> true | always([-UNVETTED_SOURCE_INJECTION] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_EMBEDDING_INDEX_REBUILD> true | <+APPROVE_EMBEDDING_INDEX_REBUILD +signed_by(/users/ai_platform_owner.id)> true)"
+            "always([+APPROVE_EMBEDDING_INDEX_REBUILD -signed_by(/users/ai_platform_owner.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_EMBEDDING_INDEX_REBUILD> true | always([-STALE_SENSITIVE_VECTOR_EXPOSURE] true))"
@@ -12658,13 +12658,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Vector store access and AI memory retention controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_VECTOR_STORE_ACCESS> true | <+APPROVE_VECTOR_STORE_ACCESS +signed_by(/users/data_access_steward.id)> true)"
+            "always([+APPROVE_VECTOR_STORE_ACCESS -signed_by(/users/data_access_steward.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_VECTOR_STORE_ACCESS> true | always([-UNAUTHORIZED_SEMANTIC_SEARCH] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_AI_MEMORY_RETENTION_POLICY> true | <+APPROVE_AI_MEMORY_RETENTION_POLICY +signed_by(/users/privacy_counsel.id)> true)"
+            "always([+APPROVE_AI_MEMORY_RETENTION_POLICY -signed_by(/users/privacy_counsel.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_AI_MEMORY_RETENTION_POLICY> true | always([-UNDECLARED_LONG_TERM_CONTEXT_STORAGE] true))"
@@ -12676,13 +12676,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("AI guardrail and red team finding controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_AI_GUARDRAIL_POLICY_CHANGE> true | <+APPROVE_AI_GUARDRAIL_POLICY_CHANGE +signed_by(/users/safety_reviewer.id)> true)"
+            "always([+APPROVE_AI_GUARDRAIL_POLICY_CHANGE -signed_by(/users/safety_reviewer.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_AI_GUARDRAIL_POLICY_CHANGE> true | always([-UNREVIEWED_SAFETY_BYPASS] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+CLOSE_AI_RED_TEAM_FINDING> true | <+CLOSE_AI_RED_TEAM_FINDING +signed_by(/users/model_risk_owner.id)> true)"
+            "always([+CLOSE_AI_RED_TEAM_FINDING -signed_by(/users/model_risk_owner.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+CLOSE_AI_RED_TEAM_FINDING> true | always([-UNRESOLVED_CRITICAL_MODEL_WEAKNESS] true))"
@@ -12694,13 +12694,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Model card and human oversight controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_MODEL_CARD_PUBLICATION> true | <+APPROVE_MODEL_CARD_PUBLICATION +signed_by(/users/responsible_ai_documentation_lead.id)> true)"
+            "always([+APPROVE_MODEL_CARD_PUBLICATION -signed_by(/users/responsible_ai_documentation_lead.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_MODEL_CARD_PUBLICATION> true | always([-UNDOCUMENTED_MODEL_LIMITATION] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_HUMAN_OVERSIGHT_EXCEPTION> true | <+APPROVE_HUMAN_OVERSIGHT_EXCEPTION +signed_by(/users/ai_governance_board.id)> true)"
+            "always([+APPROVE_HUMAN_OVERSIGHT_EXCEPTION -signed_by(/users/ai_governance_board.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_HUMAN_OVERSIGHT_EXCEPTION> true | always([-FULLY_AUTOMATED_HIGH_IMPACT_DECISION] true))"
@@ -12712,13 +12712,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Model monitoring and AI safety waiver controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_MODEL_MONITORING_THRESHOLD> true | <+APPROVE_MODEL_MONITORING_THRESHOLD +signed_by(/users/ai_reliability_lead.id)> true)"
+            "always([+APPROVE_MODEL_MONITORING_THRESHOLD -signed_by(/users/ai_reliability_lead.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_MODEL_MONITORING_THRESHOLD> true | always([-SILENT_MODEL_DRIFT] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_AI_SAFETY_WAIVER> true | <+APPROVE_AI_SAFETY_WAIVER +signed_by(/users/responsible_ai_committee.id)> true)"
+            "always([+APPROVE_AI_SAFETY_WAIVER -signed_by(/users/responsible_ai_committee.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_AI_SAFETY_WAIVER> true | always([-UNMITIGATED_HIGH_SEVERITY_SAFETY_RISK] true))"
@@ -12730,13 +12730,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Model decommission and training data removal controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_MODEL_DECOMMISSION> true | <+APPROVE_MODEL_DECOMMISSION +signed_by(/users/ai_operations_owner.id)> true)"
+            "always([+APPROVE_MODEL_DECOMMISSION -signed_by(/users/ai_operations_owner.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_MODEL_DECOMMISSION> true | always([-ORPHANED_PRODUCTION_DEPENDENCY] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_TRAINING_DATA_REMOVAL> true | <+APPROVE_TRAINING_DATA_REMOVAL +signed_by(/users/data_rights_officer.id)> true)"
+            "always([+APPROVE_TRAINING_DATA_REMOVAL -signed_by(/users/data_rights_officer.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_TRAINING_DATA_REMOVAL> true | always([-RETAINED_REVOKED_TRAINING_RECORD] true))"
@@ -12748,13 +12748,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("AI usage policy and output quarantine controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_AI_USAGE_POLICY_EXCEPTION> true | <+APPROVE_AI_USAGE_POLICY_EXCEPTION +signed_by(/users/ai_compliance_owner.id)> true)"
+            "always([+APPROVE_AI_USAGE_POLICY_EXCEPTION -signed_by(/users/ai_compliance_owner.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_AI_USAGE_POLICY_EXCEPTION> true | always([-PROHIBITED_USE_CASE] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_MODEL_OUTPUT_QUARANTINE_RELEASE> true | <+APPROVE_MODEL_OUTPUT_QUARANTINE_RELEASE +signed_by(/users/trust_and_safety_reviewer.id)> true)"
+            "always([+APPROVE_MODEL_OUTPUT_QUARANTINE_RELEASE -signed_by(/users/trust_and_safety_reviewer.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_MODEL_OUTPUT_QUARANTINE_RELEASE> true | always([-HARMFUL_CONTENT_RELEASE] true))"
@@ -12766,13 +12766,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("AI vendor model and prompt injection controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_AI_VENDOR_MODEL_ONBOARDING> true | <+APPROVE_AI_VENDOR_MODEL_ONBOARDING +signed_by(/users/third_party_risk_owner.id)> true)"
+            "always([+APPROVE_AI_VENDOR_MODEL_ONBOARDING -signed_by(/users/third_party_risk_owner.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_AI_VENDOR_MODEL_ONBOARDING> true | always([-UNVETTED_EXTERNAL_MODEL_DEPENDENCY] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+CLOSE_PROMPT_INJECTION_FINDING> true | <+CLOSE_PROMPT_INJECTION_FINDING +signed_by(/users/security_reviewer.id)> true)"
+            "always([+CLOSE_PROMPT_INJECTION_FINDING -signed_by(/users/security_reviewer.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+CLOSE_PROMPT_INJECTION_FINDING> true | always([-UNRESOLVED_PROMPT_INJECTION_EXPLOIT] true))"
@@ -12784,13 +12784,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("AI impact assessment and model access controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_AI_IMPACT_ASSESSMENT> true | <+APPROVE_AI_IMPACT_ASSESSMENT +signed_by(/users/responsible_ai_assessor.id)> true)"
+            "always([+APPROVE_AI_IMPACT_ASSESSMENT -signed_by(/users/responsible_ai_assessor.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_AI_IMPACT_ASSESSMENT> true | always([-UNASSESSED_HIGH_IMPACT_DEPLOYMENT] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_MODEL_ACCESS_TIER_CHANGE> true | <+APPROVE_MODEL_ACCESS_TIER_CHANGE +signed_by(/users/ai_security_owner.id)> true)"
+            "always([+APPROVE_MODEL_ACCESS_TIER_CHANGE -signed_by(/users/ai_security_owner.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_MODEL_ACCESS_TIER_CHANGE> true | always([-UNAUTHORIZED_SENSITIVE_MODEL_ACCESS] true))"
@@ -12802,13 +12802,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("AI deployment and agent delegation controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_AI_DEPLOYMENT> true | <+APPROVE_AI_DEPLOYMENT +signed_by(/users/model_release_owner.id)> true)"
+            "always([+APPROVE_AI_DEPLOYMENT -signed_by(/users/model_release_owner.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_AI_DEPLOYMENT> true | always([-UNAPPROVED_PRODUCTION_INFERENCE] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_AI_AGENT_DELEGATION> true | <+APPROVE_AI_AGENT_DELEGATION +signed_by(/users/agent_governance_lead.id)> true)"
+            "always([+APPROVE_AI_AGENT_DELEGATION -signed_by(/users/agent_governance_lead.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_AI_AGENT_DELEGATION> true | always([-UNSUPERVISED_AUTONOMOUS_DELEGATION] true))"
@@ -12820,13 +12820,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("AI audit logging and model explanation release controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_AI_AUDIT_LOG_RETENTION> true | <+APPROVE_AI_AUDIT_LOG_RETENTION +signed_by(/users/compliance_auditor.id)> true)"
+            "always([+APPROVE_AI_AUDIT_LOG_RETENTION -signed_by(/users/compliance_auditor.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_AI_AUDIT_LOG_RETENTION> true | always([-MISSING_DECISION_TRACE] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_MODEL_EXPLANATION_RELEASE> true | <+APPROVE_MODEL_EXPLANATION_RELEASE +signed_by(/users/explainability_lead.id)> true)"
+            "always([+APPROVE_MODEL_EXPLANATION_RELEASE -signed_by(/users/explainability_lead.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_MODEL_EXPLANATION_RELEASE> true | always([-MISLEADING_EXPLANATION_PUBLICATION] true))"
@@ -12838,13 +12838,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("AI policy attestation and model risk register controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_AI_POLICY_ATTESTATION> true | <+APPROVE_AI_POLICY_ATTESTATION +signed_by(/users/governance_officer.id)> true)"
+            "always([+APPROVE_AI_POLICY_ATTESTATION -signed_by(/users/governance_officer.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_AI_POLICY_ATTESTATION> true | always([-STALE_POLICY_EVIDENCE] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_MODEL_RISK_REGISTER_UPDATE> true | <+APPROVE_MODEL_RISK_REGISTER_UPDATE +signed_by(/users/model_risk_committee.id)> true)"
+            "always([+APPROVE_MODEL_RISK_REGISTER_UPDATE -signed_by(/users/model_risk_committee.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_MODEL_RISK_REGISTER_UPDATE> true | always([-UNTRACKED_MATERIAL_MODEL_RISK] true))"
@@ -12856,13 +12856,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("AI assurance report and model registry promotion controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_AI_ASSURANCE_REPORT> true | <+APPROVE_AI_ASSURANCE_REPORT +signed_by(/users/assurance_lead.id)> true)"
+            "always([+APPROVE_AI_ASSURANCE_REPORT -signed_by(/users/assurance_lead.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_AI_ASSURANCE_REPORT> true | always([-UNAUDITED_CONTROL_CLAIM] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_MODEL_REGISTRY_PROMOTION> true | <+APPROVE_MODEL_REGISTRY_PROMOTION +signed_by(/users/model_registry_owner.id)> true)"
+            "always([+APPROVE_MODEL_REGISTRY_PROMOTION -signed_by(/users/model_registry_owner.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_MODEL_REGISTRY_PROMOTION> true | always([-UNAPPROVED_PRODUCTION_CANDIDATE] true))"
@@ -12875,13 +12875,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
             generate_prompt("AI incident disclosure and model evaluation benchmark controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_AI_INCIDENT_DISCLOSURE> true | <+APPROVE_AI_INCIDENT_DISCLOSURE +signed_by(/users/ai_incident_commander.id)> true)"
+            "always([+APPROVE_AI_INCIDENT_DISCLOSURE -signed_by(/users/ai_incident_commander.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_AI_INCIDENT_DISCLOSURE> true | always([-UNDISCLOSED_MATERIAL_MODEL_INCIDENT] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_MODEL_EVALUATION_BENCHMARK_UPDATE> true | <+APPROVE_MODEL_EVALUATION_BENCHMARK_UPDATE +signed_by(/users/evaluation_lead.id)> true)"
+            "always([+APPROVE_MODEL_EVALUATION_BENCHMARK_UPDATE -signed_by(/users/evaluation_lead.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_MODEL_EVALUATION_BENCHMARK_UPDATE> true | always([-UNVALIDATED_BENCHMARK_SUBSTITUTION] true))"
@@ -12893,13 +12893,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("AI audit trail and training consent controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_AI_AUDIT_TRAIL_AMENDMENT> true | <+APPROVE_AI_AUDIT_TRAIL_AMENDMENT +signed_by(/users/ai_compliance_lead.id)> true)"
+            "always([+APPROVE_AI_AUDIT_TRAIL_AMENDMENT -signed_by(/users/ai_compliance_lead.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_AI_AUDIT_TRAIL_AMENDMENT> true | always([-TAMPERED_DECISION_HISTORY] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_TRAINING_CONSENT_WITHDRAWAL> true | <+APPROVE_TRAINING_CONSENT_WITHDRAWAL +signed_by(/users/data_protection_officer.id)> true)"
+            "always([+APPROVE_TRAINING_CONSENT_WITHDRAWAL -signed_by(/users/data_protection_officer.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_TRAINING_CONSENT_WITHDRAWAL> true | always([-RETAINED_REVOKED_SUBJECT_DATA] true))"
@@ -12911,13 +12911,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("AI transparency notice and decision appeal controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_AI_TRANSPARENCY_NOTICE> true | <+APPROVE_AI_TRANSPARENCY_NOTICE +signed_by(/users/responsible_ai_communications_lead.id)> true)"
+            "always([+APPROVE_AI_TRANSPARENCY_NOTICE -signed_by(/users/responsible_ai_communications_lead.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_AI_TRANSPARENCY_NOTICE> true | always([-UNDISCLOSED_AUTOMATED_DECISION_NOTICE] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_AI_DECISION_APPEAL_WORKFLOW> true | <+APPROVE_AI_DECISION_APPEAL_WORKFLOW +signed_by(/users/accountability_officer.id)> true)"
+            "always([+APPROVE_AI_DECISION_APPEAL_WORKFLOW -signed_by(/users/accountability_officer.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_AI_DECISION_APPEAL_WORKFLOW> true | always([-UNAVAILABLE_HUMAN_REVIEW_PATH] true))"
@@ -12929,13 +12929,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("AI fairness remediation and model use limitation controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_AI_FAIRNESS_REMEDIATION> true | <+APPROVE_AI_FAIRNESS_REMEDIATION +signed_by(/users/fairness_reviewer.id)> true)"
+            "always([+APPROVE_AI_FAIRNESS_REMEDIATION -signed_by(/users/fairness_reviewer.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_AI_FAIRNESS_REMEDIATION> true | always([-UNRESOLVED_DISPARATE_IMPACT] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_MODEL_USE_LIMITATION_UPDATE> true | <+APPROVE_MODEL_USE_LIMITATION_UPDATE +signed_by(/users/responsible_ai_owner.id)> true)"
+            "always([+APPROVE_MODEL_USE_LIMITATION_UPDATE -signed_by(/users/responsible_ai_owner.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_MODEL_USE_LIMITATION_UPDATE> true | always([-OUT_OF_SCOPE_MODEL_USE] true))"
@@ -12947,13 +12947,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("AI evaluation dataset and provenance watermark controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_AI_EVALUATION_DATASET> true | <+APPROVE_AI_EVALUATION_DATASET +signed_by(/users/evaluation_steward.id)> true)"
+            "always([+APPROVE_AI_EVALUATION_DATASET -signed_by(/users/evaluation_steward.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_AI_EVALUATION_DATASET> true | always([-CONTAMINATED_TEST_DATA_USE] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_AI_PROVENANCE_WATERMARK_POLICY> true | <+APPROVE_AI_PROVENANCE_WATERMARK_POLICY +signed_by(/users/content_authenticity_lead.id)> true)"
+            "always([+APPROVE_AI_PROVENANCE_WATERMARK_POLICY -signed_by(/users/content_authenticity_lead.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_AI_PROVENANCE_WATERMARK_POLICY> true | always([-UNVERIFIABLE_SYNTHETIC_MEDIA_DISTRIBUTION] true))"
@@ -12965,13 +12965,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("AI annotation quality and model calibration controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_AI_ANNOTATION_QUALITY_REVIEW> true | <+APPROVE_AI_ANNOTATION_QUALITY_REVIEW +signed_by(/users/labeling_lead.id)> true)"
+            "always([+APPROVE_AI_ANNOTATION_QUALITY_REVIEW -signed_by(/users/labeling_lead.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_AI_ANNOTATION_QUALITY_REVIEW> true | always([-LOW_CONFIDENCE_TRAINING_LABELS] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_MODEL_CALIBRATION_UPDATE> true | <+APPROVE_MODEL_CALIBRATION_UPDATE +signed_by(/users/model_validation_owner.id)> true)"
+            "always([+APPROVE_MODEL_CALIBRATION_UPDATE -signed_by(/users/model_validation_owner.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_MODEL_CALIBRATION_UPDATE> true | always([-UNCALIBRATED_CONFIDENCE_SCORES] true))"
@@ -12983,13 +12983,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Human feedback dataset and reward model controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_HUMAN_FEEDBACK_DATASET> true | <+APPROVE_HUMAN_FEEDBACK_DATASET +signed_by(/users/feedback_curator.id)> true)"
+            "always([+APPROVE_HUMAN_FEEDBACK_DATASET -signed_by(/users/feedback_curator.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_HUMAN_FEEDBACK_DATASET> true | always([-UNCONSENTED_PREFERENCE_DATA_USE] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_REWARD_MODEL_UPDATE> true | <+APPROVE_REWARD_MODEL_UPDATE +signed_by(/users/alignment_reviewer.id)> true)"
+            "always([+APPROVE_REWARD_MODEL_UPDATE -signed_by(/users/alignment_reviewer.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_REWARD_MODEL_UPDATE> true | always([-REWARD_HACKING_REGRESSION] true))"
@@ -13001,13 +13001,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("AI safety case and frontier capability release controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_AI_SAFETY_CASE> true | <+APPROVE_AI_SAFETY_CASE +signed_by(/users/safety_case_owner.id)> true)"
+            "always([+APPROVE_AI_SAFETY_CASE -signed_by(/users/safety_case_owner.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_AI_SAFETY_CASE> true | always([-UNVERIFIED_HAZARDOUS_CAPABILITY_CLAIM] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_FRONTIER_MODEL_CAPABILITY_RELEASE> true | <+APPROVE_FRONTIER_MODEL_CAPABILITY_RELEASE +signed_by(/users/frontier_review_board.id)> true)"
+            "always([+APPROVE_FRONTIER_MODEL_CAPABILITY_RELEASE -signed_by(/users/frontier_review_board.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_FRONTIER_MODEL_CAPABILITY_RELEASE> true | always([-UNCONTROLLED_CAPABILITY_ESCALATION] true))"
@@ -13019,13 +13019,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("AI training run launch and autonomous tool budget controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_AI_TRAINING_RUN_LAUNCH> true | <+APPROVE_AI_TRAINING_RUN_LAUNCH +signed_by(/users/training_governance_owner.id)> true)"
+            "always([+APPROVE_AI_TRAINING_RUN_LAUNCH -signed_by(/users/training_governance_owner.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_AI_TRAINING_RUN_LAUNCH> true | always([-UNSANCTIONED_COMPUTE_INTENSIVE_TRAINING] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_AUTONOMOUS_AGENT_TOOL_BUDGET_INCREASE> true | <+APPROVE_AUTONOMOUS_AGENT_TOOL_BUDGET_INCREASE +signed_by(/users/agent_operations_owner.id)> true)"
+            "always([+APPROVE_AUTONOMOUS_AGENT_TOOL_BUDGET_INCREASE -signed_by(/users/agent_operations_owner.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_AUTONOMOUS_AGENT_TOOL_BUDGET_INCREASE> true | always([-UNBOUNDED_TOOL_SPEND] true))"
@@ -13037,13 +13037,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("AI agent capability grant and memory export controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_AI_AGENT_CAPABILITY_GRANT> true | <+APPROVE_AI_AGENT_CAPABILITY_GRANT +signed_by(/users/agent_security_owner.id)> true)"
+            "always([+APPROVE_AI_AGENT_CAPABILITY_GRANT -signed_by(/users/agent_security_owner.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_AI_AGENT_CAPABILITY_GRANT> true | always([-UNAUTHORIZED_PRIVILEGED_TOOL_USE] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_AI_MEMORY_EXPORT> true | <+APPROVE_AI_MEMORY_EXPORT +signed_by(/users/privacy_operations_owner.id)> true)"
+            "always([+APPROVE_AI_MEMORY_EXPORT -signed_by(/users/privacy_operations_owner.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_AI_MEMORY_EXPORT> true | always([-UNAPPROVED_CONVERSATIONAL_CONTEXT_DISCLOSURE] true))"
@@ -13055,13 +13055,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("AI agent identity binding and contract execution controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_AI_AGENT_IDENTITY_BINDING> true | <+APPROVE_AI_AGENT_IDENTITY_BINDING +signed_by(/users/identity_governance_owner.id)> true)"
+            "always([+APPROVE_AI_AGENT_IDENTITY_BINDING -signed_by(/users/identity_governance_owner.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_AI_AGENT_IDENTITY_BINDING> true | always([-AGENT_IMPERSONATION] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_AUTONOMOUS_CONTRACT_EXECUTION> true | <+APPROVE_AUTONOMOUS_CONTRACT_EXECUTION +signed_by(/users/contract_controller.id)> true)"
+            "always([+APPROVE_AUTONOMOUS_CONTRACT_EXECUTION -signed_by(/users/contract_controller.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_AUTONOMOUS_CONTRACT_EXECUTION> true | always([-UNREVIEWED_BINDING_COMMITMENT] true))"
@@ -13074,13 +13074,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
             generate_prompt("AI agent negotiation authority and settlement offer controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_AGENT_NEGOTIATION_AUTHORITY> true | <+APPROVE_AGENT_NEGOTIATION_AUTHORITY +signed_by(/users/negotiation_sponsor.id)> true)"
+            "always([+APPROVE_AGENT_NEGOTIATION_AUTHORITY -signed_by(/users/negotiation_sponsor.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_AGENT_NEGOTIATION_AUTHORITY> true | always([-UNAUTHORIZED_COUNTERPARTY_COMMITMENT] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_AGENT_SETTLEMENT_OFFER> true | <+APPROVE_AGENT_SETTLEMENT_OFFER +signed_by(/users/principal_approver.id)> true)"
+            "always([+APPROVE_AGENT_SETTLEMENT_OFFER -signed_by(/users/principal_approver.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_AGENT_SETTLEMENT_OFFER> true | always([-OUT_OF_MANDATE_CONCESSION] true))"
@@ -13092,13 +13092,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Fundraising outreach and investor data room controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_FUNDRAISING_OUTREACH> true | <+APPROVE_FUNDRAISING_OUTREACH +signed_by(/users/founder.id)> true)"
+            "always([+APPROVE_FUNDRAISING_OUTREACH -signed_by(/users/founder.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_FUNDRAISING_OUTREACH> true | always([-UNAUTHORIZED_INVESTOR_CLAIM] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_INVESTOR_DATA_ROOM_RELEASE> true | <+APPROVE_INVESTOR_DATA_ROOM_RELEASE +signed_by(/users/fundraising_owner.id)> true)"
+            "always([+APPROVE_INVESTOR_DATA_ROOM_RELEASE -signed_by(/users/fundraising_owner.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_INVESTOR_DATA_ROOM_RELEASE> true | always([-UNAPPROVED_CONFIDENTIAL_DISCLOSURE] true))"
@@ -13110,13 +13110,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Pitch deck publication and investor diligence controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_PITCH_DECK_PUBLICATION> true | <+APPROVE_PITCH_DECK_PUBLICATION +signed_by(/users/fundraising_owner.id)> true)"
+            "always([+APPROVE_PITCH_DECK_PUBLICATION -signed_by(/users/fundraising_owner.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_PITCH_DECK_PUBLICATION> true | always([-UNAPPROVED_PUBLIC_FUNDRAISING_MATERIAL] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_INVESTOR_DILIGENCE_RESPONSE> true | <+APPROVE_INVESTOR_DILIGENCE_RESPONSE +signed_by(/users/legal_reviewer.id)> true)"
+            "always([+APPROVE_INVESTOR_DILIGENCE_RESPONSE -signed_by(/users/legal_reviewer.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_INVESTOR_DILIGENCE_RESPONSE> true | always([-INACCURATE_DILIGENCE_REPRESENTATION] true))"
@@ -13128,13 +13128,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Term sheet circulation and investor update controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_TERM_SHEET_CIRCULATION> true | <+APPROVE_TERM_SHEET_CIRCULATION +signed_by(/users/board_observer.id)> true)"
+            "always([+APPROVE_TERM_SHEET_CIRCULATION -signed_by(/users/board_observer.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_TERM_SHEET_CIRCULATION> true | always([-UNAPPROVED_VALUATION_TERM_DISCLOSURE] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_INVESTOR_UPDATE_PUBLICATION> true | <+APPROVE_INVESTOR_UPDATE_PUBLICATION +signed_by(/users/finance_lead.id)> true)"
+            "always([+APPROVE_INVESTOR_UPDATE_PUBLICATION -signed_by(/users/finance_lead.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_INVESTOR_UPDATE_PUBLICATION> true | always([-INACCURATE_RUNWAY_STATEMENT] true))"
@@ -13146,13 +13146,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Cap table update and SAFE note issuance controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_CAP_TABLE_UPDATE> true | <+APPROVE_CAP_TABLE_UPDATE +signed_by(/users/corporate_secretary.id)> true)"
+            "always([+APPROVE_CAP_TABLE_UPDATE -signed_by(/users/corporate_secretary.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_CAP_TABLE_UPDATE> true | always([-INCORRECT_OWNERSHIP_RECORD] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_SAFE_NOTE_ISSUANCE> true | <+APPROVE_SAFE_NOTE_ISSUANCE +signed_by(/users/board_designee.id)> true)"
+            "always([+APPROVE_SAFE_NOTE_ISSUANCE -signed_by(/users/board_designee.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_SAFE_NOTE_ISSUANCE> true | always([-UNAUTHORIZED_FINANCING_INSTRUMENT] true))"
@@ -13164,13 +13164,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Equity grant and option exercise controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_EQUITY_GRANT> true | <+APPROVE_EQUITY_GRANT +signed_by(/users/board_administrator.id)> true)"
+            "always([+APPROVE_EQUITY_GRANT -signed_by(/users/board_administrator.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_EQUITY_GRANT> true | always([-UNAUTHORIZED_EQUITY_AWARD] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_OPTION_EXERCISE_PROCESSING> true | <+APPROVE_OPTION_EXERCISE_PROCESSING +signed_by(/users/stock_plan_administrator.id)> true)"
+            "always([+APPROVE_OPTION_EXERCISE_PROCESSING -signed_by(/users/stock_plan_administrator.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_OPTION_EXERCISE_PROCESSING> true | always([-INVALID_EXERCISE_RECORD] true))"
@@ -13182,13 +13182,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Stock transfer and vesting amendment controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_STOCK_TRANSFER> true | <+APPROVE_STOCK_TRANSFER +signed_by(/users/corporate_counsel.id)> true)"
+            "always([+APPROVE_STOCK_TRANSFER -signed_by(/users/corporate_counsel.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_STOCK_TRANSFER> true | always([-RESTRICTED_SHARE_TRANSFER] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_VESTING_SCHEDULE_AMENDMENT> true | <+APPROVE_VESTING_SCHEDULE_AMENDMENT +signed_by(/users/compensation_committee.id)> true)"
+            "always([+APPROVE_VESTING_SCHEDULE_AMENDMENT -signed_by(/users/compensation_committee.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_VESTING_SCHEDULE_AMENDMENT> true | always([-UNAPPROVED_VESTING_ACCELERATION] true))"
@@ -13200,13 +13200,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Board consent and option pool increase controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_BOARD_CONSENT> true | <+APPROVE_BOARD_CONSENT +signed_by(/users/corporate_secretary.id)> true)"
+            "always([+APPROVE_BOARD_CONSENT -signed_by(/users/corporate_secretary.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_BOARD_CONSENT> true | always([-UNAUTHORIZED_CORPORATE_ACTION] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_OPTION_POOL_INCREASE> true | <+APPROVE_OPTION_POOL_INCREASE +signed_by(/users/board_chair.id)> true)"
+            "always([+APPROVE_OPTION_POOL_INCREASE -signed_by(/users/board_chair.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_OPTION_POOL_INCREASE> true | always([-UNAPPROVED_DILUTION] true))"
@@ -13218,13 +13218,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Bylaws amendment and board minutes controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_BYLAWS_AMENDMENT> true | <+APPROVE_BYLAWS_AMENDMENT +signed_by(/users/corporate_counsel.id)> true)"
+            "always([+APPROVE_BYLAWS_AMENDMENT -signed_by(/users/corporate_counsel.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_BYLAWS_AMENDMENT> true | always([-INVALID_GOVERNANCE_CHANGE] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_BOARD_MINUTES_FINALIZATION> true | <+APPROVE_BOARD_MINUTES_FINALIZATION +signed_by(/users/corporate_secretary.id)> true)"
+            "always([+APPROVE_BOARD_MINUTES_FINALIZATION -signed_by(/users/corporate_secretary.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_BOARD_MINUTES_FINALIZATION> true | always([-INACCURATE_MEETING_RECORD] true))"
@@ -13236,13 +13236,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Shareholder action and 409A valuation controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_SHAREHOLDER_ACTION> true | <+APPROVE_SHAREHOLDER_ACTION +signed_by(/users/corporate_secretary.id)> true)"
+            "always([+APPROVE_SHAREHOLDER_ACTION -signed_by(/users/corporate_secretary.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_SHAREHOLDER_ACTION> true | always([-UNAUTHORIZED_SHAREHOLDER_ACTION] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_409A_VALUATION> true | <+APPROVE_409A_VALUATION +signed_by(/users/finance_lead.id)> true)"
+            "always([+APPROVE_409A_VALUATION -signed_by(/users/finance_lead.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_409A_VALUATION> true | always([-STALE_VALUATION_GRANT] true))"
@@ -13254,13 +13254,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Investor information rights and founder repurchase controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_INVESTOR_INFORMATION_RIGHTS> true | <+APPROVE_INVESTOR_INFORMATION_RIGHTS +signed_by(/users/investor_relations_lead.id)> true)"
+            "always([+APPROVE_INVESTOR_INFORMATION_RIGHTS -signed_by(/users/investor_relations_lead.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_INVESTOR_INFORMATION_RIGHTS> true | always([-UNAUTHORIZED_FINANCIAL_DISCLOSURE] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_FOUNDER_SHARE_REPURCHASE> true | <+APPROVE_FOUNDER_SHARE_REPURCHASE +signed_by(/users/corporate_counsel.id)> true)"
+            "always([+APPROVE_FOUNDER_SHARE_REPURCHASE -signed_by(/users/corporate_counsel.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_FOUNDER_SHARE_REPURCHASE> true | always([-INVALID_REPURCHASE_EXERCISE] true))"
@@ -13272,13 +13272,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Secondary share sale and liquidation preference controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_SECONDARY_SHARE_SALE> true | <+APPROVE_SECONDARY_SHARE_SALE +signed_by(/users/transfer_agent.id)> true)"
+            "always([+APPROVE_SECONDARY_SHARE_SALE -signed_by(/users/transfer_agent.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_SECONDARY_SHARE_SALE> true | always([-UNAUTHORIZED_SECONDARY_TRANSFER] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_LIQUIDATION_PREFERENCE_AMENDMENT> true | <+APPROVE_LIQUIDATION_PREFERENCE_AMENDMENT +signed_by(/users/investor_counsel.id)> true)"
+            "always([+APPROVE_LIQUIDATION_PREFERENCE_AMENDMENT -signed_by(/users/investor_counsel.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_LIQUIDATION_PREFERENCE_AMENDMENT> true | always([-UNAPPROVED_PREFERENCE_CHANGE] true))"
@@ -13290,13 +13290,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Pro rata waiver and board observer controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_PRO_RATA_RIGHTS_WAIVER> true | <+APPROVE_PRO_RATA_RIGHTS_WAIVER +signed_by(/users/investor_relations_lead.id)> true)"
+            "always([+APPROVE_PRO_RATA_RIGHTS_WAIVER -signed_by(/users/investor_relations_lead.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_PRO_RATA_RIGHTS_WAIVER> true | always([-IMPROPER_ALLOCATION_REDUCTION] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_BOARD_OBSERVER_APPOINTMENT> true | <+APPROVE_BOARD_OBSERVER_APPOINTMENT +signed_by(/users/corporate_secretary.id)> true)"
+            "always([+APPROVE_BOARD_OBSERVER_APPOINTMENT -signed_by(/users/corporate_secretary.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_BOARD_OBSERVER_APPOINTMENT> true | always([-UNAUTHORIZED_OBSERVER_ACCESS] true))"
@@ -13308,13 +13308,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Protective provision waiver and ROFR controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_PROTECTIVE_PROVISION_WAIVER> true | <+APPROVE_PROTECTIVE_PROVISION_WAIVER +signed_by(/users/investor_counsel.id)> true)"
+            "always([+APPROVE_PROTECTIVE_PROVISION_WAIVER -signed_by(/users/investor_counsel.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_PROTECTIVE_PROVISION_WAIVER> true | always([-UNCONSENTED_MAJOR_ACTION] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_RIGHT_OF_FIRST_REFUSAL_EXERCISE> true | <+APPROVE_RIGHT_OF_FIRST_REFUSAL_EXERCISE +signed_by(/users/corporate_counsel.id)> true)"
+            "always([+APPROVE_RIGHT_OF_FIRST_REFUSAL_EXERCISE -signed_by(/users/corporate_counsel.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_RIGHT_OF_FIRST_REFUSAL_EXERCISE> true | always([-MISSED_TRANSFER_RIGHT] true))"
@@ -13326,13 +13326,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Drag along notice and preemptive rights controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_DRAG_ALONG_NOTICE> true | <+APPROVE_DRAG_ALONG_NOTICE +signed_by(/users/corporate_secretary.id)> true)"
+            "always([+APPROVE_DRAG_ALONG_NOTICE -signed_by(/users/corporate_secretary.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_DRAG_ALONG_NOTICE> true | always([-INVALID_FORCED_SALE] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_PREEMPTIVE_RIGHTS_ALLOCATION> true | <+APPROVE_PREEMPTIVE_RIGHTS_ALLOCATION +signed_by(/users/investor_relations_lead.id)> true)"
+            "always([+APPROVE_PREEMPTIVE_RIGHTS_ALLOCATION -signed_by(/users/investor_relations_lead.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_PREEMPTIVE_RIGHTS_ALLOCATION> true | always([-EXCLUDED_ELIGIBLE_INVESTOR] true))"
@@ -13344,13 +13344,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Co-sale participation and convertible note controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_CO_SALE_PARTICIPATION> true | <+APPROVE_CO_SALE_PARTICIPATION +signed_by(/users/corporate_counsel.id)> true)"
+            "always([+APPROVE_CO_SALE_PARTICIPATION -signed_by(/users/corporate_counsel.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_CO_SALE_PARTICIPATION> true | always([-OMITTED_ELIGIBLE_CO_SELLER] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_CONVERTIBLE_NOTE_CONVERSION> true | <+APPROVE_CONVERTIBLE_NOTE_CONVERSION +signed_by(/users/finance_lead.id)> true)"
+            "always([+APPROVE_CONVERTIBLE_NOTE_CONVERSION -signed_by(/users/finance_lead.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_CONVERTIBLE_NOTE_CONVERSION> true | always([-INCORRECT_CONVERSION_CALCULATION] true))"
@@ -13362,13 +13362,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Warrant exercise and investor consent controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_WARRANT_EXERCISE> true | <+APPROVE_WARRANT_EXERCISE +signed_by(/users/corporate_counsel.id)> true)"
+            "always([+APPROVE_WARRANT_EXERCISE -signed_by(/users/corporate_counsel.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_WARRANT_EXERCISE> true | always([-INVALID_WARRANT_EXERCISE] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_INVESTOR_CONSENT_SOLICITATION> true | <+APPROVE_INVESTOR_CONSENT_SOLICITATION +signed_by(/users/corporate_secretary.id)> true)"
+            "always([+APPROVE_INVESTOR_CONSENT_SOLICITATION -signed_by(/users/corporate_secretary.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_INVESTOR_CONSENT_SOLICITATION> true | always([-DEFECTIVE_CONSENT_NOTICE] true))"
@@ -13380,13 +13380,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Side letter and information memorandum controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_SIDE_LETTER> true | <+APPROVE_SIDE_LETTER +signed_by(/users/corporate_counsel.id)> true)"
+            "always([+APPROVE_SIDE_LETTER -signed_by(/users/corporate_counsel.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_SIDE_LETTER> true | always([-UNDISCLOSED_INVESTOR_PREFERENCE] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_INFORMATION_MEMORANDUM_DISTRIBUTION> true | <+APPROVE_INFORMATION_MEMORANDUM_DISTRIBUTION +signed_by(/users/fundraising_owner.id)> true)"
+            "always([+APPROVE_INFORMATION_MEMORANDUM_DISTRIBUTION -signed_by(/users/fundraising_owner.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_INFORMATION_MEMORANDUM_DISTRIBUTION> true | always([-MISLEADING_INVESTOR_MATERIAL] true))"
@@ -13398,13 +13398,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Financing closing and acquisition term controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_FINANCING_CLOSING> true | <+APPROVE_FINANCING_CLOSING +signed_by(/users/corporate_secretary.id)> true)"
+            "always([+APPROVE_FINANCING_CLOSING -signed_by(/users/corporate_secretary.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_FINANCING_CLOSING> true | always([-PREMATURE_SHARE_ISSUANCE] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_ACQUISITION_TERM_ACCEPTANCE> true | <+APPROVE_ACQUISITION_TERM_ACCEPTANCE +signed_by(/users/board_chair.id)> true)"
+            "always([+APPROVE_ACQUISITION_TERM_ACCEPTANCE -signed_by(/users/board_chair.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_ACQUISITION_TERM_ACCEPTANCE> true | always([-UNAUTHORIZED_CHANGE_OF_CONTROL] true))"
@@ -13416,13 +13416,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Merger closing and indemnity settlement controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_MERGER_CLOSING> true | <+APPROVE_MERGER_CLOSING +signed_by(/users/board_chair.id)> true)"
+            "always([+APPROVE_MERGER_CLOSING -signed_by(/users/board_chair.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_MERGER_CLOSING> true | always([-UNAPPROVED_MERGER_CONSUMMATION] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_INDEMNITY_CLAIM_SETTLEMENT> true | <+APPROVE_INDEMNITY_CLAIM_SETTLEMENT +signed_by(/users/corporate_counsel.id)> true)"
+            "always([+APPROVE_INDEMNITY_CLAIM_SETTLEMENT -signed_by(/users/corporate_counsel.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_INDEMNITY_CLAIM_SETTLEMENT> true | always([-IMPROPER_ESCROW_RELEASE] true))"
@@ -13434,13 +13434,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Escrow holdback and representations disclosure controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_ESCROW_HOLDBACK_RELEASE> true | <+APPROVE_ESCROW_HOLDBACK_RELEASE +signed_by(/users/finance_lead.id)> true)"
+            "always([+APPROVE_ESCROW_HOLDBACK_RELEASE -signed_by(/users/finance_lead.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_ESCROW_HOLDBACK_RELEASE> true | always([-UNRESOLVED_PURCHASE_PRICE_ADJUSTMENT] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_REPRESENTATIONS_WARRANTIES_DISCLOSURE> true | <+APPROVE_REPRESENTATIONS_WARRANTIES_DISCLOSURE +signed_by(/users/corporate_counsel.id)> true)"
+            "always([+APPROVE_REPRESENTATIONS_WARRANTIES_DISCLOSURE -signed_by(/users/corporate_counsel.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_REPRESENTATIONS_WARRANTIES_DISCLOSURE> true | always([-UNDISCLOSED_MATERIAL_EXCEPTION] true))"
@@ -13452,13 +13452,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Closing deliverables and regulatory filing controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_CLOSING_DELIVERABLES> true | <+APPROVE_CLOSING_DELIVERABLES +signed_by(/users/corporate_secretary.id)> true)"
+            "always([+APPROVE_CLOSING_DELIVERABLES -signed_by(/users/corporate_secretary.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_CLOSING_DELIVERABLES> true | always([-MISSING_OFFICER_CERTIFICATE] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_REGULATORY_FILING> true | <+APPROVE_REGULATORY_FILING +signed_by(/users/corporate_counsel.id)> true)"
+            "always([+APPROVE_REGULATORY_FILING -signed_by(/users/corporate_counsel.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_REGULATORY_FILING> true | always([-LATE_REQUIRED_NOTICE] true))"
@@ -13470,13 +13470,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Post-closing integration and tax election controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_POST_CLOSING_INTEGRATION> true | <+APPROVE_POST_CLOSING_INTEGRATION +signed_by(/users/operations_lead.id)> true)"
+            "always([+APPROVE_POST_CLOSING_INTEGRATION -signed_by(/users/operations_lead.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_POST_CLOSING_INTEGRATION> true | always([-UNAUTHORIZED_SYSTEM_MIGRATION] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_TAX_ELECTION> true | <+APPROVE_TAX_ELECTION +signed_by(/users/finance_lead.id)> true)"
+            "always([+APPROVE_TAX_ELECTION -signed_by(/users/finance_lead.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_TAX_ELECTION> true | always([-MISSED_ELECTION_DEADLINE] true))"
@@ -13488,13 +13488,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Foreign qualification and annual report filing controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_FOREIGN_QUALIFICATION> true | <+APPROVE_FOREIGN_QUALIFICATION +signed_by(/users/corporate_counsel.id)> true)"
+            "always([+APPROVE_FOREIGN_QUALIFICATION -signed_by(/users/corporate_counsel.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_FOREIGN_QUALIFICATION> true | always([-UNAUTHORIZED_STATE_BUSINESS] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_ANNUAL_REPORT_FILING> true | <+APPROVE_ANNUAL_REPORT_FILING +signed_by(/users/corporate_secretary.id)> true)"
+            "always([+APPROVE_ANNUAL_REPORT_FILING -signed_by(/users/corporate_secretary.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_ANNUAL_REPORT_FILING> true | always([-DELINQUENT_ENTITY_STATUS] true))"
@@ -13506,13 +13506,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Registered agent and business license controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_REGISTERED_AGENT_CHANGE> true | <+APPROVE_REGISTERED_AGENT_CHANGE +signed_by(/users/corporate_secretary.id)> true)"
+            "always([+APPROVE_REGISTERED_AGENT_CHANGE -signed_by(/users/corporate_secretary.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_REGISTERED_AGENT_CHANGE> true | always([-MISSED_SERVICE_OF_PROCESS] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_BUSINESS_LICENSE_RENEWAL> true | <+APPROVE_BUSINESS_LICENSE_RENEWAL +signed_by(/users/operations_lead.id)> true)"
+            "always([+APPROVE_BUSINESS_LICENSE_RENEWAL -signed_by(/users/operations_lead.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_BUSINESS_LICENSE_RENEWAL> true | always([-UNLICENSED_OPERATIONS] true))"
@@ -13524,13 +13524,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Franchise tax and good standing certificate controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_FRANCHISE_TAX_PAYMENT> true | <+APPROVE_FRANCHISE_TAX_PAYMENT +signed_by(/users/finance_lead.id)> true)"
+            "always([+APPROVE_FRANCHISE_TAX_PAYMENT -signed_by(/users/finance_lead.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_FRANCHISE_TAX_PAYMENT> true | always([-TAX_DELINQUENCY] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_GOOD_STANDING_CERTIFICATE> true | <+APPROVE_GOOD_STANDING_CERTIFICATE +signed_by(/users/corporate_secretary.id)> true)"
+            "always([+APPROVE_GOOD_STANDING_CERTIFICATE -signed_by(/users/corporate_secretary.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_GOOD_STANDING_CERTIFICATE> true | always([-STALE_ENTITY_EVIDENCE] true))"
@@ -13542,13 +13542,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Entity conversion and assumed name filing controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_ENTITY_CONVERSION> true | <+APPROVE_ENTITY_CONVERSION +signed_by(/users/corporate_counsel.id)> true)"
+            "always([+APPROVE_ENTITY_CONVERSION -signed_by(/users/corporate_counsel.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_ENTITY_CONVERSION> true | always([-UNAPPROVED_ENTITY_RESTRUCTURING] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_ASSUMED_NAME_FILING> true | <+APPROVE_ASSUMED_NAME_FILING +signed_by(/users/corporate_secretary.id)> true)"
+            "always([+APPROVE_ASSUMED_NAME_FILING -signed_by(/users/corporate_secretary.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_ASSUMED_NAME_FILING> true | always([-UNAUTHORIZED_PUBLIC_NAME_USE] true))"
@@ -13560,13 +13560,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Dissolution plan and creditor notice controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_DISSOLUTION_PLAN> true | <+APPROVE_DISSOLUTION_PLAN +signed_by(/users/corporate_counsel.id)> true)"
+            "always([+APPROVE_DISSOLUTION_PLAN -signed_by(/users/corporate_counsel.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_DISSOLUTION_PLAN> true | always([-UNAUTHORIZED_WIND_DOWN] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_CREDITOR_NOTICE> true | <+APPROVE_CREDITOR_NOTICE +signed_by(/users/corporate_secretary.id)> true)"
+            "always([+APPROVE_CREDITOR_NOTICE -signed_by(/users/corporate_secretary.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_CREDITOR_NOTICE> true | always([-OMITTED_CREDITOR_NOTICE] true))"
@@ -13578,13 +13578,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Records retention and final tax clearance controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_RECORDS_RETENTION> true | <+APPROVE_RECORDS_RETENTION +signed_by(/users/corporate_secretary.id)> true)"
+            "always([+APPROVE_RECORDS_RETENTION -signed_by(/users/corporate_secretary.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_RECORDS_RETENTION> true | always([-PREMATURE_RECORD_DESTRUCTION] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_FINAL_TAX_CLEARANCE> true | <+APPROVE_FINAL_TAX_CLEARANCE +signed_by(/users/finance_lead.id)> true)"
+            "always([+APPROVE_FINAL_TAX_CLEARANCE -signed_by(/users/finance_lead.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_FINAL_TAX_CLEARANCE> true | always([-UNRESOLVED_TAX_LIABILITY] true))"
@@ -13596,13 +13596,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Payroll tax registration and insurance coverage controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_PAYROLL_TAX_REGISTRATION> true | <+APPROVE_PAYROLL_TAX_REGISTRATION +signed_by(/users/finance_lead.id)> true)"
+            "always([+APPROVE_PAYROLL_TAX_REGISTRATION -signed_by(/users/finance_lead.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_PAYROLL_TAX_REGISTRATION> true | always([-UNREGISTERED_PAYROLL_OPERATION] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_INSURANCE_COVERAGE> true | <+APPROVE_INSURANCE_COVERAGE +signed_by(/users/operations_lead.id)> true)"
+            "always([+APPROVE_INSURANCE_COVERAGE -signed_by(/users/operations_lead.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_INSURANCE_COVERAGE> true | always([-UNINSURED_BUSINESS_ACTIVITY] true))"
@@ -13614,13 +13614,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Bank account opening and payment processor controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_BANK_ACCOUNT_OPENING> true | <+APPROVE_BANK_ACCOUNT_OPENING +signed_by(/users/finance_lead.id)> true)"
+            "always([+APPROVE_BANK_ACCOUNT_OPENING -signed_by(/users/finance_lead.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_BANK_ACCOUNT_OPENING> true | always([-UNAUTHORIZED_TREASURY_ACCOUNT] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_PAYMENT_PROCESSOR_ONBOARDING> true | <+APPROVE_PAYMENT_PROCESSOR_ONBOARDING +signed_by(/users/operations_lead.id)> true)"
+            "always([+APPROVE_PAYMENT_PROCESSOR_ONBOARDING -signed_by(/users/operations_lead.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_PAYMENT_PROCESSOR_ONBOARDING> true | always([-UNAPPROVED_PAYMENT_COLLECTION] true))"
@@ -13632,13 +13632,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Sales tax nexus and chargeback reserve controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_SALES_TAX_NEXUS_REVIEW> true | <+APPROVE_SALES_TAX_NEXUS_REVIEW +signed_by(/users/finance_lead.id)> true)"
+            "always([+APPROVE_SALES_TAX_NEXUS_REVIEW -signed_by(/users/finance_lead.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_SALES_TAX_NEXUS_REVIEW> true | always([-UNCOLLECTED_SALES_TAX_EXPOSURE] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_CHARGEBACK_RESERVE> true | <+APPROVE_CHARGEBACK_RESERVE +signed_by(/users/operations_lead.id)> true)"
+            "always([+APPROVE_CHARGEBACK_RESERVE -signed_by(/users/operations_lead.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_CHARGEBACK_RESERVE> true | always([-UNFUNDED_DISPUTE_LIABILITY] true))"
@@ -13651,13 +13651,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
             generate_prompt("Customer refund policy and subscription cancellation controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_CUSTOMER_REFUND_POLICY> true | <+APPROVE_CUSTOMER_REFUND_POLICY +signed_by(/users/finance_lead.id)> true)"
+            "always([+APPROVE_CUSTOMER_REFUND_POLICY -signed_by(/users/finance_lead.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_CUSTOMER_REFUND_POLICY> true | always([-UNAUTHORIZED_REFUND_OBLIGATION] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_SUBSCRIPTION_CANCELLATION_FLOW> true | <+APPROVE_SUBSCRIPTION_CANCELLATION_FLOW +signed_by(/users/operations_lead.id)> true)"
+            "always([+APPROVE_SUBSCRIPTION_CANCELLATION_FLOW -signed_by(/users/operations_lead.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_SUBSCRIPTION_CANCELLATION_FLOW> true | always([-NONCOMPLIANT_RENEWAL_BILLING] true))"
@@ -13669,13 +13669,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Terms of service and cookie consent controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_TERMS_OF_SERVICE_UPDATE> true | <+APPROVE_TERMS_OF_SERVICE_UPDATE +signed_by(/users/corporate_counsel.id)> true)"
+            "always([+APPROVE_TERMS_OF_SERVICE_UPDATE -signed_by(/users/corporate_counsel.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_TERMS_OF_SERVICE_UPDATE> true | always([-UNENFORCEABLE_CUSTOMER_TERMS] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_COOKIE_CONSENT_BANNER> true | <+APPROVE_COOKIE_CONSENT_BANNER +signed_by(/users/privacy_counsel.id)> true)"
+            "always([+APPROVE_COOKIE_CONSENT_BANNER -signed_by(/users/privacy_counsel.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_COOKIE_CONSENT_BANNER> true | always([-NONCOMPLIANT_TRACKING_CONSENT] true))"
@@ -13687,13 +13687,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Marketing email and affiliate referral controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_MARKETING_EMAIL_CAMPAIGN> true | <+APPROVE_MARKETING_EMAIL_CAMPAIGN +signed_by(/users/privacy_counsel.id)> true)"
+            "always([+APPROVE_MARKETING_EMAIL_CAMPAIGN -signed_by(/users/privacy_counsel.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_MARKETING_EMAIL_CAMPAIGN> true | always([-UNSOLICITED_COMMERCIAL_EMAIL] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_AFFILIATE_REFERRAL_PROGRAM> true | <+APPROVE_AFFILIATE_REFERRAL_PROGRAM +signed_by(/users/finance_lead.id)> true)"
+            "always([+APPROVE_AFFILIATE_REFERRAL_PROGRAM -signed_by(/users/finance_lead.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_AFFILIATE_REFERRAL_PROGRAM> true | always([-UNTRACKED_REFERRAL_LIABILITY] true))"
@@ -13705,13 +13705,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Customer support escalation and service credit controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_CUSTOMER_SUPPORT_ESCALATION> true | <+APPROVE_CUSTOMER_SUPPORT_ESCALATION +signed_by(/users/operations_lead.id)> true)"
+            "always([+APPROVE_CUSTOMER_SUPPORT_ESCALATION -signed_by(/users/operations_lead.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_CUSTOMER_SUPPORT_ESCALATION> true | always([-UNRESOLVED_HIGH_SEVERITY_COMPLAINT] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_SERVICE_CREDIT_ISSUANCE> true | <+APPROVE_SERVICE_CREDIT_ISSUANCE +signed_by(/users/finance_lead.id)> true)"
+            "always([+APPROVE_SERVICE_CREDIT_ISSUANCE -signed_by(/users/finance_lead.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_SERVICE_CREDIT_ISSUANCE> true | always([-UNAUTHORIZED_CUSTOMER_CONCESSION] true))"
@@ -13723,13 +13723,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Customer onboarding and data import controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_CUSTOMER_ONBOARDING> true | <+APPROVE_CUSTOMER_ONBOARDING +signed_by(/users/operations_lead.id)> true)"
+            "always([+APPROVE_CUSTOMER_ONBOARDING -signed_by(/users/operations_lead.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_CUSTOMER_ONBOARDING> true | always([-INCOMPLETE_IDENTITY_VERIFICATION] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_CUSTOMER_DATA_IMPORT> true | <+APPROVE_CUSTOMER_DATA_IMPORT +signed_by(/users/privacy_counsel.id)> true)"
+            "always([+APPROVE_CUSTOMER_DATA_IMPORT -signed_by(/users/privacy_counsel.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_CUSTOMER_DATA_IMPORT> true | always([-UNCONSENTED_PERSONAL_DATA_INGESTION] true))"
@@ -13741,13 +13741,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Trial account activation and customer data export controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_TRIAL_ACCOUNT_ACTIVATION> true | <+APPROVE_TRIAL_ACCOUNT_ACTIVATION +signed_by(/users/operations_lead.id)> true)"
+            "always([+APPROVE_TRIAL_ACCOUNT_ACTIVATION -signed_by(/users/operations_lead.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_TRIAL_ACCOUNT_ACTIVATION> true | always([-ABUSE_PRONE_SIGNUP] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_CUSTOMER_DATA_EXPORT> true | <+APPROVE_CUSTOMER_DATA_EXPORT +signed_by(/users/privacy_counsel.id)> true)"
+            "always([+APPROVE_CUSTOMER_DATA_EXPORT -signed_by(/users/privacy_counsel.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_CUSTOMER_DATA_EXPORT> true | always([-UNAUTHORIZED_ACCOUNT_DATA_DISCLOSURE] true))"
@@ -13759,13 +13759,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Customer account suspension and workspace deletion controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_CUSTOMER_ACCOUNT_SUSPENSION> true | <+APPROVE_CUSTOMER_ACCOUNT_SUSPENSION +signed_by(/users/operations_lead.id)> true)"
+            "always([+APPROVE_CUSTOMER_ACCOUNT_SUSPENSION -signed_by(/users/operations_lead.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_CUSTOMER_ACCOUNT_SUSPENSION> true | always([-UNSUPPORTED_SERVICE_CUTOFF] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_CUSTOMER_WORKSPACE_DELETION> true | <+APPROVE_CUSTOMER_WORKSPACE_DELETION +signed_by(/users/retention_counsel.id)> true)"
+            "always([+APPROVE_CUSTOMER_WORKSPACE_DELETION -signed_by(/users/retention_counsel.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_CUSTOMER_WORKSPACE_DELETION> true | always([-ACTIVE_RETENTION_DUTY] true))"
@@ -13777,13 +13777,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Billing plan change and entitlement provisioning controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_BILLING_PLAN_CHANGE> true | <+APPROVE_BILLING_PLAN_CHANGE +signed_by(/users/finance_lead.id)> true)"
+            "always([+APPROVE_BILLING_PLAN_CHANGE -signed_by(/users/finance_lead.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_BILLING_PLAN_CHANGE> true | always([-UNAUTHORIZED_RECURRING_CHARGE] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_CUSTOMER_ENTITLEMENT_PROVISIONING> true | <+APPROVE_CUSTOMER_ENTITLEMENT_PROVISIONING +signed_by(/users/operations_lead.id)> true)"
+            "always([+APPROVE_CUSTOMER_ENTITLEMENT_PROVISIONING -signed_by(/users/operations_lead.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_CUSTOMER_ENTITLEMENT_PROVISIONING> true | always([-UNCONTRACTED_FEATURE_ACCESS] true))"
@@ -13795,13 +13795,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Payment method update and dunning workflow controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_CUSTOMER_PAYMENT_METHOD_UPDATE> true | <+APPROVE_CUSTOMER_PAYMENT_METHOD_UPDATE +signed_by(/users/finance_lead.id)> true)"
+            "always([+APPROVE_CUSTOMER_PAYMENT_METHOD_UPDATE -signed_by(/users/finance_lead.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_CUSTOMER_PAYMENT_METHOD_UPDATE> true | always([-UNAUTHORIZED_PAYMENT_METHOD_CHANGE] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_DUNNING_WORKFLOW> true | <+APPROVE_DUNNING_WORKFLOW +signed_by(/users/operations_lead.id)> true)"
+            "always([+APPROVE_DUNNING_WORKFLOW -signed_by(/users/operations_lead.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_DUNNING_WORKFLOW> true | always([-NONCOMPLIANT_COLLECTION_NOTICE] true))"
@@ -13813,13 +13813,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Invoice dispute and account credit limit controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_CUSTOMER_INVOICE_DISPUTE> true | <+APPROVE_CUSTOMER_INVOICE_DISPUTE +signed_by(/users/finance_lead.id)> true)"
+            "always([+APPROVE_CUSTOMER_INVOICE_DISPUTE -signed_by(/users/finance_lead.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_CUSTOMER_INVOICE_DISPUTE> true | always([-UNSUPPORTED_BILLING_DISPUTE_CLOSURE] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_ACCOUNT_CREDIT_LIMIT> true | <+APPROVE_ACCOUNT_CREDIT_LIMIT +signed_by(/users/finance_lead.id)> true)"
+            "always([+APPROVE_ACCOUNT_CREDIT_LIMIT -signed_by(/users/finance_lead.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_ACCOUNT_CREDIT_LIMIT> true | always([-EXCESSIVE_RECEIVABLES_EXPOSURE] true))"
@@ -13831,13 +13831,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Customer write off and revenue recognition controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_CUSTOMER_BALANCE_WRITE_OFF> true | <+APPROVE_CUSTOMER_BALANCE_WRITE_OFF +signed_by(/users/finance_lead.id)> true)"
+            "always([+APPROVE_CUSTOMER_BALANCE_WRITE_OFF -signed_by(/users/finance_lead.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_CUSTOMER_BALANCE_WRITE_OFF> true | always([-UNAUTHORIZED_RECEIVABLE_FORGIVENESS] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_REVENUE_RECOGNITION_POLICY> true | <+APPROVE_REVENUE_RECOGNITION_POLICY +signed_by(/users/controller.id)> true)"
+            "always([+APPROVE_REVENUE_RECOGNITION_POLICY -signed_by(/users/controller.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_REVENUE_RECOGNITION_POLICY> true | always([-PREMATURE_REVENUE_BOOKING] true))"
@@ -13849,13 +13849,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Tax exemption and customer contract amendment controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_TAX_EXEMPTION_CERTIFICATE> true | <+APPROVE_TAX_EXEMPTION_CERTIFICATE +signed_by(/users/finance_lead.id)> true)"
+            "always([+APPROVE_TAX_EXEMPTION_CERTIFICATE -signed_by(/users/finance_lead.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_TAX_EXEMPTION_CERTIFICATE> true | always([-INVALID_TAX_EXEMPT_BILLING] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_CUSTOMER_CONTRACT_AMENDMENT> true | <+APPROVE_CUSTOMER_CONTRACT_AMENDMENT +signed_by(/users/corporate_counsel.id)> true)"
+            "always([+APPROVE_CUSTOMER_CONTRACT_AMENDMENT -signed_by(/users/corporate_counsel.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_CUSTOMER_CONTRACT_AMENDMENT> true | always([-UNAPPROVED_COMMERCIAL_TERM_CHANGE] true))"
@@ -13867,13 +13867,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Customer SLA exception and custom pricing controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_CUSTOMER_SLA_EXCEPTION> true | <+APPROVE_CUSTOMER_SLA_EXCEPTION +signed_by(/users/operations_lead.id)> true)"
+            "always([+APPROVE_CUSTOMER_SLA_EXCEPTION -signed_by(/users/operations_lead.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_CUSTOMER_SLA_EXCEPTION> true | always([-UNAUTHORIZED_SERVICE_LEVEL_DOWNGRADE] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_CUSTOM_PRICING_DISCOUNT> true | <+APPROVE_CUSTOM_PRICING_DISCOUNT +signed_by(/users/finance_lead.id)> true)"
+            "always([+APPROVE_CUSTOM_PRICING_DISCOUNT -signed_by(/users/finance_lead.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_CUSTOM_PRICING_DISCOUNT> true | always([-MARGIN_NEGATIVE_DEAL] true))"
@@ -13885,13 +13885,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Customer renewal and overage billing controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_CUSTOMER_CONTRACT_RENEWAL> true | <+APPROVE_CUSTOMER_CONTRACT_RENEWAL +signed_by(/users/corporate_counsel.id)> true)"
+            "always([+APPROVE_CUSTOMER_CONTRACT_RENEWAL -signed_by(/users/corporate_counsel.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_CUSTOMER_CONTRACT_RENEWAL> true | always([-LAPSED_SERVICE_OBLIGATION] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_USAGE_OVERAGE_BILLING> true | <+APPROVE_USAGE_OVERAGE_BILLING +signed_by(/users/finance_lead.id)> true)"
+            "always([+APPROVE_USAGE_OVERAGE_BILLING -signed_by(/users/finance_lead.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_USAGE_OVERAGE_BILLING> true | always([-UNAPPROVED_EXCESS_CHARGE] true))"
@@ -13903,13 +13903,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Customer success and professional services controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_CUSTOMER_SUCCESS_PLAN> true | <+APPROVE_CUSTOMER_SUCCESS_PLAN +signed_by(/users/operations_lead.id)> true)"
+            "always([+APPROVE_CUSTOMER_SUCCESS_PLAN -signed_by(/users/operations_lead.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_CUSTOMER_SUCCESS_PLAN> true | always([-UNSUPPORTED_ADOPTION_COMMITMENT] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_PROFESSIONAL_SERVICES_SOW> true | <+APPROVE_PROFESSIONAL_SERVICES_SOW +signed_by(/users/delivery_manager.id)> true)"
+            "always([+APPROVE_PROFESSIONAL_SERVICES_SOW -signed_by(/users/delivery_manager.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_PROFESSIONAL_SERVICES_SOW> true | always([-UNFUNDED_IMPLEMENTATION_OBLIGATION] true))"
@@ -13921,13 +13921,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Customer health score and implementation milestone controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_CUSTOMER_HEALTH_SCORE_DOWNGRADE> true | <+APPROVE_CUSTOMER_HEALTH_SCORE_DOWNGRADE +signed_by(/users/customer_success_manager.id)> true)"
+            "always([+APPROVE_CUSTOMER_HEALTH_SCORE_DOWNGRADE -signed_by(/users/customer_success_manager.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_CUSTOMER_HEALTH_SCORE_DOWNGRADE> true | always([-UNREVIEWED_CHURN_RISK_CLASSIFICATION] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_IMPLEMENTATION_MILESTONE_ACCEPTANCE> true | <+APPROVE_IMPLEMENTATION_MILESTONE_ACCEPTANCE +signed_by(/users/delivery_manager.id)> true)"
+            "always([+APPROVE_IMPLEMENTATION_MILESTONE_ACCEPTANCE -signed_by(/users/delivery_manager.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_IMPLEMENTATION_MILESTONE_ACCEPTANCE> true | always([-PREMATURE_SERVICES_BILLING] true))"
@@ -13940,13 +13940,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
             generate_prompt("Customer executive review and implementation change controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_CUSTOMER_EXECUTIVE_BUSINESS_REVIEW> true | <+APPROVE_CUSTOMER_EXECUTIVE_BUSINESS_REVIEW +signed_by(/users/customer_success_lead.id)> true)"
+            "always([+APPROVE_CUSTOMER_EXECUTIVE_BUSINESS_REVIEW -signed_by(/users/customer_success_lead.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_CUSTOMER_EXECUTIVE_BUSINESS_REVIEW> true | always([-UNAPPROVED_RENEWAL_COMMITMENT] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_IMPLEMENTATION_CHANGE_ORDER> true | <+APPROVE_IMPLEMENTATION_CHANGE_ORDER +signed_by(/users/delivery_manager.id)> true)"
+            "always([+APPROVE_IMPLEMENTATION_CHANGE_ORDER -signed_by(/users/delivery_manager.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_IMPLEMENTATION_CHANGE_ORDER> true | always([-UNPRICED_SERVICES_SCOPE_EXPANSION] true))"
@@ -13958,13 +13958,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Customer escalation and renewal forecast controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_CUSTOMER_ESCALATION_RESPONSE> true | <+APPROVE_CUSTOMER_ESCALATION_RESPONSE +signed_by(/users/support_lead.id)> true)"
+            "always([+APPROVE_CUSTOMER_ESCALATION_RESPONSE -signed_by(/users/support_lead.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_CUSTOMER_ESCALATION_RESPONSE> true | always([-UNMANAGED_EXECUTIVE_ESCALATION] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_RENEWAL_FORECAST_ADJUSTMENT> true | <+APPROVE_RENEWAL_FORECAST_ADJUSTMENT +signed_by(/users/revenue_operations_lead.id)> true)"
+            "always([+APPROVE_RENEWAL_FORECAST_ADJUSTMENT -signed_by(/users/revenue_operations_lead.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_RENEWAL_FORECAST_ADJUSTMENT> true | always([-UNREVIEWED_FORECAST_SLIPPAGE] true))"
@@ -13976,13 +13976,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Customer reference and case study publication controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_CUSTOMER_REFERENCE> true | <+APPROVE_CUSTOMER_REFERENCE +signed_by(/users/marketing_lead.id)> true)"
+            "always([+APPROVE_CUSTOMER_REFERENCE -signed_by(/users/marketing_lead.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_CUSTOMER_REFERENCE> true | always([-UNAUTHORIZED_PUBLIC_ENDORSEMENT] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_CASE_STUDY_PUBLICATION> true | <+APPROVE_CASE_STUDY_PUBLICATION +signed_by(/users/customer_success_lead.id)> true)"
+            "always([+APPROVE_CASE_STUDY_PUBLICATION -signed_by(/users/customer_success_lead.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_CASE_STUDY_PUBLICATION> true | always([-UNAPPROVED_CUSTOMER_DISCLOSURE] true))"
@@ -13994,13 +13994,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Beta customer and early access feature controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_BETA_CUSTOMER_PROGRAM> true | <+APPROVE_BETA_CUSTOMER_PROGRAM +signed_by(/users/product_lead.id)> true)"
+            "always([+APPROVE_BETA_CUSTOMER_PROGRAM -signed_by(/users/product_lead.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_BETA_CUSTOMER_PROGRAM> true | always([-UNSUPPORTED_PREVIEW_OBLIGATION] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_EARLY_ACCESS_FEATURE_ENABLEMENT> true | <+APPROVE_EARLY_ACCESS_FEATURE_ENABLEMENT +signed_by(/users/product_owner.id)> true)"
+            "always([+APPROVE_EARLY_ACCESS_FEATURE_ENABLEMENT -signed_by(/users/product_owner.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_EARLY_ACCESS_FEATURE_ENABLEMENT> true | always([-UNCONTRACTED_BETA_ENTITLEMENT] true))"
@@ -14012,13 +14012,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Product deprecation and customer migration controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_PRODUCT_DEPRECATION_NOTICE> true | <+APPROVE_PRODUCT_DEPRECATION_NOTICE +signed_by(/users/product_lead.id)> true)"
+            "always([+APPROVE_PRODUCT_DEPRECATION_NOTICE -signed_by(/users/product_lead.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_PRODUCT_DEPRECATION_NOTICE> true | always([-UNANNOUNCED_CUSTOMER_IMPACT] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_CUSTOMER_MIGRATION_PLAN> true | <+APPROVE_CUSTOMER_MIGRATION_PLAN +signed_by(/users/customer_success_lead.id)> true)"
+            "always([+APPROVE_CUSTOMER_MIGRATION_PLAN -signed_by(/users/customer_success_lead.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_CUSTOMER_MIGRATION_PLAN> true | always([-UNSUPPORTED_ACCOUNT_TRANSITION] true))"
@@ -14030,13 +14030,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Customer tenant consolidation and account transfer controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_CUSTOMER_TENANT_CONSOLIDATION> true | <+APPROVE_CUSTOMER_TENANT_CONSOLIDATION +signed_by(/users/operations_lead.id)> true)"
+            "always([+APPROVE_CUSTOMER_TENANT_CONSOLIDATION -signed_by(/users/operations_lead.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_CUSTOMER_TENANT_CONSOLIDATION> true | always([-DATA_COMINGLING_RISK] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_ACCOUNT_OWNERSHIP_TRANSFER> true | <+APPROVE_ACCOUNT_OWNERSHIP_TRANSFER +signed_by(/users/corporate_counsel.id)> true)"
+            "always([+APPROVE_ACCOUNT_OWNERSHIP_TRANSFER -signed_by(/users/corporate_counsel.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_ACCOUNT_OWNERSHIP_TRANSFER> true | always([-UNAUTHORIZED_ADMIN_TRANSFER] true))"
@@ -14049,13 +14049,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
             generate_prompt("Customer security questionnaire and compliance evidence controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_CUSTOMER_SECURITY_QUESTIONNAIRE> true | <+APPROVE_CUSTOMER_SECURITY_QUESTIONNAIRE +signed_by(/users/security_lead.id)> true)"
+            "always([+APPROVE_CUSTOMER_SECURITY_QUESTIONNAIRE -signed_by(/users/security_lead.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_CUSTOMER_SECURITY_QUESTIONNAIRE> true | always([-UNSUPPORTED_CONTROL_REPRESENTATION] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_CUSTOMER_COMPLIANCE_EVIDENCE_RELEASE> true | <+APPROVE_CUSTOMER_COMPLIANCE_EVIDENCE_RELEASE +signed_by(/users/compliance_officer.id)> true)"
+            "always([+APPROVE_CUSTOMER_COMPLIANCE_EVIDENCE_RELEASE -signed_by(/users/compliance_officer.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_CUSTOMER_COMPLIANCE_EVIDENCE_RELEASE> true | always([-CONFIDENTIAL_AUDIT_DISCLOSURE] true))"
@@ -14068,13 +14068,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
             generate_prompt("Penetration test report and customer security exception controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_PENETRATION_TEST_REPORT_RELEASE> true | <+APPROVE_PENETRATION_TEST_REPORT_RELEASE +signed_by(/users/security_lead.id)> true)"
+            "always([+APPROVE_PENETRATION_TEST_REPORT_RELEASE -signed_by(/users/security_lead.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_PENETRATION_TEST_REPORT_RELEASE> true | always([-UNRESOLVED_CRITICAL_FINDING_DISCLOSURE] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_CUSTOMER_SECURITY_EXCEPTION> true | <+APPROVE_CUSTOMER_SECURITY_EXCEPTION +signed_by(/users/risk_owner.id)> true)"
+            "always([+APPROVE_CUSTOMER_SECURITY_EXCEPTION -signed_by(/users/risk_owner.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_CUSTOMER_SECURITY_EXCEPTION> true | always([-UNTRACKED_COMPENSATING_CONTROL_GAP] true))"
@@ -14087,13 +14087,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
             generate_prompt("Customer data processing addendum and subprocessor notice controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_CUSTOMER_DATA_PROCESSING_ADDENDUM> true | <+APPROVE_CUSTOMER_DATA_PROCESSING_ADDENDUM +signed_by(/users/privacy_counsel.id)> true)"
+            "always([+APPROVE_CUSTOMER_DATA_PROCESSING_ADDENDUM -signed_by(/users/privacy_counsel.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_CUSTOMER_DATA_PROCESSING_ADDENDUM> true | always([-UNSUPPORTED_PROCESSING_OBLIGATION] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_CUSTOMER_SUBPROCESSOR_NOTICE> true | <+APPROVE_CUSTOMER_SUBPROCESSOR_NOTICE +signed_by(/users/vendor_risk_owner.id)> true)"
+            "always([+APPROVE_CUSTOMER_SUBPROCESSOR_NOTICE -signed_by(/users/vendor_risk_owner.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_CUSTOMER_SUBPROCESSOR_NOTICE> true | always([-UNAPPROVED_PROCESSOR_DISCLOSURE] true))"
@@ -14105,13 +14105,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Customer audit right and data residency controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_CUSTOMER_AUDIT_RIGHT> true | <+APPROVE_CUSTOMER_AUDIT_RIGHT +signed_by(/users/compliance_officer.id)> true)"
+            "always([+APPROVE_CUSTOMER_AUDIT_RIGHT -signed_by(/users/compliance_officer.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_CUSTOMER_AUDIT_RIGHT> true | always([-UNSUPPORTED_AUDIT_SCOPE] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_CUSTOMER_DATA_RESIDENCY_COMMITMENT> true | <+APPROVE_CUSTOMER_DATA_RESIDENCY_COMMITMENT +signed_by(/users/privacy_counsel.id)> true)"
+            "always([+APPROVE_CUSTOMER_DATA_RESIDENCY_COMMITMENT -signed_by(/users/privacy_counsel.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_CUSTOMER_DATA_RESIDENCY_COMMITMENT> true | always([-UNLAWFUL_REGION_COMMITMENT] true))"
@@ -14123,13 +14123,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Customer maintenance notice and uptime report controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_CUSTOMER_MAINTENANCE_NOTICE> true | <+APPROVE_CUSTOMER_MAINTENANCE_NOTICE +signed_by(/users/operations_lead.id)> true)"
+            "always([+APPROVE_CUSTOMER_MAINTENANCE_NOTICE -signed_by(/users/operations_lead.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_CUSTOMER_MAINTENANCE_NOTICE> true | always([-UNANNOUNCED_SERVICE_INTERRUPTION] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_CUSTOMER_UPTIME_REPORT> true | <+APPROVE_CUSTOMER_UPTIME_REPORT +signed_by(/users/reliability_lead.id)> true)"
+            "always([+APPROVE_CUSTOMER_UPTIME_REPORT -signed_by(/users/reliability_lead.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_CUSTOMER_UPTIME_REPORT> true | always([-INACCURATE_SLA_REPORTING] true))"
@@ -14143,13 +14143,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         );
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_CUSTOMER_INCIDENT_ROOT_CAUSE_REPORT> true | <+APPROVE_CUSTOMER_INCIDENT_ROOT_CAUSE_REPORT +signed_by(/users/reliability_lead.id)> true)"
+            "always([+APPROVE_CUSTOMER_INCIDENT_ROOT_CAUSE_REPORT -signed_by(/users/reliability_lead.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_CUSTOMER_INCIDENT_ROOT_CAUSE_REPORT> true | always([-INCOMPLETE_CORRECTIVE_ACTION_DISCLOSURE] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_CUSTOMER_SERVICE_RESTORATION_CONFIRMATION> true | <+APPROVE_CUSTOMER_SERVICE_RESTORATION_CONFIRMATION +signed_by(/users/operations_lead.id)> true)"
+            "always([+APPROVE_CUSTOMER_SERVICE_RESTORATION_CONFIRMATION -signed_by(/users/operations_lead.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_CUSTOMER_SERVICE_RESTORATION_CONFIRMATION> true | always([-PREMATURE_ALL_CLEAR_NOTICE] true))"
@@ -14163,13 +14163,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         );
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_CUSTOMER_INCIDENT_COMMUNICATION> true | <+APPROVE_CUSTOMER_INCIDENT_COMMUNICATION +signed_by(/users/communications_lead.id)> true)"
+            "always([+APPROVE_CUSTOMER_INCIDENT_COMMUNICATION -signed_by(/users/communications_lead.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_CUSTOMER_INCIDENT_COMMUNICATION> true | always([-INCONSISTENT_CUSTOMER_MESSAGING] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_CUSTOMER_REMEDIATION_MILESTONE_CLOSURE> true | <+APPROVE_CUSTOMER_REMEDIATION_MILESTONE_CLOSURE +signed_by(/users/reliability_lead.id)> true)"
+            "always([+APPROVE_CUSTOMER_REMEDIATION_MILESTONE_CLOSURE -signed_by(/users/reliability_lead.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_CUSTOMER_REMEDIATION_MILESTONE_CLOSURE> true | always([-UNRESOLVED_CUSTOMER_IMPACTING_FOLLOW_UP] true))"
@@ -14182,13 +14182,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
             generate_prompt("Customer incident service credit and follow-up extension controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_CUSTOMER_INCIDENT_SERVICE_CREDIT> true | <+APPROVE_CUSTOMER_INCIDENT_SERVICE_CREDIT +signed_by(/users/finance_lead.id)> true)"
+            "always([+APPROVE_CUSTOMER_INCIDENT_SERVICE_CREDIT -signed_by(/users/finance_lead.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_CUSTOMER_INCIDENT_SERVICE_CREDIT> true | always([-UNSUPPORTED_SLA_CREDIT_COMMITMENT] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_CUSTOMER_INCIDENT_FOLLOW_UP_EXTENSION> true | <+APPROVE_CUSTOMER_INCIDENT_FOLLOW_UP_EXTENSION +signed_by(/users/customer_success_lead.id)> true)"
+            "always([+APPROVE_CUSTOMER_INCIDENT_FOLLOW_UP_EXTENSION -signed_by(/users/customer_success_lead.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_CUSTOMER_INCIDENT_FOLLOW_UP_EXTENSION> true | always([-OPEN_RELIABILITY_RISK_EXTENSION] true))"
@@ -14200,13 +14200,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Customer trust center and regulatory disclosure controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_CUSTOMER_TRUST_CENTER_UPDATE> true | <+APPROVE_CUSTOMER_TRUST_CENTER_UPDATE +signed_by(/users/compliance_officer.id)> true)"
+            "always([+APPROVE_CUSTOMER_TRUST_CENTER_UPDATE -signed_by(/users/compliance_officer.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_CUSTOMER_TRUST_CENTER_UPDATE> true | always([-STALE_ASSURANCE_CLAIM] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_CUSTOMER_REGULATORY_DISCLOSURE> true | <+APPROVE_CUSTOMER_REGULATORY_DISCLOSURE +signed_by(/users/corporate_counsel.id)> true)"
+            "always([+APPROVE_CUSTOMER_REGULATORY_DISCLOSURE -signed_by(/users/corporate_counsel.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_CUSTOMER_REGULATORY_DISCLOSURE> true | always([-INCONSISTENT_REGULATOR_NOTICE] true))"
@@ -14218,13 +14218,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Customer litigation hold and eDiscovery export controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_CUSTOMER_LITIGATION_HOLD> true | <+APPROVE_CUSTOMER_LITIGATION_HOLD +signed_by(/users/corporate_counsel.id)> true)"
+            "always([+APPROVE_CUSTOMER_LITIGATION_HOLD -signed_by(/users/corporate_counsel.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_CUSTOMER_LITIGATION_HOLD> true | always([-PREMATURE_EVIDENCE_DELETION] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_CUSTOMER_EDISCOVERY_EXPORT> true | <+APPROVE_CUSTOMER_EDISCOVERY_EXPORT +signed_by(/users/legal_operations_lead.id)> true)"
+            "always([+APPROVE_CUSTOMER_EDISCOVERY_EXPORT -signed_by(/users/legal_operations_lead.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_CUSTOMER_EDISCOVERY_EXPORT> true | always([-OVERBROAD_EVIDENCE_DISCLOSURE] true))"
@@ -14236,13 +14236,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Customer audit remediation and access review controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_CUSTOMER_AUDIT_REMEDIATION_PLAN> true | <+APPROVE_CUSTOMER_AUDIT_REMEDIATION_PLAN +signed_by(/users/compliance_officer.id)> true)"
+            "always([+APPROVE_CUSTOMER_AUDIT_REMEDIATION_PLAN -signed_by(/users/compliance_officer.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_CUSTOMER_AUDIT_REMEDIATION_PLAN> true | always([-UNTRACKED_CUSTOMER_AUDIT_FINDING] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_CUSTOMER_ACCESS_REVIEW_EXCEPTION> true | <+APPROVE_CUSTOMER_ACCESS_REVIEW_EXCEPTION +signed_by(/users/security_lead.id)> true)"
+            "always([+APPROVE_CUSTOMER_ACCESS_REVIEW_EXCEPTION -signed_by(/users/security_lead.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_CUSTOMER_ACCESS_REVIEW_EXCEPTION> true | always([-LINGERING_UNAUTHORIZED_ACCOUNT_ACCESS] true))"
@@ -14254,13 +14254,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Customer key rotation and backup retention controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_CUSTOMER_KEY_ROTATION_EXCEPTION> true | <+APPROVE_CUSTOMER_KEY_ROTATION_EXCEPTION +signed_by(/users/security_lead.id)> true)"
+            "always([+APPROVE_CUSTOMER_KEY_ROTATION_EXCEPTION -signed_by(/users/security_lead.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_CUSTOMER_KEY_ROTATION_EXCEPTION> true | always([-STALE_CUSTOMER_ENCRYPTION_KEY] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_CUSTOMER_BACKUP_RETENTION_EXCEPTION> true | <+APPROVE_CUSTOMER_BACKUP_RETENTION_EXCEPTION +signed_by(/users/retention_counsel.id)> true)"
+            "always([+APPROVE_CUSTOMER_BACKUP_RETENTION_EXCEPTION -signed_by(/users/retention_counsel.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_CUSTOMER_BACKUP_RETENTION_EXCEPTION> true | always([-RECOVERABILITY_GAP] true))"
@@ -14272,13 +14272,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Customer support access and data correction controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_CUSTOMER_PRODUCTION_SUPPORT_ACCESS> true | <+APPROVE_CUSTOMER_PRODUCTION_SUPPORT_ACCESS +signed_by(/users/support_lead.id)> true)"
+            "always([+APPROVE_CUSTOMER_PRODUCTION_SUPPORT_ACCESS -signed_by(/users/support_lead.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_CUSTOMER_PRODUCTION_SUPPORT_ACCESS> true | always([-UNAUTHORIZED_CUSTOMER_ENVIRONMENT_ACCESS] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_CUSTOMER_DATA_CORRECTION> true | <+APPROVE_CUSTOMER_DATA_CORRECTION +signed_by(/users/privacy_counsel.id)> true)"
+            "always([+APPROVE_CUSTOMER_DATA_CORRECTION -signed_by(/users/privacy_counsel.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_CUSTOMER_DATA_CORRECTION> true | always([-UNREVIEWED_CUSTOMER_RECORD_MUTATION] true))"
@@ -14290,13 +14290,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Customer SSO configuration and SCIM deprovisioning controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_CUSTOMER_SSO_CONFIGURATION> true | <+APPROVE_CUSTOMER_SSO_CONFIGURATION +signed_by(/users/security_lead.id)> true)"
+            "always([+APPROVE_CUSTOMER_SSO_CONFIGURATION -signed_by(/users/security_lead.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_CUSTOMER_SSO_CONFIGURATION> true | always([-MISCONFIGURED_CUSTOMER_AUTHENTICATION] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_CUSTOMER_SCIM_DEPROVISIONING_EXCEPTION> true | <+APPROVE_CUSTOMER_SCIM_DEPROVISIONING_EXCEPTION +signed_by(/users/identity_governance_lead.id)> true)"
+            "always([+APPROVE_CUSTOMER_SCIM_DEPROVISIONING_EXCEPTION -signed_by(/users/identity_governance_lead.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_CUSTOMER_SCIM_DEPROVISIONING_EXCEPTION> true | always([-ORPHANED_CUSTOMER_ACCOUNT_ACCESS] true))"
@@ -14308,13 +14308,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Customer breach notification and rights response controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_CUSTOMER_BREACH_NOTIFICATION> true | <+APPROVE_CUSTOMER_BREACH_NOTIFICATION +signed_by(/users/privacy_incident_lead.id)> true)"
+            "always([+APPROVE_CUSTOMER_BREACH_NOTIFICATION -signed_by(/users/privacy_incident_lead.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_CUSTOMER_BREACH_NOTIFICATION> true | always([-DELAYED_CUSTOMER_BREACH_DISCLOSURE] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_CUSTOMER_DATA_SUBJECT_ACCESS_RESPONSE> true | <+APPROVE_CUSTOMER_DATA_SUBJECT_ACCESS_RESPONSE +signed_by(/users/privacy_operations_lead.id)> true)"
+            "always([+APPROVE_CUSTOMER_DATA_SUBJECT_ACCESS_RESPONSE -signed_by(/users/privacy_operations_lead.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_CUSTOMER_DATA_SUBJECT_ACCESS_RESPONSE> true | always([-INCOMPLETE_CUSTOMER_RIGHTS_RESPONSE] true))"
@@ -14327,13 +14327,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
             generate_prompt("Customer tenant offboarding and contract termination controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_CUSTOMER_TENANT_OFFBOARDING> true | <+APPROVE_CUSTOMER_TENANT_OFFBOARDING +signed_by(/users/customer_success_lead.id)> true)"
+            "always([+APPROVE_CUSTOMER_TENANT_OFFBOARDING -signed_by(/users/customer_success_lead.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_CUSTOMER_TENANT_OFFBOARDING> true | always([-INCOMPLETE_CUSTOMER_DATA_RETURN] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_CUSTOMER_CONTRACT_TERMINATION> true | <+APPROVE_CUSTOMER_CONTRACT_TERMINATION +signed_by(/users/corporate_counsel.id)> true)"
+            "always([+APPROVE_CUSTOMER_CONTRACT_TERMINATION -signed_by(/users/corporate_counsel.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_CUSTOMER_CONTRACT_TERMINATION> true | always([-UNAPPROVED_SERVICE_DISCONTINUATION] true))"
@@ -14345,13 +14345,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Customer data purge and account reactivation controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_CUSTOMER_DATA_PURGE> true | <+APPROVE_CUSTOMER_DATA_PURGE +signed_by(/users/privacy_operations_lead.id)> true)"
+            "always([+APPROVE_CUSTOMER_DATA_PURGE -signed_by(/users/privacy_operations_lead.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_CUSTOMER_DATA_PURGE> true | always([-RETAINED_DELETED_CUSTOMER_DATA] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_CUSTOMER_ACCOUNT_REACTIVATION> true | <+APPROVE_CUSTOMER_ACCOUNT_REACTIVATION +signed_by(/users/support_lead.id)> true)"
+            "always([+APPROVE_CUSTOMER_ACCOUNT_REACTIVATION -signed_by(/users/support_lead.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_CUSTOMER_ACCOUNT_REACTIVATION> true | always([-UNAUTHORIZED_SERVICE_RESTORATION] true))"
@@ -14363,13 +14363,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Customer sandbox refresh and instance archival controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_CUSTOMER_SANDBOX_REFRESH> true | <+APPROVE_CUSTOMER_SANDBOX_REFRESH +signed_by(/users/privacy_operations_lead.id)> true)"
+            "always([+APPROVE_CUSTOMER_SANDBOX_REFRESH -signed_by(/users/privacy_operations_lead.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_CUSTOMER_SANDBOX_REFRESH> true | always([-PRODUCTION_DATA_LEAKAGE] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_CUSTOMER_INSTANCE_ARCHIVAL> true | <+APPROVE_CUSTOMER_INSTANCE_ARCHIVAL +signed_by(/users/retention_counsel.id)> true)"
+            "always([+APPROVE_CUSTOMER_INSTANCE_ARCHIVAL -signed_by(/users/retention_counsel.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_CUSTOMER_INSTANCE_ARCHIVAL> true | always([-PREMATURE_ACCOUNT_ARCHIVE] true))"
@@ -14382,13 +14382,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
             generate_prompt("Customer data retention exception and anonymization waiver controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_CUSTOMER_DATA_RETENTION_EXCEPTION> true | <+APPROVE_CUSTOMER_DATA_RETENTION_EXCEPTION +signed_by(/users/retention_counsel.id)> true)"
+            "always([+APPROVE_CUSTOMER_DATA_RETENTION_EXCEPTION -signed_by(/users/retention_counsel.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_CUSTOMER_DATA_RETENTION_EXCEPTION> true | always([-UNBOUNDED_CUSTOMER_RECORD_RETENTION] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_CUSTOMER_ANONYMIZATION_WAIVER> true | <+APPROVE_CUSTOMER_ANONYMIZATION_WAIVER +signed_by(/users/privacy_counsel.id)> true)"
+            "always([+APPROVE_CUSTOMER_ANONYMIZATION_WAIVER -signed_by(/users/privacy_counsel.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_CUSTOMER_ANONYMIZATION_WAIVER> true | always([-IDENTIFIABLE_ANALYTICS_REUSE] true))"
@@ -14400,13 +14400,13 @@ F1: **always(!<+PAY> true | eventually(<+WORK> true))**
         let prompt = generate_prompt("Customer data warehouse and analytics training controls");
 
         assert!(prompt.contains(
-            "always(!<+APPROVE_CUSTOMER_DATA_WAREHOUSE_SYNC> true | <+APPROVE_CUSTOMER_DATA_WAREHOUSE_SYNC +signed_by(/users/data_governance_lead.id)> true)"
+            "always([+APPROVE_CUSTOMER_DATA_WAREHOUSE_SYNC -signed_by(/users/data_governance_lead.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_CUSTOMER_DATA_WAREHOUSE_SYNC> true | always([-UNSCOPED_CUSTOMER_DATA_REPLICATION] true))"
         ));
         assert!(prompt.contains(
-            "always(!<+APPROVE_CUSTOMER_ANALYTICS_TRAINING> true | <+APPROVE_CUSTOMER_ANALYTICS_TRAINING +signed_by(/users/privacy_counsel.id)> true)"
+            "always([+APPROVE_CUSTOMER_ANALYTICS_TRAINING -signed_by(/users/privacy_counsel.id)] false)"
         ));
         assert!(prompt.contains(
             "always(!<+APPROVE_CUSTOMER_ANALYTICS_TRAINING> true | always([-UNAUTHORIZED_CUSTOMER_BEHAVIOR_MODELING] true))"

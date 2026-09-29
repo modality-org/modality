@@ -53,13 +53,13 @@ For a rule such as:
 ```modality
 rule post_requires_reviewer {
   formula {
-    always(!+POST | <+signed_by(/users/reviewer.id)> true)
+    always([+POST -signed_by(/users/reviewer.id)] false)
   }
 }
 ```
 
 the bundle should include the rule source, extracted facts such as `+POST` and
-`+signed_by(/users/reviewer.id)`, a Review Checklist with `Verifier result:
+`-signed_by(/users/reviewer.id)`, a Review Checklist with `Verifier result:
 passed`, `Source facts preserved: yes`, `Malformed source facts flagged: 1`,
 `Path-write source facts flagged: 1`, `Source facts preserved count: 2`,
 `External assumptions preserved: yes`, and

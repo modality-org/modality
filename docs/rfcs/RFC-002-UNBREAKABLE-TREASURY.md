@@ -97,15 +97,15 @@ model treasury {
 }
 
 rule owner_only_transfers {
-  formula { always (!<+modifies(/transfer)> true | <+modifies(/transfer) +signed_by(/owner.id)> true) }
+  formula { always([+modifies(/transfer) -signed_by(/owner.id)] false) }
 }
 
 rule balance_protected {
-  formula { always (-modifies(/balance) | +signed_by(/owner.id)) }
+  formula { always([+modifies(/balance) -signed_by(/owner.id)] false) }
 }
 
 rule rules_frozen {
-  formula { always (-adds_rule) }
+  formula { always([+RULE] false) }
 }
 ```
 

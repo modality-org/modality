@@ -11,7 +11,7 @@ soundness theorem is about. So `live ls = true` is a proof, by
 computation, that some commit can take the edge (`Sound.live_sound`).
 
 When the construction fails the checker says neither `dead` nor `live`:
-the edge is `unknown`, which never refuses anything. An `unknown` on a
+the edge is `unknown`, which never kills it (a diamond does not count it). An `unknown` on a
 label set with no opaque atom marks a place where `dead` or the
 construction could be more complete; the harness fails on any it finds.
 

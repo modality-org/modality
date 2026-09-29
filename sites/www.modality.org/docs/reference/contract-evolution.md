@@ -12,9 +12,9 @@ The useful mental model is:
 
 - `POST` commits change contract state.
 - `RULE` commits add accumulated constraints.
-- `MODEL` commits replace the witness model only when the old accepted model
-  allows a `+MODEL` transition and the candidate model can still replay the
-  accepted history.
+- `MODEL` commits replace the witness model. The commit is judged by the
+  candidate model it posts, which must replay the accepted history and meet
+  every accumulated rule. The old model is not consulted.
 
 Rules are the authority. Models are witnesses that show the accumulated rules
 remain satisfiable and provide the transition predicates used to accept or
@@ -49,23 +49,26 @@ commit:
 export default rule {
   starting_at $PARENT
   formula {
-    [] always([-signed_by(/parties/alice.id) -signed_by(/parties/bob.id)] false)
+    always([-signed_by(/parties/alice.id) -signed_by(/parties/bob.id)] false)
   }
 }
 ```
 
 This does not remove the old model. It adds a permanent constraint over future
-witness models: after the rule's parent point, every reachable successor must
-include either Alice's or Bob's signature. The `+RULE` transition above is what
+witness models: every commit after the one that adds it must include either
+Alice's or Bob's signature. The `+RULE` transition above is what
 allows this separate rule commit; without it, the old model would reject the
 rule addition before the accumulated rule set can grow.
 
-A later `MODEL` commit is accepted only if both checks pass:
+A later `MODEL` commit is judged by the candidate model it posts, not by the
+old one. It is accepted only if:
 
-- The old accepted model has a matching `+MODEL` transition from the current
-  witness state, including Alice's signature.
-- The candidate model satisfies the accumulated rule and can replay the
-  accepted history.
+- the candidate model can replay the accepted history, and the commit takes
+  one of its edges from the state that history reaches;
+- the candidate model satisfies every accumulated rule.
+
+So the rules, not the model, are what protect the contract. Anyone may post a
+candidate model; only the rules decide which candidates pass.
 
 This replacement is acceptable because every steady-state successor remains
 signed:
@@ -96,8 +99,8 @@ export default model {
 }
 ```
 
-The important point is that replacement is not mutation. It is a new commit
-checked by the old model and by every accumulated rule.
+The important point is that replacement is not mutation. It is a new commit,
+judged by the candidate model and by every accumulated rule.
 
 ## Protected Party Changes
 
@@ -115,45 +118,74 @@ export default model {
 
 The first transition admits non-membership updates with one member signature.
 The second transition admits membership edits only when all accepted
-`/members/*.id` identities sign. The third transition makes witness replacement
-use the same membership authority.
+`/members/*.id` identities sign. The third transition asks the same authority
+for witness replacement, but a model cannot protect itself: a replacement is
+judged by the model it posts, so a candidate without that transition is judged
+without it. To make replacement need every member, add a rule:
+
+```modality
+export default rule {
+  starting_at $PARENT
+  formula {
+    always([+MODEL -all_signed(/members)] false)
+  }
+}
+```
 
 The contract evolution CLI smoke runs this pattern end to end: Alice alone can
 append an ordinary note, Alice can add Bob while she is the only accepted member,
-Bob can then append an ordinary note, Alice alone cannot replace the witness model after Bob is accepted, Alice and Bob together can replace the witness model with repeated `--sign` flags, and Alice alone cannot add `/members/carol.id` after Bob is accepted. Both one-signer rejected commits report `missing +all_signed(/members)`.
+Bob can then append an ordinary note, Alice alone cannot post a replacement that keeps the all-members `+MODEL` transition after Bob is accepted, Alice and Bob together can replace the witness model with repeated `--sign` flags, and Alice alone cannot add `/members/carol.id` after Bob is accepted. Both one-signer rejected commits report `missing +all_signed(/members)`.
 The smoke checks both JSON and human-readable status/log output, so the visible
 CLI view still shows `Model state: active`, the accepted evolution messages, and
 the signer IDs after replacement.
 
 ## Bounded Terms
 
-Terms that should expire need explicit language support. The first runnable
-contract CLI smoke now covers a small `active until expired` pattern:
+Terms that should expire need explicit language support. A rule may not name a
+model node such as `active` or `expired`: node names are the model author's
+choice and bind no commit, so posted rules that use them are refused. State the
+term with labels. The contract CLI smoke covers a small bounded term:
 
 ```modality
 export default rule {
   starting_at $PARENT
   formula {
-    active until expired
+    always([-signed_by(/parties/alice.id) -bool_true(/terms/delivery_complete.bool)] false)
   }
 }
 ```
 
-In that smoke, the current model keeps signed ordinary updates in the `active`
-state, moves to `expired` only after previously accepted
-`/terms/delivery_complete.bool` evidence satisfies
-`+bool_true(/terms/delivery_complete.bool)`, and then allows unsigned ordinary
-updates in `expired`. The run proves the bounded term by appending the bounded
-rule, rejecting the guarded move before completion evidence, accepting the same
-move after completion evidence, and ending replay in the `expired` witness
-state.
+Until accepted state has `/terms/delivery_complete.bool` set to true, every
+commit needs Alice's signature; after that, anyone may post. In that smoke, the
+current model keeps signed ordinary updates in the `active` state, moves to
+`expired` only after previously accepted `/terms/delivery_complete.bool`
+evidence satisfies `+bool_true(/terms/delivery_complete.bool)`, and then allows
+unsigned ordinary updates in `expired`, each carrying the same label. The run
+proves the bounded term by appending the bounded rule,
+rejecting the guarded move before completion evidence, accepting the same move
+after completion evidence, and ending replay in the `expired` witness state.
 
-The same smoke also appends an older `eventually(expired)` rule first, then
-rejects a later witness replacement that removes the expiry state. That keeps
-the evolution lesson honest: bounded terms can make a commitment expire, but
-unrelated older rules still accumulate and continue constraining replacement
-models. A parser-only `until(...)` example is useful language evidence, but it
-is not contract evolution evidence by itself.
+The same smoke also appends an older rule first, that completion stays
+possible:
+
+```modality
+export default rule {
+  starting_at $PARENT
+  formula {
+    eventually(<+bool_true(/terms/delivery_complete.bool)> true)
+  }
+}
+```
+
+It then rejects a later witness replacement whose every move carries
+`-bool_true(/terms/delivery_complete.bool)`, so completion can never happen.
+That keeps the evolution lesson honest: bounded terms can make a commitment
+expire, but unrelated older rules still accumulate and continue constraining
+replacement models. `eventually` promises a path, not a commit: under predicate
+theory `v0` a replacement that simply drops the completion edge, without
+forbidding the label, still passes; `v2` refuses it. A parser-only `until(...)`
+example is useful language evidence, but it is not contract
+evolution evidence by itself.
 The smoke also checks the human-readable bounded-term status/log view, including
 `Model state: expired`, so the CLI surface a developer reads matches the replay
 state proven by JSON.

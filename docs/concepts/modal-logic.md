@@ -33,8 +33,11 @@ This is the key operator for expressing commitments.
 | Operator | Meaning | Definition |
 |----------|---------|------------|
 | `always(φ)` | φ holds now and forever | `gfp(X, φ & []X)` |
-| `eventually(φ)` | φ holds now or sometime later | `lfp(X, φ \| <>X)` |
-| `until(p, q)` | p holds until q becomes true | `lfp(X, q \| (p & <>X))` |
+| `eventually(φ)` | φ holds now, or some path of moves reaches φ | `lfp(X, φ \| <>X)` |
+| `until(p, q)` | some path keeps p true until it reaches q | `lfp(X, q \| (p & <>X))` |
+
+`eventually` and `until` promise that φ can be reached, not that it will be.
+No rule can make a commit happen.
 
 ## Fixed Points
 
@@ -74,8 +77,8 @@ bool_true(/status/delivered.bool)
 // Check text value
 text_eq(/status.text, "delivered")
 
-// Authorization based on state plus signature evidence
-!<+RELEASE> true | <+RELEASE +signed_by(/parties/buyer.id)> true
+// Every RELEASE commit needs the buyer's signature
+always([+RELEASE -signed_by(/parties/buyer.id)] false)
 
 // Committed to sign (diamondbox with predicate)
 [<+signed_by(/parties/seller.id)>] true

@@ -331,7 +331,8 @@ pub async fn run(opts: &Opts) -> Result<()> {
             return Err(parsed_input.no_valid_formulas_error());
         }
 
-        let bounded = synthesize_bounded(&parsed_input.formulas, opts, "Contract");
+        let anchored = after_first_commit(&parsed_input.formulas);
+        let bounded = synthesize_after_first_commit(&parsed_input.formulas, opts, "Contract");
         match bounded.model {
             Some(model) => {
                 let output = format_synthesized_model(&model, &opts.format)?;
@@ -339,7 +340,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
                 if opts.verify {
                     if let Err(err) = verify_synthesized_model_with_labels(
                         &model,
-                        &parsed_input.formulas,
+                        &anchored,
                         &parsed_input.labels,
                     ) {
                         write_rule_failed_review_bundle_if_requested(
@@ -1407,6 +1408,80 @@ struct BoundedSynthesis {
     model: Option<modality_lang::Model>,
     last_candidate: Option<modality_lang::Model>,
     unsat_reason: Option<String>,
+}
+
+/// A rule file's rules as governance checks them when they are committed
+/// with the model: from the nodes the first commit reaches, so each must
+/// hold after every edge out of the initial node. The first commit itself
+/// is free, and a rule needs no `[]` to leave it so.
+fn after_first_commit(formulas: &[modality_lang::FormulaExpr]) -> Vec<modality_lang::FormulaExpr> {
+    formulas
+        .iter()
+        .map(|formula| modality_lang::FormulaExpr::Box(Vec::new(), Box::new(formula.clone())))
+        .collect()
+}
+
+/// A witness for a rule file: one synthesized for the rules as written, behind
+/// an unlabeled bootstrap edge. `[] φ` holds at the new initial node exactly
+/// when `φ` holds at the old one, its only successor.
+fn synthesize_after_first_commit(
+    formulas: &[modality_lang::FormulaExpr],
+    opts: &Opts,
+    name: &str,
+) -> BoundedSynthesis {
+    let bounded = synthesize_bounded(formulas, opts, name);
+    BoundedSynthesis {
+        model: bounded.model.map(with_bootstrap_edge),
+        last_candidate: bounded.last_candidate.map(with_bootstrap_edge),
+        unsat_reason: bounded.unsat_reason,
+    }
+}
+
+/// Prepend a fresh initial node with one unlabeled edge into the model's
+/// start node. Nodes named `q0`, `q1`, … shift up by one so the bootstrap is
+/// `q0 --> q1`.
+fn with_bootstrap_edge(mut model: modality_lang::Model) -> modality_lang::Model {
+    let start = modality_lang::model_checker::start_nodes(&model)
+        .into_iter()
+        .next();
+    let mut nodes: Vec<&mut String> = Vec::new();
+    for transition in model
+        .transitions
+        .iter_mut()
+        .chain(model.parts.iter_mut().flat_map(|p| p.transitions.iter_mut()))
+    {
+        nodes.push(&mut transition.from);
+        nodes.push(&mut transition.to);
+    }
+    let numbered = |n: &str| n.strip_prefix('q').and_then(|d| d.parse::<u64>().ok());
+    let shift = nodes.iter().all(|n| numbered(n).is_some());
+    let taken: HashSet<String> = nodes.iter().map(|n| n.to_string()).collect();
+    let (boot, start) = if shift {
+        for node in nodes {
+            *node = format!("q{}", numbered(node).unwrap() + 1);
+        }
+        let start = start.and_then(|s| numbered(&s)).map_or(1, |n| n + 1);
+        ("q0".to_string(), format!("q{start}"))
+    } else {
+        let boot = (0..)
+            .map(|i| if i == 0 { "bootstrap".to_string() } else { format!("bootstrap{i}") })
+            .find(|n| !taken.contains(n))
+            .unwrap();
+        (boot, start.unwrap_or_else(|| "q1".to_string()))
+    };
+    let edge = modality_lang::Transition {
+        from: boot.clone(),
+        to: start,
+        properties: Vec::new(),
+    };
+    if model.initial.is_some() {
+        model.initial = Some(boot);
+    }
+    match model.parts.first_mut() {
+        Some(part) if model.transitions.is_empty() => part.transitions.insert(0, edge),
+        _ => model.transitions.insert(0, edge),
+    }
+    model
 }
 
 fn synthesize_bounded(
@@ -2834,6 +2909,23 @@ fn write_output_file(output: &str, output_path: &PathBuf) -> Result<()> {
 mod tests {
     use super::*;
 
+    #[test]
+    fn a_rule_file_witness_leaves_the_first_commit_free() {
+        let opts = Opts::try_parse_from(["synthesize"]).unwrap();
+        let rule = parse_formula_inputs(&["export default rule {\n  starting_at $PARENT\n  formula {\n    always([-signed_by(/parties/alice.id) -signed_by(/parties/bob.id)] false)\n  }\n}\n".to_string()]);
+        rule.ensure_all_parsed().unwrap();
+        let anchored = after_first_commit(&rule.formulas);
+        let model = synthesize_after_first_commit(&rule.formulas, &opts, "Contract")
+            .model
+            .expect("a witness");
+        let printed = modality_lang::print_model(&model);
+        assert!(
+            printed.lines().any(|line| line.trim() == "q0 --> q1"),
+            "the first commit needs an unlabeled edge: {printed}"
+        );
+        verify_synthesized_model_with_labels(&model, &anchored, &rule.labels).unwrap();
+    }
+
     fn default_test_opts() -> Opts {
         Opts {
             template: None,
@@ -3049,7 +3141,7 @@ rule authorized {
             r#"
 rule post_requires_reviewer {
   formula {
-    always(!<+POST> true | <+POST +signed_by(/users/reviewer.id)> true)
+    always([+POST -signed_by(/users/reviewer.id)] false)
   }
 }
 "#,
@@ -3081,7 +3173,7 @@ rule post_requires_reviewer {
             .contains("Every accepted post move must have reviewer signature evidence attached."));
         assert!(bundle.contains("post_requires_reviewer"));
         assert!(bundle.contains("`+POST`"));
-        assert!(bundle.contains("`+signed_by(/users/reviewer.id)`"));
+        assert!(bundle.contains("`-signed_by(/users/reviewer.id)`"));
         assert!(bundle.contains("## Source Facts"));
         assert!(bundle.contains("Line 2 [path-write template]: `+sets(/posts/{post_id}/body)`"));
         assert!(bundle.contains(

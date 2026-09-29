@@ -73,7 +73,7 @@ modal repost source-contract-id /source/path /local/path
 
 # Add a rule to the current contract
 modal add-rule --name authorized \
-  '[] always([-signed_by(/parties/alice.id) -signed_by(/parties/bob.id)] false)'
+  'always([-signed_by(/parties/alice.id) -signed_by(/parties/bob.id)] false)'
 
 # Configure an AI provider, then suggest a rule formula
 modal ai set --provider openai

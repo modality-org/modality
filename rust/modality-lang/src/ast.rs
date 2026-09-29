@@ -147,6 +147,44 @@ pub enum FormulaExpr {
 }
 
 impl FormulaExpr {
+    /// Propositions not bound by an enclosing `lfp` / `gfp`, in order of
+    /// first use. Each names a model node.
+    pub fn free_propositions(&self) -> Vec<String> {
+        fn walk(e: &FormulaExpr, bound: &mut Vec<String>, out: &mut Vec<String>) {
+            match e {
+                FormulaExpr::Prop(n) | FormulaExpr::Var(n) => {
+                    if !bound.contains(n) && !out.contains(n) {
+                        out.push(n.clone());
+                    }
+                }
+                FormulaExpr::Lfp(v, body) | FormulaExpr::Gfp(v, body) => {
+                    bound.push(v.clone());
+                    walk(body, bound, out);
+                    bound.pop();
+                }
+                FormulaExpr::True | FormulaExpr::False => {}
+                FormulaExpr::And(a, b)
+                | FormulaExpr::Or(a, b)
+                | FormulaExpr::Implies(a, b)
+                | FormulaExpr::Until(a, b) => {
+                    walk(a, bound, out);
+                    walk(b, bound, out);
+                }
+                FormulaExpr::Not(a)
+                | FormulaExpr::Paren(a)
+                | FormulaExpr::Diamond(_, a)
+                | FormulaExpr::Box(_, a)
+                | FormulaExpr::DiamondBox(_, a)
+                | FormulaExpr::Eventually(a)
+                | FormulaExpr::Always(a)
+                | FormulaExpr::Next(a) => walk(a, bound, out),
+            }
+        }
+        let mut out = Vec::new();
+        walk(self, &mut Vec::new(), &mut out);
+        out
+    }
+
     /// Desugar `must P` into `[<+P>] true`
     /// For disjunctions: `must (P | Q)` → `[<+P>] true | [<+Q>] true`
     pub fn desugar_must(inner: FormulaExpr) -> FormulaExpr {

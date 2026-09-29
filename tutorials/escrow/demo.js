@@ -177,12 +177,12 @@ const escrowModel = {
 };
 
 const escrowRules = [
-  'always(!<+DEPOSIT> true | <+DEPOSIT +signed_by(/parties/buyer.id)> true)',
-  'always(!<+DELIVER> true | <+DELIVER +signed_by(/parties/seller.id)> true)',
-  'always(!<+RELEASE> true | <+RELEASE +signed_by(/parties/buyer.id)> true)',
-  'always(!<+DISPUTE> true | <+DISPUTE +signed_by(/parties/buyer.id)> true)',
-  'always(!<+RESOLVE_RELEASE> true | <+RESOLVE_RELEASE +signed_by(/parties/arbiter.id)> true)',
-  'always(!<+RESOLVE_REFUND> true | <+RESOLVE_REFUND +signed_by(/parties/arbiter.id)> true)',
+  'always([+DEPOSIT -signed_by(/parties/buyer.id)] false)',
+  'always([+DELIVER -signed_by(/parties/seller.id)] false)',
+  'always([+RELEASE -signed_by(/parties/buyer.id)] false)',
+  'always([+DISPUTE -signed_by(/parties/buyer.id)] false)',
+  'always([+RESOLVE_RELEASE -signed_by(/parties/arbiter.id)] false)',
+  'always([+RESOLVE_REFUND -signed_by(/parties/arbiter.id)] false)',
 ];
 
 // ─── Demo ─────────────────────────────────────────────────

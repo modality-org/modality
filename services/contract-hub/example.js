@@ -54,7 +54,7 @@ async function main() {
       data: {
         type: 'RULE',
         path: '/rules/auth.modality',
-        content: 'always(!<+claim> true | <+claim +signed_by(/users/alice.id)> true)'
+        content: 'always([+claim -signed_by(/users/alice.id)] false)'
       },
       parent: 'commit_001'
     }

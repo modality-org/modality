@@ -32,7 +32,7 @@ required_patterns=(
   "line numbers and assumption-boundary labels"
   "Prompt-to-facts trace: not automatic"
   "Did \`--verify\` accept the witness model?"
-  "always(!+POST | <+signed_by(/users/reviewer.id)> true)"
+  "always([+POST -signed_by(/users/reviewer.id)] false)"
   "Review Checklist with \`Verifier result:"
   "Source facts preserved: yes"
   "Source facts preserved count: 2"

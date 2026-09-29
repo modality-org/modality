@@ -407,6 +407,7 @@ fn test_repost_path_all_valid_extensions() {
     let extensions = vec![
         ".bool",
         ".text",
+        ".num",
         ".date",
         ".datetime",
         ".json",
@@ -421,6 +422,8 @@ fn test_repost_path_all_valid_extensions() {
         let dest = format!("/reposts/abc123/data/file{ext}");
         let value = if ext == ".bool" {
             json!(true)
+        } else if ext == ".num" {
+            json!(5)
         } else if ext == ".id" {
             json!("12D3KooWAbCdEfGhIjKlMnOpQrStUvWxYzAAAAAAAAA")
         } else if ext == ".date" {
@@ -495,4 +498,16 @@ fn test_working_tree_roundtrip_repost() {
         Some(json!("hello world"))
     );
     assert_eq!(store.list_repost_files().unwrap(), vec![dest.to_string()]);
+}
+
+#[test]
+fn test_post_num_path_requires_a_number() {
+    let post = |value| {
+        let mut commit = CommitFile::new();
+        commit.add_action("post".to_string(), Some("/escrow/paid.num".to_string()), value);
+        commit.validate()
+    };
+    assert!(post(json!(100)).is_ok());
+    assert!(post(json!(0.5)).is_ok());
+    assert!(post(json!("100")).is_err());
 }

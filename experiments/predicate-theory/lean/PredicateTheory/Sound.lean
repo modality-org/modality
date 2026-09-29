@@ -1010,6 +1010,51 @@ theorem live_not_dead (h : live ls = true) : dead ls = false := by
   · rfl
   · exact absurd (live_sound (I := I₀) h) (dead_sound hd)
 
+/-! ## External predicates -/
+
+/-- The commit decides the opaque atoms `ext` names: from any world, and
+for any choice of their values, some world keeps every other atom and
+makes that choice. A validator's `oracle_attests` is one: the commit
+carries the attestation or leaves it out. This is an assumption about the
+evaluator, not a fact of the fragment; the Rust registry names the
+predicates it is made for (`Registry::external`). -/
+def FreeFor (I : Interp) (ext : String → Bool) : Prop :=
+  ∀ (w : World) (f : String → List String → Bool), ∃ w' : World,
+    (∀ a : Atom, a.isOpaque = false → a.sem I w' = a.sem I w) ∧
+    ∀ n args, ext n = true → I n args w' = f n args
+
+/-- **External atoms are free.** Every opaque literal external, none with
+both signs, and the rest live: a commit takes the edge. (Rust:
+`Theory::free` and `consistent_lits`.) -/
+theorem external_live_sound (ext : String → Bool) (hI : FreeFor I ext)
+    (hext : ∀ l ∈ ls, l.atom.isOpaque = true →
+      ∃ n args, l.atom = .opaque n args ∧ ext n = true)
+    (hclash : ∀ l ∈ ls, ∀ l' ∈ ls, l.atom = l'.atom → l.pos = l'.pos)
+    (hlive : live (ls.filter fun l => !l.atom.isOpaque) = true) :
+    Sat I ls := by
+  obtain ⟨w, hw⟩ := live_sound (I := I) hlive
+  obtain ⟨w', hkeep, hset⟩ :=
+    hI w (fun n args => decide ((⟨true, .opaque n args⟩ : Lit) ∈ ls))
+  refine ⟨w', fun l hl => ?_⟩
+  cases ho : l.atom.isOpaque
+  · have hlf : l ∈ ls.filter fun l => !l.atom.isOpaque := by
+      simp [List.mem_filter, hl, ho]
+    have h := hw l hlf
+    obtain ⟨lp, la⟩ := l
+    simp only [Lit.sem] at h ⊢
+    rw [hkeep la ho]
+    exact h
+  · obtain ⟨n, args, ha, hn⟩ := hext l hl ho
+    obtain ⟨lp, la⟩ := l
+    simp only at ha
+    subst ha
+    simp only [Lit.sem, Atom.sem, hset n args hn]
+    cases lp
+    · simp only [Bool.false_eq_true, ↓reduceIte, Bool.not_eq_true', decide_eq_false_iff_not]
+      intro hmem
+      exact absurd (hclash _ hl _ hmem rfl) (by simp)
+    · simp [hl]
+
 /-- **Countermodels are real.** If `premises ∧ ¬goal` is live, the
 premises do not entail the goal. -/
 theorem not_entails_of_live {premises : List Lit} {goal : Lit}

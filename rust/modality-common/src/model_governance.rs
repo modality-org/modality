@@ -131,7 +131,8 @@ impl TheoryActivation {
         }
     }
 
-    fn at(&self, commit_index: usize) -> TheoryVersion {
+    /// The version the commit at `commit_index` is judged under.
+    pub fn at(&self, commit_index: usize) -> TheoryVersion {
         if commit_index >= self.from_commit {
             self.version
         } else {
@@ -169,15 +170,16 @@ pub fn validate_pending_commit_with_theory(
     let model_index = governing_model_index(accepted, pending);
     let (current_states, state, _anchored_rules) =
         replay_commits_to_current_state_with(&model, model_index, accepted, activation)?;
+    let theory = activation.at(accepted.len());
     let facts = CommitFacts::from_pending_commit_at(
         pending,
         &state,
         pending_commit_id,
         expected_contract_id,
         evaluation_timestamp,
-    );
+    )
+    .under(theory);
 
-    let theory = activation.at(accepted.len());
     let mut after = state.clone();
     apply_commit_to_state(pending, &mut after);
     if pending_model_content(pending).is_some() {
@@ -264,7 +266,7 @@ fn check_pending_rules(
     }
     let next_states = next_states_for_commit(model, current_states, facts)
         .unwrap_or_else(|| current_states.clone());
-    for rule in anchored_rules_from_commit(pending, commit_index, &next_states)? {
+    for rule in anchored_rules_from_commit(pending, commit_index, &next_states, true)? {
         validate_anchored_rule(model, &rule, theory, after)?;
     }
     Ok(())
@@ -717,7 +719,7 @@ fn replay_commits_to_current_state_with(
             continue;
         }
 
-        let facts = CommitFacts::from_commit(commit, &state);
+        let facts = CommitFacts::from_commit(commit, &state).under(activation.at(commit_index));
         let next_states =
             next_states_for_commit(model, &current_states, &facts).ok_or_else(|| {
                 anyhow::anyhow!(
@@ -726,7 +728,7 @@ fn replay_commits_to_current_state_with(
                 )
             })?;
 
-        let new_rules = anchored_rules_from_commit(commit, commit_index, &next_states)?;
+        let new_rules = anchored_rules_from_commit(commit, commit_index, &next_states, false)?;
         current_states = next_states;
         apply_commit_to_state(commit, &mut state);
         let theory = activation.at(commit_index.max(model_index));
@@ -795,10 +797,13 @@ fn apply_commit_to_state(commit: &CommitFile, state: &mut HashMap<String, Value>
     }
 }
 
+/// `posting`: the commit is pending. A rule posted now may not name model
+/// nodes; one already in the log is read as it was accepted.
 fn anchored_rules_from_commit(
     commit: &CommitFile,
     commit_index: usize,
     current_states: &HashSet<String>,
+    posting: bool,
 ) -> Result<Vec<AnchoredRule>> {
     let mut rules = Vec::new();
 
@@ -819,6 +824,13 @@ fn anchored_rules_from_commit(
                 n => format!("local_rule_{}", n + 1),
             };
             let (formula, formula_source) = parse_rule_formula(&name, &f.body)?;
+            let named = formula.expression.free_propositions();
+            if posting && !named.is_empty() {
+                anyhow::bail!(
+                    "Invalid rule at {path}: `{}` names a model node; node names are the model author's choice and bind no commit. Use labels such as `<+POST> true` or a fixed-point variable bound by `lfp`/`gfp`",
+                    named.join("`, `")
+                );
+            }
             rules.push(AnchoredRule {
                 formula,
                 formula_source,
@@ -865,6 +877,25 @@ fn validate_anchored_rule(
                     theory,
                     anchor,
                     format_dead_edges(&never)
+                ));
+            }
+            let undecided = checker.undecided_for(&rule.formula);
+            if !undecided.is_empty() {
+                theory_note.push_str(&format!(
+                    "; predicate theory {:?} cannot show that a commit takes these transitions with the diamond's labels, so the diamond does not count them: {}",
+                    theory,
+                    undecided
+                        .iter()
+                        .map(|(e, labels)| format!(
+                            "{}: {} --> {} [{}] with <{}>",
+                            e.part_name,
+                            e.from,
+                            e.to,
+                            format_properties(&e.properties),
+                            format_properties(labels)
+                        ))
+                        .collect::<Vec<_>>()
+                        .join("; ")
                 ));
             }
             anyhow::bail!(
@@ -1724,38 +1755,7 @@ fn sorted_initial_states(model: &Model) -> Vec<String> {
 }
 
 fn initial_states(model: &Model) -> HashSet<String> {
-    let mut initial = HashSet::new();
-
-    if let Some(state) = &model.initial {
-        initial.insert(state.clone());
-        return initial;
-    }
-
-    for part in &model.parts {
-        let to_nodes: HashSet<_> = part
-            .transitions
-            .iter()
-            .map(|transition| &transition.to)
-            .collect();
-        if let Some(transition) = part
-            .transitions
-            .iter()
-            .find(|transition| !to_nodes.contains(&transition.from))
-            .or_else(|| part.transitions.first())
-        {
-            initial.insert(transition.from.clone());
-        }
-    }
-
-    if initial.is_empty() {
-        if let Some(transition) = model.transitions.first() {
-            initial.insert(transition.from.clone());
-        } else {
-            initial.insert("init".to_string());
-        }
-    }
-
-    initial
+    modality_lang::start_nodes(model).into_iter().collect()
 }
 
 /// An edge's labels as they read in a model: `+POST +signed_by(/a.id)`.
@@ -1802,8 +1802,13 @@ struct CommitFacts {
     signers: HashSet<String>,
     modified_paths: Vec<String>,
     post_paths: Vec<String>,
+    /// `(path, value)` of every `POST`, in commit order.
+    posts: Vec<(String, Value)>,
     state: HashMap<String, Value>,
     replay_bundles: HashMap<String, ReplayBundleStatus>,
+    /// From `V1`, a predicate whose arguments do not fit its standard
+    /// signature never holds. `V0` evaluates it as before.
+    theory: TheoryVersion,
 }
 
 #[derive(Debug)]
@@ -1848,8 +1853,7 @@ struct CanonicalOracleAttestation<'a> {
 
 /// The predicates [`CommitFacts::predicate_holds`] evaluates. Every other
 /// predicate (`after`, `before`, `timestamp_valid`, `hash_matches`,
-/// `sets`/`post_to`, `+wasm(...)`, an unknown name) never holds on this
-/// validator.
+/// `+wasm(...)`, an unknown name) never holds on this validator.
 pub(crate) const EVALUATED_PREDICATES: &[&str] = &[
     "signed_by",
     "any_signed",
@@ -1857,6 +1861,7 @@ pub(crate) const EVALUATED_PREDICATES: &[&str] = &[
     "threshold",
     "modifies",
     "post_to_path",
+    "post_to",
     "has_property",
     "state_exists",
     "text_eq",
@@ -1915,6 +1920,15 @@ impl CommitFacts {
                 .filter_map(|action| action.path.as_deref())
                 .map(normalize_path)
                 .collect(),
+            posts: commit
+                .body
+                .iter()
+                .filter(|action| action.method.eq_ignore_ascii_case("post"))
+                .filter_map(|action| {
+                    let path = action.path.as_deref()?;
+                    Some((normalize_path(path), action.value.clone()))
+                })
+                .collect(),
             state: state.clone(),
             replay_bundles: replay_bundle_statuses(
                 commit,
@@ -1922,7 +1936,13 @@ impl CommitFacts {
                 expected_contract_id,
                 evaluation_timestamp,
             ),
+            theory: TheoryVersion::V0,
         }
+    }
+
+    fn under(mut self, theory: TheoryVersion) -> Self {
+        self.theory = theory;
+        self
     }
 
     /// Every name must be in [`EVALUATED_PREDICATES`]; any other name is
@@ -1932,7 +1952,15 @@ impl CommitFacts {
             return self.methods.contains(&property.name);
         }
 
+        use modality_lang::theory::Registry as _;
         let args = predicate_args(property);
+        if self.theory != TheoryVersion::V0
+            && modality_lang::theory::standard()
+                .declaration(&property.name)
+                .is_some_and(|d| !d.accepts(&args))
+        {
+            return false;
+        }
         match property.name.as_str() {
             "signed_by" => args
                 .first()
@@ -1971,6 +1999,10 @@ impl CommitFacts {
                 .first()
                 .map(|path| self.posts_to_path(path))
                 .unwrap_or(false),
+            "post_to" => match (args.first(), args.get(1)) {
+                (Some(path), Some(value)) => self.sets_value(path, value),
+                _ => false,
+            },
             "has_property" => match (args.first(), args.get(1)) {
                 (Some(path), Some(property_path)) => self.has_state_property(path, property_path),
                 _ => false,
@@ -2244,6 +2276,15 @@ impl CommitFacts {
         self.post_paths
             .iter()
             .any(|path| path_or_descendant(path, &prefix))
+    }
+
+    /// `sets(path, value)`: the commit posts to exactly `path`, and every post
+    /// there writes `value`, so `path` holds `value` after the commit.
+    fn sets_value(&self, path: &str, value: &str) -> bool {
+        let path = normalize_path(path);
+        let mut writes = self.posts.iter().filter(|(p, _)| *p == path).peekable();
+        writes.peek().is_some()
+            && writes.all(|(_, v)| predicate_arg_text(v).as_deref() == Some(value))
     }
 
     fn has_state_property(&self, path: &str, property_path: &str) -> bool {
@@ -2914,6 +2955,10 @@ fn external_predicate_evidence_boundary(name: &str) -> Option<&'static str> {
 #[cfg(test)]
 #[path = "model_governance_theory_tests.rs"]
 mod theory_tests;
+
+#[cfg(test)]
+#[path = "model_governance_brute_tests.rs"]
+mod brute_tests;
 
 #[cfg(test)]
 mod tests {

@@ -12,12 +12,16 @@ Reply with **one formula**: the inner contents of a rule `formula { ... }`
 block, suitable as the argument to `modal add-rule`. No markdown, no `F1:`
 labels, no explanation.
 
-## Skip-current vs from-now
+## Where a rule starts
 
-- `[] φ` constrains **successors** of the current state. Use it when the
+A rule is checked from the state the commit that adds it reaches. The
+commit that adds the rule is never constrained by it.
+
+- `always(φ)` constrains **every commit after this one**. Use it when the
   request says "after this commit", "from the next commit", or "later commits".
-- Plain `always(φ)` also constrains the **current** step. Do not use it for
-  "after this commit".
+- Do not prefix it with `[]`. `[] always(φ)` also leaves the **next** commit
+  free, and any stranger may use that commit to replace the model and the
+  keys the rule names.
 
 ## Do not invent actions
 
@@ -36,11 +40,11 @@ typical first contract that is `/parties/alice.id` and `/parties/bob.id`.
 
 | Requirement | Formula |
 |-------------|---------|
-| After this commit either Alice or Bob must sign | `[] always([-signed_by(/parties/alice.id) -signed_by(/parties/bob.id)] false)` |
-| After this commit Alice must sign | `[] always([-signed_by(/parties/alice.id)] false)` |
-| After this commit either Alice or Bob must sign in alternating turns | `[] always(([-signed_by(/parties/alice.id) -signed_by(/parties/bob.id)] false) & ([+signed_by(/parties/alice.id)] [-signed_by(/parties/bob.id)] false) & ([+signed_by(/parties/bob.id)] [-signed_by(/parties/alice.id)] false))` |
-| Named action `X` requires Alice's signature | `always(!<+X> true \| <+X +signed_by(/parties/alice.id)> true)` |
-| After this commit nothing under a claimant's slot changes without that claimant's key (any number of claimants) | `[] always([+modifies(/claimants/$k) -signed_by(/claimants/$k.id)] false)` |
+| After this commit either Alice or Bob must sign | `always([-signed_by(/parties/alice.id) -signed_by(/parties/bob.id)] false)` |
+| After this commit Alice must sign | `always([-signed_by(/parties/alice.id)] false)` |
+| After this commit either Alice or Bob must sign in alternating turns | `always(([-signed_by(/parties/alice.id) -signed_by(/parties/bob.id)] false) & ([+signed_by(/parties/alice.id)] [-signed_by(/parties/bob.id)] false) & ([+signed_by(/parties/bob.id)] [-signed_by(/parties/alice.id)] false))` |
+| Named action `X` requires Alice's signature | `always([+X -signed_by(/parties/alice.id)] false)` |
+| After this commit nothing under a claimant's slot changes without that claimant's key (any number of claimants) | `always([+modifies(/claimants/$k) -signed_by(/claimants/$k.id)] false)` |
 
 Use the named-action row **only** when the user named an action. The
 alternating-turns row still requires a signer on every later step, then forbids
@@ -52,10 +56,10 @@ the same party twice in a row.
 always(!<+SIGN> true | (<+SIGN +signed_by(/parties/alice.id)> true | <+SIGN +signed_by(/parties/bob.id)> true))
 ```
 
-That invents `+SIGN`, does not skip the bootstrap commit, and should not be
-used unless the contract actually has a `+SIGN` transition. When a named
-action is real, bind required signature evidence to the same transition label
-with explicit Boolean form.
+That invents `+SIGN`, and should not be used unless the contract actually has
+a `+SIGN` transition. It is also too weak: it holds when a `+SIGN` move with a
+signature exists beside one without. When a named action is real, forbid the
+move without the evidence: `always([+SIGN -signed_by(/parties/alice.id)] false)`.
 
 Do not put a hole (`!$k`) in a rule. In a rule, `$k` already means every
 name. Holes are for model edges (see

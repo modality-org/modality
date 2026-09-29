@@ -23,7 +23,6 @@ required_patterns=(
   '`only_ca_issues_certificate`'
   '`finalize_requires_ready`'
   '`finalize_requires_authorization`'
-  '`finalize_requires_order`'
   '`issuance_requires_finalize`'
   'RFC section 7.1.4 source clause'
   'RFC section 7.1.5 source clause'

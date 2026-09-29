@@ -363,6 +363,12 @@ pub fn expand_and_validate_prefix(
     invoke_engine: Option<&mut dyn InvokeEngine>,
     theory: crate::model_governance::TheoryActivation,
 ) -> Result<(Vec<CommitFile>, usize)> {
+    for (index, (id, file)) in prefix.iter().enumerate() {
+        if theory.at(index) != modality_lang::TheoryVersion::V0 {
+            crate::commit_signatures::verify_commit_signatures(contract_id, file)
+                .map_err(|err| anyhow::anyhow!("commit {id}: {err}"))?;
+        }
+    }
     let (expanded, invokes_expanded) = expand_prefix(contract_id, prefix, wasm, invoke_engine)?;
     let mut accepted = Vec::new();
     for (index, pending) in expanded.iter().enumerate() {
@@ -1013,5 +1019,59 @@ model FirstContract {
         unknown.predicate_theory = "v9".to_string();
         let report = verify_replay_artifact(&unknown, None).unwrap();
         assert!(report.errors[0].contains("unknown predicate theory version"));
+    }
+
+    #[cfg(feature = "model-governance")]
+    #[test]
+    fn replay_under_v2_verifies_every_signature() {
+        let model = r#"
+model FirstContract {
+  initial q0
+  q0 --> q1: +POST
+  q1 --> q1: +POST +signed_by(/parties/alice.id)
+}
+"#;
+        let alice = crate::keypair::Keypair::generate().unwrap();
+        let alice_id = alice.public_key_as_base58_identity();
+        let genesis = file(
+            None,
+            vec![
+                post("/parties/alice.id", &alice_id),
+                CommitAction {
+                    method: "model".to_string(),
+                    path: Some("/model/default.modality".to_string()),
+                    value: Value::String(model.to_string()),
+                    source_contract: None,
+                    source_path: None,
+                    source_commit: None,
+                },
+            ],
+        );
+        let replay = |signature: &str, theory: &str| {
+            let mut commit = file(Some("g"), vec![post("/notes/ok.text", "yes")]);
+            commit.head.signatures = Some(serde_json::json!({ alice_id.clone(): signature }));
+            let mut artifact = artifact_from_prefix(
+                "c1",
+                "ok",
+                &[("g".into(), genesis.clone()), ("ok".into(), commit)],
+            )
+            .unwrap();
+            artifact.predicate_theory = theory.to_string();
+            verify_replay_artifact(&artifact, None).unwrap()
+        };
+
+        assert!(replay("sig", "v0").ok, "v0 reads only the keys");
+        let report = replay("sig", "v2");
+        assert!(!report.ok);
+        assert!(
+            report.errors.iter().any(|err| err.contains("does not verify")),
+            "{:?}",
+            report.errors
+        );
+
+        let unsigned = file(Some("g"), vec![post("/notes/ok.text", "yes")]);
+        let (_, real) = crate::commit_signatures::sign_commit(&alice, "c1", &unsigned).unwrap();
+        let report = replay(&real, "v2");
+        assert!(report.ok, "{:?}", report.errors);
     }
 }

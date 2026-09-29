@@ -159,29 +159,26 @@ mod tests {
     }
 
     #[test]
-    fn boolean_authorization_witness_keeps_action_and_signature_together() {
-        let formula =
-            parse_formula("always(!<+POST> true | <+POST +signed_by(/users/reviewer.id)> true)");
+    fn authorization_box_witness_carries_the_signature() {
+        let formula = parse_formula("always([+POST -signed_by(/users/reviewer.id)] false)");
         let model = match synthesize(&[formula.clone()], SynthesisOptions::default()) {
             SynthesisResult::Witness(model) => model,
             SynthesisResult::Unsat { reason, .. } => panic!("expected witness: {reason}"),
         };
         assert!(formulas_satisfied(&model, &[formula]));
-        let printed = modality_lang::print_model(&model);
         assert!(
-            printed.contains("+POST +signed_by(/users/reviewer.id)"),
-            "review witness should expose same-transition reviewer authorization: {printed}"
+            has_signed_by(&model, "/users/reviewer.id"),
+            "every move of the witness should carry the reviewer's signature: {}",
+            modality_lang::print_model(&model)
         );
     }
 
     #[test]
-    fn boolean_authorization_guards_prefer_grounded_witness() {
+    fn authorization_boxes_that_ask_for_different_evidence_find_a_witness() {
         let formulas = [
+            parse_formula("always([+ACME_FINALIZE_ORDER -signed_by(/users/account_holder.id)] false)"),
             parse_formula(
-                "always(!<+ACME_FINALIZE_ORDER> true | <+ACME_FINALIZE_ORDER +signed_by(/users/account_holder.id)> true)",
-            ),
-            parse_formula(
-                "always(!<+ACME_ISSUE_CERTIFICATE> true | <+ACME_ISSUE_CERTIFICATE +signed_by(/users/certificate_authority.id)> true)",
+                "always([+ACME_ISSUE_CERTIFICATE -signed_by(/users/certificate_authority.id)] false)",
             ),
         ];
         let model = match synthesize(&formulas, SynthesisOptions::default()) {
@@ -191,12 +188,9 @@ mod tests {
         assert!(formulas_satisfied(&model, &formulas));
         let printed = modality_lang::print_model(&model);
         assert!(
-            printed.contains("+ACME_FINALIZE_ORDER +signed_by(/users/account_holder.id)"),
-            "review witness should expose account-holder authorization: {printed}"
-        );
-        assert!(
-            printed.contains("+ACME_ISSUE_CERTIFICATE +signed_by(/users/certificate_authority.id)"),
-            "review witness should expose CA authorization: {printed}"
+            has_signed_by(&model, "/users/account_holder.id")
+                && has_signed_by(&model, "/users/certificate_authority.id"),
+            "witness should carry both signatures: {printed}"
         );
     }
 

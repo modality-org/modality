@@ -918,4 +918,117 @@ model Contract {
         );
         assert!(!holds(&checker(&loose), rule));
     }
+
+    /// Issue 11: grounding over the mentioned names plus one fresh name per
+    /// variable is exact only if a name the labels do not mention behaves
+    /// like any other. For random models with variables and holes, and
+    /// rules with a variable, mentioning three more names (in a conjunct
+    /// that is `true`) never changes the verdict: more names for
+    /// variables, and more segments to fill holes with.
+    /// `MODALITY_GROUNDING_ROUNDS` runs more rounds (3,000 take minutes).
+    #[test]
+    fn more_names_never_change_a_verdict() {
+        const EDGE: &[&str] = &[
+            "+POST",
+            "+modifies(/c/$k)",
+            "-modifies(/c/!$k)",
+            "-modifies(/c)",
+            "+modifies(/c/alice)",
+            "-modifies(/c/alice)",
+            "+bool_true(/c/$k.bool)",
+            "-bool_true(/c/$k.bool)",
+            "+bool_true(/c/alice.bool)",
+            "-bool_true(/c/alice.bool)",
+            "+signed_by(/c/$k.id)",
+            "-signed_by(/c/!$k.id)",
+            "+signed_by(/c/$m.id)",
+            "+modifies(/c/$m)",
+            "+post_to_path(/c/$k/claimed.bool)",
+            "-state_exists(/c/$k.bool)",
+        ];
+        const LABEL: &[&str] = &[
+            "+POST",
+            "+modifies(/c/$j)",
+            "-modifies(/c/$j)",
+            "+signed_by(/c/$j.id)",
+            "-signed_by(/c/$j.id)",
+            "+bool_true(/c/$j.bool)",
+            "-bool_true(/c/$j.bool)",
+            "+modifies(/c/alice)",
+            "+post_to_path(/c/$j/claimed.bool)",
+        ];
+        let mut x: u64 = 0x11_6A0D_D1CE;
+        let mut next = move || {
+            x ^= x << 13;
+            x ^= x >> 7;
+            x ^= x << 17;
+            x
+        };
+        let pick = |pool: &[&'static str], next: &mut dyn FnMut() -> u64| {
+            pool[(next() % pool.len() as u64) as usize]
+        };
+        let rounds: u32 = std::env::var("MODALITY_GROUNDING_ROUNDS")
+            .ok()
+            .and_then(|r| r.parse().ok())
+            .unwrap_or(150);
+        let (mut held, mut failed) = (0, 0);
+        for round in 0..rounds {
+            let mut edges = String::new();
+            for _ in 0..2 + next() % 3 {
+                let from = next() % 2;
+                let to = next() % 2;
+                let labels: Vec<&str> = (0..1 + next() % 3).map(|_| pick(EDGE, &mut next)).collect();
+                edges.push_str(&format!("    q{from} --> q{to}: {}\n", labels.join(" ")));
+            }
+            let model = format!("model M {{\n  part p {{\n{edges}  }}\n}}");
+            let label = |next: &mut dyn FnMut() -> u64| {
+                (0..1 + next() % 2)
+                    .map(|_| LABEL[(next() % LABEL.len() as u64) as usize])
+                    .collect::<Vec<_>>()
+                    .join(" ")
+            };
+            let (a, b) = (label(&mut next), label(&mut next));
+            let rule = match next() % 7 {
+                0 => format!("[{a}] false"),
+                1 => format!("<{a}> true"),
+                2 => format!("[{a}] <{b}> true"),
+                3 => format!("always([{a}] false)"),
+                4 => format!("always(<{a}> true)"),
+                5 => format!("[{a}] [{b}] false"),
+                _ => format!("eventually(<{a}> true)"),
+            };
+            let Ok(mut models) = crate::parse_all_models_content_lalrpop(&model) else {
+                continue;
+            };
+            let m = models.remove(0);
+            if check_model(&m).is_err() {
+                continue;
+            }
+            let formula = |text: &str| {
+                crate::parse_all_formulas_content_lalrpop(&format!("formula r {{ {text} }}"))
+                    .unwrap()
+                    .remove(0)
+            };
+            let plain = formula(&rule);
+            let wider = formula(&format!("({rule}) & (<+modifies(/x1/x2/x3)> true | true)"));
+            for version in [crate::TheoryVersion::V1, crate::TheoryVersion::V2] {
+                let c = crate::ModelChecker::with_theory(m.clone(), version, None, None);
+                let verdict = c.check_formula(&plain).is_satisfied;
+                assert_eq!(
+                    verdict,
+                    c.check_formula(&wider).is_satisfied,
+                    "round {round} {version:?}: more names change the verdict of {rule} on\n{model}"
+                );
+                if verdict {
+                    held += 1;
+                } else {
+                    failed += 1;
+                }
+            }
+        }
+        assert!(
+            held > rounds / 6 && failed > rounds / 6,
+            "held {held}, failed {failed}"
+        );
+    }
 }

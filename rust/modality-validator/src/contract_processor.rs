@@ -302,6 +302,9 @@ impl ContractProcessor {
             .await?;
             (chain, crate::sequenced_rules::network_theory(&ds)?)
         };
+        if theory.at(accepted_raw.len()) != modality_lang::TheoryVersion::V0 {
+            modality_common::commit_signatures::verify_commit_signatures(contract_id, pending)?;
+        }
         let accepted_files: Vec<CommitFile> =
             accepted_raw.iter().map(|(_, file)| file.clone()).collect();
         let mut wasm = wasm_modules_from_commits(&accepted_files)?;
@@ -3780,21 +3783,21 @@ model DeliveryOracle {
     }
 
     #[tokio::test]
-    async fn network_theory_v1_refuses_a_model_with_a_dead_edge() {
+    async fn network_theory_v2_refuses_a_model_with_a_dead_edge() {
         let (v0, _) = processor_on_network(serde_json::json!({})).await;
         v0.process_commit("c1", "escrow", &slipped_escrow_json().to_string())
             .await
             .expect("V0, the default, accepts the dead edge");
 
-        let (v1, datastore) =
-            processor_on_network(serde_json::json!({ "predicate_theory_version": "v1" })).await;
-        let err = v1
+        let (v2, datastore) =
+            processor_on_network(serde_json::json!({ "predicate_theory_version": "v2" })).await;
+        let err = v2
             .process_commit("c1", "escrow", &slipped_escrow_json().to_string())
             .await
-            .expect_err("V1 refuses the dead edge");
+            .expect_err("V2 refuses the dead edge");
         let text = err.to_string();
         assert!(
-            text.contains("no commit can take (predicate theory V1)")
+            text.contains("no commit can take (predicate theory V2)")
                 && text.contains("open --> refunded"),
             "unexpected error: {text}"
         );
@@ -3804,6 +3807,17 @@ model DeliveryOracle {
             .await
             .unwrap()
             .is_none());
+    }
+
+    #[tokio::test]
+    async fn network_theory_v1_is_withdrawn() {
+        let (processor, _) =
+            processor_on_network(serde_json::json!({ "predicate_theory_version": "v1" })).await;
+        let err = processor
+            .process_commit("c1", "bootstrap", &bootstrap_commit_json().to_string())
+            .await
+            .expect_err("v1 accepts rules some runs break");
+        assert!(err.to_string().contains("v1 is withdrawn"), "unexpected error: {err}");
     }
 
     #[tokio::test]

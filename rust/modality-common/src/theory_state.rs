@@ -84,9 +84,9 @@ impl StateView for AcceptedState<'_> {
 }
 
 /// What this validator's predicates mean: the standard declaration of each
-/// name `predicate_holds` evaluates (none for `oracle_attests`, which stays
-/// opaque), and `(< 0 0)`, exact, for every other predicate, since it never
-/// holds here. A committed `+wasm(...)` declaration is read and reported but
+/// name `predicate_holds` evaluates (none for `oracle_attests`, an external
+/// free boolean), and `(< 0 0)`, exact, for every other predicate, since it
+/// never holds here. A committed `+wasm(...)` declaration is read and reported but
 /// binds nothing until the validator evaluates `wasm`.
 pub struct ValidatorRegistry {
     committed: ContractRegistry,
@@ -125,6 +125,12 @@ impl Registry for ValidatorRegistry {
         } else {
             Some(never_holds())
         }
+    }
+
+    /// `oracle_attests` holds when the commit carries a valid attestation
+    /// for the claim, whatever else it does.
+    fn external(&self, key: &str) -> bool {
+        key == "oracle_attests"
     }
 }
 
@@ -245,7 +251,6 @@ mod tests {
             "before",
             "timestamp_valid",
             "hash_matches",
-            "post_to",
             "no_such_predicate",
             "/predicates/above_floor.wasm",
         ] {
@@ -253,5 +258,6 @@ mod tests {
         }
         assert!(reg.declaration("oracle_attests").is_none());
         assert_eq!(reg.declaration("num_gt"), standard().declaration("num_gt"));
+        assert_eq!(reg.declaration("post_to"), standard().declaration("post_to"));
     }
 }

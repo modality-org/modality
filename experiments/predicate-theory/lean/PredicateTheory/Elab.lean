@@ -316,6 +316,19 @@ def Param.parse : String → Option Param
   | "any" => some .any
   | _ => none
 
+/-- Decimal syntax, `[+-]digits[.digits]`, at any length (Rust:
+`is_decimal`). A decimal outside the exact domain fits; `parseDecimal`
+then fails and the predicate stays opaque. -/
+def isDecimal (s : String) : Bool :=
+  let body := match s.toList with
+    | '-' :: r => r
+    | '+' :: r => r
+    | r => r
+  let (i, f) := match body.span (· != '.') with
+    | (i, _ :: f) => (i, f)
+    | (i, []) => (i, [])
+  !(i.isEmpty && f.isEmpty) && i.all Char.isDigit && f.all Char.isDigit
+
 def Param.fits (p : Param) (arg : String) : Bool :=
   let pathExt := fun (allowed : List String) =>
     startsWithSlash arg && match ext (normPath arg) with
@@ -327,9 +340,9 @@ def Param.fits (p : Param) (arg : String) : Bool :=
   | .textPath => pathExt ["text", "id"]
   | .boolPath => pathExt ["bool"]
   | .idPath => pathExt ["id"]
-  | .num => pathExt ["num"] || (!startsWithSlash arg && (parseDecimal arg).isSome)
+  | .num => pathExt ["num"] || (!startsWithSlash arg && isDecimal arg)
   | .text => pathExt ["text", "id"] || !startsWithSlash arg
-  | .needle => !startsWithSlash arg
+  | .needle => true
   | .nat => (parseU32 arg).isSome
   | .any => true
 
@@ -411,11 +424,11 @@ def standard : Registry := registryWith []
 
 /-- The predicates the validator's evaluator reads (Rust:
 `EVALUATED_PREDICATES`, next to `predicate_holds`). Every other predicate
-(`after`, `before`, `timestamp_valid`, `hash_matches`, `post_to`,
-`+wasm(...)`, an unknown name) never holds on the validator. -/
+(`after`, `before`, `timestamp_valid`, `hash_matches`, `+wasm(...)`, an
+unknown name) never holds on the validator. -/
 def evaluated : List String := [
   "signed_by", "any_signed", "all_signed", "threshold", "modifies", "post_to_path",
-  "has_property", "state_exists", "text_eq", "text_contains", "text_starts_with",
+  "post_to", "has_property", "state_exists", "text_eq", "text_contains", "text_starts_with",
   "text_ends_with", "amount_in_range", "num_eq", "num_gt", "num_gte", "num_lt", "num_lte",
   "bool_true", "bool_false", "oracle_attests"
 ]
@@ -452,6 +465,11 @@ def Label.key (l : Label) : String × List String :=
     | [] => (l.name, l.args)
   else (l.name, l.args)
 
+/-- `0 < 0`: no world satisfies it. -/
+def neverAtom : Atom := .order (.const (Q.ofInt 0)) .lt (.const (Q.ofInt 0))
+
+/-- A declared predicate used with an argument of the wrong kind never
+holds: the evaluator reads it as false (Rust: `predicate_holds`). -/
 def expand (reg : Registry) (l : Label) : Expansion :=
   let (key, args) := l.key
   let opq : Expansion := ⟨[⟨l.pos, .opaque key args⟩], false⟩
@@ -459,7 +477,7 @@ def expand (reg : Registry) (l : Label) : Expansion :=
   match reg key with
   | none => opq
   | some d =>
-    if !d.accepts args then opq else
+    if !d.accepts args then ⟨[⟨l.pos, neverAtom⟩], true⟩ else
     let exact := d.sufficient == d.necessary
     if l.pos then
       match d.necessary.bind (·.instantiate args) with

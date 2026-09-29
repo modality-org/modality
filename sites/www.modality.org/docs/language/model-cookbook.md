@@ -13,9 +13,9 @@ possible**. Nodes are opaque (`q0`, `q1`, …). Edge labels carry the meaning.
 
 ## Bootstrap vs later steps
 
-When the rule is `[] always(...)`, the **first** step is unconstrained. Keep
-an unlabeled edge out of the initial node, then put the rule's labels on later
-edges.
+A rule committed with the model is checked from the node the first commit
+reaches, so the **first** step is unconstrained. Keep an unlabeled edge out of
+the initial node, then put the rule's labels on later edges.
 
 ```
 q0 --> q1
@@ -29,7 +29,7 @@ A signed self-loop on `q0` would force the bootstrap commit to be signed.
 Rule:
 
 ```
-[] always([-signed_by(/parties/alice.id) -signed_by(/parties/bob.id)] false)
+always([-signed_by(/parties/alice.id) -signed_by(/parties/bob.id)] false)
 ```
 
 Witness: unlabeled bootstrap, then Alice **or** Bob on the steady state.
@@ -72,7 +72,7 @@ Rule: after this commit, nothing under a claimant's slot changes without that
 claimant's key, and a registered key is replaced only by its holder.
 
 ```
-[] always(([+modifies(/claimants/$k) -signed_by(/claimants/$k.id)] false) & ([+modifies(/claimants/$k.id) +state_exists(/claimants/$k.id) -signed_by(/claimants/$k.id)] false))
+always(([+modifies(/claimants/$k) -signed_by(/claimants/$k.id)] false) & ([+modifies(/claimants/$k.id) +state_exists(/claimants/$k.id) -signed_by(/claimants/$k.id)] false))
 ```
 
 Witness: unlabeled bootstrap, then three kinds of step. A step outside the

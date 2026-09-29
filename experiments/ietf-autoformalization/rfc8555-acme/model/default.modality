@@ -16,59 +16,182 @@
 //   q3  processing
 //   q4  valid
 //   q5  invalid
+//
+// Every edge lists the status writes it does not make (`-sets`) and the
+// status paths it leaves alone (`-post_to_path`). Under predicate theory V0
+// labels are names, so an edge that does not rule a write out may make it.
+// Edges that read accepted state say so with `text_eq`.
 
 model AcmeIssuance {
   initial q0
 
   part issuance {
+    // newOrder (§7.1.4)
     q0 -> q1 [
       +sets(/order/status.text, "pending")
       +signed_by(/users/account_holder.id)
+      -sets(/order/status.text, "ready")
+      -sets(/order/status.text, "processing")
+      -sets(/order/status.text, "valid")
+      -sets(/order/status.text, "invalid")
+      -sets(/challenge/status.text, "pending")
+      -sets(/challenge/status.text, "processing")
+      -sets(/challenge/status.text, "valid")
+      -sets(/certificate/in_use.text, "true")
+      -sets(/certificate/revoked.text, "true")
+      -post_to_path(/challenge/status.text)
     ]
+
+    // Challenge issued (§7.5)
     q1 -> q1 [
       +sets(/challenge/status.text, "pending")
       +signed_by(/users/certificate_authority.id)
+      -sets(/order/status.text, "pending")
+      -sets(/order/status.text, "ready")
+      -sets(/order/status.text, "processing")
+      -sets(/order/status.text, "valid")
+      -sets(/order/status.text, "invalid")
+      -sets(/challenge/status.text, "processing")
+      -sets(/challenge/status.text, "valid")
+      -sets(/certificate/in_use.text, "true")
+      -sets(/certificate/revoked.text, "true")
+      -post_to_path(/order/status.text)
     ]
+
+    // Client responds to the challenge (§7.5.1)
     q1 -> q1 [
       +sets(/challenge/status.text, "processing")
       +signed_by(/users/account_holder.id)
+      -sets(/order/status.text, "pending")
+      -sets(/order/status.text, "ready")
+      -sets(/order/status.text, "processing")
+      -sets(/order/status.text, "valid")
+      -sets(/order/status.text, "invalid")
+      -sets(/challenge/status.text, "pending")
+      -sets(/challenge/status.text, "valid")
+      -sets(/certificate/in_use.text, "true")
+      -sets(/certificate/revoked.text, "true")
+      -post_to_path(/order/status.text)
     ]
+
     // RFC §7.1.6 / §8.2: validation retries while order stays pending.
     q1 -> q1 [
       +sets(/challenge/status.text, "processing")
       +signed_by(/users/certificate_authority.id)
+      -sets(/order/status.text, "pending")
+      -sets(/order/status.text, "ready")
+      -sets(/order/status.text, "processing")
+      -sets(/order/status.text, "valid")
+      -sets(/order/status.text, "invalid")
       -sets(/challenge/status.text, "pending")
+      -sets(/challenge/status.text, "valid")
+      -sets(/certificate/in_use.text, "true")
+      -sets(/certificate/revoked.text, "true")
+      -post_to_path(/order/status.text)
     ]
+
+    // Authorization valid, order ready (§7.1.6): only once the challenge has left "pending".
     q1 -> q2 [
       +sets(/challenge/status.text, "valid")
       +sets(/order/status.text, "ready")
       +signed_by(/users/certificate_authority.id)
+      -text_eq(/challenge/status.text, "pending")
+      -sets(/order/status.text, "pending")
+      -sets(/order/status.text, "processing")
+      -sets(/order/status.text, "valid")
+      -sets(/order/status.text, "invalid")
       -sets(/challenge/status.text, "pending")
+      -sets(/challenge/status.text, "processing")
+      -sets(/certificate/in_use.text, "true")
+      -sets(/certificate/revoked.text, "true")
     ]
+
+    // Finalize (§7.4): the order is ready and its authorization valid.
     q2 -> q3 [
       +sets(/order/status.text, "processing")
       +signed_by(/users/account_holder.id)
+      +text_eq(/order/status.text, "ready")
+      +text_eq(/challenge/status.text, "valid")
+      -sets(/order/status.text, "pending")
+      -sets(/order/status.text, "ready")
+      -sets(/order/status.text, "valid")
+      -sets(/order/status.text, "invalid")
+      -sets(/challenge/status.text, "pending")
+      -sets(/challenge/status.text, "processing")
+      -sets(/challenge/status.text, "valid")
+      -sets(/certificate/in_use.text, "true")
+      -sets(/certificate/revoked.text, "true")
+      -post_to_path(/challenge/status.text)
     ]
+
+    // Issue the certificate (§7.4.2) from a processing order.
     q3 -> q4 [
       +sets(/order/status.text, "valid")
       +signed_by(/users/certificate_authority.id)
+      +text_eq(/order/status.text, "processing")
+      -sets(/order/status.text, "pending")
+      -sets(/order/status.text, "ready")
+      -sets(/order/status.text, "processing")
+      -sets(/order/status.text, "invalid")
+      -sets(/challenge/status.text, "pending")
+      -sets(/challenge/status.text, "processing")
+      -sets(/challenge/status.text, "valid")
+      -sets(/certificate/in_use.text, "true")
+      -sets(/certificate/revoked.text, "true")
+      -post_to_path(/challenge/status.text)
     ]
+
+    // Issuance failure (§7.1.6): the order is not valid yet.
     q3 -> q5 [
       +sets(/order/status.text, "invalid")
       +signed_by(/users/certificate_authority.id)
+      -text_eq(/order/status.text, "valid")
+      -sets(/order/status.text, "pending")
+      -sets(/order/status.text, "ready")
+      -sets(/order/status.text, "processing")
+      -sets(/order/status.text, "valid")
+      -sets(/challenge/status.text, "pending")
+      -sets(/challenge/status.text, "processing")
+      -sets(/challenge/status.text, "valid")
+      -sets(/certificate/in_use.text, "true")
+      -sets(/certificate/revoked.text, "true")
+      -post_to_path(/challenge/status.text)
     ]
 
     // RFC §7.6 revokeCert — certificate revocation (order stays "valid" per §7.1.6).
     q4 -> q4 [
       +sets(/certificate/revoked.text, "true")
       +signed_by(/users/account_holder.id)
+      -sets(/order/status.text, "pending")
+      -sets(/order/status.text, "ready")
+      -sets(/order/status.text, "processing")
+      -sets(/order/status.text, "valid")
+      -sets(/order/status.text, "invalid")
+      -sets(/challenge/status.text, "pending")
+      -sets(/challenge/status.text, "processing")
+      -sets(/challenge/status.text, "valid")
+      -sets(/certificate/in_use.text, "true")
+      -post_to_path(/order/status.text)
+      -post_to_path(/challenge/status.text)
     ]
+
     q4 -> q4 [
       +sets(/certificate/revoked.text, "true")
       +signed_by(/users/certificate_authority.id)
+      -sets(/order/status.text, "pending")
+      -sets(/order/status.text, "ready")
+      -sets(/order/status.text, "processing")
+      -sets(/order/status.text, "valid")
+      -sets(/order/status.text, "invalid")
+      -sets(/challenge/status.text, "pending")
+      -sets(/challenge/status.text, "processing")
+      -sets(/challenge/status.text, "valid")
+      -sets(/certificate/in_use.text, "true")
+      -post_to_path(/order/status.text)
+      -post_to_path(/challenge/status.text)
     ]
 
-    // Stutter loops: explicit -sets so unrelated <+sets(...)> diamonds stay false.
+    // Stutter loops at the final states.
     q4 -> q4 [
       -sets(/order/status.text, "pending")
       -sets(/order/status.text, "ready")
@@ -80,7 +203,10 @@ model AcmeIssuance {
       -sets(/challenge/status.text, "valid")
       -sets(/certificate/in_use.text, "true")
       -sets(/certificate/revoked.text, "true")
+      -post_to_path(/order/status.text)
+      -post_to_path(/challenge/status.text)
     ]
+
     q5 -> q5 [
       -sets(/order/status.text, "pending")
       -sets(/order/status.text, "ready")
@@ -92,6 +218,8 @@ model AcmeIssuance {
       -sets(/challenge/status.text, "valid")
       -sets(/certificate/in_use.text, "true")
       -sets(/certificate/revoked.text, "true")
+      -post_to_path(/order/status.text)
+      -post_to_path(/challenge/status.text)
     ]
   }
 }

@@ -6,6 +6,10 @@
 //! - bare identifiers that refer to opaque witness LTS node ids
 //! - witness node names leaking from bundled models into formulas
 //! - modalities whose labels no commit can carry (predicate theory V1)
+//! - guarded diamonds (`!<+X> true | <+X +E> true`) that forbid nothing
+//! - rules that start with `[]`, which also frees the next commit
+//! - labels the other labels of a modality entail, and forbidden-label boxes
+//!   another box already covers (predicate theory V1, standard declarations)
 
 use crate::ast::{Formula, FormulaExpr, Model, Property, PropertySign, PropertySource};
 use crate::theory::{Theory, Tri};
@@ -33,6 +37,18 @@ pub enum LintCode {
     ImplicationSugar,
     /// A box or diamond whose labels cannot hold together on any commit.
     UnsatisfiableLabelSet,
+    /// `!<G> true | <G E> true` reads as "every `G` move carries `E`" but
+    /// holds when one `G` move with `E` exists beside one without.
+    GuardedDiamond,
+    /// A rule that starts with `[]`: it already starts after the commit that
+    /// adds it, so the leading box also frees the next commit.
+    LeadingNextBox,
+    /// A label that the other labels of its box or diamond already entail.
+    RedundantLabel,
+    /// A `[L] false` conjunct another box of the same rule already covers.
+    RedundantConjunct,
+    /// A rule every one of whose boxes another rule in the file already covers.
+    SubsumedRule,
 }
 
 impl LintCode {
@@ -44,6 +60,11 @@ impl LintCode {
             LintCode::BackwardEventuallyOrdering => "modality/backward-eventually-ordering",
             LintCode::ImplicationSugar => "modality/implication-sugar",
             LintCode::UnsatisfiableLabelSet => "modality/unsatisfiable-label-set",
+            LintCode::GuardedDiamond => "modality/guarded-diamond",
+            LintCode::LeadingNextBox => "modality/leading-next-box",
+            LintCode::RedundantLabel => "modality/redundant-label",
+            LintCode::RedundantConjunct => "modality/redundant-conjunct",
+            LintCode::SubsumedRule => "modality/subsumed-rule",
         }
     }
 }
@@ -135,12 +156,205 @@ pub fn lint_formulas_in_content(
     content: &str,
     opts: &FormulaLintOptions,
 ) -> Result<Vec<(String, Vec<FormulaLintDiagnostic>)>, String> {
-    let mut formulas = parse_top_level_formula_blocks(content)?;
-    formulas.extend(parse_rule_formula_blocks(content)?);
-    Ok(formulas
+    let formulas = parse_top_level_formula_blocks(content)?;
+    let rules = parse_rule_formula_blocks(content)?;
+    let lint = |f: &Formula| (f.name.clone(), lint_formula_with_source(f, content, opts));
+    let mut results: Vec<_> = formulas
         .iter()
-        .map(|f| (f.name.clone(), lint_formula_with_source(f, content, opts)))
-        .collect())
+        .map(lint)
+        .chain(rules.iter().map(|f| {
+            let (name, mut diags) = lint(f);
+            if let FormulaExpr::Box(props, _) = unparen(&f.expression) {
+                if props.is_empty() {
+                    diags.push(leading_next_box(content));
+                }
+            }
+            (name, diags)
+        }))
+        .collect();
+    let all: Vec<&Formula> = formulas.iter().chain(rules.iter()).collect();
+    for (i, diags) in redundant_boxes(&all).into_iter().enumerate() {
+        for mut diag in diags {
+            if let Some(h) = &diag.highlight {
+                diag.span = find_span_in_source(content, h);
+            }
+            results[i].1.push(diag);
+        }
+    }
+    Ok(results)
+}
+
+/// Lint a rule file about to be added to a contract whose rule files are
+/// `existing` (`(label, content)`). Besides the file's own findings, report
+/// boxes the existing rules already cover: they are anchored earlier, so
+/// the new box forbids nothing they do not.
+pub fn lint_added_rule(
+    existing: &[(String, String)],
+    label: &str,
+    content: &str,
+    opts: &FormulaLintOptions,
+) -> Result<Vec<FormulaLintDiagnostic>, String> {
+    let mut diags: Vec<_> = lint_formulas_in_content(content, opts)?
+        .into_iter()
+        .flat_map(|(_, d)| d)
+        .collect();
+    let named = |label: &str, content: &str| -> Result<Vec<Formula>, String> {
+        let mut formulas = parse_top_level_formula_blocks(content)?;
+        formulas.extend(parse_rule_formula_blocks(content)?);
+        for f in &mut formulas {
+            f.name = if f.name == "default_rule" {
+                label.to_string()
+            } else {
+                format!("{label} {}", f.name)
+            };
+        }
+        Ok(formulas)
+    };
+    let mut before = Vec::new();
+    for (l, c) in existing {
+        // A rule already in the log that no longer parses is not ours to report.
+        before.extend(named(l, c).unwrap_or_default());
+    }
+    let added = named(label, content)?;
+    let all: Vec<&Formula> = before.iter().chain(added.iter()).collect();
+    for mut diag in redundant_boxes(&all).into_iter().skip(before.len()).flatten() {
+        let covered_only_within = diag.code == LintCode::RedundantConjunct;
+        if covered_only_within {
+            continue;
+        }
+        if let Some(h) = &diag.highlight {
+            diag.span = find_span_in_source(content, h);
+        }
+        if !diags.iter().any(|d| d.code == diag.code && d.message == diag.message) {
+            diags.push(diag);
+        }
+    }
+    Ok(diags)
+}
+
+/// The label sets of `always(([L1] false) & ... & ([Ln] false))`, the form
+/// that forbids every commit carrying some `Li`.
+fn forbidden_label_sets(expr: &FormulaExpr) -> Option<Vec<&[Property]>> {
+    fn collect<'e>(expr: &'e FormulaExpr, out: &mut Vec<&'e [Property]>) -> bool {
+        match unparen(expr) {
+            FormulaExpr::And(l, r) => collect(l, out) && collect(r, out),
+            FormulaExpr::Box(props, inner) if matches!(unparen(inner), FormulaExpr::False) => {
+                out.push(props);
+                true
+            }
+            _ => false,
+        }
+    }
+    let FormulaExpr::Always(inner) = unparen(expr) else {
+        return None;
+    };
+    let mut sets = Vec::new();
+    collect(inner, &mut sets).then_some(sets)
+}
+
+/// Every commit carrying `narrow` carries each label of `wide`, so
+/// `[wide] false` already forbids what `[narrow] false` forbids. Standard
+/// declarations and no state: true in every contract.
+fn covers(wide: &[Property], narrow: &[Property]) -> bool {
+    let theory = Theory::v1_structural();
+    theory.consistent(narrow).tri != Tri::False
+        && wide.iter().all(|p| theory.entails(narrow, p) == Tri::True)
+}
+
+/// Rules anchored at the same commit whose forbidden-label boxes another box
+/// already covers. One list of findings per formula, in order.
+pub fn redundant_boxes(formulas: &[&Formula]) -> Vec<Vec<FormulaLintDiagnostic>> {
+    let sets: Vec<Option<Vec<&[Property]>>> = formulas
+        .iter()
+        .map(|f| forbidden_label_sets(&f.expression))
+        .collect();
+    let mut out = vec![Vec::new(); formulas.len()];
+    for (j, narrow_sets) in sets.iter().enumerate() {
+        let Some(narrow_sets) = narrow_sets else {
+            continue;
+        };
+        // An equal pair covers both ways; keep the earlier one.
+        let covered_by = |b: usize, narrow: &[Property]| {
+            sets.iter().enumerate().find_map(|(i, wide_sets)| {
+                wide_sets.as_ref()?.iter().enumerate().find_map(|(a, wide)| {
+                    let earlier = (i, a) < (j, b);
+                    let same = (i, a) == (j, b);
+                    (!same && covers(wide, narrow) && (earlier || !covers(narrow, wide)))
+                        .then_some((i, *wide))
+                })
+            })
+        };
+        let covering: Vec<_> = narrow_sets
+            .iter()
+            .enumerate()
+            .map(|(b, narrow)| covered_by(b, narrow))
+            .collect();
+        let highlight = |props: &[Property]| {
+            props.first().map(|p| {
+                let sign = if p.sign == PropertySign::Plus { "+" } else { "-" };
+                format!("{sign}{}", p.name)
+            })
+        };
+        if let Some(Some(others)) = covering
+            .iter()
+            .all(|c| c.is_some_and(|(i, _)| i != j))
+            .then(|| covering.iter().map(|c| c.map(|(i, _)| i)).collect::<Option<Vec<_>>>())
+        {
+            let mut names: Vec<&str> = others.iter().map(|&i| formulas[i].name.as_str()).collect();
+            names.dedup();
+            out[j].push(FormulaLintDiagnostic {
+                code: LintCode::SubsumedRule,
+                severity: LintSeverity::Warning,
+                message: format!(
+                    "`{}` forbids nothing that `{}` does not already forbid",
+                    formulas[j].name,
+                    names.join("`, `")
+                ),
+                suggestion: Some(
+                    "drop this rule, or tighten the rule that covers it if that one is too broad"
+                        .to_string(),
+                ),
+                span: None,
+                highlight: narrow_sets.first().and_then(|n| highlight(n)),
+            });
+            continue;
+        }
+        for (b, cover) in covering.iter().enumerate() {
+            let Some((i, wide)) = cover else {
+                continue;
+            };
+            if *i != j {
+                continue;
+            }
+            out[j].push(FormulaLintDiagnostic {
+                code: LintCode::RedundantConjunct,
+                severity: LintSeverity::Hint,
+                message: format!(
+                    "`[{}] false` is already forbidden by `[{}] false`: every commit with the \
+                     first labels carries the second",
+                    labels_text(narrow_sets[b]),
+                    labels_text(wide)
+                ),
+                suggestion: Some("drop the redundant box".to_string()),
+                span: None,
+                highlight: highlight(narrow_sets[b]),
+            });
+        }
+    }
+    out
+}
+
+fn leading_next_box(content: &str) -> FormulaLintDiagnostic {
+    FormulaLintDiagnostic {
+        code: LintCode::LeadingNextBox,
+        severity: LintSeverity::Warning,
+        message: "a rule already starts after the commit that adds it; a leading `[]` also \
+                  leaves the next commit free, and anyone may use it to replace the model"
+            .to_string(),
+        suggestion: Some("drop the leading `[]`: `always(φ)` constrains every later commit".to_string()),
+        span: find_span_in_source(content, "[]"),
+        highlight: Some("[]".to_string()),
+    }
 }
 
 fn parse_top_level_formula_blocks(content: &str) -> Result<Vec<Formula>, String> {
@@ -345,8 +559,9 @@ fn walk_expr(expr: &FormulaExpr, ctx: &mut LintContext<'_>) {
                 )
             };
             let suggestion = Some(
-                "use a phase gate: `always(!<+LATER> true | !<+EARLIER> true)` — when LATER \
-                 is enabled, EARLIER must not still be enabled"
+                "use contract vocabulary: a label (`[+ACTION -signed_by(/parties/alice.id)] \
+                 false`) or a guard on accepted state (`[+LATER -bool_true(/earlier/done.bool)] \
+                 false`)"
                     .to_string(),
             );
             ctx.diags.push(FormulaLintDiagnostic {
@@ -384,7 +599,22 @@ fn walk_expr(expr: &FormulaExpr, ctx: &mut LintContext<'_>) {
             lint_label_set(props, true, ctx);
             walk_expr(inner, ctx);
         }
-        FormulaExpr::And(l, r) | FormulaExpr::Or(l, r) | FormulaExpr::Until(l, r) => {
+        FormulaExpr::Or(l, r) => {
+            let guarded = match unparen(l) {
+                FormulaExpr::Not(guard) => guarded_diamond(guard, r),
+                _ => None,
+            }
+            .or_else(|| match unparen(r) {
+                FormulaExpr::Not(guard) => guarded_diamond(guard, l),
+                _ => None,
+            });
+            if let Some(diag) = guarded {
+                ctx.diags.push(diag);
+            }
+            walk_expr(l, ctx);
+            walk_expr(r, ctx);
+        }
+        FormulaExpr::And(l, r) | FormulaExpr::Until(l, r) => {
             walk_expr(l, ctx);
             walk_expr(r, ctx);
         }
@@ -409,6 +639,9 @@ fn walk_expr(expr: &FormulaExpr, ctx: &mut LintContext<'_>) {
                 span: None,
                 highlight: Some("->".to_string()),
             });
+            if let Some(diag) = guarded_diamond(l, r) {
+                ctx.diags.push(diag);
+            }
             if let Some(highlight) = backward_eventually_ordering_highlight(l, r) {
                 ctx.diags.push(FormulaLintDiagnostic {
                     code: LintCode::BackwardEventuallyOrdering,
@@ -418,8 +651,8 @@ fn walk_expr(expr: &FormulaExpr, ctx: &mut LintContext<'_>) {
                               reachability on the LTS, not \"ACTION already occurred on the trace\""
                             .to_string(),
                     suggestion: Some(
-                        "use `always(!<+LATER> true | !<+EARLIER> true)` instead of \
-                         `eventually(<+EARLIER> true)` under a LATER guard"
+                        "to require that EARLIER already happened, guard LATER on the state \
+                         EARLIER writes: `always([+LATER -bool_true(/earlier/done.bool)] false)`"
                             .to_string(),
                     ),
                     span: None,
@@ -448,8 +681,10 @@ fn lint_label_set(props: &[Property], is_box: bool, ctx: &mut LintContext<'_>) {
     if props.is_empty() {
         return;
     }
-    let verdict = Theory::v1_structural().consistent(props);
+    let theory = Theory::v1_structural();
+    let verdict = theory.consistent(props);
     if verdict.tri != Tri::False {
+        redundant_labels(&theory, props, ctx);
         return;
     }
     let why = verdict.explain().join(" and ");
@@ -486,6 +721,35 @@ fn lint_label_set(props: &[Property], is_box: bool, ctx: &mut LintContext<'_>) {
     });
 }
 
+/// A label the others entail changes no commit the modality matches.
+fn redundant_labels(theory: &Theory<'_>, props: &[Property], ctx: &mut LintContext<'_>) {
+    for (k, p) in props.iter().enumerate() {
+        let others: Vec<Property> = props
+            .iter()
+            .enumerate()
+            .filter(|(m, _)| *m != k)
+            .map(|(_, q)| q.clone())
+            .collect();
+        if others.is_empty() || theory.entails(&others, p) != Tri::True {
+            continue;
+        }
+        let text = crate::printer::print_property(p);
+        ctx.diags.push(FormulaLintDiagnostic {
+            code: LintCode::RedundantLabel,
+            severity: LintSeverity::Hint,
+            message: format!(
+                "`{text}` follows from the other labels `{}`: every commit carrying them \
+                 carries it",
+                labels_text(&others)
+            ),
+            suggestion: Some(format!("drop `{text}`")),
+            span: None,
+            highlight: Some(text),
+        });
+        return;
+    }
+}
+
 fn is_vacuous_action_box(props: &[Property], inner: &FormulaExpr) -> bool {
     if props.is_empty() || !is_true_expr(inner) {
         return false;
@@ -501,6 +765,103 @@ fn is_true_expr(expr: &FormulaExpr) -> bool {
         FormulaExpr::Paren(inner) => is_true_expr(inner),
         _ => false,
     }
+}
+
+fn unparen(expr: &FormulaExpr) -> &FormulaExpr {
+    match expr {
+        FormulaExpr::Paren(inner) => unparen(inner),
+        other => other,
+    }
+}
+
+/// `<G> true`, with `G` non-empty.
+fn enabled_labels(expr: &FormulaExpr) -> Option<&[Property]> {
+    match unparen(expr) {
+        FormulaExpr::Diamond(props, inner) if !props.is_empty() && is_true_expr(inner) => {
+            Some(props)
+        }
+        _ => None,
+    }
+}
+
+fn disjuncts<'a>(expr: &'a FormulaExpr, out: &mut Vec<&'a FormulaExpr>) {
+    match unparen(expr) {
+        FormulaExpr::Or(l, r) => {
+            disjuncts(l, out);
+            disjuncts(r, out);
+        }
+        other => out.push(other),
+    }
+}
+
+fn labels_text(props: &[Property]) -> String {
+    props
+        .iter()
+        .map(crate::printer::print_property)
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+/// `guard` is `<G> true` and every disjunct of `consequent` is `<G E> true`
+/// with `E` non-empty: the formula says some `G` move carries evidence where
+/// a `G` move exists, not that every one does.
+fn guarded_diamond(guard: &FormulaExpr, consequent: &FormulaExpr) -> Option<FormulaLintDiagnostic> {
+    let guard = enabled_labels(guard)?;
+    let mut options = Vec::new();
+    disjuncts(consequent, &mut options);
+    let mut extras = Vec::new();
+    for option in options {
+        let labels = enabled_labels(option)?;
+        if !guard.iter().all(|g| labels.contains(g)) {
+            return None;
+        }
+        let extra: Vec<&Property> = labels.iter().filter(|p| !guard.contains(p)).collect();
+        if extra.is_empty() {
+            return None;
+        }
+        extras.push(extra);
+    }
+    let guard_text = labels_text(guard);
+    let boxed = |forbidden: Vec<Property>| {
+        let mut labels = guard.to_vec();
+        labels.extend(forbidden);
+        format!("[{}] false", labels_text(&labels))
+    };
+    let suggestion = if extras.len() == 1 {
+        let boxes: Vec<String> = extras[0].iter().map(|e| boxed(vec![e.negated()])).collect();
+        if boxes.len() == 1 {
+            format!("forbid the move without the evidence: `always({})`", boxes[0])
+        } else {
+            let wrapped: Vec<String> = boxes.iter().map(|b| format!("({b})")).collect();
+            format!(
+                "forbid the move without each piece of evidence: `always({})`",
+                wrapped.join(" & ")
+            )
+        }
+    } else if extras.iter().all(|e| e.len() == 1) {
+        let forbidden = extras.iter().map(|e| e[0].negated()).collect();
+        format!(
+            "forbid the move without any of the evidence: `always({})`",
+            boxed(forbidden)
+        )
+    } else {
+        format!(
+            "forbid each `{guard_text}` move that lacks the evidence with a box, \
+             `[{guard_text} -evidence] false`, or use a predicate such as `threshold`"
+        )
+    };
+    Some(FormulaLintDiagnostic {
+        code: LintCode::GuardedDiamond,
+        severity: LintSeverity::Warning,
+        message: format!(
+            "this says only that some `{guard_text}` move carries the evidence where a \
+             `{guard_text}` move exists; a model can hold another `{guard_text}` move without \
+             it, and a commit may take that move"
+        ),
+        suggestion: Some(suggestion),
+        span: None,
+        highlight: Some(format!("<{guard_text}>")),
+    })
 }
 
 fn is_action_property(prop: &Property) -> bool {
@@ -590,6 +951,216 @@ mod tests {
         );
         assert!(has_code(&diags, LintCode::BackwardEventuallyOrdering));
         assert!(has_code(&diags, LintCode::ImplicationSugar));
+    }
+
+    #[test]
+    fn warns_a_guarded_diamond_and_suggests_the_box() {
+        let diags = lint_expr(
+            "always(!<+modifies(/members)> true | <+modifies(/members) +all_signed(/members)> true)",
+        );
+        let diag = diags
+            .iter()
+            .find(|d| d.code == LintCode::GuardedDiamond)
+            .expect("guarded diamond");
+        assert!(
+            diag.suggestion
+                .as_deref()
+                .unwrap()
+                .contains("`always([+modifies(/members) -all_signed(/members)] false)`"),
+            "{diag:?}"
+        );
+
+        let either = lint_expr(
+            "always(!<+X> true | (<+X +signed_by(/a.id)> true | <+X +signed_by(/b.id)> true))",
+        );
+        let diag = either.iter().find(|d| d.code == LintCode::GuardedDiamond).unwrap();
+        assert!(
+            diag.suggestion
+                .as_deref()
+                .unwrap()
+                .contains("`always([+X -signed_by(/a.id) -signed_by(/b.id)] false)`"),
+            "{diag:?}"
+        );
+
+        let sugar = lint_expr("always(<+X> true -> <+X +signed_by(/a.id)> true)");
+        assert!(has_code(&sugar, LintCode::GuardedDiamond));
+
+        for fine in [
+            "always([+X -signed_by(/a.id)] false)",
+            "always(!<+LATER> true | !<+EARLIER> true)",
+            "always(!<+X> true | eventually(<+Y> true))",
+            "always(!<+X> true | <+Y> true)",
+        ] {
+            assert!(!has_code(&lint_expr(fine), LintCode::GuardedDiamond), "{fine}");
+        }
+    }
+
+    #[test]
+    fn warns_a_rule_that_starts_with_an_empty_box() {
+        let lint = |formula: &str| {
+            let rule = format!(
+                "export default rule {{\n  starting_at $PARENT\n  formula {{\n    {formula}\n  }}\n}}\n"
+            );
+            lint_formulas_in_content(&rule, &FormulaLintOptions::default())
+                .unwrap()
+                .into_iter()
+                .flat_map(|(_, d)| d)
+                .collect::<Vec<_>>()
+        };
+        assert!(has_code(
+            &lint("[] always([-signed_by(/a.id)] false)"),
+            LintCode::LeadingNextBox
+        ));
+        assert!(!has_code(
+            &lint("always([-signed_by(/a.id)] false)"),
+            LintCode::LeadingNextBox
+        ));
+        assert!(!has_code(
+            &lint_expr("[] always([-signed_by(/a.id)] false)"),
+            LintCode::LeadingNextBox
+        ));
+    }
+
+    fn lint_file(content: &str) -> Vec<FormulaLintDiagnostic> {
+        lint_formulas_in_content(content, &FormulaLintOptions::default())
+            .unwrap()
+            .into_iter()
+            .flat_map(|(_, d)| d)
+            .collect()
+    }
+
+    #[test]
+    fn hints_a_label_the_others_entail() {
+        let diags = lint_expr(r#"always([+num_gt(/x.num,"7") +num_gt(/x.num,"5")] false)"#);
+        let hint = diags
+            .iter()
+            .find(|d| d.code == LintCode::RedundantLabel)
+            .expect("num_gt 5 follows from num_gt 7");
+        assert!(hint.message.contains(r#"num_gt(/x.num, "5")"#), "{}", hint.message);
+        assert!(!has_code(
+            &lint_expr(r#"always([+num_gt(/x.num,"7") +num_gt(/y.num,"5")] false)"#),
+            LintCode::RedundantLabel
+        ));
+        assert!(!has_code(
+            &lint_expr("always([-signed_by(/a.id) -signed_by(/b.id)] false)"),
+            LintCode::RedundantLabel
+        ));
+    }
+
+    #[test]
+    fn hints_a_box_another_box_of_the_rule_covers() {
+        let diags = lint_file(
+            r#"export default rule {
+  formula {
+    always(([-signed_by(/a.id)] false) & ([+modifies(/x) -signed_by(/a.id)] false))
+  }
+}
+"#,
+        );
+        assert!(has_code(&diags, LintCode::RedundantConjunct), "{diags:?}");
+        let diags = lint_file(
+            r#"export default rule {
+  formula {
+    always(([-signed_by(/a.id)] false) & ([+modifies(/x) -signed_by(/b.id)] false))
+  }
+}
+"#,
+        );
+        assert!(!has_code(&diags, LintCode::RedundantConjunct), "{diags:?}");
+    }
+
+    #[test]
+    fn warns_a_rule_another_rule_in_the_file_covers() {
+        let diags = lint_file(
+            r#"rule any_change {
+  formula {
+    always([-signed_by(/a.id)] false)
+  }
+}
+rule big_change {
+  formula {
+    always([+num_gt(/amount.num, "100") -signed_by(/a.id)] false)
+  }
+}
+"#,
+        );
+        let warn = diags
+            .iter()
+            .find(|d| d.code == LintCode::SubsumedRule)
+            .expect("big_change is covered by any_change");
+        assert!(warn.message.contains("big_change"), "{}", warn.message);
+        assert_eq!(
+            diags.iter().filter(|d| d.code == LintCode::SubsumedRule).count(),
+            1,
+            "{diags:?}"
+        );
+        let same = lint_file(
+            r#"rule one {
+  formula {
+    always([-signed_by(/a.id)] false)
+  }
+}
+rule two {
+  formula {
+    always([-signed_by(/a.id)] false)
+  }
+}
+"#,
+        );
+        assert_eq!(
+            same.iter().filter(|d| d.code == LintCode::SubsumedRule).count(),
+            1,
+            "an equal pair is reported once: {same:?}"
+        );
+        let apart = lint_file(
+            r#"rule alice {
+  formula {
+    always([-signed_by(/a.id)] false)
+  }
+}
+rule bob {
+  formula {
+    always([-signed_by(/b.id)] false)
+  }
+}
+"#,
+        );
+        assert!(!has_code(&apart, LintCode::SubsumedRule), "{apart:?}");
+    }
+
+    #[test]
+    fn warns_an_added_rule_an_existing_rule_covers() {
+        let existing = vec![(
+            "rules/authorized.modality".to_string(),
+            "export default rule {\n  formula {\n    always([-signed_by(/a.id)] false)\n  }\n}\n"
+                .to_string(),
+        )];
+        let rule = |f: &str| format!("export default rule {{\n  formula {{\n    {f}\n  }}\n}}\n");
+        let diags = lint_added_rule(
+            &existing,
+            "rules/big.modality",
+            &rule(r#"always([+num_gt(/amount.num, "100") -signed_by(/a.id)] false)"#),
+            &FormulaLintOptions::default(),
+        )
+        .unwrap();
+        let warn = diags
+            .iter()
+            .find(|d| d.code == LintCode::SubsumedRule)
+            .expect("the existing rule covers the new one");
+        assert!(
+            warn.message.contains("rules/big.modality")
+                && warn.message.contains("rules/authorized.modality"),
+            "{}",
+            warn.message
+        );
+        let broader = lint_added_rule(
+            &existing,
+            "rules/any.modality",
+            &rule("always([-signed_by(/b.id)] false)"),
+            &FormulaLintOptions::default(),
+        )
+        .unwrap();
+        assert!(!has_code(&broader, LintCode::SubsumedRule), "{broader:?}");
     }
 
     #[test]
@@ -748,7 +1319,7 @@ export default rule {
 export default rule {
   starting_at $PARENT
   formula {
-    [] always([-signed_by(/parties/alice.id) -signed_by(/parties/bob.id)] false)
+    always([-signed_by(/parties/alice.id) -signed_by(/parties/bob.id)] false)
   }
 }
 "#;
@@ -768,7 +1339,7 @@ export default rule {
 export default rule {
   starting_at $PARENT
   formula {
-    [] always([-signed_by(/parties/alice.id) -signed_by(/parties/bob.id)] false)
+    always([-signed_by(/parties/alice.id) -signed_by(/parties/bob.id)] false)
   }
 }
 "#;
@@ -787,7 +1358,7 @@ export default rule {
 export default rule {
   starting_at $PARENT
   formula {
-    [] always(
+    always(
       ([-signed_by(/parties/alice.id) -signed_by(/parties/bob.id)] false)
       & ([+signed_by(/parties/alice.id)] [-signed_by(/parties/bob.id)] false)
       & ([+signed_by(/parties/bob.id)] [-signed_by(/parties/alice.id)] false)

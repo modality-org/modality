@@ -143,8 +143,9 @@ fn a10_decimals_are_exact() {
 }
 
 #[test]
-fn a11_a12_unparsable_and_overflow_are_unknown() {
-    unknown(&v1().consistent(&[
+fn a11_a12_a_word_never_holds_and_overflow_is_unknown() {
+    // "five" is not a number: the wrong kind, so `+num_gt` never holds.
+    no(&v1().consistent(&[
         p("num_gt", &["/x.num", "five"]),
         p("num_lt", &["/x.num", "3"]),
     ]));
@@ -195,21 +196,24 @@ fn a13_negation_is_not_classical_unless_existence_is_forced() {
 #[test]
 fn signatures_follow_what_the_evaluator_reads() {
     let th = v1();
+    // Arguments of the wrong kind never hold, so `-p` holds on every commit.
     // num_* reads its first argument from state only.
     let lits = [n("num_gt", &["5", "/x.num"]), p("num_lt", &["/x.num", "3"])];
-    unknown(&th.consistent(&lits));
+    yes(&th.consistent(&lits));
+    no(&th.consistent(&[p("num_gt", &["5", "/x.num"])]));
     // text_eq reads a string; on a .num path it is not numeric equality.
     let lits = [
         n("text_eq", &["/x.num", "5"]),
         p("num_eq", &["/x.num", "5"]),
     ];
-    unknown(&th.consistent(&lits));
+    yes(&th.consistent(&lits));
     // num_eq on a .text path is always false in the evaluator, not text equality.
     let lits = [
         n("num_eq", &["/p.text", "a"]),
         p("text_eq", &["/p.text", "a"]),
     ];
-    unknown(&th.consistent(&lits));
+    yes(&th.consistent(&lits));
+    no(&th.consistent(&[p("signed_by", &["/parties/alice"])]));
     // A needle is read literally even when it starts with a slash.
     let e = th.expand(&p("text_contains", &["/p.text", "/x"]));
     assert!(matches!(e.lits[0].c, Constraint::Opaque { .. }));
@@ -462,11 +466,12 @@ fn prefixes_match_the_evaluator() {
 #[test]
 fn literals_outside_the_exact_domain_are_opaque() {
     let th = v1();
-    // "5 " does not parse as f64 in the evaluator: always false there.
-    unknown(&th.consistent(&[
+    // "5 " is not a decimal: the wrong kind, false in both.
+    yes(&th.consistent(&[
         n("num_gt", &["/x.num", "5 "]),
         p("num_gt", &["/x.num", "7"]),
     ]));
+    no(&th.consistent(&[p("num_gt", &["/x.num", "1e2"])]));
     // These two differ as rationals but are the same double.
     unknown(&th.consistent(&[
         p("num_eq", &["/x.num", "0.1"]),
@@ -997,7 +1002,7 @@ model Contract {
 "#;
     let checker = ModelChecker::new(model(m));
     let states = checker
-        .check_formula(&formula("gfp(X, <>X)"))
+        .check_formula_any_state(&formula("gfp(X, <>X)"))
         .satisfying_states;
     let mut names: Vec<String> = states
         .iter()
@@ -1127,7 +1132,12 @@ fn g13_v2_rule_checks_drop_edges_no_run_takes() {
 fn g14_v2_flow_starts_at_the_evaluation_node() {
     let rule = formula(r#"<+bool_false(/f.bool)> true"#);
     let checker = ModelChecker::with_version(model(G_FLAG), TheoryVersion::V2);
-    assert!(checker.check_formula_at_state(&rule, "q1").is_satisfied);
+    // Knowing nothing at q1, a run may arrive with /f.bool true.
+    assert!(!checker.check_formula_at_state(&rule, "q1").is_satisfied);
+    assert!(ModelChecker::with_version(model(G_FLAG), TheoryVersion::V2)
+        .with_anchor_state(Box::new(MapState::new().with("/f.bool", "false")))
+        .check_formula_at_state(&rule, "q1")
+        .is_satisfied);
     let later = formula(r#"<+bool_true(/f.bool)> <+bool_false(/f.bool)> true"#);
     assert!(!checker.check_formula_at_state(&later, "q0").is_satisfied);
 }
@@ -1144,7 +1154,8 @@ model Contract {
 "#;
     let rule = r#"<+bool_true(/c/a.bool)> <+bool_false(/c/a.bool)> true"#;
     assert!(rule_accepted(m, rule, TheoryVersion::V1));
-    assert!(rule_accepted(m, rule, TheoryVersion::V2));
+    // Knowing nothing, a run may start with /c/a.bool false.
+    assert!(!rule_accepted(m, rule, TheoryVersion::V2));
 }
 
 /// A `V2` rule check at `node`, starting from accepted state `state`.
@@ -1185,26 +1196,31 @@ model Contract {
     ));
     // Absent, `bool_false` is false, and no edge can post the path.
     assert!(!accepted_from(m, flip, "q1", MapState::new()));
-    // Without a state, as under V1.
+    // Without a state, a run may start with /f.bool true.
     let unseeded = ModelChecker::with_version(model(m), TheoryVersion::V2);
     assert!(
-        unseeded
+        !unseeded
             .check_formula_at_state(&formula(flip), "q1")
             .is_satisfied
     );
     // A step that may write /f.bool ends what the state says after it,
     // but the first step is still taken with /f.bool true.
     let written = m.replace("q1 --> q1: +POST -modifies(/f.bool)", "q1 --> q1: +POST");
+    // After a step, a diamond needs a move every run there can take. This
+    // one is true (the first commit can write /f.bool false) but refused:
+    // `V2` does not follow the writes of a commit a diamond chooses.
     let after_post = "<+POST> <+bool_false(/f.bool)> true";
-    assert!(accepted_from(&written, after_post, "q1", f_true()));
+    assert!(!accepted_from(&written, after_post, "q1", f_true()));
     let first = "<-POST +bool_false(/f.bool)> true";
     assert!(!accepted_from(&written, first, "q1", f_true()));
-    assert!(accepted_from(
+    assert!(!accepted_from(
         &written,
         &format!("<+POST> {first}"),
         "q1",
         f_true()
     ));
+    // A move that reads nothing the step may write is met after it.
+    assert!(accepted_from(&written, "<+POST> <+POST> true", "q1", f_true()));
     // A rule naming the node still holds there.
     assert!(accepted_from(m, "q1", "q1", f_true()));
 }
@@ -1232,11 +1248,7 @@ model Contract {
 
 #[test]
 fn v2_rule_checks_match_v1_without_frames() {
-    for rule in [
-        r#"[-num_gt(/x.num,"5")] false & [-num_lt(/y.num,"3")] false & [] [-num_gt(/y.num,/x.num)] false"#,
-        r#"[] <+num_gt(/y.num,/x.num)> true"#,
-    ] {
-        let g5 = r#"
+    let g5 = r#"
 model Contract {
   part flow {
     q0 --> q1: +num_gt(/x.num,"5") +num_lt(/y.num,"3")
@@ -1244,12 +1256,16 @@ model Contract {
   }
 }
 "#;
-        assert_eq!(
-            rule_accepted(g5, rule, TheoryVersion::V1),
-            rule_accepted(g5, rule, TheoryVersion::V2),
-            "{rule}"
-        );
-    }
+    let boxes = r#"[-num_gt(/x.num,"5")] false & [-num_lt(/y.num,"3")] false & [] [-num_gt(/y.num,/x.num)] false"#;
+    assert_eq!(
+        rule_accepted(g5, boxes, TheoryVersion::V1),
+        rule_accepted(g5, boxes, TheoryVersion::V2)
+    );
+    // A diamond after a step is not: the first commit may write /x.num
+    // and /y.num, so some run reaches q1 with /y.num below /x.num.
+    let diamond = r#"[] <+num_gt(/y.num,/x.num)> true"#;
+    assert!(rule_accepted(g5, diamond, TheoryVersion::V1));
+    assert!(!rule_accepted(g5, diamond, TheoryVersion::V2));
 }
 
 #[test]
@@ -1556,11 +1572,13 @@ fn j2_j3_sufficient_vs_necessary_only() {
     // it stays opaque and the V0 rule decides: refused.
     assert!(!at(TheoryVersion::V1, above_floor(false), J_RULE));
 
-    // The diamond form is accepted under every version by the standing
-    // "unmentioned name is usable" rule; it does not exercise the theory.
+    // The diamond form: `V0` counts the edge by the "unmentioned name is
+    // usable" rule. `V1` counts it only when the theory builds a commit
+    // that takes it: with the exact declaration, not with necessary-only.
     let diamond = "[] always(<+wasm(/predicates/above_floor.wasm, /p.num)> true)";
     assert!(at(TheoryVersion::V0, above_floor(true), diamond));
-    assert!(at(TheoryVersion::V1, above_floor(false), diamond));
+    assert!(at(TheoryVersion::V1, above_floor(true), diamond));
+    assert!(!at(TheoryVersion::V1, above_floor(false), diamond));
 }
 
 #[test]

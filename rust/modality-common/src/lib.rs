@@ -2,6 +2,7 @@
 #[macro_use]
 extern crate lazy_static;
 
+pub mod commit_signatures;
 pub mod contract_store;
 pub mod encrypted_text;
 pub mod hash_tax;

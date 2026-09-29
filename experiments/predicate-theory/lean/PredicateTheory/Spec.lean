@@ -181,8 +181,6 @@ The validator's evaluator returns false for every predicate outside
 does. So the theory calls such an edge dead exactly when the evaluator
 never takes it, and never counts `+P` as possible. -/
 
-def neverAtom : Atom := .order (.const (Q.ofInt 0)) .lt (.const (Q.ofInt 0))
-
 theorem neverAtom_false (I : Interp) (w : World) : neverAtom.sem I w = false := by
   simp [neverAtom, Atom.sem, Term.eval, Op.test, Q.lt_irrefl]
 
@@ -232,7 +230,29 @@ theorem unevaluated_pos_dead (I : Interp) (ls : List Label) (l : Label) (hl : l 
 forbids it lives, and a committed `wasm` declaration does not make a
 `+wasm(...)` edge possible. -/
 
+/-- **Wrong kind of argument.** A declared predicate whose arguments do
+not fit its signature expands to one exact literal over `0 < 0`: `+P`
+kills its edge and `-P` holds on every commit, as in the evaluator. -/
+theorem expand_wrong_kind (reg : Registry) (l : Label) (d : Declaration)
+    (hs : l.static = false) (hd : reg l.key.1 = some d)
+    (ha : d.accepts l.key.2 = false) :
+    expand reg l = ⟨[⟨l.pos, neverAtom⟩], true⟩ := by
+  unfold expand
+  simp [hs, hd, ha]
+
 def postL : Label := ⟨true, "POST", [], true⟩
+
+/-! Wrong kind: `text_eq` on a `.num` path, `signed_by` on a path that is
+not `.id`, and a bound that is not a decimal. -/
+
+example : consistent validator [⟨true, "text_eq", ["/x.num", "5"], false⟩] = .dead := by
+  decide
+example : consistent validator [postL, ⟨false, "text_eq", ["/x.num", "5"], false⟩] = .live := by
+  decide
+example : consistent validator [⟨true, "signed_by", ["/parties/alice"], false⟩] = .dead := by
+  decide
+example : consistent validator [⟨true, "num_gt", ["/x.num", "1e2"], false⟩] = .dead := by
+  decide
 
 example : consistent validator [postL, ⟨true, "after", ["/deadlines/end.datetime"], false⟩] = .dead := by
   decide

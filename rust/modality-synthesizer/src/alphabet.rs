@@ -15,7 +15,10 @@ pub fn extract_alphabet(formulas: &[FormulaExpr]) -> Alphabet {
     alphabet
 }
 
-/// Candidate edge labels: empty first, then plus-polarity singletons, then plus-polarity bags.
+/// Candidate edge labels: empty first, then plus-polarity singletons, then
+/// plus-polarity bags, then one edge carrying every minus-polarity label as
+/// plus. The last meets a set of `[+X -E] false` boxes that ask for different
+/// evidence, which no single bag does.
 pub fn candidate_labels(alphabet: &Alphabet) -> Vec<Vec<Property>> {
     let mut labels = Vec::new();
     push_unique_bag(&mut labels, Vec::new());
@@ -28,6 +31,16 @@ pub fn candidate_labels(alphabet: &Alphabet) -> Vec<Vec<Property>> {
         let plus_bag: Vec<Property> = bag.iter().map(as_plus).collect();
         push_unique_bag(&mut labels, plus_bag);
         push_unique_bag(&mut labels, bag.clone());
+    }
+
+    let mut evidence = Vec::new();
+    for property in alphabet.bags.iter().flatten() {
+        if property.sign == PropertySign::Minus {
+            push_unique_property(&mut evidence, as_plus(property));
+        }
+    }
+    if evidence.len() > 1 {
+        push_unique_bag(&mut labels, evidence);
     }
 
     labels

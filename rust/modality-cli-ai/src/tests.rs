@@ -12,7 +12,7 @@ use crate::set;
 use crate::show;
 
 const FORMULA: &str =
-    "[] always([-signed_by(/parties/alice.id) -signed_by(/parties/bob.id)] false)";
+    "always([-signed_by(/parties/alice.id) -signed_by(/parties/bob.id)] false)";
 const SECRET_KEY: &str = "sk-test-secret-key-123456";
 
 static ENV_LOCK: Mutex<()> = Mutex::new(());
@@ -271,9 +271,9 @@ fn modal_ai_help_mentions_language_skill_files() {
 fn suggest_rule_prompt_includes_first_contract_or_signers_example() {
     let prompt = providers::suggest_rule_system_prompt();
     assert!(prompt
-        .contains("[] always([-signed_by(/parties/alice.id) -signed_by(/parties/bob.id)] false)"));
+        .contains("always([-signed_by(/parties/alice.id) -signed_by(/parties/bob.id)] false)"));
     assert!(prompt.contains("Do not invent action names"));
-    assert!(prompt.contains("[] φ` constrains successors of the current state"));
+    assert!(prompt.contains("`always(φ)` constrains every commit after this one"));
     assert!(
         !prompt.contains("prefixed with F1:"),
         "suggest-rule must not send the hub synthesis pattern table"
@@ -600,7 +600,7 @@ fn cursor_agent_prompt_embeds_cookbook_when_file_missing() {
     assert!(prompt.contains("Formula cookbook:"));
     assert!(prompt.contains(crate::cursor_agent::EMBEDDED_FORMULA_COOKBOOK));
     assert!(prompt.contains(
-        "[] always(([-signed_by(/parties/alice.id) -signed_by(/parties/bob.id)] false) & ([+signed_by(/parties/alice.id)] [-signed_by(/parties/bob.id)] false) & ([+signed_by(/parties/bob.id)] [-signed_by(/parties/alice.id)] false))"
+        "always(([-signed_by(/parties/alice.id) -signed_by(/parties/bob.id)] false) & ([+signed_by(/parties/alice.id)] [-signed_by(/parties/bob.id)] false) & ([+signed_by(/parties/bob.id)] [-signed_by(/parties/alice.id)] false))"
     ));
     assert!(prompt.contains("/parties/alice.id"));
 }

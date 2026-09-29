@@ -37,7 +37,7 @@ cat >"$RULE" <<'EOF'
 export default rule {
   starting_at $PARENT
   formula {
-    [] always([-signed_by(/parties/alice.id) -signed_by(/parties/bob.id)] false)
+    always([-signed_by(/parties/alice.id) -signed_by(/parties/bob.id)] false)
   }
 }
 EOF

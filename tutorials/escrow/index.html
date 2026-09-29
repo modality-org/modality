@@ -83,11 +83,12 @@ const escrowModel = {
 };
 
 const rules = [
-  'always(DEPOSIT → +signed_by(/parties/buyer.id))',
-  'always(DELIVER → +signed_by(/parties/seller.id))',
-  'always(RELEASE → +signed_by(/parties/buyer.id))',
-  'always(DISPUTE → +signed_by(/parties/buyer.id))',
-  'always(RESOLVE_* → +signed_by(/parties/arbiter.id))',
+  'always([+DEPOSIT -signed_by(/parties/buyer.id)] false)',
+  'always([+DELIVER -signed_by(/parties/seller.id)] false)',
+  'always([+RELEASE -signed_by(/parties/buyer.id)] false)',
+  'always([+DISPUTE -signed_by(/parties/buyer.id)] false)',
+  'always([+RESOLVE_RELEASE -signed_by(/parties/arbiter.id)] false)',
+  'always([+RESOLVE_REFUND -signed_by(/parties/arbiter.id)] false)',
 ];
 
 // ─── State machine SVG ───

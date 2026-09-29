@@ -255,7 +255,6 @@ pub async fn run(opts: &Opts) -> Result<()> {
     // Sign the commit once per supplied passfile.
     if !opts.sign.is_empty() {
         let mut sig_obj = serde_json::Map::new();
-        let body_json = serde_json::to_string(&commit.body)?;
 
         for passfile_ref in &opts.sign {
             let passfile_path = modality_common::passfile::resolve_passfile_path(passfile_ref)?;
@@ -263,8 +262,11 @@ pub async fn run(opts: &Opts) -> Result<()> {
                 anyhow::anyhow!("Invalid passfile path: {}", passfile_path.display())
             })?;
             let keypair = load_signing_key(passfile_str)?;
-            let public_key = keypair.public_key_as_base58_identity();
-            let signature = keypair.sign_string_as_base64_pad(&body_json)?;
+            let (public_key, signature) = modality_common::commit_signatures::sign_commit(
+                &keypair,
+                &config.contract_id,
+                &commit,
+            )?;
             sig_obj.insert(public_key, Value::String(signature));
         }
 
@@ -278,30 +280,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
     store.validate_commit_against_rules(&commit)?;
     let theory_preview = validate_commit_against_model(&dir, &store, &commit)?;
 
-    // Compute commit ID
-    let mut commit_id = commit.compute_id()?;
-
-    // Replace $PARENT placeholder in rule values with parent commit ID
-    if let Some(parent) = &parent_id {
-        for action in &mut commit.body {
-            if action.method == "rule" {
-                if let Value::String(s) = &action.value {
-                    if s.contains("$PARENT") {
-                        let replaced = s.replace("$PARENT", parent);
-
-                        // Also update the local rule file so it matches
-                        if let Some(path) = &action.path {
-                            let _ = store.write_rule(path, &Value::String(replaced.clone()));
-                        }
-
-                        action.value = Value::String(replaced);
-                    }
-                }
-            }
-        }
-        // Recompute commit ID since content changed
-        commit_id = commit.compute_id()?;
-    }
+    let commit_id = commit.compute_id()?;
 
     // Save commit
     store.save_commit(&commit_id, &commit)?;
@@ -332,7 +311,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
         if let Some(preview) = &theory_preview {
             println!();
             println!(
-                "⚠️  Predicate theory {} preview (local verify uses V0; a network that sets predicate_theory_version v1 enforces this):",
+                "⚠️  Predicate theory {} preview (local verify uses V0; a network that sets predicate_theory_version v2 enforces this):",
                 preview.theory
             );
             for line in &preview.lines {
@@ -505,14 +484,14 @@ fn validate_commit_against_model(
                 &model_content,
                 &accepted,
                 &pending,
-                TheoryVersion::V1,
+                TheoryVersion::V2,
             )));
         }
     }
 
     if model_path.exists() {
         modality_common::model_governance::validate_pending_commit(&model_content, store, commit)?;
-        return Ok(shadow_findings_for_store(&model_content, store, commit, TheoryVersion::V1)
+        return Ok(shadow_findings_for_store(&model_content, store, commit, TheoryVersion::V2)
             .ok()
             .and_then(theory_preview));
     }
@@ -562,8 +541,8 @@ mod tests {
             Value::String(SLIPPED_ESCROW.to_string()),
         );
         let preview = validate_commit_against_model(&dir, &store, &commit)?
-            .expect("V1 has something to say about a dead edge");
-        assert_eq!(preview.theory, "V1");
+            .expect("V2 has something to say about a dead edge");
+        assert_eq!(preview.theory, "V2");
         assert!(preview.lines[0].contains("would be refused"), "{:?}", preview.lines);
         assert!(
             preview.lines.iter().any(|l| l.contains("open --> refunded")),

@@ -31,6 +31,7 @@ Paths must end with a known extension:
 |-----------|------|---------------|
 | `.bool` | Boolean | `true` or `false` |
 | `.text` | Text string | `"Hello world"` |
+| `.num` | Number | `100` or `0.5` |
 | `.date` | Date | `"2024-01-15"` |
 | `.datetime` | Date and time | `"2024-01-15T10:30:00Z"` |
 | `.json` | JSON object | `{"key": "value"}` |

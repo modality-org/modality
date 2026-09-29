@@ -37,7 +37,7 @@ UNSAT_OUT="$TMP_DIR/unsatisfied-rule.out"
 cat >"$RULE" <<'EOF'
 rule post_requires_reviewer {
   formula {
-    always(!<+POST> true | <+POST +signed_by(/users/reviewer.id)> true)
+    always([+POST -signed_by(/users/reviewer.id)] false)
   }
 }
 EOF
@@ -74,7 +74,7 @@ done
 
 required_model_patterns=(
   "model Contract"
-  "q0 --> q0"
+  "q0 --> q1"
 )
 
 for pattern in "${required_model_patterns[@]}"; do
@@ -96,7 +96,7 @@ required_review_patterns=(
   "Action labels:"
   '`+POST`'
   "Predicate calls:"
-  '`+signed_by(/users/reviewer.id)`'
+  '`-signed_by(/users/reviewer.id)`'
   "## Source Clause Trace"
   "F1 source clause: Every accepted post move must have reviewer signature evidence attached."
   "## Source Facts"

@@ -2,48 +2,60 @@ import Acme8555.Types
 
 namespace Acme8555
 
-/-- Same-step phase gate: no concurrent writes of `a` and `b` on one event. -/
-def noConcurrentWrites (trace : List Event) (a b : PathWrite) : Prop :=
-  ¬∃ e, e ∈ trace ∧ a ∈ e.writes ∧ b ∈ e.writes
-
 /-- Party must sign any event that performs the given order-status write. -/
-def onlyPartySetsOrder (trace : List Event) (s : OrderStatus) (p : Party) : Prop :=
+abbrev onlyPartySetsOrder (trace : List Event) (s : OrderStatus) (p : Party) : Prop :=
   ∀ e, e ∈ trace → (.orderStatus s) ∈ e.writes → e.actor = p
 
 /-- Party must sign any event that performs the given challenge-status write. -/
-def onlyPartySetsChallenge (trace : List Event) (s : ChallengeStatus) (p : Party) : Prop :=
+abbrev onlyPartySetsChallenge (trace : List Event) (s : ChallengeStatus) (p : Party) : Prop :=
   ∀ e, e ∈ trace → (.challengeStatus s) ∈ e.writes → e.actor = p
 
+/-- Order status in accepted state before event `i`: the last order write. -/
+def orderBefore (trace : List Event) (i : Nat) : Option OrderStatus :=
+  ((trace.take i).flatMap Event.writes).foldl
+    (fun acc w => match w with
+      | .orderStatus s => some s
+      | _ => acc)
+    none
+
+/-- Challenge status in accepted state before event `i`: the last challenge write. -/
+def challengeBefore (trace : List Event) (i : Nat) : Option ChallengeStatus :=
+  ((trace.take i).flatMap Event.writes).foldl
+    (fun acc w => match w with
+      | .challengeStatus s => some s
+      | _ => acc)
+    none
+
+/-- Every event that performs write `w` meets `ok` at its position.
+Mirrors `always([+sets(w) -ok] false)`: `text_eq` reads accepted state. -/
+abbrev writesOnlyWhen (trace : List Event) (w : PathWrite) (ok : Nat → Prop)
+    [DecidablePred ok] : Prop :=
+  ∀ i, (h : i < trace.length) → w ∈ (trace[i]).writes → ok i
+
 /-- `finalize_requires_authorization` -/
-def finalizeRequiresAuthorization (trace : List Event) : Prop :=
-  noConcurrentWrites trace (.orderStatus .pending) (.orderStatus .processing)
+abbrev finalizeRequiresAuthorization (trace : List Event) : Prop :=
+  writesOnlyWhen trace (.orderStatus .processing)
+    (fun i => challengeBefore trace i = some .valid)
 
 /-- `finalize_requires_ready` -/
-def finalizeRequiresReady (trace : List Event) : Prop :=
-  noConcurrentWrites trace (.orderStatus .ready) (.orderStatus .processing)
+abbrev finalizeRequiresReady (trace : List Event) : Prop :=
+  writesOnlyWhen trace (.orderStatus .processing)
+    (fun i => orderBefore trace i = some .ready)
 
 /-- `issuance_requires_finalize` -/
-def issuanceRequiresFinalize (trace : List Event) : Prop :=
-  noConcurrentWrites trace (.orderStatus .ready) (.orderStatus .valid)
+abbrev issuanceRequiresFinalize (trace : List Event) : Prop :=
+  writesOnlyWhen trace (.orderStatus .valid)
+    (fun i => orderBefore trace i = some .processing)
 
-/-- `valid_excludes_invalid` -/
-def validExcludesInvalid (trace : List Event) : Prop :=
-  noConcurrentWrites trace (.orderStatus .valid) (.orderStatus .invalid)
-
-/-- `only_ca_marks_order_invalid` — holder must not sign order invalid on the same step. -/
-def onlyCaMarksOrderInvalid (trace : List Event) : Prop :=
-  ¬∃ e,
-    e ∈ trace ∧
-      (.orderStatus .invalid) ∈ e.writes ∧
-      e.actor = .accountHolder
+/-- `valid_excludes_invalid` — a valid order is never marked invalid. -/
+abbrev validExcludesInvalid (trace : List Event) : Prop :=
+  writesOnlyWhen trace (.orderStatus .invalid)
+    (fun i => orderBefore trace i ≠ some .valid)
 
 /-- `authorization_requires_challenge` -/
-def authorizationRequiresChallenge (trace : List Event) : Prop :=
-  noConcurrentWrites trace (.challengeStatus .pending) (.orderStatus .ready)
-
-/-- `finalize_requires_order` -/
-def finalizeRequiresOrder (trace : List Event) : Prop :=
-  noConcurrentWrites trace (.challengeStatus .pending) (.orderStatus .processing)
+abbrev authorizationRequiresChallenge (trace : List Event) : Prop :=
+  writesOnlyWhen trace (.orderStatus .ready)
+    (fun i => challengeBefore trace i ≠ some .pending)
 
 def Event.hasRevocationTrigger (e : Event) : Prop :=
   (.orderStatus .invalid) ∈ e.writes ∨ .certRevoked ∈ e.writes
@@ -61,19 +73,18 @@ def orderStatusValues (_trace : List Event) : Prop := True
 /-- `challenge_status_values` — challenge writes use RFC §7.1.6 enum (enforced by `PathWrite`). -/
 def challengeStatusValues (_trace : List Event) : Prop := True
 
-/-- Bundle matching all fourteen `rules/governance.modality` formulas. -/
+/-- Bundle matching all thirteen `rules/governance.modality` formulas. -/
 structure GovernanceProps (trace : List Event) : Prop where
   finalize_requires_authorization : finalizeRequiresAuthorization trace
   finalize_requires_ready : finalizeRequiresReady trace
   issuance_requires_finalize : issuanceRequiresFinalize trace
   only_ca_issues_certificate : onlyPartySetsOrder trace .valid .certificateAuthority
   valid_excludes_invalid : validExcludesInvalid trace
-  only_ca_marks_order_invalid : onlyCaMarksOrderInvalid trace
+  only_ca_marks_order_invalid : onlyPartySetsOrder trace .invalid .certificateAuthority
   authorization_requires_challenge : authorizationRequiresChallenge trace
   revocation_blocks_use : revocationBlocksUse trace
   only_holder_creates_order : onlyPartySetsOrder trace .pending .accountHolder
   only_holder_finalizes : onlyPartySetsOrder trace .processing .accountHolder
-  finalize_requires_order : finalizeRequiresOrder trace
   only_ca_validates_authorization : onlyPartySetsChallenge trace .valid .certificateAuthority
   order_status_values : orderStatusValues trace
   challenge_status_values : challengeStatusValues trace

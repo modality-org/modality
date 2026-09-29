@@ -23,7 +23,7 @@ required_patterns=(
   "modal c commit --all --sign delivery_oracle"
   "modal c commit --all --sign alice"
   "modal c commit --all --sign bob"
-  "modal c commit --all --sign carol"
+  "modal c commit --all --sign bob --sign carol"
 )
 
 for pattern in "${required_patterns[@]}"; do

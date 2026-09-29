@@ -47,7 +47,7 @@ or an inline domain action.
 | `--method <METHOD>` | Commit method for the single-path commit (default: `post`) |
 | `--dir <DIR>` | Contract directory (defaults to current directory) |
 | `--output <FORMAT>` | Output format: `text` or `json` |
-| `--sign <PASSFILE>` | Sign with a passfile path or identity name; repeat to attach multiple signatures |
+| `--sign <PASSFILE>` | Sign with a passfile path or identity name; repeat to attach multiple signatures. Each signs the contract id and the whole commit except its signatures (see [Commit signatures](../reference/standard-predicates.md#commit-signatures)) |
 | `--all`, `-a` | Commit all changed `state/`, `rules/`, `reposts/`, and `model/default.modality` files. Staged REPOST dests emit `method: repost`. |
 | `--message`, `-m <MSG>` | Commit message |
 | `--action <JSON>` | Commit an inline JSON domain action or read it from a `.json` file path |
@@ -73,12 +73,12 @@ modal c commit --path /notes.text --value "signed update" --sign alice
 modal c commit --action '{"type":"DEPOSIT","amount":100}' --sign alice
 ```
 
-After a commit is accepted, `modal c commit` previews what predicate theory V1
+After a commit is accepted, `modal c commit` previews what predicate theory V2
 would change about it. For example, it names a model edge whose labels can never
 hold together, such as `+num_lt(/escrow/paid.num,"100")` beside
 `+num_gte(/escrow/paid.num,"100")`. Local verify still uses V0, so the preview
 is a warning. Sequencers and validators refuse the commit if the network sets
-`predicate_theory_version` to `v1`. With `--output json`, the findings are
+`predicate_theory_version` to `v2`. With `--output json`, the findings are
 under `theory_preview`.
 
 ## Checkout
@@ -217,7 +217,7 @@ and wraps the formula as `export default rule { starting_at $PARENT ... }`.
 
 ```bash
 modal c add-rule --name authorized \
-  '[] always([-signed_by(/parties/alice.id) -signed_by(/parties/bob.id)] false)'
+  'always([-signed_by(/parties/alice.id) -signed_by(/parties/bob.id)] false)'
 ```
 
 Existing rule files are not overwritten. Run `modal c commit --all` after adding
@@ -243,7 +243,7 @@ modal c ai suggest-rule "after this commit either alice or bob must sign"
 ```
 
 ```
-[] always([-signed_by(/parties/alice.id) -signed_by(/parties/bob.id)] false)
+always([-signed_by(/parties/alice.id) -signed_by(/parties/bob.id)] false)
 ```
 
 That printed formula is example output; yours may differ.
@@ -395,7 +395,7 @@ one. The view is read-only. Sequencers and validators enforce the network's
 | Option | Description |
 |--------|-------------|
 | `--dir <DIR>` | Contract directory (defaults to current directory) |
-| `--theory <VERSION>` | Theory version to preview: `v1` (default), `v2`, or `v0` |
+| `--theory <VERSION>` | Theory version to preview: `v2` (default), `v1`, or `v0`. Networks refuse `v1` |
 | `--output <FORMAT>` | Output format: `text` or `json` |
 
 ## Pack / Unpack

@@ -3,12 +3,13 @@
 //! `CommitFacts::predicate_holds` (the evaluator the theory must mirror).
 
 use super::*;
-use modality_lang::theory::{NoState, Theory, Tri};
+use modality_lang::theory::{NoState, Registry, Theory, Tri};
 use modality_lang::{MoveStatus, PropertySign};
 use serde_json::json;
 
 const V0: TheoryVersion = TheoryVersion::V0;
 const V1: TheoryVersion = TheoryVersion::V1;
+const V2: TheoryVersion = TheoryVersion::V2;
 
 fn commit(actions: Vec<(&str, &str, Value)>) -> CommitFile {
     let mut c = CommitFile::new();
@@ -328,6 +329,100 @@ fn rule_text_is_read_whole_or_refused() {
         V0,
     )
     .expect("two formulas that hold");
+}
+
+/// A posted rule may not name a model node: `always(safe)` holds on any
+/// model whose author names its node `safe`. Fixed-point variables are
+/// bound, not names. A rule already in the log still replays.
+#[test]
+fn a_posted_rule_may_not_name_a_model_node() {
+    let accepted = [model_commit(
+        "model M {\n  part p {\n    safe --> safe: +POST\n  }\n}\n",
+        vec![("/notes/m.text", json!("m"))],
+    )];
+    for rule in [
+        "always(safe)",
+        "<+POST> safe",
+        "lfp(X, safe | <+POST> X)",
+    ] {
+        let err = validate(&accepted, &rule_commit(rule), V0).expect_err(rule);
+        assert!(
+            err.to_string().contains("`safe` names a model node"),
+            "{rule}: {err}"
+        );
+    }
+    validate(&accepted, &rule_commit("gfp(X, [+POST] X & <+POST> true)"), V0)
+        .expect("bound variables are not node names");
+
+    let logged = then(&accepted, &rule_commit("always(safe)"));
+    validate(&logged, &note(), V0).expect("a logged node-name rule still replays");
+}
+
+/// Under `V1` a diamond counts an edge only when the theory builds a commit
+/// that takes it. `has_property` is necessary-only, so the theory cannot:
+/// the rule is refused, and the message names the edge.
+#[test]
+fn g22_a_diamond_does_not_count_an_edge_the_theory_cannot_decide() {
+    let accepted = [model_commit(POST_LOOP, vec![])];
+    let rule = r#"[] always(<+has_property(/p.json, "a")> true)"#;
+    validate(&accepted, &rule_commit(rule), V0).expect("V0 counts an unmentioned name");
+    let err = validate(&accepted, &rule_commit(rule), V1).expect_err("V1");
+    assert!(
+        err.to_string()
+            .contains("cannot show that a commit takes these transitions with the diamond's labels"),
+        "{err}"
+    );
+    validate(&accepted, &rule_commit("[] always(<+POST> true)"), V1)
+        .expect("a decided edge still counts");
+}
+
+/// `oracle_attests` is evidence the commit carries, so the theory decides
+/// an edge that needs it by the rest of the edge: the oracle-escrow rule
+/// still holds under `V1`.
+#[test]
+fn g23_an_external_predicate_is_a_free_boolean() {
+    const ESCROW: &str = r#"
+model Contract {
+  part flow {
+    q0 --> q1
+    q1 --> q1: +POST -modifies(/oracles)
+    q1 --> q2: +RELEASE +oracle_attests(/oracles/delivery.id, "delivered", "true")
+  }
+}
+"#;
+    let accepted = [model_commit(ESCROW, vec![("/oracles/delivery.id", json!("K"))])];
+    let rule = r#"always(!<+RELEASE> true | <+RELEASE +oracle_attests(/oracles/delivery.id, "delivered", "true")> true)"#;
+    for v in [V0, V1, TheoryVersion::V2] {
+        validate(&accepted, &rule_commit(rule), v).unwrap_or_else(|e| panic!("{v:?}: {e}"));
+    }
+
+    let validator = contract_registry(&HashMap::new());
+    let theory = Theory::new(V1, &validator, &NoState);
+    let attests = |sign| {
+        let p = Property::new_predicate_from_call_args(
+            "oracle_attests".to_string(),
+            vec!["/oracles/delivery.id".into(), "delivered".into(), "true".into()],
+        );
+        if sign == PropertySign::Plus {
+            p
+        } else {
+            p.negated()
+        }
+    };
+    let with = |sign| vec![Property::new(PropertySign::Plus, "RELEASE".into()), attests(sign)];
+    assert_eq!(theory.consistent(&with(PropertySign::Plus)).tri, Tri::True);
+    assert_eq!(theory.consistent(&with(PropertySign::Minus)).tri, Tri::True);
+    let both = [with(PropertySign::Plus), vec![attests(PropertySign::Minus)]].concat();
+    assert_eq!(theory.consistent(&both).tri, Tri::False);
+
+    let no_key = HashMap::new();
+    let empty = AcceptedState::new(&no_key);
+    let in_state = Theory::new(V1, &validator, &empty);
+    assert_eq!(
+        in_state.consistent(&with(PropertySign::Plus)).tri,
+        Tri::Unknown,
+        "no oracle key in state"
+    );
 }
 
 /// Replay holds a commit that adds a rule to the model like any other
@@ -1145,7 +1240,7 @@ const PREDICATES: &[(&str, &[Kind])] = {
         ("threshold", &[Nat, Path]),
         ("modifies", &[Path]),
         ("post_to_path", &[Path]),
-        ("post_to", &[Path]),
+        ("post_to", &[Path, Text]),
         ("text_eq", &[TextPath, Text]),
         ("bool_true", &[BoolPath]),
         ("bool_false", &[BoolPath]),
@@ -1285,7 +1380,12 @@ fn random_commit(rng: &mut Rng) -> CommitFile {
         } else {
             format!("/{}", rng.pick(STATE_KEYS))
         };
-        c.add_action(method.to_string(), Some(path), json!(1));
+        let value = if rng.chance(50) {
+            json!(*rng.pick(TEXT_LITS))
+        } else {
+            random_value(rng, &path)
+        };
+        c.add_action(method.to_string(), Some(path), value);
     }
     let mut signatures = serde_json::Map::new();
     for key in ["KA", "KB", "KC", "KX"] {
@@ -1331,7 +1431,7 @@ fn theory_agrees_with_the_evaluator() {
     for round in 0..40_000 {
         let state = random_state(&mut rng);
         let pending = random_commit(&mut rng);
-        let facts = CommitFacts::from_commit(&pending, &state);
+        let facts = CommitFacts::from_commit(&pending, &state).under(V1);
         let props: Vec<Property> = (0..1 + rng.below(4))
             .map(|_| random_property(&mut rng))
             .collect();
@@ -1348,15 +1448,22 @@ fn theory_agrees_with_the_evaluator() {
         ] {
             let ctx = || format!("round {round} ({view}): state {state:?}; commit {pending:?}");
 
-            let verdict = theory.consistent(&true_now);
-            assert_ne!(
-                verdict.tri,
-                Tri::False,
-                "{}: labels hold but called inconsistent: {:?}; offending {:?}",
-                ctx(),
-                true_now,
-                verdict.explain()
-            );
+            // Every subset holds too, so none may be dead (issue 08).
+            for mask in 1..(1u32 << true_now.len()) {
+                let subset: Vec<Property> = (0..true_now.len())
+                    .filter(|i| mask & (1 << i) != 0)
+                    .map(|i| true_now[i].clone())
+                    .collect();
+                let verdict = theory.consistent(&subset);
+                assert_ne!(
+                    verdict.tri,
+                    Tri::False,
+                    "{}: labels hold but called inconsistent: {:?}; offending {:?}",
+                    ctx(),
+                    subset,
+                    verdict.explain()
+                );
+            }
             if theory.consistent(&props).tri == Tri::False {
                 refuted += 1;
             }
@@ -1399,6 +1506,95 @@ fn theory_agrees_with_the_evaluator() {
     assert!(refuted > 1_000, "refuted {refuted}");
     assert!(entailed > 1_000, "entailed {entailed}");
     assert!(decided > 1_000, "decided {decided}");
+}
+
+/// Random labels, each flipped so it holds on the commit, plus (half the
+/// time) a `-modifies` frame the commit keeps.
+fn labels_that_hold(rng: &mut Rng, facts: &CommitFacts) -> Vec<Property> {
+    let mut labels: Vec<Property> = (0..1 + rng.below(4))
+        .map(|_| {
+            let p = random_property(rng);
+            if holds(facts, &p) {
+                p
+            } else {
+                flip(&p)
+            }
+        })
+        .collect();
+    if rng.chance(50) {
+        let frame = Property::new_predicate(
+            PropertySign::Minus,
+            "modifies".to_string(),
+            "/_code/modal/modifies.wasm".to_string(),
+            json!({ "arg": *rng.pick(PATHS) }),
+        );
+        if holds(facts, &frame) {
+            labels.push(frame);
+        }
+    }
+    labels
+}
+
+/// Issue 08 across a step. For random runs of two commits, each taking an
+/// edge whose labels hold on it, `V2` state flow never reports the second
+/// edge dead after the first: not from no state, and not from the accepted
+/// state the run starts in. This checks the evaluator's side of
+/// `flow_sound`: a commit with `-modifies(q)` leaves every literal that
+/// reads only paths under `q` as it was.
+#[test]
+fn flow_never_drops_an_edge_a_run_takes() {
+    use modality_lang::theory::flow::{flow_seeded, FlowEdge};
+    let validator = contract_registry(&HashMap::new());
+    let mut rng = Rng(0xF10E_5EED_0808_0001);
+    let (mut carried, mut dropped) = (0, 0);
+    for round in 0..40_000 {
+        let s0 = random_state(&mut rng);
+        let c1 = random_commit(&mut rng);
+        let e1 = labels_that_hold(&mut rng, &CommitFacts::from_commit(&c1, &s0).under(V2));
+        let mut s1 = s0.clone();
+        apply_commit_to_state(&c1, &mut s1);
+        let c2 = random_commit(&mut rng);
+        let e2 = labels_that_hold(&mut rng, &CommitFacts::from_commit(&c2, &s1).under(V2));
+
+        let theory = Theory::new(V2, &validator, &NoState);
+        let edges = vec![
+            FlowEdge {
+                from: "n0".to_string(),
+                to: "n1".to_string(),
+                lits: Some(theory.expand_all(&e1).0),
+            },
+            FlowEdge {
+                from: "n1".to_string(),
+                to: "n2".to_string(),
+                lits: Some(theory.expand_all(&e2).0),
+            },
+        ];
+        let mentioned: Vec<_> = edges.iter().flat_map(|e| e.lits.clone().unwrap()).collect();
+        let accepted = AcceptedState::new(&s0);
+        let seeded = Theory::new(V2, &validator, &accepted).state_facts(&mentioned);
+        for (view, seed) in [("no state", Vec::new()), ("accepted state", seeded)] {
+            let flow = flow_seeded(&edges, &["n0".to_string()], &seed);
+            if flow.facts.get("n1").is_some_and(|f| !f.is_empty()) {
+                carried += 1;
+            }
+            assert!(
+                flow.dead_after.is_empty(),
+                "round {round} ({view}): state {s0:?}; commits {c1:?} then {c2:?}; \
+                 labels {e1:?} then {e2:?}; dead after {:?}; facts {:?}",
+                flow.dead_after,
+                flow.facts
+            );
+        }
+
+        // Not vacuous: an edge that undoes a carried label is dropped.
+        let mut edges = edges;
+        edges[1].lits = Some(theory.expand_all(&[flip(rng.pick(&e1))]).0);
+        if !flow_seeded(&edges, &["n0".to_string()], &[]).dead_after.is_empty() {
+            dropped += 1;
+        }
+    }
+    assert!(carried > 5_000, "carried {carried}");
+    assert!(dropped > 100, "dropped {dropped}");
 }
 
 /// A witness as the evaluator's inputs: the accepted state it builds (empty
@@ -1463,8 +1659,22 @@ fn witnesses_are_commits_the_evaluator_accepts() {
                 in_state += 1;
                 &state
             };
-            let facts = CommitFacts::from_commit(&commit, s);
+            let facts = CommitFacts::from_commit(&commit, s).under(V1);
             for p in &props {
+                if validator.external(&p.name) {
+                    // Evidence the commit carries: assumed, but under a
+                    // known state `+p` needs the key its first argument names.
+                    let key = modality_lang::theory::decl::property_args(p)
+                        .first()
+                        .map(|k| k.trim_start_matches('/').to_string());
+                    assert!(
+                        view == "no state"
+                            || p.sign == PropertySign::Minus
+                            || key.is_some_and(|k| state.get(&k).is_some_and(Value::is_string)),
+                        "round {round} ({view}): {props:?} live with {p:?} and no key in {state:?}"
+                    );
+                    continue;
+                }
                 assert!(
                     holds(&facts, p),
                     "round {round} ({view}): {props:?} has witness {w:?}, but {p:?} fails"
@@ -1643,4 +1853,264 @@ model Contract {
     let accepted = then(&accepted, &rule());
     validate(&accepted, &note(), TheoryVersion::V2)
         .expect("replay re-checks the rule from the state it was added in");
+}
+
+#[test]
+fn sets_holds_when_every_write_to_the_path_is_the_value() {
+    let sets = |value: &str| {
+        Property::new_predicate_from_call_args(
+            "sets".to_string(),
+            vec!["/p.text".to_string(), value.to_string()],
+        )
+    };
+    let holds_on = |writes: &[(&str, Value)], value: &str| {
+        let mut c = CommitFile::new();
+        for (path, v) in writes {
+            c.add_action("post".to_string(), Some(path.to_string()), v.clone());
+        }
+        CommitFacts::from_commit(&c, &HashMap::new()).predicate_holds(&sets(value))
+    };
+    assert!(holds_on(&[("/p.text", json!("a"))], "a"));
+    assert!(!holds_on(&[("/p.text", json!("b"))], "a"));
+    assert!(!holds_on(&[], "a"), "no write, so the path is not set");
+    assert!(!holds_on(&[("/q.text", json!("a"))], "a"));
+    assert!(!holds_on(&[("/p.text/x", json!("a"))], "a"), "a descendant is not the path");
+    assert!(
+        !holds_on(&[("/p.text", json!("a")), ("/p.text", json!("b"))], "a"),
+        "a second write of another value"
+    );
+    assert!(holds_on(&[("p.text", json!("a")), ("/p.text", json!("a"))], "a"));
+    assert!(holds_on(&[("/p.text", json!(5))], "5"));
+    assert!(!holds_on(&[("/p.text", json!({"v": "a"}))], "a"));
+}
+
+#[test]
+fn a_predicate_with_an_argument_of_the_wrong_kind_never_holds() {
+    let state: HashMap<String, Value> = [
+        ("x.num".to_string(), json!(5)),
+        ("x.text".to_string(), json!("5")),
+        ("y.num".to_string(), json!("5")),
+    ]
+    .into();
+    let holds = |theory: TheoryVersion, name: &str, args: &[&str]| {
+        CommitFacts::from_commit(&CommitFile::new(), &state)
+            .under(theory)
+            .predicate_holds(&Property::new_predicate_from_call_args(
+                name.to_string(),
+                args.iter().map(|a| a.to_string()).collect(),
+            ))
+    };
+    for theory in [TheoryVersion::V1, TheoryVersion::V2] {
+        assert!(holds(theory, "text_eq", &["/x.text", "5"]));
+        assert!(!holds(theory, "text_eq", &["/y.num", "5"]), "text_eq reads a .text path");
+        assert!(holds(theory, "num_gt", &["/x.num", "4"]));
+        assert!(!holds(theory, "num_gt", &["/x.num", "four"]), "the bound is not a number");
+        assert!(!holds(theory, "num_gt", &["/x.num", "1e0"]), "the bound is not a decimal");
+    }
+    assert!(holds(TheoryVersion::V0, "text_eq", &["/y.num", "5"]), "V0 is unchanged");
+    assert!(holds(TheoryVersion::V0, "num_gt", &["/x.num", "1e0"]), "V0 is unchanged");
+}
+
+// ---------------------------------------------------------------------------
+// Tutorial contracts: the rules and witness models the docs publish
+// ---------------------------------------------------------------------------
+
+/// A bootstrap commit that installs `model`, `posts` and every rule in
+/// `formulas`, as a tutorial's first `modal c commit --all` does.
+fn bootstrap(model: &str, posts: Vec<(&str, Value)>, formulas: &[&str]) -> CommitFile {
+    let mut c = model_commit(model, posts);
+    for (i, formula) in formulas.iter().enumerate() {
+        let rule = format!("export default rule {{\n  formula {{\n    {formula}\n  }}\n}}\n");
+        c.add_action("rule".to_string(), Some(format!("/rules/r{i}.modality")), json!(rule));
+    }
+    c
+}
+
+const TREASURY: &str = r#"
+model Treasury {
+  part flow {
+    q0 --> q1
+    q1 --> q1: +any_signed(/treasury) -modifies(/treasury)
+    q1 --> q1: +any_signed(/treasury) +threshold("2", /treasury)
+  }
+}
+"#;
+
+const TREASURY_RULES: [&str; 2] = [
+    "always([-any_signed(/treasury)] false)",
+    r#"always([+modifies(/treasury) -threshold("2", /treasury)] false)"#,
+];
+
+#[test]
+fn multisig_treasury_tutorial_needs_two_keyholders_under_treasury() {
+    let keys = || {
+        vec![
+            ("/treasury/alice.id", json!("KEY_A")),
+            ("/treasury/bob.id", json!("KEY_B")),
+            ("/treasury/carol.id", json!("KEY_C")),
+        ]
+    };
+    let post = |path: &str| commit(vec![("post", path, json!({"amount": 100}))]);
+    for theory in [V0, V2] {
+        let first = signed(bootstrap(TREASURY, keys(), &TREASURY_RULES), &["KEY_A"]);
+        validate(&[], &first, theory).expect("bootstrap");
+        let mut accepted = vec![first];
+        let propose = signed(post("/proposals/withdrawal.json"), &["KEY_A"]);
+        validate(&accepted, &propose, theory).expect("one keyholder proposes");
+        accepted.push(propose);
+
+        let withdraw = post("/treasury/withdrawals/0001.json");
+        validate(&accepted, &withdraw, theory).expect_err("unsigned");
+        validate(&accepted, &signed(withdraw.clone(), &["KEY_A"]), theory)
+            .expect_err("one keyholder cannot withdraw");
+        validate(&accepted, &signed(withdraw.clone(), &["KEY_A", "KEY_X"]), theory)
+            .expect_err("an outside key does not count");
+        validate(&accepted, &signed(withdraw, &["KEY_B", "KEY_C"]), theory)
+            .expect("two keyholders withdraw");
+
+        let swap_key = commit(vec![("post", "/treasury/bob.id", json!("KEY_A2"))]);
+        validate(&accepted, &signed(swap_key, &["KEY_A"]), theory)
+            .expect_err("Alice alone cannot replace Bob's key");
+        let open = TREASURY.replace(r#"+threshold("2", /treasury)"#, "");
+        validate(&accepted, &signed(model_commit(&open, vec![]), &["KEY_A"]), theory)
+            .expect_err("a model without the threshold fails the rules");
+    }
+}
+
+const ORACLE_ESCROW: &str = r#"
+model Escrow {
+  part flow {
+    q0 --> q1
+    q1 --> q2: +signed_by(/users/buyer.id) -modifies(/escrow/release.json)
+    q2 --> q3: +signed_by(/users/seller.id) -modifies(/escrow/release.json)
+    q3 --> q4: +signed_by(/oracles/delivery.id) +oracle_attests(/oracles/delivery.id, "delivered", "true")
+    q3 --> q5: +signed_by(/oracles/delivery.id) +oracle_attests(/oracles/delivery.id, "delivered", "false") -modifies(/escrow/release.json)
+  }
+}
+"#;
+
+const ORACLE_ESCROW_RULES: [&str; 2] = [
+    "always([-signed_by(/users/buyer.id) -signed_by(/users/seller.id) -signed_by(/oracles/delivery.id)] false)",
+    r#"always([+modifies(/escrow/release.json) -oracle_attests(/oracles/delivery.id, "delivered", "true")] false)"#,
+];
+
+#[test]
+fn oracle_escrow_tutorial_releases_only_on_an_attestation() {
+    let keys = || {
+        vec![
+            ("/users/buyer.id", json!("KEY_BUYER")),
+            ("/users/seller.id", json!("KEY_SELLER")),
+            ("/oracles/delivery.id", json!("KEY_ORACLE")),
+        ]
+    };
+    let post = |path: &str| commit(vec![("post", path, json!({"price": 100}))]);
+    for theory in [V0, V2] {
+        let first = bootstrap(ORACLE_ESCROW, keys(), &ORACLE_ESCROW_RULES);
+        validate(&[], &first, theory).expect("bootstrap");
+        let mut accepted = vec![first];
+        validate(&accepted, &post("/escrow/deposit.json"), theory).expect_err("unsigned");
+        let deposit = signed(post("/escrow/deposit.json"), &["KEY_BUYER"]);
+        validate(&accepted, &deposit, theory).expect("buyer deposits");
+        accepted.push(deposit);
+        let ship = signed(post("/escrow/shipment.json"), &["KEY_SELLER"]);
+        validate(&accepted, &ship, theory).expect("seller ships");
+        accepted.push(ship);
+
+        let release = signed(post("/escrow/release.json"), &["KEY_ORACLE"]);
+        validate(&accepted, &release, theory).expect_err("no attestation bundle");
+        let open = ORACLE_ESCROW.replace(
+            r#"+oracle_attests(/oracles/delivery.id, "delivered", "true")"#,
+            "",
+        );
+        validate(&accepted, &signed(model_commit(&open, vec![]), &["KEY_SELLER"]), theory)
+            .expect_err("a model that releases without the oracle fails the rules");
+    }
+}
+
+#[test]
+fn a_diamond_does_not_count_an_edge_that_sets_the_path_to_another_value() {
+    let model = r#"
+model Contract {
+  part flow {
+    q0 --> q1
+    q1 --> q1: +sets(/p.text, "a")
+  }
+}
+"#;
+    let rule = |value: &str| {
+        let text = format!(
+            "export default rule {{\n  formula {{\n    always(<+sets(/p.text, \"{value}\")> true)\n  }}\n}}\n"
+        );
+        commit(vec![("rule", "/rules/r.modality", json!(text)), ("post", "/p.text", json!("a"))])
+    };
+    for theory in [V0, V1, V2] {
+        let accepted = vec![model_commit(model, vec![])];
+        let err = validate(&accepted, &rule("b"), theory)
+            .expect_err("no commit on the edge sets /p.text to b");
+        assert!(err.to_string().contains("Model violates rule"), "{theory:?}: {err}");
+        // From V1 `sets` is declared necessary-only, so a diamond over it
+        // never counts, even on an edge that sets the value.
+        if theory == V0 {
+            validate(&accepted, &rule("a"), theory).expect("the edge sets /p.text to a");
+        }
+    }
+}
+
+const MEMBERS_ONLY: &str = r#"
+model MembersOnly {
+  part flow {
+    q0 --> q1
+    q1 --> q1: +any_signed(/members) -modifies(/members)
+    q1 --> q1: +any_signed(/members) +all_signed(/members)
+  }
+}
+"#;
+
+const MEMBERS_ONLY_RULES: [&str; 2] = [
+    "always([-any_signed(/members)] false)",
+    "always([+modifies(/members) -all_signed(/members)] false)",
+];
+
+#[test]
+fn members_only_tutorial_needs_every_member_to_change_membership() {
+    let post = |path: &str, value: &str| commit(vec![("post", path, json!(value))]);
+    for theory in [V0, V2] {
+        let first = signed(
+            bootstrap(MEMBERS_ONLY, vec![("/members/alice.id", json!("KEY_A"))], &MEMBERS_ONLY_RULES),
+            &["KEY_A"],
+        );
+        validate(&[], &first, theory).expect("bootstrap");
+        let mut accepted = vec![first];
+        let add_bob = signed(post("/members/bob.id", "KEY_B"), &["KEY_A"]);
+        validate(&accepted, &add_bob, theory).expect("Alice is every member");
+        accepted.push(add_bob);
+
+        let add_carol = post("/members/carol.id", "KEY_C");
+        validate(&accepted, &signed(add_carol.clone(), &["KEY_A"]), theory)
+            .expect_err("Bob has not signed");
+        let add_carol = signed(add_carol, &["KEY_A", "KEY_B"]);
+        validate(&accepted, &add_carol, theory).expect("Alice and Bob add Carol");
+        accepted.push(add_carol);
+
+        let notes = post("/data/notes.text", "hi");
+        validate(&accepted, &signed(notes.clone(), &["KEY_B"]), theory).expect("a member posts");
+        validate(&accepted, &signed(notes, &["KEY_X"]), theory).expect_err("a stranger");
+        validate(
+            &accepted,
+            &signed(post("/members/dave.id", "KEY_D"), &["KEY_A", "KEY_B"]),
+            theory,
+        )
+        .expect_err("Carol has not signed");
+
+        let one_signer = MEMBERS_ONLY.replace(
+            "+any_signed(/members) +all_signed(/members)",
+            "+any_signed(/members) +modifies(/members)",
+        );
+        let takeover = commit(vec![
+            ("model", "/model/default.modality", json!(one_signer)),
+            ("post", "/members/mallory.id", json!("KEY_M")),
+        ]);
+        validate(&accepted, &signed(takeover, &["KEY_A"]), theory)
+            .expect_err("a one-signer membership model fails the rules");
+    }
 }

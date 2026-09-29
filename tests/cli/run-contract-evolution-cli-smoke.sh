@@ -76,7 +76,7 @@ cat >"$CONTRACT_DIR/rules/signed-posts.modality" <<'EOF'
 export default rule {
   starting_at $PARENT
   formula {
-    [] always([-signed_by(/parties/alice.id) -signed_by(/parties/bob.id)] false)
+    always([-signed_by(/parties/alice.id) -signed_by(/parties/bob.id)] false)
   }
 }
 EOF
@@ -89,7 +89,8 @@ EOF
   --message "Add signed-post rule" >"$TMP_DIR/add-rule.json"
 
 grep -q '"status": "committed"' "$TMP_DIR/add-rule.json"
-grep -q '\[\] always' "$CONTRACT_DIR/rules/signed-posts.modality"
+grep -q 'starting_at \$PARENT' "$CONTRACT_DIR/rules/signed-posts.modality"
+grep -q '^    always(' "$CONTRACT_DIR/rules/signed-posts.modality"
 
 cat >"$CONTRACT_DIR/model/default.modality" <<'EOF'
 export default model {
@@ -114,7 +115,7 @@ fi
 
 grep -q "Model violates rule" "$TMP_DIR/bad-model.err"
 grep -q "failed anchor state: q1" "$TMP_DIR/bad-model.err"
-grep -Fq "formula: [] always([-signed_by(/parties/alice.id) -signed_by(/parties/bob.id)] false)" "$TMP_DIR/bad-model.err"
+grep -Fq "formula: always([-signed_by(/parties/alice.id) -signed_by(/parties/bob.id)] false)" "$TMP_DIR/bad-model.err"
 
 cat >"$CONTRACT_DIR/model/default.modality" <<'EOF'
 export default model {
@@ -335,7 +336,7 @@ export default model {
   active -> active [+RULE +signed_by(/parties/alice.id)]
   active -> active [+MODEL +signed_by(/parties/alice.id)]
   active -> expired [+POST +bool_true(/terms/delivery_complete.bool)]
-  expired -> expired [+POST]
+  expired -> expired [+POST +bool_true(/terms/delivery_complete.bool)]
   expired -> expired [+RULE +signed_by(/parties/alice.id)]
   expired -> expired [+MODEL +signed_by(/parties/alice.id)]
 }
@@ -355,7 +356,7 @@ cat >"$BOUNDED_CONTRACT_DIR/rules/must-retain-expiry-state.modality" <<'EOF'
 export default rule {
   starting_at $PARENT
   formula {
-    eventually(expired)
+    eventually(<+bool_true(/terms/delivery_complete.bool)> true)
   }
 }
 EOF
@@ -373,7 +374,7 @@ cat >"$BOUNDED_CONTRACT_DIR/rules/delivery-bounded.modality" <<'EOF'
 export default rule {
   starting_at $PARENT
   formula {
-    active until expired
+    always([-signed_by(/parties/alice.id) -bool_true(/terms/delivery_complete.bool)] false)
   }
 }
 EOF
@@ -386,7 +387,7 @@ EOF
   --message "Add delivery bounded term" >"$TMP_DIR/add-delivery-bounded-rule.json"
 
 grep -q '"status": "committed"' "$TMP_DIR/add-delivery-bounded-rule.json"
-grep -q 'active until expired' "$BOUNDED_CONTRACT_DIR/rules/delivery-bounded.modality"
+grep -q 'always(\[-signed_by(/parties/alice.id) -bool_true(/terms/delivery_complete.bool)\] false)' "$BOUNDED_CONTRACT_DIR/rules/delivery-bounded.modality"
 
 if "$MODAL_BIN" c commit \
   --path /notes/release-before-completion.text \
@@ -406,9 +407,9 @@ export default model {
   initial q0
 
   q0 -> active [+POST +MODEL]
-  active -> active [+POST +signed_by(/parties/alice.id)]
-  active -> active [+RULE +signed_by(/parties/alice.id)]
-  active -> active [+MODEL +signed_by(/parties/alice.id)]
+  active -> active [+POST +signed_by(/parties/alice.id) -bool_true(/terms/delivery_complete.bool)]
+  active -> active [+RULE +signed_by(/parties/alice.id) -bool_true(/terms/delivery_complete.bool)]
+  active -> active [+MODEL +signed_by(/parties/alice.id) -bool_true(/terms/delivery_complete.bool)]
 }
 EOF
 
@@ -423,7 +424,7 @@ if "$MODAL_BIN" c commit \
 fi
 
 grep -q "Model violates rule" "$TMP_DIR/remove-expiry-state.err"
-grep -q "formula: eventually(expired)" "$TMP_DIR/remove-expiry-state.err"
+grep -q "formula: eventually(<+bool_true(/terms/delivery_complete.bool)> true)" "$TMP_DIR/remove-expiry-state.err"
 
 cat >"$BOUNDED_CONTRACT_DIR/model/default.modality" <<'EOF'
 export default model {
@@ -434,7 +435,7 @@ export default model {
   active -> active [+RULE +signed_by(/parties/alice.id)]
   active -> active [+MODEL +signed_by(/parties/alice.id)]
   active -> expired [+POST +bool_true(/terms/delivery_complete.bool)]
-  expired -> expired [+POST]
+  expired -> expired [+POST +bool_true(/terms/delivery_complete.bool)]
   expired -> expired [+RULE +signed_by(/parties/alice.id)]
   expired -> expired [+MODEL +signed_by(/parties/alice.id)]
 }

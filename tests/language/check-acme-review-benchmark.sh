@@ -28,26 +28,26 @@ if grep -Eq -- '->|\bimplies\b' "$RULE"; then
   exit 1
 fi
 
-if ! grep -Fq -- 'always(!<+ACME_FINALIZE_ORDER> true | <+ACME_FINALIZE_ORDER +signed_by(/users/account_holder.id)> true)' "$RULE"; then
-  echo "ACME review benchmark rule is missing the explicit finalize/signature Boolean guard" >&2
+if ! grep -Fq -- 'always([+ACME_FINALIZE_ORDER -signed_by(/users/account_holder.id)] false)' "$RULE"; then
+  echo "ACME review benchmark rule is missing the finalize/signature box" >&2
   cat "$RULE" >&2
   exit 1
 fi
 
-if ! grep -Fq -- 'always(!<+ACME_CREATE_ORDER> true | <+ACME_CREATE_ORDER +signed_by(/users/account_holder.id)> true)' "$RULE"; then
-  echo "ACME review benchmark rule is missing the explicit newOrder/signature Boolean guard" >&2
+if ! grep -Fq -- 'always([+ACME_CREATE_ORDER -signed_by(/users/account_holder.id)] false)' "$RULE"; then
+  echo "ACME review benchmark rule is missing the newOrder/signature box" >&2
   cat "$RULE" >&2
   exit 1
 fi
 
-if ! grep -Fq -- 'always(!<+ACME_VALIDATE_AUTHORIZATION> true | <+ACME_VALIDATE_AUTHORIZATION +signed_by(/users/certificate_authority.id)> true)' "$RULE"; then
-  echo "ACME review benchmark rule is missing the explicit authorization-validation/CA Boolean guard" >&2
+if ! grep -Fq -- 'always([+ACME_VALIDATE_AUTHORIZATION -signed_by(/users/certificate_authority.id)] false)' "$RULE"; then
+  echo "ACME review benchmark rule is missing the authorization-validation/CA box" >&2
   cat "$RULE" >&2
   exit 1
 fi
 
-if ! grep -Fq -- 'always(!<+ACME_ISSUE_CERTIFICATE> true | <+ACME_ISSUE_CERTIFICATE +signed_by(/users/certificate_authority.id)> true)' "$RULE"; then
-  echo "ACME review benchmark rule is missing the explicit certificate-issuance/CA Boolean guard" >&2
+if ! grep -Fq -- 'always([+ACME_ISSUE_CERTIFICATE -signed_by(/users/certificate_authority.id)] false)' "$RULE"; then
+  echo "ACME review benchmark rule is missing the certificate-issuance/CA box" >&2
   cat "$RULE" >&2
   exit 1
 fi
@@ -89,12 +89,8 @@ done
 
 required_model_patterns=(
   "model Contract"
-  "+ACME_FINALIZE_ORDER +signed_by(/users/account_holder.id)"
-  "+ACME_CREATE_ORDER"
   "+signed_by(/users/account_holder.id)"
-  "+ACME_VALIDATE_AUTHORIZATION"
   "+signed_by(/users/certificate_authority.id)"
-  "+ACME_ISSUE_CERTIFICATE"
 )
 
 for pattern in "${required_model_patterns[@]}"; do
@@ -135,8 +131,8 @@ required_review_patterns=(
   '`+ACME_CREATE_ORDER`'
   '`+ACME_VALIDATE_AUTHORIZATION`'
   '`+ACME_ISSUE_CERTIFICATE`'
-  '`+signed_by(/users/account_holder.id)`'
-  '`+signed_by(/users/certificate_authority.id)`'
+  '`-signed_by(/users/account_holder.id)`'
+  '`-signed_by(/users/certificate_authority.id)`'
   "## Source Clause Trace"
   "F1 source clause: RFC 8555 section 7.4"
   "F2 source clause: RFC 8555 section 7.1.4"

@@ -14,7 +14,7 @@ ACME automates certificate issuance between a certificate authority (CA) and an 
 |---|---|
 | [model/default.modality](./model/default.modality) | Witness LTS governing model |
 | [diagrams/acme-issuance.png](./diagrams/acme-issuance.png) | Witness LTS diagram (source: [acme-issuance.mmd](./diagrams/acme-issuance.mmd)) |
-| [rules/governance.modality](./rules/governance.modality) | Fourteen governance formulas (nine temporal + five structural) |
+| [rules/governance.modality](./rules/governance.modality) | Thirteen governance formulas (nine obligations + four structural) |
 | [review-benchmark/](./review-benchmark/) | Narrow source-clause review-bundle fixture for `newOrder`, authorization validation, and finalize |
 | [review-benchmark/path-write-crosswalk.md](./review-benchmark/path-write-crosswalk.md) | Reviewer crosswalk from the abstract review fixture to the path-write corpus |
 | [lean/](./lean/) | Lean 4 mirror of model + governance props |
@@ -52,7 +52,14 @@ RFC §7.1.6 lifecycle is stored on durable paths (not witness node names):
 | `processing` | Client responded; CA may validate (retries at q1, §8.2) |
 | `valid` | Authorization valid |
 
-Closed-enum rules use `always([-sets(path, A)] false | [-sets(path, B)] false | …)` — `[-sets(path, v)] false` means the value at `path` must be `v`; OR lists the allowed RFC literals.
+Closed-enum rules use `always([+post_to_path(path) -sets(path, A) -sets(path, B) …] false)`: a commit that writes `path` sets it to one of the RFC literals. `sets(path, v)` holds on a commit when every write to `path` in it is `v`. Model edges that leave a status path alone say so with `-post_to_path(path)`.
+
+Every rule is a box: `always([L] false)` refuses every commit carrying `L`.
+Status order reads accepted state, so finalize is
+`[+sets(/order/status.text, "processing") -text_eq(/order/status.text, "ready")] false`.
+Checked from `q0`, as the network checks a rule, the model meets all thirteen
+rules under predicate theory V0 and V2. Under V0 labels are names, so each
+edge lists the status writes it does not make.
 
 The witness model uses opaque nodes `q0`…`q5` (one per order status). Each order status change uses `+sets(/order/status.text, …)`; pending-phase challenge steps use `+sets(/challenge/status.text, …)` on self-loops at `q1`.
 
@@ -108,7 +115,7 @@ It checks that the parser-backed rule synthesis bundle preserves the reviewer
 source clauses, extracted `+ACME_CREATE_ORDER`, `+ACME_VALIDATE_AUTHORIZATION`,
 `+ACME_FINALIZE_ORDER`, and `+ACME_ISSUE_CERTIFICATE` actions, account-holder
 and CA signature predicates, verifier status, explicit external assumptions, and
-known gaps. It uses explicit Boolean formula syntax instead of implication sugar.
+known gaps. Its rules are boxes, `always([+A -signed_by(P)] false)`.
 It does not claim that
 DNS/HTTP validation, CSR soundness, CA policy, WebPKI trust, or the full
 path-write ACME corpus are synthesized end to end. The
@@ -127,7 +134,8 @@ hand-authored path-write corpus.
 
 - Witness LTS uses opaque q0…q5 aligned to `/order/status.text`
 - Linear ordering with challenge self-loops at q1 and revocation branch
-- Authorization formulas use `signed_by` on transitions
+- Authorization formulas forbid a status write without the party's `signed_by`
+- Ordering formulas guard a status write on the status before it (`text_eq`)
 - `+sets(/certificate/in_use.text, "true")` is a governance placeholder blocked after order `invalid` or certificate revoke
 
 ## Out of Scope

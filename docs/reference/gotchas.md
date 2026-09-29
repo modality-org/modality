@@ -12,13 +12,13 @@ Common mistakes when writing Modality contracts.
 **Wrong:** Referencing model action labels in rules
 ```modality
 // DON'T DO THIS
-always(!<+ADD_MEMBER> true | <+ADD_MEMBER +all_signed(/members)> true)
+always([+ADD_MEMBER -all_signed(/members)] false)
 ```
 
 **Right:** Use predicates that describe the effect
 ```modality
 // DO THIS
-always(!<+modifies(/members)> true | <+modifies(/members) +all_signed(/members)> true)
+always([+modifies(/members) -all_signed(/members)] false)
 ```
 
 Rules should describe *what* a commit does (modifies paths, requires
@@ -34,7 +34,8 @@ If a transition should NOT satisfy a predicate, you must explicitly negate it.
 ```modality
 model members_only {
   initial active
-  active -> active [+any_signed(/members)]                    // ← Can still modify /members!
+  // ← Can still modify /members!
+  active -> active [+any_signed(/members)]
   active -> active [+modifies(/members) +all_signed(/members)]
 }
 ```
@@ -43,44 +44,58 @@ model members_only {
 ```modality
 model members_only {
   initial active
-  active -> active [+any_signed(/members) -modifies(/members)]  // ← CAN'T modify /members
-  active -> active [+modifies(/members) +all_signed(/members)]  // ← CAN modify, needs all sigs
+  // ← CAN'T modify /members
+  active -> active [+any_signed(/members) -modifies(/members)]
+  // ← CAN modify, needs all sigs
+  active -> active [+modifies(/members) +all_signed(/members)]
 }
 ```
 
 The `-modifies(/members)` ensures that path is protected on the first transition.
 
-## 3. Rule Commits Require a Satisfying Model Witness
+## 3. A Rule Commit Needs a Model That Meets It
 
-When submitting a rule, include a model that **actually satisfies** the rule:
+A rule commit is accepted only if the contract's model (or the model posted in
+the same commit) meets every rule, old and new, from the state the commit
+reaches. For the rule `always([-any_signed(/members)] false)`:
 
-**Wrong:** Empty witness doesn't prove anything
-```bash
-modal c commit --method rule \
-  --rule 'rule X { formula { always(<+any_signed(/members)> true) } }' \
-  --model 'model Y { initial s; s -> s [] }' \  # ← doesn't satisfy the rule!
-  --sign key
+**Wrong:** the unlabeled step lets an unsigned commit through, so the rule is
+refused.
+
+```modality
+model Contract {
+  part flow {
+    q0 --> q1
+    q1 --> q1
+  }
+}
 ```
 
-**Right:** Witness model includes required predicates
-```bash
-modal c commit --method rule \
-  --rule 'rule X { formula { always(<+any_signed(/members)> true) } }' \
-  --model 'model Y { initial s; s -> s [+any_signed(/members)] }' \
-  --sign key
+**Right:** every step after the bootstrap needs a member's signature.
+
+```modality
+model Contract {
+  part flow {
+    q0 --> q1
+    q1 --> q1: +any_signed(/members)
+  }
+}
 ```
 
-The model acts as a witness proving the rule is satisfiable. The hub rejects rules without valid witnesses to prevent deadlock.
+A model that meets the rules shows they can be met. It does not show that
+commits can keep coming: `always([] false)` is met by a model with no moves
+after the rule commit, and then every later commit is refused.
 
 ## 4. Models Can Be Replaced, Rules Cannot
 
 ```modality
 // A model alone provides NO protection
-model foo { active -> active [] }  // Can be replaced with anything!
+// Can be replaced with anything!
+model foo { active -> active }
 
 // Rules make protections permanent
 rule protect {
-  formula { always(!<+modifies(/x)> true | <+modifies(/x) +signed_by(/admin.id)> true) }
+  formula { always([+modifies(/x) -signed_by(/admin.id)] false) }
 }
 ```
 
@@ -94,8 +109,8 @@ accepted.
 Predicates in formulas need the `+` prefix:
 ```modality
 // In formulas
-always(<+any_signed(/members)> true)                    // ✓
-always(!<+modifies(/path)> true | <+modifies(/path) +all_signed(/members)> true)  // ✓
+always([-any_signed(/members)] false)                    // ✓
+always([+modifies(/path) -all_signed(/members)] false)  // ✓
 
 // In transition labels  
 active -> active [+any_signed(/members) -modifies(/members)]  // ✓ + for required, - for prohibited

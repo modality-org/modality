@@ -131,27 +131,23 @@ formula Conditional {
 
 // Escrow safety: release requires delivery evidence on the same move
 formula EscrowSafety {
-  always(!<+RELEASE> true | <+RELEASE +delivered> true)
+  always([+RELEASE -delivered] false)
 }
 
 // Multi-sig requirement: execute requires both signatures
 formula MultiSig {
   always(
-    !<+EXECUTE> true | (
-      <+EXECUTE +signed_by(/users/alice.id) +signed_by(/users/bob.id)> true
-    )
+    ([+EXECUTE -signed_by(/users/alice.id)] false)
+    & ([+EXECUTE -signed_by(/users/bob.id)] false)
   )
 }
 
-// Authorization rule
+// Authorization rule: every commit is signed by Alice or Bob
 formula AuthorizationRequired {
-  always(
-    [<+signed_by(/users/alice.id)>] true | 
-    [<+signed_by(/users/bob.id)>] true
-  )
+  always([-signed_by(/users/alice.id) -signed_by(/users/bob.id)] false)
 }
 
-// Liveness: from any state, completion is reachable
+// Liveness: from any state, a COMPLETE move stays reachable
 formula Liveness {
-  always(eventually(complete))
+  always(eventually(<+COMPLETE> true))
 }

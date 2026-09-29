@@ -114,11 +114,13 @@ theorem case_A10_live :
     (expandAll standard case_A10).exact = true ∧ ∀ I, Sat I (expandAll standard case_A10).lits :=
   consistent_live (by decide)
 
-/-! ### A11: Unparsable bound is opaque -/
+/-! ### A11: A bound that is not a number never holds -/
 
 def case_A11 : List Label := [⟨true, "num_gt", ["/x.num", "five"], false⟩, ⟨true, "num_lt", ["/x.num", "3"], false⟩]
 
-example : consistent standard case_A11 = .unknown := by decide
+theorem case_A11_dead :
+    ∀ I, ¬ Sat I (expandAll standard case_A11).lits :=
+  consistent_dead (by decide)
 
 /-! ### A12: A bound outside the exact domain is opaque -/
 

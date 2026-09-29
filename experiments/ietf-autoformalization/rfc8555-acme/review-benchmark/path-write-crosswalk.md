@@ -23,10 +23,12 @@ The parser-backed synthesis fixture extracts:
 - `+signed_by(/users/account_holder.id)`
 - `+signed_by(/users/certificate_authority.id)`
 
-The fixture rule is intentionally written with explicit Boolean syntax
-(`!A | B`) rather than formula implication sugar. That keeps the benchmark
-aligned with the current teaching rule while preserving the source clause,
-extracted facts, witness model, verifier result, assumptions, and known gaps.
+The fixture rules are boxes, `always([+A -signed_by(P)] false)`: every `A`
+commit needs `P`'s signature. That keeps the benchmark aligned with the current
+teaching rule while preserving the source clause, extracted facts, witness
+model, verifier result, assumptions, and known gaps. A box does not make a
+witness take `A`, so the synthesized witness is one edge that carries both
+signatures.
 
 The hand-authored path-write corpus represents the same finalize move as:
 
@@ -58,8 +60,8 @@ It represents the same certificate-issuance move as:
 | `+ACME_ISSUE_CERTIFICATE` | `+sets(/order/status.text, "valid")` in `only_ca_issues_certificate` | Conceptually aligned, but not mechanically translated yet |
 | `+signed_by(/users/account_holder.id)` | Same account-holder signature predicate in `only_holder_finalizes` | Mechanically aligned |
 | `+signed_by(/users/certificate_authority.id)` | Same CA signature predicate in `only_ca_validates_authorization` and `only_ca_issues_certificate` | Mechanically aligned |
-| RFC section 7.4 source clause | Comments and `normative-core.md` entries for `only_holder_finalizes`, `finalize_requires_ready`, and `finalize_requires_order` | Traceable, but split across multiple path-write rules |
-| RFC section 7.1.4 source clause | Comments and `normative-core.md` entries for `only_holder_creates_order` and `finalize_requires_order` | Traceable, but split across path-write authorization and ordering rules |
+| RFC section 7.4 source clause | Comments and `normative-core.md` entries for `only_holder_finalizes`, `finalize_requires_ready`, and `finalize_requires_authorization` | Traceable, but split across multiple path-write rules |
+| RFC section 7.1.4 source clause | Comments and `normative-core.md` entries for `only_holder_creates_order` and `finalize_requires_ready` | Traceable, but split across path-write authorization and ordering rules |
 | RFC section 7.1.5 source clause | Comments and `normative-core.md` entries for `only_ca_validates_authorization` and `authorization_requires_challenge` | Traceable, but split across path-write authority and challenge-ordering rules |
 | RFC section 8 source clause | Comments and `normative-core.md` entries for `only_ca_issues_certificate` and `issuance_requires_finalize` | Traceable, but split across path-write authority and ordering rules |
 | Account-key authentication | `signed_by(/users/account_holder.id)` plus an external ACME account-key assumption | Partly internal predicate, partly external evidence |
@@ -71,12 +73,12 @@ The narrow fixture does not synthesize these path-write corpus constraints:
 
 - `finalize_requires_ready`
 - `finalize_requires_authorization`
-- `finalize_requires_order`
 - `issuance_requires_finalize`
-- universal per-edge action guards such as every `+ACME_CREATE_ORDER` or
-  `+ACME_FINALIZE_ORDER` edge carrying the account-holder signature, and every
-  `+ACME_VALIDATE_AUTHORIZATION` or `+ACME_ISSUE_CERTIFICATE` edge carrying the
-  CA signature
+- universal per-edge action guards in path-write form: every
+  `+sets(/order/status.text, "pending")` or `"processing"` commit carrying the
+  account-holder signature, and every `+sets(/challenge/status.text, "valid")`
+  or `+sets(/order/status.text, "valid")` commit carrying the CA signature (the
+  fixture states them over the abstract actions)
 - order and challenge status closed enums
 - invalid-order authority rules
 

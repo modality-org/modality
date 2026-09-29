@@ -149,6 +149,11 @@ formulas are not in the Lean spec.
   satisfies them, whatever the opaque predicates mean
 - `live_sound`: if `live` says they can, the world it built satisfies
   them; `live_not_dead`: the two verdicts never both fire
+- `external_live_sound`: an edge whose opaque literals are all external
+  (the commit decides them, `FreeFor`) and never both signs is taken when
+  the rest is live. `FreeFor` is an assumption about the validator
+  (`oracle_attests`: attach the attestation or not), not a fact of the
+  fragment
 - `entails_sound`, and `entails_no`: a `no` comes with a world where the
   premises hold and the goal fails
 - `deadIn_sound`, `liveIn_sound`: the same with accepted state known

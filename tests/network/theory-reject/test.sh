@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# A network that enforces predicate theory V1 refuses a model with a dead edge,
+# A network that enforces predicate theory V2 refuses a model with a dead edge,
 # even though local verify (V0) accepts it and only warns. The fixed model is
 # sequenced and pulled. Unnumbered: not part of the stable numbered suite.
 
@@ -68,7 +68,7 @@ model Escrow {
 EOF
 
 echo ""
-echo "Local verify (V0) accepts the slipped model and previews the V1 refusal..."
+echo "Local verify (V0) accepts the slipped model and previews the V2 refusal..."
 SLIP_OUT=$(modal commit --all --dir "$CONTRACT_DIR" --output json --message "Escrow with a slipped refund edge")
 echo "$SLIP_OUT" > ./tmp/commit-slipped.json
 echo "$SLIP_OUT" >> "$CURRENT_LOG"
@@ -87,7 +87,7 @@ echo "modal contract theory: $EXPLANATION" >> "$CURRENT_LOG"
 check "modal contract theory names the dead refund edge" test -n "$EXPLANATION"
 
 echo ""
-echo "Starting a devnet1 sequencer whose network enforces predicate theory V1..."
+echo "Starting a devnet1 sequencer whose network enforces predicate theory V2..."
 assert_success \
     "modal node create --dir $NODE_DIR --from-template devnet1/node1" \
     "Should create sequencer node"
@@ -96,7 +96,7 @@ python3 - "$NODE_DIR" <<'PY'
 import json, pathlib, sys
 node = pathlib.Path(sys.argv[1])
 info = json.loads(pathlib.Path("../../../rust/modality-networks/networks/devnet1/info.json").read_text())
-info["predicate_theory_version"] = "v1"
+info["predicate_theory_version"] = "v2"
 (node / "network.json").write_text(json.dumps(info, indent=2) + "\n")
 config = json.loads((node / "config.json").read_text())
 config["network_config_path"] = "./network.json"
@@ -129,7 +129,7 @@ expect_log() {
     fi
     return 1
 }
-expect_log "Predicate theory: v1" "Sequencer reports predicate theory v1" 10 || true
+expect_log "Predicate theory: v2" "Sequencer reports predicate theory v2" 10 || true
 
 echo ""
 echo "Pushing the slipped model..."
@@ -137,8 +137,8 @@ PUSH_SLIP=$(modal contract push --dir "$CONTRACT_DIR" --remote "$REMOTE" --remot
 echo "$PUSH_SLIP" >> "$CURRENT_LOG"
 expect_log "Failed to process sequenced commit $SLIP_ID" \
   "Sequencer refuses the model with a dead edge" || true
-check "Sequencer names predicate theory V1 in the refusal" \
-  grep -q "no commit can take (predicate theory V1)" "$SEQUENCER_LOG"
+check "Sequencer names predicate theory V2 in the refusal" \
+  grep -q "no commit can take (predicate theory V2)" "$SEQUENCER_LOG"
 check "Sequencer and modal contract theory give the same explanation" \
   grep -qF "$EXPLANATION" "$SEQUENCER_LOG"
 

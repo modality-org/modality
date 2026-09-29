@@ -80,12 +80,12 @@ modal c set-named-id /users/seller.id ./seller.passfile
 
 **model/default.modality** — defines allowed transitions:
 ```modality
-export default model {
-  initial q0
-
-  q0 -> q1 [+DEPOSIT +signed_by(/users/buyer.id)]
-  q1 -> q2 [+DELIVER +signed_by(/users/seller.id)]
-  q2 -> q3 [+RELEASE +signed_by(/users/buyer.id)]
+model Contract {
+  part flow {
+    q0 --> q1
+    q1 --> q1: +signed_by(/users/buyer.id)
+    q1 --> q1: +signed_by(/users/seller.id)
+  }
 }
 ```
 
@@ -97,7 +97,7 @@ meaning is on the transition labels and predicates.
 export default rule {
   starting_at $PARENT
   formula {
-    signed_by(/users/buyer.id) | signed_by(/users/seller.id)
+    always([-signed_by(/users/buyer.id) -signed_by(/users/seller.id)] false)
   }
 }
 ```
@@ -192,7 +192,7 @@ Predicates are the building blocks for rules. They evaluate to true/false based 
 |-----------|---------|---------|
 | `bool_true(path)` | Boolean check | `bool_true(/status/delivered.bool)` |
 | `text_eq(path, value)` | String comparison | `text_eq(/status.text, "approved")` |
-| `num_gte(path, value)` | Numeric comparison | `num_gte(/balance.num, 100)` |
+| `num_gte(path, value)` | Numeric comparison | `num_gte(/balance.num, "100")` |
 
 ### Oracle Predicates
 
@@ -208,12 +208,17 @@ Predicates are the building blocks for rules. They evaluate to true/false based 
 
 **Rules** constrain who can commit based on state and signatures.
 
-The model checker verifies that all rules can be satisfied by the model. If they can't, the commit is rejected.
+The validator checks every commit against the model and the model against
+every rule, and refuses the commit if either fails. So:
+- an unauthorized commit is refused, when a rule says who must sign;
+- a rule that no model can meet cannot be added.
 
-This prevents:
-- Contradictory rules
-- Impossible requirements  
-- Unauthorized commits
+A model that meets the rules does not prove the contract can always move. A
+rule such as `always([] false)` is met by a model with no moves. Under
+predicate theory V0, the network default, the validator also counts an edge
+whose labels can never hold together, such as
+`+num_gt(/x.num, "5") +num_lt(/x.num, "3")`. `modal c theory` lists those dead
+edges.
 
 ---
 

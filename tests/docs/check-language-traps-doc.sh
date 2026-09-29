@@ -141,11 +141,11 @@ if ! cmp -s "$DOC" "$SITE_RULE_SYNTAX_DOC"; then
 fi
 
 gotchas_required_patterns=(
-  "always(!<+ADD_MEMBER> true | <+ADD_MEMBER +all_signed(/members)> true)"
-  "always(!<+modifies(/members)> true | <+modifies(/members) +all_signed(/members)> true)"
+  "always([+ADD_MEMBER -all_signed(/members)] false)"
+  "always([+modifies(/members) -all_signed(/members)] false)"
   "\`modality/implication-sugar\`"
-  "always(!<+modifies(/x)> true | <+modifies(/x) +signed_by(/admin.id)> true)"
-  "always(!<+modifies(/path)> true | <+modifies(/path) +all_signed(/members)> true)"
+  "always([+modifies(/x) -signed_by(/admin.id)] false)"
+  "always([+modifies(/path) -all_signed(/members)] false)"
 )
 
 for pattern in "${gotchas_required_patterns[@]}"; do
@@ -161,8 +161,8 @@ if grep -Eq -- ' true[[:space:]]*->| implies ' "$GOTCHAS_DOC"; then
 fi
 
 members_only_required_patterns=(
-  "always(!<+modifies(/members)> true | <+modifies(/members) +all_signed(/members)> true)"
-  "always(!<+modifies(/config)> true | <+modifies(/config) +signed_by(/admin.id)> true)"
+  "always([+modifies(/members) -all_signed(/members)] false)"
+  "always([+modifies(/config) -signed_by(/admin.id)] false)"
 )
 
 for pattern in "${members_only_required_patterns[@]}"; do
@@ -178,7 +178,7 @@ if grep -Eq -- ' true[[:space:]]*->| implies ' "$MEMBERS_ONLY_TUTORIAL"; then
 fi
 
 js_sdk_hub_required_patterns=(
-  "always(!<+RELEASE> true | <+RELEASE +signed_by(/parties/bob.id)> true)"
+  "always([+RELEASE -signed_by(/parties/bob.id)] false)"
 )
 
 for pattern in "${js_sdk_hub_required_patterns[@]}"; do
@@ -194,10 +194,9 @@ if grep -Eq -- ' true[[:space:]]*->| implies ' "$JS_SDK_HUB_TUTORIAL"; then
 fi
 
 multisig_treasury_required_patterns=(
-  "always(!<+WITHDRAW> true | ("
-  "<+WITHDRAW +signed_by(/treasury/alice.id) +signed_by(/treasury/bob.id)> true"
-  "<+WITHDRAW +signed_by(/treasury/alice.id) +signed_by(/treasury/carol.id)> true"
-  "<+WITHDRAW +signed_by(/treasury/bob.id) +signed_by(/treasury/carol.id)> true"
+  "always([-any_signed(/treasury)] false)"
+  "always([+modifies(/treasury) -threshold(\"2\", /treasury)] false)"
+  "modal c commit --all --sign bob --sign carol"
 )
 
 for pattern in "${multisig_treasury_required_patterns[@]}"; do
@@ -213,7 +212,7 @@ if grep -Eq -- ' true[[:space:]]*->| implies ' "$MULTISIG_TREASURY_TUTORIAL"; th
 fi
 
 oracle_escrow_required_patterns=(
-  "always(!<+RELEASE> true | <+RELEASE +oracle_attests(/oracles/delivery.id, \"delivered\", \"true\")> true)"
+  "always([+modifies(/escrow/release.json) -oracle_attests(/oracles/delivery.id, \"delivered\", \"true\")] false)"
 )
 
 for pattern in "${oracle_escrow_required_patterns[@]}"; do
@@ -229,8 +228,9 @@ if grep -Eq -- ' true[[:space:]]*->| implies ' "$ORACLE_ESCROW_TUTORIAL"; then
 fi
 
 faq_required_patterns=(
-  "always(!<+modifies(/members)> true | <+modifies(/members) +all_signed(/members)> true)"
-  "always(!<+RELEASE> true | <+RELEASE +after(/deadlines/expiry.datetime) +signed_by(/users/buyer.id)> true)"
+  "always([+modifies(/members) -all_signed(/members)] false)"
+  "always([-signed_by(/users/alice.id) -signed_by(/users/bob.id)] false)"
+  "always([+modifies(/treasury) -threshold(\"2\", /treasury)] false)"
 )
 
 for pattern in "${faq_required_patterns[@]}"; do
@@ -262,9 +262,9 @@ if grep -Eq -- ' true[[:space:]]*->| implies ' "$HUB_REST_API_DOC"; then
 fi
 
 ietf_methodology_required_patterns=(
-  'always(!<+sets(/path, "later")> true | !<+sets(/path, "earlier")> true)'
-  'always(!<+sets(/path, "value")> true | <+signed_by(/users/p.id)> true)'
-  'always(!<+sets(/token/status.text, "issued")> true | <+signed_by(/users/authorization_server.id)> true)'
+  'always([+sets(/path, "later") -text_eq(/path, "earlier")] false)'
+  'always([+sets(/path, "value") -signed_by(/users/p.id)] false)'
+  'always([+sets(/token/status.text, "issued") -signed_by(/users/authorization_server.id)] false)'
 )
 
 for pattern in "${ietf_methodology_required_patterns[@]}"; do
@@ -280,9 +280,9 @@ if grep -Eq -- ' true[[:space:]]*->| implies ' "$IETF_METHODOLOGY_DOC"; then
 fi
 
 acme_synthesis_required_patterns=(
-  '!<+sets(/order/status.text, "processing")> true | !<+sets(/order/status.text, "pending")>'
-  '!<+sets(..., "valid")> true | <+signed_by(CA)>'
-  '!(<+sets(..., "invalid")> true \| <+sets(/certificate/revoked.text, "true")> true) \| always([-sets(/certificate/in_use.text, "true")])'
+  '[+sets(/order/status.text, "processing") -text_eq(/order/status.text, "ready")] false'
+  '[+sets(..., "valid") -signed_by(CA)] false'
+  '[+sets(/certificate/in_use.text, "true") +text_eq(/certificate/revoked.text, "true")] false'
 )
 
 for pattern in "${acme_synthesis_required_patterns[@]}"; do
@@ -298,12 +298,12 @@ if grep -Eq -- ' true[[:space:]]*->| implies ' "$ACME_SYNTHESIS_NOTES"; then
 fi
 
 models_vs_rules_required_patterns=(
-  "always(!<+CHANGE_CONFIG> true | <+CHANGE_CONFIG +signed_by(/admin.id)> true)"
-  "always(!<+CHANGE_DATA> true | <+CHANGE_DATA +any_signed(/members)> true)"
-  "always(!<+CHANGE_MEMBERS> true | <+CHANGE_MEMBERS +all_signed(/members)> true)"
-  "always(!<+CHANGE_PUBLIC> true | <+CHANGE_PUBLIC +any_signed(/members)> true)"
-  "always(!<+CHANGE_PRIVATE> true | <+CHANGE_PRIVATE +all_signed(/members)> true)"
-  "Prefer explicit Boolean form for conditional rules:"
+  "always([+CHANGE_CONFIG -signed_by(/admin.id)] false)"
+  "always([+CHANGE_DATA -any_signed(/members)] false)"
+  "always([+CHANGE_MEMBERS -all_signed(/members)] false)"
+  "always([+CHANGE_PUBLIC -any_signed(/members)] false)"
+  "always([+CHANGE_PRIVATE -all_signed(/members)] false)"
+  "as a box that forbids the move without it"
 )
 
 for pattern in "${models_vs_rules_required_patterns[@]}"; do
@@ -321,7 +321,7 @@ fi
 modal_logic_required_patterns=(
   "!φ | ψ          // Conditional rule: if φ, then ψ"
   "Prefer explicit Boolean conditionals in examples."
-  "!<+RELEASE> true | <+RELEASE +signed_by(/parties/buyer.id)> true"
+  "always([+RELEASE -signed_by(/parties/buyer.id)] false)"
 )
 
 for pattern in "${modal_logic_required_patterns[@]}"; do
@@ -338,10 +338,10 @@ fi
 
 formula_cookbook_required_patterns=(
   "Read this before writing or suggesting a Modality rule formula."
-  "always(!<+X> true \\| <+X +signed_by(/parties/alice.id)> true)"
+  "always([+X -signed_by(/parties/alice.id)] false)"
   "always(!<+SIGN> true | (<+SIGN +signed_by(/parties/alice.id)> true | <+SIGN +signed_by(/parties/bob.id)> true))"
-  "bind required signature evidence to the same transition label"
-  "explicit Boolean form"
+  "forbid the"
+  "move without the evidence"
 )
 
 for formula_cookbook_doc in "$FORMULA_COOKBOOK_DOC" "$SITE_FORMULA_COOKBOOK_DOC"; do
@@ -364,7 +364,7 @@ if ! cmp -s "$FORMULA_COOKBOOK_DOC" "$SITE_FORMULA_COOKBOOK_DOC"; then
 fi
 
 members_only_example_required_patterns=(
-  "always(!<+modifies(/members)> true | <+modifies(/members) +all_signed(/members)> true)"
+  "always([+modifies(/members) -all_signed(/members)] false)"
 )
 
 for pattern in "${members_only_example_required_patterns[@]}"; do
@@ -380,10 +380,10 @@ if grep -Eq -- ' true[[:space:]]*->| implies ' "$MEMBERS_ONLY_EXAMPLE"; then
 fi
 
 treasury_multisig_example_required_patterns=(
-  "always(!<+EXECUTE> true | <+EXECUTE +threshold(\"2\", /treasury/signers)> true)"
-  "!<+PROPOSE_SIGNER_CHANGE> true | <+PROPOSE_SIGNER_CHANGE +threshold(\"3\", /treasury/signers)> true"
-  "!<+CONFIRM_SIGNER_CHANGE> true | <+CONFIRM_SIGNER_CHANGE +threshold(\"3\", /treasury/signers)> true"
-  "always(!<+CANCEL> true | <+CANCEL +signed_by(/treasury/proposer.id)> true)"
+  "always([+EXECUTE -threshold(\"2\", /treasury/signers)] false)"
+  "[+PROPOSE_SIGNER_CHANGE -threshold(\"3\", /treasury/signers)] false"
+  "[+CONFIRM_SIGNER_CHANGE -threshold(\"3\", /treasury/signers)] false"
+  "always([+CANCEL -signed_by(/treasury/proposer.id)] false)"
 )
 
 for pattern in "${treasury_multisig_example_required_patterns[@]}"; do
@@ -399,11 +399,11 @@ if grep -Eq -- ' true[[:space:]]*->| implies ' "$TREASURY_MULTISIG_EXAMPLE"; the
 fi
 
 oracle_escrow_example_required_patterns=(
-  "always(!<+RELEASE> true | <+RELEASE +oracle_attests(/oracles/delivery, \"delivered\", \"true\")> true)"
-  "!<+REFUND> true | <+REFUND +oracle_attests(/oracles/delivery, \"delivered\", \"false\")> true"
-  "!<+TIMEOUT_REFUND> true | <+TIMEOUT_REFUND +signed_by(/users/buyer.id) +after(/escrow/deadline)> true"
-  "always(!<+DEPOSIT> true | <+DEPOSIT +signed_by(/users/buyer.id)> true)"
-  "always(!<+SHIP> true | <+SHIP +signed_by(/users/seller.id)> true)"
+  "always([+RELEASE -oracle_attests(/oracles/delivery, \"delivered\", \"true\")] false)"
+  "[+REFUND -oracle_attests(/oracles/delivery, \"delivered\", \"false\")] false"
+  "([+TIMEOUT_REFUND -signed_by(/users/buyer.id)] false) & ([+TIMEOUT_REFUND -after(/escrow/deadline)] false)"
+  "always([+DEPOSIT -signed_by(/users/buyer.id)] false)"
+  "always([+SHIP -signed_by(/users/seller.id)] false)"
 )
 
 for pattern in "${oracle_escrow_example_required_patterns[@]}"; do
@@ -453,7 +453,7 @@ if grep -Eq -- 'claimed[[:space:]]*->[[:space:]]*eventually| implies ' "$AGENT_T
 fi
 
 hub_members_only_scenario_required_patterns=(
-  "always(!<+ADD_MEMBER> true | <+ADD_MEMBER +all_signed(/members)> true)"
+  "always([+ADD_MEMBER -all_signed(/members)] false)"
 )
 
 for pattern in "${hub_members_only_scenario_required_patterns[@]}"; do
@@ -519,7 +519,7 @@ if grep -Fq 'modifies(/members) implies all_signed(/members)' "$MEMBERSHIP_EVOLU
 fi
 
 unbreakable_treasury_rfc_required_patterns=(
-  "always (!<+modifies(/transfer)> true | <+modifies(/transfer) +signed_by(/owner.id)> true)"
+  "always([+modifies(/transfer) -signed_by(/owner.id)] false)"
 )
 
 for pattern in "${unbreakable_treasury_rfc_required_patterns[@]}"; do
@@ -578,7 +578,7 @@ for resource_doc in "$RFC_0001_RESOURCE" "$SITE_RFC_0001_RESOURCE"; do
 done
 
 standard_predicates_required_patterns=(
-  "always(!<+modifies(/members)> true | <+modifies(/members) +all_signed(/members)> true)"
+  "always([+modifies(/members) -all_signed(/members)] false)"
 )
 
 for pattern in "${standard_predicates_required_patterns[@]}"; do
@@ -898,8 +898,8 @@ agent_cooperation_roadmap_required_patterns=(
   "avoid formula implication sugar such as \`A -> B\`"
   "explicit Boolean conditionals such as"
   "avoid \`[+ACTION] true\` as a conditional antecedent"
-  "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/alice.id)> true)"
-  "always(!<+A> true | <+A +signed_by(/users/alice.id)> true)"
+  "always([+APPROVE -signed_by(/users/alice.id)] false)"
+  "always([+A -signed_by(/users/alice.id)] false)"
   "always(!<+COOPERATE> true | <+COOPERATE> true)"
 )
 
@@ -1208,7 +1208,7 @@ if grep -Eq -- 'modal c set /parties/.+modal id get' "$MODALITY_SKILL_DOC"; then
 fi
 
 modality_skill_patterns_required_patterns=(
-  "always(!<+modifies(/members)> true | <+modifies(/members) +all_signed(/members)> true)"
+  "always([+modifies(/members) -all_signed(/members)] false)"
 )
 
 for pattern in "${modality_skill_patterns_required_patterns[@]}"; do
@@ -1693,9 +1693,9 @@ if grep -Eq -- ' true[[:space:]]*->| implies ' "$NINE_SECONDS_BLOG"; then
 fi
 
 trustless_escrow_contract_required_patterns=(
-  "always(!<+modifies(/escrow/deposited)> true | <+modifies(/escrow/deposited) +signed_by(/parties/buyer.id)> true)"
-  "always(!<+modifies(/escrow/delivered)> true | <+modifies(/escrow/delivered) +signed_by(/parties/seller.id)> true)"
-  "always(!<+modifies(/escrow/released)> true | <+modifies(/escrow/released) +signed_by(/parties/buyer.id)> true)"
+  "always([+modifies(/escrow/deposited) -signed_by(/parties/buyer.id)] false)"
+  "always([+modifies(/escrow/delivered) -signed_by(/parties/seller.id)] false)"
+  "always([+modifies(/escrow/released) -signed_by(/parties/buyer.id)] false)"
 )
 
 for pattern in "${trustless_escrow_contract_required_patterns[@]}"; do
@@ -1750,12 +1750,12 @@ for file in "$PROTECTION_RINGS_TUTORIAL" "$PROTECTION_RINGS_CONTRACT"; do
 done
 
 escrow_demo_required_patterns=(
-  "always(!<+DEPOSIT> true | <+DEPOSIT +signed_by(/parties/buyer.id)> true)"
-  "always(!<+DELIVER> true | <+DELIVER +signed_by(/parties/seller.id)> true)"
-  "always(!<+RELEASE> true | <+RELEASE +signed_by(/parties/buyer.id)> true)"
-  "always(!<+DISPUTE> true | <+DISPUTE +signed_by(/parties/buyer.id)> true)"
-  "always(!<+RESOLVE_RELEASE> true | <+RESOLVE_RELEASE +signed_by(/parties/arbiter.id)> true)"
-  "always(!<+RESOLVE_REFUND> true | <+RESOLVE_REFUND +signed_by(/parties/arbiter.id)> true)"
+  "always([+DEPOSIT -signed_by(/parties/buyer.id)] false)"
+  "always([+DELIVER -signed_by(/parties/seller.id)] false)"
+  "always([+RELEASE -signed_by(/parties/buyer.id)] false)"
+  "always([+DISPUTE -signed_by(/parties/buyer.id)] false)"
+  "always([+RESOLVE_RELEASE -signed_by(/parties/arbiter.id)] false)"
+  "always([+RESOLVE_REFUND -signed_by(/parties/arbiter.id)] false)"
 )
 
 for pattern in "${escrow_demo_required_patterns[@]}"; do
@@ -1772,8 +1772,8 @@ fi
 
 vscode_formula_syntax_required_patterns=(
   "!request | response"
-  "always(!<+RELEASE> true | <+RELEASE +delivered> true)"
-  "<+EXECUTE +signed_by(/users/alice.id) +signed_by(/users/bob.id)> true"
+  "always([+RELEASE -delivered] false)"
+  "([+EXECUTE -signed_by(/users/alice.id)] false)"
 )
 
 for pattern in "${vscode_formula_syntax_required_patterns[@]}"; do
@@ -1815,7 +1815,7 @@ if grep -Eq -- ' true[[:space:]]*->| implies ' "$RFC_0001_PAPER"; then
   exit 1
 fi
 
-if ! grep -Fq 'always(!<+claim> true | <+claim +signed_by(/users/alice.id)> true)' "$CONTRACT_HUB_EXAMPLE"; then
+if ! grep -Fq 'always([+claim -signed_by(/users/alice.id)] false)' "$CONTRACT_HUB_EXAMPLE"; then
   echo "contract hub example is missing same-transition claim signature evidence" >&2
   exit 1
 fi
@@ -1875,7 +1875,7 @@ while IFS= read -r fat_arrow_line; do
 done < <(grep -nF '=> signed_by' "$CONTRACT_HUB_VALIDATOR_TEST" || true)
 
 synthesis_smoke_required_patterns=(
-  "always(!<+POST> true | <+POST +signed_by(/users/reviewer.id)> true)"
+  "always([+POST -signed_by(/users/reviewer.id)] false)"
 )
 
 for pattern in "${synthesis_smoke_required_patterns[@]}"; do
@@ -1896,7 +1896,7 @@ for file in "$RULE_SYNTHESIZE_CLI_SMOKE" "$RUST_SYNTHESIZE_CMD"; do
   fi
 done
 
-if ! grep -Fq 'always (!<+ADD_MEMBER> true | <+ADD_MEMBER +all_signed(/members)> true)' "$MEMBERS_ONLY_INTEGRATION_TEST"; then
+if ! grep -Fq 'always([+ADD_MEMBER -all_signed(/members)] false)' "$MEMBERS_ONLY_INTEGRATION_TEST"; then
   echo "members-only integration test is missing current same-transition all-members evidence" >&2
   exit 1
 fi
@@ -1926,8 +1926,8 @@ fi
 llm_synthesis_required_patterns=(
   "### Explicit Boolean Conditionals"
   "Prefer explicit Boolean conditionals such as \`!A | B\` for implications."
-  'always(!<+X> true | <+X +signed_by(/users/a.id)> true)'
-  'always(!<+X> true | <+X +oracle_attests(/oracles/a.id, "delivered", "true")> true)'
+  'always([+X -signed_by(/users/a.id)] false)'
+  'always([+X -oracle_attests(/oracles/a.id, "delivered", "true")] false)'
 )
 
 for pattern in "${llm_synthesis_required_patterns[@]}"; do
@@ -1960,8 +1960,8 @@ if grep -Eq -- '\[\+X\][[:space:]]+implies[[:space:]]+eventually|\[\+RELEASE\][[
   exit 1
 fi
 
-if ! grep -Fq 'always(!<+POST> true | <+POST +signed_by(/users/reviewer.id)> true)' "$MODALITY_SYNTHESIZER_SRC"; then
-  echo "modality-synthesizer should keep the POST reviewer witness on the explicit Boolean same-transition form" >&2
+if ! grep -Fq 'always([+POST -signed_by(/users/reviewer.id)] false)' "$MODALITY_SYNTHESIZER_SRC"; then
+  echo "modality-synthesizer should keep the POST reviewer witness on the box form" >&2
   exit 1
 fi
 

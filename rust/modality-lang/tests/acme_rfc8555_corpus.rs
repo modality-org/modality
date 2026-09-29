@@ -39,7 +39,7 @@ fn acme_rfc8555_model_parses() {
 #[test]
 fn acme_rfc8555_rules_parse() {
     let rules = load_rules();
-    assert_eq!(rules.len(), 14, "expected fourteen governance rules");
+    assert_eq!(rules.len(), 13, "expected thirteen governance rules");
 }
 
 #[test]
@@ -69,25 +69,34 @@ fn acme_rfc8555_governance_passes_formula_lint() {
     );
 }
 
+/// Checked from the start node, as the network checks a rule. Every rule
+/// is met; a rule the model stops meeting belongs here with a reason.
+const UNMET: &[&str] = &[];
+
 #[test]
-fn acme_rfc8555_model_satisfies_governance_rules() {
+fn acme_rfc8555_model_meets_the_rules_the_checker_can_decide() {
     let model = load_model();
     let rules = load_rules();
     let checker = ModelChecker::new(model);
 
-    let mut failures = Vec::new();
-    for rule in &rules {
-        let result = checker.check_formula(rule);
-        if !result.is_satisfied {
-            failures.push(rule.name.clone());
-        }
-    }
+    let failures: Vec<&str> = rules
+        .iter()
+        .filter(|rule| !checker.check_formula(rule).is_satisfied)
+        .map(|rule| rule.name.as_str())
+        .collect();
 
-    assert!(
-        failures.is_empty(),
-        "model failed rules: {}",
-        failures.join(", ")
-    );
+    assert_eq!(failures, UNMET, "the set of unmet rules changed");
+}
+
+#[test]
+fn acme_rfc8555_model_meets_every_rule_under_theory_v2() {
+    let checker = ModelChecker::with_version(load_model(), modality_lang::TheoryVersion::V2);
+    let failures: Vec<String> = load_rules()
+        .into_iter()
+        .filter(|rule| !checker.check_formula(rule).is_satisfied)
+        .map(|rule| rule.name)
+        .collect();
+    assert!(failures.is_empty(), "unmet under V2: {failures:?}");
 }
 
 #[test]
@@ -99,7 +108,7 @@ fn acme_rfc8555_phase_gate_rejects_finalize_while_pending() {
             "q1".to_string(),
             "q3".to_string(),
         ));
-    // Concurrent order status writes: processing while pending still enabled on same step.
+    // Finalize straight from pending: no valid authorization, order not ready.
     model.parts[0].transitions.last_mut().unwrap().add_property(
         modality_lang::Property::new_predicate_from_call_args(
             "sets".to_string(),
@@ -122,7 +131,7 @@ fn acme_rfc8555_phase_gate_rejects_finalize_while_pending() {
 
     assert!(
         !checker.check_formula_at_state(rule, "q0").is_satisfied,
-        "finalize (processing) must not be enabled while pending is still enabled on the same step"
+        "finalize (processing) must need a valid authorization"
     );
     assert!(
         !checker.check_formula_at_state(rule, "q1").is_satisfied,
@@ -161,7 +170,7 @@ fn acme_rfc8555_phase_gate_rejects_finalize_while_ready() {
 
     assert!(
         !checker.check_formula_at_state(rule, "q2").is_satisfied,
-        "finalize (processing) must not be enabled while ready is still enabled on the same step"
+        "finalize (processing) must need a ready order in accepted state"
     );
 }
 
@@ -196,7 +205,7 @@ fn acme_rfc8555_only_ca_marks_order_invalid() {
 
     assert!(
         !checker.check_formula_at_state(rule, "q3").is_satisfied,
-        "holder-signed invalid on the same step must be forbidden from processing"
+        "a holder-signed invalid order must be forbidden"
     );
 }
 

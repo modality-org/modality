@@ -120,8 +120,8 @@ grep -q "modal ai set" "$TMP_DIR/suggested-rule.err"
 
 "$MODAL_BIN" add-rule --name authorized \
   --dir "$CONTRACT_DIR" \
-  '[] always([-signed_by(/parties/alice.id) -signed_by(/parties/bob.id)] false)' >/dev/null
-grep -Fq '[] always' "$CONTRACT_DIR/rules/authorized.modality"
+  'always([-signed_by(/parties/alice.id) -signed_by(/parties/bob.id)] false)' >/dev/null
+grep -Fq 'always([-signed_by' "$CONTRACT_DIR/rules/authorized.modality"
 grep -Fq 'starting_at $PARENT' "$CONTRACT_DIR/rules/authorized.modality"
 
 "$MODALITY_BIN" model lint "$CONTRACT_DIR/rules/authorized.modality" \
@@ -208,7 +208,8 @@ grep -q '"message": "Initial contract setup"' "$TMP_DIR/log.json"
 grep -Eq '"signature_count": 0' "$TMP_DIR/log.json"
 grep -q "Message: Initial contract setup" "$TMP_DIR/log.txt"
 grep -q "Signatures: 0" "$TMP_DIR/log.txt"
-grep -q '\[\] always' "$CONTRACT_DIR/rules/authorized.modality"
+grep -q 'starting_at \$PARENT' "$CONTRACT_DIR/rules/authorized.modality"
+grep -q '^    always(' "$CONTRACT_DIR/rules/authorized.modality"
 grep -q 'q0 --> q1' "$CONTRACT_DIR/model/default.modality"
 grep -q 'q1 --> q1: +signed_by(/parties/alice.id)' "$CONTRACT_DIR/model/default.modality"
 if grep -q '/parties/bob.id' "$CONTRACT_DIR/model/default.modality"; then

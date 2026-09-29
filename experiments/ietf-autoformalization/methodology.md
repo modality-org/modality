@@ -22,16 +22,16 @@ For each RFC, work through these steps before writing formulas:
 | RFC language (paraphrased) | Modality formula pattern |
 |---|---|
 | "State MUST become X" / status transition | `+sets(/path.text, "value")` on model transition |
-| "X MUST NOT occur until Y has occurred" | `always(!<+sets(/path, "later")> true | !<+sets(/path, "earlier")> true)` (phase gate) |
+| "X MUST NOT occur until Y has occurred" | `always([+sets(/path, "later") -text_eq(/path, "earlier")] false)` (phase gate: the later write needs the earlier status in accepted state) |
 | "Sub-step while parent status fixed" | Second path: `+sets(/sub/status.text, …)` with self-loops at witness node |
-| "X MUST NOT occur until Y has completed (no overlap)" | same; use `<+…>` diamonds, not `[<+…>]` committed forms |
-| "Only party P may perform X" | `always(!<+sets(/path, "value")> true | <+signed_by(/users/p.id)> true)` |
-| "Party P is committed to X" | `always(![<+X>] true | <+signed_by(/users/p.id)> true)` |
-| "X MUST NOT occur after Y" | `always(!<+Y> true | always([-X] true))` |
-| "X and Y are mutually exclusive after Z" | `always(!<+Z> true | (always([-X] true) & always([-Y] true)))` |
-| "X requires evidence E" | `always(!<+X> true | <+oracle_attests(/oracles/e.id, "field", "value")> true)` |
-| "Parties alternate turns" | `always(!<+A_TURN> true | eventually(<+B_TURN> true))` (and reverse) |
-| "Process MUST eventually terminate" | `always(eventually(terminal_state))` |
+| "X MUST NOT occur until Y has completed (no overlap)" | same; guard the later write on accepted state |
+| "Only party P may perform X" | `always([+sets(/path, "value") -signed_by(/users/p.id)] false)` |
+| "Party P is committed to X" | `always([+signed_by(/users/p.id) -X] false)` (every commit P signs is an `X`) |
+| "X MUST NOT occur after Y" | `always([+Y] always([+X] false))` |
+| "X and Y are mutually exclusive after Z" | `always([+Z] always([+X +Y] false))` |
+| "X requires evidence E" | `always([+X -oracle_attests(/oracles/e.id, "field", "value")] false)` |
+| "Parties alternate turns" | `always(([+A_TURN] [-B_TURN] false) & ([+B_TURN] [-A_TURN] false))` |
+| "Process MUST eventually terminate" | Not a rule: no rule makes a commit happen. `always(eventually(<+CLOSE> true))` keeps closing reachable |
 
 Patterns align with synthesis heuristics in [ROADMAP-AGENT-COOPERATION.md](../../ROADMAP-AGENT-COOPERATION.md) and [llm_synthesis.rs](../../rust/modality-lang/src/llm_synthesis.rs).
 
@@ -88,13 +88,13 @@ Do not attempt to formalize:
 **Formula:**
 
 ```modality
-always(!<+sets(/token/status.text, "issued")> true | !<+sets(/token/status.text, "requested")> true)
+always([+sets(/token/status.text, "issued") -text_eq(/token/status.text, "authorized")] false)
 ```
 
 **Authorization variant:**
 
 ```modality
-always(!<+sets(/token/status.text, "issued")> true | <+signed_by(/users/authorization_server.id)> true)
+always([+sets(/token/status.text, "issued") -signed_by(/users/authorization_server.id)] false)
 ```
 
-**Avoid:** `eventually(<+Y> true)` for ordering (forward reachability, not prior occurrence). Avoid `[<+X>]` / `![<+Y>]` committed forms for phase gates (miss skip edges). Also avoid bare witness-node identifiers and `[+X] true` vacuous box guards.
+**Avoid:** `always(!<+X> true | <+X +E> true)` and `always(!<+X> true | <+E> true)`: they hold when an `X` move without `E` sits beside one with it, so they forbid nothing. Avoid `eventually(<+Y> true)` for ordering (forward reachability, not prior occurrence). Avoid `[<+X>]` / `![<+Y>]` committed forms for phase gates (miss skip edges). Also avoid bare witness-node identifiers and `[+X] true` vacuous box guards.

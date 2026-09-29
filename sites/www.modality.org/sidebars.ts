@@ -71,6 +71,7 @@ const sidebars: SidebarsConfig = {
       label: 'Reference',
       items: [
         'reference/standard-predicates',
+        'reference/predicate-theory',
         'reference/contract-evolution',
         'reference/verifier-rejections',
         'reference/synthesis-review',

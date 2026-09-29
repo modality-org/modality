@@ -8,7 +8,7 @@ Lean 4 formalization of the same **governance slice** as the Modality contract i
 |---|---|
 | `Acme8555/Types.lean` | Parties, `PathWrite`, `IssuanceState` (q0…q5) |
 | `Acme8555/Machine.lean` | `part issuance` in `model/default.modality` |
-| `Acme8555/Props.lean` | All fourteen `rules/governance.modality` formulas |
+| `Acme8555/Props.lean` | All thirteen `rules/governance.modality` formulas |
 | `Acme8555/Theorems.lean` | Proofs on the canonical happy-path trace |
 
 ## Build
@@ -21,8 +21,9 @@ lake build Acme8555
 ## Verified claims
 
 - `witnessRun_valid` — happy-path trace accepted by the issuance machine
-- `witnessRun_governance` — that trace satisfies all fourteen `GovernanceProps` fields
-- Party and phase-gate props use **same-event** semantics (concurrent writes on one `Event`)
+- `witnessRun_governance` — that trace satisfies all thirteen `GovernanceProps` fields
+- `finalize_from_pending_breaks_ready` — finalizing a pending order breaks `finalize_requires_ready`
+- Party props read the event's actor; ordering props read the status the trace wrote before the event (`orderBefore`, `challengeBefore`), as `text_eq` reads accepted state
 
 A fully general `governanceProps_of_valid` theorem (every `ValidPath` from `q0`, not only `witnessRun`) remains future work; Modality model-checks the finite witness via `cargo test acme_rfc8555`.
 
@@ -39,7 +40,7 @@ A fully general `governanceProps_of_valid` theorem (every `ValidPath` from `q0`,
 | `formula { … }` | fields of `GovernanceProps` |
 | `part issuance` q0…q5 | `IssuanceState` + `IssuanceStep` |
 
-## GovernanceProps (14 rules)
+## GovernanceProps (13 rules)
 
 | Lean field | Modality formula |
 |---|---|
@@ -53,7 +54,6 @@ A fully general `governanceProps_of_valid` theorem (every `ValidPath` from `q0`,
 | `revocation_blocks_use` | `revocation_blocks_use` |
 | `only_holder_creates_order` | `only_holder_creates_order` |
 | `only_holder_finalizes` | `only_holder_finalizes` |
-| `finalize_requires_order` | `finalize_requires_order` |
 | `only_ca_validates_authorization` | `only_ca_validates_authorization` |
 | `order_status_values` | `order_status_values` |
 | `challenge_status_values` | `challenge_status_values` |

@@ -98,15 +98,13 @@ state; `-modifies` says which paths it leaves unchanged.
 ## Comments
 
 ```modality
-// Single-line comment
-
-/*
-   Multi-line
-   comment
-*/
-
+// A comment takes a whole line.
 model witness {
   initial q0
+  // Comments may sit between transitions.
   q0 -> q1 [+START]
 }
 ```
+
+Only whole-line `//` comments are supported. A comment after code on the same
+line, or a `/* ... */` block, is a parse error.

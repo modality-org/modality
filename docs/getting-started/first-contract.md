@@ -150,7 +150,7 @@ modal ai suggest-rule "after this commit either alice or bob must sign"
 ```
 
 ```output
-[] always([-signed_by(/parties/alice.id) -signed_by(/parties/bob.id)] false)
+always([-signed_by(/parties/alice.id) -signed_by(/parties/bob.id)] false)
 ```
 
 That's example output — yours may differ. The rest of this guide uses the
@@ -158,7 +158,7 @@ authorized formula below so lint and synthesize stay deterministic:
 
 ```bash
 modal add-rule --name authorized \
-  '[] always([-signed_by(/parties/alice.id) -signed_by(/parties/bob.id)] false)'
+  'always([-signed_by(/parties/alice.id) -signed_by(/parties/bob.id)] false)'
 ```
 
 ```output
@@ -167,17 +167,18 @@ modal add-rule --name authorized \
 export default rule {
   starting_at $PARENT
   formula {
-    [] always([-signed_by(/parties/alice.id) -signed_by(/parties/bob.id)] false)
+    always([-signed_by(/parties/alice.id) -signed_by(/parties/bob.id)] false)
   }
 }
 
 Run 'modal commit --all' to commit this rule.
 ```
 
-The `[]` prefix is why the bootstrap still works. Plain `always(...)` would
-constrain the current step too. `[] always(...)` skips that first commit so
-you can install identities and the model without a signature, then every later
-step has to be signed.
+A rule is checked from the state the commit that adds it reaches. So the
+bootstrap commit that installs the identities, the rule and the model can be
+unsigned, and every commit after it has to be signed. Do not add a leading
+`[]`: `[] always(...)` would leave the next commit free too, and anyone could
+use that commit to replace the model and Alice's key.
 
 ## 5. Synthesize a Witness Model
 
@@ -269,8 +270,8 @@ your default browser.
 
 The synthesizer returns a smallest satisfying witness: an unlabeled first step,
 then Alice's signature on the self-loop. That proves the rule is possible. It
-does not have to mention Bob. After this model is installed, the first commit
-can be unsigned. After that, only Alice can sign.
+does not have to mention Bob. The unlabeled first step is the commit that
+installs the model. After it, only Alice can sign.
 
 You may have noticed something off about the witness model. We'll come back
 to that.
@@ -278,7 +279,8 @@ to that.
 ## 6. Commit and Verify
 
 The first real commit is unsigned: identities, the rule, and the witness model.
-That's the bootstrap `[]` skipped. After it lands, you're in `q1`.
+The rule starts after it, so it needs no signature. After it lands, you're in
+`q1`.
 
 ```bash
 modal commit --all -m "Initial contract setup"
@@ -482,7 +484,7 @@ The closest candidate is Alice's arrow. The rule itself does let him. It
 only says later commits must be signed by Alice or Bob:
 
 ```
-[] always([-signed_by(/parties/alice.id) -signed_by(/parties/bob.id)] false)
+always([-signed_by(/parties/alice.id) -signed_by(/parties/bob.id)] false)
 ```
 
 It does not mention `POST` or `MODEL`, and it does not lock the witness to

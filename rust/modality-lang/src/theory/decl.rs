@@ -15,10 +15,11 @@ use super::sort::{ext, norm_path, Constraint, Lit};
 use crate::ast::{Property, PropertySource};
 use serde_json::Value;
 use std::collections::BTreeMap;
+use std::sync::OnceLock;
 
 /// What the evaluator reads at one argument position. A predicate whose
-/// arguments do not fit its signature is opaque: the declaration describes
-/// the evaluator only on arguments of these kinds.
+/// arguments do not fit its signature never holds (from `V1`, the evaluator
+/// returns false for it too).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Param {
     /// `/path`, any extension.
@@ -35,7 +36,8 @@ pub enum Param {
     Num,
     /// `/path.text`, `/path.id`, or a literal not starting with `/`.
     Text,
-    /// A literal not starting with `/` (read as-is, never as a path).
+    /// A literal, read as-is, never as a path. One starting with `/` fits
+    /// but does not elaborate, so the predicate stays opaque.
     Needle,
     /// A natural-number literal.
     Nat,
@@ -70,15 +72,41 @@ impl Param {
             Param::TextPath => path_ext(&["text", "id"]),
             Param::BoolPath => path_ext(&["bool"]),
             Param::IdPath => path_ext(&["id"]),
-            Param::Num => {
-                path_ext(&["num"]) || (!arg.starts_with('/') && Rational::parse(arg).is_some())
-            }
+            Param::Num => path_ext(&["num"]) || (!arg.starts_with('/') && is_decimal(arg)),
             Param::Text => path_ext(&["text", "id"]) || !arg.starts_with('/'),
-            Param::Needle => !arg.starts_with('/'),
+            Param::Needle => true,
             Param::Nat => arg.parse::<u32>().is_ok(),
             Param::Any => true,
         }
     }
+}
+
+/// Decimal syntax, `[+-]digits[.digits]`, at any length. A decimal outside
+/// the exact domain still fits; its template fails to instantiate and the
+/// predicate stays opaque. Lean: `isDecimal`.
+fn is_decimal(arg: &str) -> bool {
+    let body = match arg.strip_prefix('-') {
+        Some(rest) => rest,
+        None => arg.strip_prefix('+').unwrap_or(arg),
+    };
+    let (int_part, frac_part) = body.split_once('.').unwrap_or((body, ""));
+    !(int_part.is_empty() && frac_part.is_empty())
+        && int_part.chars().all(|c| c.is_ascii_digit())
+        && frac_part.chars().all(|c| c.is_ascii_digit())
+}
+
+/// `0 < 0`: no world satisfies it. A declared predicate used with an
+/// argument of the wrong kind expands to it. Lean: `neverAtom`.
+fn never_constraint() -> Constraint {
+    static NEVER: OnceLock<Constraint> = OnceLock::new();
+    NEVER
+        .get_or_init(|| {
+            Template::parse("(< 0 0)")
+                .and_then(|t| t.instantiate(&[]))
+                .and_then(|cs| cs.into_iter().next())
+                .expect("(< 0 0) elaborates")
+        })
+        .clone()
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -150,6 +178,13 @@ pub trait Registry {
     /// Declaration for a predicate name, or for a custom module path when the
     /// predicate is `wasm(<module>, args...)`.
     fn declaration(&self, key: &str) -> Option<&Declaration>;
+
+    /// An undeclared predicate whose truth is evidence the commit carries
+    /// or leaves out, independent of every other atom (`oracle_attests` on
+    /// a validator). The theory treats it as a free boolean.
+    fn external(&self, _key: &str) -> bool {
+        false
+    }
 }
 
 /// Arguments of a predicate property as plain strings, in order. Same
@@ -212,6 +247,8 @@ pub struct Expansion {
 /// Negative: if `sufficient` is a single atom, its negation as one literal
 /// (¬P ⇒ ¬sufficient). A multi-atom sufficient negates to a disjunction the
 /// literal language cannot express, so the property stays opaque.
+/// Arguments that do not fit the declaration's signature: one exact
+/// literal over `0 < 0`.
 /// No usable declaration: one `Opaque` literal carrying the name and args.
 pub fn expand(reg: &dyn Registry, p: &Property) -> Expansion {
     let (key, args) = registry_key_and_args(p);
@@ -240,9 +277,26 @@ pub fn expand(reg: &dyn Registry, p: &Property) -> Expansion {
             exact: true,
         };
     }
-    let Some(decl) = reg.declaration(&key).filter(|d| d.accepts(&args)) else {
+    let Some(decl) = reg.declaration(&key) else {
+        if reg.external(&key) {
+            return Expansion {
+                exact: true,
+                ..opaque()
+            };
+        }
         return opaque();
     };
+    // The evaluator reads a wrong-kind argument as false, so the predicate
+    // never holds: `+p` kills its edge and `-p` holds on every commit.
+    if !decl.accepts(&args) {
+        return Expansion {
+            lits: vec![Lit {
+                c: never_constraint(),
+                positive,
+            }],
+            exact: true,
+        };
+    }
 
     if positive {
         let Some(t) = &decl.necessary else {

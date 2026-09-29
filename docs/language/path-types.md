@@ -49,7 +49,7 @@ an extension. A variable stands for one segment with no dot: `alice`, not
 `alice.id`.
 
 - In a **rule**, a variable means every name.
-  `[] always([+modifies(/claimants/$k) -signed_by(/claimants/$k.id)] false)`
+  `always([+modifies(/claimants/$k) -signed_by(/claimants/$k.id)] false)`
   says that for every `k`, no later commit writes under `/claimants/k`
   unless the key at `/claimants/k.id` signed it.
 - On a **model edge**, a variable means one name the commit picks. A commit

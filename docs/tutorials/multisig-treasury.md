@@ -11,8 +11,10 @@ Learn to create a 2-of-3 multisig treasury using the `threshold` predicate.
 
 A treasury contract where:
 - 3 keyholders control the funds
-- Any 2 can approve withdrawals
-- All 3 required to change keyholders
+- Every commit after the first needs a keyholder's signature
+- Any keyholder can post a withdrawal proposal
+- A withdrawal, or a change to a keyholder's key, needs 2 of the 3 keyholders
+  on the same commit
 
 ## Step 1: Create Identities
 
@@ -38,79 +40,72 @@ modal c checkout
 modal c set-named-id /treasury/alice.id alice
 modal c set-named-id /treasury/bob.id bob
 modal c set-named-id /treasury/carol.id carol
-
-# Create signers list
-mkdir -p state/treasury
-echo '["/treasury/alice.id", "/treasury/bob.id", "/treasury/carol.id"]' \
-  > state/treasury/signers.json
 ```
+
+`threshold("2", /treasury)` counts the keys in the `*.id` files under
+`/treasury`, so the keyholder list is those three files. Proposals live
+outside `/treasury`, under `/proposals`; executed withdrawals live under
+`/treasury/withdrawals`.
 
 ## Step 4: Define the Rules
 
-Create `rules/treasury-auth.modality`:
+Create `rules/treasury-auth.modality`. Every commit after the one that adds it
+must carry a keyholder's signature:
 
 ```modality
 export default rule {
   starting_at $PARENT
   formula {
-    // All commits must be signed by a keyholder
-    signed_by(/treasury/alice.id) | signed_by(/treasury/bob.id) | signed_by(/treasury/carol.id)
+    always([-any_signed(/treasury)] false)
   }
 }
 ```
 
-Create `rules/treasury-threshold.modality`:
+Create `rules/treasury-threshold.modality`. A commit that writes anything under
+`/treasury`, a withdrawal or a key, must carry two keyholders' signatures:
 
 ```modality
 export default rule {
   starting_at $PARENT
   formula {
-    // Withdrawals require one of the 2-of-3 signer pairs.
-    // The generated model can enforce the same policy with threshold(...).
-    always(!<+WITHDRAW> true | (
-      <+WITHDRAW +signed_by(/treasury/alice.id) +signed_by(/treasury/bob.id)> true |
-      <+WITHDRAW +signed_by(/treasury/alice.id) +signed_by(/treasury/carol.id)> true |
-      <+WITHDRAW +signed_by(/treasury/bob.id) +signed_by(/treasury/carol.id)> true
-    ))
+    always([+modifies(/treasury) -threshold("2", /treasury)] false)
   }
 }
 ```
 
-## Step 5: Synthesize the Model
+The second rule covers the keys too. Without it, Alice could sign a commit that
+replaces Bob's key with a second key of her own, and then meet the threshold
+alone.
 
-Use the multisig template:
+## Step 5: Write the Witness Model
 
-```bash
-modality model synthesize --template multisig -o model/treasury.modality
-```
+The model shows the rules can be met. The first commit installs the keys, the
+rules and the model, so its edge is unlabeled. After that, a step either leaves
+`/treasury` alone and has one keyholder's signature, or has two.
 
-Or synthesize from your rules:
-
-```bash
-modality model synthesize --rule rules/treasury-auth.modality -o model/treasury.modality
-modality model synthesize --rule rules/treasury-threshold.modality --verify -o model/treasury.modality
-```
-
-The generated model enforces your threshold requirements:
+`model/treasury.modality`:
 
 ```modality
-export default model {
-  initial locked
-  
-  // Propose withdrawal (any keyholder)
-  locked -> pending [+signed_by(/treasury/alice.id)]
-  locked -> pending [+signed_by(/treasury/bob.id)]
-  locked -> pending [+signed_by(/treasury/carol.id)]
-  
-  // Execute withdrawal (2-of-3)
-  pending -> executed [+threshold("2", /treasury/signers.json)]
-  
-  // Reset after execution
-  executed -> locked [+signed_by(/treasury/alice.id)]
-  executed -> locked [+signed_by(/treasury/bob.id)]
-  executed -> locked [+signed_by(/treasury/carol.id)]
+model Treasury {
+  part flow {
+    q0 --> q1
+    q1 --> q1: +any_signed(/treasury) -modifies(/treasury)
+    q1 --> q1: +any_signed(/treasury) +threshold("2", /treasury)
+  }
 }
 ```
+
+The rules, not the model, protect the treasury. A later `MODEL` commit is
+judged by the model it posts, so a replacement that drops the threshold edge
+fails the second rule and is refused.
+
+You can ask the synthesizer for a candidate model and check it against a rule:
+
+```bash
+modality model synthesize --rule rules/treasury-threshold.modality --verify -o model/candidate.modality
+```
+
+Review any candidate against both rules before you commit it.
 
 ## Step 6: Commit and Test
 
@@ -120,37 +115,39 @@ modal c commit --all --sign alice -m "Initialize treasury"
 
 ### Propose a Withdrawal
 
+Any keyholder can propose:
+
 ```bash
-echo '{"amount": 100, "to": "recipient_address"}' > state/treasury/proposal.json
+mkdir -p state/proposals
+echo '{"amount": 100, "to": "recipient_address"}' > state/proposals/withdrawal.json
 modal c commit --all --sign alice -m "Alice proposes withdrawal"
 ```
 
-### First Approval (Bob)
+### Execute with Two Keyholders
+
+The withdrawal commit carries both signatures:
 
 ```bash
-modal c commit --all --sign bob -m "Bob approves"
+mkdir -p state/treasury/withdrawals
+cp state/proposals/withdrawal.json state/treasury/withdrawals/0001.json
+modal c commit --all --sign bob --sign carol -m "Execute withdrawal"
 ```
 
-### Second Approval & Execute (Carol)
-
-With 2 signatures collected, the withdrawal can execute:
-
-```bash
-modal c commit --all --sign carol -m "Execute withdrawal"
-```
+The same commit with only `--sign bob` is refused. Approvals in separate
+commits do not add up: `threshold` counts the signatures on one commit.
 
 ## How Threshold Works
 
-The `threshold(n, signers_path)` predicate:
+The `threshold("n", /path)` predicate:
 
-1. Loads the signer list from the path
-2. Collects signatures from the commit
-3. Verifies each signature is from an authorized signer
-4. Ensures at least `n` unique valid signatures exist
+1. Reads the keys in the accepted `*.id` files at `/path` and below
+2. Collects the signatures on the pending commit
+3. Counts the unique signers whose keys are on that list
+4. Holds when the count is at least `n`
 
 **Key features:**
-- Can't use the same signer twice
-- Rejects unauthorized signers
+- The same signer counts once
+- Signatures from keys not on the list do not count
 - Works with any n-of-m configuration
 
 ## Available Templates

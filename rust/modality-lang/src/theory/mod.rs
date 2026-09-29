@@ -5,8 +5,9 @@
 //! elaborate them into a closed set of sorts (`sort.rs`). The decision
 //! procedures are per sort (`order.rs`, `signers.rs`, `paths.rs`,
 //! `literals.rs`, `text.rs`). Everything is three-valued and conservative:
-//! `Unknown` never refuses anything. `False` is a contradiction the sort
-//! procedures found; `True` is a world built and checked (`witness.rs`).
+//! `Unknown` never kills an edge (a box counts it; a diamond does not).
+//! `False` is a contradiction the sort procedures found; `True` is a world
+//! built and checked (`witness.rs`).
 //!
 //! The specification and its proofs are the Lean development in
 //! `experiments/predicate-theory/lean`; this module is its transliteration,
@@ -230,18 +231,108 @@ impl<'a> Theory<'a> {
         if let Some(why) = self.state_denied(lits) {
             return Verdict::no(why);
         }
-        if !exact || lits.iter().any(Lit::is_opaque) {
+        if !exact || lits.iter().any(|l| l.is_opaque() && !self.free(l)) {
             return Verdict::unknown();
         }
+        let decided: Vec<Lit> = lits.iter().filter(|l| !l.is_opaque()).cloned().collect();
         let w = if self.state.is_known() {
-            witness::build_in(self.state, lits)
+            witness::build_in(self.state, &decided)
         } else {
-            witness::build(lits)
+            witness::build(&decided)
         };
         match w {
             Some(w) => Verdict::yes(w),
             None => Verdict::unknown(),
         }
+    }
+
+    /// An external literal the commit decides: `-p` by leaving the evidence
+    /// out, `+p` by carrying it, which needs the key its first argument
+    /// names when the state is known. `dead` has already refused `+p -p`.
+    /// Lean: `external_live_sound`.
+    fn free(&self, l: &Lit) -> bool {
+        let Constraint::Opaque { name, args } = &l.c else {
+            return false;
+        };
+        if !self.registry.external(name) {
+            return false;
+        }
+        !l.positive
+            || !self.state.is_known()
+            || args.first().is_some_and(|key| {
+                matches!(
+                    self.state.value_at(key),
+                    Lookup::Present(StateValue::Text(_))
+                )
+            })
+    }
+
+    /// Can one commit meet `lits` in **every** accepted state where `facts`
+    /// hold? Sufficient, not necessary. Every literal that reads state must
+    /// follow from `facts`. Signatures must not depend on keys `facts`
+    /// leave open: with only positive signature literals the commit signs
+    /// every key present, which needs the keys to be known; with only
+    /// negative ones it signs none; with both, every one is `signed` at a
+    /// known key. A body or method literal depends on the commit alone.
+    ///
+    /// `consistent_lits` asks whether some state and commit meet the
+    /// literals; this is what a diamond needs after a step, where a run may
+    /// arrive in any state the facts allow.
+    pub fn robust(&self, lits: &[Lit], facts: &[Lit]) -> bool {
+        let pinned = |p: &str| {
+            facts
+                .iter()
+                .any(|f| f.positive && matches!(&f.c, Constraint::Eq { path, .. } if path == p))
+        };
+        let keys_under = |q: &str| {
+            facts
+                .iter()
+                .filter(|f| f.positive)
+                .filter_map(|f| match &f.c {
+                    Constraint::Eq { path, lit } if sort::key_under(path, q) => Some(lit),
+                    _ => None,
+                })
+                .collect::<BTreeSet<_>>()
+                .len()
+        };
+        let signature = |l: &Lit| {
+            matches!(
+                l.c,
+                Constraint::Signer { .. }
+                    | Constraint::SignerCount { .. }
+                    | Constraint::SignerAll { .. }
+            )
+        };
+        let signs = lits.iter().any(|l| l.positive && signature(l));
+        let refuses = lits.iter().any(|l| !l.positive && signature(l));
+        lits.iter().all(|l| match &l.c {
+            Constraint::Label { .. } | Constraint::Writes { .. } | Constraint::Posts { .. } => true,
+            Constraint::Signer { id } => (!l.positive && !signs) || pinned(id),
+            Constraint::SignerCount { prefix, at_least } => {
+                if l.positive {
+                    !refuses && keys_under(prefix) >= *at_least as usize
+                } else {
+                    !signs
+                }
+            }
+            Constraint::SignerAll { prefix } => {
+                if l.positive {
+                    !refuses && keys_under(prefix) >= 1
+                } else {
+                    !signs
+                }
+            }
+            Constraint::Opaque { name, args } => {
+                self.registry.external(name)
+                    && (!l.positive
+                        || args.first().is_some_and(|k| pinned(&sort::norm_path(k))))
+            }
+            _ => {
+                let mut without = facts.to_vec();
+                without.push(l.negated());
+                self.consistent_lits(&without, false).tri == Tri::False
+            }
+        })
     }
 
     /// What the accepted state says about every path the literals mention,

@@ -51,7 +51,7 @@ model FirstContract {
 }
 EOF
 
-assert_success "modal add-rule --name authorized --dir $CONTRACT_DIR '[] always([-signed_by(/parties/alice.id) -signed_by(/parties/bob.id)] false)'" \
+assert_success "modal add-rule --name authorized --dir $CONTRACT_DIR 'always([-signed_by(/parties/alice.id) -signed_by(/parties/bob.id)] false)'" \
   "Should add authorized rule"
 
 BOOTSTRAP_OUT=$(modal commit --all --dir "$CONTRACT_DIR" --output json --message "Bootstrap model")
