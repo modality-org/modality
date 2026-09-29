@@ -457,6 +457,13 @@ impl ContractProcessor {
     ) -> Result<CommitFile> {
         let (accepted_raw, theory) = {
             let ds = self.datastore.lock().await;
+            crate::sequenced_rules::assert_extends_head(
+                &ds,
+                contract_id,
+                commit_id,
+                pending.head.parent.as_deref(),
+            )
+            .await?;
             let chain = crate::sequenced_rules::load_sequenced_parent_chain(
                 &ds,
                 contract_id,

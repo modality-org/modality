@@ -1673,6 +1673,40 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn a_second_child_of_a_sequenced_commit_is_refused() {
+        let ds = Arc::new(Mutex::new(DatastoreManager::create_in_memory().unwrap()));
+        let push = |id: &str, parent: Option<&str>, note: &str| {
+            json!({
+                "type": "contract_push",
+                "data": {
+                    "contract_id": "pool",
+                    "commits": [{
+                        "commit_id": id,
+                        "body": [{"method": "post", "path": "/note.text", "value": note}],
+                        "head": {"parent": parent}
+                    }]
+                }
+            })
+        };
+        for (batch, event) in [
+            ("b0", push("root", None, "root")),
+            ("b1", push("first", Some("root"), "first")),
+            ("b2", push("second", Some("root"), "second")),
+            ("b3", push("next", Some("first"), "next")),
+        ] {
+            apply_certified_contract_events(&certified_block(vec![event], batch), &ds).await;
+        }
+        assert_eq!(in_batch_of(&ds, "pool", "first").await.as_deref(), Some("b1"));
+        assert!(in_batch_of(&ds, "pool", "second").await.is_none(), "a fork of the log");
+        assert_eq!(in_batch_of(&ds, "pool", "next").await.as_deref(), Some("b3"));
+        let mgr = ds.lock().await;
+        assert_eq!(
+            mgr.get_string("/contracts/pool/note.text").await.unwrap().as_deref(),
+            Some("next")
+        );
+    }
+
+    #[tokio::test]
     async fn dest_recv_succeeds_when_send_prefix_cert_in_same_batch() {
         let ds = Arc::new(Mutex::new(DatastoreManager::create_in_memory().unwrap()));
         sequenced_mod_send(&ds, true).await;

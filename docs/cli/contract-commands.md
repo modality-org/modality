@@ -331,6 +331,11 @@ Push commits to a hub or to chain sequencers.
 | `--hub-creds <FILE>` | Hub credentials file for HTTP hub remotes |
 | `--output <FORMAT>` | Output format: `text` or `json` |
 
+A contract's log is linear. On chain sequencers, a commit must extend the
+contract's current head: if another commit was already sequenced on the same
+parent, the sequencer refuses yours ("forks the contract"). Pull, then commit
+again on the new head.
+
 ## Pull
 
 ```bash

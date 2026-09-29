@@ -41,6 +41,31 @@ pub async fn load_sequenced_parent_chain(
     Ok(chain)
 }
 
+/// A contract is one log: a commit may follow `parent` only while no other
+/// sequenced commit does. A second child would be checked, and would run
+/// its programs, against a history that leaves out the first.
+pub async fn assert_extends_head(
+    ds: &DatastoreManager,
+    contract_id: &str,
+    commit_id: &str,
+    parent: Option<&str>,
+) -> Result<()> {
+    for commit in Commit::find_by_contract_multi(ds, contract_id).await? {
+        if !commit.is_sequenced() || commit.commit_id == commit_id {
+            continue;
+        }
+        if parse_commit_file(&commit.commit_data)?.head.parent.as_deref() == parent {
+            anyhow::bail!(
+                "commit '{}' forks the contract: sequenced commit '{}' already follows {}; commit again on the current head",
+                commit_id,
+                commit.commit_id,
+                parent.map_or("the genesis".to_string(), |p| format!("'{p}'"))
+            );
+        }
+    }
+    Ok(())
+}
+
 pub fn validate_against_local_rules(accepted: &[CommitFile], pending: &CommitFile) -> Result<()> {
     modality_common::model_governance::validate_sequenced_commit(accepted, pending)
 }

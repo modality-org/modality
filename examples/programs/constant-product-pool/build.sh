@@ -6,8 +6,8 @@
 #                           amd64 image, from a fixed path, so anyone who
 #                           checks out this directory gets the same sha256
 #
-# A local build runs the same code, but cargo hashes the host and the
-# package's path into symbol names, so its bytes differ from host to host.
+# A local build runs the same code, but its bytes depend on the host that
+# built it: macOS and Linux, arm64 and amd64, each give another sha256.
 set -euo pipefail
 cd "$(dirname "$0")"
 

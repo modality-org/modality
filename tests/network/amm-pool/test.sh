@@ -297,9 +297,17 @@ echo "The LP removes half..."
 REMOVE='{"op":"remove"}'
 commit "$LP_WALLET" "The LP sends 1000 shares back" --method send --asset-contract "$POOL_ID" --asset-id lp --to-contract "$POOL_ID" --amount 1000 --memo "'$REMOVE'"
 REMOVE_SEND=$LAST
+rm -rf ./tmp/pool-stale
+cp -R "$POOL" ./tmp/pool-stale
 invoke "The LP invokes remove" "$LP_KEY" "$(invoke_value remove "$(claim "$REMOVE_SEND" "$LP_ID" - lp 1000 "$REMOVE")")"
 REMOVE_ID=$LAST
 expect_log "Sequenced commit $REMOVE_ID" "The remove should be sequenced" || true
+RACE_VALUE=$(invoke_value refund "$(claim "$REMOVE_SEND" "$LP_ID" - lp 1000 "$REMOVE")")
+assert_success "modal contract commit --theory v2 --dir ./tmp/pool-stale --method invoke --path $PROGRAM --value '$RACE_VALUE' --sign $MALLORY --output json" \
+  "Mallory, on the head before the remove, invokes a refund of the same SEND"
+RACE_ID=$(cat ./tmp/pool-stale/.contract/HEAD)
+push ./tmp/pool-stale
+expect_log "Failed to process sequenced commit $RACE_ID.*forks the contract" "The sequencer refuses a second child of the same head" || true
 commit "$LP_WALLET" "The LP receives 1100 / 2 = 550 A" --method recv --send-commit-id "$REMOVE_ID" --asset-contract "$KA_ID" --asset-id tokA --amount 550
 commit "$LP_WALLET" "The LP receives 3638 / 2 = 1819 B" --method recv --send-commit-id "$REMOVE_ID" --send-index 1 --asset-contract "$KB_ID" --asset-id tokB --amount 1819
 

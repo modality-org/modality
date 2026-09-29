@@ -159,9 +159,10 @@ Together:
 Rules are checked against the model from the states they are added in, so
 the model restates each rule's predicate on every edge the pool operates
 on. Predicate theory treats these predicates as opaque atoms: an edge
-satisfies a rule's `[-p] false` only by saying `+p`.
+satisfies a rule's `[-p] false` only by saying `+p`. With the two long
+labels abbreviated (the network test writes them out):
 
-```modality
+```text
 model Pool {
   initial q0
   q0 --> q1: +POST
@@ -275,8 +276,9 @@ Ordering is public:
   sender before it is swapped. It costs the griefer a commit and the sender
   nothing but time.
 - Every invoke extends the pool's one head. Two invokes on the same parent
-  cannot both be sequenced; the second is committed again on the new head,
-  where the program computes against the new reserves.
+  cannot both be sequenced: the sequencer refuses the second ("forks the
+  contract"), and its author commits it again on the new head, where the
+  program computes against the new reserves.
 
 ## Limits
 
