@@ -25,6 +25,18 @@ pub struct CommitAction {
     /// Source commit that contained `value` at `source_path`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub source_commit: Option<String>,
+    /// The program whose `invoke` emitted this action, set when invokes are
+    /// expanded. Never read from or written to a commit, so a hand-written
+    /// action cannot claim it.
+    #[serde(skip)]
+    pub emitted_by: Option<Emitter>,
+}
+
+/// A posted program that ran: where it was posted and the SHA-256 of its bytes.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Emitter {
+    pub program: String,
+    pub sha256: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -100,6 +112,7 @@ impl CommitFile {
             source_contract: None,
             source_path: None,
             source_commit: None,
+            emitted_by: None,
         });
     }
 
@@ -119,6 +132,7 @@ impl CommitFile {
             source_contract: Some(source_contract),
             source_path: Some(source_path),
             source_commit: Some(source_commit),
+            emitted_by: None,
         });
     }
 

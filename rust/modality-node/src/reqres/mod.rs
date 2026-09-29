@@ -7,6 +7,7 @@ mod data;
 pub mod inspect;
 mod ping;
 use data as reqres_data;
+pub use contract::admission::{PushAdmission, PushLimits};
 use tokio::sync::mpsc;
 
 use modality_datastore::DatastoreManager;

@@ -336,6 +336,33 @@ View or modify `config.json`.
 | `--merge-in <FILE>` | Merge settings from a JSON file |
 | `--dry-run` | Show merge changes without modifying the config |
 
+#### Push limits
+
+A node that takes `/contract/push` and `/contract/submit` from strangers
+limits what it stores and queues. Set `push_limits` in `config.json` (for
+example with `--merge-in`); a missing field keeps its default and `0` turns
+that limit off.
+
+| Field | Default | Refuses |
+|-------|---------|---------|
+| `max_commits` | `512` | a request that carries more commits |
+| `requests_per_peer_per_minute` | `60` | a peer's requests past this rate |
+| `commits_per_contract_per_minute` | `600` | a contract's commits past this rate, across all peers |
+| `commits_per_node_per_minute` | `6000` | the node's commits past this rate, across all contracts |
+
+A refused push names the limit and is not charged; retry after a pause.
+This is each node's own policy, not consensus: two nodes may set
+different limits. Peer ids are free to mint, so the contract and node
+limits are the ones that hold.
+
+```json
+{
+  "push_limits": {
+    "commits_per_contract_per_minute": 120
+  }
+}
+```
+
 ### Clear
 
 ```bash

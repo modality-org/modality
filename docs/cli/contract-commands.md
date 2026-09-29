@@ -48,7 +48,7 @@ or an inline domain action.
 | `--dir <DIR>` | Contract directory (defaults to current directory) |
 | `--output <FORMAT>` | Output format: `text` or `json` |
 | `--sign <PASSFILE>` | Sign with a passfile path or identity name; repeat to attach multiple signatures. Each signs the contract id and the whole commit except its signatures (see [Commit signatures](../reference/standard-predicates.md#commit-signatures)) |
-| `--all`, `-a` | Commit all changed `state/`, `rules/`, `reposts/`, and `model/default.modality` files. Staged REPOST dests emit `method: repost`. |
+| `--all`, `-a` | Commit all changed `state/`, `rules/`, `reposts/`, and `model/default.modality` files. Staged REPOST dests emit `method: repost`. With `--method create`, `send`, `recv` or `invoke`, that action joins the same commit, so a `SEND` and the flag it sets are one commit. |
 | `--message`, `-m <MSG>` | Commit message |
 | `--action <JSON>` | Commit an inline JSON domain action or read it from a `.json` file path |
 | `--asset-id <ASSET_ID>` | Asset ID for `CREATE` commits |
@@ -57,6 +57,7 @@ or an inline domain action.
 | `--to-contract <TO_CONTRACT>` | Destination contract ID for `SEND` commits |
 | `--amount <AMOUNT>` | Amount for `SEND` commits |
 | `--send-commit-id <SEND_COMMIT_ID>` | Source `SEND` commit ID for `RECV` commits |
+| `--theory <v0\|v2>` | Predicate theory local verify runs (default `v0`). Use `v2` for a network whose `network.json` sets `predicate_theory_version: "v2"`. With it, a rule that `v0` refuses, such as `always([+SEND -any_signed(/claimants)] false)`, can be committed locally. See [Predicate theory](../reference/predicate-theory.md) |
 
 **Examples:**
 ```bash
@@ -65,6 +66,9 @@ modal c commit --all --sign alice -m "Add escrow rules"
 
 # Commit all changes with multiple member signatures
 modal c commit --all --sign alice --sign bob -m "Replace witness"
+
+# Pay out and mark the flag in one commit
+modal c commit --all --method send --asset-id drops --to-contract <WALLET_ID> --amount 10 --sign carol
 
 # Commit one state file
 modal c commit --path /notes.text --value "signed update" --sign alice

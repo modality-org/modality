@@ -745,8 +745,8 @@ model Faucet {
   part flow {
     q0 --> q1
     q1 --> q1: +POST -SEND -CREATE
-    q1 --> q1: +SEND +POST -CREATE +signed_by(/claimants/alice.id) -signed_by(/claimants/bob.id) -bool_true(/claimants/alice/claimed.bool) +post_to_path(/claimants/alice/claimed.bool)
-    q1 --> q1: +SEND +POST -CREATE +signed_by(/claimants/bob.id) -signed_by(/claimants/alice.id) -bool_true(/claimants/bob/claimed.bool) +post_to_path(/claimants/bob/claimed.bool)
+    q1 --> q1: +SEND +POST -CREATE +signed_by(/claimants/alice.id) -signed_by(/claimants/bob.id) -bool_true(/claimants/alice/claimed.bool) +post_to(/claimants/alice/claimed.bool, "true")
+    q1 --> q1: +SEND +POST -CREATE +signed_by(/claimants/bob.id) -signed_by(/claimants/alice.id) -bool_true(/claimants/bob/claimed.bool) +post_to(/claimants/bob/claimed.bool, "true")
   }
 }
 "#;
@@ -760,7 +760,7 @@ const FAUCET_ALICE_ONCE: &str =
     "[] always([+SEND +signed_by(/claimants/alice.id) +bool_true(/claimants/alice/claimed.bool)] false)";
 /// Alice's drip marks her flag.
 const FAUCET_ALICE_MARKS: &str =
-    "[] always([+SEND +signed_by(/claimants/alice.id) -post_to_path(/claimants/alice/claimed.bool)] false)";
+    "[] always([+SEND +signed_by(/claimants/alice.id) -post_to(/claimants/alice/claimed.bool, \"true\")] false)";
 
 fn faucet_bootstrap() -> CommitFile {
     let mut c = model_commit(
@@ -958,7 +958,7 @@ model Faucet {
     q0 --> q1
     q1 --> q1: +POST -SEND -CREATE -modifies(/claimants)
     q1 --> q1: +POST -SEND -CREATE -state_exists(/claimants/$k.id) +post_to_path(/claimants/$k.id) -modifies(/claimants/$k) -modifies(/claimants/!$k)
-    q1 --> q1: +SEND +POST -CREATE +signed_by(/claimants/$k.id) -signed_by(/claimants/!$k.id) -bool_true(/claimants/$k/claimed.bool) +post_to_path(/claimants/$k/claimed.bool) -modifies(/claimants/!$k)
+    q1 --> q1: +SEND +POST -CREATE +signed_by(/claimants/$k.id) -signed_by(/claimants/!$k.id) -bool_true(/claimants/$k/claimed.bool) +post_to(/claimants/$k/claimed.bool, "true") -modifies(/claimants/!$k)
   }
 }
 "#;
@@ -972,7 +972,7 @@ const EACH_ONCE: &str =
     "[] always([+SEND +signed_by(/claimants/$k.id) +bool_true(/claimants/$k/claimed.bool)] false)";
 /// Every claimant's drip marks her own flag.
 const EACH_MARKS: &str =
-    "[] always([+SEND +signed_by(/claimants/$k.id) -post_to_path(/claimants/$k/claimed.bool)] false)";
+    "[] always([+SEND +signed_by(/claimants/$k.id) -post_to(/claimants/$k/claimed.bool, \"true\")] false)";
 
 fn faucet_vars_bootstrap(model: &str) -> CommitFile {
     let mut c = faucet_bootstrap();
@@ -1055,8 +1055,8 @@ fn faucet_with_variables_serves_new_claimants_and_keeps_slots_owned() {
     // The rules outlive the model: a replacement that lets a drip write
     // other slots is refused.
     let sloppy = FAUCET_VARS.replacen(
-        " +post_to_path(/claimants/$k/claimed.bool) -modifies(/claimants/!$k)",
-        " +post_to_path(/claimants/$k/claimed.bool)",
+        " +post_to(/claimants/$k/claimed.bool, \"true\") -modifies(/claimants/!$k)",
+        " +post_to(/claimants/$k/claimed.bool, \"true\")",
         1,
     );
     let replace = model_commit(&sloppy, vec![("/notes/c.text", json!("c"))]);
@@ -1206,7 +1206,7 @@ const BOOL_PATHS: &[&str] = &["/f.bool", "/g.bool", "/a.num"];
 const ID_PATHS: &[&str] = &["/m/k.id", "/m/j.id", "/n/k.id", "/m/q/k.id", "/t.text"];
 const PATHS: &[&str] = &[
     "/m", "/m/", "/", "/n", "/m/q", "/m/k.id", "/a.num", "/f.bool", "/t.text", "/o.json", "m",
-    "//m",
+    "//m", "/p.wasm",
 ];
 const NATS: &[&str] = &["0", "1", "2", "3", "+1", "x", "2.0"];
 const ANY: &[&str] = &["a", "a.b", "", "b"];
@@ -1250,6 +1250,11 @@ const PREDICATES: &[(&str, &[Kind])] = {
         ("text_starts_with", &[TextPath, Needle]),
         ("text_ends_with", &[TextPath, Needle]),
         ("oracle_attests", &[Path]),
+        ("posts_own_key", &[IdPath]),
+        ("sent_eq", &[Text, Num]),
+        ("sent_lte", &[Text, Num]),
+        ("sent_to", &[Text, Text]),
+        ("emitted_by", &[Path]),
         ("after", &[Path]),
         ("before", &[Path]),
         ("timestamp_valid", &[Path]),
@@ -1374,7 +1379,20 @@ fn random_state(rng: &mut Rng) -> HashMap<String, Value> {
 fn random_commit(rng: &mut Rng) -> CommitFile {
     let mut c = CommitFile::new();
     for _ in 0..rng.below(4) {
-        let method = *rng.pick(&["post", "delete", "repost"]);
+        let method = *rng.pick(&["post", "delete", "repost", "send"]);
+        if method == "send" {
+            let amount = match rng.below(3) {
+                0 => json!(5),
+                1 => json!(*rng.pick(NUM_LITS)),
+                _ => json!(0),
+            };
+            c.add_action(
+                method.to_string(),
+                None,
+                json!({"asset_id": *rng.pick(TEXT_LITS), "to_contract": *rng.pick(TEXT_LITS), "amount": amount}),
+            );
+            continue;
+        }
         let path = if rng.chance(50) {
             rng.pick(PATHS).to_string()
         } else {
@@ -1386,6 +1404,17 @@ fn random_commit(rng: &mut Rng) -> CommitFile {
             random_value(rng, &path)
         };
         c.add_action(method.to_string(), Some(path), value);
+    }
+    if rng.chance(30) {
+        let program = rng.pick(&["/p.wasm", "/m"]).to_string();
+        for action in &mut c.body {
+            if rng.chance(80) {
+                action.emitted_by = Some(Emitter {
+                    program: program.clone(),
+                    sha256: "ab".to_string(),
+                });
+            }
+        }
     }
     let mut signatures = serde_json::Map::new();
     for key in ["KA", "KB", "KC", "KX"] {

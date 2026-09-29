@@ -212,19 +212,27 @@ fn is_contract_method_label(prop: &Property) -> bool {
 /// Method labels emitted by the current local contract verifier.
 pub const KNOWN_CONTRACT_METHOD_LABELS: &[&str] = &["POST", "RULE", "MODEL"];
 
-/// List of known predicates for helpful error messages
+/// Predicates the validator evaluates, for helpful error messages.
 pub const KNOWN_PREDICATES: &[&str] = &[
     "signed_by",
+    "any_signed",
+    "all_signed",
     "threshold",
-    "before",
-    "after",
-    "hash_matches",
-    "preimage_of",
-    "amount_equals",
-    "amount_gte",
-    "oracle_attests",
-    "state_equals",
+    "modifies",
+    "post_to_path",
+    "sets",
+    "posts_own_key",
+    "sent_eq",
+    "sent_lte",
+    "sent_to",
+    "emitted_by",
     "state_exists",
+    "has_property",
+    "text_eq",
+    "num_eq",
+    "num_gte",
+    "bool_true",
+    "oracle_attests",
 ];
 
 /// Suggest predicates for common action names
@@ -236,7 +244,7 @@ pub fn suggest_predicate(action_name: &str) -> String {
     }
 
     if lower.contains("pay") || lower.contains("deposit") || lower.contains("transfer") {
-        return "signed_by(/users/payer.id) and consider amount_equals(value)".to_string();
+        return "signed_by(/users/payer.id) and consider sent_eq(\"asset\", \"amount\")".to_string();
     }
 
     if lower.contains("deliver") || lower.contains("complete") || lower.contains("done") {
@@ -244,11 +252,11 @@ pub fn suggest_predicate(action_name: &str) -> String {
     }
 
     if lower.contains("deadline") || lower.contains("expire") {
-        return "before(/state/deadline.datetime) or after(/state/deadline.datetime)".to_string();
+        return "bool_true(/state/expired.bool); before and after are not evaluated yet".to_string();
     }
 
     if lower.contains("reveal") || lower.contains("claim") {
-        return "hash_matches(/state/commitment.hash) or preimage_of(/state/hash.hash)".to_string();
+        return "signed_by(/users/claimant.id); hash predicates are not evaluated yet".to_string();
     }
 
     // Default suggestion

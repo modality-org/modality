@@ -372,6 +372,11 @@ pub fn expand_and_validate_prefix(
     let (expanded, invokes_expanded) = expand_prefix(contract_id, prefix, wasm, invoke_engine)?;
     let mut accepted = Vec::new();
     for (index, pending) in expanded.iter().enumerate() {
+        if theory.at(index) != modality_lang::TheoryVersion::V0 {
+            pending
+                .validate()
+                .map_err(|err| anyhow::anyhow!("commit {}: {err}", prefix[index].0))?;
+        }
         crate::model_governance::validate_sequenced_commit_with_theory(
             &accepted, pending, None, None, None, theory,
         )
@@ -410,9 +415,16 @@ pub fn expand_invoke_actions(
         let module = lookup_wasm(wasm, path).ok_or_else(|| {
             anyhow::anyhow!("INVOKE program {path} is not in the sequenced prefix")
         })?;
+        let emitter = crate::contract_store::Emitter {
+            program: host_path(&module.path),
+            sha256: module.sha256.to_ascii_lowercase(),
+        };
         let emitted = engine.execute_invoke(module, &args, ctx)?;
         expanded_count += 1;
-        new_body.extend(emitted);
+        new_body.extend(emitted.into_iter().map(|mut action| {
+            action.emitted_by = Some(emitter.clone());
+            action
+        }));
     }
     expanded.body = new_body;
     Ok((expanded, expanded_count))
@@ -670,6 +682,7 @@ mod tests {
             source_contract: None,
             source_path: None,
             source_commit: None,
+            emitted_by: None,
         }
     }
 
@@ -722,6 +735,7 @@ mod tests {
                     source_contract: None,
                     source_path: None,
                     source_commit: None,
+                    emitted_by: None,
                 },
             ],
         )];
@@ -755,6 +769,7 @@ mod tests {
                     source_contract: None,
                     source_path: None,
                     source_commit: None,
+                    emitted_by: None,
                 }],
             ),
         ];
@@ -845,6 +860,7 @@ mod tests {
                 source_contract: None,
                 source_path: None,
                 source_commit: None,
+                emitted_by: None,
             }],
         )];
         let modules = wasm_modules_from_commits(&commits).unwrap();
@@ -888,6 +904,7 @@ mod tests {
                 source_contract: None,
                 source_path: None,
                 source_commit: None,
+                emitted_by: None,
             }],
         );
         pending.head.signatures = Some(serde_json::json!({"alice_key": "sig"}));
@@ -925,6 +942,7 @@ model FirstContract {
                     source_contract: None,
                     source_path: None,
                     source_commit: None,
+                    emitted_by: None,
                 },
             ],
         );
@@ -964,6 +982,7 @@ model FirstContract {
                     source_contract: None,
                     source_path: None,
                     source_commit: None,
+                    emitted_by: None,
                 },
             ],
         );
@@ -994,6 +1013,7 @@ model FirstContract {
                 source_contract: None,
                 source_path: None,
                 source_commit: None,
+                emitted_by: None,
             }],
         );
         let mut artifact = artifact_from_prefix("c1", "g", &[("g".into(), genesis)]).unwrap();
@@ -1044,6 +1064,7 @@ model FirstContract {
                     source_contract: None,
                     source_path: None,
                     source_commit: None,
+                    emitted_by: None,
                 },
             ],
         );

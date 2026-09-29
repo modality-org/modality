@@ -1,3 +1,4 @@
+pub mod admission;
 pub mod catalog;
 pub mod list;
 pub mod prefix_cert;

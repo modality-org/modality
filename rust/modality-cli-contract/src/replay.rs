@@ -332,6 +332,7 @@ impl InvokeEngine for CliWasmEngine {
                 source_contract: None,
                 source_path: None,
                 source_commit: None,
+                emitted_by: None,
             })
             .collect())
     }

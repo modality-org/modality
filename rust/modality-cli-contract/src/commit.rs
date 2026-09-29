@@ -61,7 +61,8 @@ pub struct Opts {
     #[clap(long)]
     sign: Vec<String>,
 
-    /// Commit all changes from state directory
+    /// Commit all changes from state directory. With --method create, send,
+    /// recv or invoke, that action joins the same commit
     #[clap(short = 'a', long)]
     all: bool,
 
@@ -73,6 +74,11 @@ pub struct Opts {
     /// Format: {"method":"ACTION","action":"DO_THING","data":{...}}
     #[clap(long)]
     action: Option<String>,
+
+    /// Predicate theory local verify runs. Use v2 for a network whose
+    /// network.json sets predicate_theory_version v2
+    #[clap(long, default_value = "v0", value_parser = ["v0", "v2"])]
+    theory: String,
 }
 
 pub async fn run(opts: &Opts) -> Result<()> {
@@ -192,6 +198,18 @@ pub async fn run(opts: &Opts) -> Result<()> {
             }
         }
 
+        let method = opts.method.to_ascii_lowercase();
+        if matches!(method.as_str(), "create" | "send" | "recv" | "invoke") {
+            let value = match method.as_str() {
+                "create" => build_create_value(opts)?,
+                "send" => build_send_value(opts)?,
+                "recv" => build_recv_value(opts)?,
+                _ => build_invoke_value(opts)?,
+            };
+            commit.add_action(method, opts.path.clone(), value);
+            changes += 1;
+        }
+
         if changes == 0 {
             store.clear_pending_reposts(&committed_repost_dests)?;
             println!("Nothing to commit (working directories match committed state).");
@@ -278,7 +296,8 @@ pub async fn run(opts: &Opts) -> Result<()> {
 
     // Validate against contract rules (signature predicates, etc.)
     store.validate_commit_against_rules(&commit)?;
-    let theory_preview = validate_commit_against_model(&dir, &store, &commit)?;
+    let theory_preview =
+        validate_commit_against_model(&dir, &store, &commit, opts.theory == "v2")?;
 
     let commit_id = commit.compute_id()?;
 
@@ -367,6 +386,7 @@ fn accepted_model_content(store: &ContractStore) -> Result<Option<String>> {
 /// What a newer predicate theory version would change about a commit the
 /// network accepts today. Shown, never enforced.
 #[cfg_attr(not(feature = "model-status"), allow(dead_code))]
+#[derive(Debug)]
 struct TheoryPreview {
     theory: String,
     json: Value,
@@ -436,9 +456,19 @@ fn validate_commit_against_model(
     dir: &std::path::Path,
     store: &ContractStore,
     commit: &CommitFile,
+    v2: bool,
 ) -> Result<Option<TheoryPreview>> {
-    use modality_common::model_governance::shadow_findings_for_store;
+    use modality_common::model_governance::{
+        load_commits_oldest_first, shadow_findings_for_store, validate_pending_commit_with_theory,
+        TheoryActivation,
+    };
     use modality_lang::TheoryVersion;
+
+    let activation = TheoryActivation::always(if v2 {
+        TheoryVersion::V2
+    } else {
+        TheoryVersion::V0
+    });
 
     let model_path = dir.join("model").join("default.modality");
     let model_content = if model_path.exists() {
@@ -475,11 +505,18 @@ fn validate_commit_against_model(
             } else {
                 commit.clone()
             };
-            modality_common::model_governance::validate_pending_commit_with_history(
+            validate_pending_commit_with_theory(
                 &model_content,
                 &accepted,
                 &pending,
+                None,
+                None,
+                None,
+                activation,
             )?;
+            if v2 {
+                return Ok(None);
+            }
             return Ok(theory_preview(modality_common::model_governance::shadow_findings(
                 &model_content,
                 &accepted,
@@ -490,7 +527,19 @@ fn validate_commit_against_model(
     }
 
     if model_path.exists() {
-        modality_common::model_governance::validate_pending_commit(&model_content, store, commit)?;
+        let accepted = load_commits_oldest_first(store)?;
+        validate_pending_commit_with_theory(
+            &model_content,
+            &accepted,
+            commit,
+            None,
+            None,
+            None,
+            activation,
+        )?;
+        if v2 {
+            return Ok(None);
+        }
         return Ok(shadow_findings_for_store(&model_content, store, commit, TheoryVersion::V2)
             .ok()
             .and_then(theory_preview));
@@ -540,8 +589,11 @@ mod tests {
             Some("/model/default.modality".to_string()),
             Value::String(SLIPPED_ESCROW.to_string()),
         );
-        let preview = validate_commit_against_model(&dir, &store, &commit)?
+        let preview = validate_commit_against_model(&dir, &store, &commit, false)?
             .expect("V2 has something to say about a dead edge");
+        let err = validate_commit_against_model(&dir, &store, &commit, true)
+            .expect_err("--theory v2 refuses the dead edge");
+        assert!(err.to_string().contains("open --> refunded"), "{err}");
         assert_eq!(preview.theory, "V2");
         assert!(preview.lines[0].contains("would be refused"), "{:?}", preview.lines);
         assert!(
@@ -576,6 +628,7 @@ fn validate_commit_against_model(
     _dir: &std::path::Path,
     _store: &ContractStore,
     _commit: &CommitFile,
+    _v2: bool,
 ) -> Result<Option<TheoryPreview>> {
     Ok(None)
 }

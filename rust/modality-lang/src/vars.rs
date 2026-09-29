@@ -413,13 +413,14 @@ pub fn model_props(model: &Model) -> Vec<&Property> {
 
 /// Predicates whose path arguments may hold variables: the standard ones
 /// the evaluator reads from paths alone.
-const PATH_PREDICATES: [&str; 19] = [
+const PATH_PREDICATES: [&str; 24] = [
     "signed_by",
     "any_signed",
     "all_signed",
     "threshold",
     "modifies",
     "post_to_path",
+    "post_to",
     "state_exists",
     "text_eq",
     "text_contains",
@@ -433,6 +434,10 @@ const PATH_PREDICATES: [&str; 19] = [
     "num_lte",
     "bool_true",
     "bool_false",
+    "sent_eq",
+    "sent_lte",
+    "sent_to",
+    "posts_own_key",
 ];
 
 fn allows_vars(name: &str) -> bool {
@@ -510,10 +515,10 @@ pub struct Paths<'a> {
     pub body: Vec<&'a str>,
 }
 
-/// `modifies` and `post_to_path` read the body; everything else reads
-/// accepted state.
+/// `modifies`, `post_to_path`, `post_to` and `posts_own_key` read the body;
+/// everything else reads accepted state.
 fn reads_body(name: &str) -> bool {
-    matches!(name, "modifies" | "post_to_path")
+    matches!(name, "modifies" | "post_to_path" | "post_to" | "posts_own_key")
 }
 
 /// For each variable and hole of `props`: every value that meets a path the

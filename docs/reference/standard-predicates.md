@@ -32,6 +32,10 @@ local validator path.
 | `amount_in_range(/path, "min", "max")` | Accepted-state number | Compares a previously committed number to inclusive quoted numeric or accepted-state numeric bounds |
 | `num_eq`, `num_gt`, `num_gte`, `num_lt`, `num_lte` | Accepted-state number | Compares a previously committed number to a literal or accepted-state numeric bound |
 | `bool_true(/path)` and `bool_false(/path)` | Accepted-state boolean | Checks a previously committed boolean value |
+| `sent_eq("asset", amount)` and `sent_lte("asset", amount)` | Pending `SEND` actions, plus accepted state when `amount` is a `.num` path | Totals what the commit's `SEND`s of `asset` move, zero when there are none |
+| `sent_to("asset", dest)` | Pending `SEND` actions, plus accepted state when `dest` is a `.text` or `.id` path | Every `SEND` of `asset` goes to `dest`; holds when there is none |
+| `posts_own_key(/path.id)` | Pending commit body `POST` actions and pending signatures | The commit posts a key to exactly `/path.id`, and that key signed the commit |
+| `emitted_by(/program.wasm)` or `emitted_by(/program.wasm, "sha256")` | Which actions an `invoke` emitted, recorded while the validator expands it | A posted program, with those bytes when a hash is given, emitted every action in the commit |
 
 Other reference predicates below describe the intended standard vocabulary.
 Treat them as requiring predicate-specific implementation and tests before
@@ -46,6 +50,7 @@ currently enforced by the local first-contract validator.
 |------------------|--------------------------------|-------|
 | Method labels such as `+POST`, `+REPOST`, and `+MODEL` | Enforced | Derived from pending commit body methods |
 | `signed_by`, `any_signed`, `all_signed`, `threshold`, `modifies`, `post_to_path`, `sets`, `has_property`, `state_exists`, `text_eq`, `text_contains`, `text_starts_with`, `text_ends_with`, `amount_in_range`, `num_eq`, `num_gt`, `num_gte`, `num_lt`, `num_lte`, `bool_true`, `bool_false` | Enforced | Derived from pending signatures, accepted state, pending methods, pending paths, accepted-state path existence, accepted-state JSON, accepted-state text, accepted-state numbers, and accepted-state booleans |
+| `sent_eq`, `sent_lte`, `sent_to`, `posts_own_key`, `emitted_by` | Enforced | What the pending commit moves and who wrote it. See [Outflow Predicates](#outflow-predicates). Every node on a network must run a release that evaluates them before a contract relies on them: an older node holds them false |
 | `timestamp_valid` | Unit-tested extension module only | Implemented in `modality-wasm-validation`; not yet replay evidence for the local first-contract validator |
 | `oracle_attests` | Replay bundle only | Holds only when the commit carries a valid replay bundle for the claim |
 | `before`, `after`, hash predicates, and `wasm` | Never holds | Intended extension vocabulary, not evaluated by the validator yet |
@@ -87,6 +92,12 @@ base64 signature, or a 32-byte ed25519 public key in hex with a hex
 signature. `modal c commit --sign` signs this payload, after every other
 change to the commit. Under `v0` the keys are read as signers and the
 signatures are not checked.
+
+Under `v2` validators also refuse a commit that `modal c commit` would not
+write: a `POST` whose path has no known extension (such as `/claimants`
+itself), or whose value does not match its extension (a string at a
+`.bool` path). Actions a program emits are checked the same way. Under
+`v0` only the local CLI checks this.
 
 ## Checkpoint Review Scope
 
@@ -176,6 +187,110 @@ always([+post_to_path(/order/status.text) -sets(/order/status.text, "pending") -
 On a model, an edge that leaves the path alone should say so with
 `-post_to_path(/order/status.text)`. The checker does not yet know that one
 commit cannot set a path to two values.
+
+A flag that guards a one-time move must be set, not merely written. With
+`-bool_true(/claimants/alice/claimed.bool) +post_to_path(/claimants/alice/claimed.bool)`
+a commit may write the flag `false` and leave the next move open. Write
+`+sets(/claimants/alice/claimed.bool, "true")`.
+
+## Outflow Predicates
+
+These read what the pending commit moves, and who wrote it. Like the path
+predicates they look at the pending commit, not at accepted state, except
+where an argument is a path.
+
+### sent_eq / sent_lte
+
+The total that the commit's `SEND` actions of one asset move.
+
+```modality
++sent_eq("drops", /config/drip.num)
++sent_lte("drops", "100")
+```
+
+**Arguments:**
+- `asset` — Asset id, as in the `SEND` value's `asset_id`
+- `amount` — A whole number (`"10"`), or a `.num` path holding a whole number
+  in accepted state
+
+**Behavior:**
+- Adds the `amount` of every `SEND` whose `asset_id` is `asset`; a commit
+  with none sends zero, so `+sent_eq("drops", "0")` holds on it
+- Splitting a payment does not help: two `SEND`s of 4 and 6 total 10
+- Never holds when any `SEND` in the commit is malformed, when `amount` is
+  not a whole number (`"10.0"`, `"2.5"`), or when a path argument is not a
+  `.num` path
+
+### sent_to
+
+Where the commit's `SEND` actions of one asset go.
+
+```modality
++sent_to("drops", /claimants/alice/wallet.text)
+```
+
+**Arguments:**
+- `asset` — Asset id
+- `dest` — A contract id literal, or a `.text` or `.id` path holding one in
+  accepted state
+
+**Behavior:**
+- True when every `SEND` of `asset` goes to `dest`, and when the commit sends
+  none of it. Pair it with `+SEND` or `+sent_eq` to require a payment
+- Never holds when any `SEND` is malformed, or when `dest` is a path that is
+  missing or of another type
+
+### posts_own_key
+
+A key registered by the key's holder.
+
+```modality
++posts_own_key(/claimants/$k.id)
+```
+
+**Arguments:**
+- `path` — An `.id` path
+
+**Behavior:**
+- True when the commit posts to exactly `path`, and every key it posts there
+  is among the commit's signers
+- Stops a commit from registering a key its holder did not sign for. Under
+  predicate theory `v0` signatures are not verified, so a key string in
+  `head.signatures` counts as a signer; rely on it on `v2` networks
+
+### emitted_by
+
+Assets that move only through a posted program.
+
+```modality
++emitted_by(/__programs__/payout.wasm, "5f1e...")
+```
+
+**Arguments:**
+- `program` — The `.wasm` path the program was posted at
+- `sha256` (optional) — The program's hash; with it, other bytes posted at the
+  same path do not count
+
+**Behavior:**
+- When a validator expands an `invoke`, it records which program emitted each
+  resulting action. `emitted_by` holds when the commit has actions and that
+  program emitted every one
+- A `SEND` written by hand, by anyone including the contract's owner, is not
+  emitted. Neither is a hand-written action beside the program's output
+- The record is never read from a commit, so a commit cannot claim it
+
+**Example:**
+```modality
+// Only the payout program moves assets, and its bytes do not change
+always([+SEND -emitted_by(/__programs__/payout.wasm, "5f1e...")] false)
+always([+modifies(/__programs__)] false)
+```
+
+Predicate theory treats `sent_eq`, `sent_lte`, `sent_to` and `emitted_by` as
+opaque atoms: an edge that needs one is taken to be possibly open, and a
+diamond rule that needs one is refused rather than guessed. `posts_own_key`
+is known to post to its path, so an edge with `+posts_own_key(/p.id)
+-post_to_path(/p.id)` is dead. See [Predicate theory](./predicate-theory.md).
 
 ## Signature Predicates
 

@@ -4,7 +4,7 @@ pub mod gas;
 pub mod registry;
 
 pub use cache::{CacheStats, WasmModuleCache};
-pub use executor::{fixed_result_wasm, program_that_posts, WasmExecutor};
+pub use executor::{fixed_result_wasm, program_that_emits, program_that_posts, WasmExecutor};
 pub use gas::{GasMetrics, DEFAULT_GAS_LIMIT, MAX_GAS_LIMIT};
 pub use registry::ModuleRegistry;
 

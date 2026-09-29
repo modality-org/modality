@@ -99,6 +99,7 @@ impl InvokeEngine for WasmInvokeEngine {
                 source_contract: None,
                 source_path: None,
                 source_commit: None,
+                emitted_by: None,
             })
             .collect())
     }

@@ -70,6 +70,8 @@ pub struct Config {
     pub miner_hash_params: Option<serde_json::Value>,
     pub mining_delay_ms: Option<u64>, // Artificial delay between mining attempts (for testing race conditions) // Hash algorithm parameters (e.g., RandomX key and flags)
     pub inspect_whitelist: Option<Vec<String>>, // Peer IDs allowed to inspect this node via reqres. None = only self, empty vec = reject all, populated = allow those peers
+    /// Push admission limits for `/contract/push` and `/contract/submit`; defaults when absent.
+    pub push_limits: Option<crate::reqres::PushLimits>,
 
     // Auto-healing / fork recovery settings
     pub fork_recovery_min_peers: Option<usize>, // Minimum number of peers that must report a heavier chain before pausing mining (default: 1)

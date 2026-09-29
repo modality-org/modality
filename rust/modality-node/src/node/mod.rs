@@ -62,6 +62,7 @@ pub struct Node {
     pub network_name: String,
     pub role: String,
     pub ignored_peers: Arc<Mutex<HashMap<PeerId, IgnoredPeerInfo>>>,
+    pub push_admission: Arc<std::sync::Mutex<reqres::PushAdmission>>,
     pub sync_request_tx: Option<mpsc::UnboundedSender<(PeerId, String)>>,
     pub mining_update_tx: Option<mpsc::UnboundedSender<u64>>,
     pub epoch_transition_tx: tokio::sync::broadcast::Sender<u64>,
@@ -174,6 +175,9 @@ impl Node {
             network_name,
             role,
             ignored_peers: Arc::new(Mutex::new(HashMap::new())),
+            push_admission: Arc::new(std::sync::Mutex::new(reqres::PushAdmission::new(
+                config.push_limits.clone().unwrap_or_default(),
+            ))),
             sync_request_tx: None,
             mining_update_tx: None,
             epoch_transition_tx,
@@ -565,6 +569,7 @@ impl Node {
         let mining_update_tx = self.mining_update_tx.clone();
         let bootstrappers = self.bootstrappers.clone();
         let reqres_response_txs = self.reqres_response_txs.clone();
+        let push_admission = self.push_admission.clone();
         let minimum_block_timestamp = self.minimum_block_timestamp;
 
         self.networking_task = Some(tokio::spawn(async move {
@@ -612,19 +617,35 @@ impl Node {
                         }
                     }
                     SwarmEvent::Behaviour(swarm::NodeBehaviourEvent::Reqres(
-                        request_response::Event::Message { message, .. },
+                        request_response::Event::Message { peer, message, .. },
                     )) => match message {
                         request_response::Message::Request {
                             request, channel, ..
                         } => {
                             log::info!("reqres request");
+                            let admitted = match push_admission.lock() {
+                                Ok(mut gate) => gate.admit(
+                                    &peer.to_string(),
+                                    &request.path,
+                                    request.data.as_ref(),
+                                    std::time::Instant::now(),
+                                ),
+                                Err(_) => Err("push admission unavailable".to_string()),
+                            };
                             // Answer off the networking task so the swarm keeps
                             // polling while the handler waits for the datastore.
                             let datastore_manager = datastore_manager.clone();
                             let consensus_tx = consensus_tx.clone();
                             let swarm = swarm.clone();
                             tokio::spawn(async move {
-                                let res = if request.path == "/consensus/block/ack" {
+                                let res = if let Err(reason) = admitted {
+                                    log::warn!("Refused {} from {peer}: {reason}", request.path);
+                                    reqres::Response {
+                                        ok: false,
+                                        data: None,
+                                        errors: Some(serde_json::json!({"error": reason})),
+                                    }
+                                } else if request.path == "/consensus/block/ack" {
                                     // Wait for a Shoal-channel slot without the
                                     // datastore lock. The loop needs that lock
                                     // to drain the channel.

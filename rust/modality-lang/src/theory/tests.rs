@@ -641,6 +641,23 @@ fn d2_d3_lattice_entailments() {
     );
 }
 
+#[test]
+fn d5_posts_own_key_posts_and_outflow_atoms_are_opaque() {
+    let th = v1();
+    let own = p("posts_own_key", &["/c/k.id"]);
+    no(&th.consistent(&[own.clone(), n("post_to_path", &["/c/k.id"])]));
+    no(&th.consistent(&[own.clone(), n("modifies", &["/c"])]));
+    assert_ne!(th.entails(&[p("post_to_path", &["/c/k.id"])], &own), Tri::True);
+    for (name, args) in [
+        ("sent_eq", &["drops", "10"][..]),
+        ("sent_to", &["drops", "w"][..]),
+        ("emitted_by", &["/p.wasm"][..]),
+    ] {
+        assert_ne!(th.consistent(&[p(name, args), n("modifies", &["/"])]).tri, Tri::False);
+        no(&th.consistent(&[p(name, args), n(name, args)]));
+    }
+}
+
 // --- E. literals -------------------------------------------------------------
 
 #[test]
@@ -1936,7 +1953,11 @@ fn random_case(next: &mut impl FnMut() -> u64) -> (Vec<Property>, Option<Vec<(St
                 "threshold",
                 vec![["1", "2", "3"][pick(3)], PREFIXES[pick(4)]],
             ),
-            13 => (["modifies", "post_to_path"][pick(2)], vec![WRITES[pick(3)]]),
+            13 => match pick(4) {
+                0 => ("posts_own_key", vec![["/w/k.id", "/w", "/z.id"][pick(3)]]),
+                1 => ("sent_eq", vec!["drops", ["1", "/x.num"][pick(2)]]),
+                _ => (["modifies", "post_to_path"][pick(2)], vec![WRITES[pick(3)]]),
+            },
             14 => {
                 let sign = if negated {
                     PropertySign::Minus

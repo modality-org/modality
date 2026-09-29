@@ -64,6 +64,13 @@ dead.
 attestation. The commit can attach it or not without changing anything else,
 so it is a free choice, but only if the oracle's key is in accepted state.
 
+**Opaque predicates.** `sent_eq`, `sent_lte`, `sent_to` and `emitted_by` are
+evaluated, but the theory knows nothing more about them. On an edge each may
+hold or not; it contradicts only its own negation. A box that forbids one
+therefore sees every edge that might take it, which is sound. A diamond that
+needs one is refused: the theory cannot show that any commit takes it.
+`posts_own_key(/p.id)` is known only to post to `/p.id`.
+
 **Accepted state.** The theory reads what earlier commits wrote. If
 `/x.num` is `3`, an edge needing `+num_gt(/x.num, "5")` is dead there. What an
 edge's `-modifies(/p)` leaves unchanged carries to the next step.

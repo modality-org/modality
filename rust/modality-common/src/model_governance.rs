@@ -1,4 +1,4 @@
-use crate::contract_store::{CommitFile, ContractStore};
+use crate::contract_store::{CommitFile, ContractStore, Emitter};
 use crate::model_diagnostics::{
     format_state_set, render_transition_diagnostics_for_states, FixedPointPolarity,
     FixedPointUnfoldingDiagnostic, FixedPointUnfoldingOutcome, FormulaFailureDiagnostic,
@@ -741,7 +741,7 @@ fn replay_commits_to_current_state_with(
     Ok((current_states, state, anchored_rules))
 }
 
-fn load_commits_oldest_first(store: &ContractStore) -> Result<Vec<CommitFile>> {
+pub fn load_commits_oldest_first(store: &ContractStore) -> Result<Vec<CommitFile>> {
     let mut commits = Vec::new();
     let mut current = store.get_head()?;
 
@@ -1804,6 +1804,11 @@ struct CommitFacts {
     post_paths: Vec<String>,
     /// `(path, value)` of every `POST`, in commit order.
     posts: Vec<(String, Value)>,
+    /// Every `SEND` as `(asset_id, to_contract, amount)`; `None` where the
+    /// action lacks one of them, and every `sent_*` predicate then fails.
+    sends: Vec<Option<(String, String, u64)>>,
+    /// For each body action, the program whose `invoke` emitted it.
+    emitters: Vec<Option<Emitter>>,
     state: HashMap<String, Value>,
     replay_bundles: HashMap<String, ReplayBundleStatus>,
     /// From `V1`, a predicate whose arguments do not fit its standard
@@ -1877,6 +1882,11 @@ pub(crate) const EVALUATED_PREDICATES: &[&str] = &[
     "bool_true",
     "bool_false",
     "oracle_attests",
+    "sent_eq",
+    "sent_lte",
+    "sent_to",
+    "posts_own_key",
+    "emitted_by",
 ];
 
 impl CommitFacts {
@@ -1928,6 +1938,24 @@ impl CommitFacts {
                     let path = action.path.as_deref()?;
                     Some((normalize_path(path), action.value.clone()))
                 })
+                .collect(),
+            sends: commit
+                .body
+                .iter()
+                .filter(|action| action.method.eq_ignore_ascii_case("send"))
+                .map(|action| {
+                    let v = &action.value;
+                    Some((
+                        v.get("asset_id")?.as_str()?.to_string(),
+                        v.get("to_contract")?.as_str()?.to_string(),
+                        v.get("amount")?.as_u64()?,
+                    ))
+                })
+                .collect(),
+            emitters: commit
+                .body
+                .iter()
+                .map(|action| action.emitted_by.clone())
                 .collect(),
             state: state.clone(),
             replay_bundles: replay_bundle_statuses(
@@ -2059,6 +2087,32 @@ impl CommitFacts {
                 .first()
                 .map(|path| self.state_bool(path) == Some(false))
                 .unwrap_or(false),
+            "sent_eq" => match (args.first(), args.get(1)) {
+                (Some(asset), Some(amount)) => self
+                    .sent_total(asset)
+                    .zip(self.whole_amount(amount))
+                    .is_some_and(|(sent, amount)| sent == amount),
+                _ => false,
+            },
+            "sent_lte" => match (args.first(), args.get(1)) {
+                (Some(asset), Some(amount)) => self
+                    .sent_total(asset)
+                    .zip(self.whole_amount(amount))
+                    .is_some_and(|(sent, amount)| sent <= amount),
+                _ => false,
+            },
+            "sent_to" => match (args.first(), args.get(1)) {
+                (Some(asset), Some(dest)) => self.sent_only_to(asset, dest),
+                _ => false,
+            },
+            "posts_own_key" => args
+                .first()
+                .map(|path| self.posts_own_key(path))
+                .unwrap_or(false),
+            "emitted_by" => args
+                .first()
+                .map(|program| self.emitted_by(program, args.get(1).map(String::as_str)))
+                .unwrap_or(false),
             "oracle_attests" => self
                 .replay_bundles
                 .get("oracle_attests")
@@ -2099,6 +2153,36 @@ impl CommitFacts {
                     );
                 }
             }
+        }
+
+        if matches!(property.name.as_str(), "sent_eq" | "sent_lte") {
+            if let Some(asset) = predicate_args(property).first() {
+                return match self.sent_total(asset) {
+                    Some(sent) => format!("missing {formatted} (this commit sends {sent} {asset})"),
+                    None => format!("missing {formatted} (a SEND lacks asset_id, to_contract or a whole amount)"),
+                };
+            }
+        }
+
+        if property.name == "emitted_by" {
+            let hand_written = self.emitters.iter().filter(|e| e.is_none()).count();
+            let mut programs: Vec<String> = self
+                .emitters
+                .iter()
+                .flatten()
+                .map(|e| format!("{} ({})", e.program, e.sha256))
+                .collect();
+            programs.sort();
+            programs.dedup();
+            let ran = if programs.is_empty() {
+                "no program".to_string()
+            } else {
+                programs.join(", ")
+            };
+            return format!(
+                "missing {formatted} ({hand_written} of {} actions written by hand; ran {ran})",
+                self.emitters.len()
+            );
         }
 
         if property.name == "has_property" {
@@ -2285,6 +2369,84 @@ impl CommitFacts {
         let mut writes = self.posts.iter().filter(|(p, _)| *p == path).peekable();
         writes.peek().is_some()
             && writes.all(|(_, v)| predicate_arg_text(v).as_deref() == Some(value))
+    }
+
+    /// What the commit's `SEND`s of `asset` move in total, zero when there
+    /// are none. `None` when any `SEND` is malformed.
+    fn sent_total(&self, asset: &str) -> Option<u128> {
+        self.sends.iter().try_fold(0u128, |total, send| {
+            let (id, _, amount) = send.as_ref()?;
+            Some(if id == asset {
+                total + u128::from(*amount)
+            } else {
+                total
+            })
+        })
+    }
+
+    /// A whole amount: a literal such as `"10"`, or a `.num` path holding a
+    /// whole number in accepted state.
+    fn whole_amount(&self, arg: &str) -> Option<u128> {
+        if arg.starts_with('/') {
+            if !arg.ends_with(".num") {
+                return None;
+            }
+            self.state
+                .get(&normalize_path(arg))
+                .and_then(Value::as_u64)
+                .map(u128::from)
+        } else {
+            arg.parse::<u64>().ok().map(u128::from)
+        }
+    }
+
+    /// `sent_to(asset, dest)`: every `SEND` of `asset` goes to `dest`, a
+    /// contract id or a `.text` / `.id` path holding one in accepted state.
+    fn sent_only_to(&self, asset: &str, dest: &str) -> bool {
+        let dest = if dest.starts_with('/') {
+            if !(dest.ends_with(".text") || dest.ends_with(".id")) {
+                return false;
+            }
+            match self.state.get(&normalize_path(dest)).and_then(Value::as_str) {
+                Some(id) => id,
+                None => return false,
+            }
+        } else {
+            dest
+        };
+        self.sends.iter().all(|send| match send {
+            Some((id, to, _)) => id != asset || to == dest,
+            None => false,
+        })
+    }
+
+    /// `posts_own_key(/p.id)`: the commit posts to exactly `/p.id`, and every
+    /// key it posts there signed the commit.
+    fn posts_own_key(&self, path: &str) -> bool {
+        if !path.ends_with(".id") {
+            return false;
+        }
+        let path = normalize_path(path);
+        let mut writes = self.posts.iter().filter(|(p, _)| *p == path).peekable();
+        writes.peek().is_some()
+            && writes.all(|(_, key)| key.as_str().is_some_and(|k| self.signers.contains(k)))
+    }
+
+    /// `emitted_by(/p.wasm)` or `emitted_by(/p.wasm, "sha256")`: the commit has
+    /// actions, and an `invoke` of the program posted at `/p.wasm` (with those
+    /// bytes, when a hash is given) emitted every one of them.
+    fn emitted_by(&self, program: &str, sha256: Option<&str>) -> bool {
+        if !program.ends_with(".wasm") {
+            return false;
+        }
+        let program = crate::independent_replay::host_path(program);
+        !self.emitters.is_empty()
+            && self.emitters.iter().all(|emitter| {
+                emitter.as_ref().is_some_and(|e| {
+                    e.program == program
+                        && sha256.is_none_or(|h| e.sha256.eq_ignore_ascii_case(h))
+                })
+            })
     }
 
     fn has_state_property(&self, path: &str, property_path: &str) -> bool {
@@ -2959,6 +3121,10 @@ mod theory_tests;
 #[cfg(test)]
 #[path = "model_governance_brute_tests.rs"]
 mod brute_tests;
+
+#[cfg(test)]
+#[path = "model_governance_outflow_tests.rs"]
+mod outflow_tests;
 
 #[cfg(test)]
 mod tests {

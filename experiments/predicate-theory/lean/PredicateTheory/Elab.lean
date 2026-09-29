@@ -390,6 +390,7 @@ def standardTable : List (String × String × String × Option String) := [
   ("modifies", "path", "(writes $1)", none),
   ("post_to_path", "path", "(posts $1)", none),
   ("post_to", "path", "(posts $1)", some ""),
+  ("posts_own_key", "id-path", "(posts $1)", some ""),
   ("text_eq", "text-path text", "(= $1 $2)", none),
   ("bool_true", "bool-path", "$1", none),
   ("bool_false", "bool-path", "(not $1)", none),
@@ -430,14 +431,16 @@ def evaluated : List String := [
   "signed_by", "any_signed", "all_signed", "threshold", "modifies", "post_to_path",
   "post_to", "has_property", "state_exists", "text_eq", "text_contains", "text_starts_with",
   "text_ends_with", "amount_in_range", "num_eq", "num_gt", "num_gte", "num_lt", "num_lte",
-  "bool_true", "bool_false", "oracle_attests"
+  "bool_true", "bool_false", "oracle_attests", "sent_eq", "sent_lte", "sent_to",
+  "posts_own_key", "emitted_by"
 ]
 
 /-- False in every world, both ways. -/
 def neverDecl : Declaration := Declaration.ofText (some "(< 0 0)") (some "(< 0 0)")
 
 /-- The validator's registry (Rust: `ValidatorRegistry`): the standard
-declaration of each evaluated predicate (none for `oracle_attests`), and
+declaration of each evaluated predicate (none for `oracle_attests`,
+`sent_eq`, `sent_lte`, `sent_to` and `emitted_by`, which stay opaque), and
 `neverDecl` for every other. A committed `+wasm(...)` declaration binds
 nothing while the validator does not evaluate `wasm`. -/
 def validator : Registry := fun key =>

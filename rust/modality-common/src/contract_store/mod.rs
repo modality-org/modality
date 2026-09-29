@@ -14,7 +14,7 @@ use std::path::{Path, PathBuf};
 pub use commit_file::{
     default_repost_dest, is_repost_working_path, json_values_equal,
     parse_legacy_dollar_repost_path, parse_repost_action, parse_repost_json, CommitAction,
-    CommitFile, RepostAction, RuleForThisCommit,
+    CommitFile, Emitter, RepostAction, RuleForThisCommit,
 };
 pub use config::ContractConfig;
 pub use one_step_rule::{

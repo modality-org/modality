@@ -334,6 +334,9 @@ impl ContractProcessor {
         } else {
             pending.clone()
         };
+        if theory.at(accepted_raw.len()) != modality_lang::TheoryVersion::V0 {
+            pending_expanded.validate()?;
+        }
         crate::sequenced_rules::validate_against_local_rules_for_commit_at(
             &accepted_expanded,
             &pending_expanded,
@@ -2528,7 +2531,7 @@ model DeliveryOracle {
                 "parent": "bootstrap",
                 "replay_bundles": {
                     "oracle_attests": {
-                        "replay_bundle_json": "{\"predicate\":\"oracle_attests\",\"max_age_seconds\":60,\"attestation\":{\"oracle_pubkey\":\"delivery-key-v1\",\"oracle_path\":\"/oracles/delivery.id\",\"claim\":\"damaged\",\"value\":\"true\",\"contract_id\":\"c1\",\"pending_commit_hash\":\"delivery-pending\",\"timestamp\":1700000000,\"signature\":\"sig\"}}"
+                        "replay_bundle_json": "{\"predicate\":\"oracle_attests\",\"max_age_seconds\":1000000000,\"attestation\":{\"oracle_pubkey\":\"delivery-key-v1\",\"oracle_path\":\"/oracles/delivery.id\",\"claim\":\"damaged\",\"value\":\"true\",\"contract_id\":\"c1\",\"pending_commit_hash\":\"delivery-pending\",\"timestamp\":1700000000,\"signature\":\"sig\"}}"
                     }
                 }
             }
@@ -2689,7 +2692,7 @@ model DeliveryOracle {
                 "parent": "bootstrap",
                 "replay_bundles": {
                     "oracle_attests": {
-                        "replay_bundle_json": "{\"predicate\":\"oracle_attests\",\"max_age_seconds\":60,\"attestation\":{\"oracle_pubkey\":\"delivery-key-v0\",\"oracle_path\":\"/oracles/delivery.id\",\"claim\":\"delivered\",\"value\":\"true\",\"contract_id\":\"c1\",\"pending_commit_hash\":\"delivery-pending\",\"timestamp\":1700000000,\"signature\":\"sig\"}}"
+                        "replay_bundle_json": "{\"predicate\":\"oracle_attests\",\"max_age_seconds\":1000000000,\"attestation\":{\"oracle_pubkey\":\"delivery-key-v0\",\"oracle_path\":\"/oracles/delivery.id\",\"claim\":\"delivered\",\"value\":\"true\",\"contract_id\":\"c1\",\"pending_commit_hash\":\"delivery-pending\",\"timestamp\":1700000000,\"signature\":\"sig\"}}"
                     }
                 }
             }
@@ -3011,7 +3014,7 @@ model DeliveryOracle {
                 "parent": "bootstrap",
                 "replay_bundles": {
                     "oracle_attests": {
-                        "replay_bundle_json": "{\"predicate\":\"oracle_attests\",\"max_age_seconds\":60,\"attestation\":{\"oracle_pubkey\":\"delivery-key-v1\",\"oracle_path\":\"/oracles/delivery.id\",\"claim\":\"delivered\",\"value\":\"true\",\"contract_id\":\"other-contract\",\"pending_commit_hash\":\"delivery-pending\",\"timestamp\":1700000000,\"signature\":\"sig\"}}"
+                        "replay_bundle_json": "{\"predicate\":\"oracle_attests\",\"max_age_seconds\":1000000000,\"attestation\":{\"oracle_pubkey\":\"delivery-key-v1\",\"oracle_path\":\"/oracles/delivery.id\",\"claim\":\"delivered\",\"value\":\"true\",\"contract_id\":\"other-contract\",\"pending_commit_hash\":\"delivery-pending\",\"timestamp\":1700000000,\"signature\":\"sig\"}}"
                     }
                 }
             }
@@ -3553,7 +3556,7 @@ model DeliveryOracle {
                 "parent": "bootstrap",
                 "replay_bundles": {
                     "oracle_attests": {
-                        "replay_bundle_json": "{\n  \"predicate\": \"oracle_attests\",\n  \"max_age_seconds\": 60,\n  \"attestation\": {\n    \"oracle_pubkey\": \"delivery-key-v1\",\n    \"oracle_path\": \"/oracles/delivery.id\",\n    \"claim\": \"delivered\",\n    \"value\": \"true\",\n    \"contract_id\": \"c1\",\n    \"pending_commit_hash\": \"delivery-pending\",\n    \"timestamp\": 1700000000,\n    \"signature\": \"sig\"\n  }\n}"
+                        "replay_bundle_json": "{\n  \"predicate\": \"oracle_attests\",\n  \"max_age_seconds\": 1000000000,\n  \"attestation\": {\n    \"oracle_pubkey\": \"delivery-key-v1\",\n    \"oracle_path\": \"/oracles/delivery.id\",\n    \"claim\": \"delivered\",\n    \"value\": \"true\",\n    \"contract_id\": \"c1\",\n    \"pending_commit_hash\": \"delivery-pending\",\n    \"timestamp\": 1700000000,\n    \"signature\": \"sig\"\n  }\n}"
                     }
                 }
             }
@@ -3629,7 +3632,7 @@ model DeliveryOracle {
                 "parent": "bootstrap",
                 "replay_bundles": {
                     "oracle_attests": {
-                        "replay_bundle_json": "{\"predicate\":\"oracle_attests\",\"max_age_seconds\":60,\"attestation\":{\"oracle_pubkey\":\"delivery-key-v1\",\"oracle_path\":\"/oracles/delivery.id\",\"claim\":\"delivered\",\"value\":\"true\",\"contract_id\":\"c1\",\"pending_commit_hash\":\"other-pending\",\"timestamp\":1700000000,\"signature\":\"sig\"}}"
+                        "replay_bundle_json": "{\"predicate\":\"oracle_attests\",\"max_age_seconds\":1000000000,\"attestation\":{\"oracle_pubkey\":\"delivery-key-v1\",\"oracle_path\":\"/oracles/delivery.id\",\"claim\":\"delivered\",\"value\":\"true\",\"contract_id\":\"c1\",\"pending_commit_hash\":\"other-pending\",\"timestamp\":1700000000,\"signature\":\"sig\"}}"
                     }
                 }
             }
@@ -3761,8 +3764,8 @@ model DeliveryOracle {
     fn slipped_escrow_json() -> serde_json::Value {
         serde_json::json!({
             "body": [
-                { "method": "post", "path": "/parties/alice.id", "value": "alice_key" },
-                { "method": "post", "path": "/parties/bob.id", "value": "bob_key" },
+                { "method": "post", "path": "/parties/alice.id", "value": "12D3KooWJphEzmzQvM5Zg4AhoGRw2CVMXoGb7uJPYBb4wFVJaNye" },
+                { "method": "post", "path": "/parties/bob.id", "value": "12D3KooWGUtSRUYxP3vQS8qWn6YWWvoDXvWKPAebDn5ooKuxpJb2" },
                 { "method": "model", "path": "/model/default.modality", "value": SLIPPED_ESCROW }
             ],
             "head": {}

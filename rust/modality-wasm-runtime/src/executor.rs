@@ -25,12 +25,18 @@ pub fn fixed_result_wasm(result_json: &str) -> Result<Vec<u8>> {
 
 /// WASM that emits one `post` action at `path` with string `value`.
 pub fn program_that_posts(path: &str, value: &str) -> Result<Vec<u8>> {
+    program_that_emits(&serde_json::json!([{
+        "method": "post",
+        "path": path,
+        "value": value
+    }]))
+}
+
+/// WASM that emits these actions (a JSON array of `{method, path, value}`)
+/// whatever it is called with.
+pub fn program_that_emits(actions: &serde_json::Value) -> Result<Vec<u8>> {
     let result = serde_json::json!({
-        "actions": [{
-            "method": "post",
-            "path": path,
-            "value": value
-        }],
+        "actions": actions,
         "gas_used": 1,
         "errors": []
     });

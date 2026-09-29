@@ -45,6 +45,9 @@ const TABLE: &[(&str, &str, &str, Option<&str>)] = &[
     // The value is not modelled, so the declaration is necessary-only, and
     // two `sets` of one path to different values are not known to clash.
     ("post_to", "path", "(posts $1)", Some("")),
+    // `posts_own_key(/p.id)`: the commit posts to `/p.id` a key that signed
+    // it. Signatures of pending keys are not a sort, so only the post is known.
+    ("posts_own_key", "id-path", "(posts $1)", Some("")),
     // literals. Every value constraint implies existence in the procedure.
     ("text_eq", "text-path text", "(= $1 $2)", None),
     ("bool_true", "bool-path", "$1", None),
@@ -69,8 +72,10 @@ const TABLE: &[(&str, &str, &str, Option<&str>)] = &[
         "(ends-with $1 $2)",
         None,
     ),
-    // `oracle_attests`, `timestamp_valid`, `before`, `after`, hashes, custom
-    // `wasm`: no row, therefore opaque here. Governance's registry declares
+    // `sent_eq`, `sent_lte`, `sent_to` (what the pending `SEND`s move) and
+    // `emitted_by` (which program emitted the body) read no sort: no row,
+    // therefore opaque. So are `oracle_attests`, `timestamp_valid`, `before`,
+    // `after`, hashes, custom `wasm`. Governance's registry declares
     // the ones its evaluator never reads as never holding.
 ];
 
