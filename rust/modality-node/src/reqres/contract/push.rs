@@ -7,6 +7,7 @@ use modality_datastore::models::{Commit, Contract};
 use modality_datastore::DatastoreManager;
 use modality_validator::ContractProcessor;
 
+use crate::actions::sequencer::hash_lane;
 use crate::reqres::Response;
 use modality_sequencer_consensus::communication::Message as ConsensusMessage;
 
@@ -23,6 +24,10 @@ pub struct CommitData {
     #[serde(alias = "data")]
     pub body: Value,
     pub head: Value,
+    /// The body of a commit whose hash was anchored on the hash lane. It is
+    /// sequenced only if it hashes to that commitment.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub reveal: bool,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -42,6 +47,14 @@ pub async fn handler(
     } else {
         anyhow::bail!("Missing request data");
     };
+
+    if let Err(e) = reject_unanchored_reveals(datastore_manager, &req) {
+        return Ok(Response {
+            ok: false,
+            data: None,
+            errors: Some(json!({"error": e.to_string()})),
+        });
+    }
 
     if let Err(e) = reject_unsequenced_reposts(datastore_manager, &req).await {
         return Ok(Response {
@@ -110,11 +123,15 @@ pub async fn handler(
         };
 
         Commit::save_to_final(&commit, datastore_manager).await?;
-        queued_commits.push(json!({
+        let mut queued = json!({
             "commit_id": commit_data.commit_id,
             "body": commit_data.body,
             "head": commit_data.head,
-        }));
+        });
+        if commit_data.reveal {
+            queued["reveal"] = json!(true);
+        }
+        queued_commits.push(queued);
         saved_count += 1;
     }
 
@@ -146,6 +163,33 @@ pub async fn handler(
         data: Some(serde_json::to_value(response)?),
         errors: None,
     })
+}
+
+fn reject_unanchored_reveals(
+    datastore_manager: &DatastoreManager,
+    req: &PushRequest,
+) -> anyhow::Result<()> {
+    for commit_data in req.commits.iter().filter(|c| c.reveal) {
+        let entry = json!({"body": commit_data.body, "head": commit_data.head});
+        if let Err(refusal) = hash_lane::check_reveal(
+            datastore_manager,
+            &req.contract_id,
+            &commit_data.commit_id,
+            &entry,
+        ) {
+            anyhow::bail!(
+                "reveal of {} refused: {}{}",
+                commit_data.commit_id,
+                refusal,
+                if refusal == hash_lane::RevealRefusal::NotAnchored {
+                    " on this node yet; anchor it with `modal contract anchor` and wait for it to be certified"
+                } else {
+                    ""
+                }
+            );
+        }
+    }
+    Ok(())
 }
 
 async fn reject_unsequenced_reposts(

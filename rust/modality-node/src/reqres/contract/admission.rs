@@ -1,4 +1,5 @@
-//! Push admission: a local filter on `/contract/push` and `/contract/submit`.
+//! Push admission: a local filter on `/contract/push`, `/contract/submit`
+//! and `/hash_commitment/submit`.
 //!
 //! Not consensus and not a fee. Each node decides what it will store and
 //! queue, so an open contract is not a free way to fill a sequencer's disk.
@@ -15,7 +16,11 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 /// Paths the filter applies to.
-pub const PATHS: [&str; 2] = ["/contract/push", "/contract/submit"];
+pub const PATHS: [&str; 3] = [
+    "/contract/push",
+    "/contract/submit",
+    crate::reqres::hash_commitment::SUBMIT_PATH,
+];
 
 /// Operator limits, read from `push_limits` in the node config. A missing
 /// field takes its default; `0` turns that limit off.
@@ -108,7 +113,7 @@ impl PushAdmission {
             .and_then(Value::as_str)
             .unwrap_or_default()
             .to_string();
-        let commits = if path == "/contract/submit" {
+        let commits = if path != "/contract/push" {
             1
         } else {
             data.get("commits")

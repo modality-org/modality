@@ -479,6 +479,537 @@
   min-width: 5.5rem;
 }
 
+.mech {
+  margin: 1.75rem 0 1.5rem;
+  padding: 1.25rem;
+  border: 1px solid var(--ifm-color-emphasis-200);
+  border-radius: 6px;
+  background: var(--ifm-background-surface-color);
+}
+
+.mechArt {
+  display: block;
+  width: 100%;
+  height: auto;
+  color: var(--ifm-color-emphasis-800);
+}
+
+.mechArt text {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  white-space: pre;
+}
+
+.mechArt * {
+  transition: stroke 0.35s ease, fill 0.35s ease, opacity 0.4s ease;
+}
+
+.mCap {
+  fill: var(--ifm-color-emphasis-600);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.mIdle {
+  stroke: var(--ifm-color-emphasis-600);
+}
+
+.mBad {
+  stroke: var(--ifm-color-danger);
+}
+
+.mGood {
+  stroke: var(--ifm-color-primary);
+}
+
+.mSpine {
+  stroke: currentColor;
+  stroke-width: 1.4;
+  opacity: 0.5;
+}
+
+.mLogDot {
+  fill: currentColor;
+}
+
+.replaying .mLogDot {
+  opacity: 0.2;
+  animation: litUp 0.35s ease forwards;
+  animation-delay: calc(var(--i) * 0.45s + 0.2s);
+}
+
+@keyframes litUp {
+  to {
+    opacity: 1;
+  }
+}
+
+.mDotGood {
+  fill: var(--ifm-color-primary);
+}
+
+.mCard,
+.mCardGood,
+.mCardBad {
+  fill: var(--ifm-background-color);
+  stroke-width: 1.2;
+}
+
+.mCard {
+  stroke: currentColor;
+  stroke-opacity: 0.55;
+}
+
+.mCardGood {
+  stroke: var(--ifm-color-primary);
+  stroke-width: 1.6;
+}
+
+.mCardBad {
+  fill: transparent;
+  stroke: var(--ifm-color-danger);
+  stroke-dasharray: 4 3;
+}
+
+.mText,
+.mTextGood,
+.mTextBad {
+  font-size: 12px;
+}
+
+.mText {
+  fill: currentColor;
+}
+
+.mTextGood {
+  fill: var(--ifm-color-primary);
+}
+
+.mTextBad {
+  fill: var(--ifm-color-danger);
+}
+
+.mCross {
+  fill: none;
+  stroke: var(--ifm-color-danger);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+}
+
+.mShow {
+  opacity: 1;
+}
+
+.mHide {
+  opacity: 0;
+}
+
+.mLabel,
+.mLabelBad,
+.mLabelGood {
+  font-size: 12.5px;
+}
+
+.mLabel {
+  fill: var(--ifm-color-emphasis-700);
+}
+
+.mLabelBad {
+  fill: var(--ifm-color-danger);
+}
+
+.mLabelGood {
+  fill: var(--ifm-color-primary);
+}
+
+.mSeed {
+  fill: var(--ifm-color-emphasis-600);
+}
+
+.mHere,
+.mHereSet {
+  fill: var(--ifm-color-primary);
+}
+
+.mHere {
+  animation: landOn 3.2s ease both;
+}
+
+@keyframes landOn {
+  0%, 45% {
+    fill: var(--ifm-color-emphasis-400);
+  }
+  60%, 100% {
+    fill: var(--ifm-color-primary);
+  }
+}
+
+.mNodeName {
+  fill: var(--ifm-background-color);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.mNote {
+  fill: var(--ifm-color-emphasis-500);
+  font-size: 11px;
+}
+
+.mechArt .mLabelBad[x='584'],
+.mechArt .mLabelGood[x='584'] {
+  font-size: 12px;
+}
+
+.mRule,
+.mRuleOn,
+.mRuleBad {
+  fill: var(--ifm-color-emphasis-100);
+  stroke-width: 1.2;
+}
+
+.mRule {
+  stroke: var(--ifm-color-emphasis-300);
+}
+
+.mRuleOn {
+  stroke: var(--ifm-color-primary);
+}
+
+.mRuleBad {
+  stroke: var(--ifm-color-danger);
+  stroke-width: 1.6;
+}
+
+.mRuleText {
+  fill: var(--ifm-heading-color);
+  font-size: 12.5px;
+}
+
+.checks {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.6rem;
+  margin: 1rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+@media (min-width: 768px) {
+  .checks {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.check,
+.checkOn {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  width: 100%;
+  height: 100%;
+  padding: 0.75rem 0.85rem;
+  font: inherit;
+  text-align: left;
+  background: none;
+  border: 1px solid var(--ifm-color-emphasis-200);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: border-color 0.3s ease, opacity 0.3s ease;
+}
+
+.check {
+  opacity: 0.6;
+}
+
+.checkOn {
+  border-color: var(--ifm-color-primary);
+}
+
+.checkName {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ifm-color-primary);
+}
+
+.checkBody {
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: var(--ifm-color-emphasis-800);
+}
+
+.fp {
+  --fp-bg: #0c0e1a;
+  --fp-ink: #e4e7f5;
+  --fp-dim: #5a6080;
+  --fp-on: #8b9bff;
+  --fp-bad: #ff6b7a;
+  --fp-ok: #6ee7b7;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.25rem;
+  align-items: center;
+  margin: 1.75rem 0 0.75rem;
+  padding: 1.5rem 1.5rem 1.35rem;
+  color: var(--fp-ink);
+  background:
+    radial-gradient(120% 90% at 20% 0%, rgba(139, 155, 255, 0.16), transparent 60%),
+    var(--fp-bg);
+  border-radius: 8px;
+  cursor: pointer;
+  user-select: none;
+}
+
+@media (min-width: 768px) {
+  .fp {
+    grid-template-columns: 1.55fr 1fr;
+  }
+}
+
+.fpArt {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.fpArt * {
+  transition: stroke 0.35s ease, fill 0.35s ease, opacity 0.35s ease;
+}
+
+.fpArt text {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+}
+
+.fpStrokeOn {
+  stroke: var(--fp-on);
+}
+
+.fpStrokeOff {
+  stroke: var(--fp-dim);
+  opacity: 0.55;
+}
+
+.fpStrokeBad {
+  stroke: var(--fp-bad);
+}
+
+.fpNodeIn {
+  fill: rgba(139, 155, 255, 0.22);
+  stroke: var(--fp-on);
+  stroke-width: 1.6;
+  filter: drop-shadow(0 0 6px rgba(139, 155, 255, 0.55));
+}
+
+.fpNodeOut {
+  fill: var(--fp-bg);
+  stroke: var(--fp-dim);
+  stroke-width: 1.2;
+}
+
+.fpNodeCut {
+  fill: rgba(255, 107, 122, 0.18);
+  stroke: var(--fp-bad);
+  stroke-width: 1.8;
+  animation: fpCut 0.9s ease both;
+}
+
+.fpNodeBad {
+  fill: rgba(255, 107, 122, 0.14);
+  stroke: var(--fp-bad);
+  stroke-width: 1.8;
+}
+
+@keyframes fpCut {
+  0% {
+    filter: drop-shadow(0 0 0 rgba(255, 107, 122, 0));
+  }
+  40% {
+    filter: drop-shadow(0 0 10px rgba(255, 107, 122, 0.9));
+  }
+  100% {
+    filter: drop-shadow(0 0 0 rgba(255, 107, 122, 0));
+  }
+}
+
+.fpName {
+  fill: var(--fp-ink);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.fpProp {
+  fill: #8a90b0;
+  font-size: 13px;
+}
+
+.fpPropBad {
+  fill: var(--fp-bad);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.fpLog {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 0.8rem;
+  line-height: 1.6;
+  min-height: 15.5rem;
+}
+
+.fpFormula {
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.6rem;
+  font-size: 0.92rem;
+  color: var(--fp-ink);
+  border-bottom: 1px solid rgba(139, 155, 255, 0.25);
+}
+
+.fpNu {
+  color: var(--fp-on);
+  font-weight: 600;
+}
+
+.fpSteps {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.fpStep,
+.fpStepOn {
+  animation: beatIn 0.35s ease both;
+}
+
+.fpStep {
+  color: var(--fp-dim);
+}
+
+.fpStepOn {
+  color: var(--fp-ink);
+}
+
+.fpVar {
+  color: var(--fp-on);
+}
+
+.fpOk {
+  margin-left: 0.4rem;
+  color: var(--fp-ok);
+}
+
+.fpBad {
+  margin-left: 0.4rem;
+  color: var(--fp-bad);
+}
+
+.fpVerdict,
+.fpVerdictHidden {
+  margin-top: 0.75rem;
+  padding-top: 0.6rem;
+  border-top: 1px solid rgba(255, 107, 122, 0.3);
+}
+
+.fpVerdict {
+  animation: beatIn 0.45s ease both;
+}
+
+.fpVerdictHidden {
+  visibility: hidden;
+}
+
+.fpTrace {
+  color: var(--fp-bad);
+}
+
+.block p.links {
+  max-width: none;
+}
+
+.block p.fpCaption {
+  max-width: none;
+  font-size: 0.92rem;
+  line-height: 1.55;
+  color: var(--ifm-color-emphasis-700);
+}
+
+.deep {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.75rem;
+  margin: 1.5rem 0 1.5rem;
+  padding: 0;
+  list-style: none;
+}
+
+@media (min-width: 640px) {
+  .deep {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (min-width: 900px) {
+  .deep {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.deepCard {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 1rem 1rem 1.05rem;
+  border: 1px solid var(--ifm-color-emphasis-200);
+  border-radius: 6px;
+  background: var(--ifm-background-surface-color);
+  transition: border-color 0.25s ease, transform 0.25s ease;
+}
+
+.deepCard:hover {
+  border-color: var(--ifm-color-primary);
+  transform: translateY(-2px);
+}
+
+.deepSigil {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 1.35rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--ifm-color-primary);
+}
+
+.deepName {
+  font-weight: 700;
+  font-size: 1rem;
+  color: var(--ifm-heading-color);
+}
+
+.deepBody {
+  font-size: 0.88rem;
+  line-height: 1.5;
+  color: var(--ifm-color-emphasis-700);
+}
+
+.lineage {
+  margin: 0 0 1.5rem;
+  padding: 1rem 1.25rem;
+  border-left: 3px solid var(--ifm-color-primary);
+  background: var(--ifm-color-emphasis-100);
+  border-radius: 0 6px 6px 0;
+}
+
+.block .lineage p {
+  margin: 0;
+  max-width: none;
+  font-size: 1rem;
+  line-height: 1.6;
+}
+
+.deepBody code {
+  font-size: 0.8rem;
+  word-break: break-word;
+}
+
 @keyframes beatIn {
   from {
     opacity: 0;
@@ -697,7 +1228,13 @@
   .beatHead,
   .ruleFresh,
   .lineFresh,
-  .verdicts {
+  .verdicts,
+  .replaying .mLogDot,
+  .mHere,
+  .fpNodeCut,
+  .fpStep,
+  .fpStepOn,
+  .fpVerdict {
     animation: none;
   }
 }

@@ -138,27 +138,6 @@ const config: Config = {
               label: 'Language Reference',
               to: '/docs/language',
             },
-            {
-              label: 'Constant-product pool',
-              to: '/docs/tutorials/constant-product-pool',
-            },
-          ],
-        },
-        {
-          title: 'Network',
-          items: [
-            {
-              label: 'Join the testnet',
-              to: '/docs/cli/join-testnet',
-            },
-            {
-              label: 'Status',
-              href: 'https://testnet.modality.network',
-            },
-            {
-              label: 'Explorer',
-              href: 'https://node0.testnet.modality.network',
-            },
           ],
         },
         {

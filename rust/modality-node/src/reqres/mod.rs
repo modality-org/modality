@@ -4,6 +4,7 @@ pub(crate) mod consensus;
 pub(crate) mod contract;
 mod dag;
 mod data;
+pub(crate) mod hash_commitment;
 pub mod inspect;
 mod ping;
 use data as reqres_data;
@@ -134,6 +135,13 @@ pub async fn handle_request(
         "/contract/replay" => {
             contract::replay::handler(Some(data.clone()), datastore_manager, consensus_tx.clone())
                 .await?
+        }
+        hash_commitment::PARAMS_PATH => hash_commitment::params_handler(datastore_manager).await?,
+        hash_commitment::SUBMIT_PATH => {
+            hash_commitment::submit_handler(Some(data.clone()), datastore_manager).await?
+        }
+        hash_commitment::GET_PATH => {
+            hash_commitment::get_handler(Some(data.clone()), datastore_manager).await?
         }
         "/contract/list" => {
             contract::list::handler(Some(data.clone()), datastore_manager, consensus_tx.clone())
