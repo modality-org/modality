@@ -375,11 +375,15 @@ modal c theory [OPTIONS]
 ```
 
 Show what the predicate theory derives from the accepted contract:
-- dead edges: model transitions whose labels no commit can satisfy together;
+- dead edges: model transitions whose labels no commit can satisfy together,
+  including any transition that needs a predicate the validator never
+  evaluates (see [Standard Predicates](../reference/standard-predicates.md#implementation-status));
 - edges dead after a step: transitions whose labels contradict what every way
   into their state keeps unchanged (through `-modifies`), so no run takes them
   (a warning; contracts may end);
-- committed `.theory.json` declarations the theory cannot read, whose predicates stay opaque;
+- committed `.theory.json` declarations the theory cannot read. The validator
+  does not evaluate `wasm` yet, so a `+wasm(...)` transition is dead whatever
+  its declaration says;
 - each move out of the current state, marked as `open`, `blocked`, or `forced`.
 
 A move is `blocked` when accepted state already makes one of its labels false.

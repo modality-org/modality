@@ -39,6 +39,8 @@ Modality's predicate theory, stated and proved in Lean (4.14, no Mathlib):
   variables.
 - `Spec`: the verdicts the model checker asks for (`consistent`,
   `entailsV`, `runtime`) on labels as written, and what they mean.
+  `validator` is the registry governance uses; `expand_unevaluated`: a
+  predicate it does not evaluate expands to a literal that never holds.
 - `Flow`: state flow along a model. `carry_sound`: a literal over paths
   an edge forbids writing survives the commit; `flow_sound`: facts closed
   under that hold on every run, from a seed that holds at the start

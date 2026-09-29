@@ -69,7 +69,8 @@ const TABLE: &[(&str, &str, &str, Option<&str>)] = &[
         None,
     ),
     // `oracle_attests`, `timestamp_valid`, `before`, `after`, hashes, custom
-    // `wasm`: no row, therefore opaque.
+    // `wasm`: no row, therefore opaque here. Governance's registry declares
+    // the ones its evaluator never reads (and `post_to`) as never holding.
 ];
 
 pub struct StandardRegistry {

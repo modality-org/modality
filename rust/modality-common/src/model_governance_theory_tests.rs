@@ -3,7 +3,7 @@
 //! `CommitFacts::predicate_holds` (the evaluator the theory must mirror).
 
 use super::*;
-use modality_lang::theory::{standard, NoState, Theory, Tri};
+use modality_lang::theory::{NoState, Theory, Tri};
 use modality_lang::{MoveStatus, PropertySign};
 use serde_json::json;
 
@@ -283,31 +283,68 @@ fn g9_a_terminal_node_is_not_a_dead_edge() {
     refuse_dead_edges(&model, &HashMap::new(), V1).expect("no dead edge");
 }
 
+/// Case G21: `predicate_holds` never evaluates `after`, so no commit takes
+/// the `+after` edge and `-after` holds on every commit.
 #[test]
-fn committed_declarations_bind_the_contract_that_holds_them() {
+fn g21_a_predicate_the_validator_never_evaluates_never_holds() {
+    const G21: &str = r#"
+model Contract {
+  part flow {
+    q0 --> q1
+    q1 --> q1: +POST -after(/deadlines/end.datetime)
+    q1 --> q1: +POST +after(/deadlines/end.datetime)
+  }
+}
+"#;
+    let model = model_commit(G21, vec![]);
+    validate(&[], &model, V0).expect("V0 does not refuse dead edges");
+    let err = validate(&[], &model, V1).expect_err("the +after edge is dead");
+    assert!(
+        err.to_string()
+            .contains("+after(/deadlines/end.datetime) (this validator never evaluates it)"),
+        "{err}"
+    );
+
+    let accepted = [model];
+    let diamond = rule_commit("<+after(/deadlines/end.datetime)> true");
+    let box_rule = rule_commit("[+after(/deadlines/end.datetime)] false");
+    validate(&accepted, &diamond, V0).expect("V0 meets the diamond through the +after edge");
+    validate(&accepted, &box_rule, V0).expect_err("V0 counts the +after edge");
+    validate(&accepted, &diamond, V1).expect_err("no commit takes the +after edge");
+    validate(&accepted, &box_rule, V1).expect("the box is vacuous");
+}
+
+/// `predicate_holds` never evaluates `wasm`, so no commit takes a
+/// `+wasm(...)` edge, declared or not. The declaration is still read, and an
+/// unreadable one reported.
+#[test]
+fn a_wasm_edge_is_dead_while_the_validator_does_not_evaluate_wasm() {
     let model = r#"
 model Contract {
   part flow {
     q0 --> q1
     q1 --> q1: +POST
-    q1 --> q2: +wasm(/predicates/above_floor.wasm, /x.num) +num_lte(/x.num, /floor.num)
+    q1 --> q2: +wasm(/predicates/above_floor.wasm, /x.num)
   }
 }
 "#;
-    let undeclared = model_commit(model, vec![]);
-    validate(&[], &undeclared, V1).expect("opaque without a declaration");
-
-    let declared = model_commit(
-        model,
-        vec![(
-            "/predicates/above_floor.theory.json",
-            json!({"necessary": "(> $1 /floor.num)", "sufficient": "(> $1 /floor.num)"}),
-        )],
-    );
-    let err = validate(&[], &declared, V1)
-        .expect_err("x > floor and x <= floor cannot hold together")
-        .to_string();
-    assert!(err.contains("q1 --> q2"), "{err}");
+    let declared = vec![(
+        "/predicates/above_floor.theory.json",
+        json!({"necessary": "(> $1 /floor.num)", "sufficient": "(> $1 /floor.num)"}),
+    )];
+    for declarations in [vec![], declared] {
+        let err = validate(&[], &model_commit(model, declarations), V1)
+            .expect_err("no commit takes a +wasm edge")
+            .to_string();
+        assert!(
+            err.contains(
+                "q1 --> q2 [+wasm(/predicates/above_floor.wasm, /x.num)] cannot hold together: \
+                 +wasm(/predicates/above_floor.wasm, /x.num) (this validator never evaluates it)"
+            ),
+            "{err}"
+        );
+    }
+    validate(&[], &model_commit(model, vec![]), V0).expect("V0 does not refuse dead edges");
 
     let report = shadow_findings(
         "",
@@ -1044,6 +1081,12 @@ const PREDICATES: &[(&str, &[Kind])] = {
         ("text_starts_with", &[TextPath, Needle]),
         ("text_ends_with", &[TextPath, Needle]),
         ("oracle_attests", &[Path]),
+        ("after", &[Path]),
+        ("before", &[Path]),
+        ("timestamp_valid", &[Path]),
+        ("hash_matches", &[Path, Text]),
+        ("wasm", &[Path, Num]),
+        ("no_such_predicate", &[Path]),
     ]
 };
 
@@ -1205,6 +1248,7 @@ fn flip(p: &Property) -> Property {
 /// the evaluator contradicts. With and without the accepted-state view.
 #[test]
 fn theory_agrees_with_the_evaluator() {
+    let validator = contract_registry(&HashMap::new());
     let mut rng = Rng(0x9E37_79B9_7F4A_7C15);
     let mut refuted = 0;
     let mut entailed = 0;
@@ -1225,8 +1269,8 @@ fn theory_agrees_with_the_evaluator() {
 
         let accepted = AcceptedState::new(&state);
         for (view, theory) in [
-            ("no state", Theory::new(V1, standard(), &NoState)),
-            ("accepted state", Theory::new(V1, standard(), &accepted)),
+            ("no state", Theory::new(V1, &validator, &NoState)),
+            ("accepted state", Theory::new(V1, &validator, &accepted)),
         ] {
             let ctx = || format!("round {round} ({view}): state {state:?}; commit {pending:?}");
 
@@ -1321,6 +1365,7 @@ fn realize(w: &modality_lang::theory::World) -> (HashMap<String, Value>, CommitF
 /// `CommitFacts::predicate_holds`.
 #[test]
 fn witnesses_are_commits_the_evaluator_accepts() {
+    let validator = contract_registry(&HashMap::new());
     let mut rng = Rng(0x5EED_CAFE_F00D_0001);
     let (mut built, mut in_state) = (0, 0);
     for round in 0..40_000 {
@@ -1330,8 +1375,8 @@ fn witnesses_are_commits_the_evaluator_accepts() {
         let state = random_state(&mut rng);
         let accepted = AcceptedState::new(&state);
         for (view, theory) in [
-            ("no state", Theory::new(V1, standard(), &NoState)),
-            ("accepted state", Theory::new(V1, standard(), &accepted)),
+            ("no state", Theory::new(V1, &validator, &NoState)),
+            ("accepted state", Theory::new(V1, &validator, &accepted)),
         ] {
             let Some(w) = theory.consistent(&props).witness else {
                 continue;

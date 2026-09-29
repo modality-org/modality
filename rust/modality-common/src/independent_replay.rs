@@ -1001,7 +1001,10 @@ model FirstContract {
         let report = verify_replay_artifact(&artifact, None).unwrap();
         assert!(!report.ok);
         assert!(
-            report.errors.iter().any(|err| err.contains("open --> refunded")),
+            report
+                .errors
+                .iter()
+                .any(|err| err.contains("open --> refunded")),
             "{:?}",
             report.errors
         );

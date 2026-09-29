@@ -45,6 +45,10 @@ proof that external facts were checked.
 
 ## Time Predicates
 
+The validator does not evaluate time, hash, or `wasm` predicates yet. They
+never hold, so no commit takes a transition that needs one; see
+[Standard Predicates](../reference/standard-predicates.md#implementation-status).
+
 ```modality
 +before(/deadlines/cutoff.datetime)
 // Current time is before deadline

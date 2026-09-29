@@ -173,4 +173,74 @@ theorem entails_no {reg : Registry} {premises : List Label} {g : Label}
         · simp at h
     · simp at h
 
+/-! ## Predicates the validator never evaluates
+
+The validator's evaluator returns false for every predicate outside
+`evaluated`. Under `validator` each one expands to one exact literal over
+`0 < 0`: `+P` to a literal no world satisfies, `-P` to one every world
+does. So the theory calls such an edge dead exactly when the evaluator
+never takes it, and never counts `+P` as possible. -/
+
+def neverAtom : Atom := .order (.const (Q.ofInt 0)) .lt (.const (Q.ofInt 0))
+
+theorem neverAtom_false (I : Interp) (w : World) : neverAtom.sem I w = false := by
+  simp [neverAtom, Atom.sem, Term.eval, Op.test, Q.lt_irrefl]
+
+private def neverT : SExpr := .list [.atom "<", .atom "0", .atom "0"]
+
+private theorem neverDecl_eq : neverDecl = ⟨some [neverT], some [neverT], none⟩ := rfl
+
+private theorem elab_never (args : List String) : elabAtom args neverT = some neverAtom := rfl
+
+private theorem neverT_beq : ([neverT] == [neverT]) = true := rfl
+
+theorem expand_unevaluated (l : Label) (hs : l.static = false)
+    (he : evaluated.contains l.key.1 = false) :
+    expand validator l = ⟨[⟨l.pos, neverAtom⟩], true⟩ := by
+  unfold expand
+  simp only [hs, validator, he, neverDecl_eq]
+  cases hp : l.pos <;>
+    simp [Declaration.accepts, Template.instantiate, elab_never, neg, pos, neverT_beq]
+
+private theorem mem_fold (reg : Registry) (x : Lit) :
+    ∀ (ls : List Label) (acc : Expansion),
+      (x ∈ acc.lits ∨ ∃ l ∈ ls, x ∈ (expand reg l).lits) →
+      x ∈ (ls.foldl (fun acc l =>
+        let e := expand reg l; (⟨acc.lits ++ e.lits, acc.exact && e.exact⟩ : Expansion)) acc).lits
+  | [], _, h => by simpa using h
+  | y :: ys, acc, h => by
+    simp only [List.foldl_cons]
+    apply mem_fold reg x ys
+    rcases h with h | ⟨l, hl, hx⟩
+    · exact Or.inl (List.mem_append_left _ h)
+    · rcases List.mem_cons.mp hl with rfl | hl
+      · exact Or.inl (List.mem_append_right _ hx)
+      · exact Or.inr ⟨l, hl, hx⟩
+
+/-- A positive unevaluated label leaves no world for its edge. -/
+theorem unevaluated_pos_dead (I : Interp) (ls : List Label) (l : Label) (hl : l ∈ ls)
+    (hp : l.pos = true) (hs : l.static = false) (he : evaluated.contains l.key.1 = false) :
+    ¬ Sat I (expandAll validator ls).lits := by
+  rintro ⟨w, hw⟩
+  have hx : (⟨true, neverAtom⟩ : Lit) ∈ (expand validator l).lits := by
+    rw [expand_unevaluated _ hs he, hp]
+    exact List.mem_singleton_self _
+  have := hw _ (mem_fold validator _ ls ⟨[], true⟩ (Or.inr ⟨l, hl, hx⟩))
+  simp [Lit.sem, neverAtom_false] at this
+
+/-! Issue 07: an edge that needs `+after(...)` is dead, the one that
+forbids it lives, and a committed `wasm` declaration does not make a
+`+wasm(...)` edge possible. -/
+
+def postL : Label := ⟨true, "POST", [], true⟩
+
+example : consistent validator [postL, ⟨true, "after", ["/deadlines/end.datetime"], false⟩] = .dead := by
+  decide
+example : consistent validator [postL, ⟨false, "after", ["/deadlines/end.datetime"], false⟩] = .live := by
+  decide
+example : consistent validator [⟨true, "wasm", ["/predicates/above_floor.wasm", "/x.num"], false⟩] = .dead := by
+  decide
+example : consistent validator [⟨true, "oracle_attests", ["/o/feed"], false⟩] = .unknown := by
+  decide
+
 end PredicateTheory

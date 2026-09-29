@@ -46,7 +46,18 @@ currently enforced by the local first-contract validator.
 | Method labels such as `+POST`, `+REPOST`, and `+MODEL` | Enforced | Derived from pending commit body methods |
 | `signed_by`, `any_signed`, `all_signed`, `threshold`, `modifies`, `post_to_path`, `has_property`, `state_exists`, `text_eq`, `text_contains`, `text_starts_with`, `text_ends_with`, `amount_in_range`, `num_eq`, `num_gt`, `num_gte`, `num_lt`, `num_lte`, `bool_true`, `bool_false` | Enforced | Derived from pending signatures, accepted state, pending methods, pending paths, accepted-state path existence, accepted-state JSON, accepted-state text, accepted-state numbers, and accepted-state booleans |
 | `timestamp_valid` | Unit-tested extension module only | Implemented in `modality-wasm-validation`; not yet replay evidence for the local first-contract validator |
-| `before`, `after`, other state-value predicates, hash predicates, `oracle_attests`, and `wasm` | Not first-contract-local yet | Intended extension vocabulary; treat as external or future predicate checks unless a validator path explicitly documents support |
+| `oracle_attests` | Replay bundle only | Holds only when the commit carries a valid replay bundle for the claim |
+| `before`, `after`, `sets`, other state-value predicates, hash predicates, and `wasm` | Never holds | Intended extension vocabulary, not evaluated by the validator yet |
+
+A predicate the validator does not evaluate never holds. This covers
+`before`, `after`, `timestamp_valid`, `hash_matches`, `sets(...)`,
+`+wasm(...)` and any name missing from the table. No commit takes a
+transition that needs `+after(...)`, and `-after(...)` holds on every
+commit. Under predicate theory `v1` and later, such a transition is a dead
+edge. A model that has one is refused, and so is a rule that promises one,
+such as `<+after(/deadlines/end.datetime)> true`. A committed `.theory.json`
+declaration does not change this for `+wasm(...)` until the validator
+evaluates `wasm`.
 
 ## Checkpoint Review Scope
 

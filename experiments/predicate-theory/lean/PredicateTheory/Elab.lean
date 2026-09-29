@@ -409,6 +409,27 @@ def registryWith (custom : List (String × Declaration)) : Registry := fun key =
 
 def standard : Registry := registryWith []
 
+/-- The predicates the validator's evaluator reads (Rust:
+`EVALUATED_PREDICATES`, next to `predicate_holds`). Every other predicate
+(`after`, `before`, `timestamp_valid`, `hash_matches`, `post_to`,
+`+wasm(...)`, an unknown name) never holds on the validator. -/
+def evaluated : List String := [
+  "signed_by", "any_signed", "all_signed", "threshold", "modifies", "post_to_path",
+  "has_property", "state_exists", "text_eq", "text_contains", "text_starts_with",
+  "text_ends_with", "amount_in_range", "num_eq", "num_gt", "num_gte", "num_lt", "num_lte",
+  "bool_true", "bool_false", "oracle_attests"
+]
+
+/-- False in every world, both ways. -/
+def neverDecl : Declaration := Declaration.ofText (some "(< 0 0)") (some "(< 0 0)")
+
+/-- The validator's registry (Rust: `ValidatorRegistry`): the standard
+declaration of each evaluated predicate (none for `oracle_attests`), and
+`neverDecl` for every other. A committed `+wasm(...)` declaration binds
+nothing while the validator does not evaluate `wasm`. -/
+def validator : Registry := fun key =>
+  if evaluated.contains key then standardDecl key else some neverDecl
+
 /-! ## Labels -/
 
 /-- A property on a transition label, as written: `+num_gt(/x.num, "5")`,

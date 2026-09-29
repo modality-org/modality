@@ -4,22 +4,28 @@
 //! the `path → value` map `apply_commit_to_state` builds. Typed reads
 //! follow `predicate_holds`: by JSON value, not by path extension.
 //!
-//! [`contract_registry`] is the standard declarations plus the ones this
-//! contract committed. A custom predicate `+wasm(/predicates/f.wasm, ..)`
-//! is declared by a JSON object at `/predicates/f.theory.json`:
+//! [`contract_registry`] is what this validator's predicates mean: the
+//! standard declarations for the ones `predicate_holds` evaluates, and
+//! "never holds" for the rest. A custom predicate
+//! `+wasm(/predicates/f.wasm, ..)` is declared by a JSON object at
+//! `/predicates/f.theory.json`:
 //!
 //! ```json
 //! { "necessary": "(> $1 /floor.num)", "sufficient": "(> $1 /floor.num)" }
 //! ```
 //!
 //! `sufficient` and `params` (a signature such as `"num-path"`) are
-//! optional. A declaration binds only the contract whose state holds it.
+//! optional. A declaration binds only the contract whose state holds it,
+//! and only once the validator evaluates `wasm`; until then it is read so
+//! an unparsable one is reported.
 
+use crate::model_governance::EVALUATED_PREDICATES;
 use modality_lang::theory::{
-    ContractRegistry, Declaration, Lookup, Rational, StateValue, StateView,
+    standard, ContractRegistry, Declaration, Lit, Lookup, Rational, Registry, StateValue, StateView,
 };
 use serde_json::Value;
 use std::collections::{BTreeSet, HashMap};
+use std::sync::OnceLock;
 
 /// Path suffix of a committed declaration, next to its `.wasm` module.
 pub const DECLARATION_SUFFIX: &str = ".theory.json";
@@ -77,8 +83,60 @@ impl StateView for AcceptedState<'_> {
     }
 }
 
-/// Standard declarations plus every declaration committed in `state`.
-pub fn contract_registry(state: &HashMap<String, Value>) -> ContractRegistry {
+/// What this validator's predicates mean: the standard declaration of each
+/// name `predicate_holds` evaluates (none for `oracle_attests`, which stays
+/// opaque), and `(< 0 0)`, exact, for every other predicate, since it never
+/// holds here. A committed `+wasm(...)` declaration is read and reported but
+/// binds nothing until the validator evaluates `wasm`.
+pub struct ValidatorRegistry {
+    committed: ContractRegistry,
+}
+
+impl ValidatorRegistry {
+    /// Module paths whose committed declaration failed to parse entirely.
+    pub fn unparsed(&self) -> Vec<String> {
+        self.committed.unparsed()
+    }
+}
+
+fn never_holds() -> &'static Declaration {
+    static NEVER: OnceLock<Declaration> = OnceLock::new();
+    NEVER.get_or_init(|| Declaration::exact("(< 0 0)"))
+}
+
+/// How the theory prints the literal a never-holding predicate expands to.
+pub(crate) fn never_literal() -> &'static str {
+    static TEXT: OnceLock<String> = OnceLock::new();
+    TEXT.get_or_init(|| {
+        never_holds()
+            .necessary
+            .as_ref()
+            .and_then(|t| t.instantiate(&[]))
+            .and_then(|cs| cs.into_iter().next())
+            .map(|c| Lit::pos(c).to_string())
+            .unwrap_or_default()
+    })
+}
+
+impl Registry for ValidatorRegistry {
+    fn declaration(&self, key: &str) -> Option<&Declaration> {
+        if EVALUATED_PREDICATES.contains(&key) {
+            standard().declaration(key)
+        } else {
+            Some(never_holds())
+        }
+    }
+}
+
+/// This validator's declarations, with every declaration committed in
+/// `state` read.
+pub fn contract_registry(state: &HashMap<String, Value>) -> ValidatorRegistry {
+    ValidatorRegistry {
+        committed: committed_declarations(state),
+    }
+}
+
+fn committed_declarations(state: &HashMap<String, Value>) -> ContractRegistry {
     let mut registry = ContractRegistry::new();
     let mut entries: Vec<(&String, &Value)> = state
         .iter()
@@ -165,9 +223,35 @@ mod tests {
                 json!({"necessary": "(odd $1)"}),
             ),
         ]);
-        let reg = contract_registry(&s);
+        let reg = committed_declarations(&s);
         assert!(reg.declaration("/predicates/above_floor.wasm").is_some());
         assert!(reg.declaration("/predicates/odd.wasm").is_none());
-        assert_eq!(reg.unparsed(), vec!["/predicates/odd.wasm".to_string()]);
+        assert_eq!(
+            contract_registry(&s).unparsed(),
+            vec!["/predicates/odd.wasm".to_string()]
+        );
+    }
+
+    #[test]
+    fn predicates_this_validator_never_evaluates_never_hold() {
+        let s = state(&[(
+            "/predicates/above_floor.theory.json",
+            json!({"necessary": "(> $1 /floor.num)", "sufficient": "(> $1 /floor.num)"}),
+        )]);
+        let reg = contract_registry(&s);
+        let never = Declaration::exact("(< 0 0)");
+        for key in [
+            "after",
+            "before",
+            "timestamp_valid",
+            "hash_matches",
+            "post_to",
+            "no_such_predicate",
+            "/predicates/above_floor.wasm",
+        ] {
+            assert_eq!(reg.declaration(key), Some(&never), "{key}");
+        }
+        assert!(reg.declaration("oracle_attests").is_none());
+        assert_eq!(reg.declaration("num_gt"), standard().declaration("num_gt"));
     }
 }

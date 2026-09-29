@@ -294,7 +294,7 @@ fn refuse_dead_edges(
     state: &HashMap<String, Value>,
     theory: TheoryVersion,
 ) -> Result<()> {
-    let dead = rule_checker(model, theory, state).dead_transitions();
+    let dead = name_unevaluated(rule_checker(model, theory, state).dead_transitions());
     if dead.is_empty() {
         return Ok(());
     }
@@ -303,6 +303,33 @@ fn refuse_dead_edges(
         theory,
         format_dead_edges(&dead)
     )
+}
+
+/// `edges` with the literal a never-holding predicate expands to shown as the
+/// labels that carry it.
+fn name_unevaluated(edges: Vec<DeadEdge>) -> Vec<DeadEdge> {
+    let never = crate::theory_state::never_literal();
+    edges
+        .into_iter()
+        .map(|mut edge| {
+            if edge.offending.iter().any(|l| l == never) {
+                edge.offending.retain(|l| l != never);
+                edge.offending.extend(
+                    edge.properties
+                        .iter()
+                        .filter(|p| {
+                            p.sign == PropertySign::Plus
+                                && !p.is_static()
+                                && !EVALUATED_PREDICATES.contains(&p.name.as_str())
+                        })
+                        .map(|p| {
+                            format!("{} (this validator never evaluates it)", format_property(p))
+                        }),
+                );
+            }
+            edge
+        })
+        .collect()
 }
 
 fn format_dead_edges(dead: &[DeadEdge]) -> String {
@@ -388,7 +415,7 @@ pub fn shadow_findings(
             apply_commit_to_state(commit, &mut after);
         }
         let checker = rule_checker(&model, theory, &after);
-        for edge in checker.dead_transitions() {
+        for edge in name_unevaluated(checker.dead_transitions()) {
             findings.push(TheoryFinding::DeadEdge {
                 part: edge.part_name,
                 from: edge.from,
@@ -396,7 +423,7 @@ pub fn shadow_findings(
                 offending: edge.offending,
             });
         }
-        for edge in checker.dead_after_step(&sorted_initial_states(&model)) {
+        for edge in name_unevaluated(checker.dead_after_step(&sorted_initial_states(&model))) {
             findings.push(TheoryFinding::DeadAfterStep {
                 part: edge.part_name,
                 from: edge.from,
@@ -507,8 +534,8 @@ pub fn derived_view(
     Ok(DerivedView {
         theory: format!("{theory:?}"),
         current_states: current,
-        dead_edges: checker.dead_transitions(),
-        dead_after_step: checker.dead_after_step(&sorted_initial_states(&model)),
+        dead_edges: name_unevaluated(checker.dead_transitions()),
+        dead_after_step: name_unevaluated(checker.dead_after_step(&sorted_initial_states(&model))),
         unparsed_declarations,
         moves,
     })
@@ -814,7 +841,7 @@ fn validate_anchored_rule(
     for anchor in &rule.anchor_states {
         let result = checker.check_formula_at_state(&rule.formula, anchor);
         if !result.is_satisfied {
-            let dead = checker.dead_transitions();
+            let dead = name_unevaluated(checker.dead_transitions());
             let mut theory_note = if dead.is_empty() {
                 String::new()
             } else {
@@ -824,7 +851,7 @@ fn validate_anchored_rule(
                     format_dead_edges(&dead)
                 )
             };
-            let never = checker.never_taken_from(anchor);
+            let never = name_unevaluated(checker.never_taken_from(anchor));
             if !never.is_empty() {
                 theory_note.push_str(&format!(
                     "; predicate theory {:?} dropped transitions no run from {} takes: {}",
@@ -1845,6 +1872,34 @@ struct CanonicalOracleAttestation<'a> {
     signature: &'a str,
 }
 
+/// The predicates [`CommitFacts::predicate_holds`] evaluates. Every other
+/// predicate (`after`, `before`, `timestamp_valid`, `hash_matches`,
+/// `sets`/`post_to`, `+wasm(...)`, an unknown name) never holds on this
+/// validator.
+pub(crate) const EVALUATED_PREDICATES: &[&str] = &[
+    "signed_by",
+    "any_signed",
+    "all_signed",
+    "threshold",
+    "modifies",
+    "post_to_path",
+    "has_property",
+    "state_exists",
+    "text_eq",
+    "text_contains",
+    "text_starts_with",
+    "text_ends_with",
+    "amount_in_range",
+    "num_eq",
+    "num_gt",
+    "num_gte",
+    "num_lt",
+    "num_lte",
+    "bool_true",
+    "bool_false",
+    "oracle_attests",
+];
+
 impl CommitFacts {
     fn from_commit(commit: &CommitFile, state: &HashMap<String, Value>) -> Self {
         Self::from_pending_commit(commit, state, None, None)
@@ -1896,6 +1951,8 @@ impl CommitFacts {
         }
     }
 
+    /// Every name must be in [`EVALUATED_PREDICATES`]; any other name is
+    /// always false here, and the theory relies on that.
     fn predicate_holds(&self, property: &Property) -> bool {
         if property.is_static() {
             return self.methods.contains(&property.name);

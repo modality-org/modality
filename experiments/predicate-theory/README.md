@@ -154,6 +154,10 @@ formulas are not in the Lean spec.
 - `deadIn_sound`, `liveIn_sound`: the same with accepted state known
 - `consistent_dead`, `consistent_live`, `runtime_dead`, `runtime_live`:
   what each verdict on labels as written means, through elaboration
+- `expand_unevaluated`, `unevaluated_pos_dead`: under the validator's
+  registry (`validator`), a predicate the validator never evaluates
+  expands to one exact literal no world satisfies, so an edge that needs
+  it is taken by no commit and `-P` holds on every commit
 - `refund_edge_is_dead`, `release_edge_is_live`,
   `stricter_release_meets_the_rule`, `not_a_number_is_live`: the escrow
 - `deadNaive_is_unsound`: a checker that always flips negated order
