@@ -102,6 +102,7 @@ impl Miner {
 }
 
 #[cfg(test)]
+#[allow(deprecated)] // tests build their own genesis
 mod tests {
     use super::*;
     use crate::block::BlockData;

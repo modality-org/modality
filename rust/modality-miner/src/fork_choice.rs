@@ -133,6 +133,7 @@ fn block_to_miner_block(block: &Block) -> Result<MinerBlock, MiningError> {
 
 #[cfg(feature = "persistence")]
 #[cfg(test)]
+#[allow(deprecated)] // tests build their own genesis
 mod tests {
     use super::*;
     use crate::block::{Block, BlockData};

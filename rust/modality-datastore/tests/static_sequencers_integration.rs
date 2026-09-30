@@ -5,13 +5,13 @@
 /// 2. Getting sequencer set for an epoch
 /// 3. Verifying static sequencers are used
 use anyhow::Result;
-use modality_datastore::models::sequencer::get_sequencer_set_for_epoch;
-use modality_datastore::network_datastore::NetworkDatastore;
+use modality_datastore::models::sequencer::get_sequencer_set_for_epoch_multi as get_sequencer_set_for_epoch;
+use modality_datastore::DatastoreManager;
 
 #[tokio::test]
 async fn test_static_sequencer_network_flow() -> Result<()> {
     // Create a datastore
-    let datastore = NetworkDatastore::create_in_memory()?;
+    let datastore = DatastoreManager::create_in_memory()?;
 
     // Simulate loading a network config with static sequencers (like devnet3)
     let network_config = serde_json::json!({
@@ -69,7 +69,7 @@ async fn test_static_sequencer_network_flow() -> Result<()> {
 #[tokio::test]
 async fn test_dynamic_sequencer_network_without_blocks() -> Result<()> {
     // Create a datastore without static sequencers
-    let datastore = NetworkDatastore::create_in_memory()?;
+    let datastore = DatastoreManager::create_in_memory()?;
 
     let network_config = serde_json::json!({
         "name": "testnet",

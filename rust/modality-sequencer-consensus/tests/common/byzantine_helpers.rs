@@ -146,6 +146,7 @@ pub fn setup_byzantine_network(
     (committee, dag, consensus)
 }
 
+#[allow(dead_code)] // not every test binary that shares these helpers uses it
 /// Assert that equivocation was detected for a certificate
 /// 
 /// Verifies that attempting to insert an equivocating certificate into the DAG
@@ -167,6 +168,7 @@ pub async fn assert_equivocation_detected(dag: &Arc<RwLock<DAG>>, cert: &Certifi
     );
 }
 
+#[allow(dead_code)] // not every test binary that shares these helpers uses it
 /// Assert that inserting a certificate fails due to equivocation
 /// 
 /// Verifies that the DAG rejects equivocating certificates.

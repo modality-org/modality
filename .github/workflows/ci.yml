@@ -64,6 +64,10 @@ jobs:
         working-directory: rust
         run: cargo check --all
 
+      - name: Cargo check tests and examples
+        working-directory: rust
+        run: cargo check --all --tests --examples
+
   test:
     name: Test
     runs-on: ubuntu-latest

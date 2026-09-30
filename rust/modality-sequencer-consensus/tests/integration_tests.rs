@@ -4,13 +4,12 @@
 /// including consensus formation, certificate propagation, and Byzantine behavior.
 
 use modality_sequencer_consensus::narwhal::{
-    Certificate, Committee, Header, Primary, Transaction, Sequencer, Worker,
+    Certificate, Committee, Header, Primary, Sequencer,
 };
 use modality_sequencer_consensus::narwhal::dag::DAG;
-use modality_sequencer_consensus::shoal::{ReputationConfig, ReputationState};
+use modality_sequencer_consensus::shoal::ReputationConfig;
 use modality_sequencer_consensus::shoal::reputation::ReputationManager;
 use modality_sequencer_consensus::shoal::consensus::ShoalConsensus;
-use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -161,7 +160,7 @@ async fn test_quorum_requirement() {
     }
     
     // Test using Primary which validates quorum requirements
-    let primary = Primary::new(test_peer_id(0), committee.clone(), dag.clone());
+    let _primary = Primary::new(test_peer_id(0), committee.clone(), dag.clone());
     
     // Create batch with only 2 parents (insufficient)
     let insufficient_parents = vec![round0_digests[0], round0_digests[1]];

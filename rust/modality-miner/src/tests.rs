@@ -1,3 +1,5 @@
+#![allow(deprecated)] // tests build their own genesis and chain
+
 //! Integration tests for blockchain fork choice and orphaning logic
 //!
 //! These tests validate the blockchain's behavior when handling:

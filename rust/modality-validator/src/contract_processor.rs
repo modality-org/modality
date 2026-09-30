@@ -1523,7 +1523,7 @@ mod tests {
             0x00, 0x61, 0x73, 0x6d, // Magic number
             0x01, 0x00, 0x00, 0x00, // Version
         ];
-        let wasm_base64 = base64::encode(&minimal_wasm);
+        let wasm_base64 = base64::Engine::encode(&base64::engine::general_purpose::STANDARD, &minimal_wasm);
 
         // Test WASM upload via POST with .wasm extension (simple string value)
         let commit_data = serde_json::json!({
@@ -1591,7 +1591,7 @@ mod tests {
         let processor = ContractProcessor::new(datastore.clone());
 
         let minimal_wasm = vec![0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00];
-        let wasm_base64 = base64::encode(&minimal_wasm);
+        let wasm_base64 = base64::Engine::encode(&base64::engine::general_purpose::STANDARD, &minimal_wasm);
 
         // Test WASM upload via POST with object value including gas_limit
         let commit_data = serde_json::json!({

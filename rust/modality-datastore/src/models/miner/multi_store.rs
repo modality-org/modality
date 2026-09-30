@@ -721,7 +721,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_save_and_find_in_active() {
-        let mut mgr = DatastoreManager::create_in_memory().unwrap();
+        let mgr = DatastoreManager::create_in_memory().unwrap();
 
         let block = create_test_block("hash1", 100, 1, true, false);
         block.save_to_active(&mgr).await.unwrap();
@@ -733,7 +733,7 @@ mod tests {
 
     #[tokio::test]
     async fn purge_keeps_a_parked_block_and_drops_settled_copies() {
-        let mut mgr = DatastoreManager::create_in_memory().unwrap();
+        let mgr = DatastoreManager::create_in_memory().unwrap();
 
         let parked = create_test_block("parked", 300, 7, false, false);
         parked.save_to_active(&mgr).await.unwrap();
@@ -755,7 +755,7 @@ mod tests {
 
     #[tokio::test]
     async fn hash_lookup_agrees_with_listing_for_an_orphaned_promoted_block() {
-        let mut mgr = DatastoreManager::create_in_memory().unwrap();
+        let mgr = DatastoreManager::create_in_memory().unwrap();
 
         let block = create_test_block("twice", 280, 6, true, false);
         block.save_to_active(&mgr).await.unwrap();
@@ -790,7 +790,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_promote_to_canon() {
-        let mut mgr = DatastoreManager::create_in_memory().unwrap();
+        let mgr = DatastoreManager::create_in_memory().unwrap();
 
         let block = create_test_block("hash2", 100, 1, true, false);
         block.save_to_active(&mgr).await.unwrap();
@@ -807,7 +807,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_archive_to_forks() {
-        let mut mgr = DatastoreManager::create_in_memory().unwrap();
+        let mgr = DatastoreManager::create_in_memory().unwrap();
 
         let block = create_test_block("hash3", 100, 1, false, true);
         block.save_to_active(&mgr).await.unwrap();

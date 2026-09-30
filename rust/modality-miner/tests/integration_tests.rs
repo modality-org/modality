@@ -1,3 +1,5 @@
+#![allow(deprecated)] // tests build their own genesis and chain
+
 use modality_miner::{
     Block, BlockData, Blockchain, ChainConfig, EpochManager, Miner, MinerConfig,
     BLOCKS_PER_EPOCH,
@@ -17,6 +19,7 @@ fn test_full_blockchain_lifecycle() {
         ChainConfig {
             initial_difficulty: 1,
             target_block_time_secs: 600,
+            mining_delay_ms: None,
         },
         genesis_peer_id.to_string(),
     );
@@ -45,6 +48,7 @@ fn test_multiple_epochs() {
         ChainConfig {
             initial_difficulty: 50,
             target_block_time_secs: 600,
+            mining_delay_ms: None,
         },
         genesis_peer_id.to_string(),
     );
@@ -81,6 +85,7 @@ fn test_multiple_nominations() {
         ChainConfig {
             initial_difficulty: 1,
             target_block_time_secs: 600,
+            mining_delay_ms: None,
         },
         genesis_peer_id.to_string(),
     );
@@ -110,6 +115,7 @@ fn test_block_validation() {
         ChainConfig {
             initial_difficulty: 1,
             target_block_time_secs: 600,
+            mining_delay_ms: None,
         },
         genesis_peer_id.to_string(),
     );
@@ -158,6 +164,7 @@ fn test_miner_config() {
     let config = MinerConfig {
         max_tries: Some(1_000_000), // Increased for reliable test
         hash_func_name: Some("sha256"),
+        mining_delay_ms: None,
     };
 
     let miner = Miner::new(config);
@@ -214,6 +221,7 @@ fn test_chain_json_export() {
         ChainConfig {
             initial_difficulty: 1,
             target_block_time_secs: 600,
+            mining_delay_ms: None,
         },
         genesis,
     );
@@ -236,6 +244,7 @@ fn test_get_block_by_index_and_hash() {
         ChainConfig {
             initial_difficulty: 1,
             target_block_time_secs: 600,
+            mining_delay_ms: None,
         },
         genesis,
     );
@@ -330,6 +339,7 @@ fn test_get_blocks_by_nominated_peer() {
         ChainConfig {
             initial_difficulty: 1,
             target_block_time_secs: 600,
+            mining_delay_ms: None,
         },
         genesis_peer_id.to_string(),
     );
@@ -383,12 +393,12 @@ async fn test_sequential_mining_after_sync() {
     // Setup two separate datastores for two nodes
     let temp_dir1 = tempfile::tempdir().unwrap();
     let storage_path1 = temp_dir1.path().join("node1_data");
-    let datastore1 = DatastoreManager::create_in_directory(&storage_path1).unwrap();
+    let datastore1 = DatastoreManager::open(&storage_path1).unwrap();
     let datastore1 = std::sync::Arc::new(tokio::sync::Mutex::new(datastore1));
     
     let temp_dir2 = tempfile::tempdir().unwrap();
     let storage_path2 = temp_dir2.path().join("node2_data");
-    let datastore2 = DatastoreManager::create_in_directory(&storage_path2).unwrap();
+    let datastore2 = DatastoreManager::open(&storage_path2).unwrap();
     let datastore2 = std::sync::Arc::new(tokio::sync::Mutex::new(datastore2));
     
     let peer_id1 = "node1_peer_id".to_string();
@@ -397,6 +407,7 @@ async fn test_sequential_mining_after_sync() {
     let config = ChainConfig {
         initial_difficulty: 1,
         target_block_time_secs: 600,
+        mining_delay_ms: None,
     };
     
     // Step 1: Node 1 mines block 1
@@ -407,7 +418,7 @@ async fn test_sequential_mining_after_sync() {
         datastore1.clone(),
     ).await.unwrap();
     
-    let block1 = chain1.mine_block_with_persistence(peer_id1.clone(), 1000).await.unwrap();
+    let (block1, _) = chain1.mine_block_with_persistence(peer_id1.clone(), 1000).await.unwrap();
     println!("✅ Node 1 mined block {} with hash {}", block1.header.index, &block1.header.hash[..16]);
     assert_eq!(block1.header.index, 1);
     assert_eq!(chain1.height(), 1);
@@ -456,7 +467,7 @@ async fn test_sequential_mining_after_sync() {
     
     // Step 3: Node 2 mines block 2 on top of synced chain
     println!("\n⛏️  Step 3: Node 2 mining block 2...");
-    let block2 = chain2.mine_block_with_persistence(peer_id2.clone(), 2000).await.unwrap();
+    let (block2, _) = chain2.mine_block_with_persistence(peer_id2.clone(), 2000).await.unwrap();
     println!("✅ Node 2 mined block {} with hash {}", block2.header.index, &block2.header.hash[..16]);
     assert_eq!(block2.header.index, 2);
     assert_eq!(block2.header.previous_hash, node1_block1_hash, "Block 2 should reference block 1's hash");
@@ -532,13 +543,13 @@ fn test_mining_with_randomx() {
     
     println!("\n=== Testing Mining with RandomX ===\n");
     
-    let genesis_peer_id = "genesis_peer_id";
     let miner_peer_id = "miner_peer_1";
     
     // Create miner with RandomX configuration
     let config = MinerConfig {
         max_tries: Some(100_000),
         hash_func_name: Some("randomx"),
+        mining_delay_ms: None,
     };
     
     let miner = Miner::new(config);
