@@ -2,7 +2,7 @@ use crate::invoke_engine::WasmInvokeEngine;
 use crate::predicate_executor::PredicateExecutor;
 use crate::program_executor::ProgramExecutor;
 use anyhow::Result;
-use modality_common::contract_store::CommitFile;
+use modality_common::contract_store::{CommitFile, Emitter};
 use modality_common::independent_replay::{
     accepted_state_oracle_keys_from_commits, commit_has_invoke, expand_prefix,
     frozen_invoke_context, predicate_input_with_commit_replay_bundle, wasm_modules_from_commits,
@@ -174,6 +174,46 @@ impl StagedWrites {
         }
         Ok(())
     }
+}
+
+/// Where an applied commit's expanded body is kept: the actions its
+/// `invoke`s emitted, and the program that emitted each. A later commit reads
+/// its history from here instead of running every earlier invoke again.
+fn expanded_key(contract_id: &str, commit_id: &str) -> String {
+    format!("/expanded_commits/{contract_id}/{commit_id}")
+}
+
+fn encode_expanded(commit: &CommitFile) -> Result<Vec<u8>> {
+    let emitters: Vec<Value> = commit
+        .body
+        .iter()
+        .map(|action| match &action.emitted_by {
+            Some(e) => serde_json::json!({"program": e.program, "sha256": e.sha256}),
+            None => Value::Null,
+        })
+        .collect();
+    Ok(serde_json::to_vec(
+        &serde_json::json!({"commit": commit, "emitted_by": emitters}),
+    )?)
+}
+
+fn decode_expanded(bytes: &[u8]) -> Option<CommitFile> {
+    let stored: Value = serde_json::from_slice(bytes).ok()?;
+    let mut commit: CommitFile = serde_json::from_value(stored.get("commit")?.clone()).ok()?;
+    let emitters = stored.get("emitted_by")?.as_array()?;
+    if emitters.len() != commit.body.len() {
+        return None;
+    }
+    for (action, emitter) in commit.body.iter_mut().zip(emitters) {
+        action.emitted_by = match emitter {
+            Value::Null => None,
+            e => Some(Emitter {
+                program: e.get("program")?.as_str()?.to_string(),
+                sha256: e.get("sha256")?.as_str()?.to_string(),
+            }),
+        };
+    }
+    Some(commit)
 }
 
 fn describe_send(send_commit_id: &str, index: u64) -> String {
@@ -410,6 +450,13 @@ impl ContractProcessor {
             }
         }
 
+        if commit_has_invoke(&pending) {
+            staged.data.push((
+                expanded_key(contract_id, commit_id),
+                encode_expanded(&expanded)?,
+            ));
+        }
+
         {
             let ds = self.datastore.lock().await;
             staged.flush(&ds).await?;
@@ -488,7 +535,10 @@ impl ContractProcessor {
 
         let mut engine = WasmInvokeEngine::new(DEFAULT_GAS_LIMIT);
         let accepted_expanded = if accepted_raw.iter().any(|(_, file)| commit_has_invoke(file)) {
-            expand_prefix(contract_id, &accepted_raw, &wasm, Some(&mut engine))?.0
+            match self.stored_expansions(contract_id, &accepted_raw).await? {
+                Some(expanded) => expanded,
+                None => expand_prefix(contract_id, &accepted_raw, &wasm, Some(&mut engine))?.0,
+            }
         } else {
             accepted_raw.iter().map(|(_, file)| file.clone()).collect()
         };
@@ -516,6 +566,33 @@ impl ContractProcessor {
             theory,
         )?;
         Ok(pending_expanded)
+    }
+
+    /// The history's expanded bodies as they were stored when each commit
+    /// was applied, or `None` when one with an `invoke` has none stored
+    /// (applied before expansions were kept); then the caller expands them all.
+    async fn stored_expansions(
+        &self,
+        contract_id: &str,
+        accepted: &[(String, CommitFile)],
+    ) -> Result<Option<Vec<CommitFile>>> {
+        let ds = self.datastore.lock().await;
+        let mut expanded = Vec::with_capacity(accepted.len());
+        for (id, file) in accepted {
+            if !commit_has_invoke(file) {
+                expanded.push(file.clone());
+                continue;
+            }
+            match ds
+                .get_data_by_key(&expanded_key(contract_id, id))
+                .await?
+                .and_then(|bytes| decode_expanded(&bytes))
+            {
+                Some(commit) => expanded.push(commit),
+                None => return Ok(None),
+            }
+        }
+        Ok(Some(expanded))
     }
 
     async fn merge_datastore_wasm(
@@ -4218,6 +4295,75 @@ model DeliveryOracle {
                 .expect("emitted post must be applied");
             assert_eq!(String::from_utf8(posted).unwrap(), "pwned");
         }
+    }
+
+    #[tokio::test]
+    async fn an_applied_invoke_keeps_its_expansion_for_later_commits() {
+        let datastore = Arc::new(Mutex::new(DatastoreManager::create_in_memory().unwrap()));
+        let processor = ContractProcessor::new(datastore.clone());
+        sequence_commit(
+            &processor,
+            &datastore,
+            "c1",
+            "bootstrap",
+            &bootstrap_with_program().to_string(),
+            "batch-bootstrap",
+        )
+        .await;
+        sequence_commit(
+            &processor,
+            &datastore,
+            "c1",
+            "inv-1",
+            &invoke_commit(true).to_string(),
+            "batch-1",
+        )
+        .await;
+
+        let stored = {
+            let ds = datastore.lock().await;
+            ds.get_data_by_key(&expanded_key("c1", "inv-1"))
+                .await
+                .unwrap()
+                .and_then(|bytes| decode_expanded(&bytes))
+                .expect("the expansion is stored")
+        };
+        assert_eq!(stored.body.len(), 1);
+        assert_eq!(stored.body[0].method, "post");
+        assert_eq!(
+            stored.body[0].emitted_by.as_ref().map(|e| e.program.as_str()),
+            Some("/__programs__/gate.wasm")
+        );
+        assert_eq!(stored.head.parent.as_deref(), Some("bootstrap"));
+
+        // The history read back is what expanding it again gives.
+        let accepted = {
+            let ds = datastore.lock().await;
+            crate::sequenced_rules::load_sequenced_parent_chain(&ds, "c1", Some("inv-1"))
+                .await
+                .unwrap()
+        };
+        let from_store = processor
+            .stored_expansions("c1", &accepted)
+            .await
+            .unwrap()
+            .expect("every invoke has one");
+        let files: Vec<CommitFile> = accepted.iter().map(|(_, f)| f.clone()).collect();
+        let wasm = wasm_modules_from_commits(&files).unwrap();
+        let mut engine = WasmInvokeEngine::new(DEFAULT_GAS_LIMIT);
+        let again = expand_prefix("c1", &accepted, &wasm, Some(&mut engine)).unwrap().0;
+        let emitters = |commits: &[CommitFile]| -> Vec<Option<Emitter>> {
+            commits.iter().flat_map(|c| c.body.iter().map(|a| a.emitted_by.clone())).collect()
+        };
+        assert_eq!(serde_json::to_value(&from_store).unwrap(), serde_json::to_value(&again).unwrap());
+        assert_eq!(emitters(&from_store), emitters(&again));
+
+        let mut next = invoke_commit(true);
+        next["head"]["parent"] = serde_json::json!("inv-1");
+        processor
+            .process_commit("c1", "inv-2", &next.to_string())
+            .await
+            .expect("a later invoke checks against the stored history");
     }
 
     async fn balance_of(
