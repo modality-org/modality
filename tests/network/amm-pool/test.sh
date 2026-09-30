@@ -75,7 +75,7 @@ PY
 
 # Every operating edge restates the invariants: each one is a named
 # predicate the rules below require on every commit.
-KEEPS="+tracks(/reserves/a.num, \"$TOK_A\") +tracks(/reserves/b.num, \"$TOK_B\") +tracks(/lp/supply.num, \"lp\", \"issued\") +keeps_product_per_share(/reserves/a.num, /reserves/b.num, /lp/supply.num) +pays_senders(\"$TOK_A\") +pays_senders(\"$TOK_B\") +pays_senders(\"lp\") -CREATE -modifies(/config) -modifies(/__programs__) -modifies(/rules) -modifies(/model)"
+KEEPS="+tracks(/reserves/a.num, \"$TOK_A\") +tracks(/reserves/b.num, \"$TOK_B\") +tracks(/lp/supply.num, \"lp\", \"issued\") +keeps_product_per_share(/reserves/a.num, /reserves/b.num, /lp/supply.num, /config/fee.num) +pays_senders(\"$TOK_A\") +pays_senders(\"$TOK_B\") +pays_senders(\"lp\") +pays_memo_min(\"min_out\") +pays_memo_min(\"min_shares\") -CREATE -modifies(/config) -modifies(/__programs__) -modifies(/rules) -modifies(/model)"
 EMITTED="+emitted_by($PROGRAM, \"$POOL_SHA\")"
 mkdir -p "$POOL/model"
 cat > "$POOL/model/default.modality" <<EOF
@@ -106,7 +106,9 @@ add_rule pays_a "always([-pays_senders(\"$TOK_A\")] false)" "A goes only to some
 add_rule pays_b "always([-pays_senders(\"$TOK_B\")] false)" "B likewise"
 add_rule pays_lp "always([-pays_senders(\"lp\")] false)" "shares likewise"
 add_rule curve "always([+modifies(/reserves) -modifies(/lp) -keeps_product(/reserves/a.num, /reserves/b.num, /config/fee.num)] false)" "a swap keeps the fee-adjusted product"
-add_rule per_share "always([-keeps_product_per_share(/reserves/a.num, /reserves/b.num, /lp/supply.num)] false)" "no commit lowers the product per share"
+add_rule per_share "always([-keeps_product_per_share(/reserves/a.num, /reserves/b.num, /lp/supply.num, /config/fee.num)] false)" "no commit lowers the product per share, and one that leaves the supply pays the fee"
+add_rule min_out "always([-pays_memo_min(\"min_out\")] false)" "a swap pays the trader's min_out or refunds"
+add_rule min_shares "always([-pays_memo_min(\"min_shares\")] false)" "an add issues the LP's min_shares or refunds"
 add_rule config_fixed "always([+modifies(/config)] false)" "the config never changes"
 add_rule program_fixed "always([+modifies(/__programs__)] false)" "the program never changes"
 add_rule no_mint "always([+CREATE] false)" "no more shares are created"

@@ -230,6 +230,7 @@ pub const KNOWN_PREDICATES: &[&str] = &[
     "keeps_product_per_share",
     "tracks",
     "pays_senders",
+    "pays_memo_min",
     "state_exists",
     "has_property",
     "text_eq",

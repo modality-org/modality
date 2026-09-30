@@ -588,6 +588,12 @@ fn recv(from: &str, asset: &str, amount: u64) -> CommitAction {
     act("recv", None, value)
 }
 
+fn recv_memo(from: &str, asset: &str, amount: u64, memo: Value) -> CommitAction {
+    let mut action = recv(from, asset, amount);
+    action.value["memo"] = memo;
+    action
+}
+
 fn send(asset: &str, to: &str, amount: u64) -> CommitAction {
     let (creator, id) = held(asset);
     let mut value = json!({"asset_id": id, "to_contract": to, "amount": amount});
@@ -613,7 +619,7 @@ fn reserves_after(a: u64, b: u64) -> Vec<CommitAction> {
 
 fn tracks_all() -> String {
     format!(
-        r#"+tracks(/reserves/a.num, "{TOK_A}") +tracks(/reserves/b.num, "{TOK_B}") +tracks(/lp/supply.num, "lp", "issued") +keeps_product_per_share(/reserves/a.num, /reserves/b.num, /lp/supply.num) +pays_senders("{TOK_A}") +pays_senders("{TOK_B}") +pays_senders("lp")"#
+        r#"+tracks(/reserves/a.num, "{TOK_A}") +tracks(/reserves/b.num, "{TOK_B}") +tracks(/lp/supply.num, "lp", "issued") +keeps_product_per_share(/reserves/a.num, /reserves/b.num, /lp/supply.num, /config/fee.num) +pays_senders("{TOK_A}") +pays_senders("{TOK_B}") +pays_senders("lp") +pays_memo_min("min_out") +pays_memo_min("min_shares")"#
     )
 }
 
@@ -638,7 +644,9 @@ fn full_pool_rules() -> Vec<String> {
         format!(r#"always([-tracks(/reserves/b.num, "{TOK_B}")] false)"#),
         r#"always([-tracks(/lp/supply.num, "lp", "issued")] false)"#.to_string(),
         "always([+modifies(/reserves) -modifies(/lp) -keeps_product(/reserves/a.num, /reserves/b.num, /config/fee.num)] false)".to_string(),
-        "always([-keeps_product_per_share(/reserves/a.num, /reserves/b.num, /lp/supply.num)] false)".to_string(),
+        "always([-keeps_product_per_share(/reserves/a.num, /reserves/b.num, /lp/supply.num, /config/fee.num)] false)".to_string(),
+        r#"always([-pays_memo_min("min_out")] false)"#.to_string(),
+        r#"always([-pays_memo_min("min_shares")] false)"#.to_string(),
         "always([+modifies(/config)] false)".to_string(),
         "always([+modifies(/__programs__)] false)".to_string(),
         "always([+CREATE] false)".to_string(),
@@ -694,6 +702,35 @@ fn tracks_and_pays_senders_read_what_the_commit_moves() {
     assert!(!per(150, 16), "one share too many");
     assert!(per(50, 5), "a pro-rata remove");
     assert!(!per(49, 5), "paid out too much");
+
+    // With a fee, an unchanged supply holds a swap to the fee-adjusted product.
+    let fee_state = [("/reserves/a.num", json!(1000)), ("/reserves/b.num", json!(4000)), ("/lp/supply.num", json!(2000)), ("/config/fee.num", json!(0.003))];
+    let swap_writing_supply = |out: u64| {
+        c(vec![post("/reserves/a.num", json!(1100)), post("/reserves/b.num", json!(4000 - out)), post("/lp/supply.num", json!(2000))])
+    };
+    let args = ["/reserves/a.num", "/reserves/b.num", "/lp/supply.num", "/config/fee.num"];
+    assert!(holds(&swap_writing_supply(363), &fee_state, "keeps_product_per_share", &args[..3]), "no fee asked");
+    assert!(!holds(&swap_writing_supply(363), &fee_state, "keeps_product_per_share", &args), "skips the fee");
+    assert!(holds(&swap_writing_supply(362), &fee_state, "keeps_product_per_share", &args), "pays it");
+
+    // A memo's minimum: paid at least that of another asset, or refunded.
+    let min_out = |n: u64| json!({"op": "swap", "min_out": n});
+    let asked = |memo: Value, answer: Vec<CommitAction>| {
+        let mut actions = vec![recv_memo("T", TOK_A, 100, memo)];
+        actions.extend(answer);
+        h(&c(actions), "pays_memo_min", &["min_out"])
+    };
+    assert!(asked(min_out(300), vec![send(TOK_B, "T", 362)]));
+    assert!(!asked(min_out(400), vec![send(TOK_B, "T", 362)]), "below min_out");
+    assert!(asked(min_out(400), vec![send(TOK_A, "T", 100)]), "the deposit returned");
+    assert!(!asked(min_out(400), vec![send(TOK_A, "T", 99)]), "not all of it");
+    assert!(!asked(min_out(300), vec![send(TOK_B, "M", 362)]), "paid to someone else");
+    assert!(asked(json!("{\"op\":\"swap\",\"min_out\":300}"), vec![send(TOK_B, "T", 362)]), "a memo as JSON text");
+    assert!(asked(json!({"op": "remove"}), vec![]), "no min_out asked");
+    assert!(h(&c(vec![recv("T", TOK_A, 100)]), "pays_memo_min", &["min_out"]), "no memo");
+    let mut unstated = recv_memo("T", TOK_A, 100, min_out(300));
+    unstated.value.as_object_mut().unwrap().remove("from_contract");
+    assert!(!h(&c(vec![unstated, send(TOK_B, "T", 362)]), "pays_memo_min", &["min_out"]));
 }
 
 #[test]
@@ -737,6 +774,27 @@ fn a_pool_pays_only_who_paid_in_and_keeps_its_product() {
     let mut by_hand = swap(362, "T", 1100);
     by_hand.body.iter_mut().for_each(|a| a.emitted_by = None);
     validate(&accepted, &by_hand, V2).expect_err("written by hand");
+    // A swap that also writes the share supply, unchanged, still pays the fee.
+    let mut no_fee = swap(363, "T", 1100);
+    no_fee.body.push(post("/lp/supply.num", json!(2000)));
+    for theory in [V0, V2] {
+        let err = validate(&accepted, &no_fee, theory).expect_err("skips the fee");
+        assert!(err.to_string().contains("keeps_product_per_share"), "{err}");
+    }
+    // A swap that pays less than the trader's min_out, rather than refunding.
+    let short = |memo_min: u64| {
+        let memo = json!({"op": "swap", "min_out": memo_min});
+        pool_output([vec![recv_memo("T", TOK_A, 100, memo), send(TOK_B, "T", 362)], reserves_after(1100, 3638)].concat())
+    };
+    let err = validate(&accepted, &short(400), V2).expect_err("below min_out");
+    assert!(err.to_string().contains("pays_memo_min"), "{err}");
+    validate(&accepted, &short(300), V2).expect("meets min_out");
+    let refund = pool_output(vec![
+        recv_memo("T", TOK_A, 100, json!({"op": "swap", "min_out": 400})),
+        send(TOK_A, "T", 100),
+    ]);
+    validate(&accepted, &refund, V2).expect("the deposit returned");
+
     let good = swap(362, "T", 1100);
     validate(&accepted, &good, V2).expect("a swap on the curve");
     accepted.push(good);

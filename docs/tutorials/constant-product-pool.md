@@ -130,9 +130,15 @@ always([-pays_senders("<KA_ID>:tokA")] false)
 always([-pays_senders("<KB_ID>:tokB")] false)
 always([-pays_senders("lp")] false)
 
-// A swap keeps the fee-adjusted product; nothing lowers it per share
+// A swap keeps the fee-adjusted product; nothing lowers it per share, and
+// a commit that leaves the share supply as it was pays the fee
 always([+modifies(/reserves) -modifies(/lp) -keeps_product(/reserves/a.num, /reserves/b.num, /config/fee.num)] false)
-always([-keeps_product_per_share(/reserves/a.num, /reserves/b.num, /lp/supply.num)] false)
+always([-keeps_product_per_share(/reserves/a.num, /reserves/b.num, /lp/supply.num, /config/fee.num)] false)
+
+// A swap pays the trader's min_out and an add the LP's min_shares, or the
+// deposit goes back
+always([-pays_memo_min("min_out")] false)
+always([-pays_memo_min("min_shares")] false)
 
 // Nothing else changes
 always([+modifies(/config)] false)
@@ -142,7 +148,7 @@ always([+modifies(/rules)] false)
 always([+modifies(/model)] false)
 ```
 
-`tracks`, `pays_senders` and `keeps_product_per_share` are described in
+`tracks`, `pays_senders`, `keeps_product_per_share` and `pays_memo_min` are described in
 [Outflow Predicates](../reference/standard-predicates.md#outflow-predicates).
 Together:
 
@@ -150,9 +156,13 @@ Together:
 - A payout of an asset goes only to a contract the same commit received from.
 - The reserves change by exactly what the commit received less what it paid
   out, and the supply by the shares paid out less those returned.
-- A swap leaves `(A + x(1 - f)) * B'` at least `A * B`.
+- A swap leaves `(A + x(1 - f)) * B'` at least `A * B`, whether or not it
+  also writes `/lp`: a commit that leaves the supply unchanged is held to the
+  fee.
 - No commit lowers `A * B / S²`, the square of what one share is worth, so
   no add mints too many shares and no remove pays out too much.
+- A deposit whose memo asks `min_out` or `min_shares` gets at least that, or
+  its own deposit back.
 
 ## The model
 
@@ -175,8 +185,8 @@ model Pool {
 ```
 
 where `EMITTED` is `+emitted_by(/__programs__/pool.wasm, "<SHA>")` and
-`KEEPS` is every `+tracks(...)`, `+pays_senders(...)` and
-`+keeps_product_per_share(...)` of the rules, with `-CREATE
+`KEEPS` is every `+tracks(...)`, `+pays_senders(...)`,
+`+keeps_product_per_share(...)` and `+pays_memo_min(...)` of the rules, with `-CREATE
 -modifies(/config) -modifies(/__programs__) -modifies(/rules)
 -modifies(/model)`. The founder's key signs the bootstrap, the share asset
 and the rules; after that the pool has no owner.
@@ -258,12 +268,9 @@ program's alone:
 
 - **The price within the bound.** The rules keep the fee-adjusted product;
   the program pays the most that allows, but a program could pay less.
-- **`min_out` and `min_shares`.** The program returns a deposit that misses
-  them. No rule reads a memo.
-- **The fee on a swap that also touches `/lp`.** The swap rule applies to
-  commits that leave the share supply alone. A commit that also writes
-  `/lp` is held only to the product per share, without the fee. This
-  program never swaps and issues shares in one commit.
+- **The fee on a swap that also issues or burns shares.** A commit that
+  changes the share supply is held to the product per share, without the
+  fee. This program never swaps and issues shares in one commit.
 - **Liveness.** A program that refuses every move, or a remove it cannot
   compute, strands the reserves; the rules stop theft, not paralysis. The
   program cannot be replaced.

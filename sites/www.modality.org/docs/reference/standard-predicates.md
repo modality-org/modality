@@ -37,9 +37,10 @@ local validator path.
 | `posts_own_key(/path.id)` | Pending commit body `POST` actions and pending signatures | The commit posts a key to exactly `/path.id`, and that key signed the commit |
 | `emitted_by(/program.wasm)` or `emitted_by(/program.wasm, "sha256")` | Which actions an `invoke` emitted, recorded while the validator expands it | A posted program, with those bytes when a hash is given, emitted every action in the commit |
 | `keeps_product(/a.num, /b.num)` or `keeps_product(/a.num, /b.num, fee)` | Pending `POST`s to the two paths, plus accepted state | The product of the two numbers after the commit is not smaller than before it, with the growth of each discounted by the fee |
-| `keeps_product_per_share(/a.num, /b.num, /supply.num)` | Pending `POST`s to the three paths, plus accepted state | The product of the two numbers divided by the square of the supply is not smaller after the commit |
+| `keeps_product_per_share(/a.num, /b.num, /supply.num)` or `keeps_product_per_share(/a.num, /b.num, /supply.num, fee)` | Pending `POST`s to the three paths, plus accepted state | The product of the two numbers divided by the square of the supply is not smaller after the commit; with a fee, a commit that leaves the supply unchanged keeps the fee-adjusted product |
 | `tracks(/p.num, "asset")` or `tracks(/p.num, "asset", "issued")` | Pending `POST`s to the path, accepted state, and what the commit's `RECV`s state and `SEND`s move | The number changes by exactly what came in of `asset` less what went out; with `"issued"`, by what went out less what came in |
 | `pays_senders("asset")` | Pending `SEND` actions and the senders the commit's `RECV`s state | Every `SEND` of `asset` goes to a contract a `RECV` of the same commit came from |
+| `pays_memo_min("field")` | Pending `SEND` actions and what the commit's `RECV`s state, memo included | Every `RECV` whose memo asks a minimum at `field` gets its deposit back in full, or at least that minimum of another asset |
 
 Other reference predicates below describe the intended standard vocabulary.
 Treat them as requiring predicate-specific implementation and tests before
@@ -54,7 +55,7 @@ currently enforced by the local first-contract validator.
 |------------------|--------------------------------|-------|
 | Method labels such as `+POST`, `+REPOST`, and `+MODEL` | Enforced | Derived from pending commit body methods |
 | `signed_by`, `any_signed`, `all_signed`, `threshold`, `modifies`, `post_to_path`, `sets`, `has_property`, `state_exists`, `text_eq`, `text_contains`, `text_starts_with`, `text_ends_with`, `amount_in_range`, `num_eq`, `num_gt`, `num_gte`, `num_lt`, `num_lte`, `bool_true`, `bool_false` | Enforced | Derived from pending signatures, accepted state, pending methods, pending paths, accepted-state path existence, accepted-state JSON, accepted-state text, accepted-state numbers, and accepted-state booleans |
-| `sent_eq`, `sent_lte`, `sent_to`, `posts_own_key`, `emitted_by`, `keeps_product`, `keeps_product_per_share`, `tracks`, `pays_senders` | Enforced | What the pending commit moves and who wrote it. See [Outflow Predicates](#outflow-predicates). Every node on a network must run a release that evaluates them before a contract relies on them: an older node holds them false |
+| `sent_eq`, `sent_lte`, `sent_to`, `posts_own_key`, `emitted_by`, `keeps_product`, `keeps_product_per_share`, `tracks`, `pays_senders`, `pays_memo_min` | Enforced | What the pending commit moves and who wrote it. See [Outflow Predicates](#outflow-predicates). Every node on a network must run a release that evaluates them before a contract relies on them: an older node holds them false |
 | `timestamp_valid` | Unit-tested extension module only | Implemented in `modality-wasm-validation`; not yet replay evidence for the local first-contract validator |
 | `oracle_attests` | Replay bundle only | Holds only when the commit carries a valid replay bundle for the claim |
 | `before`, `after`, hash predicates, and `wasm` | Never holds | Intended extension vocabulary, not evaluated by the validator yet |
@@ -336,11 +337,13 @@ A pool's liquidity invariant: what one share is worth never falls.
 
 ```modality
 +keeps_product_per_share(/reserves/a.num, /reserves/b.num, /lp/supply.num)
++keeps_product_per_share(/reserves/a.num, /reserves/b.num, /lp/supply.num, /config/fee.num)
 ```
 
 **Arguments:**
 - `a`, `b` — The two reserves, `.num` paths holding numbers in accepted state
 - `supply` — The shares outstanding, a third `.num` path
+- `fee` (optional) — As for `keeps_product`
 
 **Behavior:**
 - "After" is read as for `keeps_product`
@@ -351,6 +354,10 @@ A pool's liquidity invariant: what one share is worth never falls.
 - With no supply before, it holds when a reserve was zero too or the supply
   stays zero: an empty pool's first deposit sets the price, but shares
   cannot be minted against reserves nobody holds shares in
+- With a fee, a commit that leaves the supply as it was (unwritten, or
+  written with the same number) must instead keep the product as
+  `keeps_product(a, b, fee)` does. A swap then pays the fee even when it
+  also writes the supply path
 - Exact, like `keeps_product`
 - Never holds when a path has no accepted number, a pending write there is
   not a number, a number is negative, or two of the paths are the same
@@ -408,7 +415,37 @@ Payouts that go back to whoever paid in.
 always([+SEND -emitted_by(/__programs__/pool.wasm, "5f1e...")] false)
 always([-tracks(/reserves/a.num, "12D3KooW...:tokA")] false)
 always([-pays_senders("12D3KooW...:tokA")] false)
-always([-keeps_product_per_share(/reserves/a.num, /reserves/b.num, /lp/supply.num)] false)
+always([-keeps_product_per_share(/reserves/a.num, /reserves/b.num, /lp/supply.num, /config/fee.num)] false)
+```
+
+### pays_memo_min
+
+A minimum the sender asked for in a memo, kept by the rules.
+
+```modality
++pays_memo_min("min_out")
+```
+
+**Arguments:**
+- `field` — A key of a `RECV`'s stated `memo` (an object, or JSON text of
+  one)
+
+**Behavior:**
+- Looks at every `RECV` of the commit whose memo has a whole number at
+  `field`. Each must be answered by the commit's `SEND`s to its sender
+  (`from_contract`): either they return the asset it received, at least the
+  amount it states, or they pay at least the memo's number of some other
+  asset
+- Holds when no `RECV` has a memo with `field`
+- Never holds when such a `RECV` does not state its sender, asset and
+  amount, or when any `SEND` is malformed
+- The memo is the sender's: apply refuses a `RECV` whose stated memo differs
+  from the one recorded with its `SEND`
+
+**Example:**
+```modality
+// A swap pays the trader's min_out, or returns what they sent
+always([-pays_memo_min("min_out")] false)
 ```
 
 See [A Constant-Product Pool](../tutorials/constant-product-pool.md) for the

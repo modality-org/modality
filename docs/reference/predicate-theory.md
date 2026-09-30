@@ -67,8 +67,8 @@ attestation. The commit can attach it or not without changing anything else,
 so it is a free choice, but only if the oracle's key is in accepted state.
 
 **Opaque predicates.** `sent_eq`, `sent_lte`, `sent_to`, `emitted_by`,
-`keeps_product`, `keeps_product_per_share`, `tracks` and `pays_senders` are
-evaluated, but the theory knows nothing more about them. On an edge each may
+`keeps_product`, `keeps_product_per_share`, `tracks`, `pays_senders` and
+`pays_memo_min` are evaluated, but the theory knows nothing more about them. On an edge each may
 hold or not; it contradicts only its own negation. A box that forbids one
 therefore sees every edge that might take it, which is sound. A diamond that
 needs one is refused: the theory cannot show that any commit takes it.

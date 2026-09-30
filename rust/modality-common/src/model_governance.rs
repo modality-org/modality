@@ -1816,6 +1816,9 @@ struct CommitFacts {
     recvs: Vec<Option<(String, u64)>>,
     /// The `from_contract` each `RECV` states, where it states one.
     recv_senders: Vec<String>,
+    /// Every `RECV`'s statement: sender, asset, amount and memo, each where
+    /// it states one.
+    recv_claims: Vec<RecvClaim>,
     /// For each body action, the program whose `invoke` emitted it.
     emitters: Vec<Option<Emitter>>,
     state: HashMap<String, Value>,
@@ -1900,6 +1903,7 @@ pub(crate) const EVALUATED_PREDICATES: &[&str] = &[
     "keeps_product_per_share",
     "tracks",
     "pays_senders",
+    "pays_memo_min",
 ];
 
 impl CommitFacts {
@@ -1980,6 +1984,12 @@ impl CommitFacts {
                 .filter(|action| action.method.eq_ignore_ascii_case("recv"))
                 .filter_map(|action| action.value.get("from_contract")?.as_str())
                 .map(str::to_string)
+                .collect(),
+            recv_claims: commit
+                .body
+                .iter()
+                .filter(|action| action.method.eq_ignore_ascii_case("recv"))
+                .map(|action| RecvClaim::of(&action.value))
                 .collect(),
             emitters: commit
                 .body
@@ -2147,7 +2157,12 @@ impl CommitFacts {
                 _ => false,
             },
             "keeps_product_per_share" => match args.as_slice() {
-                [a, b, supply] => self.keeps_product_per_share(a, b, supply),
+                [a, b, supply] => self.keeps_product_per_share(a, b, supply, None),
+                [a, b, supply, fee] => self.keeps_product_per_share(a, b, supply, Some(fee)),
+                _ => false,
+            },
+            "pays_memo_min" => match args.as_slice() {
+                [field] => self.pays_memo_min(field),
                 _ => false,
             },
             "tracks" => match args.as_slice() {
@@ -2237,10 +2252,30 @@ impl CommitFacts {
             }
         }
 
+        if property.name == "pays_memo_min" {
+            if let Some(field) = predicate_args(property).first() {
+                let asks: Vec<String> = self
+                    .recv_claims
+                    .iter()
+                    .filter_map(|claim| {
+                        let min = claim.memo.as_ref()?.get(field.as_str())?;
+                        Some(format!(
+                            "a RECV from {} of {} {} asks {field} {min}",
+                            claim.from.as_deref().unwrap_or("?"),
+                            claim.amount.map(|n| n.to_string()).unwrap_or_else(|| "?".into()),
+                            claim.asset.as_deref().unwrap_or("?"),
+                        ))
+                    })
+                    .collect();
+                return format!("missing {formatted} ({})", asks.join("; "));
+            }
+        }
+
         if property.name == "keeps_product_per_share" {
             let args = predicate_args(property);
             let sides: Vec<String> = args
                 .iter()
+                .take(3)
                 .map(|path| match self.before_after(path) {
                     Some((before, after)) => format!("{path} {before} to {after}"),
                     None => format!("{path} has no accepted number or a pending write is not one"),
@@ -2561,12 +2596,14 @@ impl CommitFacts {
         counted(&a0, &a1).mul(&counted(&b0, &b1)) >= a0.mul(&b0)
     }
 
-    /// `keeps_product_per_share(/a.num, /b.num, /supply.num)`: the product of
-    /// the two numbers per share, squared, does not fall:
+    /// `keeps_product_per_share(/a.num, /b.num, /supply.num[, fee])`: the
+    /// product of the two numbers per share, squared, does not fall:
     /// `a' * b' * S^2 >= a * b * S'^2`. Adding or removing liquidity in
     /// proportion keeps it; minting too many shares, or paying out too much
-    /// for the shares burned, breaks it.
-    fn keeps_product_per_share(&self, a: &str, b: &str, supply: &str) -> bool {
+    /// for the shares burned, breaks it. With a fee, a commit that leaves the
+    /// supply as it was is held to `keeps_product(a, b, fee)` instead: a swap
+    /// pays the fee even if it also writes the supply path.
+    fn keeps_product_per_share(&self, a: &str, b: &str, supply: &str, fee: Option<&str>) -> bool {
         let paths = [a, b, supply];
         if paths.iter().any(|p| !p.ends_with(".num"))
             || normalize_path(a) == normalize_path(b)
@@ -2584,7 +2621,44 @@ impl CommitFacts {
         if [&a0, &a1, &b0, &b1, &s0, &s1].iter().any(|n| n.is_negative()) {
             return false;
         }
+        if fee.is_some() && s0 == s1 {
+            return self.keeps_product(a, b, fee);
+        }
         a1.mul(&b1).mul(&s0).mul(&s0) >= a0.mul(&b0).mul(&s1).mul(&s1)
+    }
+
+    /// `pays_memo_min(field)`: every `RECV` whose memo has a whole number at
+    /// `field` (a swap's `min_out`, an add's `min_shares`) is answered by the
+    /// commit's `SEND`s to its sender: they return what it took in, in full,
+    /// or pay at least `field` of some other asset. Holds when no memo names
+    /// `field`; never when such a `RECV` does not state its sender, asset and
+    /// amount, or a `SEND` is malformed.
+    fn pays_memo_min(&self, field: &str) -> bool {
+        let Some(sends) = self.sends.iter().cloned().collect::<Option<Vec<_>>>() else {
+            return false;
+        };
+        let paid = |to: &str, asset: &str| -> u128 {
+            sends
+                .iter()
+                .filter(|(id, dest, _)| dest == to && id == asset)
+                .map(|(_, _, n)| u128::from(*n))
+                .sum()
+        };
+        self.recv_claims.iter().all(|claim| {
+            let Some(wanted) = claim.memo.as_ref().and_then(|m| m.get(field)) else {
+                return true;
+            };
+            let (Some(min), Some(from), Some(asset), Some(amount)) =
+                (wanted.as_u64(), &claim.from, &claim.asset, claim.amount)
+            else {
+                return false;
+            };
+            paid(from, asset) >= u128::from(amount)
+                || sends
+                    .iter()
+                    .filter(|(id, dest, _)| dest == from && id != asset)
+                    .any(|(id, _, _)| paid(from, id) >= u128::from(min))
+        })
     }
 
     /// `pays_senders(asset)`: every `SEND` of `asset` goes to a contract one
@@ -2778,6 +2852,36 @@ impl CommitFacts {
         self.state
             .get(&normalize_path(path))
             .and_then(Value::as_bool)
+    }
+}
+
+/// What a `RECV` states it takes in. Apply refuses a `RECV` whose statement
+/// differs from its `SEND`, so each stated field is what that `SEND` moved.
+#[derive(Debug, Clone)]
+struct RecvClaim {
+    from: Option<String>,
+    asset: Option<String>,
+    amount: Option<u64>,
+    /// The memo as an object; a memo given as JSON text is read as one.
+    memo: Option<serde_json::Map<String, Value>>,
+}
+
+impl RecvClaim {
+    fn of(value: &Value) -> Self {
+        let memo = match value.get("memo") {
+            Some(Value::Object(map)) => Some(map.clone()),
+            Some(Value::String(text)) => match serde_json::from_str(text) {
+                Ok(Value::Object(map)) => Some(map),
+                _ => None,
+            },
+            _ => None,
+        };
+        Self {
+            from: value.get("from_contract").and_then(Value::as_str).map(str::to_string),
+            asset: asset_name(value),
+            amount: value.get("amount").and_then(Value::as_u64),
+            memo,
+        }
     }
 }
 
