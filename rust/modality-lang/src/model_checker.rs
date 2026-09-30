@@ -794,8 +794,15 @@ impl ModelChecker {
         result.expect("start_nodes is never empty")
     }
 
-    /// Check if any witness node satisfies the formula (original behavior)
+    /// Check if any witness node satisfies the formula (original behavior),
+    /// part by part. Edges declared outside a part are merged in first, as
+    /// [`Self::check_formula`] does, so a model without parts is checked too.
     pub fn check_formula_any_state(&self, formula: &Formula) -> ModelCheckResult {
+        if !self.model.transitions.is_empty() {
+            return self
+                .derived(merged_model(&self.model))
+                .check_formula_any_state(formula);
+        }
         let satisfying_states = self.satisfying(&formula.expression);
 
         ModelCheckResult {
@@ -1445,6 +1452,18 @@ mod tests {
 
         model.add_part(graph1);
         model
+    }
+
+    #[test]
+    fn any_node_check_sees_edges_declared_outside_a_part() {
+        let content = "model m {\n  initial q0\n  q0 --> q1: +CANCEL +signed_by(/parties/p.id)\n  q1 --> q0: +ASK -CANCEL\n}\n\nformula f {\n  always([+CANCEL -signed_by(/parties/p.id)] false)\n}\n\nformula g {\n  always([+ASK] false)\n}\n";
+        let model = crate::lalrpop_parser::parse_content_lalrpop(content).unwrap();
+        let formulas = crate::parse_all_formulas_content_lalrpop(content).unwrap();
+        let checker = ModelChecker::new(model);
+        let holds = checker.check_formula_any_state(&formulas[0]);
+        assert!(holds.is_satisfied);
+        assert_eq!(holds.satisfying_states.len(), 2);
+        assert!(!checker.check_formula_any_state(&formulas[1]).is_satisfied);
     }
 
     #[test]

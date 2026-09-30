@@ -241,8 +241,8 @@ pub fn parse_all_formulas_content_lalrpop(content: &str) -> Result<Vec<Formula>,
 
             while i < lines.len() {
                 let line = lines[i];
-                if line.starts_with("formula ") || line.starts_with("model ") {
-                    break; // Start of next formula or model
+                if starts_top_level_item(line) {
+                    break; // Start of the next formula, model, action, test, ...
                 }
                 formula_lines.push(line);
                 i += 1;
@@ -261,6 +261,25 @@ pub fn parse_all_formulas_content_lalrpop(content: &str) -> Result<Vec<Formula>,
     }
 
     Ok(formulas)
+}
+
+/// Whether a trimmed line opens a top-level declaration, which ends the
+/// formula before it.
+fn starts_top_level_item(line: &str) -> bool {
+    [
+        "formula",
+        "model",
+        "action",
+        "test",
+        "contract",
+        "export",
+        "rule_for_this_commit",
+    ]
+    .iter()
+    .any(|keyword| {
+        line.strip_prefix(keyword)
+            .is_some_and(|rest| rest.starts_with([' ', '{']))
+    })
 }
 
 /// Parse a contract from content
@@ -311,6 +330,17 @@ pub fn parse_rule_for_this_commit_content(
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn formulas_end_at_any_top_level_item() {
+        let content = "formula F {\n  <+blue> true\n}\n\naction A {\n  +blue\n}\n\nformula G {\n  [-blue] false\n}\n\ntest {\n  m = clone(M)\n}\n";
+        let formulas = parse_all_formulas_content_lalrpop(content).unwrap();
+        let names: Vec<&str> = formulas.iter().map(|f| f.name.as_str()).collect();
+        assert_eq!(names, ["F", "G"]);
+        assert!(starts_top_level_item("test {"));
+        assert!(!starts_top_level_item("testing(x)"));
+    }
+
     use super::*;
     use crate::ast::{FormulaExpr, PropertySign, TestStatement};
 

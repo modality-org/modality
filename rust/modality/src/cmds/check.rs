@@ -53,7 +53,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
             .ok_or_else(|| anyhow::anyhow!("Formula '{}' not found", formula_name))?
     } else if let Some(formula_text) = &opts.formula_text {
         // Parse the formula text directly
-        let formula_content = format!("formula TempFormula: {}", formula_text);
+        let formula_content = format!("formula TempFormula {{\n{}\n}}", formula_text);
         let formulas = modality_lang::parse_all_formulas_content_lalrpop(&formula_content)
             .map_err(|e| anyhow::anyhow!("Failed to parse formula text: {}", e))?;
 
@@ -92,9 +92,9 @@ pub async fn run(opts: &Opts) -> Result<()> {
     println!();
     println!(
         "📍 Satisfying witness nodes ({}):",
-        result.satisfying_states.len()
+        result_any_state.satisfying_states.len()
     );
-    for state in &result.satisfying_states {
+    for state in &result_any_state.satisfying_states {
         println!("   - {}.{}", state.part_name, state.node_name);
     }
 
