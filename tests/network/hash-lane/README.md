@@ -14,6 +14,9 @@ of 2 hash commitments per sequencer block and an 8-bit hashtax floor:
 - Five commits anchored at once land at most 2 per block; the rest wait for
   later rounds.
 - A REPOST whose source commit was only anchored is refused.
+- Alice anchors a contract's genesis with `--signer` herself. A hash
+  commitment for it signed by Mallory is refused; the same commit signed by
+  Alice is anchored.
 - After a restart the node still reports what it anchored and revealed.
 
 ```bash
