@@ -233,16 +233,24 @@ async fn reject_unsequenced_reposts(
 mod tests {
     use super::*;
 
+    fn id_of(body: Value, head: Value) -> String {
+        serde_json::from_value::<CommitFile>(json!({ "body": body, "head": head }))
+            .unwrap()
+            .compute_id()
+            .unwrap()
+    }
+
     #[tokio::test]
     async fn test_push_accepts_cli_hash_data_fields_and_queues() {
         let mgr = DatastoreManager::create_in_memory().unwrap();
         let (_tx, _rx) = mpsc::channel::<ConsensusMessage>(100);
 
+        let body = json!([{"method": "post", "path": "/hello.txt", "value": "hi"}]);
         let data = json!({
             "contract_id": "test-contract",
             "commits": [{
-                "hash": "abc123",
-                "data": [{"method": "post", "path": "/hello.txt", "value": "hi"}],
+                "hash": id_of(body.clone(), json!({})),
+                "data": body,
                 "head": {"parent": null}
             }]
         });
@@ -262,11 +270,15 @@ mod tests {
     async fn test_repush_keeps_sequenced_commit_and_does_not_requeue_it() {
         let mgr = DatastoreManager::create_in_memory().unwrap();
         let (tx, _rx) = mpsc::channel::<ConsensusMessage>(100);
+        let genesis_body = json!([{"method": "post", "path": "/a.text", "value": "a"}]);
+        let genesis_id = id_of(genesis_body.clone(), json!({}));
+        let next_body = json!([{"method": "post", "path": "/b.text", "value": "b"}]);
+        let next_id = id_of(next_body.clone(), json!({"parent": genesis_id}));
         let push = json!({
             "contract_id": "c",
             "commits": [
-                {"commit_id": "genesis", "body": [{"method": "post", "path": "/a.text", "value": "a"}], "head": {}},
-                {"commit_id": "next", "body": [{"method": "post", "path": "/b.text", "value": "b"}], "head": {"parent": "genesis"}}
+                {"commit_id": genesis_id, "body": genesis_body, "head": {}},
+                {"commit_id": next_id, "body": next_body, "head": {"parent": genesis_id}}
             ]
         });
 
@@ -274,7 +286,7 @@ mod tests {
         mgr.drain_sequencer_events().await.unwrap();
         let keys = [
             ("contract_id".to_string(), "c".to_string()),
-            ("commit_id".to_string(), "genesis".to_string()),
+            ("commit_id".to_string(), genesis_id.clone()),
         ]
         .into_iter()
         .collect::<std::collections::HashMap<_, _>>();
@@ -293,7 +305,29 @@ mod tests {
         assert_eq!(events.len(), 1);
         let commits = events[0]["data"]["commits"].as_array().unwrap();
         assert_eq!(commits.len(), 1);
-        assert_eq!(commits[0]["commit_id"], "next");
+        assert_eq!(commits[0]["commit_id"], json!(next_id));
+    }
+
+    #[tokio::test]
+    async fn test_push_refuses_a_commit_that_does_not_hash_to_its_id() {
+        let mgr = DatastoreManager::create_in_memory().unwrap();
+        let (tx, _rx) = mpsc::channel::<ConsensusMessage>(100);
+        let body = json!([{"method": "post", "path": "/a.text", "value": "a"}]);
+        let genuine = id_of(body.clone(), json!({}));
+        let other = json!([{"method": "post", "path": "/a.text", "value": "forged"}]);
+
+        for (commit_id, body) in [(genuine.as_str(), other), ("made-up", body)] {
+            let data = json!({
+                "contract_id": "c",
+                "commits": [{"commit_id": commit_id, "body": body, "head": {}}]
+            });
+            let response = handler(Some(data), &mgr, tx.clone()).await.unwrap();
+            assert!(!response.ok);
+            let err = response.errors.unwrap().to_string();
+            assert!(err.contains("is not what its body and head hash to"), "{err}");
+        }
+        assert!(mgr.drain_sequencer_events().await.unwrap().is_empty());
+        assert!(Contract::find_by_id_multi(&mgr, "c").await.unwrap().is_none());
     }
 
     #[tokio::test]
@@ -301,18 +335,19 @@ mod tests {
         let mgr = DatastoreManager::create_in_memory().unwrap();
         let (_tx, _rx) = mpsc::channel::<ConsensusMessage>(100);
 
+        let body = json!([{
+            "method": "repost",
+            "path": "/reposts/src/hello.text",
+            "value": "secret",
+            "source_contract": "src",
+            "source_path": "/hello.text",
+            "source_commit": "src-commit"
+        }]);
         let data = json!({
             "contract_id": "dest",
             "commits": [{
-                "commit_id": "dest-commit",
-                "body": [{
-                    "method": "repost",
-                    "path": "/reposts/src/hello.text",
-                    "value": "secret",
-                    "source_contract": "src",
-                    "source_path": "/hello.text",
-                    "source_commit": "src-commit"
-                }],
+                "commit_id": id_of(body.clone(), json!({})),
+                "body": body,
                 "head": {}
             }]
         });

@@ -1,9 +1,9 @@
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use sha2::{Digest, Sha256};
 use tokio::sync::mpsc;
 
+use modality_common::contract_store::CommitFile;
 use modality_datastore::models::Commit;
 use modality_datastore::DatastoreManager;
 
@@ -34,10 +34,10 @@ pub async fn handler(
         anyhow::bail!("Missing request data");
     };
 
-    let commit_json = serde_json::to_string(&req.commit_data)?;
-    let mut hasher = Sha256::new();
-    hasher.update(commit_json.as_bytes());
-    let commit_id = format!("{:x}", hasher.finalize());
+    // Stored under the id its body and head hash to, as a push is.
+    let file: CommitFile = serde_json::from_value(req.commit_data)
+        .map_err(|e| anyhow::anyhow!("commit_data is not a commit: {e}"))?;
+    let commit_id = file.compute_id()?;
 
     let timestamp = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)?
@@ -46,7 +46,7 @@ pub async fn handler(
     let commit = Commit {
         contract_id: req.contract_id.clone(),
         commit_id: commit_id.clone(),
-        commit_data: serde_json::to_string(&req.commit_data)?,
+        commit_data: serde_json::to_string(&file)?,
         timestamp,
         in_batch: None,
     };
@@ -79,12 +79,24 @@ mod tests {
         let data = serde_json::json!({
             "contract_id": "test-contract",
             "commit_data": {
-                "body": ["add", "x", 1],
-                "head": {"version": 1}
+                "body": [{"method": "post", "path": "/a.text", "value": "a"}],
+                "head": {}
             }
         });
 
-        let response = handler(Some(data), &mgr, _tx).await.unwrap();
+        let response = handler(Some(data), &mgr, _tx.clone()).await.unwrap();
         assert!(response.ok);
+        let mut file = CommitFile::new();
+        file.add_action("post".into(), Some("/a.text".into()), serde_json::json!("a"));
+        assert_eq!(
+            response.data.unwrap()["commit_id"],
+            serde_json::json!(file.compute_id().unwrap())
+        );
+
+        let not_a_commit = serde_json::json!({
+            "contract_id": "test-contract",
+            "commit_data": {"body": ["add", "x", 1], "head": {}}
+        });
+        assert!(handler(Some(not_a_commit), &mgr, _tx).await.is_err());
     }
 }

@@ -1429,25 +1429,38 @@ mod tests {
         }
     }
 
-    fn dest_push(commit_id: &str) -> serde_json::Value {
-        json!({
+    /// A push of one commit, under the id its body and head hash to.
+    fn pushed(
+        contract_id: &str,
+        body: serde_json::Value,
+        head: serde_json::Value,
+    ) -> (String, serde_json::Value) {
+        let file: CommitFile =
+            serde_json::from_value(json!({ "body": body, "head": head })).unwrap();
+        let id = file.compute_id().unwrap();
+        let event = json!({
             "type": "contract_push",
             "data": {
-                "contract_id": "dest",
-                "commits": [{
-                    "commit_id": commit_id,
-                    "body": [{
-                        "method": "repost",
-                        "path": "/reposts/src/hello.text",
-                        "value": "from source",
-                        "source_contract": "src",
-                        "source_path": "/hello.text",
-                        "source_commit": "src-commit"
-                    }],
-                    "head": {}
-                }]
+                "contract_id": contract_id,
+                "commits": [{ "commit_id": id, "body": body, "head": head }]
             }
-        })
+        });
+        (id, event)
+    }
+
+    fn dest_push() -> (String, serde_json::Value) {
+        pushed(
+            "dest",
+            json!([{
+                "method": "repost",
+                "path": "/reposts/src/hello.text",
+                "value": "from source",
+                "source_contract": "src",
+                "source_path": "/hello.text",
+                "source_commit": "src-commit"
+            }]),
+            json!({}),
+        )
     }
 
     fn prefix_cert_event(peer: &str, digest: &str) -> serde_json::Value {
@@ -1533,21 +1546,15 @@ mod tests {
             .and_then(|c| c.in_batch)
     }
 
-    fn dest_recv_push(commit_id: &str) -> serde_json::Value {
-        json!({
-            "type": "contract_push",
-            "data": {
-                "contract_id": "bob",
-                "commits": [{
-                    "commit_id": commit_id,
-                    "body": [{
-                        "method": "recv",
-                        "value": { "send_commit_id": "send-mod" }
-                    }],
-                    "head": {}
-                }]
-            }
-        })
+    fn dest_recv_push() -> (String, serde_json::Value) {
+        pushed(
+            "bob",
+            json!([{
+                "method": "recv",
+                "value": { "send_commit_id": "send-mod" }
+            }]),
+            json!({}),
+        )
     }
 
     async fn sequenced_mod_send(ds: &Arc<Mutex<DatastoreManager>>, require_cert: bool) {
@@ -1606,27 +1613,30 @@ mod tests {
     #[tokio::test]
     async fn dest_repost_without_cert_sets_in_batch_when_flag_false() {
         let ds = Arc::new(Mutex::new(DatastoreManager::create_in_memory().unwrap()));
+        let (id, push) = dest_push();
         sequenced_source(&ds, false).await;
-        apply_certified_contract_events(&certified_block(vec![dest_push("d1")], "batch-ok"), &ds)
+        apply_certified_contract_events(&certified_block(vec![push], "batch-ok"), &ds)
             .await;
-        assert_eq!(dest_in_batch(&ds, "d1").await.as_deref(), Some("batch-ok"));
+        assert_eq!(dest_in_batch(&ds, &id).await.as_deref(), Some("batch-ok"));
     }
 
     #[tokio::test]
     async fn dest_repost_without_cert_skips_in_batch_when_flag_true() {
         let ds = Arc::new(Mutex::new(DatastoreManager::create_in_memory().unwrap()));
+        let (id, push) = dest_push();
         sequenced_source(&ds, true).await;
         apply_certified_contract_events(
-            &certified_block(vec![dest_push("d-fail")], "batch-fail"),
+            &certified_block(vec![push], "batch-fail"),
             &ds,
         )
         .await;
-        assert!(dest_in_batch(&ds, "d-fail").await.is_none());
+        assert!(dest_in_batch(&ds, &id).await.is_none());
     }
 
     #[tokio::test]
     async fn dest_repost_succeeds_when_cert_is_later_in_same_batch() {
         let ds = Arc::new(Mutex::new(DatastoreManager::create_in_memory().unwrap()));
+        let (id, push) = dest_push();
         sequenced_source(&ds, true).await;
         let digest = {
             let mgr = ds.lock().await;
@@ -1647,12 +1657,12 @@ mod tests {
             "fee_quoted": 0
         });
         apply_certified_contract_events(
-            &certified_block(vec![dest_push("d-ok"), cert], "batch-cert"),
+            &certified_block(vec![push, cert], "batch-cert"),
             &ds,
         )
         .await;
         assert_eq!(
-            dest_in_batch(&ds, "d-ok").await.as_deref(),
+            dest_in_batch(&ds, &id).await.as_deref(),
             Some("batch-cert")
         );
     }
@@ -1660,6 +1670,7 @@ mod tests {
     #[tokio::test]
     async fn dest_repost_n3_one_cert_leaves_in_batch_unset() {
         let ds = Arc::new(Mutex::new(DatastoreManager::create_in_memory().unwrap()));
+        let (id, push) = dest_push();
         sequenced_source_named(&ds, true, &["peer1", "peer2", "peer3"]).await;
         let digest = {
             let mgr = ds.lock().await;
@@ -1670,18 +1681,19 @@ mod tests {
         };
         apply_certified_contract_events(
             &certified_block(
-                vec![dest_push("d-one"), prefix_cert_event("peer1", &digest)],
+                vec![push, prefix_cert_event("peer1", &digest)],
                 "batch-one",
             ),
             &ds,
         )
         .await;
-        assert!(dest_in_batch(&ds, "d-one").await.is_none());
+        assert!(dest_in_batch(&ds, &id).await.is_none());
     }
 
     #[tokio::test]
     async fn dest_repost_n3_two_matching_certs_in_same_batch_sets_in_batch() {
         let ds = Arc::new(Mutex::new(DatastoreManager::create_in_memory().unwrap()));
+        let (id, push) = dest_push();
         sequenced_source_named(&ds, true, &["peer1", "peer2", "peer3"]).await;
         let digest = {
             let mgr = ds.lock().await;
@@ -1693,7 +1705,7 @@ mod tests {
         apply_certified_contract_events(
             &certified_block(
                 vec![
-                    dest_push("d-qc"),
+                    push,
                     prefix_cert_event("peer1", &digest),
                     prefix_cert_event("peer2", &digest),
                 ],
@@ -1703,7 +1715,7 @@ mod tests {
         )
         .await;
         assert_eq!(
-            dest_in_batch(&ds, "d-qc").await.as_deref(),
+            dest_in_batch(&ds, &id).await.as_deref(),
             Some("batch-qc")
         );
     }
@@ -1711,6 +1723,7 @@ mod tests {
     #[tokio::test]
     async fn dest_repost_n3_conflicting_digests_do_not_form_qc() {
         let ds = Arc::new(Mutex::new(DatastoreManager::create_in_memory().unwrap()));
+        let (id, push) = dest_push();
         sequenced_source_named(&ds, true, &["peer1", "peer2", "peer3"]).await;
         let digest = {
             let mgr = ds.lock().await;
@@ -1722,7 +1735,7 @@ mod tests {
         apply_certified_contract_events(
             &certified_block(
                 vec![
-                    dest_push("d-split"),
+                    push,
                     prefix_cert_event("peer1", &digest),
                     prefix_cert_event("peer2", "deadbeef"),
                 ],
@@ -1731,20 +1744,21 @@ mod tests {
             &ds,
         )
         .await;
-        assert!(dest_in_batch(&ds, "d-split").await.is_none());
+        assert!(dest_in_batch(&ds, &id).await.is_none());
     }
 
     #[tokio::test]
     async fn dest_recv_without_cert_sets_in_batch_when_flag_false() {
         let ds = Arc::new(Mutex::new(DatastoreManager::create_in_memory().unwrap()));
+        let (id, push) = dest_recv_push();
         sequenced_mod_send(&ds, false).await;
         apply_certified_contract_events(
-            &certified_block(vec![dest_recv_push("recv-ok")], "batch-recv"),
+            &certified_block(vec![push], "batch-recv"),
             &ds,
         )
         .await;
         assert_eq!(
-            in_batch_of(&ds, "bob", "recv-ok").await.as_deref(),
+            in_batch_of(&ds, "bob", &id).await.as_deref(),
             Some("batch-recv")
         );
     }
@@ -1752,13 +1766,14 @@ mod tests {
     #[tokio::test]
     async fn dest_recv_without_cert_skips_in_batch_when_flag_true() {
         let ds = Arc::new(Mutex::new(DatastoreManager::create_in_memory().unwrap()));
+        let (id, push) = dest_recv_push();
         sequenced_mod_send(&ds, true).await;
         apply_certified_contract_events(
-            &certified_block(vec![dest_recv_push("recv-fail")], "batch-fail"),
+            &certified_block(vec![push], "batch-fail"),
             &ds,
         )
         .await;
-        assert!(in_batch_of(&ds, "bob", "recv-fail").await.is_none());
+        assert!(in_batch_of(&ds, "bob", &id).await.is_none());
         let mgr = ds.lock().await;
         let requests = mgr.drain_prefix_cert_requests().unwrap();
         assert_eq!(
@@ -1771,30 +1786,32 @@ mod tests {
     #[tokio::test]
     async fn a_second_child_of_a_sequenced_commit_is_refused() {
         let ds = Arc::new(Mutex::new(DatastoreManager::create_in_memory().unwrap()));
-        let push = |id: &str, parent: Option<&str>, note: &str| {
-            json!({
-                "type": "contract_push",
-                "data": {
-                    "contract_id": "pool",
-                    "commits": [{
-                        "commit_id": id,
-                        "body": [{"method": "post", "path": "/note.text", "value": note}],
-                        "head": {"parent": parent}
-                    }]
-                }
-            })
+        let push = |parent: Option<&str>, note: &str| {
+            let head = match parent {
+                Some(parent) => json!({ "parent": parent }),
+                None => json!({}),
+            };
+            pushed(
+                "pool",
+                json!([{"method": "post", "path": "/note.text", "value": note}]),
+                head,
+            )
         };
+        let (root, root_push) = push(None, "root");
+        let (first, first_push) = push(Some(&root), "first");
+        let (second, second_push) = push(Some(&root), "second");
+        let (next, next_push) = push(Some(&first), "next");
         for (batch, event) in [
-            ("b0", push("root", None, "root")),
-            ("b1", push("first", Some("root"), "first")),
-            ("b2", push("second", Some("root"), "second")),
-            ("b3", push("next", Some("first"), "next")),
+            ("b0", root_push),
+            ("b1", first_push),
+            ("b2", second_push),
+            ("b3", next_push),
         ] {
             apply_certified_contract_events(&certified_block(vec![event], batch), &ds).await;
         }
-        assert_eq!(in_batch_of(&ds, "pool", "first").await.as_deref(), Some("b1"));
-        assert!(in_batch_of(&ds, "pool", "second").await.is_none(), "a fork of the log");
-        assert_eq!(in_batch_of(&ds, "pool", "next").await.as_deref(), Some("b3"));
+        assert_eq!(in_batch_of(&ds, "pool", &first).await.as_deref(), Some("b1"));
+        assert!(in_batch_of(&ds, "pool", &second).await.is_none(), "a fork of the log");
+        assert_eq!(in_batch_of(&ds, "pool", &next).await.as_deref(), Some("b3"));
         let mgr = ds.lock().await;
         assert_eq!(
             mgr.get_string("/contracts/pool/note.text").await.unwrap().as_deref(),
@@ -1803,8 +1820,24 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn a_certified_commit_that_does_not_hash_to_its_id_is_not_applied() {
+        let ds = Arc::new(Mutex::new(DatastoreManager::create_in_memory().unwrap()));
+        let (id, mut event) = pushed(
+            "c",
+            json!([{"method": "post", "path": "/a.text", "value": "a"}]),
+            json!({}),
+        );
+        event["data"]["commits"][0]["body"][0]["value"] = json!("forged");
+        apply_certified_contract_events(&certified_block(vec![event], "b0"), &ds).await;
+        assert!(in_batch_of(&ds, "c", &id).await.is_none());
+        let mgr = ds.lock().await;
+        assert!(mgr.get_string("/contracts/c/a.text").await.unwrap().is_none());
+    }
+
+    #[tokio::test]
     async fn dest_recv_succeeds_when_send_prefix_cert_in_same_batch() {
         let ds = Arc::new(Mutex::new(DatastoreManager::create_in_memory().unwrap()));
+        let (id, push) = dest_recv_push();
         sequenced_mod_send(&ds, true).await;
         let digest = {
             let mgr = ds.lock().await;
@@ -1823,12 +1856,12 @@ mod tests {
             "fee_quoted": 0
         });
         apply_certified_contract_events(
-            &certified_block(vec![dest_recv_push("recv-qc"), cert], "batch-qc"),
+            &certified_block(vec![push, cert], "batch-qc"),
             &ds,
         )
         .await;
         assert_eq!(
-            in_batch_of(&ds, "bob", "recv-qc").await.as_deref(),
+            in_batch_of(&ds, "bob", &id).await.as_deref(),
             Some("batch-qc")
         );
     }
@@ -1842,25 +1875,6 @@ model FirstContract {
 }
 "#;
 
-    fn modeled_push(
-        contract_id: &str,
-        commit_id: &str,
-        body: serde_json::Value,
-        head: serde_json::Value,
-    ) -> serde_json::Value {
-        json!({
-            "type": "contract_push",
-            "data": {
-                "contract_id": contract_id,
-                "commits": [{
-                    "commit_id": commit_id,
-                    "body": body,
-                    "head": head
-                }]
-            }
-        })
-    }
-
     fn bootstrap_body() -> serde_json::Value {
         json!([
             { "method": "post", "path": "/parties/alice.id", "value": "alice_key" },
@@ -1872,34 +1886,26 @@ model FirstContract {
     #[tokio::test]
     async fn modeled_unsigned_commit_is_not_sequenced() {
         let ds = Arc::new(Mutex::new(DatastoreManager::create_in_memory().unwrap()));
-        apply_certified_contract_events(
-            &certified_block(
-                vec![modeled_push("c1", "bootstrap", bootstrap_body(), json!({}))],
-                "batch-boot",
-            ),
-            &ds,
-        )
-        .await;
+        let (boot, boot_push) = pushed("c1", bootstrap_body(), json!({}));
+        apply_certified_contract_events(&certified_block(vec![boot_push], "batch-boot"), &ds)
+            .await;
         assert_eq!(
-            in_batch_of(&ds, "c1", "bootstrap").await.as_deref(),
+            in_batch_of(&ds, "c1", &boot).await.as_deref(),
             Some("batch-boot")
         );
 
+        let (unsigned, unsigned_push) = pushed(
+            "c1",
+            json!([{ "method": "post", "path": "/notes/unsigned.text", "value": "no" }]),
+            json!({ "parent": boot }),
+        );
         apply_certified_contract_events(
-            &certified_block(
-                vec![modeled_push(
-                    "c1",
-                    "unsigned",
-                    json!([{ "method": "post", "path": "/notes/unsigned.text", "value": "no" }]),
-                    json!({ "parent": "bootstrap" }),
-                )],
-                "batch-bad",
-            ),
+            &certified_block(vec![unsigned_push], "batch-bad"),
             &ds,
         )
         .await;
         assert!(
-            in_batch_of(&ds, "c1", "unsigned").await.is_none(),
+            in_batch_of(&ds, "c1", &unsigned).await.is_none(),
             "unsigned commit that local verify rejects must not be sequenced"
         );
     }
@@ -1907,33 +1913,22 @@ model FirstContract {
     #[tokio::test]
     async fn modeled_signed_commit_is_sequenced() {
         let ds = Arc::new(Mutex::new(DatastoreManager::create_in_memory().unwrap()));
-        apply_certified_contract_events(
-            &certified_block(
-                vec![modeled_push("c1", "bootstrap", bootstrap_body(), json!({}))],
-                "batch-boot",
-            ),
-            &ds,
-        )
-        .await;
+        let (boot, boot_push) = pushed("c1", bootstrap_body(), json!({}));
+        apply_certified_contract_events(&certified_block(vec![boot_push], "batch-boot"), &ds)
+            .await;
 
-        apply_certified_contract_events(
-            &certified_block(
-                vec![modeled_push(
-                    "c1",
-                    "signed",
-                    json!([{ "method": "post", "path": "/notes/signed.text", "value": "yes" }]),
-                    json!({
-                        "parent": "bootstrap",
-                        "signatures": { "alice_key": "sig" }
-                    }),
-                )],
-                "batch-ok",
-            ),
-            &ds,
-        )
-        .await;
+        let (signed, signed_push) = pushed(
+            "c1",
+            json!([{ "method": "post", "path": "/notes/signed.text", "value": "yes" }]),
+            json!({
+                "parent": boot,
+                "signatures": { "alice_key": "sig" }
+            }),
+        );
+        apply_certified_contract_events(&certified_block(vec![signed_push], "batch-ok"), &ds)
+            .await;
         assert_eq!(
-            in_batch_of(&ds, "c1", "signed").await.as_deref(),
+            in_batch_of(&ds, "c1", &signed).await.as_deref(),
             Some("batch-ok")
         );
     }
@@ -1941,29 +1936,23 @@ model FirstContract {
     #[tokio::test]
     async fn reapplying_certified_create_keeps_in_batch() {
         let ds = Arc::new(Mutex::new(DatastoreManager::create_in_memory().unwrap()));
-        let event = json!({
-            "type": "contract_push",
-            "data": {
-                "contract_id": "alice",
-                "commits": [{
-                    "commit_id": "create-token",
-                    "body": [{
-                        "method": "create",
-                        "value": { "asset_id": "TOKEN", "quantity": 1, "divisibility": 1 }
-                    }],
-                    "head": {}
-                }]
-            }
-        });
+        let (create, event) = pushed(
+            "alice",
+            json!([{
+                "method": "create",
+                "value": { "asset_id": "TOKEN", "quantity": 1, "divisibility": 1 }
+            }]),
+            json!({}),
+        );
         apply_certified_contract_events(&certified_block(vec![event.clone()], "batch-1"), &ds)
             .await;
         assert_eq!(
-            in_batch_of(&ds, "alice", "create-token").await.as_deref(),
+            in_batch_of(&ds, "alice", &create).await.as_deref(),
             Some("batch-1")
         );
         apply_certified_contract_events(&certified_block(vec![event], "batch-2"), &ds).await;
         assert_eq!(
-            in_batch_of(&ds, "alice", "create-token").await.as_deref(),
+            in_batch_of(&ds, "alice", &create).await.as_deref(),
             Some("batch-1"),
             "second apply must not clear in_batch after CREATE already-exists"
         );
@@ -1992,18 +1981,12 @@ model FirstContract {
         block
     }
 
-    fn genesis_push() -> serde_json::Value {
-        json!({
-            "type": "contract_push",
-            "data": {
-                "contract_id": "src",
-                "commits": [{
-                    "commit_id": "genesis",
-                    "body": [{ "method": "post", "path": "/hello.text", "value": "hi" }],
-                    "head": {}
-                }]
-            }
-        })
+    fn genesis_push() -> (String, serde_json::Value) {
+        pushed(
+            "src",
+            json!([{ "method": "post", "path": "/hello.text", "value": "hi" }]),
+            json!({}),
+        )
     }
 
     #[tokio::test]
@@ -2011,7 +1994,8 @@ model FirstContract {
         let author = Keypair::generate().unwrap();
         let a1 = Keypair::generate().unwrap();
         let a2 = Keypair::generate().unwrap();
-        let block = signed_certified_block(&author, &[&author, &a1, &a2], 8, vec![genesis_push()]);
+        let (genesis, push) = genesis_push();
+        let block = signed_certified_block(&author, &[&author, &a1, &a2], 8, vec![push]);
 
         let (tx, mut rx) = mpsc::channel(4);
         crate::gossip::consensus::block::cert::handler(serde_json::to_string(&block).unwrap(), tx)
@@ -2031,7 +2015,7 @@ model FirstContract {
             ReceivedCert::Accepted
         );
         apply_certified_contract_events(&received, &receiver).await;
-        assert_eq!(in_batch_of(&receiver, "src", "genesis").await, received.cert);
+        assert_eq!(in_batch_of(&receiver, "src", &genesis).await, received.cert);
 
         assert_eq!(
             accept_received_certified_block(&received, "receiver", 4, &receiver).await,
@@ -2040,7 +2024,7 @@ model FirstContract {
         );
         apply_certified_contract_events(&received, &receiver).await;
         assert_eq!(
-            in_batch_of(&receiver, "src", "genesis").await,
+            in_batch_of(&receiver, "src", &genesis).await,
             received.cert,
             "re-applying a duplicate keeps the first sequencing"
         );
@@ -2066,7 +2050,8 @@ model FirstContract {
         let author = Keypair::generate().unwrap();
         let a1 = Keypair::generate().unwrap();
         let a2 = Keypair::generate().unwrap();
-        let good = signed_certified_block(&author, &[&author, &a1, &a2], 8, vec![genesis_push()]);
+        let (genesis, push) = genesis_push();
+        let good = signed_certified_block(&author, &[&author, &a1, &a2], 8, vec![push]);
         let short = signed_certified_block(&a1, &[&a1], 9, vec![]);
         let receiver = Arc::new(Mutex::new(DatastoreManager::create_in_memory().unwrap()));
 
@@ -2083,7 +2068,7 @@ model FirstContract {
         )
         .await;
 
-        assert_eq!(in_batch_of(&receiver, "src", "genesis").await, good.cert);
+        assert_eq!(in_batch_of(&receiver, "src", &genesis).await, good.cert);
         let mgr = receiver.lock().await;
         assert_eq!(mgr.get_current_round().await.unwrap(), 12);
         assert!(SequencerBlock::find_final_by_round_peer_multi(&mgr, 9, &short.peer_id)
@@ -2100,7 +2085,7 @@ model FirstContract {
     async fn receiver_rejects_certificate_below_committee_threshold() {
         let author = Keypair::generate().unwrap();
         let a1 = Keypair::generate().unwrap();
-        let block = signed_certified_block(&author, &[&author, &a1], 3, vec![genesis_push()]);
+        let block = signed_certified_block(&author, &[&author, &a1], 3, vec![genesis_push().1]);
         let receiver = Arc::new(Mutex::new(DatastoreManager::create_in_memory().unwrap()));
         assert_eq!(
             accept_received_certified_block(&block, "receiver", 4, &receiver).await,
@@ -2116,6 +2101,7 @@ model FirstContract {
     #[tokio::test]
     async fn dest_repost_waiting_for_quorum_sequences_when_second_cert_lands_later() {
         let ds = Arc::new(Mutex::new(DatastoreManager::create_in_memory().unwrap()));
+        let (id, push) = dest_push();
         sequenced_source_named(&ds, true, &["peer1", "peer2", "peer3"]).await;
         let digest = {
             let mgr = ds.lock().await;
@@ -2126,13 +2112,13 @@ model FirstContract {
         };
         apply_certified_contract_events(
             &certified_block(
-                vec![dest_push("d-late"), prefix_cert_event("peer1", &digest)],
+                vec![push, prefix_cert_event("peer1", &digest)],
                 "batch-first",
             ),
             &ds,
         )
         .await;
-        assert!(dest_in_batch(&ds, "d-late").await.is_none());
+        assert!(dest_in_batch(&ds, &id).await.is_none());
 
         apply_certified_contract_events(
             &certified_block(vec![prefix_cert_event("peer2", &digest)], "batch-cert"),
@@ -2140,7 +2126,7 @@ model FirstContract {
         )
         .await;
         assert_eq!(
-            dest_in_batch(&ds, "d-late").await.as_deref(),
+            dest_in_batch(&ds, &id).await.as_deref(),
             Some("batch-first")
         );
         let mgr = ds.lock().await;
@@ -2150,6 +2136,7 @@ model FirstContract {
     #[tokio::test]
     async fn dest_repost_stays_parked_until_quorum() {
         let ds = Arc::new(Mutex::new(DatastoreManager::create_in_memory().unwrap()));
+        let (id, push) = dest_push();
         sequenced_source_named(&ds, true, &["peer1", "peer2", "peer3"]).await;
         let digest = {
             let mgr = ds.lock().await;
@@ -2159,7 +2146,7 @@ model FirstContract {
                 .1
         };
         apply_certified_contract_events(
-            &certified_block(vec![dest_push("d-park")], "batch-first"),
+            &certified_block(vec![push], "batch-first"),
             &ds,
         )
         .await;
@@ -2168,7 +2155,7 @@ model FirstContract {
             &ds,
         )
         .await;
-        assert!(dest_in_batch(&ds, "d-park").await.is_none());
+        assert!(dest_in_batch(&ds, &id).await.is_none());
         {
             let mgr = ds.lock().await;
             assert_eq!(load_parked(&mgr, &PREFIX_CERT_QUEUE).len(), 1);
@@ -2179,7 +2166,7 @@ model FirstContract {
         )
         .await;
         assert_eq!(
-            dest_in_batch(&ds, "d-park").await.as_deref(),
+            dest_in_batch(&ds, &id).await.as_deref(),
             Some("batch-first")
         );
     }

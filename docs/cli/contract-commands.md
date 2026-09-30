@@ -337,6 +337,17 @@ contract's current head: if another commit was already sequenced on the same
 parent, the sequencer refuses yours ("forks the contract"). Pull, then commit
 again on the new head.
 
+A commit's id is the SHA-256 of the commit as compact JSON,
+`{"body":[...],"head":{...}}`: each action's fields and the head's in the order
+`modal` writes them, and the keys of every object inside a value sorted. A
+node recomputes the id from the body and head it receives and refuses a commit
+that does not hash to it; nothing of that push is queued. Write commits with
+`modal c commit`, or hash them the same way.
+
+On chain remotes, `push`, `pull`, `anchor` and `replay` start a short-lived
+node. It logs warnings and errors to stderr, so stdout carries only the
+command's output (`--output json` parses as is). Set `RUST_LOG=info` for more.
+
 ## Anchor
 
 ```bash

@@ -121,7 +121,8 @@ commit = {
     }],
     "head": {"parent": head},
 }
-blob = json.dumps(commit, separators=(",", ":"), ensure_ascii=False)
+# The id hashes the commit as a node serializes it: compact, keys sorted.
+blob = json.dumps(commit, separators=(",", ":"), ensure_ascii=False, sort_keys=True)
 commit_id = hashlib.sha256(blob.encode()).hexdigest()
 (contract / ".contract/commits" / f"{commit_id}.json").write_text(json.dumps(commit, indent=2) + "\n")
 (contract / ".contract/HEAD").write_text(commit_id + "\n")

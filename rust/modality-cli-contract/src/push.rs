@@ -86,7 +86,7 @@ pub(crate) async fn p2p_request(
     }
     node_config.bootstrappers = Some(vec![]);
 
-    let _ = modality_node::logging::init_logging(None, Some(false), None);
+    modality_node::logging::init_logging_for_cli();
     let mut node = Node::from_config(node_config.clone()).await?;
     node.setup(&node_config).await?;
 

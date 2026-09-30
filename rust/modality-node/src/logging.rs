@@ -182,6 +182,16 @@ pub fn init_logging(
     init_logging_with_sink(logs_path, logs_enabled, log_level, LoggingSink::default())
 }
 
+/// Initialize logging for a CLI command that runs a short-lived node to reach
+/// a remote one (`push`, `pull`, `anchor`, `replay`). Lines go to stderr, so
+/// the command's stdout is only its own output (`--output json` parses), and
+/// only warnings and errors show unless `RUST_LOG` asks for more.
+pub fn init_logging_for_cli() {
+    let _ = env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("warn"))
+        .target(env_logger::Target::Stderr)
+        .try_init();
+}
+
 /// Initialize logging for the terminal UI: file + in-memory ring, no stdout.
 pub fn init_logging_for_tui(
     logs_path: Option<PathBuf>,
