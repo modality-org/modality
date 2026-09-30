@@ -209,13 +209,20 @@ pub fn index_certified(block: &SequencerBlock, batch_id: &str, mgr: &DatastoreMa
         }
     };
     let mut indexed = 0;
-    let signer_sets = |contract_id: &str| mgr.hash_signer_set(contract_id).ok().flatten();
+    // A set binds the rounds after the one that certified it, so blocks of
+    // one round index the same records whatever order a node applies them in.
+    let signer_sets = |contract_id: &str| {
+        mgr.hash_signer_set_before(contract_id, block.round_id)
+            .ok()
+            .flatten()
+    };
     for record in records_to_index(&block.events, &params, &signer_sets) {
         let mut entry = match serde_json::to_value(&record) {
             Ok(entry) => entry,
             Err(_) => continue,
         };
         entry["work_bits"] = json!(record.work_bits());
+        entry["work_digest"] = json!(record.work_digest_hex());
         entry["batch_id"] = json!(batch_id);
         entry["round_id"] = json!(block.round_id);
         entry["sequencer"] = json!(block.peer_id);
@@ -261,6 +268,8 @@ pub fn is_reveal(commit_entry: &Value) -> bool {
 /// A reveal is sequenced only if its body hashes to its commit id and a
 /// certified hash commitment names that commit. The record's parent is signed
 /// data, not a check: the body's own parent is what apply holds to the head.
+/// A genesis body of a contract with a certified signer set must post that
+/// set under its creation rule.
 pub fn check_reveal(
     mgr: &DatastoreManager,
     contract_id: &str,
@@ -281,16 +290,26 @@ pub fn check_reveal(
         )));
     }
     match mgr.hash_commitment(contract_id, commit_id) {
-        Ok(Some(_)) => Ok(()),
-        Ok(None) => Err(RevealRefusal::NotAnchored),
-        Err(e) => Err(RevealRefusal::Mismatch(e.to_string())),
+        Ok(Some(_)) => {}
+        Ok(None) => return Err(RevealRefusal::NotAnchored),
+        Err(e) => return Err(RevealRefusal::Mismatch(e.to_string())),
     }
+    if file.head.parent.is_none() {
+        let set = mgr
+            .hash_signer_set(contract_id)
+            .map_err(|e| RevealRefusal::Mismatch(e.to_string()))?;
+        if let Some(set) = set {
+            modality_common::hash_commitment::genesis_names_signer_set(&file.body, &set)
+                .map_err(|e| RevealRefusal::Mismatch(e.to_string()))?;
+        }
+    }
+    Ok(())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use modality_common::hash_commitment::HASHTAX_SHA256;
+    use modality_common::hash_commitment::{sign_signer_set, signer_set_payload, HASHTAX_SHA256};
     use modality_common::keypair::Keypair;
 
     fn view(quota: usize) -> LaneView {
@@ -316,9 +335,13 @@ mod tests {
     }
 
     fn block(events: Vec<Value>) -> SequencerBlock {
+        block_by("peer", 1, events)
+    }
+
+    fn block_by(peer: &str, round: u64, events: Vec<Value>) -> SequencerBlock {
         SequencerBlock {
-            peer_id: "peer".into(),
-            round_id: 1,
+            peer_id: peer.into(),
+            round_id: round,
             prev_round_certs: Default::default(),
             opening_sig: None,
             events,
@@ -403,47 +426,175 @@ mod tests {
 
     }
 
-    #[tokio::test]
-    async fn a_certified_signer_set_keeps_other_keys_out_of_the_index() {
+    async fn lane(quota: usize) -> DatastoreManager {
         let mgr = DatastoreManager::create_in_memory().unwrap();
         mgr.load_network_config(&json!({
             "name": "t",
-            "hash_lane": {"quota_per_block": 4, "floor_bits": 4}
+            "hash_lane": {"quota_per_block": quota, "floor_bits": 4}
         }))
         .await
         .unwrap();
-        let alice = Keypair::generate().unwrap();
-        let mallory = Keypair::generate().unwrap();
-        let grind = |mut r: HashCommitment| {
-            r.grind(&static_anchor("t"), 4).unwrap();
-            r.to_event().unwrap()
-        };
-        let genesis = grind(
+        mgr
+    }
+
+    fn grind(mut r: HashCommitment) -> Value {
+        r.grind(&static_anchor("t"), 4).unwrap();
+        r.to_event().unwrap()
+    }
+
+    /// A genesis record posting `set`, attested by the contract's key.
+    fn genesis_with(contract: &Keypair, signer: &Keypair, commit: &str, set: &[&Keypair]) -> Value {
+        let set: Vec<String> = set.iter().map(|k| k.public_key_as_base58_identity()).collect();
+        let attested = sign_signer_set(contract, commit, &set).unwrap();
+        grind(
             HashCommitment::signed_genesis(
-                &alice,
-                "c",
-                &"11".repeat(32),
-                vec![alice.public_key_as_base58_identity()],
+                signer,
+                &contract.public_key_as_base58_identity(),
+                commit,
+                set,
+                attested,
             )
             .unwrap(),
-        );
-        assert_eq!(index_certified(&block(vec![genesis]), "b1", &mgr), 1);
+        )
+    }
+
+    #[tokio::test]
+    async fn a_certified_signer_set_keeps_other_keys_out_of_the_index() {
+        let mgr = lane(4).await;
+        let contract = Keypair::generate().unwrap();
+        let c = contract.public_key_as_base58_identity();
+        let alice = Keypair::generate().unwrap();
+        let mallory = Keypair::generate().unwrap();
+        let genesis = genesis_with(&contract, &alice, &"11".repeat(32), &[&alice]);
+        assert_eq!(index_certified(&block_by("p", 1, vec![genesis]), "b1", &mgr), 1);
         assert_eq!(
-            mgr.hash_signer_set("c").unwrap(),
+            mgr.hash_signer_set(&c).unwrap(),
             Some(vec![alice.public_key_as_base58_identity()])
         );
 
         let parent = "11".repeat(32);
-        let by_alice = grind(HashCommitment::signed(&alice, "c", &"22".repeat(32), Some(&parent)).unwrap());
+        let by_alice =
+            grind(HashCommitment::signed(&alice, &c, &"22".repeat(32), Some(&parent)).unwrap());
         let by_mallory =
-            grind(HashCommitment::signed(&mallory, "c", &"33".repeat(32), Some(&parent)).unwrap());
+            grind(HashCommitment::signed(&mallory, &c, &"33".repeat(32), Some(&parent)).unwrap());
         let mut view = view(4);
         view.signer_sets = mgr.hash_signer_sets().unwrap();
         assert!(check_draft(&block(vec![by_mallory.clone()]), &view).is_err());
         check_draft(&block(vec![by_alice.clone()]), &view).unwrap();
 
-        assert_eq!(index_certified(&block(vec![by_alice, by_mallory]), "b2", &mgr), 1);
-        assert!(mgr.hash_commitment("c", &"22".repeat(32)).unwrap().is_some());
-        assert!(mgr.hash_commitment("c", &"33".repeat(32)).unwrap().is_none());
+        let later = block_by("p", 2, vec![by_alice, by_mallory]);
+        assert_eq!(index_certified(&later, "b2", &mgr), 1);
+        assert!(mgr.hash_commitment(&c, &"22".repeat(32)).unwrap().is_some());
+        assert!(mgr.hash_commitment(&c, &"33".repeat(32)).unwrap().is_none());
+    }
+
+    #[tokio::test]
+    async fn a_copied_genesis_hash_cannot_take_or_strip_the_signer_set() {
+        let mgr = lane(4).await;
+        let contract = Keypair::generate().unwrap();
+        let c = contract.public_key_as_base58_identity();
+        let alice = Keypair::generate().unwrap();
+        let mallory = Keypair::generate().unwrap();
+        let genesis_id = "11".repeat(32);
+
+        // Mallory posts her own set for Alice's genesis, attested with her
+        // key rather than the contract's: not a record.
+        let own = vec![mallory.public_key_as_base58_identity()];
+        let forged = mallory
+            .sign_string_as_base64_pad(&signer_set_payload(&c, &genesis_id, &own))
+            .unwrap();
+        let hers = grind(
+            HashCommitment::signed_genesis(&mallory, &c, &genesis_id, own, forged).unwrap(),
+        );
+        assert_eq!(index_certified(&block_by("p", 1, vec![hers]), "b1", &mgr), 0);
+        // She anchors the genesis hash with no set, ahead of Alice.
+        let open = grind(HashCommitment::signed(&mallory, &c, &genesis_id, None).unwrap());
+        assert_eq!(index_certified(&block_by("p", 2, vec![open]), "b2", &mgr), 1);
+        assert_eq!(mgr.hash_signer_set(&c).unwrap(), None);
+
+        // Alice's genesis record still posts the set.
+        let alices = genesis_with(&contract, &alice, &genesis_id, &[&alice]);
+        assert_eq!(index_certified(&block_by("p", 3, vec![alices]), "b3", &mgr), 0);
+        assert_eq!(
+            mgr.hash_signer_set(&c).unwrap(),
+            Some(vec![alice.public_key_as_base58_identity()])
+        );
+        let next = "22".repeat(32);
+        let by_mallory =
+            grind(HashCommitment::signed(&mallory, &c, &next, Some(&genesis_id)).unwrap());
+        assert_eq!(index_certified(&block_by("p", 4, vec![by_mallory]), "b4", &mgr), 0);
+        let by_alice = grind(HashCommitment::signed(&alice, &c, &next, Some(&genesis_id)).unwrap());
+        assert_eq!(index_certified(&block_by("p", 4, vec![by_alice]), "b4", &mgr), 1);
+    }
+
+    #[tokio::test]
+    async fn blocks_of_one_round_index_the_same_in_either_order() {
+        let contract = Keypair::generate().unwrap();
+        let c = contract.public_key_as_base58_identity();
+        let alice = Keypair::generate().unwrap();
+        let bob = Keypair::generate().unwrap();
+        let mallory = Keypair::generate().unwrap();
+        let genesis_id = "11".repeat(32);
+        let next = "22".repeat(32);
+        // The contract key signed two sets; two blocks of round 5 carry one
+        // each, and a third carries Mallory's record for the contract.
+        let a = block_by("seq-a", 5, vec![genesis_with(&contract, &alice, &genesis_id, &[&alice])]);
+        let b = block_by("seq-b", 5, vec![genesis_with(&contract, &bob, &genesis_id, &[&bob])]);
+        let m = block_by(
+            "seq-m",
+            5,
+            vec![grind(HashCommitment::signed(&mallory, &c, &next, Some(&genesis_id)).unwrap())],
+        );
+
+        let mut kept = Vec::new();
+        for order in [[&a, &b, &m], [&m, &b, &a], [&b, &m, &a]] {
+            let mgr = lane(4).await;
+            for (i, block) in order.iter().enumerate() {
+                index_certified(block, &format!("b{i}"), &mgr);
+            }
+            kept.push((
+                mgr.hash_signer_set(&c).unwrap(),
+                mgr.hash_commitment(&c, &genesis_id).unwrap().unwrap()["sequencer"].clone(),
+                mgr.hash_commitment(&c, &next).unwrap().is_some(),
+            ));
+        }
+        assert_eq!(kept[0].0, Some(vec![alice.public_key_as_base58_identity()]));
+        assert_eq!(kept[0].1, json!("seq-a"));
+        assert!(kept[0].2, "a set does not bind the round that certified it");
+        assert!(kept.iter().all(|k| k == &kept[0]), "{kept:?}");
+    }
+
+    #[tokio::test]
+    async fn a_genesis_reveal_must_post_the_certified_signer_set() {
+        use modality_common::hash_commitment::{creation_rule, signer_path};
+        let mgr = lane(4).await;
+        let contract = Keypair::generate().unwrap();
+        let c = contract.public_key_as_base58_identity();
+        let alice = Keypair::generate().unwrap();
+        let alice_id = alice.public_key_as_base58_identity();
+
+        let reveal = |body: Value| {
+            let file: CommitFile =
+                serde_json::from_value(json!({"body": body, "head": {}})).unwrap();
+            let id = file.compute_id().unwrap();
+            (id.clone(), json!({"commit_id": id, "body": body, "head": {}, "reveal": true}))
+        };
+        let genesis = json!({"method": "genesis", "path": null, "value": {"genesis": {"contract_id": c}}});
+        let (bare_id, bare) = reveal(json!([genesis]));
+        let (ruled_id, ruled) = reveal(json!([
+            genesis,
+            {"method": "post", "path": signer_path(1), "value": alice_id},
+            {"method": "rule", "path": "/rules/signers.modality", "value": format!(
+                "export default rule {{\n  starting_at $PARENT\n  formula {{\n    {}\n  }}\n}}\n",
+                creation_rule(&[signer_path(1)])
+            )},
+        ]));
+        for id in [&bare_id, &ruled_id] {
+            let record = genesis_with(&contract, &alice, id, &[&alice]);
+            index_certified(&block_by("p", 1, vec![record]), "b1", &mgr);
+        }
+        let err = check_reveal(&mgr, &c, &bare_id, &bare).unwrap_err();
+        assert!(err.to_string().contains("no creation rule"), "{err}");
+        check_reveal(&mgr, &c, &ruled_id, &ruled).unwrap();
     }
 }

@@ -7,12 +7,18 @@
 //! but the record, so a sequencer can vote on it without contract state.
 //!
 //! A genesis record (no parent) may post a signer set: the keys allowed to
-//! sign later records for that contract. Once it is certified, a record for
-//! the contract signed by any other key is not included.
+//! sign later records for that contract. The contract's own key signs the set
+//! (a contract id is the public key `modal contract create` made), so only
+//! the contract's creator can post one. Once it is certified, a record for
+//! the contract signed by any other key is not included. A genesis body
+//! revealed for such a contract must post the same keys under a creation
+//! rule that requires one of them to sign ([`genesis_names_signer_set`]).
 //!
 //! A hash commitment is not an accepted commit. Only a body that hashes to it,
 //! checked like any other commit, is.
 
+#[cfg(feature = "model-governance")]
+use crate::contract_store::CommitAction;
 use crate::json_stringify_deterministic::stringify_deterministic;
 use crate::keypair::Keypair;
 use anyhow::{bail, Result};
@@ -51,6 +57,106 @@ pub struct HashCommitment {
     /// contract. Omitted leaves the contract open.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub signers: Option<Vec<String>>,
+    /// With `signers`: the contract's own key's signature over
+    /// [`signer_set_payload`], made by `modal contract create`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub contract_signature: Option<String>,
+}
+
+/// What a contract's key signs to post a signer set: the set, for this
+/// contract's genesis commit.
+pub fn signer_set_payload(contract_id: &str, genesis_commit_id: &str, signers: &[String]) -> String {
+    stringify_deterministic(
+        &json!({
+            "type": "modality-signer-set",
+            "contract_id": contract_id,
+            "commit_id": genesis_commit_id,
+            "signers": signers,
+        }),
+        None,
+    )
+}
+
+/// The contract key's signature over [`signer_set_payload`]. The key must be
+/// the contract's: its public identity is the contract id.
+pub fn sign_signer_set(
+    contract_key: &Keypair,
+    genesis_commit_id: &str,
+    signers: &[String],
+) -> Result<String> {
+    let contract_id = contract_key.public_key_as_base58_identity();
+    contract_key.sign_string_as_base64_pad(&signer_set_payload(
+        &contract_id,
+        genesis_commit_id,
+        signers,
+    ))
+}
+
+/// Where `modal contract create --signer` posts the k-th signer (from 1).
+pub fn signer_path(k: usize) -> String {
+    format!("/signers/{k}.id")
+}
+
+/// The creation formula for a signer set posted at `paths`: every commit
+/// after the genesis is signed by one of them. A `rule` action carries it in
+/// a rule file (`export default rule { ... formula { ... } }`).
+pub fn creation_rule(paths: &[String]) -> String {
+    let clauses: Vec<String> = paths.iter().map(|p| format!("-signed_by({p})")).collect();
+    format!("always([{}] false)", clauses.join(" "))
+}
+
+#[cfg(feature = "model-governance")]
+/// The identity paths a creation rule names, if `formula` is one:
+/// `always([-signed_by(P1) ... -signed_by(Pn)] false)`, spacing aside.
+fn creation_rule_paths(formula: &str) -> Option<Vec<String>> {
+    let compact: String = formula.chars().filter(|c| !c.is_whitespace()).collect();
+    let inner = compact.strip_prefix("always([")?.strip_suffix("]false)")?;
+    let mut paths = Vec::new();
+    for clause in inner.split("-signed_by(").skip(1) {
+        paths.push(clause.strip_suffix(')')?.to_string());
+    }
+    let rebuilt: String = paths.iter().map(|p| format!("-signed_by({p})")).collect();
+    (!paths.is_empty() && rebuilt == inner).then_some(paths)
+}
+
+/// Refuses a genesis body that does not carry a signer set's creation rule:
+/// a `rule` whose file has a formula requiring one of some identity paths to
+/// sign, and `post`s in the same body putting exactly `signers` at those
+/// paths.
+#[cfg(feature = "model-governance")]
+pub fn genesis_names_signer_set(body: &[CommitAction], signers: &[String]) -> Result<()> {
+    let posted = |path: &str| {
+        body.iter()
+            .filter(|a| a.method.eq_ignore_ascii_case("post") && a.path.as_deref() == Some(path))
+            .filter_map(|a| a.value.as_str())
+            .next_back()
+    };
+    let mut wanted: Vec<&str> = signers.iter().map(String::as_str).collect();
+    wanted.sort_unstable();
+    let names_the_set = |paths: Vec<String>| {
+        let mut keys: Vec<&str> = match paths.iter().map(|p| posted(p)).collect::<Option<_>>() {
+            Some(keys) => keys,
+            None => return false,
+        };
+        keys.sort_unstable();
+        keys == wanted
+    };
+    let found = body
+        .iter()
+        .filter(|a| a.method.eq_ignore_ascii_case("rule"))
+        .filter_map(|a| a.value.as_str())
+        .filter_map(|file| modality_lang::rule_file::parse_rule_file(file).ok())
+        .flatten()
+        .flat_map(|rule| rule.formulas)
+        .filter_map(|formula| creation_rule_paths(&formula.body))
+        .any(names_the_set);
+    if !found {
+        bail!(
+            "the genesis body has no creation rule naming the certified signer set {}",
+            signers.join(", ")
+        );
+    }
+    Ok(())
 }
 
 /// Hash-lane parameters a network fixes at genesis (`hash_lane` in its
@@ -193,6 +299,7 @@ impl HashCommitment {
             anchor: String::new(),
             nonce: 0,
             signers: None,
+            contract_signature: None,
         };
         record.signature = keypair.sign_string_as_base64_pad(&record.signing_payload())?;
         Ok(record)
@@ -200,14 +307,17 @@ impl HashCommitment {
 
     /// A genesis record for `commit_id` that posts `signers` as the keys
     /// allowed to extend the contract, signed by `keypair`, one of them.
+    /// `contract_signature` is the contract key's, from [`sign_signer_set`].
     pub fn signed_genesis(
         keypair: &Keypair,
         contract_id: &str,
         commit_id: &str,
         signers: Vec<String>,
+        contract_signature: String,
     ) -> Result<Self> {
         let mut record = Self::signed(keypair, contract_id, commit_id, None)?;
         record.signers = Some(signers);
+        record.contract_signature = Some(contract_signature);
         record.signature = keypair.sign_string_as_base64_pad(&record.signing_payload())?;
         Ok(record)
     }
@@ -243,10 +353,15 @@ impl HashCommitment {
                 "anchor": self.anchor,
                 "nonce": self.nonce,
                 "signers": self.signers,
+                "contract_signature": self.contract_signature,
             }),
             None,
         );
         Sha256::digest(bytes.as_bytes()).into()
+    }
+
+    pub fn work_digest_hex(&self) -> String {
+        hex::encode(self.work_digest())
     }
 
     pub fn work_bits(&self) -> u32 {
@@ -298,6 +413,22 @@ impl HashCommitment {
                     self.signer
                 );
             }
+            let payload = signer_set_payload(&self.contract_id, &self.commit_id, signers);
+            let by_contract = self.contract_signature.as_deref().is_some_and(|sig| {
+                crate::commit_signatures::signature_verifies(
+                    &self.contract_id,
+                    sig,
+                    payload.as_bytes(),
+                )
+            });
+            if !by_contract {
+                bail!(
+                    "a signer set must be signed by the contract's own key, {}",
+                    self.contract_id
+                );
+            }
+        } else if self.contract_signature.is_some() {
+            bail!("a contract signature is only for a posted signer set");
         }
         if !crate::commit_signatures::signature_verifies(
             &self.signer,
@@ -582,6 +713,9 @@ mod tests {
 
     #[test]
     fn a_signer_set_keeps_other_keys_off_the_contract() {
+        let contract = Keypair::generate().unwrap();
+        let cid = contract.public_key_as_base58_identity();
+        let genesis_id = "11".repeat(32);
         let alice = Keypair::generate().unwrap();
         let bob = Keypair::generate().unwrap();
         let mallory = Keypair::generate().unwrap();
@@ -589,19 +723,41 @@ mod tests {
             alice.public_key_as_base58_identity(),
             bob.public_key_as_base58_identity(),
         ];
+        let attested = sign_signer_set(&contract, &genesis_id, &set).unwrap();
 
         let mut genesis =
-            HashCommitment::signed_genesis(&alice, "contract-a", &"11".repeat(32), set.clone())
+            HashCommitment::signed_genesis(&alice, &cid, &genesis_id, set.clone(), attested.clone())
                 .unwrap();
         genesis.grind(&anchor(), 4).unwrap();
         genesis.verify_for_vote(&params(4), &window(), None).unwrap();
 
         let mut outsider_genesis =
-            HashCommitment::signed_genesis(&mallory, "contract-a", &"11".repeat(32), set.clone())
+            HashCommitment::signed_genesis(&mallory, &cid, &genesis_id, set.clone(), attested.clone())
                 .unwrap();
         outsider_genesis.grind(&anchor(), 4).unwrap();
         let err = outsider_genesis.verify_record().unwrap_err();
         assert!(err.to_string().contains("not in the signer set"), "{err}");
+
+        // Mallory saw the genesis hash and posts her own set for it first. She
+        // does not hold the contract's key, so her set is not a record.
+        let own = vec![mallory.public_key_as_base58_identity()];
+        let mut copied = HashCommitment::signed_genesis(
+            &mallory,
+            &cid,
+            &genesis_id,
+            own.clone(),
+            sign_signer_set(&mallory, &genesis_id, &own).unwrap(),
+        )
+        .unwrap();
+        copied.grind(&anchor(), 4).unwrap();
+        let err = copied.verify_for_vote(&params(4), &window(), None).unwrap_err();
+        assert!(err.to_string().contains("contract's own key"), "{err}");
+        let mut unattested = copied.clone();
+        unattested.contract_signature = None;
+        assert!(unattested.verify_record().is_err());
+        let mut stray = HashCommitment::signed(&alice, &cid, &genesis_id, None).unwrap();
+        stray.contract_signature = Some(attested.clone());
+        assert!(stray.verify_record().is_err());
 
         let mut widened = genesis.clone();
         widened.signers = Some(vec![mallory.public_key_as_base58_identity()]);
@@ -610,7 +766,7 @@ mod tests {
         let extension = |keypair: &Keypair| {
             let mut r = HashCommitment::signed(
                 keypair,
-                "contract-a",
+                &cid,
                 &"22".repeat(32),
                 Some(&"11".repeat(32)),
             )
@@ -633,8 +789,15 @@ mod tests {
             .map(|_| Keypair::generate().unwrap().public_key_as_base58_identity())
             .chain([alice.public_key_as_base58_identity()])
             .collect();
-        let mut big =
-            HashCommitment::signed_genesis(&alice, "contract-b", &"33".repeat(32), three).unwrap();
+        let other = Keypair::generate().unwrap();
+        let mut big = HashCommitment::signed_genesis(
+            &alice,
+            &other.public_key_as_base58_identity(),
+            &"33".repeat(32),
+            three.clone(),
+            sign_signer_set(&other, &"33".repeat(32), &three).unwrap(),
+        )
+        .unwrap();
         big.grind(&anchor(), 4).unwrap();
         let err = big.verify_for_vote(&params(4), &window(), None).unwrap_err();
         assert!(err.to_string().contains("allows 2"), "{err}");
@@ -643,6 +806,82 @@ mod tests {
         body_hash.parent = Some("22".repeat(32));
         body_hash.signers = Some(set);
         assert!(body_hash.verify_record().is_err());
+    }
+
+    #[cfg(feature = "model-governance")]
+    fn action(method: &str, path: &str, value: Value) -> CommitAction {
+        CommitAction {
+            method: method.into(),
+            path: Some(path.into()),
+            value,
+            source_contract: None,
+            source_path: None,
+            source_commit: None,
+            emitted_by: None,
+        }
+    }
+
+    #[cfg(feature = "model-governance")]
+    fn rule_file(formula: &str) -> String {
+        format!("export default rule {{\n  starting_at $PARENT\n  formula {{\n    {formula}\n  }}\n}}\n")
+    }
+
+    #[cfg(feature = "model-governance")]
+    #[test]
+    fn a_genesis_body_must_carry_the_signer_sets_creation_rule() {
+        let set = vec!["KA".to_string(), "KB".to_string()];
+        let paths = vec![signer_path(1), signer_path(2)];
+        let rule = creation_rule(&paths);
+        assert_eq!(rule, "always([-signed_by(/signers/1.id) -signed_by(/signers/2.id)] false)");
+        let body = vec![
+            action("post", "/signers/1.id", json!("KA")),
+            action("post", "/signers/2.id", json!("KB")),
+            action("rule", "/rules/signers.modality", json!(rule_file(&rule))),
+        ];
+        genesis_names_signer_set(&body, &set).unwrap();
+        genesis_names_signer_set(&body, &["KB".to_string(), "KA".to_string()]).unwrap();
+
+        let spaced = vec![
+            body[0].clone(),
+            body[1].clone(),
+            action(
+                "rule",
+                "/rules/r.modality",
+                json!(rule_file("always( [ -signed_by(/signers/2.id)\n -signed_by(/signers/1.id) ] false )")),
+            ),
+        ];
+        genesis_names_signer_set(&spaced, &set).unwrap();
+
+        let refused = |body: &[CommitAction], set: &[String]| {
+            let err = genesis_names_signer_set(body, set).unwrap_err();
+            assert!(err.to_string().contains("no creation rule"), "{err}");
+        };
+        refused(&body, &["KA".to_string()]);
+        refused(&body, &["KA".to_string(), "KM".to_string()]);
+        refused(&body[..2], &set);
+        let mut other_key = body.clone();
+        other_key[1] = action("post", "/signers/2.id", json!("KM"));
+        refused(&other_key, &set);
+        let mut unposted = body.clone();
+        unposted.remove(1);
+        refused(&unposted, &set);
+        let mut weaker = body.clone();
+        weaker[2] = action(
+            "rule",
+            "/rules/signers.modality",
+            json!(rule_file("always([+POST -signed_by(/signers/1.id) -signed_by(/signers/2.id)] false)")),
+        );
+        refused(&weaker, &set);
+        let mut bare = body.clone();
+        bare[2] = action("rule", "/rules/signers.modality", json!(rule));
+        refused(&bare, &set);
+        let mut commented = body.clone();
+        commented[2] = action(
+            "rule",
+            "/rules/signers.modality",
+            json!(format!("// {rule}\n{}", rule_file("always(true)"))),
+        );
+        refused(&commented, &set);
     }
 
     #[test]

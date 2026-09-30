@@ -53,7 +53,7 @@ zeroize = "1.7.0"
 ctrlc = "3.4.5"
 sha2 = "0.10"
 # libp2p-stream = "0.1.0-alpha"
-modality-common = { path = "../modality-common", version = "0.1.6" }
+modality-common = { path = "../modality-common", version = "0.1.6", features = ["model-governance"] }
 modality-validator = { path = "../modality-validator", version = "0.1.0" }
 modality-sequencer = { path = "../modality-sequencer", version = "0.1.0" }
 modality-sequencer-consensus = { path = "../modality-sequencer-consensus", version = "0.1.0" }

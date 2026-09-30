@@ -36,13 +36,6 @@ pub struct Opts {
     #[clap(long)]
     sign: Option<String>,
 
-    /// On the genesis commit only: a key allowed to sign this contract's
-    /// later hash commitments (Modality ID, passfile path, or identity name);
-    /// repeat for several. Once certified, no other key can extend the
-    /// contract on the hash lane. Include the --sign key.
-    #[clap(long = "signer")]
-    signers: Vec<String>,
-
     /// Leading zero bits of work to grind for; more work beats other records
     /// when a block is full. Defaults to the network's floor.
     #[clap(long)]
@@ -186,17 +179,31 @@ async fn anchor(
         }
         None => Keypair::generate()?,
     };
-    let signers = opts
-        .signers
-        .iter()
-        .map(|reference| signer_id(reference))
-        .collect::<Result<Vec<_>>>()?;
+    // A contract created with --signer posts its set on the genesis record.
+    let signer_set = crate::signer_set::SignerSet::load(store)?;
+    if let Some(set) = &signer_set {
+        if !set.signers.contains(&keypair.public_key_as_base58_identity()) {
+            anyhow::bail!(
+                "This contract's hash commitments must be signed by one of its signers ({}); pass --sign",
+                set.signers.join(", ")
+            );
+        }
+    }
 
     let mut results = Vec::new();
     for commit_id in commits {
         let parent = store.load_commit(commit_id)?.head.parent;
-        let mut record = if parent.is_none() && !signers.is_empty() {
-            HashCommitment::signed_genesis(&keypair, contract_id, commit_id, signers.clone())?
+        let genesis_set = signer_set
+            .as_ref()
+            .filter(|set| parent.is_none() && &set.genesis_commit_id == commit_id);
+        let mut record = if let Some(set) = genesis_set {
+            HashCommitment::signed_genesis(
+                &keypair,
+                contract_id,
+                commit_id,
+                set.signers.clone(),
+                set.contract_signature.clone(),
+            )?
         } else {
             HashCommitment::signed(&keypair, contract_id, commit_id, parent.as_deref())?
         };
@@ -216,19 +223,4 @@ async fn anchor(
         }));
     }
     Ok(results)
-}
-
-/// A signer given as a Modality ID, or as a passfile whose public ID is used.
-#[cfg(feature = "p2p")]
-fn signer_id(reference: &str) -> Result<String> {
-    if let Ok(path) = modality_common::passfile::resolve_passfile_path(reference) {
-        if path.exists() {
-            let keypair =
-                modality_common::keypair::Keypair::from_json_file(path.to_str().unwrap_or_default())?;
-            return Ok(keypair.public_key_as_base58_identity());
-        }
-    }
-    modality_common::keypair::Keypair::from_public_key(reference, "ed25519")
-        .map(|k| k.public_key_as_base58_identity())
-        .map_err(|_| anyhow::anyhow!("--signer {reference} is neither a passfile nor a Modality ID"))
 }

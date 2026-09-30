@@ -36,7 +36,8 @@ One record per commit:
 - **parent hash**, omitted for the genesis commit
 - the **signer's Modality ID** and an **ed25519 signature** over the record
 - a **hashtax proof**: an anchor and a nonce
-- on the genesis commit only, an optional **signer set**
+- on the genesis commit only, an optional **signer set**, signed by the
+  contract's own key
 
 It carries no body, state, model, or rules. A node checks a record without
 looking anything up about the contract, except its signer set.
@@ -76,16 +77,38 @@ lane is full.
 ## Signer set
 
 By default anyone may anchor hashes for a contract. To keep other keys off
-it, post a **signer set** on the genesis hash commitment. The set is the
-public keys allowed to sign the contract's later hash commitments, and the
-genesis record must itself be signed by one of them. Once that record is
-certified, a sequencer does not include a record for the contract signed by
-any other key. The set cannot be replaced or widened later. The first
-certified set for a contract is the one that holds.
+it, create the contract with its signers:
+
+```bash
+modal contract create --signer alice.mod_passfile --signer bob.mod_passfile
+```
+
+The set is fixed at creation, in two places:
+
+- **In the genesis body.** The genesis commit posts the keys at
+  `/signers/1.id`, `/signers/2.id`, …, a model whose every step after
+  genesis is signed by one of them, and the creation rule
+  `always([-signed_by(/signers/1.id) -signed_by(/signers/2.id)] false)`.
+- **For the hash lane.** A contract id is the public key `create` makes.
+  That key signs the set once, and is then discarded. The signature is kept
+  in `.contract/signer_set.json`, and `anchor` posts it with the set on the
+  genesis hash commitment.
+
+The genesis record must be signed by a key in the set, and the set must
+carry the contract key's signature. Anyone who sees the genesis hash can
+anchor it, but only the contract's creator can post its set. Once the set
+is certified, a sequencer does not include a record for the contract signed
+by any other key. It binds from the round after the one that certified it.
+The set cannot be replaced or widened later.
+
+When several blocks carry a record for the same commit, or a set for the
+same contract, every node keeps the one in the lowest round. Between blocks
+of one round it keeps the lowest sequencer id, then the lowest work digest.
+Nodes that apply the same blocks in a different order keep the same records.
 
 The set limits who can extend the contract on the hash lane. Who can extend
-it with bodies is still up to the contract's own rules, for example
-`always([-signed_by(/parties/alice.id)] false)`.
+it with bodies is up to the contract's rules, and the creation rule in the
+genesis body says the same thing.
 
 ## Reveal
 
@@ -96,7 +119,9 @@ that:
 2. a certified hash commitment names that commit
 3. the commit extends the contract's current head, as every pushed commit
    must: bodies are revealed in order, from genesis
-4. the contract's model and rules accept it
+4. for a genesis body, when the contract has a certified signer set: the
+   body posts exactly those keys under its creation rule
+5. the contract's model and rules accept it
 
 A reveal that fails the first check is refused. One that fails the second is
 refused when pushed; a node that applies the block before it has indexed
@@ -126,8 +151,9 @@ modal contract anchor --remote <node multiaddr>
 # Ask the node what it has for a commit: unknown, anchored, or revealed
 modal contract anchor --status --commit <commit id> --remote <node multiaddr>
 
-# Anchor a new contract's genesis with Alice as its only signer
-modal contract anchor --sign alice.mod_passfile --signer alice.mod_passfile
+# A contract only Alice can extend; its genesis record posts the set
+modal contract create --signer alice.mod_passfile
+modal contract anchor --sign alice.mod_passfile
 
 # Later: send the bodies
 modal contract push --reveal

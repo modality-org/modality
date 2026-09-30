@@ -20,6 +20,7 @@ pub mod replay;
 pub mod repost;
 pub mod set;
 pub mod set_named_id;
+pub mod signer_set;
 pub mod status;
 pub mod theory;
 pub mod unpack;

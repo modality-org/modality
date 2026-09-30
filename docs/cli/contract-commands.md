@@ -28,6 +28,7 @@ state/               # Working state directory
 | Option | Description |
 |--------|-------------|
 | `--dir <DIR>` | Directory path where the contract will be created (defaults to current directory) |
+| `--signer <ID or PASSFILE>` | A key allowed to extend the contract; repeat for several. The genesis commit posts the keys at `/signers/<n>.id`, a model and the rule that every later commit is signed by one of them. The contract's key signs the set for the hash lane (`.contract/signer_set.json`). Fixed at creation |
 | `--output <FORMAT>` | Output format: `text` or `json` |
 
 ## Commit
@@ -368,8 +369,7 @@ orders the hash. Send the bodies later with `push --reveal`. See
 | `--dir <DIR>` | Contract directory (defaults to current directory) |
 | `--node-dir <DIR>` | Node directory for identity/config |
 | `--commit <ID>` | Commit to anchor; repeat for several. Defaults to the commits not yet pushed |
-| `--sign <PASSFILE>` | Key that signs the hash commitments. Defaults to a one-off key |
-| `--signer <ID or PASSFILE>` | Genesis only: a key allowed to sign the contract's later hash commitments; repeat for several. Include the `--sign` key |
+| `--sign <PASSFILE>` | Key that signs the hash commitments. Defaults to a one-off key. For a contract created with `--signer`, one of its signers |
 | `--bits <N>` | Leading zero bits of work to grind for (default: the network's floor). More work wins a full block |
 | `--status` | Show what the node has for each commit (`unknown`, `anchored`, `revealed`) instead of anchoring |
 | `--output <FORMAT>` | Output format: `text` or `json` |
@@ -380,9 +380,10 @@ modal c anchor --status --commit <commit id>
 modal c push --reveal
 ```
 
-A network without a hash lane refuses `anchor`. Once a contract's genesis
-hash commitment posts a signer set, a hash commitment signed by any other key
-is refused.
+A network without a hash lane refuses `anchor`. For a contract created with
+`--signer`, the genesis hash commitment posts the signer set with the
+contract key's signature. Once it is certified, a hash commitment signed by
+any other key is refused.
 
 ## Pull
 

@@ -180,26 +180,35 @@ check "The node refuses a REPOST whose source commit was only anchored" \
   bash -c "! modal contract push --dir '$DEST' --remote '$REMOTE' --remote-name origin >> '$CURRENT_LOG' 2>&1"
 
 echo ""
-echo "Alice anchors a contract with herself as its only signer; Mallory cannot extend it..."
+echo "Alice creates a contract with herself as its only signer; Mallory cannot extend it..."
 mkdir -p ./tmp/passfiles
 modal id create --path ./tmp/passfiles/alice.mod_passfile >> "$CURRENT_LOG" 2>&1
 modal id create --path ./tmp/passfiles/mallory.mod_passfile >> "$CURRENT_LOG" 2>&1
 KEPT="./tmp/kept"
-modal contract create --dir "$KEPT" >> "$CURRENT_LOG"
+modal contract create --dir "$KEPT" --signer ./tmp/passfiles/alice.mod_passfile >> "$CURRENT_LOG"
 KEPT_GENESIS=$(cat "$KEPT/.contract/HEAD")
+check "Anchoring the genesis with a key outside the set is refused before it is sent" \
+  bash -c "! modal contract anchor --dir '$KEPT' --remote '$REMOTE' --sign ./tmp/passfiles/mallory.mod_passfile >> '$CURRENT_LOG' 2>&1"
 modal contract anchor --dir "$KEPT" --remote "$REMOTE" --remote-name origin \
-  --sign ./tmp/passfiles/alice.mod_passfile --signer ./tmp/passfiles/alice.mod_passfile \
-  >> "$CURRENT_LOG" 2>&1
+  --sign ./tmp/passfiles/alice.mod_passfile >> "$CURRENT_LOG" 2>&1
 check "The genesis hash commitment with its signer set is anchored" \
   wait_status "$KEPT" "$KEPT_GENESIS" anchored
-modal contract commit --dir "$KEPT" --path /notes/k.text --value "k" >> "$CURRENT_LOG"
+modal contract commit --dir "$KEPT" --path /notes/k.text --value "k" \
+  --sign ./tmp/passfiles/alice.mod_passfile >> "$CURRENT_LOG"
 KEPT_NEXT=$(cat "$KEPT/.contract/HEAD")
+# Mallory's copy has the commits but not Alice's signer-set file.
+MALLORY_COPY="./tmp/kept-mallory"
+cp -r "$KEPT" "$MALLORY_COPY"
+rm "$MALLORY_COPY/.contract/signer_set.json"
 check "A hash commitment signed by a key outside the set is refused" \
-  bash -c "! modal contract anchor --commit '$KEPT_NEXT' --dir '$KEPT' --remote '$REMOTE' --sign ./tmp/passfiles/mallory.mod_passfile >> '$CURRENT_LOG' 2>&1"
+  bash -c "! modal contract anchor --commit '$KEPT_NEXT' --dir '$MALLORY_COPY' --remote '$REMOTE' --sign ./tmp/passfiles/mallory.mod_passfile >> '$CURRENT_LOG' 2>&1"
 check "The refusal names the signer set" grep -q "not in its signer set" "$CURRENT_LOG"
 modal contract anchor --commit "$KEPT_NEXT" --dir "$KEPT" --remote "$REMOTE" \
   --sign ./tmp/passfiles/alice.mod_passfile >> "$CURRENT_LOG" 2>&1
 check "The same commit signed by Alice is anchored" wait_status "$KEPT" "$KEPT_NEXT" anchored
+modal contract push --reveal --dir "$KEPT" --remote "$REMOTE" --remote-name origin >> "$CURRENT_LOG" 2>&1
+check "The genesis, with its creation rule, is revealed" wait_status "$KEPT" "$KEPT_GENESIS" revealed
+check "Alice's signed commit is revealed under the rule" wait_status "$KEPT" "$KEPT_NEXT" revealed
 
 echo ""
 echo "Restarting the sequencer: the anchored and revealed commits are still indexed..."

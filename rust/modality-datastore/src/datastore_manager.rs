@@ -78,6 +78,23 @@ fn hash_signer_set_key(contract: &str) -> String {
     format!("/hash_signer_sets/{}", contract)
 }
 
+/// Where a hash-lane entry sits in the certified order: round, then the
+/// sequencer that proposed the block, then the record's work digest.
+fn hash_lane_position(entry: &serde_json::Value) -> Option<(u64, String, String)> {
+    Some((
+        entry.get("round_id")?.as_u64()?,
+        entry.get("sequencer")?.as_str()?.to_string(),
+        entry.get("work_digest")?.as_str()?.to_string(),
+    ))
+}
+
+/// A stored signer set and the round it was certified in.
+fn parse_signer_set(data: &[u8]) -> Option<(Vec<String>, u64)> {
+    let stored: serde_json::Value = serde_json::from_slice(data).ok()?;
+    let signers = serde_json::from_value(stored.get("signers")?.clone()).ok()?;
+    Some((signers, stored.get("round_id")?.as_u64()?))
+}
+
 fn legacy_prefix_cert_key(contract: &str, through: &str) -> String {
     format!("prefix_cert/{}/{}", contract, through)
 }
@@ -657,9 +674,14 @@ impl DatastoreManager {
         Ok(())
     }
 
-    /// Index a hash commitment from a certified sequencer block. The first
-    /// certified record for a commit stays; a later one is ignored. Returns
-    /// whether this call indexed it.
+    /// Index a hash commitment from a certified sequencer block. Of several
+    /// records for one commit, and of several signer sets for one contract,
+    /// the one at the lowest (round, sequencer, work digest) is kept, and a
+    /// lower one replaces a higher: every node that applies the same
+    /// certified blocks keeps the same, whatever order they arrive in. The
+    /// signer set is kept apart from the commit's record, so an open record
+    /// for the genesis commit does not hide a set posted for it. Returns
+    /// whether this call stored the commit's record.
     pub fn save_hash_commitment(&self, entry: &serde_json::Value) -> Result<bool> {
         let field = |name: &str| {
             entry
@@ -668,28 +690,57 @@ impl DatastoreManager {
                 .ok_or_else(|| crate::Error::Database(format!("hash commitment missing {name}")))
         };
         let contract_id = field("contract_id")?;
+        let position = hash_lane_position(entry)
+            .ok_or_else(|| crate::Error::Database("hash commitment missing its position".into()))?;
+        let lower_than = |stored: Option<Vec<u8>>| {
+            stored
+                .and_then(|data| serde_json::from_slice::<serde_json::Value>(&data).ok())
+                .and_then(|stored| hash_lane_position(&stored))
+                .is_none_or(|stored| position < stored)
+        };
+
+        if let Some(signers) = entry.get("signers").filter(|s| s.is_array()) {
+            let set_key = hash_signer_set_key(contract_id);
+            if lower_than(self.sequencer_final.get(&set_key)?) {
+                let set = serde_json::json!({
+                    "signers": signers,
+                    "round_id": entry["round_id"],
+                    "sequencer": entry["sequencer"],
+                    "work_digest": entry["work_digest"],
+                });
+                self.sequencer_final.put(&set_key, &serde_json::to_vec(&set)?)?;
+            }
+        }
+
         let key = hash_commitment_key(contract_id, field("commit_id")?);
-        if self.sequencer_final.get(&key)?.is_some() {
+        if !lower_than(self.sequencer_final.get(&key)?) {
             return Ok(false);
         }
         self.sequencer_final.put(&key, &serde_json::to_vec(entry)?)?;
-        if let Some(signers) = entry.get("signers").filter(|s| s.is_array()) {
-            let set_key = hash_signer_set_key(contract_id);
-            if self.sequencer_final.get(&set_key)?.is_none() {
-                self.sequencer_final
-                    .put(&set_key, &serde_json::to_vec(signers)?)?;
-            }
-        }
         Ok(true)
     }
 
     /// The keys allowed to sign a contract's hash commitments, once a genesis
     /// record posting them is certified.
     pub fn hash_signer_set(&self, contract_id: &str) -> Result<Option<Vec<String>>> {
+        Ok(self.hash_signer_set_at(contract_id)?.map(|(set, _)| set))
+    }
+
+    /// The signer set in force for a record in `round`: one certified in an
+    /// earlier round. A set certified in the same round does not yet bind
+    /// that round's other blocks, whose order differs between nodes.
+    pub fn hash_signer_set_before(&self, contract_id: &str, round: u64) -> Result<Option<Vec<String>>> {
+        Ok(self
+            .hash_signer_set_at(contract_id)?
+            .filter(|(_, set_round)| *set_round < round)
+            .map(|(set, _)| set))
+    }
+
+    fn hash_signer_set_at(&self, contract_id: &str) -> Result<Option<(Vec<String>, u64)>> {
         Ok(self
             .sequencer_final
             .get(&hash_signer_set_key(contract_id))?
-            .and_then(|data| serde_json::from_slice(&data).ok()))
+            .and_then(|data| parse_signer_set(&data)))
     }
 
     pub fn hash_signer_sets(&self) -> Result<std::collections::HashMap<String, Vec<String>>> {
@@ -697,10 +748,9 @@ impl DatastoreManager {
         for item in self.sequencer_final.iterator("/hash_signer_sets") {
             let (key, value) = item?;
             let key = String::from_utf8_lossy(&key).to_string();
-            if let (Some(contract_id), Ok(set)) = (
-                key.strip_prefix("/hash_signer_sets/"),
-                serde_json::from_slice::<Vec<String>>(&value),
-            ) {
+            if let (Some(contract_id), Some((set, _))) =
+                (key.strip_prefix("/hash_signer_sets/"), parse_signer_set(&value))
+            {
                 sets.insert(contract_id.to_string(), set);
             }
         }
