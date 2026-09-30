@@ -146,7 +146,8 @@ async fn test_duplicate_canonical_block_detection_and_healing() -> Result<()> {
     );
 
     // Step 6: Verify the correct block was kept at index 1 (earliest seen_at)
-    let current_epoch = ds.current_epoch();
+    // The tip's epoch, as the observer's chain maintenance reads it.
+    let current_epoch = canonical_after.iter().map(|b| b.epoch).max().unwrap_or(0);
     let canonical_at_1 = MinerBlock::find_canonical_by_index_multi(&ds, 1, current_epoch).await?;
     assert!(canonical_at_1.is_some());
     let canonical_at_1 = canonical_at_1.unwrap();

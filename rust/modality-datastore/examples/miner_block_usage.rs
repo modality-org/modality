@@ -1,12 +1,14 @@
-use modality_datastore::{models::MinerBlock, Model, NetworkDatastore};
-use std::collections::HashMap;
+use modality_datastore::{models::MinerBlock, DatastoreManager};
+
+/// The epoch the example's chain has reached (blocks 40–42 are in epoch 1).
+const CURRENT_EPOCH: u64 = 1;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("=== MinerBlock Datastore Example ===\n");
 
     // Create an in-memory datastore for demonstration
-    let datastore = NetworkDatastore::create_in_memory()?;
+    let datastore = DatastoreManager::create_in_memory()?;
     println!("✓ Created in-memory datastore\n");
 
     // Create and save some canonical blocks in epoch 0
@@ -25,7 +27,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             100 + i,
         );
 
-        block.save(&datastore).await?;
+        block.save_to_active(&datastore).await?;
         println!("  Saved block {} (hash: {})", i, block.hash);
     }
 
@@ -46,7 +48,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Some("block_hash_3".to_string()),
     );
 
-    orphaned.save(&datastore).await?;
+    orphaned.save_to_active(&datastore).await?;
     println!("  Saved orphaned block (hash: {})", orphaned.hash);
     println!(
         "  Orphan reason: {}",
@@ -69,17 +71,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             100 + i,
         );
 
-        block.save(&datastore).await?;
+        block.save_to_active(&datastore).await?;
         println!("  Saved block {} (hash: {})", i, block.hash);
     }
 
     // Query by hash
     println!("\n📊 Querying blocks...\n");
 
-    let mut keys = HashMap::new();
-    keys.insert("hash".to_string(), "block_hash_3".to_string());
 
-    if let Some(block) = MinerBlock::find_one(&datastore, keys).await? {
+    if let Some(block) = MinerBlock::find_by_hash_multi(&datastore, "block_hash_3").await? {
         println!("Found block by hash 'block_hash_3':");
         println!("  Index: {}", block.index);
         println!("  Epoch: {}", block.epoch);
@@ -89,7 +89,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Find all canonical blocks in epoch 0
     println!("\nFinding all canonical blocks in epoch 0:");
-    let epoch_0_blocks = MinerBlock::find_canonical_by_epoch(&datastore, 0).await?;
+    let epoch_0_blocks = MinerBlock::find_canonical_by_epoch_multi(&datastore, 0, CURRENT_EPOCH).await?;
     println!("  Found {} canonical blocks", epoch_0_blocks.len());
     for block in &epoch_0_blocks {
         println!(
@@ -100,7 +100,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Find all orphaned blocks
     println!("\nFinding all orphaned blocks:");
-    let orphaned_blocks = MinerBlock::find_all_orphaned(&datastore).await?;
+    let orphaned_blocks = MinerBlock::find_all_orphaned_multi(&datastore).await?;
     println!("  Found {} orphaned blocks", orphaned_blocks.len());
     for block in &orphaned_blocks {
         println!("    Block {} (hash: {})", block.index, block.hash);
@@ -115,7 +115,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Find blocks by index (may include both canonical and orphaned)
     println!("\nFinding all blocks at index 3:");
-    let index_3_blocks = MinerBlock::find_by_index(&datastore, 3).await?;
+    let index_3_blocks = MinerBlock::find_by_index_multi(&datastore, 3).await?;
     println!("  Found {} blocks at index 3", index_3_blocks.len());
     for block in &index_3_blocks {
         println!(
@@ -126,7 +126,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Find canonical block at index
     println!("\nFinding canonical block at index 3:");
-    if let Some(block) = MinerBlock::find_canonical_by_index(&datastore, 3).await? {
+    if let Some(block) = MinerBlock::find_canonical_by_index_multi(&datastore, 3, CURRENT_EPOCH).await? {
         println!("  Found canonical block: {}", block.hash);
         println!("  Nominated peer ID: {}", block.nominated_peer_id);
         println!("  Miner number: {}", block.miner_number);
@@ -134,10 +134,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Demonstrate marking a block as orphaned
     println!("\nMarking block_hash_2 as orphaned...");
-    let mut keys = HashMap::new();
-    keys.insert("hash".to_string(), "block_hash_2".to_string());
 
-    if let Some(mut block) = MinerBlock::find_one(&datastore, keys).await? {
+    if let Some(mut block) = MinerBlock::find_by_hash_multi(&datastore, "block_hash_2").await? {
         println!(
             "  Before: is_orphaned = {}, is_canonical = {}",
             block.is_orphaned, block.is_canonical
@@ -154,22 +152,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         );
 
         // Save the updated block
-        block.save(&datastore).await?;
+        block.save_to_active(&datastore).await?;
         println!("  Saved updated block");
     }
 
     // Verify the change
-    let mut keys = HashMap::new();
-    keys.insert("hash".to_string(), "block_hash_2".to_string());
-    if let Some(block) = MinerBlock::find_one(&datastore, keys).await? {
+    if let Some(block) = MinerBlock::find_by_hash_multi(&datastore, "block_hash_2").await? {
         println!("  Verified: is_orphaned = {}", block.is_orphaned);
     }
 
     // Statistics
     println!("\n📊 Final Statistics:");
-    let all_canonical_epoch_0 = MinerBlock::find_canonical_by_epoch(&datastore, 0).await?;
-    let all_canonical_epoch_1 = MinerBlock::find_canonical_by_epoch(&datastore, 1).await?;
-    let all_orphaned = MinerBlock::find_all_orphaned(&datastore).await?;
+    let all_canonical_epoch_0 = MinerBlock::find_canonical_by_epoch_multi(&datastore, 0, CURRENT_EPOCH).await?;
+    let all_canonical_epoch_1 = MinerBlock::find_canonical_by_epoch_multi(&datastore, 1, CURRENT_EPOCH).await?;
+    let all_orphaned = MinerBlock::find_all_orphaned_multi(&datastore).await?;
 
     println!(
         "  Canonical blocks in epoch 0: {}",
