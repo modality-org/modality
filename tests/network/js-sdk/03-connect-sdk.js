@@ -10,10 +10,11 @@
  * Prerequisites:
  * - Run ./01-start-devnet1.sh first to start the node
  * - Node.js installed
- * - Dependencies installed (run: pnpm install in js/ directory)
+ * - JS dependencies installed: (cd js && pnpm install)
  */
 
-import { ModalClient } from '@modalmoney/sdk';
+// From a checkout; outside this repo, import from '@modalmoney/sdk'.
+import { ModalClient } from '../../../js/packages/sdk/src/index.js';
 
 // devnet1 node1 configuration
 const NODE_MULTIADDR = '/ip4/127.0.0.1/tcp/10101/ws/p2p/12D3KooW9pte76rpnggcLYkFaawuTEs5DC5axHkg3cK3cewGxxHd';

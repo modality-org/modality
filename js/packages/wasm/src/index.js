@@ -19,7 +19,15 @@ export async function init() {
   wasmInitPromise = (async () => {
     // Dynamic import of the WASM module
     const wasm = await import('../pkg/modality_lang.js');
-    await wasm.default();
+    if (typeof process !== 'undefined' && process.versions?.node) {
+      // The web build fetches the .wasm by URL, which Node cannot do for a
+      // file: URL. Hand it the bytes instead.
+      const { readFile } = await import('node:fs/promises');
+      const bytes = await readFile(new URL('../pkg/modality_lang_bg.wasm', import.meta.url));
+      await wasm.default({ module_or_path: bytes });
+    } else {
+      await wasm.default();
+    }
     wasmModule = wasm;
   })();
   

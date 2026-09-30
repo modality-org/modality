@@ -52,7 +52,7 @@ Functions for working with multiaddrs:
 
 Simplified version of the reqres protocol for client-only usage:
 - Implements `call(peer, path, data)` method
-- Uses protocol `/modality/reqres/1.0.0`
+- Uses protocol `/modality-network/reqres/0.0.1`
 - JSON request/response format matching server implementation
 - Timeout handling with abort signals
 - Protocol support detection
@@ -149,7 +149,7 @@ The SDK creates a lightweight libp2p client:
 ### Protocol Compatibility
 
 Uses the existing Modal Money reqres protocol:
-- Protocol: `/modality/reqres/1.0.0`
+- Protocol: `/modality-network/reqres/0.0.1`
 - Same message format as full nodes
 - Compatible with all reqres endpoints (`/ping`, `/inspect`, etc.)
 

@@ -9,14 +9,19 @@
  *   node examples/client-only-demo.js
  * 
  * Prerequisites:
- *   - A running Modal Money node with WebSocket listener
- *   - Update the MULTIADDR below with your node's multiaddr
+ *   - JS dependencies installed: (cd js && pnpm install)
+ *   - A node with a WebSocket listener. The default is devnet1's node1:
+ *       modal node create --dir ./node1 --from-template devnet1/node1
+ *       modal node run-sequencer --dir ./node1
+ *     Set MODAL_MULTIADDR to use another node.
  */
 
 import { ModalClient, createClientOnlyConfig } from '../src/index.js';
 
-// Update this with your node's multiaddr
-const MULTIADDR = '/ip4/127.0.0.1/tcp/10001/ws/p2p/12D3KooWPBRNBzgceXh7Z27wGoyYYz9ggwaYg2dWiwXXe8ieyFCN';
+// devnet1 node1 unless MODAL_MULTIADDR names another node
+const MULTIADDR =
+  process.env.MODAL_MULTIADDR ||
+  '/ip4/127.0.0.1/tcp/10101/ws/p2p/12D3KooW9pte76rpnggcLYkFaawuTEs5DC5axHkg3cK3cewGxxHd';
 
 async function main() {
   console.log('='.repeat(60));

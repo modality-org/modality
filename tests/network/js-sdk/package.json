@@ -7,9 +7,6 @@
     "start": "node 03-connect-sdk.js",
     "test": "./test.sh"
   },
-  "dependencies": {
-    "@modalmoney/sdk": "workspace:^"
-  },
   "author": "Foy Savas",
   "license": "MIT"
 }

@@ -2,9 +2,10 @@ import { pipe } from 'it-pipe';
 import { toString as uint8ArrayToString, fromString as uint8ArrayFromString } from 'uint8arrays';
 import { TimeoutError, ProtocolError } from './utils/errors.js';
 
-const PROTOCOL_PREFIX = 'modality';
+// The node's reqres protocol: rust/modality-node/src/reqres/mod.rs, PROTOCOL.
+const PROTOCOL_PREFIX = 'modality-network';
 const PROTOCOL_NAME = 'reqres';
-const PROTOCOL_VERSION = '1.0.0';
+const PROTOCOL_VERSION = '0.0.1';
 const DEFAULT_TIMEOUT = 30000; // 30 seconds
 
 /**
@@ -107,9 +108,14 @@ export class ReqResClient {
    */
   async isProtocolSupported(peer) {
     try {
+      // Negotiating a stream on the protocol succeeds only if the peer
+      // speaks it; identify may not have reported the peer's protocols yet.
       const connection = await this.libp2p.dial(peer);
-      const protocols = await connection.remoteProtocols();
-      return protocols.includes(this.protocol);
+      const stream = await connection.newStream(this.protocol, {
+        signal: AbortSignal.timeout(this.timeout),
+      });
+      await stream.close().catch(() => {});
+      return true;
     } catch (error) {
       return false;
     }

@@ -6,10 +6,14 @@
  * - Each account has its own balance
  * - Withdrawals checked against balance via balance_sufficient predicate
  * 
- * Run: node examples/bank_deposits.js
+ * Run from a checkout (builds the SDK's wasm once):
+ *   (cd js && pnpm install && pnpm --filter @modality-dev/wasm build)
+ *   node examples/bank_deposits.js
+ *
+ * Outside this repo, import from '@modality-dev/modal-contracts' instead.
  */
 
-import { Contract, Identity, wasm } from '@modality-dev/modal-contracts';
+import { Contract, Identity, wasm } from '../js/packages/modal-contracts/src/index.js';
 
 async function main() {
   await wasm.init();
