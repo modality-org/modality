@@ -493,6 +493,10 @@ async fn apply_pushed_commit(
                 return CommitApply::AlreadySequenced;
             }
         }
+        if let Some(refusal) = crate::node::mod_contract::refusal(&mgr, contract_id) {
+            log::warn!("Refusing commit {}: {}", commit_id, refusal);
+            return CommitApply::Failed;
+        }
         if hash_lane::is_reveal(commit_entry) {
             match hash_lane::check_reveal(&mgr, contract_id, commit_id, commit_entry) {
                 Ok(()) => {}

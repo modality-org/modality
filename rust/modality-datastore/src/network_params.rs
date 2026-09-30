@@ -32,6 +32,10 @@ pub struct EmissionConfig {
     /// Halve `block_subsidy` every this many blocks. `0` means never.
     #[serde(default)]
     pub halving_interval_blocks: u64,
+    /// Over the blocks before this index the subsidy rises in a straight line
+    /// to `block_subsidy`. `0` means no slow start.
+    #[serde(default)]
+    pub slow_start_blocks: u64,
     /// Stop minting once this many units have been emitted (including genesis
     /// allocations). `0` means no cap.
     #[serde(default)]
@@ -53,7 +57,8 @@ impl EmissionConfig {
     }
 
     /// Subsidy for a canonical miner block. Index 0 does not mint (allocations
-    /// cover genesis). Halvings use saturating right-shift.
+    /// cover genesis). Halvings use saturating right-shift. The MOD contract's
+    /// emission program computes the same schedule.
     pub fn subsidy_at_index(&self, index: u64) -> u64 {
         if index == 0 || self.block_subsidy == 0 {
             return 0;
@@ -66,7 +71,11 @@ impl EmissionConfig {
         if halvings >= 64 {
             return 0;
         }
-        self.block_subsidy >> halvings
+        let full = self.block_subsidy >> halvings;
+        if index < self.slow_start_blocks {
+            return (full as u128 * index as u128 / self.slow_start_blocks as u128) as u64;
+        }
+        full
     }
 }
 
@@ -206,6 +215,7 @@ mod tests {
         let emission = EmissionConfig {
             block_subsidy: 80,
             halving_interval_blocks: 10,
+            slow_start_blocks: 0,
             cap: 0,
             genesis_allocations: Vec::new(),
         };
@@ -214,5 +224,16 @@ mod tests {
         assert_eq!(emission.subsidy_at_index(10), 80);
         assert_eq!(emission.subsidy_at_index(11), 40);
         assert_eq!(emission.subsidy_at_index(21), 20);
+    }
+
+    #[test]
+    fn slow_start_rises_to_the_full_subsidy() {
+        let emission = EmissionConfig {
+            block_subsidy: 100,
+            slow_start_blocks: 4,
+            ..Default::default()
+        };
+        let got: Vec<u64> = (0..=5).map(|i| emission.subsidy_at_index(i)).collect();
+        assert_eq!(got, vec![0, 25, 50, 75, 100, 100]);
     }
 }

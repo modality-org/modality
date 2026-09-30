@@ -43,6 +43,9 @@ On a network with a hash lane, a commit's hash can be ordered before its
 body is sent. The body is checked when it is revealed. See
 [Hash Commitments](hash-commitments.md).
 
+A network's MOD can be the asset of one genesis contract, whose rules let
+only its emission program pay it out. See [The MOD Contract](mod-contract.md).
+
 Dive into each concept:
 
 - [Append-Only Logs](./append-only-logs)

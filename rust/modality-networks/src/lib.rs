@@ -50,6 +50,8 @@ pub struct EmissionConfig {
     #[serde(default)]
     pub halving_interval_blocks: u64,
     #[serde(default)]
+    pub slow_start_blocks: u64,
+    #[serde(default)]
     pub cap: u64,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub genesis_allocations: Vec<GenesisAllocation>,
@@ -139,6 +141,12 @@ pub struct NetworkInfo {
     /// Omitted = no hash lane. Fixed from genesis like the theory version.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub hash_lane: Option<serde_json::Value>,
+
+    /// The MOD contract's genesis: `contract_id` and its ordered `commits`.
+    /// Its posts under `/network/emission` are the network's emission, so a
+    /// network that has one does not also name `emission`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mod_contract: Option<serde_json::Value>,
 }
 
 const DEFAULT_QC_NUMERATOR: u64 = 2;
@@ -438,6 +446,7 @@ mod tests {
             target_block_time_secs: None,
             predicate_theory_version: None,
             hash_lane: None,
+            mod_contract: None,
         };
         assert_eq!(network.get_checkpoint_mode(), CheckpointMode::None);
         assert!(!network.checkpoints_enabled());
@@ -464,6 +473,7 @@ mod tests {
             target_block_time_secs: None,
             predicate_theory_version: None,
             hash_lane: None,
+            mod_contract: None,
         };
         assert_eq!(network.get_checkpoint_mode(), CheckpointMode::Consensus);
         assert!(network.checkpoints_enabled());
@@ -489,6 +499,7 @@ mod tests {
             target_block_time_secs: None,
             predicate_theory_version: None,
             hash_lane: None,
+            mod_contract: None,
             checkpoints: Some(vec![
                 ManualCheckpoint {
                     block_index: 100,

@@ -20,6 +20,7 @@ const sidebars: SidebarsConfig = {
         'concepts/models-vs-rules',
         'concepts/append-only-logs',
         'concepts/hash-commitments',
+        'concepts/mod-contract',
         'concepts/state-machines',
         'concepts/modal-logic',
         'concepts/predicates',

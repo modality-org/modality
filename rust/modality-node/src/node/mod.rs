@@ -4,6 +4,7 @@
 //! with helper modules for specific functionality areas.
 
 mod helpers;
+pub mod mod_contract;
 
 use anyhow::Result;
 use futures::prelude::*;

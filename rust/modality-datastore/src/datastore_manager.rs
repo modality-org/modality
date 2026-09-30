@@ -90,6 +90,8 @@ fn native_mod_paid_key(block_hash: &str) -> String {
     format!("native_mod/paid/{}", block_hash)
 }
 
+const MOD_CONTRACT_KEY: &str = "network/mod_contract_id";
+
 /// Data dirs written before the sequencer rename hold consensus state under
 /// `validator_final/` and `validator_active/`. Opening them would start from
 /// empty stores beside the old ones, so refuse instead.
@@ -792,6 +794,28 @@ impl DatastoreManager {
             }
             None => Ok(crate::EmissionConfig::default()),
         }
+    }
+
+    /// The network's MOD contract, once its genesis has been applied.
+    pub fn mod_contract_id(&self) -> Result<Option<String>> {
+        Ok(self
+            .node_state
+            .get(MOD_CONTRACT_KEY)?
+            .map(|v| String::from_utf8_lossy(&v).to_string()))
+    }
+
+    /// Record the MOD contract and take the network's emission from it.
+    pub fn set_mod_contract(&self, contract_id: &str, emission: &crate::EmissionConfig) -> Result<()> {
+        self.node_state
+            .put(MOD_CONTRACT_KEY, contract_id.as_bytes())?;
+        let mut cfg: serde_json::Value = match self.node_state.get("network_config")? {
+            Some(data) => serde_json::from_slice(&data).unwrap_or_default(),
+            None => serde_json::json!({}),
+        };
+        cfg["emission"] = serde_json::to_value(emission)?;
+        self.node_state
+            .put("network_config", &serde_json::to_vec(&cfg)?)?;
+        Ok(())
     }
 
     /// Read a u64 field from the persisted network config JSON.

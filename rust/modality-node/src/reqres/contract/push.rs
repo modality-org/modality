@@ -48,6 +48,14 @@ pub async fn handler(
         anyhow::bail!("Missing request data");
     };
 
+    if let Some(refusal) = crate::node::mod_contract::refusal(datastore_manager, &req.contract_id) {
+        return Ok(Response {
+            ok: false,
+            data: None,
+            errors: Some(json!({"error": refusal})),
+        });
+    }
+
     if let Err(e) = reject_unanchored_reveals(datastore_manager, &req) {
         return Ok(Response {
             ok: false,

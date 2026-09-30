@@ -133,6 +133,9 @@ pub async fn load_network_config(
         if let Some(hash_lane) = network_info.hash_lane {
             config_json["hash_lane"] = hash_lane;
         }
+        if let Some(mod_contract) = network_info.mod_contract {
+            config_json["mod_contract"] = mod_contract;
+        }
 
         config_json["rounds"] = serde_json::json!({});
 
@@ -188,6 +191,7 @@ pub async fn load_network_config(
             None => log::info!("Hash lane: off"),
         }
     }
+    super::mod_contract::apply_genesis(datastore_manager, &network_config).await?;
 
     // Load network parameters from genesis contract if present
     if let Some(genesis_contract_id) = network_config
