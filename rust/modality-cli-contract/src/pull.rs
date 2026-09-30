@@ -217,22 +217,20 @@ pub async fn run(opts: &Opts) -> Result<()> {
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow::anyhow!("Missing commit id (hash or commit_id)"))?;
 
-        // For hub format, reconstruct body/head from data/parent. A node
-        // sends body and head whole, so the commit must hash to its id.
-        let commit: CommitFile = if let Some(data) = commit_data.get("data") {
+        // Body and head, when sent whole (a node, or a hub that keeps them),
+        // must hash to the commit id. An older hub sends only data/parent,
+        // so the head is rebuilt from the parent.
+        let whole = commit_data.get("body").zip(commit_data.get("head"));
+        let commit: CommitFile = if let Some((body, head)) = whole {
+            CommitFile::verified(commit_id, Some(body), Some(head))?
+        } else if let Some(data) = commit_data.get("data") {
             let parent = commit_data
                 .get("parent")
                 .and_then(|p| p.as_str())
                 .map(|s| s.to_string());
             serde_json::from_value(json!({ "body": data, "head": { "parent": parent } }))?
         } else {
-            let body = commit_data
-                .get("body")
-                .ok_or_else(|| anyhow::anyhow!("Missing body"))?;
-            let head = commit_data
-                .get("head")
-                .ok_or_else(|| anyhow::anyhow!("Missing head"))?;
-            CommitFile::verified(commit_id, Some(body), Some(head))?
+            anyhow::bail!("Commit {commit_id} has neither body and head nor data");
         };
 
         // Save if we don't already have it
@@ -302,137 +300,27 @@ async fn clone_from_url(url: &str, opts: &Opts) -> Result<()> {
     }
 
     // Use contract ID as directory name
-    let dir_name = &contract_id;
-    let contract_dir = opts.dir.clone().unwrap_or_else(|| PathBuf::from(dir_name));
-
+    let contract_dir = opts.dir.clone().unwrap_or_else(|| PathBuf::from(&contract_id));
     if contract_dir.exists() {
         anyhow::bail!("Directory '{}' already exists", contract_dir.display());
     }
-
-    println!("Cloning contract {} from {}", &contract_id[..12], hub_base);
-
-    // Fetch commits from public /log endpoint
-    let client = reqwest::Client::new();
-    let log_url = format!("{}/contracts/{}/log", hub_base, contract_id);
-    let resp = client.get(&log_url).send().await?;
-
-    if !resp.status().is_success() {
-        anyhow::bail!("Failed to fetch contract: HTTP {}", resp.status());
-    }
-
-    let log_data: serde_json::Value = resp.json().await?;
-    let commits = log_data
-        .get("commits")
-        .and_then(|c| c.as_array())
-        .ok_or_else(|| anyhow::anyhow!("Invalid response: missing commits array"))?;
-    let head = log_data
-        .get("head")
-        .and_then(|h| h.as_str())
-        .ok_or_else(|| anyhow::anyhow!("Invalid response: missing head"))?;
-
-    if commits.is_empty() {
-        anyhow::bail!("Contract has no commits");
-    }
-
-    // Create contract directory and store
-    std::fs::create_dir_all(&contract_dir)?;
-    let store = ContractStore::init(&contract_dir, contract_id.clone())?;
-
-    // Save remote in config
-    let mut config = store.load_config()?;
-    config.add_remote(
-        opts.remote_name.clone(),
-        format!("{}/contracts/{}", hub_base, contract_id),
+    println!(
+        "Cloning contract {} from {}",
+        contract_id.get(..12).unwrap_or(&contract_id),
+        hub_base
     );
-    config.save(&store.contract_dir().join("config.json"))?;
 
-    // Save commits
-    let mut count = 0;
-    for commit_data in commits {
-        let commit_id = commit_data
-            .get("hash")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| anyhow::anyhow!("Commit missing hash"))?;
-
-        let data = commit_data.get("data").cloned().unwrap_or(json!({}));
-        let parent = commit_data
-            .get("parent")
-            .and_then(|p| p.as_str())
-            .map(|s| s.to_string());
-        let signature = commit_data.get("signature").cloned();
-
-        let mut head_obj = json!({ "parent": parent });
-        if let Some(sig) = signature {
-            if !sig.is_null() {
-                head_obj["signatures"] = sig;
-            }
-        }
-
-        // Convert hub format to CommitFile format (body: [actions])
-        let actions = if data.is_array() {
-            // Already an array of actions
-            let mut arr = Vec::new();
-            for a in data.as_array().unwrap() {
-                arr.push(json!({
-                    "method": a.get("method").and_then(|v| v.as_str()).unwrap_or("post").to_lowercase(),
-                    "path": a.get("path"),
-                    "value": a.get("value").or_else(|| a.get("body")).unwrap_or(&json!(null)),
-                }));
-            }
-            arr
-        } else {
-            // Single action object with method/path/body
-            let method = data
-                .get("method")
-                .and_then(|v| v.as_str())
-                .unwrap_or("post")
-                .to_lowercase();
-            vec![json!({
-                "method": method,
-                "path": data.get("path"),
-                "value": data.get("body").or_else(|| data.get("value")).unwrap_or(&json!(null)),
-            })]
-        };
-
-        let commit: CommitFile = serde_json::from_value(json!({
-            "body": actions,
-            "head": head_obj,
-        }))?;
-
-        if !store.has_commit(commit_id) {
-            store.save_commit(commit_id, &commit)?;
-            count += 1;
-        }
-    }
-
-    // Set HEAD
-    store.set_head(head)?;
-    store.set_remote_head(&opts.remote_name, head)?;
-
-    // Reconstruct state/rules files from commits
-    store.checkout_state()?;
-
-    if opts.output == "json" {
-        println!(
-            "{}",
-            serde_json::to_string_pretty(&json!({
-                "status": "cloned",
-                "contract_id": contract_id,
-                "directory": contract_dir.display().to_string(),
-                "pulled_count": count,
-                "head": head,
-            }))?
-        );
-    } else {
-        println!("✅ Cloned contract into '{}'", contract_dir.display());
-        println!("   Contract ID: {}", contract_id);
-        println!("   Commits: {}", count);
-        println!("   Head: {}", head);
-        println!(
-            "   Remote: {} ({}/contracts/{})",
-            opts.remote_name, hub_base, contract_id
-        );
-    }
-
-    Ok(())
+    // A clone is a first pull into a new copy: the same /pull the hub serves
+    // every puller, with the same checks.
+    let first_pull = Opts {
+        url: None,
+        remote: Some(format!("{hub_base}/contracts/{contract_id}")),
+        remote_name: opts.remote_name.clone(),
+        dir: Some(contract_dir),
+        node_dir: opts.node_dir.clone(),
+        hub_creds: opts.hub_creds.clone(),
+        contract_id: Some(contract_id),
+        output: opts.output.clone(),
+    };
+    Box::pin(run(&first_pull)).await
 }

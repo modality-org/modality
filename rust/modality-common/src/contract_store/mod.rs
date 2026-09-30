@@ -319,6 +319,25 @@ impl ContractStore {
         Ok(())
     }
 
+    /// The model the latest `MODEL` action on the HEAD chain posted, if any.
+    pub fn accepted_model(&self) -> Result<Option<String>> {
+        let mut current = self.get_head()?;
+        while let Some(commit_id) = current {
+            let commit = self.load_commit(&commit_id)?;
+            if let Some(model) = commit
+                .body
+                .iter()
+                .rev()
+                .find(|a| a.method.eq_ignore_ascii_case("model"))
+                .and_then(|a| a.value.as_str())
+            {
+                return Ok(Some(model.to_string()));
+            }
+            current = commit.head.parent;
+        }
+        Ok(None)
+    }
+
     /// Build current state by replaying all commits
     pub fn build_state_from_commits(
         &self,
@@ -362,10 +381,16 @@ impl ContractStore {
         Ok(state)
     }
 
-    /// Sync state and rules directories from commits (checkout)
+    /// Sync state and rules directories, and the accepted model, from
+    /// commits (checkout)
     pub fn checkout_state(&self) -> Result<()> {
         self.init_state_dir()?;
         self.init_rules_dir()?;
+        if let Some(model) = self.accepted_model()? {
+            let model_dir = self.root_dir.join("model");
+            std::fs::create_dir_all(&model_dir)?;
+            std::fs::write(model_dir.join("default.modality"), model)?;
+        }
 
         let state = self.build_state_from_commits()?;
 

@@ -33,6 +33,42 @@ mod tests {
     use serde_json::Value;
     use tempfile::TempDir;
 
+    /// A copy with no model/default.modality file (as `pull` used to leave)
+    /// is still held to the accepted model and rules.
+    #[cfg(feature = "model-status")]
+    #[tokio::test]
+    async fn a_copy_without_a_model_file_still_checks_the_accepted_model() -> anyhow::Result<()> {
+        let temp_dir = TempDir::new()?;
+        let dir = temp_dir.path().join("c");
+        let dir_arg = dir.to_string_lossy().to_string();
+        crate::create::run(&crate::create::Opts::parse_from(["create", "--dir", dir_arg.as_str()])).await?;
+        std::fs::write(
+            dir.join("model/default.modality"),
+            "model m {\n  part flow {\n    q0 --> q1\n    q1 --> q1: +modifies(/x/a.text) -modifies(/x/b.text)\n  }\n}\n",
+        )?;
+        crate::commit::run(&crate::commit::Opts::parse_from([
+            "commit", "--all", "--dir", dir_arg.as_str(), "--message", "model",
+        ]))
+        .await?;
+        std::fs::remove_file(dir.join("model/default.modality"))?;
+
+        let write = |path: &'static str| {
+            crate::commit::Opts::parse_from([
+                "commit", "--dir", dir_arg.as_str(), "--path", path, "--value", "v",
+            ])
+        };
+        crate::commit::run(&write("/x/a.text")).await?;
+        let err = crate::commit::run(&write("/x/b.text"))
+            .await
+            .expect_err("the accepted model has no edge that writes /x/b.text");
+        assert!(err.to_string().contains("No valid transition"), "{err}");
+
+        // checkout writes the accepted model back to the working tree
+        crate::checkout::run(&crate::checkout::Opts::parse_from(["checkout", "--dir", dir_arg.as_str()])).await?;
+        assert!(std::fs::read_to_string(dir.join("model/default.modality"))?.contains("/x/a.text"));
+        Ok(())
+    }
+
     #[tokio::test]
     async fn empty_directory_contract_log_flow_smoke() -> anyhow::Result<()> {
         let temp_dir = TempDir::new()?;

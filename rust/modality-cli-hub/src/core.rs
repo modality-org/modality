@@ -3,11 +3,10 @@
 //! This module contains the core business logic for the hub,
 //! independent of any transport layer (REST, RPC, etc.)
 
-use ed25519_dalek::{Signature, Verifier, VerifyingKey};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 use thiserror::Error;
@@ -154,7 +153,9 @@ pub struct CommitEntry {
 /// Wire commit used by `modal c push` / `modal c pull`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PushCommitItem {
-    #[serde(default)]
+    /// The commit's id. `modal c push` sends it as `commit_id`; kept as
+    /// given, so every copy of the contract names the commit the same way.
+    #[serde(default, alias = "commit_id")]
     pub hash: Option<String>,
     #[serde(default)]
     pub parent: Option<String>,
@@ -1349,18 +1350,57 @@ impl HubCore {
         }
 
         if let Some(contract) = contracts.get(contract_id) {
-            if !contract.rules.is_empty() {
-                self.validate_signature_predicates(
-                    contract_id,
-                    body,
-                    head,
-                    &contract.rules,
-                    &contract.commits,
-                )?;
-            }
+            Self::validate_against_rules(contract_id, body, head, &contract.commits)?;
         }
 
         Ok(())
+    }
+
+    /// Check a pushed commit as `modal c commit` and a network node do: every
+    /// signature verifies, and the accepted model and rules (theory `v2`)
+    /// take it.
+    fn validate_against_rules(
+        hub_id: &str,
+        body: &Value,
+        head: &Value,
+        commits: &[StoredCommit],
+    ) -> Result<(), HubError> {
+        use modality_common::contract_store::CommitFile;
+        use modality_common::model_governance::{
+            validate_pending_commit_with_theory, TheoryActivation,
+        };
+        let to_file = |body: &Value, head: &Value| {
+            serde_json::from_value::<CommitFile>(json!({ "body": body, "head": head }))
+                .map_err(|e| HubError::ValidationFailed(format!("not a commit: {e}")))
+        };
+        let accepted = commits
+            .iter()
+            .map(|c| to_file(&c.body, &c.head))
+            .collect::<Result<Vec<_>, _>>()?;
+        let pending = to_file(body, head)?;
+        // Signatures are over the contract's own id, which its genesis names;
+        // the hub's name for the contract may differ.
+        let contract_id = accepted
+            .first()
+            .or(Some(&pending))
+            .and_then(|genesis| {
+                genesis.body.iter().find_map(|a| {
+                    a.value.get("genesis")?.get("contract_id")?.as_str().map(str::to_string)
+                })
+            })
+            .unwrap_or_else(|| hub_id.to_string());
+        modality_common::commit_signatures::verify_commit_signatures(&contract_id, &pending)
+            .map_err(|e| HubError::ValidationFailed(e.to_string()))?;
+        validate_pending_commit_with_theory(
+            "",
+            &accepted,
+            &pending,
+            None,
+            None,
+            None,
+            TheoryActivation::always(modality_lang::TheoryVersion::V2),
+        )
+        .map_err(|e| HubError::ValidationFailed(e.to_string()))
     }
 
     fn validate_repost_action(
@@ -1412,220 +1452,11 @@ impl HubCore {
         Ok(())
     }
 
-    /// Validate predicates (any_signed, all_signed, modifies) against commit
-    fn validate_signature_predicates(
-        &self,
-        _contract_id: &str,
-        body: &Value,
-        head: &Value,
-        rules: &[String],
-        commits: &[StoredCommit],
-    ) -> Result<(), HubError> {
-        // Check which predicates are used in rules
-        let has_any_signed = rules.iter().any(|r| r.contains("any_signed"));
-        let has_all_signed = rules.iter().any(|r| r.contains("all_signed"));
-        let has_modifies = rules.iter().any(|r| r.contains("modifies"));
 
-        if !has_any_signed && !has_all_signed {
-            return Ok(()); // No signature predicates to check
-        }
 
-        // Build current state to get member list
-        let state = self.build_state(commits);
 
-        // Extract member public keys from state (paths like members/alice.id)
-        let members = self.extract_members_from_state(&state);
 
-        if members.is_empty() && (has_any_signed || has_all_signed) {
-            // No members yet - signature predicates can't be evaluated
-            // This is OK for initial commits before membership is established
-            return Ok(());
-        }
 
-        // Get signatures from head
-        let signatures = head
-            .get("signatures")
-            .and_then(|s| s.as_object())
-            .map(|m| {
-                m.iter()
-                    .map(|(k, v)| (k.clone(), v.as_str().unwrap_or("").to_string()))
-                    .collect::<Vec<_>>()
-            })
-            .unwrap_or_default();
-
-        // Extract paths being modified in this commit
-        let commit_paths = self.extract_commit_paths(body);
-
-        // Check if commit modifies /members/ (for conditional all_signed)
-        let modifies_members = commit_paths.iter().any(|p| {
-            let normalized = p.trim_start_matches('/');
-            normalized.starts_with("members/") || normalized == "members"
-        });
-
-        // Create message to verify (canonical body JSON)
-        let message = serde_json::to_string(body).unwrap_or_default();
-        let message_hex = hex::encode(message.as_bytes());
-
-        // Validate any_signed if required
-        if has_any_signed {
-            let any_valid = self.check_any_member_signed(&members, &message_hex, &signatures);
-            if !any_valid {
-                return Err(HubError::ValidationFailed(
-                    "+any_signed(/members) failed: no valid signature from any member".to_string(),
-                ));
-            }
-        }
-
-        // Validate all_signed when modifies(/members) is true.
-        // Rule pattern: always (!+modifies(/members) | +all_signed(/members))
-        if has_all_signed && has_modifies && modifies_members {
-            let all_valid = self.check_all_members_signed(&members, &message_hex, &signatures);
-            if !all_valid {
-                return Err(HubError::ValidationFailed(format!(
-                    "+all_signed(/members) failed: commit modifies /members/ but not all {} members signed",
-                    members.len()
-                )));
-            }
-        }
-
-        // Also check unconditional all_signed (without modifies implication)
-        if has_all_signed && !has_modifies {
-            // Rule uses all_signed without modifies - always requires all signatures
-            let all_valid = self.check_all_members_signed(&members, &message_hex, &signatures);
-            if !all_valid {
-                return Err(HubError::ValidationFailed(format!(
-                    "+all_signed(/members) failed: not all {} members signed",
-                    members.len()
-                )));
-            }
-        }
-
-        Ok(())
-    }
-
-    /// Extract paths being written in this commit
-    fn extract_commit_paths(&self, body: &Value) -> Vec<String> {
-        let mut paths = Vec::new();
-
-        if let Some(actions) = body.as_array() {
-            for action in actions {
-                if let Some(path) = action.get("path").and_then(|p| p.as_str()) {
-                    paths.push(path.to_string());
-                }
-            }
-        }
-
-        paths
-    }
-
-    /// Extract member public keys from state
-    fn extract_members_from_state(&self, state: &Value) -> Vec<String> {
-        let mut members = Vec::new();
-
-        if let Some(obj) = state.as_object() {
-            for (key, value) in obj {
-                // Match paths like "members/alice.id" or "members/bob.id"
-                if key.starts_with("members/") && key.ends_with(".id") {
-                    if let Some(pubkey) = value.as_str() {
-                        members.push(pubkey.to_string());
-                    }
-                }
-            }
-        }
-
-        members
-    }
-
-    /// Check if ANY member has validly signed
-    fn check_any_member_signed(
-        &self,
-        members: &[String],
-        message_hex: &str,
-        signatures: &[(String, String)],
-    ) -> bool {
-        let message_bytes = match hex::decode(message_hex) {
-            Ok(b) => b,
-            Err(_) => return false,
-        };
-
-        for (signer, sig_hex) in signatures {
-            // Check if signer is a member
-            if !members.contains(signer) {
-                continue;
-            }
-
-            // Verify signature
-            if self.verify_ed25519_signature(signer, sig_hex, &message_bytes) {
-                return true;
-            }
-        }
-
-        false
-    }
-
-    /// Check if ALL members have validly signed
-    fn check_all_members_signed(
-        &self,
-        members: &[String],
-        message_hex: &str,
-        signatures: &[(String, String)],
-    ) -> bool {
-        if members.is_empty() {
-            return true; // Trivially satisfied
-        }
-
-        let message_bytes = match hex::decode(message_hex) {
-            Ok(b) => b,
-            Err(_) => return false,
-        };
-
-        let mut signed_members: HashSet<String> = HashSet::new();
-
-        for (signer, sig_hex) in signatures {
-            if !members.contains(signer) {
-                continue;
-            }
-
-            if self.verify_ed25519_signature(signer, sig_hex, &message_bytes) {
-                signed_members.insert(signer.clone());
-            }
-        }
-
-        // Check all members signed
-        members.iter().all(|m| signed_members.contains(m))
-    }
-
-    /// Verify an ed25519 signature
-    fn verify_ed25519_signature(&self, pubkey_hex: &str, sig_hex: &str, message: &[u8]) -> bool {
-        let pubkey_bytes = match hex::decode(pubkey_hex) {
-            Ok(b) => b,
-            Err(_) => return false,
-        };
-
-        let pubkey_array: [u8; 32] = match pubkey_bytes.try_into() {
-            Ok(a) => a,
-            Err(_) => return false,
-        };
-
-        let verifying_key = match VerifyingKey::from_bytes(&pubkey_array) {
-            Ok(k) => k,
-            Err(_) => return false,
-        };
-
-        let sig_bytes = match hex::decode(sig_hex) {
-            Ok(b) => b,
-            Err(_) => return false,
-        };
-
-        let sig_array: [u8; 64] = match sig_bytes.try_into() {
-            Ok(a) => a,
-            Err(_) => return false,
-        };
-
-        let signature = Signature::from_bytes(&sig_array);
-
-        verifying_key.verify(message, &signature).is_ok()
-    }
 
     fn validate_model(
         &self,
@@ -2170,6 +2001,40 @@ export default rule {
             }],
         )
         .await
+    }
+
+    #[tokio::test]
+    async fn a_pushed_commit_keeps_its_commit_id_and_head() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let core = HubCore::new(temp_dir.path().to_path_buf());
+        let key = modality_common::keypair::Keypair::generate().unwrap();
+        let mut file = modality_common::contract_store::CommitFile::new();
+        file.add_action("post".into(), Some("/a.text".into()), json!("a"));
+        let (public, signature) =
+            modality_common::commit_signatures::sign_commit(&key, "keep-ids", &file).unwrap();
+        file.head.signatures = Some(json!({ public.clone(): signature }));
+        let id = file.compute_id().unwrap();
+        let item: PushCommitItem = serde_json::from_value(json!({
+            "commit_id": id,
+            "body": file.body,
+            "head": file.head,
+        }))
+        .unwrap();
+        let pushed = core.push_commits("keep-ids", vec![item]).await.unwrap();
+        assert_eq!(pushed.head.as_deref(), Some(id.as_str()));
+        let pulled = core.pull_commits("keep-ids", None).await.unwrap();
+        let commit = serde_json::to_value(&pulled).unwrap()["commits"][0].clone();
+        assert_eq!(commit["hash"], json!(id));
+        assert!(commit["head"]["signatures"].get(&public).is_some(), "{commit}");
+
+        // A signature that does not verify is refused.
+        let mut forged = modality_common::contract_store::CommitFile::with_parent(id);
+        forged.add_action("post".into(), Some("/b.text".into()), json!("b"));
+        forged.head.signatures = Some(json!({ public: "c2ln" }));
+        let item: PushCommitItem =
+            serde_json::from_value(json!({ "body": forged.body, "head": forged.head })).unwrap();
+        let err = core.push_commits("keep-ids", vec![item]).await.unwrap_err();
+        assert!(matches!(err, HubError::ValidationFailed(_)), "{err:?}");
     }
 
     #[tokio::test]

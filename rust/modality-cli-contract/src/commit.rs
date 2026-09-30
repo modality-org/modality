@@ -543,26 +543,24 @@ fn validate_commit_against_model(
         }
     }
 
-    if model_path.exists() {
-        let accepted = load_commits_oldest_first(store)?;
-        validate_pending_commit_with_theory(
-            &model_content,
-            &accepted,
-            commit,
-            None,
-            None,
-            None,
-            activation,
-        )?;
-        if v2 {
-            return Ok(None);
-        }
-        return Ok(shadow_findings_for_store(&model_content, store, commit, TheoryVersion::V2)
-            .ok()
-            .and_then(theory_preview));
+    // The governing model is the accepted one, falling back to the working
+    // file. A copy made by `pull` may have no file; its history still binds.
+    let accepted = load_commits_oldest_first(store)?;
+    validate_pending_commit_with_theory(
+        &model_content,
+        &accepted,
+        commit,
+        None,
+        None,
+        None,
+        activation,
+    )?;
+    if v2 {
+        return Ok(None);
     }
-
-    Ok(None)
+    Ok(shadow_findings_for_store(&model_content, store, commit, TheoryVersion::V2)
+        .ok()
+        .and_then(theory_preview))
 }
 
 #[cfg(all(test, feature = "model-status"))]
