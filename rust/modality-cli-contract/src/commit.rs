@@ -322,6 +322,10 @@ pub async fn run(opts: &Opts) -> Result<()> {
     // Update HEAD
     store.set_head(&commit_id)?;
     store.clear_pending_reposts(&committed_repost_dests)?;
+    if commit.body.iter().any(|a| a.method == "invoke") {
+        // The program's writes are state now.
+        crate::checkout::checkout(&store)?;
+    }
 
     // Output
     if opts.output == "json" {

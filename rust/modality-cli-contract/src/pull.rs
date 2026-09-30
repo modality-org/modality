@@ -256,7 +256,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
 
     // Reconstruct state/rules files from commits
     if !pulled_ids.is_empty() {
-        store.checkout_state()?;
+        crate::checkout::checkout(&store)?;
     }
 
     if opts.output == "json" {

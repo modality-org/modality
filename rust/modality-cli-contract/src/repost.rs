@@ -87,7 +87,7 @@ fn fetch_from_local(
     let source_commit = source
         .get_head()?
         .ok_or_else(|| anyhow!("Source contract has no HEAD"))?;
-    let state = source.build_state_from_commits()?;
+    let state = crate::checkout::accepted_state(&source)?;
     let value = state.get(source_path).cloned().ok_or_else(|| {
         anyhow!("Path '{source_path}' not found in source contract {source_contract}")
     })?;
