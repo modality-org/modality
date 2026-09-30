@@ -74,6 +74,10 @@ fn hash_commitment_key(contract: &str, commit: &str) -> String {
     format!("/hash_commitments/{}/{}", contract, commit)
 }
 
+fn hash_signer_set_key(contract: &str) -> String {
+    format!("/hash_signer_sets/{}", contract)
+}
+
 fn legacy_prefix_cert_key(contract: &str, through: &str) -> String {
     format!("prefix_cert/{}/{}", contract, through)
 }
@@ -661,12 +665,44 @@ impl DatastoreManager {
                 .and_then(|v| v.as_str())
                 .ok_or_else(|| crate::Error::Database(format!("hash commitment missing {name}")))
         };
-        let key = hash_commitment_key(field("contract_id")?, field("commit_id")?);
+        let contract_id = field("contract_id")?;
+        let key = hash_commitment_key(contract_id, field("commit_id")?);
         if self.sequencer_final.get(&key)?.is_some() {
             return Ok(false);
         }
         self.sequencer_final.put(&key, &serde_json::to_vec(entry)?)?;
+        if let Some(signers) = entry.get("signers").filter(|s| s.is_array()) {
+            let set_key = hash_signer_set_key(contract_id);
+            if self.sequencer_final.get(&set_key)?.is_none() {
+                self.sequencer_final
+                    .put(&set_key, &serde_json::to_vec(signers)?)?;
+            }
+        }
         Ok(true)
+    }
+
+    /// The keys allowed to sign a contract's hash commitments, once a genesis
+    /// record posting them is certified.
+    pub fn hash_signer_set(&self, contract_id: &str) -> Result<Option<Vec<String>>> {
+        Ok(self
+            .sequencer_final
+            .get(&hash_signer_set_key(contract_id))?
+            .and_then(|data| serde_json::from_slice(&data).ok()))
+    }
+
+    pub fn hash_signer_sets(&self) -> Result<std::collections::HashMap<String, Vec<String>>> {
+        let mut sets = std::collections::HashMap::new();
+        for item in self.sequencer_final.iterator("/hash_signer_sets") {
+            let (key, value) = item?;
+            let key = String::from_utf8_lossy(&key).to_string();
+            if let (Some(contract_id), Ok(set)) = (
+                key.strip_prefix("/hash_signer_sets/"),
+                serde_json::from_slice::<Vec<String>>(&value),
+            ) {
+                sets.insert(contract_id.to_string(), set);
+            }
+        }
+        Ok(sets)
     }
 
     pub fn hash_commitment(
@@ -684,7 +720,7 @@ impl DatastoreManager {
         let mut entries = Vec::new();
         for item in self
             .sequencer_final
-            .iterator(&format!("/hash_commitments/{contract_id}/"))
+            .iterator(&format!("/hash_commitments/{contract_id}"))
         {
             let (_, value) = item?;
             if let Ok(entry) = serde_json::from_slice(&value) {

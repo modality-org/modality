@@ -330,11 +330,48 @@ Push commits to a hub or to chain sequencers.
 | `--node-dir <DIR>` | Node directory for identity/config when using P2P remotes |
 | `--hub-creds <FILE>` | Hub credentials file for HTTP hub remotes |
 | `--output <FORMAT>` | Output format: `text` or `json` |
+| `--reveal` | Push the commits as reveals of hash commitments made with `anchor`. The node refuses a reveal whose body does not hash to its commit id, or whose hash was never anchored. Chain remotes only |
 
 A contract's log is linear. On chain sequencers, a commit must extend the
 contract's current head: if another commit was already sequenced on the same
 parent, the sequencer refuses yours ("forks the contract"). Pull, then commit
 again on the new head.
+
+## Anchor
+
+```bash
+modal c anchor [OPTIONS]
+```
+
+Anchor commit hashes on a network's hash lane, without their bodies. For each
+commit, `anchor` signs a hash commitment, grinds its hashtax against the
+node's current epoch anchor, and submits it. A certified sequencer block
+orders the hash. Send the bodies later with `push --reveal`. See
+[Hash Commitments](../concepts/hash-commitments.md).
+
+**Options:**
+| Option | Description |
+|--------|-------------|
+| `--remote <MULTIADDR>` | Target node (defaults to the remote's URL; not saved) |
+| `--remote-name <NAME>` | Remote name (default: `origin`) |
+| `--dir <DIR>` | Contract directory (defaults to current directory) |
+| `--node-dir <DIR>` | Node directory for identity/config |
+| `--commit <ID>` | Commit to anchor; repeat for several. Defaults to the commits not yet pushed |
+| `--sign <PASSFILE>` | Key that signs the hash commitments. Defaults to a one-off key |
+| `--signer <ID or PASSFILE>` | Genesis only: a key allowed to sign the contract's later hash commitments; repeat for several. Include the `--sign` key |
+| `--bits <N>` | Leading zero bits of work to grind for (default: the network's floor). More work wins a full block |
+| `--status` | Show what the node has for each commit (`unknown`, `anchored`, `revealed`) instead of anchoring |
+| `--output <FORMAT>` | Output format: `text` or `json` |
+
+```bash
+modal c anchor --remote /ip4/127.0.0.1/tcp/10101/ws/p2p/12D3KooW...
+modal c anchor --status --commit <commit id>
+modal c push --reveal
+```
+
+A network without a hash lane refuses `anchor`. Once a contract's genesis
+hash commitment posts a signer set, a hash commitment signed by any other key
+is refused.
 
 ## Pull
 

@@ -58,7 +58,8 @@ pub async fn submit_handler(data: Option<Value>, mgr: &DatastoreManager) -> Resu
         Err(e) => return Ok(refused(format!("not a hash commitment: {e}"))),
     };
     let window = anchor_window(mgr).await?;
-    if let Err(e) = record.verify_for_vote(&params, &window) {
+    let signer_set = mgr.hash_signer_set(&record.contract_id)?;
+    if let Err(e) = record.verify_for_vote(&params, &window, signer_set.as_deref()) {
         return Ok(refused(e));
     }
     if let Some(existing) = mgr.hash_commitment(&record.contract_id, &record.commit_id)? {

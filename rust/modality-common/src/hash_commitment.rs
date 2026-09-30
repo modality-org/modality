@@ -6,6 +6,10 @@
 //! the network's number of leading zero bits. Checking a record needs nothing
 //! but the record, so a sequencer can vote on it without contract state.
 //!
+//! A genesis record (no parent) may post a signer set: the keys allowed to
+//! sign later records for that contract. Once it is certified, a record for
+//! the contract signed by any other key is not included.
+//!
 //! A hash commitment is not an accepted commit. Only a body that hashes to it,
 //! checked like any other commit, is.
 
@@ -43,6 +47,10 @@ pub struct HashCommitment {
     pub anchor_epoch: u64,
     pub anchor: String,
     pub nonce: u64,
+    /// Genesis only: the keys allowed to sign later records for this
+    /// contract. Omitted leaves the contract open.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub signers: Option<Vec<String>>,
 }
 
 /// Hash-lane parameters a network fixes at genesis (`hash_lane` in its
@@ -55,10 +63,17 @@ pub struct HashLaneParams {
     pub floor_bits: u32,
     #[serde(default = "default_algorithm")]
     pub algorithm: String,
+    /// Most keys a genesis record may post as its signer set.
+    #[serde(default = "default_max_signers")]
+    pub max_signers: usize,
 }
 
 fn default_algorithm() -> String {
     HASHTAX_SHA256.to_string()
+}
+
+fn default_max_signers() -> usize {
+    16
 }
 
 impl HashLaneParams {
@@ -177,13 +192,28 @@ impl HashCommitment {
             anchor_epoch: 0,
             anchor: String::new(),
             nonce: 0,
+            signers: None,
         };
         record.signature = keypair.sign_string_as_base64_pad(&record.signing_payload())?;
         Ok(record)
     }
 
+    /// A genesis record for `commit_id` that posts `signers` as the keys
+    /// allowed to extend the contract, signed by `keypair`, one of them.
+    pub fn signed_genesis(
+        keypair: &Keypair,
+        contract_id: &str,
+        commit_id: &str,
+        signers: Vec<String>,
+    ) -> Result<Self> {
+        let mut record = Self::signed(keypair, contract_id, commit_id, None)?;
+        record.signers = Some(signers);
+        record.signature = keypair.sign_string_as_base64_pad(&record.signing_payload())?;
+        Ok(record)
+    }
+
     /// What the signer signs: the commit it anchors, in this contract, at
-    /// this parent.
+    /// this parent, and on genesis the signer set it posts.
     pub fn signing_payload(&self) -> String {
         stringify_deterministic(
             &json!({
@@ -191,6 +221,7 @@ impl HashCommitment {
                 "contract_id": self.contract_id,
                 "commit_id": self.commit_id,
                 "parent": self.parent,
+                "signers": self.signers,
             }),
             None,
         )
@@ -211,6 +242,7 @@ impl HashCommitment {
                 "anchor_epoch": self.anchor_epoch,
                 "anchor": self.anchor,
                 "nonce": self.nonce,
+                "signers": self.signers,
             }),
             None,
         );
@@ -253,6 +285,20 @@ impl HashCommitment {
         if size > MAX_RECORD_BYTES {
             bail!("hash commitment is {size} bytes; the cap is {MAX_RECORD_BYTES}");
         }
+        if let Some(signers) = &self.signers {
+            if self.parent.is_some() {
+                bail!("only a genesis hash commitment may post a signer set");
+            }
+            if signers.is_empty() {
+                bail!("a posted signer set must name at least one key");
+            }
+            if !signers.contains(&self.signer) {
+                bail!(
+                    "genesis hash commitment is signed by {}, which is not in the signer set it posts",
+                    self.signer
+                );
+            }
+        }
         if !crate::commit_signatures::signature_verifies(
             &self.signer,
             &self.signature,
@@ -263,10 +309,14 @@ impl HashCommitment {
         Ok(())
     }
 
-    /// Everything a sequencer checks before voting for a block that carries
-    /// this record: the record itself, its work, and that it binds to an
-    /// anchor the committee currently shares.
-    pub fn verify_for_vote(&self, params: &HashLaneParams, window: &AnchorWindow) -> Result<()> {
+    /// Checks against the network's parameters and the contract's certified
+    /// signer set, if it has one. The same on every node holding the same
+    /// certified prefix.
+    pub fn verify_against(
+        &self,
+        params: &HashLaneParams,
+        signer_set: Option<&[String]>,
+    ) -> Result<()> {
         self.verify_record()?;
         let bits = self.work_bits();
         if bits < params.floor_bits {
@@ -276,6 +326,43 @@ impl HashCommitment {
                 params.floor_bits
             );
         }
+        if let Some(signers) = &self.signers {
+            if signers.len() > params.max_signers {
+                bail!(
+                    "signer set has {} keys; this network allows {}",
+                    signers.len(),
+                    params.max_signers
+                );
+            }
+            if signer_set.is_some() {
+                bail!(
+                    "contract {} already has a certified signer set",
+                    self.contract_id
+                );
+            }
+        }
+        if let Some(set) = signer_set {
+            if !set.contains(&self.signer) {
+                bail!(
+                    "hash commitment for contract {} is signed by {}, which is not in its signer set",
+                    self.contract_id,
+                    self.signer
+                );
+            }
+        }
+        Ok(())
+    }
+
+    /// Everything a sequencer checks before voting for a block that carries
+    /// this record: [`HashCommitment::verify_against`], and that it binds to
+    /// an anchor the committee currently shares.
+    pub fn verify_for_vote(
+        &self,
+        params: &HashLaneParams,
+        window: &AnchorWindow,
+        signer_set: Option<&[String]>,
+    ) -> Result<()> {
+        self.verify_against(params, signer_set)?;
         if !window.contains(self.anchor_epoch, &self.anchor) {
             bail!(
                 "hash commitment {} binds to anchor {} of epoch {}, which is not a current epoch anchor",
@@ -323,6 +410,9 @@ pub fn select_for_block(
     (records, rest)
 }
 
+/// A contract's certified signer set, if it has one.
+pub type SignerSets<'a> = &'a dyn Fn(&str) -> Option<Vec<String>>;
+
 /// Whether a sequencer may vote for a block with these events. A block is
 /// refused whole if one record fails, a record repeats, or there are more
 /// than the quota. `None` params mean the network has no hash lane.
@@ -330,6 +420,7 @@ pub fn check_block_events(
     events: &[Value],
     params: Option<&HashLaneParams>,
     window: &AnchorWindow,
+    signer_sets: SignerSets,
 ) -> Result<()> {
     let mut seen = std::collections::HashSet::new();
     for event in events {
@@ -340,7 +431,8 @@ pub fn check_block_events(
             bail!("this network has no hash lane, but the block carries a hash commitment");
         };
         let record = record?;
-        record.verify_for_vote(params, window)?;
+        let set = signer_sets(&record.contract_id);
+        record.verify_for_vote(params, window, set.as_deref())?;
         if !seen.insert((record.contract_id.clone(), record.commit_id.clone())) {
             bail!("hash commitment {} appears twice in one block", record.commit_id);
         }
@@ -354,16 +446,24 @@ pub fn check_block_events(
     Ok(())
 }
 
-/// The records of a certified block this node indexes: those whose record
-/// verifies and whose work meets the floor, at most the quota, most work
-/// first. Freshness of the anchor was the committee's check at vote time and
-/// is not repeated here, so a node applying the block later agrees.
-pub fn records_to_index(events: &[Value], params: &HashLaneParams) -> Vec<HashCommitment> {
+/// The records of a certified block this node indexes, most work first, at
+/// most the quota: those that pass [`HashCommitment::verify_against`] with
+/// the signer sets certified before this block. Freshness of the anchor was
+/// the committee's check at vote time and is not repeated here, so a node
+/// applying the block later agrees.
+pub fn records_to_index(
+    events: &[Value],
+    params: &HashLaneParams,
+    signer_sets: SignerSets,
+) -> Vec<HashCommitment> {
     let records: Vec<HashCommitment> = events
         .iter()
         .filter_map(HashCommitment::from_event)
         .filter_map(Result::ok)
-        .filter(|r| r.verify_record().is_ok() && r.work_bits() >= params.floor_bits)
+        .filter(|r| {
+            let set = signer_sets(&r.contract_id);
+            r.verify_against(params, set.as_deref()).is_ok()
+        })
         .collect();
     select_for_block(records, params.quota_per_block).0
 }
@@ -377,7 +477,12 @@ mod tests {
             quota_per_block: 2,
             floor_bits,
             algorithm: HASHTAX_SHA256.to_string(),
+            max_signers: 2,
         }
+    }
+
+    fn open(_: &str) -> Option<Vec<String>> {
+        None
     }
 
     fn anchor() -> EpochAnchor {
@@ -409,7 +514,7 @@ mod tests {
         let keypair = Keypair::generate().unwrap();
         let record = record(&keypair, &"11".repeat(32), 8);
         assert!(record.work_bits() >= 8);
-        record.verify_for_vote(&params(8), &window()).unwrap();
+        record.verify_for_vote(&params(8), &window(), None).unwrap();
         assert_eq!(window().current(), Some(&anchor()));
     }
 
@@ -420,7 +525,7 @@ mod tests {
 
         let mut moved = good.clone();
         moved.commit_id = "22".repeat(32);
-        let err = moved.verify_for_vote(&params(8), &window()).unwrap_err();
+        let err = moved.verify_for_vote(&params(8), &window(), None).unwrap_err();
         assert!(err.to_string().contains("signature"), "{err}");
 
         let mut weak = good.clone();
@@ -428,12 +533,12 @@ mod tests {
         while weak.work_bits() >= 8 {
             weak.nonce += 1;
         }
-        let err = weak.verify_for_vote(&params(8), &window()).unwrap_err();
+        let err = weak.verify_for_vote(&params(8), &window(), None).unwrap_err();
         assert!(err.to_string().contains("floor"), "{err}");
 
         let mut stale = HashCommitment::signed(&keypair, "contract-a", &"11".repeat(32), None).unwrap();
         stale.grind(&EpochAnchor { epoch: 2, anchor: "cd".repeat(32) }, 8).unwrap();
-        let err = stale.verify_for_vote(&params(8), &window()).unwrap_err();
+        let err = stale.verify_for_vote(&params(8), &window(), None).unwrap_err();
         assert!(err.to_string().contains("not a current epoch anchor"), "{err}");
 
         let mut body_hash = good.clone();
@@ -449,15 +554,15 @@ mod tests {
             .map(|c| record(&keypair, &c.repeat(32), 4).to_event().unwrap())
             .collect();
         let p = params(4);
-        check_block_events(&events[..2], Some(&p), &window()).unwrap();
-        let err = check_block_events(&events, Some(&p), &window()).unwrap_err();
+        check_block_events(&events[..2], Some(&p), &window(), &open).unwrap();
+        let err = check_block_events(&events, Some(&p), &window(), &open).unwrap_err();
         assert!(err.to_string().contains("more than 2"), "{err}");
-        let err = check_block_events(&[events[0].clone(), events[0].clone()], Some(&p), &window())
+        let err = check_block_events(&[events[0].clone(), events[0].clone()], Some(&p), &window(), &open)
             .unwrap_err();
         assert!(err.to_string().contains("twice"), "{err}");
-        let err = check_block_events(&events[..1], None, &window()).unwrap_err();
+        let err = check_block_events(&events[..1], None, &window(), &open).unwrap_err();
         assert!(err.to_string().contains("no hash lane"), "{err}");
-        check_block_events(&[json!({"type": "contract_push"})], None, &window()).unwrap();
+        check_block_events(&[json!({"type": "contract_push"})], None, &window(), &open).unwrap();
     }
 
     #[test]
@@ -472,7 +577,72 @@ mod tests {
         assert_eq!(taken[0].auction_key(), strongest);
 
         let events: Vec<Value> = records.iter().rev().map(|r| r.to_event().unwrap()).collect();
-        assert_eq!(records_to_index(&events, &params(2)), taken);
+        assert_eq!(records_to_index(&events, &params(2), &open), taken);
+    }
+
+    #[test]
+    fn a_signer_set_keeps_other_keys_off_the_contract() {
+        let alice = Keypair::generate().unwrap();
+        let bob = Keypair::generate().unwrap();
+        let mallory = Keypair::generate().unwrap();
+        let set = vec![
+            alice.public_key_as_base58_identity(),
+            bob.public_key_as_base58_identity(),
+        ];
+
+        let mut genesis =
+            HashCommitment::signed_genesis(&alice, "contract-a", &"11".repeat(32), set.clone())
+                .unwrap();
+        genesis.grind(&anchor(), 4).unwrap();
+        genesis.verify_for_vote(&params(4), &window(), None).unwrap();
+
+        let mut outsider_genesis =
+            HashCommitment::signed_genesis(&mallory, "contract-a", &"11".repeat(32), set.clone())
+                .unwrap();
+        outsider_genesis.grind(&anchor(), 4).unwrap();
+        let err = outsider_genesis.verify_record().unwrap_err();
+        assert!(err.to_string().contains("not in the signer set"), "{err}");
+
+        let mut widened = genesis.clone();
+        widened.signers = Some(vec![mallory.public_key_as_base58_identity()]);
+        assert!(widened.verify_record().is_err());
+
+        let extension = |keypair: &Keypair| {
+            let mut r = HashCommitment::signed(
+                keypair,
+                "contract-a",
+                &"22".repeat(32),
+                Some(&"11".repeat(32)),
+            )
+            .unwrap();
+            r.grind(&anchor(), 4).unwrap();
+            r
+        };
+        extension(&bob)
+            .verify_for_vote(&params(4), &window(), Some(&set))
+            .unwrap();
+        let err = extension(&mallory)
+            .verify_for_vote(&params(4), &window(), Some(&set))
+            .unwrap_err();
+        assert!(err.to_string().contains("not in its signer set"), "{err}");
+
+        let err = genesis.verify_for_vote(&params(4), &window(), Some(&set)).unwrap_err();
+        assert!(err.to_string().contains("already has"), "{err}");
+
+        let three: Vec<String> = (0..3)
+            .map(|_| Keypair::generate().unwrap().public_key_as_base58_identity())
+            .chain([alice.public_key_as_base58_identity()])
+            .collect();
+        let mut big =
+            HashCommitment::signed_genesis(&alice, "contract-b", &"33".repeat(32), three).unwrap();
+        big.grind(&anchor(), 4).unwrap();
+        let err = big.verify_for_vote(&params(4), &window(), None).unwrap_err();
+        assert!(err.to_string().contains("allows 2"), "{err}");
+
+        let mut body_hash = HashCommitment::signed(&alice, "c", &"11".repeat(32), None).unwrap();
+        body_hash.parent = Some("22".repeat(32));
+        body_hash.signers = Some(set);
+        assert!(body_hash.verify_record().is_err());
     }
 
     #[test]

@@ -11,6 +11,7 @@ use modality_common::hash_commitment::{
 use modality_datastore::models::{MinerBlock, SequencerBlock};
 use modality_datastore::DatastoreManager;
 use serde_json::{json, Value};
+use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 use tokio::sync::Mutex;
 
@@ -27,6 +28,14 @@ pub struct LaneView {
     /// `None` until the first refresh; a block with records gets no vote
     /// before then.
     pub window: Option<AnchorWindow>,
+    /// Certified signer sets by contract, as of the last refresh.
+    pub signer_sets: HashMap<String, Vec<String>>,
+}
+
+impl LaneView {
+    fn signer_set(&self, contract_id: &str) -> Option<&[String]> {
+        self.signer_sets.get(contract_id).map(Vec::as_slice)
+    }
 }
 
 pub type SharedLaneView = Arc<RwLock<LaneView>>;
@@ -78,18 +87,21 @@ async fn refresh(view: &SharedLaneView, datastore: &Arc<Mutex<DatastoreManager>>
         if params.is_none() {
             LaneView::default()
         } else {
-            match anchor_window(&mgr).await {
-                Ok(window) => LaneView {
-                    params,
-                    window: Some(window),
-                },
+            let window = match anchor_window(&mgr).await {
+                Ok(window) => Some(window),
                 Err(e) => {
                     log::warn!("Hash lane anchor window unavailable: {}", e);
-                    LaneView {
-                        params,
-                        window: None,
-                    }
+                    None
                 }
+            };
+            let signer_sets = mgr.hash_signer_sets().unwrap_or_else(|e| {
+                log::warn!("Hash lane signer sets unreadable: {}", e);
+                HashMap::new()
+            });
+            LaneView {
+                params,
+                window,
+                signer_sets,
             }
         }
     };
@@ -141,7 +153,7 @@ pub fn pick_for_proposal(events: Vec<Value>, view: &LaneView) -> (Vec<Value>, Ve
         }
         return (block_events, Vec::new());
     };
-    records.retain(|r| match r.verify_for_vote(params, window) {
+    records.retain(|r| match r.verify_for_vote(params, window, view.signer_set(&r.contract_id)) {
         Ok(()) => true,
         Err(e) => {
             log::debug!("Dropping hash commitment: {}", e);
@@ -168,7 +180,8 @@ pub fn check_draft(block: &SequencerBlock, view: &LaneView) -> Result<()> {
     let Some(window) = &view.window else {
         bail!("no anchor window yet");
     };
-    check_block_events(&block.events, view.params.as_ref(), window)
+    let signer_sets = |contract_id: &str| view.signer_set(contract_id).map(<[String]>::to_vec);
+    check_block_events(&block.events, view.params.as_ref(), window, &signer_sets)
 }
 
 /// Index the hash commitments of a certified block. Returns how many were
@@ -196,7 +209,8 @@ pub fn index_certified(block: &SequencerBlock, batch_id: &str, mgr: &DatastoreMa
         }
     };
     let mut indexed = 0;
-    for record in records_to_index(&block.events, &params) {
+    let signer_sets = |contract_id: &str| mgr.hash_signer_set(contract_id).ok().flatten();
+    for record in records_to_index(&block.events, &params, &signer_sets) {
         let mut entry = match serde_json::to_value(&record) {
             Ok(entry) => entry,
             Err(_) => continue,
@@ -245,7 +259,8 @@ pub fn is_reveal(commit_entry: &Value) -> bool {
 }
 
 /// A reveal is sequenced only if its body hashes to its commit id and a
-/// certified hash commitment names that commit at the same parent.
+/// certified hash commitment names that commit. The record's parent is signed
+/// data, not a check: the body's own parent is what apply holds to the head.
 pub fn check_reveal(
     mgr: &DatastoreManager,
     contract_id: &str,
@@ -265,20 +280,11 @@ pub fn check_reveal(
             "reveal body hashes to {computed}, not to commit {commit_id}"
         )));
     }
-    let Some(record) = mgr
-        .hash_commitment(contract_id, commit_id)
-        .map_err(|e| RevealRefusal::Mismatch(e.to_string()))?
-    else {
-        return Err(RevealRefusal::NotAnchored);
-    };
-    let anchored_parent = record.get("parent").and_then(Value::as_str);
-    if anchored_parent != file.head.parent.as_deref() {
-        return Err(RevealRefusal::Mismatch(format!(
-            "reveal of {commit_id} has parent {:?}, but its hash commitment names {:?}",
-            file.head.parent, anchored_parent
-        )));
+    match mgr.hash_commitment(contract_id, commit_id) {
+        Ok(Some(_)) => Ok(()),
+        Ok(None) => Err(RevealRefusal::NotAnchored),
+        Err(e) => Err(RevealRefusal::Mismatch(e.to_string())),
     }
-    Ok(())
 }
 
 #[cfg(test)]
@@ -293,11 +299,13 @@ mod tests {
                 quota_per_block: quota,
                 floor_bits: 4,
                 algorithm: HASHTAX_SHA256.into(),
+                max_signers: 4,
             }),
             window: Some(AnchorWindow {
                 epoch: 0,
                 anchors: vec![static_anchor("t")],
             }),
+            signer_sets: HashMap::new(),
         }
     }
 
@@ -393,14 +401,49 @@ mod tests {
             Err(RevealRefusal::Mismatch(_))
         ));
 
-        let reparented_head = json!({"parent": "22".repeat(32)});
-        let reparented_file: CommitFile =
-            serde_json::from_value(json!({"body": body, "head": reparented_head})).unwrap();
-        let reparented_id = reparented_file.compute_id().unwrap();
-        let reparented_record = block(vec![record_event(&keypair, &reparented_id)]);
-        assert_eq!(index_certified(&reparented_record, "batch-3", &mgr), 1);
-        let entry = json!({"commit_id": reparented_id, "body": body, "head": reparented_head});
-        let err = check_reveal(&mgr, "c", &reparented_id, &entry).unwrap_err();
-        assert!(err.to_string().contains("parent"), "{err}");
+    }
+
+    #[tokio::test]
+    async fn a_certified_signer_set_keeps_other_keys_out_of_the_index() {
+        let mgr = DatastoreManager::create_in_memory().unwrap();
+        mgr.load_network_config(&json!({
+            "name": "t",
+            "hash_lane": {"quota_per_block": 4, "floor_bits": 4}
+        }))
+        .await
+        .unwrap();
+        let alice = Keypair::generate().unwrap();
+        let mallory = Keypair::generate().unwrap();
+        let grind = |mut r: HashCommitment| {
+            r.grind(&static_anchor("t"), 4).unwrap();
+            r.to_event().unwrap()
+        };
+        let genesis = grind(
+            HashCommitment::signed_genesis(
+                &alice,
+                "c",
+                &"11".repeat(32),
+                vec![alice.public_key_as_base58_identity()],
+            )
+            .unwrap(),
+        );
+        assert_eq!(index_certified(&block(vec![genesis]), "b1", &mgr), 1);
+        assert_eq!(
+            mgr.hash_signer_set("c").unwrap(),
+            Some(vec![alice.public_key_as_base58_identity()])
+        );
+
+        let parent = "11".repeat(32);
+        let by_alice = grind(HashCommitment::signed(&alice, "c", &"22".repeat(32), Some(&parent)).unwrap());
+        let by_mallory =
+            grind(HashCommitment::signed(&mallory, "c", &"33".repeat(32), Some(&parent)).unwrap());
+        let mut view = view(4);
+        view.signer_sets = mgr.hash_signer_sets().unwrap();
+        assert!(check_draft(&block(vec![by_mallory.clone()]), &view).is_err());
+        check_draft(&block(vec![by_alice.clone()]), &view).unwrap();
+
+        assert_eq!(index_certified(&block(vec![by_alice, by_mallory]), "b2", &mgr), 1);
+        assert!(mgr.hash_commitment("c", &"22".repeat(32)).unwrap().is_some());
+        assert!(mgr.hash_commitment("c", &"33".repeat(32)).unwrap().is_none());
     }
 }

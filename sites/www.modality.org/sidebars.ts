@@ -19,6 +19,7 @@ const sidebars: SidebarsConfig = {
         'concepts/index',
         'concepts/models-vs-rules',
         'concepts/append-only-logs',
+        'concepts/hash-commitments',
         'concepts/state-machines',
         'concepts/modal-logic',
         'concepts/predicates',

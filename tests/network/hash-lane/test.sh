@@ -57,9 +57,14 @@ expect_log() {
     return 1
 }
 
+# The CLI's short-lived p2p node logs to stdout ahead of the JSON.
+json_out() {
+    python3 -c "import json,sys; t=sys.stdin.read(); print(json.dumps(json.loads(t[t.index('\n{')+1:] if not t.startswith('{') else t)))"
+}
+
 anchor_status() {
     modal contract anchor --status --commit "$2" --dir "$1" --remote "$REMOTE" --output json \
-      2>>"$CURRENT_LOG" | python3 -c "import json,sys; print(json.load(sys.stdin)['commits'][0]['status'])"
+      2>>"$CURRENT_LOG" | json_out | python3 -c "import json,sys; print(json.load(sys.stdin)['commits'][0]['status'])"
 }
 
 wait_status() {
@@ -101,7 +106,7 @@ A_ID=$(cat "$NOTES/.contract/HEAD")
 check "Before anchoring, the node knows nothing of the commit" \
   test "$(anchor_status "$NOTES" "$A_ID")" = "unknown"
 modal contract anchor --dir "$NOTES" --remote "$REMOTE" --remote-name origin --output json \
-  > ./tmp/anchor-a.json 2>>"$CURRENT_LOG"
+  2>>"$CURRENT_LOG" | json_out > ./tmp/anchor-a.json
 cat ./tmp/anchor-a.json >> "$CURRENT_LOG"
 check "Anchor submits both unpushed commits" \
   python3 -c "import json; c=json.load(open('./tmp/anchor-a.json'))['commits']; assert len(c)==2 and all(x['status']=='queued' for x in c)"
@@ -173,6 +178,28 @@ modal contract repost "$CONTRACT_ID" /notes/f5.text --from-dir "$NOTES" --dir "$
 modal contract commit --all --dir "$DEST" >> "$CURRENT_LOG" 2>&1
 check "The node refuses a REPOST whose source commit was only anchored" \
   bash -c "! modal contract push --dir '$DEST' --remote '$REMOTE' --remote-name origin >> '$CURRENT_LOG' 2>&1"
+
+echo ""
+echo "Alice anchors a contract with herself as its only signer; Mallory cannot extend it..."
+mkdir -p ./tmp/passfiles
+modal id create --path ./tmp/passfiles/alice.mod_passfile >> "$CURRENT_LOG" 2>&1
+modal id create --path ./tmp/passfiles/mallory.mod_passfile >> "$CURRENT_LOG" 2>&1
+KEPT="./tmp/kept"
+modal contract create --dir "$KEPT" >> "$CURRENT_LOG"
+KEPT_GENESIS=$(cat "$KEPT/.contract/HEAD")
+modal contract anchor --dir "$KEPT" --remote "$REMOTE" --remote-name origin \
+  --sign ./tmp/passfiles/alice.mod_passfile --signer ./tmp/passfiles/alice.mod_passfile \
+  >> "$CURRENT_LOG" 2>&1
+check "The genesis hash commitment with its signer set is anchored" \
+  wait_status "$KEPT" "$KEPT_GENESIS" anchored
+modal contract commit --dir "$KEPT" --path /notes/k.text --value "k" >> "$CURRENT_LOG"
+KEPT_NEXT=$(cat "$KEPT/.contract/HEAD")
+check "A hash commitment signed by a key outside the set is refused" \
+  bash -c "! modal contract anchor --commit '$KEPT_NEXT' --dir '$KEPT' --remote '$REMOTE' --sign ./tmp/passfiles/mallory.mod_passfile >> '$CURRENT_LOG' 2>&1"
+check "The refusal names the signer set" grep -q "not in its signer set" "$CURRENT_LOG"
+modal contract anchor --commit "$KEPT_NEXT" --dir "$KEPT" --remote "$REMOTE" \
+  --sign ./tmp/passfiles/alice.mod_passfile >> "$CURRENT_LOG" 2>&1
+check "The same commit signed by Alice is anchored" wait_status "$KEPT" "$KEPT_NEXT" anchored
 
 echo ""
 echo "Restarting the sequencer: the anchored and revealed commits are still indexed..."

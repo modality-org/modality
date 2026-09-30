@@ -39,6 +39,10 @@ The rest of this guide names the pieces that make that check possible.
 5. **Predicates** bind real-world identity (signatures) to logical constraints
 6. **Potentialism** ensures rules can only shrink the space of valid futures
 
+On a network with a hash lane, a commit's hash can be ordered before its
+body is sent. The body is checked when it is revealed. See
+[Hash Commitments](hash-commitments.md).
+
 Dive into each concept:
 
 - [Append-Only Logs](./append-only-logs)
