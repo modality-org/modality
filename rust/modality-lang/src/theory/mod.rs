@@ -56,6 +56,9 @@ pub enum TheoryVersion {
     /// from the rule's evaluation node takes (`flow`). Models are refused
     /// only as under `V1`.
     V2,
+    /// `V2`, and the evaluator compares numbers exactly (`num_*`,
+    /// `amount_in_range`) instead of as `f64`. The theory is `V2`'s.
+    V3,
 }
 
 impl TheoryVersion {
@@ -65,6 +68,7 @@ impl TheoryVersion {
             TheoryVersion::V0 => "v0",
             TheoryVersion::V1 => "v1",
             TheoryVersion::V2 => "v2",
+            TheoryVersion::V3 => "v3",
         }
     }
 }
@@ -83,8 +87,9 @@ impl std::str::FromStr for TheoryVersion {
             "v0" => Ok(TheoryVersion::V0),
             "v1" => Ok(TheoryVersion::V1),
             "v2" => Ok(TheoryVersion::V2),
+            "v3" => Ok(TheoryVersion::V3),
             other => Err(format!(
-                "unknown predicate theory version `{other}` (this build knows v0, v1, and v2)"
+                "unknown predicate theory version `{other}` (this build knows v0, v1, v2, and v3)"
             )),
         }
     }

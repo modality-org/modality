@@ -11,6 +11,7 @@ use serde_json::json;
 
 const V0: TheoryVersion = TheoryVersion::V0;
 const V2: TheoryVersion = TheoryVersion::V2;
+const V3: TheoryVersion = TheoryVersion::V3;
 
 fn holds(commit: &CommitFile, state: &[(&str, Value)], name: &str, args: &[&str]) -> bool {
     let state: HashMap<String, Value> = state
@@ -23,6 +24,47 @@ fn holds(commit: &CommitFile, state: &[(&str, Value)], name: &str, args: &[&str]
             name.to_string(),
             args.iter().map(|a| a.to_string()).collect(),
         ))
+}
+
+fn holds_under(theory: TheoryVersion, state: &[(&str, Value)], name: &str, args: &[&str]) -> bool {
+    let state: HashMap<String, Value> = state
+        .iter()
+        .map(|(k, v)| (k.trim_start_matches('/').to_string(), v.clone()))
+        .collect();
+    CommitFacts::from_commit(&CommitFile::new(), &state)
+        .under(theory)
+        .predicate_holds(&Property::new_predicate_from_call_args(
+            name.to_string(),
+            args.iter().map(|a| a.to_string()).collect(),
+        ))
+}
+
+#[test]
+fn v3_compares_numbers_exactly_where_f64_rounds() {
+    let state = [
+        ("/big.num", json!(9_007_199_254_740_993u64)),
+        ("/tenth.num", json!(0.1)),
+    ];
+    let under = |theory, name, args: &[&str]| holds_under(theory, &state, name, args);
+    let two53 = "9007199254740992";
+    assert!(!under(V2, "num_gt", &["/big.num", two53]), "f64 rounds 2^53 + 1 down");
+    assert!(under(V2, "num_eq", &["/big.num", two53]));
+    assert!(under(V3, "num_gt", &["/big.num", two53]));
+    assert!(!under(V3, "num_eq", &["/big.num", two53]));
+    assert!(under(V3, "num_eq", &["/big.num", "9007199254740993"]));
+    assert!(!under(V3, "num_lte", &["/big.num", "9.007199254740993e15"]), "no exponent literals");
+
+    let near = "0.10000000000000001";
+    assert!(under(V2, "num_eq", &["/tenth.num", near]), "one f64 for both");
+    assert!(under(V3, "num_lt", &["/tenth.num", near]));
+    assert!(under(V3, "num_eq", &["/tenth.num", "0.1"]));
+    assert!(under(V3, "num_gte", &["/big.num", "/tenth.num"]), "a path on the right");
+
+    let range = |theory, lo: &str, hi: &str| under(theory, "amount_in_range", &["/big.num", lo, hi]);
+    assert!(range(V2, two53, two53), "f64 rounds 2^53 + 1 into [2^53, 2^53]");
+    assert!(!range(V3, two53, two53));
+    assert!(range(V3, two53, "9007199254740994"));
+    assert!(!under(V3, "num_gt", &["/big.num", "many"]), "not a number");
 }
 
 fn sends(items: &[(&str, &str, Value)]) -> CommitFile {

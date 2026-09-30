@@ -359,7 +359,7 @@ impl ModelChecker {
     /// node that takes the first step: that step is taken in exactly this
     /// state, so a diamond there is decided against it.
     fn anchor_step(&self, node: &str) -> Option<&(dyn StateView + Send + Sync)> {
-        if self.version != TheoryVersion::V2 {
+        if self.version < TheoryVersion::V2 {
             return None;
         }
         let (copy, _) = self.first_step.as_ref()?;
@@ -699,7 +699,7 @@ impl ModelChecker {
     /// variables: its instances stand for edges with names the flow does
     /// not see.
     fn v2_flow(&self, node: &str) -> Option<(Flow, Vec<(usize, usize)>)> {
-        if self.version != TheoryVersion::V2
+        if self.version < TheoryVersion::V2
             || vars::any_vars(vars::model_props(&self.model).iter().copied())
         {
             return None;
@@ -821,7 +821,7 @@ impl ModelChecker {
                 .derived(merged_model(&self.model))
                 .check_formula_at_state(formula, state_name);
         }
-        if self.version == TheoryVersion::V2 && self.start.as_deref() != Some(state_name) {
+        if self.version >= TheoryVersion::V2 && self.start.as_deref() != Some(state_name) {
             // The first step from the node is taken in the anchor state; a
             // return to the node is not. A copy of the node with its edges
             // out and none in keeps the seed to the first step.
@@ -1288,7 +1288,7 @@ impl ModelChecker {
             }
             let known: &[Lit] = self.facts.get(&transition.from).map_or(&[], |f| f);
             let (mut lits, exact) = theory.expand_all(&with);
-            if self.version == TheoryVersion::V2 && !theory.robust(&lits, known) {
+            if self.version >= TheoryVersion::V2 && !theory.robust(&lits, known) {
                 return false;
             }
             if known.is_empty() {

@@ -17,6 +17,7 @@ use modality_lang::{
 };
 use serde_json::Value;
 use sha2::{Digest, Sha256};
+use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
 
 struct AnchoredRule {
@@ -854,7 +855,7 @@ fn validate_anchored_rule(
     state: &HashMap<String, Value>,
 ) -> Result<()> {
     let mut checker = rule_checker(model, theory, state);
-    if theory == TheoryVersion::V2 {
+    if theory >= TheoryVersion::V2 {
         checker = checker.with_anchor_state(Box::new(OwnedAcceptedState(state.clone())));
     }
 
@@ -2099,23 +2100,23 @@ impl CommitFacts {
                 _ => false,
             },
             "num_eq" => match (args.first(), args.get(1)) {
-                (Some(left), Some(right)) => self.number_compare(left, right, |a, b| a == b),
+                (Some(left), Some(right)) => self.number_compare(left, right, Ordering::is_eq),
                 _ => false,
             },
             "num_gt" => match (args.first(), args.get(1)) {
-                (Some(left), Some(right)) => self.number_compare(left, right, |a, b| a > b),
+                (Some(left), Some(right)) => self.number_compare(left, right, Ordering::is_gt),
                 _ => false,
             },
             "num_gte" => match (args.first(), args.get(1)) {
-                (Some(left), Some(right)) => self.number_compare(left, right, |a, b| a >= b),
+                (Some(left), Some(right)) => self.number_compare(left, right, Ordering::is_ge),
                 _ => false,
             },
             "num_lt" => match (args.first(), args.get(1)) {
-                (Some(left), Some(right)) => self.number_compare(left, right, |a, b| a < b),
+                (Some(left), Some(right)) => self.number_compare(left, right, Ordering::is_lt),
                 _ => false,
             },
             "num_lte" => match (args.first(), args.get(1)) {
-                (Some(left), Some(right)) => self.number_compare(left, right, |a, b| a <= b),
+                (Some(left), Some(right)) => self.number_compare(left, right, Ordering::is_le),
                 _ => false,
             },
             "bool_true" => args
@@ -2810,6 +2811,16 @@ impl CommitFacts {
     }
 
     fn amount_in_range(&self, path: &str, min: &str, max: &str) -> bool {
+        if self.theory >= TheoryVersion::V3 {
+            let (Some(amount), Some(min), Some(max)) = (
+                self.state_exact(path),
+                self.exact_number_arg(min),
+                self.exact_number_arg(max),
+            ) else {
+                return false;
+            };
+            return min <= max && amount >= min && amount <= max;
+        }
         let Some(amount) = self.state_number(path) else {
             return false;
         };
@@ -2823,15 +2834,35 @@ impl CommitFacts {
         min <= max && amount >= min && amount <= max
     }
 
-    fn number_compare(&self, left: &str, right: &str, compare: impl Fn(f64, f64) -> bool) -> bool {
+    /// `left` is a path; `right` a path or a literal. From `V3` the two
+    /// compare exactly; before, as `f64`, which rounds past 2^53 and past 15
+    /// significant digits.
+    fn number_compare(&self, left: &str, right: &str, holds: fn(Ordering) -> bool) -> bool {
+        if self.theory >= TheoryVersion::V3 {
+            return match (self.state_exact(left), self.exact_number_arg(right)) {
+                (Some(left), Some(right)) => holds(left.cmp(&right)),
+                _ => false,
+            };
+        }
         let Some(left) = self.state_number(left) else {
             return false;
         };
         let Some(right) = self.number_arg(right) else {
             return false;
         };
+        left.partial_cmp(&right).is_some_and(holds)
+    }
 
-        compare(left, right)
+    fn state_exact(&self, path: &str) -> Option<Exact> {
+        Exact::from_json(self.state.get(&normalize_path(path))?)
+    }
+
+    fn exact_number_arg(&self, arg: &str) -> Option<Exact> {
+        if arg.starts_with('/') {
+            self.state_exact(arg)
+        } else {
+            Exact::parse(arg)
+        }
     }
 
     fn number_arg(&self, arg: &str) -> Option<f64> {

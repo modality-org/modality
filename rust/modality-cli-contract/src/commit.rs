@@ -90,8 +90,9 @@ pub struct Opts {
     action: Option<String>,
 
     /// Predicate theory local verify runs: v2, the testnet's. Use v0 for a
-    /// network whose network.json leaves predicate_theory_version unset
-    #[clap(long, default_value = "v2", value_parser = ["v0", "v2"])]
+    /// network whose network.json leaves predicate_theory_version unset, and
+    /// v3 for one that sets it to v3 (numbers compared exactly)
+    #[clap(long, default_value = "v2", value_parser = ["v0", "v2", "v3"])]
     theory: String,
 }
 
@@ -311,7 +312,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
     // Validate against contract rules (signature predicates, etc.)
     store.validate_commit_against_rules(&commit)?;
     let theory_preview =
-        validate_commit_against_model(&dir, &store, &commit, opts.theory == "v2")?;
+        validate_commit_against_model(&dir, &store, &commit, &opts.theory)?;
 
     let commit_id = commit.compute_id()?;
 
@@ -473,7 +474,7 @@ fn validate_commit_against_model(
     dir: &std::path::Path,
     store: &ContractStore,
     commit: &CommitFile,
-    v2: bool,
+    theory: &str,
 ) -> Result<Option<TheoryPreview>> {
     use modality_common::model_governance::{
         load_commits_oldest_first, shadow_findings_for_store, validate_pending_commit_with_theory,
@@ -481,11 +482,10 @@ fn validate_commit_against_model(
     };
     use modality_lang::TheoryVersion;
 
-    let activation = TheoryActivation::always(if v2 {
-        TheoryVersion::V2
-    } else {
-        TheoryVersion::V0
-    });
+    let version: TheoryVersion = theory.parse().map_err(anyhow::Error::msg)?;
+    // Under v0, local verify previews what v2 would refuse.
+    let v2 = version != TheoryVersion::V0;
+    let activation = TheoryActivation::always(version);
 
     let model_path = dir.join("model").join("default.modality");
     let model_content = if model_path.exists() {
@@ -606,9 +606,9 @@ mod tests {
             Some("/model/default.modality".to_string()),
             Value::String(SLIPPED_ESCROW.to_string()),
         );
-        let preview = validate_commit_against_model(&dir, &store, &commit, false)?
+        let preview = validate_commit_against_model(&dir, &store, &commit, "v0")?
             .expect("V2 has something to say about a dead edge");
-        let err = validate_commit_against_model(&dir, &store, &commit, true)
+        let err = validate_commit_against_model(&dir, &store, &commit, "v2")
             .expect_err("--theory v2 refuses the dead edge");
         assert!(err.to_string().contains("open --> refunded"), "{err}");
         assert_eq!(preview.theory, "V2");
@@ -658,7 +658,7 @@ fn validate_commit_against_model(
     _dir: &std::path::Path,
     _store: &ContractStore,
     _commit: &CommitFile,
-    _v2: bool,
+    _theory: &str,
 ) -> Result<Option<TheoryPreview>> {
     Ok(None)
 }

@@ -33,9 +33,10 @@ verdict.
 | `v0` | Labels are names. A label and its negation contradict; nothing else does. What a network runs when it sets no version, such as the bundled devnets. |
 | `v1` | Refused on networks: it accepts rules some runs break. Kept for local previews (`--theory v1`). |
 | `v2` | Everything below. What the testnet runs. |
+| `v3` | `v2`, and the validator compares numbers exactly: `num_*` and `amount_in_range` over decimals, as the theory already reasons about them. Under `v0` and `v2` the validator compares them as 64-bit floats, which round past 2⁵³ and past 15 significant digits. |
 
-`modal c commit` verifies under `v2` by default. For a `v0` network, pass
-`--theory v0`: the commit is verified under `v0`, and the output previews
+`modal c commit` verifies under `v2` by default. For a `v3` network, pass
+`--theory v3`. For a `v0` network, pass `--theory v0`: the commit is verified under `v0`, and the output previews
 what `v2` would refuse. `modal c theory` shows what `v2` derives for a
 contract, whatever the network runs.
 

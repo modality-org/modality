@@ -630,6 +630,12 @@ previously committed number. The second argument can be a numeric literal or a
 path to another previously committed number. Numeric comparisons do not see
 numbers written by the same pending commit.
 
+Under predicate theory `v3` the comparison is exact over decimals. Under `v0`
+and `v2` it is a 64-bit float comparison: numbers past 2⁵³, or with more than
+15 significant digits, can compare wrongly (`num_gt` of 9007199254740993
+against "9007199254740992" is false there). `amount_in_range` compares the
+same way.
+
 ```modality
 num_gte(/balance.num, "100")
 num_lt(/deposit.num, /limit.num)

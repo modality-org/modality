@@ -4183,6 +4183,20 @@ model DeliveryOracle {
     }
 
     #[tokio::test]
+    async fn network_theory_v3_runs_v2s_checks() {
+        let (processor, _) =
+            processor_on_network(serde_json::json!({ "predicate_theory_version": "v3" })).await;
+        let err = processor
+            .process_commit("c1", "bootstrap", &bootstrap_commit_json().to_string())
+            .await
+            .expect_err("the fixture's keys are not Modality IDs");
+        assert!(
+            err.to_string().contains("Invalid Modality ID"),
+            "v3 is known and checks commits as v2 does: {err}"
+        );
+    }
+
+    #[tokio::test]
     async fn network_theory_unknown_to_this_build_refuses_every_commit() {
         let (processor, _) =
             processor_on_network(serde_json::json!({ "predicate_theory_version": "v9" })).await;
