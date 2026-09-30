@@ -1,48 +1,41 @@
 # WASM Examples
 
-This directory contains examples demonstrating how to use the Modality Language Parser compiled to WebAssembly.
+Examples of the Modality language parser and model checker compiled to
+WebAssembly.
 
 ## Files
 
-- **`example.html`** - Browser-based demo showing how to use the WASM parser in a web page
-- **`node-example.cjs`** - Node.js example showing how to use the WASM parser in a Node.js environment
-- **`README.md`** - Detailed documentation for the WASM package
+- **`example.html`** - Browser demo: parse a model and draw it as Mermaid
+- **`node-example.cjs`** - Node.js demo: parse, draw, and check a formula
 
-## How to Use
+The WASM bindings are build artifacts and are not checked in. Build them
+from `rust/modality-lang`.
 
-### Browser Example
+## Browser
 
-1. Build the WASM module:
-   ```bash
-   wasm-pack build --target web --out-dir ../../dist
-   ```
+```bash
+cd rust/modality-lang
+wasm-pack build --target web --out-dir dist
+python3 -m http.server 8000
+```
 
-2. Copy the built files to the examples directory:
-   ```bash
-   cp ../../dist/modality_lang.js ../../dist/modality_lang_bg.wasm .
-   ```
+Then open <http://localhost:8000/examples/wasm/example.html>. The page loads
+`../../dist/modality_lang.js`, so it must be served over HTTP, not opened as
+a file.
 
-3. Open `example.html` in a web browser
+## Node.js
 
-### Node.js Example
-
-1. Build the WASM module for Node.js:
-   ```bash
-   wasm-pack build --target nodejs --out-dir ../../dist-node
-   ```
-
-2. Copy the built files to the examples directory:
-   ```bash
-   cp ../../dist-node/modality_lang.js ../../dist-node/modality_lang_bg.wasm .
-   ```
-
-3. Run the example:
-   ```bash
-   node node-example.cjs
-   ```
+```bash
+cd rust/modality-lang
+wasm-pack build --target nodejs --out-dir dist-node
+node examples/wasm/node-example.cjs
+```
 
 ## Notes
 
-- The example files reference the WASM modules from the `dist` and `dist-node` directories
-- You may need to adjust the import paths in the examples based on your setup
-- The WASM modules are not included in this directory as they are build artifacts
+- `parse_model`, `parse_all_models` and `parse_formulas` return objects.
+  `generate_mermaid*` and `check_formula*` take models and formulas as JSON
+  text, so pass `JSON.stringify(model)`.
+- A model file does not say where a run is. To draw current nodes, set
+  `state` on the parsed model (`[{ part_name, current_nodes }]`) before
+  `generate_mermaid_with_state`.

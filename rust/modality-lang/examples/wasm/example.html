@@ -91,18 +91,18 @@
         
         <div class="section">
             <label for="modalityInput">Enter Modality Language Code:</label>
-                                    <textarea id="modalityInput" placeholder="Enter your modality language code here...">model TestModel:
-              graph g1:
-                n1 --> n2 : +blue -red
-                n2 --> n3 : +green
-                n3 --> n1 : -blue +yellow
-              graph g2:
-                a --> b : +init
-                b --> c : +complete
-                c --> a : +reset
-              state:
-                g1: n1 n2
-                g2: a</textarea>
+                                    <textarea id="modalityInput" placeholder="Enter your modality language code here...">model TestModel {
+  part g1 {
+    n1 --> n2: +blue -red
+    n2 --> n3: +green
+    n3 --> n1: -blue +yellow
+  }
+  part g2 {
+    a --> b: +init
+    b --> c: +complete
+    c --> a: +reset
+  }
+}</textarea>
         </div>
 
                             <div class="section">
@@ -120,7 +120,18 @@
     </div>
 
     <script type="module">
-        import init, { parse_model, parse_all_models, generate_mermaid, generate_mermaid_styled } from './modality_lang.js';
+        // Built by `wasm-pack build --target web --out-dir dist` in rust/modality-lang.
+        // Serve rust/modality-lang over HTTP and open examples/wasm/example.html.
+        import init, {
+            parse_model,
+            parse_all_models,
+            generate_mermaid,
+            generate_mermaid_styled,
+            generate_mermaid_with_state,
+        } from '../../dist/modality_lang.js';
+
+        // The parse functions return objects; the diagram functions take JSON text.
+        const json = (value) => JSON.stringify(value);
 
         let wasmModule = null;
 
@@ -144,9 +155,8 @@
             const output = document.getElementById('output');
 
             try {
-                const result = parse_model(input);
-                const model = JSON.parse(result);
-                
+                const model = parse_model(input);
+
                 output.innerHTML = '<div class="success">✅ Model parsed successfully!</div>\n\n' +
                     '<strong>Parsed Model:</strong>\n' +
                     JSON.stringify(model, null, 2);
@@ -165,9 +175,8 @@
             const output = document.getElementById('output');
 
             try {
-                const result = parse_all_models(input);
-                const models = JSON.parse(result);
-                
+                const models = parse_all_models(input);
+
                 output.innerHTML = '<div class="success">✅ All models parsed successfully!</div>\n\n' +
                     '<strong>Parsed Models:</strong>\n' +
                     JSON.stringify(models, null, 2);
@@ -186,11 +195,9 @@
             const output = document.getElementById('output');
 
             try {
-                const result = parse_all_models(input);
-                const models = JSON.parse(result);
-                
-                const mermaidResult = generate_mermaid_diagrams(result);
-                
+                const models = parse_all_models(input);
+                const mermaidResult = models.map((model) => generate_mermaid(json(model))).join('\n\n');
+
                 output.innerHTML = '<div class="success">✅ Mermaid diagram generated successfully!</div>\n\n' +
                     '<strong>Mermaid Diagram:</strong>\n' +
                     '```mermaid\n' + mermaidResult + '\n```';
@@ -209,8 +216,7 @@
                         const output = document.getElementById('output');
 
                         try {
-                            const result = parse_model(input);
-                            const mermaidResult = generate_mermaid_styled(result);
+                            const mermaidResult = generate_mermaid_styled(json(parse_model(input)));
                             
                             output.innerHTML = '<div class="success">✅ Styled Mermaid diagram generated successfully!</div>\n\n' +
                                 '<strong>Styled Mermaid Diagram:</strong>\n' +
@@ -230,8 +236,13 @@
                         const output = document.getElementById('output');
 
                         try {
-                            const result = parse_model(input);
-                            const mermaidResult = generate_mermaid_with_state(result);
+                            // A model file does not say where a run is: mark each
+                            // part's first node as current.
+                            const model = parse_model(input);
+                            model.state = model.parts
+                                .filter((part) => part.transitions.length > 0)
+                                .map((part) => ({ part_name: part.name, current_nodes: [part.transitions[0].from] }));
+                            const mermaidResult = generate_mermaid_with_state(json(model));
                             
                             output.innerHTML = '<div class="success">✅ State-aware Mermaid diagram generated successfully!</div>\n\n' +
                                 '<strong>State-Aware Mermaid Diagram:</strong>\n' +

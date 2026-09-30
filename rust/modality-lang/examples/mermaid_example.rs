@@ -3,13 +3,17 @@ use modality_lang::{
     parse_all_models_lalrpop,
 };
 
+/// Run: `cargo run -p modality-lang --example mermaid_example [file.modality]`.
+/// Without a file it draws `examples/models/SimpleExamples.modality`.
 fn main() -> Result<(), String> {
-    let file_path = "test.modality";
+    let file_path = std::env::args().nth(1).unwrap_or_else(|| {
+        concat!(env!("CARGO_MANIFEST_DIR"), "/examples/models/SimpleExamples.modality").to_string()
+    });
 
     println!("=== Mermaid Diagram Generation Example ===\n");
 
     // Parse all models
-    let models = parse_all_models_lalrpop(file_path)?;
+    let models = parse_all_models_lalrpop(&file_path)?;
 
     println!("✓ Successfully parsed {} models\n", models.len());
 

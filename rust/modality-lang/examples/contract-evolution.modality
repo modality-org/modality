@@ -11,14 +11,14 @@
 // =====================================================
 model ServiceContract_v1 {
     // Simple offer → accept → deliver → pay flow
-    init --> offered: +OFFER +signed_by("provider")
-    offered --> accepted: +ACCEPT +signed_by("consumer")
-    accepted --> delivered: +DELIVER +signed_by("provider")
-    delivered --> complete: +PAY +signed_by("consumer")
+    init --> offered: +OFFER +signed_by(/parties/provider.id)
+    offered --> accepted: +ACCEPT +signed_by(/parties/consumer.id)
+    accepted --> delivered: +DELIVER +signed_by(/parties/provider.id)
+    delivered --> complete: +PAY +signed_by(/parties/consumer.id)
     
     // Cancellation (only before delivery)
-    offered --> cancelled: +CANCEL +signed_by("consumer")
-    accepted --> cancelled: +CANCEL +signed_by("consumer") +signed_by("provider")
+    offered --> cancelled: +CANCEL +signed_by(/parties/consumer.id)
+    accepted --> cancelled: +CANCEL +signed_by(/parties/consumer.id) +signed_by(/parties/provider.id)
     cancelled --> complete: +REFUND
 }
 
@@ -29,21 +29,21 @@ model ServiceContract_v1 {
 // =====================================================
 model ServiceContract_v1_1 {
     // All original flows preserved
-    init --> offered: +OFFER +signed_by("provider")
-    offered --> accepted: +ACCEPT +signed_by("consumer")
-    accepted --> delivered: +DELIVER +signed_by("provider")
-    delivered --> complete: +PAY +signed_by("consumer")
-    offered --> cancelled: +CANCEL +signed_by("consumer")
-    accepted --> cancelled: +CANCEL +signed_by("consumer") +signed_by("provider")
+    init --> offered: +OFFER +signed_by(/parties/provider.id)
+    offered --> accepted: +ACCEPT +signed_by(/parties/consumer.id)
+    accepted --> delivered: +DELIVER +signed_by(/parties/provider.id)
+    delivered --> complete: +PAY +signed_by(/parties/consumer.id)
+    offered --> cancelled: +CANCEL +signed_by(/parties/consumer.id)
+    accepted --> cancelled: +CANCEL +signed_by(/parties/consumer.id) +signed_by(/parties/provider.id)
     cancelled --> complete: +REFUND
     
     // NEW: Dispute resolution path
-    delivered --> disputed: +DISPUTE +signed_by("consumer")
+    delivered --> disputed: +DISPUTE +signed_by(/parties/consumer.id)
     disputed --> arbitration: +REQUEST_ARBITRATION
-    arbitration --> resolved_for_provider: +ARBITRATOR_RULING_PROVIDER +signed_by("arbitrator")
-    arbitration --> resolved_for_consumer: +ARBITRATOR_RULING_CONSUMER +signed_by("arbitrator")
-    resolved_for_provider --> complete: +PAY +signed_by("consumer")
-    resolved_for_consumer --> complete: +REFUND +signed_by("provider")
+    arbitration --> resolved_for_provider: +ARBITRATOR_RULING_PROVIDER +signed_by(/parties/arbitrator.id)
+    arbitration --> resolved_for_consumer: +ARBITRATOR_RULING_CONSUMER +signed_by(/parties/arbitrator.id)
+    resolved_for_provider --> complete: +PAY +signed_by(/parties/consumer.id)
+    resolved_for_consumer --> complete: +REFUND +signed_by(/parties/provider.id)
 }
 
 // =====================================================
@@ -53,25 +53,25 @@ model ServiceContract_v1_1 {
 // =====================================================
 model ServiceContract_v1_2 {
     // Everything from v1.1, plus bonuses
-    init --> offered: +OFFER +signed_by("provider")
-    offered --> accepted: +ACCEPT +signed_by("consumer")
-    accepted --> delivered: +DELIVER +signed_by("provider")
-    delivered --> complete: +PAY +signed_by("consumer")
-    offered --> cancelled: +CANCEL +signed_by("consumer")
-    accepted --> cancelled: +CANCEL +signed_by("consumer") +signed_by("provider")
+    init --> offered: +OFFER +signed_by(/parties/provider.id)
+    offered --> accepted: +ACCEPT +signed_by(/parties/consumer.id)
+    accepted --> delivered: +DELIVER +signed_by(/parties/provider.id)
+    delivered --> complete: +PAY +signed_by(/parties/consumer.id)
+    offered --> cancelled: +CANCEL +signed_by(/parties/consumer.id)
+    accepted --> cancelled: +CANCEL +signed_by(/parties/consumer.id) +signed_by(/parties/provider.id)
     cancelled --> complete: +REFUND
-    delivered --> disputed: +DISPUTE +signed_by("consumer")
+    delivered --> disputed: +DISPUTE +signed_by(/parties/consumer.id)
     disputed --> arbitration: +REQUEST_ARBITRATION
-    arbitration --> resolved_for_provider: +ARBITRATOR_RULING_PROVIDER +signed_by("arbitrator")
-    arbitration --> resolved_for_consumer: +ARBITRATOR_RULING_CONSUMER +signed_by("arbitrator")
-    resolved_for_provider --> complete: +PAY +signed_by("consumer")
-    resolved_for_consumer --> complete: +REFUND +signed_by("provider")
+    arbitration --> resolved_for_provider: +ARBITRATOR_RULING_PROVIDER +signed_by(/parties/arbitrator.id)
+    arbitration --> resolved_for_consumer: +ARBITRATOR_RULING_CONSUMER +signed_by(/parties/arbitrator.id)
+    resolved_for_provider --> complete: +PAY +signed_by(/parties/consumer.id)
+    resolved_for_consumer --> complete: +REFUND +signed_by(/parties/provider.id)
     
     // NEW: Performance bonus path
-    delivered --> rating: +RATE +signed_by("consumer")
-    rating --> complete: +PAY +signed_by("consumer")
+    delivered --> rating: +RATE +signed_by(/parties/consumer.id)
+    rating --> complete: +PAY +signed_by(/parties/consumer.id)
     rating --> bonus_eligible: +EXCELLENT_RATING
-    bonus_eligible --> complete: +PAY +BONUS +signed_by("consumer")
+    bonus_eligible --> complete: +PAY +BONUS +signed_by(/parties/consumer.id)
 }
 
 // =====================================================
@@ -81,14 +81,14 @@ model ServiceContract_v1_2 {
 // =====================================================
 model ServiceContract_v2 {
     // Escrow-based: consumer deposits upfront
-    init --> escrow_pending: +OFFER +signed_by("provider")
-    escrow_pending --> escrowed: +DEPOSIT +signed_by("consumer")
+    init --> escrow_pending: +OFFER +signed_by(/parties/provider.id)
+    escrow_pending --> escrowed: +DEPOSIT +signed_by(/parties/consumer.id)
     
     // Provider delivers, escrow holds funds
-    escrowed --> delivered: +DELIVER +signed_by("provider")
+    escrowed --> delivered: +DELIVER +signed_by(/parties/provider.id)
     
     // Consumer confirms, funds release
-    delivered --> release_pending: +CONFIRM +signed_by("consumer")
+    delivered --> release_pending: +CONFIRM +signed_by(/parties/consumer.id)
     release_pending --> complete: +RELEASE_ESCROW
     
     // Automatic release after timeout
@@ -96,22 +96,22 @@ model ServiceContract_v2 {
     auto_release --> complete: +RELEASE_ESCROW
     
     // Dispute with escrow freeze
-    delivered --> dispute: +DISPUTE +signed_by("consumer")
+    delivered --> dispute: +DISPUTE +signed_by(/parties/consumer.id)
     dispute --> frozen: +FREEZE_ESCROW
     frozen --> arbitration: +ASSIGN_ARBITRATOR
     
     // Arbitration outcomes
-    arbitration --> split: +ARBITRATOR_SPLIT +signed_by("arbitrator")
-    arbitration --> provider_wins: +ARBITRATOR_PROVIDER +signed_by("arbitrator")
-    arbitration --> consumer_wins: +ARBITRATOR_CONSUMER +signed_by("arbitrator")
+    arbitration --> split: +ARBITRATOR_SPLIT +signed_by(/parties/arbitrator.id)
+    arbitration --> provider_wins: +ARBITRATOR_PROVIDER +signed_by(/parties/arbitrator.id)
+    arbitration --> consumer_wins: +ARBITRATOR_CONSUMER +signed_by(/parties/arbitrator.id)
     
     split --> complete: +RELEASE_SPLIT
     provider_wins --> complete: +RELEASE_TO_PROVIDER
     consumer_wins --> complete: +RELEASE_TO_CONSUMER
     
     // Cancellation with escrow return
-    escrow_pending --> cancelled: +CANCEL +signed_by("consumer")
-    escrowed --> cancelled: +CANCEL +signed_by("consumer") +signed_by("provider")
+    escrow_pending --> cancelled: +CANCEL +signed_by(/parties/consumer.id)
+    escrowed --> cancelled: +CANCEL +signed_by(/parties/consumer.id) +signed_by(/parties/provider.id)
     cancelled --> complete: +RETURN_ESCROW
 }
 
@@ -173,34 +173,34 @@ formula escrow_resolution {
 // =====================================================
 test contract_evolution {
     // Start with v1
-    contract = ServiceContract_v1.clone()
-    contract.commit(+OFFER +signed_by("provider"))
-    contract.commit(+ACCEPT +signed_by("consumer"))
-    contract.commit(+DELIVER +signed_by("provider"))
-    contract.commit(+PAY +signed_by("consumer"))
+    c = clone(ServiceContract_v1)
+    c.commit(action("+OFFER +signed_by(/parties/provider.id)"))
+    c.commit(action("+ACCEPT +signed_by(/parties/consumer.id)"))
+    c.commit(action("+DELIVER +signed_by(/parties/provider.id)"))
+    c.commit(action("+PAY +signed_by(/parties/consumer.id)"))
     // ✓ Complete on v1
     
     // Upgrade to v1.1 (off-chain approval ceremony)
-    contract = ServiceContract_v1_1.clone()
+    c = clone(ServiceContract_v1_1)
     
     // New dispute capability available
-    contract.commit(+OFFER +signed_by("provider"))
-    contract.commit(+ACCEPT +signed_by("consumer"))
-    contract.commit(+DELIVER +signed_by("provider"))
-    contract.commit(+DISPUTE +signed_by("consumer"))
-    contract.commit(+REQUEST_ARBITRATION)
-    contract.commit(+ARBITRATOR_RULING_PROVIDER +signed_by("arbitrator"))
-    contract.commit(+PAY +signed_by("consumer"))
+    c.commit(action("+OFFER +signed_by(/parties/provider.id)"))
+    c.commit(action("+ACCEPT +signed_by(/parties/consumer.id)"))
+    c.commit(action("+DELIVER +signed_by(/parties/provider.id)"))
+    c.commit(action("+DISPUTE +signed_by(/parties/consumer.id)"))
+    c.commit(action("+REQUEST_ARBITRATION"))
+    c.commit(action("+ARBITRATOR_RULING_PROVIDER +signed_by(/parties/arbitrator.id)"))
+    c.commit(action("+PAY +signed_by(/parties/consumer.id)"))
     // ✓ Dispute resolved via v1.1 amendment
     
     // Upgrade to v2 (major version change)
-    contract = ServiceContract_v2.clone()
+    c = clone(ServiceContract_v2)
     
     // Escrow-based flow
-    contract.commit(+OFFER +signed_by("provider"))
-    contract.commit(+DEPOSIT +signed_by("consumer"))
-    contract.commit(+DELIVER +signed_by("provider"))
-    contract.commit(+CONFIRM +signed_by("consumer"))
-    contract.commit(+RELEASE_ESCROW)
+    c.commit(action("+OFFER +signed_by(/parties/provider.id)"))
+    c.commit(action("+DEPOSIT +signed_by(/parties/consumer.id)"))
+    c.commit(action("+DELIVER +signed_by(/parties/provider.id)"))
+    c.commit(action("+CONFIRM +signed_by(/parties/consumer.id)"))
+    c.commit(action("+RELEASE_ESCROW"))
     // ✓ Complete on v2 with escrow protection
 }

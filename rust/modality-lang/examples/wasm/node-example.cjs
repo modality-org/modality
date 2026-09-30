@@ -1,119 +1,83 @@
-const { readFileSync } = require('fs');
-const path = require('path');
+// Use the Modality language parser and model checker from Node.js.
+//
+// Build the bindings first, from rust/modality-lang:
+//   wasm-pack build --target nodejs --out-dir dist-node
+// then run: node examples/wasm/node-example.cjs
 
-// Import the WASM module
-const modalityLang = require('./modality_lang.js');
+const modalityLang = require('../../dist-node/modality_lang.js');
 
-async function main() {
-    try {
-        // WASM module is automatically initialized in Node.js version
-        console.log('✅ WASM module is ready to use!\n');
+const modalityCode = `model TestModel {
+  part g1 {
+    n1 --> n2: +blue -red
+    n2 --> n3: +green
+    n3 --> n1: -blue +yellow
+  }
+  part g2 {
+    a --> b: +init
+    b --> c: +complete
+    c --> a: +reset
+  }
+}
+`;
 
-                            // Example Modality language code
-                    const modalityCode = `model TestModel:
-              graph g1:
-                n1 --> n2 : +blue -red
-                n2 --> n3 : +green
-                n3 --> n1 : -blue +yellow
-              graph g2:
-                a --> b : +init
-                b --> c : +complete
-                c --> a : +reset
-              state:
-                g1: n1 n2
-                g2: a`;
+const formulaCode = `formula CanGoBlue {
+  <+blue> true
+}
+`;
 
-        console.log('📝 Example Modality Code:');
-        console.log(modalityCode);
-        console.log('\n' + '='.repeat(50) + '\n');
-
-        // Parse a single model
-        console.log('🔍 Parsing single model...');
-        try {
-            const modelResult = modalityLang.parse_model(modalityCode);
-            const model = JSON.parse(modelResult);
-            console.log('✅ Single model parsed successfully!');
-            console.log('Model structure:', JSON.stringify(model, null, 2));
-        } catch (error) {
-            console.error('❌ Error parsing single model:', error.message);
-        }
-        console.log('\n' + '='.repeat(50) + '\n');
-
-        // Parse all models
-        console.log('🔍 Parsing all models...');
-        try {
-            const modelsResult = modalityLang.parse_all_models(modalityCode);
-            const models = JSON.parse(modelsResult);
-            console.log('✅ All models parsed successfully!');
-            console.log('Models structure:', JSON.stringify(models, null, 2));
-        } catch (error) {
-            console.error('❌ Error parsing all models:', error.message);
-        }
-        console.log('\n' + '='.repeat(50) + '\n');
-
-        // Generate Mermaid diagram for single model
-        console.log('📊 Generating Mermaid diagram for single model...');
-        try {
-            const modelResult = modalityLang.parse_model(modalityCode);
-            const mermaidResult = modalityLang.generate_mermaid(modelResult);
-            console.log('✅ Mermaid diagram generated successfully!');
-            console.log('Mermaid diagram:');
-            console.log('```mermaid');
-            console.log(mermaidResult);
-            console.log('```');
-        } catch (error) {
-            console.error('❌ Error generating Mermaid diagram:', error.message);
-        }
-        console.log('\n' + '='.repeat(50) + '\n');
-
-                            // Generate styled Mermaid diagram
-                    console.log('🎨 Generating styled Mermaid diagram...');
-                    try {
-                        const modelResult = modalityLang.parse_model(modalityCode);
-                        const styledMermaidResult = modalityLang.generate_mermaid_styled(modelResult);
-                        console.log('✅ Styled Mermaid diagram generated successfully!');
-                        console.log('Styled Mermaid diagram:');
-                        console.log('```mermaid');
-                        console.log(styledMermaidResult);
-                        console.log('```');
-                    } catch (error) {
-                        console.error('❌ Error generating styled Mermaid diagram:', error.message);
-                    }
-
-                    // Generate state-aware Mermaid diagram
-                    console.log('\n' + '='.repeat(50) + '\n');
-                    console.log('🎯 Generating state-aware Mermaid diagram...');
-                    try {
-                        const modelResult = modalityLang.parse_model(modalityCode);
-                        const stateMermaidResult = modalityLang.generate_mermaid_with_state(modelResult);
-                        console.log('✅ State-aware Mermaid diagram generated successfully!');
-                        console.log('State-aware Mermaid diagram:');
-                        console.log('```mermaid');
-                        console.log(stateMermaidResult);
-                        console.log('```');
-                    } catch (error) {
-                        console.error('❌ Error generating state-aware Mermaid diagram:', error.message);
-                    }
-
-        // Test the ModalityParser class
-        console.log('\n' + '='.repeat(50) + '\n');
-        console.log('🏗️  Testing ModalityParser class...');
-        try {
-            const parser = new modalityLang.ModalityParser();
-            const modelResult = parser.parse_model(modalityCode);
-            const model = JSON.parse(modelResult);
-            console.log('✅ ModalityParser class works!');
-            console.log('Model name:', model.name);
-            console.log('Number of parts:', model.parts.length);
-        } catch (error) {
-            console.error('❌ Error with ModalityParser class:', error.message);
-        }
-
-    } catch (error) {
-        console.error('💥 Fatal error:', error);
-        process.exit(1);
-    }
+function section(title) {
+    console.log('\n' + '='.repeat(50) + '\n');
+    console.log(title);
 }
 
-// Run the example
-main(); 
+function main() {
+    console.log('📝 Example Modality code:');
+    console.log(modalityCode);
+
+    // The parse functions return plain objects; the diagram and checker
+    // functions take them as JSON text.
+    section('🔍 Parsing a single model...');
+    const model = modalityLang.parse_model(modalityCode);
+    console.log(`✅ ${model.name}: ${model.parts.length} parts`);
+    const modelJson = JSON.stringify(model);
+
+    section('🔍 Parsing all models...');
+    const models = modalityLang.parse_all_models(modalityCode);
+    console.log(`✅ ${models.length} model(s): ${models.map((m) => m.name).join(', ')}`);
+
+    section('📊 Mermaid diagram');
+    console.log('```mermaid');
+    console.log(modalityLang.generate_mermaid(modelJson));
+    console.log('```');
+
+    section('🎨 Styled Mermaid diagram');
+    console.log('```mermaid');
+    console.log(modalityLang.generate_mermaid_styled(modelJson));
+    console.log('```');
+
+    // A model file does not say where a run is. Set the current nodes on the
+    // parsed model; several in one part is non-determinism.
+    section('🎯 State-aware Mermaid diagram (g1 at n1 or n2, g2 at a)');
+    const withState = {
+        ...model,
+        state: [
+            { part_name: 'g1', current_nodes: ['n1', 'n2'] },
+            { part_name: 'g2', current_nodes: ['a'] },
+        ],
+    };
+    console.log('```mermaid');
+    console.log(modalityLang.generate_mermaid_with_state(JSON.stringify(withState)));
+    console.log('```');
+
+    section('✔️  Checking a formula');
+    const [formula] = modalityLang.parse_formulas(formulaCode);
+    const result = modalityLang.check_formula_any_state(modelJson, JSON.stringify(formula));
+    console.log(`${formula.name}: ${result.is_satisfied ? 'satisfied' : 'not satisfied'}`);
+
+    section('🏗️  The ModalityParser class');
+    const parser = new modalityLang.ModalityParser();
+    const parsed = parser.parse_model(modalityCode);
+    console.log(`✅ ${parsed.name}: ${parsed.parts.length} parts`);
+}
+
+main();

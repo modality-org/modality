@@ -1,17 +1,19 @@
-/// Example demonstrating blockchain persistence with DatastoreManager
-/// 
-/// This example shows how to:
-/// - Create a blockchain with datastore persistence
-/// - Mine blocks that are automatically saved
-/// - Load an existing blockchain from the datastore
-/// - Query persisted blocks
+//! Example demonstrating blockchain persistence with DatastoreManager.
+//!
+//! Run: `cargo run -p modality-miner --features persistence --example persistence_demo`
+//!
+//! This example shows how to:
+//! - Create a blockchain with datastore persistence
+//! - Mine blocks that are automatically saved
+//! - Load an existing blockchain from the datastore
+//! - Query persisted blocks
 
-use modality_miner::{Blockchain, ChainConfig, BlockchainPersistence};
+use modality_miner::{Blockchain, BlockchainPersistence, ChainConfig, Miner, MinerConfig};
 use modality_datastore::DatastoreManager;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
-#[tokio::main]
+#[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("=== Blockchain Persistence Demo ===\n");
 
@@ -22,23 +24,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("📦 Creating datastore at: {}\n", datastore_path.display());
     
     // Initialize datastore
-    let datastore = Arc::new(Mutex::new(DatastoreManager::create_in_directory(&datastore_path)?));
+    let datastore = Arc::new(Mutex::new(DatastoreManager::open(&datastore_path)?));
     
     // Configuration
     let config = ChainConfig {
         initial_difficulty: 50, // Low difficulty for demo
         target_block_time_secs: 60,
+        mining_delay_ms: None,
     };
-    
-    let genesis_peer_id = "QmGenesisDemo123456789";
     
     // === Part 1: Create and mine blocks with persistence ===
     println!("🔨 Creating new blockchain with persistence...");
-    let mut chain = Blockchain::load_or_create(
-        config.clone(),
-        genesis_peer_id.to_string(),
-        datastore.clone(),
-    ).await?;
+    let mut chain = Blockchain::load_or_create_default(config.clone(), datastore.clone()).await?;
+    // The network mines RandomX, which takes minutes a block in a debug
+    // build. SHA-256 keeps this demo quick; the chain logic is the same.
+    chain.miner = Miner::new(MinerConfig {
+        hash_func_name: Some("sha256"),
+        ..MinerConfig::default()
+    });
     
     println!("  ✓ Genesis block created and persisted");
     println!("  Genesis hash: {}\n", chain.latest_block().header.hash);
@@ -57,7 +60,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let miner_number = 1000 + i as u64;
         
         println!("  Mining block {}...", i);
-        let block = chain.mine_block_with_persistence(
+        let (block, _) = chain.mine_block_with_persistence(
             nominated_peer.to_string(),
             miner_number,
         ).await?;
@@ -75,11 +78,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // === Part 2: Verify persistence by loading from datastore ===
     println!("🔄 Loading blockchain from datastore (simulating restart)...");
     
-    let loaded_chain = Blockchain::load_or_create(
-        config.clone(),
-        genesis_peer_id.to_string(),
-        datastore.clone(),
-    ).await?;
+    let loaded_chain = Blockchain::load_or_create_default(config.clone(), datastore.clone()).await?;
     
     println!("  ✓ Blockchain loaded from datastore");
     println!("  Loaded {} blocks", loaded_chain.blocks.len());
@@ -110,7 +109,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("    Block {}: index={}, peer={}, number={}",
             i,
             block.header.index,
-            &block.data.nominated_peer_id[..13],
+            block.data.nominated_peer_id.get(..13).unwrap_or(&block.data.nominated_peer_id),
             block.data.miner_number,
         );
     }
@@ -119,9 +118,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("\n⛏ Mining additional blocks on loaded chain...");
     
     let mut resumed_chain = loaded_chain;
+    resumed_chain.miner = Miner::new(MinerConfig {
+        hash_func_name: Some("sha256"),
+        ..MinerConfig::default()
+    });
     
     for i in 6..=8 {
-        let block = resumed_chain.mine_block_with_persistence(
+        let (block, _) = resumed_chain.mine_block_with_persistence(
             peer_ids[i % peer_ids.len()].to_string(),
             2000 + i as u64,
         ).await?;

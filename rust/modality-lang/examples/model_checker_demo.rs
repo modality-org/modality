@@ -64,14 +64,37 @@ fn main() -> Result<(), String> {
 
     // Create test formulas
     let formulas_content = r#"
-formula FormulaTrue: true
-formula FormulaFalse: false
-formula FormulaBooleanWff: (true or false) and true
-formula FormulaDiamondBlueTrue: <+blue> true
-formula FormulaBoxNegBlueFalse: [-blue] false
-formula FormulaBlueYellowTest1: <+blue -yellow> true
-formula FormulaBlueYellowTest2: <+blue +yellow> true
-formula FormulaBlueYellowTest3: <+blue> true
+formula FormulaTrue {
+  true
+}
+
+formula FormulaFalse {
+  false
+}
+
+formula FormulaBooleanWff {
+  (true or false) and true
+}
+
+formula FormulaDiamondBlueTrue {
+  <+blue> true
+}
+
+formula FormulaBoxNegBlueFalse {
+  [-blue] false
+}
+
+formula FormulaBlueYellowTest1 {
+  <+blue -yellow> true
+}
+
+formula FormulaBlueYellowTest2 {
+  <+blue +yellow> true
+}
+
+formula FormulaBlueYellowTest3 {
+  <+blue> true
+}
 "#;
 
     // Parse all formulas

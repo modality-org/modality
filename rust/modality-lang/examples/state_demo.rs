@@ -1,5 +1,6 @@
 use modality_lang::{
-    generate_mermaid_diagram, generate_mermaid_diagram_with_state, parse_content_lalrpop,
+    ast::PartState, generate_mermaid_diagram, generate_mermaid_diagram_with_state,
+    parse_content_lalrpop,
 };
 
 fn main() -> Result<(), String> {
@@ -7,28 +8,33 @@ fn main() -> Result<(), String> {
 
     // Model with non-deterministic state (multiple possible states)
     let content = r#"
-model NonDeterministicModel:
-  graph g1:
+model NonDeterministicModel {
+  part g1 {
     n1 --> n2: +blue -red
     n2 --> n3: +blue -green
     n3 --> n1: -blue +red
     n1 --> n3: +yellow
-  graph g2:
+  }
+  part g2 {
     a --> b: +init
     b --> c: +complete
     c --> a: +reset
     a --> c: +skip
-  state:
-    g1: n1 n2
-    g2: a b
+  }
+}
 "#;
 
     println!("📝 Model with Non-Deterministic State:");
     println!("{}", content);
     println!("{}", "=".repeat(60));
 
-    // Parse the model
-    let model = parse_content_lalrpop(content)?;
+    // Parse the model. A model file does not say where a run is; set the
+    // current nodes through the API. Several per part is non-determinism.
+    let mut model = parse_content_lalrpop(content)?;
+    model.set_state(vec![
+        PartState::new("g1".to_string(), vec!["n1".to_string(), "n2".to_string()]),
+        PartState::new("g2".to_string(), vec!["a".to_string(), "b".to_string()]),
+    ]);
 
     println!("\n✅ Parsed Model:");
     println!("Name: {}", model.name);

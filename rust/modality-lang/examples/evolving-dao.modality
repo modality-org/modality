@@ -10,103 +10,111 @@
 // VERSION 1: Basic DAO Governance
 model DAOv1 {
     // Basic operation cycle
-    active --> proposing: +PROPOSE +signed_by("member")
-    proposing --> voting: +OPEN_VOTE
-    voting --> voting: +VOTE +signed_by("member")
-    voting --> approved: +THRESHOLD_MET
-    voting --> rejected: +THRESHOLD_NOT_MET
-    approved --> executed: +EXECUTE
-    executed --> active: +COMPLETE
-    rejected --> active: +COMPLETE
+    active --> proposing: +PROPOSE +signed_by(/parties/member.id) -EXECUTE -VETO
+    proposing --> voting: +OPEN_VOTE -EXECUTE -VETO
+    voting --> voting: +VOTE +signed_by(/parties/member.id) -EXECUTE -VETO
+    voting --> approved: +THRESHOLD_MET -EXECUTE -VETO
+    voting --> rejected: +THRESHOLD_NOT_MET -EXECUTE -VETO
+    approved --> executed: +EXECUTE +bool_true(/proposal/approved.bool) -VETO
+    executed --> active: +COMPLETE -EXECUTE -VETO
+    rejected --> active: +COMPLETE -EXECUTE -VETO
 }
 
 // AMENDMENT 1: Add treasury management
 // Proposed by Alice, requires 2/3 approval
 model DAOv1_Amendment1 {
     // All original transitions from v1, plus:
-    active --> proposing: +PROPOSE +signed_by("member")
-    proposing --> voting: +OPEN_VOTE
-    voting --> voting: +VOTE +signed_by("member")
-    voting --> approved: +THRESHOLD_MET
-    voting --> rejected: +THRESHOLD_NOT_MET
-    approved --> executed: +EXECUTE
-    executed --> active: +COMPLETE
-    rejected --> active: +COMPLETE
+    active --> proposing: +PROPOSE +signed_by(/parties/member.id) -EXECUTE -VETO
+    proposing --> voting: +OPEN_VOTE -EXECUTE -VETO
+    voting --> voting: +VOTE +signed_by(/parties/member.id) -EXECUTE -VETO
+    voting --> approved: +THRESHOLD_MET -EXECUTE -VETO
+    voting --> rejected: +THRESHOLD_NOT_MET -EXECUTE -VETO
+    approved --> executed: +EXECUTE +bool_true(/proposal/approved.bool) -VETO
+    executed --> active: +COMPLETE -EXECUTE -VETO
+    rejected --> active: +COMPLETE -EXECUTE -VETO
     
     // NEW: Treasury operations
-    active --> treasury_action: +PROPOSE_SPEND +signed_by("treasurer")
-    treasury_action --> voting: +TREASURY_VOTE
+    active --> treasury_action: +PROPOSE_SPEND +signed_by(/parties/treasurer.id) -EXECUTE -VETO
+    treasury_action --> voting: +TREASURY_VOTE -EXECUTE -VETO
 }
 
 // VERSION 2: Complete Upgrade with New Structure
 // Replaces v1 entirely when approved by supermajority
 model DAOv2 {
     // New tiered governance
-    idle --> proposal_pending: +PROPOSE +signed_by("member")
+    idle --> proposal_pending: +PROPOSE +signed_by(/parties/member.id) -EXECUTE -VETO
     
     // Fast-track for small changes (simple majority)
-    proposal_pending --> fast_track: +FAST_TRACK +SMALL_CHANGE
-    fast_track --> fast_voting: +OPEN_FAST_VOTE
-    fast_voting --> executed: +SIMPLE_MAJORITY
+    proposal_pending --> fast_track: +FAST_TRACK +SMALL_CHANGE -EXECUTE -VETO
+    fast_track --> fast_voting: +OPEN_FAST_VOTE -EXECUTE -VETO
+    fast_voting --> executed: +SIMPLE_MAJORITY -EXECUTE -VETO
     
     // Standard track for medium changes (2/3 majority)
-    proposal_pending --> standard: +STANDARD +MEDIUM_CHANGE
-    standard --> standard_voting: +OPEN_STANDARD_VOTE
-    standard_voting --> executed: +SUPERMAJORITY
+    proposal_pending --> standard: +STANDARD +MEDIUM_CHANGE -EXECUTE -VETO
+    standard --> standard_voting: +OPEN_STANDARD_VOTE -EXECUTE -VETO
+    standard_voting --> executed: +SUPERMAJORITY -EXECUTE -VETO
     
     // Constitutional track for major changes (3/4 + delay)
-    proposal_pending --> constitutional: +CONSTITUTIONAL +MAJOR_CHANGE
-    constitutional --> delay_period: +OPEN_CONSTITUTIONAL_VOTE
-    delay_period --> constitutional_voting: +DELAY_COMPLETE
-    constitutional_voting --> executed: +CONSTITUTIONAL_MAJORITY
+    proposal_pending --> constitutional: +CONSTITUTIONAL +MAJOR_CHANGE -EXECUTE -VETO
+    constitutional --> delay_period: +OPEN_CONSTITUTIONAL_VOTE -EXECUTE -VETO
+    delay_period --> constitutional_voting: +DELAY_COMPLETE -EXECUTE -VETO
+    constitutional_voting --> executed: +CONSTITUTIONAL_MAJORITY -EXECUTE -VETO
     
-    executed --> idle: +COMPLETE
+    executed --> idle: +COMPLETE -EXECUTE -VETO
     
     // Veto mechanism (not in v1)
-    fast_voting --> vetoed: +VETO +signed_by("council")
-    standard_voting --> vetoed: +VETO +signed_by("council")
-    vetoed --> idle: +COMPLETE
+    fast_voting --> vetoed: +VETO +signed_by(/parties/council.id) -EXECUTE
+    standard_voting --> vetoed: +VETO +signed_by(/parties/council.id) -EXECUTE
+    vetoed --> idle: +COMPLETE -EXECUTE -VETO
 }
 
-// Formula: No execution without proper approval
+// Labels are open: an edge could be taken by a commit that also carries
+// EXECUTE or VETO unless it says otherwise, so every edge that is not one of
+// them says -EXECUTE or -VETO. A passing vote (THRESHOLD_MET, or a v2
+// majority) posts /proposal/approved.bool; EXECUTE requires it.
+
+// No execution without an approved proposal
 formula no_unauthorized_execute {
-    [+EXECUTE -THRESHOLD_MET -SIMPLE_MAJORITY -SUPERMAJORITY -CONSTITUTIONAL_MAJORITY] false
+    always([+EXECUTE -bool_true(/proposal/approved.bool)] false)
 }
 
-// Formula: Veto requires council signature
+// A veto requires the council's signature
 formula veto_requires_council {
-    [+VETO -signed_by("council")] false
+    always([+VETO -signed_by(/parties/council.id)] false)
 }
 
 // Test: Evolution from v1 to v2
 test evolution_scenario {
-    dao = DAOv1.clone()
+    dao = clone(DAOv1)
     
     // Normal v1 operation
-    dao.commit(+PROPOSE +signed_by("Alice"))
-    dao.commit(+OPEN_VOTE)
-    dao.commit(+VOTE +signed_by("Bob"))
-    dao.commit(+VOTE +signed_by("Carol"))
-    dao.commit(+THRESHOLD_MET)
-    dao.commit(+EXECUTE)
-    dao.commit(+COMPLETE)
+    dao.commit(action("+PROPOSE +signed_by(/parties/alice.id)"))
+    dao.commit(action("+OPEN_VOTE"))
+    dao.commit(action("+VOTE +signed_by(/parties/bob.id)"))
+    dao.commit(action("+VOTE +signed_by(/parties/carol.id)"))
+    dao.commit(action("+THRESHOLD_MET"))
+    dao.commit(action("+EXECUTE"))
+    dao.commit(action("+COMPLETE"))
     
     // Upgrade proposal
-    dao.commit(+PROPOSE +signed_by("Alice"))  // Propose upgrade to v2
-    dao.commit(+OPEN_VOTE)
-    dao.commit(+VOTE +signed_by("Alice"))
-    dao.commit(+VOTE +signed_by("Bob"))
-    dao.commit(+VOTE +signed_by("Carol"))
-    dao.commit(+VOTE +signed_by("Dave"))
-    dao.commit(+THRESHOLD_MET)  // Supermajority achieved
+    // Propose upgrade to v2
+    dao.commit(action("+PROPOSE +signed_by(/parties/alice.id)"))
+    dao.commit(action("+OPEN_VOTE"))
+    dao.commit(action("+VOTE +signed_by(/parties/alice.id)"))
+    dao.commit(action("+VOTE +signed_by(/parties/bob.id)"))
+    dao.commit(action("+VOTE +signed_by(/parties/carol.id)"))
+    dao.commit(action("+VOTE +signed_by(/parties/dave.id)"))
+    // Supermajority achieved
+    dao.commit(action("+THRESHOLD_MET"))
     
     // After execute, model is replaced
-    dao = DAOv2.clone()  // New governing model
+    // After EXECUTE the model is replaced: a new governing model
+    dao = clone(DAOv2)
     
     // Test new capabilities
-    dao.commit(+PROPOSE +signed_by("Alice"))
-    dao.commit(+FAST_TRACK +SMALL_CHANGE)
-    dao.commit(+OPEN_FAST_VOTE)
-    dao.commit(+SIMPLE_MAJORITY)
-    dao.commit(+COMPLETE)
+    dao.commit(action("+PROPOSE +signed_by(/parties/alice.id)"))
+    dao.commit(action("+FAST_TRACK +SMALL_CHANGE"))
+    dao.commit(action("+OPEN_FAST_VOTE"))
+    dao.commit(action("+SIMPLE_MAJORITY"))
+    dao.commit(action("+COMPLETE"))
 }

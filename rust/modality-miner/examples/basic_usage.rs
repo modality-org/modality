@@ -1,4 +1,4 @@
-use modality_miner::{Blockchain, ChainConfig};
+use modality_miner::{Blockchain, ChainConfig, Miner, MinerConfig};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("=== Modality Network Mining Example ===\n");
@@ -12,9 +12,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let config = ChainConfig {
         initial_difficulty: 100, // Low difficulty for demo
         target_block_time_secs: 60, // 1 minute per block
+        mining_delay_ms: None,
     };
 
     let mut chain = Blockchain::new(config, genesis_peer_id.to_string());
+    // The network mines RandomX, which takes minutes a block in a debug
+    // build. SHA-256 keeps this demo quick; the chain logic is the same.
+    chain.miner = Miner::new(MinerConfig {
+        hash_func_name: Some("sha256"),
+        ..MinerConfig::default()
+    });
     println!("✓ Created new blockchain");
     println!("  Genesis block hash: {}", chain.latest_block().header.hash);
     println!("  Genesis peer ID: {}", genesis_peer_id);

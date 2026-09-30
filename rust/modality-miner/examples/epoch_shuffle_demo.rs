@@ -1,4 +1,4 @@
-use modality_miner::{Blockchain, ChainConfig};
+use modality_miner::{Blockchain, ChainConfig, Miner, MinerConfig};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("=== Epoch Nomination Shuffling Demo ===\n");
@@ -14,6 +14,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     let mut chain = Blockchain::new(config, genesis_peer_id.to_string());
+    // The network mines RandomX, which takes minutes a block in a debug
+    // build. SHA-256 keeps this demo quick; the chain logic is the same.
+    chain.miner = Miner::new(MinerConfig {
+        hash_func_name: Some("sha256"),
+        ..MinerConfig::default()
+    });
     println!("✓ Created blockchain with genesis block");
     println!("  Genesis peer ID: {}", genesis_peer_id);
     println!("  Blocks per epoch: {}\n", chain.epoch_manager.blocks_per_epoch);

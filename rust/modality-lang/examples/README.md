@@ -27,13 +27,26 @@ The [`models/`](models/) directory contains example Modality language files for 
 
 ### Rust Examples
 
-```bash
-# Run a specific example
-cargo run --example parse_example
+From `rust/`:
 
-# Run all examples
-cargo test --examples
+```bash
+# Examples that read a file take its path
+cargo run -p modality-lang --example parse_example -- modality-lang/examples/models/SimpleExamples.modality
+
+# The others run as they are
+cargo run -p modality-lang --example model_checker_demo
+
+# Build every example
+cargo build -p modality-lang --examples
 ```
+
+### Contracts and demos
+
+- **`contract-evolution.modality`**, **`evolving-dao.modality`** and
+  **`full-agent-demo.modality`** - models, rules and parse-only tests; check
+  a formula with `modal model check <file> -f <formula>`
+- **`cli-workflow.sh`** - the agent contract commands of the `modality`
+  binary built with its `contract` feature
 
 ### WASM Examples
 

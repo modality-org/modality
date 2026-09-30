@@ -3,13 +3,15 @@ use modality_lang::{generate_mermaid_diagram, parse_content_lalrpop};
 fn main() -> Result<(), String> {
     // Define a simple model
     let model_content = r#"
-model SimpleModel:
-  graph main:
+model SimpleModel {
+  part main {
     start --> processing: +init
     processing --> success: +complete
     processing --> error: +fail
     success --> end
     error --> end
+  }
+}
 "#;
 
     // Parse the model

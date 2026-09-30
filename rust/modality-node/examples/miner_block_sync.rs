@@ -13,13 +13,11 @@ use libp2p::swarm::SwarmEvent;
 use libp2p::{Multiaddr, Swarm};
 use modality_datastore::models::MinerBlock;
 use modality_datastore::DatastoreManager;
-use modality_node::config::Config;
 use modality_node::reqres::{Request, Response};
 use modality_node::swarm;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::Mutex;
-use tokio::time::sleep;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -32,13 +30,13 @@ async fn main() -> Result<()> {
 
     let temp_dir1 = tempfile::tempdir()?;
     let storage_path1 = temp_dir1.path().join("node1_data");
-    let datastore1 = Arc::new(Mutex::new(DatastoreManager::create_in_directory(
+    let datastore1 = Arc::new(Mutex::new(DatastoreManager::open(
         &storage_path1,
     )?));
 
     let temp_dir2 = tempfile::tempdir()?;
     let storage_path2 = temp_dir2.path().join("node2_data");
-    let datastore2 = Arc::new(Mutex::new(DatastoreManager::create_in_directory(
+    let datastore2 = Arc::new(Mutex::new(DatastoreManager::open(
         &storage_path2,
     )?));
 
@@ -375,7 +373,10 @@ async fn handle_sync(
                     }
                 )) = event1 {
                     // Handle request on Node 1
-                    let response = modality_node::reqres::handle_request(request, datastore1.clone(), tx.clone()).await?;
+                    let response = {
+                        let ds = datastore1.lock().await;
+                        modality_node::reqres::handle_request(request, &ds, tx.clone()).await?
+                    };
                     node1_swarm.behaviour_mut().reqres.send_response(channel, response).ok();
                 }
             }
