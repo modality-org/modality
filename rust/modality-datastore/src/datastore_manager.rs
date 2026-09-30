@@ -892,7 +892,16 @@ impl DatastoreManager {
         }
     }
 
+    /// A network with a MOD contract keeps MOD there, not in node-local
+    /// balances: its genesis allocates and its mint commits pay.
+    fn mod_is_a_contract(&self) -> Result<bool> {
+        Ok(self.mod_contract_id()?.is_some())
+    }
+
     pub fn apply_native_mod_genesis(&self) -> Result<()> {
+        if self.mod_is_a_contract()? {
+            return Ok(());
+        }
         if self.node_state.get("native_mod/genesis_applied")?.is_some() {
             return Ok(());
         }
@@ -908,6 +917,9 @@ impl DatastoreManager {
         &self,
         block: &crate::models::MinerBlock,
     ) -> Result<()> {
+        if self.mod_is_a_contract()? {
+            return Ok(());
+        }
         if block.is_orphaned || !block.is_canonical {
             return self.revert_native_mod_for_miner_block(&block.hash);
         }

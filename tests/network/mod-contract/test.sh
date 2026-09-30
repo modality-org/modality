@@ -162,15 +162,18 @@ expect_log "Failed to process sequenced commit $LIE.*has amount $((500000 * UNIT
     "A RECV that overstates Bob's allocation is refused, naming the amount"
 
 echo ""
-echo "Only the network writes the MOD contract..."
-modal contract commit --theory v2 --dir "$MOD_DIR" --method invoke --path "$PROGRAM" \
+echo "Only the emission program writes the MOD contract..."
+TESTS_RUN=$((TESTS_RUN + 1))
+if modal contract commit --theory v2 --dir "$MOD_DIR" --method invoke --path "$PROGRAM" \
     --value "{\"args\":{\"op\":\"mint\",\"blocks\":[{\"index\":1,\"to\":\"$MINER_ID\"}]}}" \
-    --sign "$MALLORY" --output json >> "$CURRENT_LOG"
-MINT=$(cat "$MOD_DIR/.contract/HEAD")
-check "Locally, the program's mint of block 1 passes the rules" test -n "$MINT"
-check "A mint pushed by a client is refused" bash -c "! modal contract push --dir '$MOD_DIR' --remote '$REMOTE' --remote-name origin --output json >> '$CURRENT_LOG' 2>&1"
-check "The refusal names the MOD contract" grep -q "is the network's MOD contract; only the network writes it" "$CURRENT_LOG"
-check "The mint is not sequenced" bash -c "! grep -q 'Sequenced commit $MINT' '$SEQUENCER_LOG'"
+    --sign "$MALLORY" --output json > ./tmp/unmined.out 2> ./tmp/unmined.err; then
+    TESTS_FAILED=$((TESTS_FAILED + 1))
+    echo -e "  ${RED}✗${NC} Locally, a mint of a block with no proof of work is refused (was accepted)"
+else
+    TESTS_PASSED=$((TESTS_PASSED + 1))
+    echo -e "  ${GREEN}✓${NC} Locally, a mint of a block with no proof of work is refused"
+fi
+check "The refusal names mined_headers" grep -q "missing +mined_headers" ./tmp/unmined.err
 TESTS_RUN=$((TESTS_RUN + 1))
 if modal contract commit --theory v2 --dir "$MOD_DIR" --method send --asset-id MOD --to-contract "$MINER_ID" \
     --amount 5 --sign "$FOUNDATION" --output json > ./tmp/theft.out 2> ./tmp/theft.err; then
@@ -181,17 +184,6 @@ else
     echo -e "  ${GREEN}✓${NC} Locally, a hand-written SEND by the foundation's key is refused"
 fi
 check "The refusal names emitted_by" grep -q "missing +emitted_by" ./tmp/theft.err
-TESTS_RUN=$((TESTS_RUN + 1))
-if modal contract commit --theory v2 --dir "$MOD_DIR" --method invoke --path "$PROGRAM" \
-    --value "{\"args\":{\"op\":\"mint\",\"blocks\":[{\"index\":1,\"to\":\"$MINER_ID\"}]}}" \
-    --sign "$MALLORY" --output json > ./tmp/again.out 2> ./tmp/again.err; then
-    TESTS_FAILED=$((TESTS_FAILED + 1))
-    echo -e "  ${RED}✗${NC} Locally, paying block 1 twice is refused (was accepted)"
-else
-    TESTS_PASSED=$((TESTS_PASSED + 1))
-    echo -e "  ${GREEN}✓${NC} Locally, paying block 1 twice is refused"
-fi
-check "The refusal names the next block" grep -q "the next block to pay is 2" ./tmp/again.err
 
 echo ""
 echo "A stranger replays the MOD contract from the sequencer..."
@@ -221,6 +213,182 @@ check "After restart, no genesis commit is applied again" \
     test_wait_for_log "$SEQUENCER_LOG" "MOD contract $MOD_ID: 0 of 6 genesis commits applied" 10
 check "After restart, the emission is still the contract's" \
     test_wait_for_log "$SEQUENCER_LOG" "Network emission from the MOD contract: {\"block_subsidy\":$((50 * UNIT))" 10
+
+echo ""
+echo "A mining node mints each finalized epoch on the MOD contract..."
+test_cleanup
+sleep 1
+MINED="./tmp/genesis-mined"
+python3 - ./tmp/params.json ./tmp/params-mined.json <<'PY'
+import json, sys
+p = json.load(open(sys.argv[1]))
+p["hash_func"] = "sha256"
+json.dump(p, open(sys.argv[2], "w"))
+PY
+read -r MINED_ID _ < <(../../../scripts/mod-genesis/build.sh --out "$MINED" --foundation "$FOUNDATION" --params ./tmp/params-mined.json)
+GENESIS_SAVED="$GENESIS"
+GENESIS="$MINED"
+network ./tmp/network-mined.json 'info["blocks_per_epoch"] = 3; info["initial_difficulty"] = 1'
+GENESIS="$GENESIS_SAVED"
+node_on ./tmp/network-mined.json
+python3 - "$NODE_DIR" <<'PY'
+import json, pathlib, sys
+node = pathlib.Path(sys.argv[1])
+config = json.loads((node / "config.json").read_text())
+config["miner_hash_func"] = "sha256"
+(node / "config.json").write_text(json.dumps(config, indent=2) + "\n")
+PY
+MINER_LOG="$LOG_DIR/${CURRENT_TEST}_miner.log"
+test_start_process "cd $NODE_DIR && modal node run-miner" "miner" >/dev/null
+check "Epoch 0 is minted once the tip is two epochs past it" \
+    test_wait_for_log "$MINER_LOG" "MOD contract $MINED_ID: minted epoch 0" 240
+check "Epoch 1 follows" test_wait_for_log "$MINER_LOG" "MOD contract $MINED_ID: minted epoch 1" 240
+check "No node-local MOD is credited on a MOD network" \
+    bash -c "! grep -q 'credited.*native MOD' '$MINER_LOG'"
+
+set +e
+REPLAY_JSON=$(modal contract replay --remote "$REMOTE" --contract-id "$MINED_ID" --output json 2>./tmp/replay-mined.err)
+REPLAY_STATUS=$?
+set -e
+echo "$REPLAY_JSON" >> "$CURRENT_LOG"
+cat ./tmp/replay-mined.err >> "$CURRENT_LOG" || true
+check "A stranger replays the mints: each posted header is mined and linked" replay_ok
+
+echo ""
+echo "Only the network writes the MOD contract: a client's copy of a real mint is refused..."
+COPY="./tmp/mined-copy"
+modal contract pull --contract-id "$MINED_ID" --remote "$REMOTE" --dir "$COPY" >> "$CURRENT_LOG" 2>&1
+NEXT=$(cat "$COPY/state/emission/next_index.num" 2>/dev/null || echo 0)
+check "A client's pulled copy has the mints" test "$NEXT" -gt 1
+test_cleanup
+sleep 1
+# The next unpaid block, as the node stored it, in the shape the node mints.
+HEADER=$(modal node inspect --dir "$NODE_DIR" block _ "$NEXT" 2>/dev/null | python3 -c "
+import hashlib, json, re, sys
+f = dict(re.findall(r'^([A-Za-z ]+): (\S+)', sys.stdin.read(), re.M))
+to, number = f['Nominated Peer'], int(f['Miner Number'])
+print(json.dumps({'index': $NEXT, 'to': to, 'hash': f['Hash'], 'previous_hash': f['Previous Hash'],
+    'timestamp': int(f['Timestamp']), 'data_hash': hashlib.sha256(f'{to}{number}'.encode()).hexdigest(),
+    'difficulty': f['Target Difficulty'], 'nonce': f['Nonce'], 'miner_number': number}))
+")
+SEQUENCER_LOG="$LOG_DIR/${CURRENT_TEST}_mined_sequencer.log"
+test_start_process "cd $NODE_DIR && modal node run-sequencer" "mined_sequencer" >/dev/null
+assert_success "test_wait_for_port 10101" "The node should listen on 10101 again"
+PULLED_HEAD=$(cat "$COPY/.contract/HEAD")
+modal contract commit --theory v2 --dir "$COPY" --method invoke --path "$PROGRAM" \
+    --value "{\"args\":{\"op\":\"mint\",\"blocks\":[$HEADER]}}" \
+    --sign "$MALLORY" --output json >> "$CURRENT_LOG" 2>&1 || true
+MINT=$(cat "$COPY/.contract/HEAD")
+check "Locally, a mint of the next mined block passes the rules" \
+    bash -c "[ '$MINT' != '$PULLED_HEAD' ] && [ \"\$(cat '$COPY/state/emission/next_index.num')\" -eq $((NEXT + 1)) ]"
+check "A mint pushed by a client is refused" bash -c "! modal contract push --dir '$COPY' --remote '$REMOTE' --remote-name origin --output json >> '$CURRENT_LOG' 2>&1"
+check "The refusal names the MOD contract" grep -q "is the network's MOD contract; only the network writes it" "$CURRENT_LOG"
+check "The mint is not sequenced" bash -c "! grep -q 'Sequenced commit $MINT' '$SEQUENCER_LOG'"
+TESTS_RUN=$((TESTS_RUN + 1))
+if modal contract commit --theory v2 --dir "$COPY" --method invoke --path "$PROGRAM" \
+    --value "{\"args\":{\"op\":\"mint\",\"blocks\":[$HEADER]}}" \
+    --sign "$MALLORY" --output json > ./tmp/again.out 2> ./tmp/again.err; then
+    TESTS_FAILED=$((TESTS_FAILED + 1))
+    echo -e "  ${RED}✗${NC} Locally, paying block $NEXT twice is refused (was accepted)"
+else
+    TESTS_PASSED=$((TESTS_PASSED + 1))
+    echo -e "  ${GREEN}✓${NC} Locally, paying block $NEXT twice is refused"
+fi
+check "The refusal names the next block" grep -q "the next block to pay is $((NEXT + 1))" ./tmp/again.err
+
+echo ""
+echo "The miner takes its MOD: a contract on the nominee's key receives the mint's SEND..."
+MINT0=$(grep -oE "MOD contract $MINED_ID: minted epoch 0 \([0-9]+ blocks\) in commit [0-9a-f]+" "$MINER_LOG" | awk '{print $NF}')
+PAYOUT="./tmp/payout"
+modal contract create --dir "$PAYOUT" --key "$NODE_DIR/node.modal_passfile" --output json >> "$CURRENT_LOG"
+check "The payout contract's id is the nominee's" \
+    test "$(modal contract id --dir "$PAYOUT")" = "$(python3 -c "import json; print(json.load(open('$NODE_DIR/node.modal_passfile'))['id'])")"
+modal contract commit --dir "$PAYOUT" --method recv --send-commit-id "$MINT0" --send-index 0 \
+    --asset-id MOD --asset-contract "$MINED_ID" --amount $((50 * UNIT)) --output json >> "$CURRENT_LOG"
+PAYOUT_RECV=$(cat "$PAYOUT/.contract/HEAD")
+push "$PAYOUT"
+expect_log "Sequenced commit $PAYOUT_RECV" "The nominee receives block 1's 50 MOD from the epoch 0 mint"
+cp -R "$PAYOUT" ./tmp/payout-lie
+modal contract commit --dir ./tmp/payout-lie --method recv --send-commit-id "$MINT0" --send-index 1 \
+    --asset-id MOD --asset-contract "$MINED_ID" --amount $((60 * UNIT)) --output json >> "$CURRENT_LOG"
+PAYOUT_LIE=$(cat ./tmp/payout-lie/.contract/HEAD)
+push ./tmp/payout-lie
+expect_log "Failed to process sequenced commit $PAYOUT_LIE.*has amount $((50 * UNIT)), not $((60 * UNIT))" \
+    "A RECV that overstates block 2's subsidy is refused, naming the amount"
+check "Block 1's RECV was applied" bash -c "! grep -q 'Failed to process sequenced commit $PAYOUT_RECV' '$SEQUENCER_LOG'"
+
+echo ""
+echo "Vesting by MOD height: the payout locks its MOD until the chain is paid past a height..."
+VIEW="./tmp/mod-view"
+modal contract pull --contract-id "$MINED_ID" --remote "$REMOTE" --dir "$VIEW" >> "$CURRENT_LOG" 2>&1
+HEIGHT=$(cat "$VIEW/state/emission/next_index.num")
+HEIGHT_PATH="/reposts/$MINED_ID/emission/next_index.num"
+# lock <dir> <height>: the owner's key, and the rules that hold MOD until <height>.
+lock() {
+    modal contract set-named-id /owner.id "$NODE_DIR/node.modal_passfile" --dir "$1" >> "$CURRENT_LOG" 2>&1
+    cat > "$1/model/default.modality" <<EOF
+model lockbox {
+  part flow {
+    q0 --> q1
+    q1 --> q1: -SEND -post_to_path(/reposts)
+    q1 --> q1: +SEND +signed_by(/owner.id) +num_gte($HEIGHT_PATH, "$2") -post_to_path(/reposts)
+  }
+}
+EOF
+    (cd "$1" \
+        && modal c add-rule --name only_reposts 'always([+post_to_path(/reposts)] false)' \
+        && modal c add-rule --name owner_sends 'always([+SEND -signed_by(/owner.id)] false)' \
+        && modal c add-rule --name vests "always([+SEND -num_gte($HEIGHT_PATH, \"$2\")] false)" \
+        && modal c commit --all --sign "../../$NODE_DIR/node.modal_passfile" -m "Lock until MOD height $2") \
+        >> "$CURRENT_LOG" 2>&1
+}
+cp -R "$PAYOUT" ./tmp/payout-far
+lock "$PAYOUT" "$HEIGHT"
+LOCKED=$(cat "$PAYOUT/.contract/HEAD")
+check "The lock commits" test "$LOCKED" != "$PAYOUT_RECV"
+push "$PAYOUT"
+expect_log "Sequenced commit $LOCKED" "The network takes the lock"
+send_out() {
+    modal contract commit --dir "$1" --method send --asset-contract "$MINED_ID" --asset-id MOD --to-contract "$ALICE_ID" \
+        --amount $((50 * UNIT)) --sign "$NODE_DIR/node.modal_passfile" --output json > "$2.out" 2> "$2.err"
+}
+refused() {
+    TESTS_RUN=$((TESTS_RUN + 1))
+    if "${@:2}"; then
+        TESTS_FAILED=$((TESTS_FAILED + 1))
+        echo -e "  ${RED}✗${NC} $1 (was accepted)"
+    else
+        TESTS_PASSED=$((TESTS_PASSED + 1))
+        echo -e "  ${GREEN}✓${NC} $1"
+    fi
+}
+refused "Before any MOD height is reposted, the SEND is refused" send_out "$PAYOUT" ./tmp/vest-early
+check "The refusal names the height" grep -q "missing +num_gte" ./tmp/vest-early.err
+post_height() {
+    modal contract commit --dir "$PAYOUT" --path "$HEIGHT_PATH" --value 1000000 \
+        --sign "$NODE_DIR/node.modal_passfile" --output json > ./tmp/fake-height.out 2> ./tmp/fake-height.err
+}
+refused "A hand-written height is refused" post_height
+check "That refusal names the POST under /reposts" grep -q "post_to_path(/reposts)" ./tmp/fake-height.err
+modal contract repost "$MINED_ID" /emission/next_index.num --from-dir "$VIEW" --dir "$PAYOUT" >> "$CURRENT_LOG" 2>&1
+modal contract commit --dir "$PAYOUT" --all --sign "$NODE_DIR/node.modal_passfile" --output json >> "$CURRENT_LOG" 2>&1
+REPOSTED=$(cat "$PAYOUT/.contract/HEAD")
+push "$PAYOUT"
+expect_log "REPOST validated: $(modal contract id --dir "$PAYOUT")$HEIGHT_PATH <- $MINED_ID:/emission/next_index.num" \
+    "The network checks the reposted height against the MOD contract"
+expect_log "Sequenced commit $REPOSTED" "The REPOST of MOD height $HEIGHT is sequenced"
+send_out "$PAYOUT" ./tmp/vest-now
+VESTED=$(cat "$PAYOUT/.contract/HEAD")
+check "At the height, the owner's SEND passes the rules" test "$VESTED" != "$REPOSTED"
+push "$PAYOUT"
+expect_log "Sequenced commit $VESTED" "The network sequences the vested SEND"
+check "The vested SEND is applied" bash -c "! grep -q 'Failed to process sequenced commit $VESTED' '$SEQUENCER_LOG'"
+
+lock ./tmp/payout-far $((HEIGHT + 1000))
+modal contract repost "$MINED_ID" /emission/next_index.num --from-dir "$VIEW" --dir ./tmp/payout-far >> "$CURRENT_LOG" 2>&1
+modal contract commit --dir ./tmp/payout-far --all --sign "$NODE_DIR/node.modal_passfile" --output json >> "$CURRENT_LOG" 2>&1
+refused "Below a later height, the same SEND is refused" send_out ./tmp/payout-far ./tmp/vest-far
+check "That refusal names the height too" grep -q "missing +num_gte" ./tmp/vest-far.err
 
 test_finalize
 exit $?

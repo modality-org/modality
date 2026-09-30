@@ -1905,6 +1905,7 @@ pub(crate) const EVALUATED_PREDICATES: &[&str] = &[
     "tracks",
     "pays_senders",
     "pays_memo_min",
+    "mined_headers",
 ];
 
 impl CommitFacts {
@@ -2164,6 +2165,10 @@ impl CommitFacts {
             },
             "pays_memo_min" => match args.as_slice() {
                 [field] => self.pays_memo_min(field),
+                _ => false,
+            },
+            "mined_headers" => match args.as_slice() {
+                [prefix] => self.mined_headers(prefix),
                 _ => false,
             },
             "tracks" => match args.as_slice() {
@@ -2628,6 +2633,52 @@ impl CommitFacts {
         a1.mul(&b1).mul(&s0).mul(&s0) >= a0.mul(&b0).mul(&s1).mul(&s1)
     }
 
+    /// `mined_headers(/prefix)`: every header the commit posts at
+    /// `/prefix/<index>.json` is a mined block. Its hash is the RandomX hash
+    /// of its mining data and nonce, as the miner names blocks; the same
+    /// data and nonce under the network's proof of work
+    /// (`/network/emission/hash_func.text`, default `randomx`) meet the
+    /// difficulty it states; its data hash covers its nominee (`to`) and
+    /// miner number;
+    /// and it links to the header at `index - 1`, posted in this commit or
+    /// accepted, or for block 1 to `/network/emission/genesis_block_hash.text`
+    /// when that is posted. Holds when the commit posts no header.
+    fn mined_headers(&self, prefix: &str) -> bool {
+        let prefix = format!("{}/", normalize_path(prefix));
+        let text = |path: &str| self.state.get(path).and_then(Value::as_str);
+        let func = text("network/emission/hash_func.text").unwrap_or("randomx");
+        let genesis = text("network/emission/genesis_block_hash.text");
+        let header_at = |index: u64| {
+            let path = format!("{prefix}{index}.json");
+            self.posts
+                .iter()
+                .rev()
+                .find(|(p, _)| *p == path)
+                .map(|(_, v)| v)
+                .or_else(|| self.state.get(&path))
+        };
+        self.posts
+            .iter()
+            .filter(|(path, _)| path.starts_with(&prefix))
+            .all(|(path, header)| {
+                let Some(index) = path[prefix.len()..]
+                    .strip_suffix(".json")
+                    .and_then(|i| i.parse::<u64>().ok())
+                else {
+                    return false;
+                };
+                let previous = header.get("previous_hash").and_then(Value::as_str);
+                let linked = match index {
+                    0 => false,
+                    1 => genesis.is_none_or(|g| previous == Some(g)),
+                    _ => header_at(index - 1)
+                        .and_then(|before| before.get("hash")?.as_str())
+                        .is_some_and(|hash| previous == Some(hash)),
+                };
+                linked && mined_header_holds(header, index, func)
+            })
+    }
+
     /// `pays_memo_min(field)`: every `RECV` whose memo has a whole number at
     /// `field` (a swap's `min_out`, an add's `min_shares`) is answered by the
     /// commit's `SEND`s to its sender: they return what it took in, in full,
@@ -2884,6 +2935,53 @@ impl CommitFacts {
             .get(&normalize_path(path))
             .and_then(Value::as_bool)
     }
+}
+
+/// A posted miner header's own proof: the fields `mined_headers` reads, its
+/// data hash, and its nonce ground against its mining data.
+fn mined_header_holds(header: &Value, index: u64, hash_func: &str) -> bool {
+    let text = |name: &str| header.get(name).and_then(Value::as_str);
+    let big = |name: &str| match header.get(name) {
+        Some(Value::String(s)) => s.parse::<u128>().ok(),
+        Some(Value::Number(n)) => n.as_u64().map(u128::from),
+        _ => None,
+    };
+    let (Some(hash), Some(previous), Some(data_hash), Some(to)) = (
+        text("hash"),
+        text("previous_hash"),
+        text("data_hash"),
+        text("to"),
+    ) else {
+        return false;
+    };
+    let (Some(nonce), Some(difficulty)) = (big("nonce"), big("difficulty")) else {
+        return false;
+    };
+    let (Some(timestamp), Some(miner_number)) = (
+        header.get("timestamp").and_then(Value::as_i64),
+        header.get("miner_number").and_then(Value::as_u64),
+    ) else {
+        return false;
+    };
+    if header.get("index").and_then(Value::as_u64) != Some(index)
+        || crate::miner_header::data_hash(to, miner_number) != data_hash
+    {
+        return false;
+    }
+    // A block's hash names it and is always RandomX; its work is the
+    // network's hash function over the same data and nonce. On a RandomX
+    // network the two are one hash.
+    let data = crate::miner_header::mining_data(index, timestamp, previous, data_hash, difficulty);
+    let hashed = |func: &str| crate::hash_tax::hash_with_nonce(&data, nonce, func).ok();
+    if hashed("randomx").as_deref() != Some(hash) {
+        return false;
+    }
+    let work = if hash_func == "randomx" {
+        Some(hash.to_string())
+    } else {
+        hashed(hash_func)
+    };
+    work.is_some_and(|w| crate::hash_tax::is_hash_acceptable(&w, difficulty, hash_func))
 }
 
 /// What a `RECV` states it takes in. Apply refuses a `RECV` whose statement

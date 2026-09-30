@@ -29,6 +29,7 @@ state/               # Working state directory
 |--------|-------------|
 | `--dir <DIR>` | Directory path where the contract will be created (defaults to current directory) |
 | `--signer <ID or PASSFILE>` | A key allowed to extend the contract; repeat for several. The genesis commit posts the keys at `/signers/<n>.id`, a model and the rule that every later commit is signed by one of them. The contract's key signs the set for the hash lane (`.contract/signer_set.json`). Fixed at creation |
+| `--key <PASSFILE>` | The contract's key, instead of a new one: the contract's id is that key's id. A miner makes the contract its blocks nominate this way, to take their MOD. One contract per key |
 | `--output <FORMAT>` | Output format: `text` or `json` |
 
 ## Commit

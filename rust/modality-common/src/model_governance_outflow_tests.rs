@@ -864,3 +864,70 @@ fn a_pool_pays_only_who_paid_in_and_keeps_its_product() {
     let err = validate(&accepted, &replace, V2).expect_err("rules still bind");
     assert!(err.to_string().contains("Model violates rule"), "{err}");
 }
+
+/// A header at `index` after `previous`, paying `to`, mined with sha256 at
+/// difficulty 1. Its hash, as the miner names blocks, is RandomX.
+fn mined(index: u64, previous: &str, to: &str) -> Value {
+    let data_hash = crate::miner_header::data_hash(to, 7);
+    let data = crate::miner_header::mining_data(index, 1_700_000_000, previous, &data_hash, 1);
+    let nonce = crate::hash_tax::mine(&data, 1, None, Some("sha256")).unwrap();
+    let hash = crate::hash_tax::hash_with_nonce(&data, nonce, "randomx").unwrap();
+    json!({
+        "index": index, "to": to, "hash": hash, "previous_hash": previous,
+        "timestamp": 1_700_000_000i64, "data_hash": data_hash,
+        "difficulty": "1", "nonce": nonce.to_string(), "miner_number": 7,
+    })
+}
+
+fn posting(headers: &[(u64, &Value)]) -> CommitFile {
+    let mut c = CommitFile::new();
+    for (index, header) in headers {
+        c.add_action(
+            "post".to_string(),
+            Some(format!("/emission/blocks/{index}.json")),
+            (*header).clone(),
+        );
+    }
+    c
+}
+
+#[test]
+fn mined_headers_holds_only_for_linked_headers_with_their_work() {
+    let sha = ("/network/emission/hash_func.text", json!("sha256"));
+    let genesis = ("/network/emission/genesis_block_hash.text", json!("g0"));
+    let b1 = mined(1, "g0", "12D3KooWAlice");
+    let b2 = mined(2, b1["hash"].as_str().unwrap(), "12D3KooWBob");
+    let check = |c: &CommitFile, state: &[(&str, Value)]| {
+        holds(c, state, "mined_headers", &["/emission/blocks"])
+    };
+
+    assert!(check(&posting(&[(1, &b1), (2, &b2)]), &[sha.clone(), genesis.clone()]));
+    assert!(check(&CommitFile::new(), &[sha.clone()]), "no header posted");
+    assert!(
+        check(&posting(&[(2, &b2)]), &[sha.clone(), ("/emission/blocks/1.json", b1.clone())]),
+        "block 2 links to an accepted block 1"
+    );
+    assert!(!check(&posting(&[(2, &b2)]), &[sha.clone()]), "block 1 is nowhere");
+    assert!(
+        !check(&posting(&[(1, &b1)]), &[sha.clone(), ("/network/emission/genesis_block_hash.text", json!("g1"))]),
+        "block 1 must follow the genesis block"
+    );
+    assert_eq!(
+        check(&posting(&[(1, &b1)]), &[genesis.clone()]),
+        crate::hash_tax::is_hash_acceptable(b1["hash"].as_str().unwrap(), 1, "randomx"),
+        "the default proof of work is randomx: the hash itself must meet the difficulty"
+    );
+
+    let tampered = |field: &str, value: Value| {
+        let mut h = b1.clone();
+        h[field] = value;
+        check(&posting(&[(1, &h)]), &[sha.clone(), genesis.clone()])
+    };
+    assert!(!tampered("to", json!("12D3KooWMallory")), "the payee is under the data hash");
+    assert!(!tampered("miner_number", json!(8)));
+    assert!(!tampered("nonce", json!("0")) || b1["nonce"] == json!("0"));
+    assert!(!tampered("hash", json!("00")));
+    assert!(!tampered("index", json!(3)), "the header's index is its path's");
+    assert!(!tampered("difficulty", json!("1000000000000")), "the hash does not meet it");
+    assert!(!check(&posting(&[(0, &b1)]), &[sha]), "block 0 is genesis, not mined");
+}

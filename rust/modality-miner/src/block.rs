@@ -1,6 +1,5 @@
 use chrono::{DateTime, TimeZone, Utc};
 use serde::{Deserialize, Serialize};
-use sha2::{Sha256, Digest};
 use modality_common::hash_tax;
 
 /// Special peer ID used for the genesis block (no nomination)
@@ -49,13 +48,12 @@ pub struct BlockHeader {
 impl BlockHeader {
     /// Create block data string for mining (excludes hash and nonce initially)
     pub fn mining_data(&self) -> String {
-        format!(
-            "{}{}{}{}{}",
+        modality_common::miner_header::mining_data(
             self.index,
             self.timestamp.timestamp(),
-            self.previous_hash,
-            self.data_hash,
-            self.difficulty
+            &self.previous_hash,
+            &self.data_hash,
+            self.difficulty,
         )
     }
     
@@ -156,9 +154,7 @@ impl Block {
     
     /// Calculate hash of block data
     fn calculate_data_hash(data: &BlockData) -> String {
-        let mut hasher = Sha256::new();
-        hasher.update(data.to_hash_string().as_bytes());
-        format!("{:x}", hasher.finalize())
+        modality_common::miner_header::data_hash(&data.nominated_peer_id, data.miner_number)
     }
     
     /// Verify the data hash is correct

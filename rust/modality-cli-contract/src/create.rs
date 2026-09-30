@@ -23,6 +23,13 @@ pub struct Opts {
     #[clap(long = "signer")]
     signers: Vec<String>,
 
+    /// The contract's key, from a passfile (path or identity name), instead
+    /// of a new one: the contract's id is that key's id. A miner makes the
+    /// contract its blocks nominate this way, to take their MOD. One
+    /// contract per key.
+    #[clap(long)]
+    key: Option<String>,
+
     /// Output format (json or text)
     #[clap(long, default_value = "text")]
     output: String,
@@ -47,8 +54,14 @@ pub async fn run(opts: &Opts) -> Result<()> {
         }
     }
 
-    // Generate a keypair for the contract
-    let keypair = Keypair::generate()?;
+    let keypair = match &opts.key {
+        Some(reference) => {
+            let path = modality_common::passfile::resolve_passfile_path(reference)?;
+            Keypair::from_json_file(path.to_str().unwrap_or_default())
+                .map_err(|e| anyhow::anyhow!("--key {reference}: {e}"))?
+        }
+        None => Keypair::generate()?,
+    };
     let contract_id = keypair.as_public_address();
 
     // Initialize the contract store

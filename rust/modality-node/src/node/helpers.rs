@@ -192,6 +192,9 @@ pub async fn load_network_config(
         }
     }
     super::mod_contract::apply_genesis(datastore_manager, &network_config).await?;
+    if network_config.get("mod_contract").is_some() {
+        super::mod_contract::spawn_minter(datastore_manager.clone());
+    }
 
     // Load network parameters from genesis contract if present
     if let Some(genesis_contract_id) = network_config

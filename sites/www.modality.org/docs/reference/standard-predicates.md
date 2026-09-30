@@ -41,6 +41,7 @@ local validator path.
 | `tracks(/p.num, "asset")` or `tracks(/p.num, "asset", "issued")` | Pending `POST`s to the path, accepted state, and what the commit's `RECV`s state and `SEND`s move | The number changes by exactly what came in of `asset` less what went out; with `"issued"`, by what went out less what came in |
 | `pays_senders("asset")` | Pending `SEND` actions and the senders the commit's `RECV`s state | Every `SEND` of `asset` goes to a contract a `RECV` of the same commit came from |
 | `pays_memo_min("field")` | Pending `SEND` actions and what the commit's `RECV`s state, memo included | Every `RECV` whose memo asks a minimum at `field` gets its deposit back in full, or at least that minimum of another asset |
+| `mined_headers(/prefix)` | Pending `POST`s under the prefix, accepted state, and `/network/emission/*` | Every miner block header the commit posts at `/prefix/<index>.json` is mined and follows the one before it |
 
 Other reference predicates below describe the intended standard vocabulary.
 Treat them as requiring predicate-specific implementation and tests before
@@ -55,7 +56,7 @@ currently enforced by the local first-contract validator.
 |------------------|--------------------------------|-------|
 | Method labels such as `+POST`, `+REPOST`, and `+MODEL` | Enforced | Derived from pending commit body methods |
 | `signed_by`, `any_signed`, `all_signed`, `threshold`, `modifies`, `post_to_path`, `sets`, `has_property`, `state_exists`, `text_eq`, `text_contains`, `text_starts_with`, `text_ends_with`, `amount_in_range`, `num_eq`, `num_gt`, `num_gte`, `num_lt`, `num_lte`, `bool_true`, `bool_false` | Enforced | Derived from pending signatures, accepted state, pending methods, pending paths, accepted-state path existence, accepted-state JSON, accepted-state text, accepted-state numbers, and accepted-state booleans |
-| `sent_eq`, `sent_lte`, `sent_to`, `posts_own_key`, `emitted_by`, `keeps_product`, `keeps_product_per_share`, `tracks`, `pays_senders`, `pays_memo_min` | Enforced | What the pending commit moves and who wrote it. See [Outflow Predicates](#outflow-predicates). Every node on a network must run a release that evaluates them before a contract relies on them: an older node holds them false |
+| `sent_eq`, `sent_lte`, `sent_to`, `posts_own_key`, `emitted_by`, `keeps_product`, `keeps_product_per_share`, `tracks`, `pays_senders`, `pays_memo_min`, `mined_headers` | Enforced | What the pending commit moves and who wrote it. See [Outflow Predicates](#outflow-predicates). Every node on a network must run a release that evaluates them before a contract relies on them: an older node holds them false |
 | `timestamp_valid` | Unit-tested extension module only | Implemented in `modality-wasm-validation`; not yet replay evidence for the local first-contract validator |
 | `oracle_attests` | Replay bundle only | Holds only when the commit carries a valid replay bundle for the claim |
 | `before`, `after`, hash predicates, and `wasm` | Never holds | Intended extension vocabulary, not evaluated by the validator yet |
@@ -451,9 +452,45 @@ always([-pays_memo_min("min_out")] false)
 See [A Constant-Product Pool](../tutorials/constant-product-pool.md) for the
 full rule set.
 
+### mined_headers
+
+Miner blocks, proven by their own work.
+
+```modality
++mined_headers(/emission/blocks)
+```
+
+**Arguments:**
+- `prefix` — Where the headers are posted, one at `<prefix>/<index>.json`
+
+**Behavior:**
+- Looks at every header the commit posts under `prefix`. Each is an object
+  with `index`, `to` (the block's nominee), `hash`, `previous_hash`,
+  `timestamp`, `data_hash`, `difficulty`, `nonce` and `miner_number`
+- Its `index` is its path's, and not `0`
+- Its hash is the RandomX hash of its mining data and nonce, as the miner
+  names blocks, and the same data and nonce under the network's proof of
+  work (`/network/emission/hash_func.text`, default `randomx`) meet the
+  difficulty it states
+- Its `data_hash` is the sha256 of its nominee and miner number
+- Its `previous_hash` is the hash of the header at `index - 1`, posted by the
+  same commit or accepted. Block 1 follows
+  `/network/emission/genesis_block_hash.text` when that is posted
+- Holds when the commit posts no header
+- The difficulty is the header's own: the predicate does not recompute the
+  network's difficulty for the block's epoch
+
+**Example:**
+```modality
+// The MOD contract pays only for mined blocks
+always([-mined_headers(/emission/blocks)] false)
+```
+
+See [The MOD Contract](../concepts/mod-contract.md).
+
 Predicate theory treats `sent_eq`, `sent_lte`, `sent_to`, `emitted_by`,
-`keeps_product`, `keeps_product_per_share`, `tracks` and `pays_senders` as
-opaque atoms: an edge that needs one is taken to be possibly open, and a
+`keeps_product`, `keeps_product_per_share`, `tracks`, `pays_senders`,
+`pays_memo_min` and `mined_headers` as opaque atoms: an edge that needs one is taken to be possibly open, and a
 diamond rule that needs one is refused rather than guessed. `posts_own_key`
 is known to post to its path, so an edge with `+posts_own_key(/p.id)
 -post_to_path(/p.id)` is dead. See [Predicate theory](./predicate-theory.md).

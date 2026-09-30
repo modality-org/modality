@@ -39,6 +39,8 @@ All amounts are in the smallest unit; with divisibility `10^8`, one MOD is
 | `/network/emission/halving_interval.num` | The subsidy halves every this many blocks (`0`: never) |
 | `/network/emission/slow_start.num` | Over the blocks before this index the subsidy rises in a straight line to the full amount (`0`: none) |
 | `/network/emission/cap.num` | The most emission pays out, in total |
+| `/network/emission/hash_func.text` | The miner chain's proof of work: `randomx` (the default) or a test network's `sha256` |
+| `/network/emission/genesis_block_hash.text` | Optional: the hash of miner block 0, which block 1 must follow |
 | `/emission/next_index.num` | The next miner block to pay; starts at `1` |
 | `/emission/emitted.num` | What emission has paid out; starts at `0` |
 
@@ -69,6 +71,9 @@ always([-emitted_by(/__programs__/emission.wasm, "<SHA>")] false)
 // The emitted counter moves by exactly what went out
 always([-tracks(/emission/emitted.num, "MOD", "issued")] false)
 
+// Every block the program pays for is a mined, linked miner block
+always([-mined_headers(/emission/blocks)] false)
+
 // The parameters and the program never change
 always([+modifies(/network)] false)
 always([+modifies(/__programs__)] false)
@@ -85,7 +90,7 @@ model Mod {
   q1 --> q2: +CREATE -SEND -RECV FIXED +signed_by(/foundation.id)
   q2 --> q2: +SEND -CREATE -RECV FIXED -modifies(/emission) +signed_by(/foundation.id)
   q2 --> q3: +modifies(/rules) -SEND -RECV -CREATE FIXED +signed_by(/foundation.id)
-  q3 --> q3: +emitted_by(/__programs__/emission.wasm, "<SHA>") +tracks(/emission/emitted.num, "MOD", "issued") FIXED
+  q3 --> q3: +emitted_by(/__programs__/emission.wasm, "<SHA>") +tracks(/emission/emitted.num, "MOD", "issued") +mined_headers(/emission/blocks) FIXED
 }
 ```
 
@@ -96,13 +101,25 @@ where `FIXED` is `-modifies(/network) -modifies(/__programs__)`.
 `programs/mod-emission` has one operation:
 
 ```json
-{"args": {"op": "mint", "blocks": [{"index": 1, "to": "<contract id>"}, {"index": 2, "to": "<contract id>"}]}}
+{"args": {"op": "mint", "blocks": [<header of block 1>, <header of block 2>]}}
 ```
 
-The blocks must continue from `/emission/next_index.num` without a gap. For
-each block the program sends that block's subsidy of MOD to `to`, then posts
-the new `next_index` and `emitted`. A block named twice or out of turn is
-refused, so no block is paid twice.
+Each header is a miner block as the chain holds it: `index`, `to` (the
+block's nominee), `hash`, `previous_hash`, `timestamp`, `data_hash`,
+`difficulty`, `nonce` and `miner_number`. The blocks must continue from
+`/emission/next_index.num` without a gap. For each block the program posts
+its header at `/emission/blocks/<index>.json` and sends that block's subsidy
+of MOD to `to` (a block with no nominee pays nobody), then posts the new
+`next_index` and `emitted`. A block named twice or out of turn is refused, so
+no block is paid twice.
+
+`mined_headers(/emission/blocks)` checks each posted header the way a miner
+checks a block: its hash is the RandomX hash of its mining data and nonce;
+the same data and nonce under `hash_func` meet the difficulty it states; its
+data hash covers its nominee and miner number; and it follows the header
+before it (for block 1, `genesis_block_hash` when that is posted). It does
+not recompute the network's difficulty for the block's epoch: it holds a
+header to the difficulty the header states.
 
 ## What a node does
 
@@ -118,10 +135,18 @@ from the contract's posts. It refuses to start when:
 - its data dir holds another network's MOD contract
 
 A node on such a network refuses every commit a client pushes to the MOD
-contract. Only the network writes it.
+contract. Only the network writes it, and it does not keep native MOD
+balances: every MOD is in the contract.
 
-Mint commits are not written yet. Until they are, native emission pays
-miner blocks with the contract's schedule into balances each node keeps.
+### Mints
+
+Once the miner chain's tip is two epochs past an epoch, every node writes the
+mint for that epoch: an `invoke` of the program naming each canonical block
+of the epoch not yet paid, after the contract's head. It applies the mint
+through the contract processor, like the genesis. The mint is derived from
+the finalized miner chain, so every node writes the same commit with the same
+id, and nothing is sequenced. A block's nominee receives its subsidy with a
+`RECV` of the mint's `SEND`, like an allocation.
 
 ## Receiving an allocation
 
@@ -133,6 +158,49 @@ modal contract commit --dir wallet --method recv --send-commit-id <SEND commit> 
   --asset-contract <MOD contract id> --asset-id MOD --amount 100000000000000
 ```
 
+### Taking a block's MOD
+
+A mint's `SEND` goes to the block's nominee: the miner's peer id, or an id
+named in the node's `miner_nominees`. The holder of that key creates the
+contract with that id, and receives each block's subsidy with a `RECV`:
+
+```bash
+modal contract create --dir payout --key node.modal_passfile
+modal contract commit --dir payout --method recv --send-commit-id <mint commit> --send-index 0 \
+  --asset-contract <MOD contract id> --asset-id MOD --amount 5000000000
+```
+
+`--send-index` picks the block's `SEND` among the mint's, counting from 0.
+One key makes one contract.
+
+## Vesting by MOD height
+
+`/emission/next_index.num` only grows, one epoch of blocks at a time, so it
+is a clock every contract can read. A contract holding MOD can lock it until
+the chain is paid past a height:
+
+```modality
+// Only a REPOST writes under /reposts: the network checks it against the source
+always([+post_to_path(/reposts)] false)
+
+// MOD leaves only once the MOD contract has paid past block 100000
+always([+SEND -num_gte(/reposts/<MOD contract id>/emission/next_index.num, "100000")] false)
+```
+
+To spend, the holder reposts the height, then sends in a later commit:
+
+```bash
+modal contract pull --contract-id <MOD contract id> --remote <node> --dir mod
+modal contract repost <MOD contract id> /emission/next_index.num --from-dir mod
+modal contract commit --all
+modal contract commit --method send --asset-contract <MOD contract id> --asset-id MOD \
+  --to-contract <recipient> --amount <amount>
+```
+
+A node applies the `REPOST` only when its value is the MOD contract's
+latest, so a stale copy is refused and the holder reposts again. Rules
+accumulate, so a lock stays: a later model cannot drop it.
+
 ## Building a genesis
 
 ```bash
@@ -141,11 +209,15 @@ scripts/mod-genesis/build.sh --out ./mod --foundation foundation.mod_passfile --
 
 `params.json` names `quantity`, `divisibility`, `block_subsidy`,
 `halving_interval`, `slow_start`, `cap`, and `allocations` (each a `to`
-contract id and an `amount`). The script builds the program (`--canonical`
+contract id and an `amount`), and optionally `hash_func` and
+`genesis_block_hash`. The script builds the program (`--canonical`
 builds the published bytes in a pinned Linux image), commits the genesis
 with `modal`, and writes `./mod/genesis.json`, the value of the network
 config's `mod_contract`. It prints the contract id and the program's
 sha256.
 
 `tests/network/mod-contract` builds a genesis, starts a sequencer on it,
-receives an allocation, and shows each refusal.
+receives an allocation, and shows each refusal. It then runs a mining node
+on a sha256 genesis, which mints epochs 0 and 1. A stranger replays the
+mints, a client's copy of a real mint is refused, the nominee takes block
+1's MOD, and a lock releases it only at a reposted height.

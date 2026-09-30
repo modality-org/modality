@@ -7,7 +7,11 @@
 #   {"quantity": 2100000000000000, "divisibility": 100000000,
 #    "block_subsidy": 5000000000, "halving_interval": 210000, "slow_start": 0,
 #    "cap": 1900000000000000,
+#    "hash_func": "randomx", "genesis_block_hash": "<hash of miner block 0>",
 #    "allocations": [{"to": "<contract id>", "amount": 100000000000000}]}
+#
+# `hash_func` is the miner chain's proof of work (default randomx), and
+# `genesis_block_hash`, when given, ties the first minted block to block 0.
 #
 # All amounts are in the smallest unit (1 MOD = divisibility units).
 # `quantity` is the whole supply, `cap` what emission may pay out of it, and
@@ -84,6 +88,17 @@ modal set-named-id /foundation.id "$FOUNDATION" --dir "$DIR" >/dev/null
 for name in block_subsidy halving_interval slow_start cap; do
     modal contract set --dir "$DIR" "/network/emission/$name.num" "$(param $name)" >/dev/null
 done
+text_param() {
+    python3 - "$PARAMS" "$1" "$2" <<'PY'
+import json, sys
+print(json.load(open(sys.argv[1])).get(sys.argv[2], sys.argv[3]))
+PY
+}
+modal contract set --dir "$DIR" /network/emission/hash_func.text "$(text_param hash_func randomx)" >/dev/null
+GENESIS_BLOCK=$(text_param genesis_block_hash "")
+if [ -n "$GENESIS_BLOCK" ]; then
+    modal contract set --dir "$DIR" /network/emission/genesis_block_hash.text "$GENESIS_BLOCK" >/dev/null
+fi
 modal contract set --dir "$DIR" /emission/next_index.num 1 >/dev/null
 modal contract set --dir "$DIR" /emission/emitted.num 0 >/dev/null
 mkdir -p "$DIR/state/__programs__"
@@ -103,7 +118,7 @@ model Mod {
   q1 --> q2: +CREATE -SEND -RECV $FIXED +signed_by(/foundation.id)
   q2 --> q2: +SEND -CREATE -RECV $FIXED -modifies(/emission) +signed_by(/foundation.id)
   q2 --> q3: +modifies(/rules) -SEND -RECV -CREATE $FIXED +signed_by(/foundation.id)
-  q3 --> q3: $EMITTED +tracks(/emission/emitted.num, "MOD", "issued") $FIXED
+  q3 --> q3: $EMITTED +tracks(/emission/emitted.num, "MOD", "issued") +mined_headers(/emission/blocks) $FIXED
 }
 EOF
 
@@ -125,6 +140,7 @@ add_rule only_the_program "always([-emitted_by($PROGRAM, \"$SHA\")] false)"
 add_rule emitted_counts_what_went_out "always([-tracks(/emission/emitted.num, \"MOD\", \"issued\")] false)"
 add_rule parameters_fixed "always([+modifies(/network)] false)"
 add_rule program_fixed "always([+modifies(/__programs__)] false)"
+add_rule headers_are_mined "always([-mined_headers(/emission/blocks)] false)"
 modal commit --theory v2 --all --dir "$DIR" --sign "$FOUNDATION" --output json --message Rules >/dev/null
 
 CONTRACT_ID=$(modal contract id --dir "$DIR")

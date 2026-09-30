@@ -231,6 +231,7 @@ pub const KNOWN_PREDICATES: &[&str] = &[
     "tracks",
     "pays_senders",
     "pays_memo_min",
+    "mined_headers",
     "state_exists",
     "has_property",
     "text_eq",

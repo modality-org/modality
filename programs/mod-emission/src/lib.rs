@@ -4,9 +4,12 @@
 //! output JSON at the returned pointer.
 //!
 //! One operation, `mint`: pay the subsidy of each named miner block, in index
-//! order, starting at the first block not yet paid. The parameters are the
+//! order, starting at the first block not yet paid, and post each block's
+//! header at `/emission/blocks/<index>.json` so the rules can check its proof
+//! of work and its link to the block before. The parameters are the
 //! contract's genesis posts under `/network/emission`, which its rules never
-//! let change. The program pays nothing past the emission cap.
+//! let change. The program pays nothing past the emission cap, and nothing for
+//! a block that nominated nobody.
 //!
 //! See `docs/concepts/mod-contract.md` for the rules this program runs under.
 
@@ -19,6 +22,7 @@ pub const HALVING_INTERVAL: &str = "/network/emission/halving_interval.num";
 pub const SLOW_START: &str = "/network/emission/slow_start.num";
 pub const CAP: &str = "/network/emission/cap.num";
 pub const NEXT_INDEX: &str = "/emission/next_index.num";
+pub const BLOCKS: &str = "/emission/blocks";
 pub const EMITTED: &str = "/emission/emitted.num";
 
 #[no_mangle]
@@ -109,8 +113,11 @@ fn run(input: &Value) -> Result<Vec<Value>, String> {
     }
 }
 
-/// `{"op": "mint", "blocks": [{"index": n, "to": "<contract id>"}, ...]}`:
-/// the blocks must run on from `/emission/next_index.num` without a gap.
+/// `{"op": "mint", "blocks": [{"index": n, "to": "<contract id>", ...header}]}`:
+/// the blocks must run on from `/emission/next_index.num` without a gap. Each
+/// entry is the block's header as the miner chain holds it (`hash`,
+/// `previous_hash`, `timestamp`, `data_hash`, `difficulty`, `nonce`,
+/// `miner_number`); `to` is its nominee, empty when it named none.
 fn mint(state: &Map<String, Value>, args: &Value) -> Result<Vec<Value>, String> {
     let schedule = Schedule::read(state)?;
     let blocks = args
@@ -135,10 +142,14 @@ fn mint(state: &Map<String, Value>, args: &Value) -> Result<Vec<Value>, String> 
         let to = block
             .get("to")
             .and_then(Value::as_str)
-            .filter(|s| !s.is_empty())
-            .ok_or_else(|| format!("block {index} needs to: the contract it pays"))?;
+            .ok_or_else(|| format!("block {index} needs to: its nominee, or empty"))?;
+        out.push(json!({
+            "method": "post",
+            "path": format!("{BLOCKS}/{index}.json"),
+            "value": block,
+        }));
         let amount = schedule.subsidy(index).min(schedule.cap.saturating_sub(emitted));
-        if amount > 0 {
+        if amount > 0 && !to.is_empty() {
             out.push(send(to, amount));
             emitted += amount;
         }
@@ -230,6 +241,24 @@ mod tests {
         assert_eq!(posted(&out, EMITTED), 225);
         let fresh = call(blocks(1, 1), json!({BLOCK_SUBSIDY: "50", CAP: "100"}));
         assert_eq!(sent(&fresh), vec![("W1".into(), 50)]);
+    }
+
+    #[test]
+    fn a_mint_posts_each_header_and_skips_a_block_with_no_nominee() {
+        let named = json!([
+            {"index": 1, "to": "W1", "hash": "h1", "previous_hash": "h0"},
+            {"index": 2, "to": "", "hash": "h2", "previous_hash": "h1"},
+        ]);
+        let out = call(named, state(1, 0, 1_000));
+        assert_eq!(sent(&out), vec![("W1".into(), 50)]);
+        let header = |i: u64| {
+            out["actions"].as_array().unwrap().iter()
+                .find(|a| a["path"] == format!("{BLOCKS}/{i}.json")).unwrap()["value"].clone()
+        };
+        assert_eq!(header(1)["hash"], "h1");
+        assert_eq!(header(2)["previous_hash"], "h1");
+        assert_eq!(posted(&out, EMITTED), 50, "block 2 named nobody, so nothing is minted for it");
+        assert_eq!(posted(&out, NEXT_INDEX), 3);
     }
 
     #[test]

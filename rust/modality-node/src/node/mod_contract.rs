@@ -10,12 +10,19 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 
 use modality_common::contract_store::CommitFile;
-use modality_datastore::models::{Commit, Contract, ContractAsset};
+use modality_datastore::models::{Commit, Contract, ContractAsset, MinerBlock};
 use modality_datastore::{DatastoreManager, EmissionConfig};
 use modality_validator::ContractProcessor;
 
 pub const ASSET: &str = "MOD";
 const GENESIS_BATCH: &str = "genesis";
+/// Where the genesis posts the emission program the rules pin.
+pub const PROGRAM: &str = "/__programs__/emission.wasm";
+/// The MOD contract's head: the last genesis commit, then each mint.
+const HEAD_KEY: &str = "/mod_contract/head";
+/// An epoch's blocks are minted once the tip is this many epochs past it:
+/// the lookback the committee and the hash lane already treat as settled.
+pub const FINALITY_EPOCHS: u64 = 2;
 
 /// Apply the MOD contract's genesis named in `network_config`, if any, and take
 /// the network's emission from it. A node that already applied it skips the
@@ -100,6 +107,11 @@ pub async fn apply_genesis(
     }
 
     let mgr = datastore.lock().await;
+    if mgr.get_data_by_key(HEAD_KEY).await?.is_none() {
+        if let Some(last) = &parent {
+            mgr.set_data_by_key(HEAD_KEY, last.as_bytes()).await?;
+        }
+    }
     let keys = [
         ("contract_id".to_string(), contract_id.to_string()),
         ("asset_id".to_string(), ASSET.to_string()),
@@ -127,8 +139,119 @@ pub async fn apply_genesis(
     Ok(())
 }
 
-/// A client commit to the MOD contract. Only its genesis and, later, the
-/// network's own mint commits write it.
+/// The mint commit for one finalized epoch: an `invoke` of the pinned
+/// program naming each canonical block of the epoch not yet paid, after
+/// `head`. Every node derives the same commit from the same finalized chain.
+pub fn mint_commit(head: &str, blocks: &[MinerBlock]) -> CommitFile {
+    let named: Vec<Value> = blocks
+        .iter()
+        .map(|b| {
+            serde_json::json!({
+                "index": b.index,
+                "to": b.nominated_peer_id,
+                "hash": b.hash,
+                "previous_hash": b.previous_hash,
+                "timestamp": b.timestamp,
+                "data_hash": b.data_hash,
+                "difficulty": b.target_difficulty,
+                "nonce": b.nonce,
+                "miner_number": b.miner_number,
+            })
+        })
+        .collect();
+    let mut file = CommitFile::with_parent(head.to_string());
+    file.add_action(
+        "invoke".to_string(),
+        Some(PROGRAM.to_string()),
+        serde_json::json!({ "args": { "op": "mint", "blocks": named } }),
+    );
+    file
+}
+
+/// Mint every finalized epoch not yet minted. The MOD contract's log is its
+/// genesis and one mint per epoch, all derived from the finalized miner
+/// chain, so each node writes the same log without sequencing it. Returns
+/// how many mints were applied.
+pub async fn mint_finalized(datastore: &Arc<Mutex<DatastoreManager>>) -> Result<usize> {
+    let processor = ContractProcessor::new(datastore.clone());
+    let mut minted = 0usize;
+    loop {
+        let (contract_id, head, epoch, blocks) = {
+            let mgr = datastore.lock().await;
+            let Some(contract_id) = mgr.mod_contract_id()? else {
+                return Ok(minted);
+            };
+            let Some(head) = mgr.get_string(HEAD_KEY).await? else {
+                return Ok(minted);
+            };
+            let per_epoch = mgr.epoch_config().blocks_per_epoch.max(1);
+            let canonical = MinerBlock::find_all_canonical_multi(&mgr).await?;
+            let Some(tip) = canonical.iter().map(|b| b.index).max() else {
+                return Ok(minted);
+            };
+            let next = read_whole(&mgr, &contract_id, "emission/next_index").await?.max(1);
+            let epoch = next / per_epoch;
+            if tip / per_epoch < epoch + FINALITY_EPOCHS {
+                return Ok(minted);
+            }
+            let by_index: std::collections::HashMap<u64, &MinerBlock> =
+                canonical.iter().map(|b| (b.index, b)).collect();
+            let wanted = next..(epoch + 1) * per_epoch;
+            let Some(blocks) = wanted
+                .map(|i| by_index.get(&i).map(|b| (*b).clone()))
+                .collect::<Option<Vec<_>>>()
+            else {
+                return Ok(minted); // not synced that far
+            };
+            (contract_id, head, epoch, blocks)
+        };
+        let file = mint_commit(&head, &blocks);
+        let commit_id = file.compute_id()?;
+        processor
+            .process_commit(&contract_id, &commit_id, &serde_json::to_string(&file)?)
+            .await
+            .map_err(|e| anyhow!("the mint for epoch {epoch} is refused: {e}"))?;
+        let mgr = datastore.lock().await;
+        let mut commit = find(&mgr, &contract_id, &commit_id)
+            .await?
+            .ok_or_else(|| anyhow!("mint {commit_id} was not saved"))?;
+        commit.in_batch = Some(format!("mint-epoch-{epoch}"));
+        commit.save_to_final(&mgr).await?;
+        mgr.set_data_by_key(HEAD_KEY, commit_id.as_bytes()).await?;
+        log::info!(
+            "MOD contract {}: minted epoch {} ({} blocks) in commit {}",
+            contract_id,
+            epoch,
+            blocks.len(),
+            commit_id
+        );
+        minted += 1;
+    }
+}
+
+/// Mint finalized epochs in the background, as the miner chain grows.
+pub fn spawn_minter(datastore: Arc<Mutex<DatastoreManager>>) {
+    tokio::spawn(async move {
+        let mut tick = tokio::time::interval(std::time::Duration::from_secs(5));
+        loop {
+            tick.tick().await;
+            if let Err(e) = mint_finalized(&datastore).await {
+                log::warn!("MOD mint: {e:#}");
+            }
+        }
+    });
+}
+
+async fn read_whole(mgr: &DatastoreManager, contract_id: &str, path: &str) -> Result<u64> {
+    let key = format!("/contracts/{contract_id}/{path}.num");
+    Ok(match mgr.get_data_by_key(&key).await? {
+        None => 0,
+        Some(raw) => String::from_utf8_lossy(&raw).trim_matches('"').parse().unwrap_or(0),
+    })
+}
+
+/// A client commit to the MOD contract. Only its genesis and the network's
+/// own mint commits write it.
 pub fn refusal(mgr: &DatastoreManager, contract_id: &str) -> Option<String> {
     match mgr.mod_contract_id() {
         Ok(Some(id)) if id == contract_id => Some(format!(
