@@ -143,6 +143,24 @@ impl CommitFile {
         Ok(format!("{:x}", hasher.finalize()))
     }
 
+    /// A commit as a node receives it: `body` and `head` read as a commit,
+    /// which must hash to `commit_id`. Fields a commit does not have are
+    /// dropped, so what is returned is exactly what the id covers.
+    pub fn verified(commit_id: &str, body: Option<&Value>, head: Option<&Value>) -> Result<Self> {
+        let file: CommitFile = serde_json::from_value(serde_json::json!({
+            "body": body.cloned().unwrap_or(Value::Null),
+            "head": head.cloned().unwrap_or_else(|| serde_json::json!({})),
+        }))
+        .map_err(|e| anyhow::anyhow!("commit {commit_id} is not a commit: {e}"))?;
+        let computed = file.compute_id()?;
+        if computed != commit_id {
+            anyhow::bail!(
+                "commit {commit_id} is not what its body and head hash to ({computed})"
+            );
+        }
+        Ok(file)
+    }
+
     pub fn load(path: &Path) -> Result<Self> {
         let content = std::fs::read_to_string(path)?;
         let commit: CommitFile = serde_json::from_str(&content)?;

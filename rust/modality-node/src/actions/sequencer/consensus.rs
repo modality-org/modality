@@ -4,6 +4,7 @@
 //! for participating in consensus.
 
 use anyhow::Result;
+use modality_common::contract_store::CommitFile;
 use modality_common::keypair::{Keypair, KeypairOrPublicKey};
 use modality_datastore::models::{Commit, Contract, SequencerBlock};
 use modality_datastore::{DatastoreManager, Store};
@@ -470,10 +471,13 @@ async fn apply_pushed_commit(
     let body = commit_entry
         .get("body")
         .or_else(|| commit_entry.get("data"));
-    let commit_data = serde_json::json!({
-        "body": body,
-        "head": commit_entry.get("head"),
-    });
+    let commit_data = match CommitFile::verified(commit_id, body, commit_entry.get("head")) {
+        Ok(file) => file,
+        Err(e) => {
+            log::warn!("Refusing commit for contract {}: {}", contract_id, e);
+            return CommitApply::Failed;
+        }
+    };
 
     {
         let mgr = datastore.lock().await;
@@ -517,7 +521,11 @@ async fn apply_pushed_commit(
     }
 
     match processor
-        .process_commit(contract_id, commit_id, &commit_data.to_string())
+        .process_commit(
+            contract_id,
+            commit_id,
+            &serde_json::to_string(&commit_data).unwrap_or_default(),
+        )
         .await
     {
         Ok(changes) => {

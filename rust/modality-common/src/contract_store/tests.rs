@@ -559,3 +559,25 @@ fn test_post_num_path_requires_a_number() {
     assert!(post(json!(0.5)).is_ok());
     assert!(post(json!("100")).is_err());
 }
+
+#[test]
+fn a_received_commit_must_hash_to_its_id() {
+    let mut commit = CommitFile::with_parent("p".to_string());
+    commit.add_action("post".to_string(), Some("/a.text".to_string()), json!("a"));
+    let id = commit.compute_id().unwrap();
+    let body = serde_json::to_value(&commit.body).unwrap();
+    let head = serde_json::to_value(&commit.head).unwrap();
+
+    let got = CommitFile::verified(&id, Some(&body), Some(&head)).unwrap();
+    assert_eq!(got.compute_id().unwrap(), id);
+
+    let other = json!([{"method": "post", "path": "/a.text", "value": "b"}]);
+    let err = CommitFile::verified(&id, Some(&other), Some(&head)).unwrap_err();
+    assert!(err.to_string().contains("is not what its body and head hash to"), "{err}");
+    assert!(CommitFile::verified("made-up", Some(&body), Some(&head)).is_err());
+
+    let mut padded = head.clone();
+    padded["extra"] = json!("not covered by the id");
+    let kept = CommitFile::verified(&id, Some(&body), Some(&padded)).unwrap();
+    assert!(!serde_json::to_string(&kept).unwrap().contains("extra"));
+}

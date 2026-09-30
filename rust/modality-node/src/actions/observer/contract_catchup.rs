@@ -12,6 +12,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::Mutex;
 
+use modality_common::contract_store::CommitFile;
 use modality_datastore::models::{Commit, Contract};
 use modality_datastore::DatastoreManager;
 use modality_validator::ContractProcessor;
@@ -209,12 +210,19 @@ async fn catchup_contract(
                     }
                 }
             }
-            let commit_data = serde_json::json!({
-                "body": commit_entry.get("body"),
-                "head": commit_entry.get("head"),
-            });
+            let file = match CommitFile::verified(
+                &commit_id,
+                commit_entry.get("body"),
+                commit_entry.get("head"),
+            ) {
+                Ok(file) => file,
+                Err(e) => {
+                    log::warn!("Refusing a pulled commit of {contract_id}: {e}");
+                    continue;
+                }
+            };
             match processor
-                .process_commit(contract_id, &commit_id, &commit_data.to_string())
+                .process_commit(contract_id, &commit_id, &serde_json::to_string(&file)?)
                 .await
             {
                 Ok(_) => {

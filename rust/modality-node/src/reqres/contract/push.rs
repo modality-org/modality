@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use tokio::sync::mpsc;
 
+use modality_common::contract_store::CommitFile;
 use modality_datastore::models::{Commit, Contract};
 use modality_datastore::DatastoreManager;
 use modality_validator::ContractProcessor;
@@ -56,6 +57,22 @@ pub async fn handler(
         });
     }
 
+    let files = match req
+        .commits
+        .iter()
+        .map(|c| CommitFile::verified(&c.commit_id, Some(&c.body), Some(&c.head)))
+        .collect::<anyhow::Result<Vec<_>>>()
+    {
+        Ok(files) => files,
+        Err(e) => {
+            return Ok(Response {
+                ok: false,
+                data: None,
+                errors: Some(json!({"error": e.to_string()})),
+            });
+        }
+    };
+
     if let Err(e) = reject_unanchored_reveals(datastore_manager, &req) {
         return Ok(Response {
             ok: false,
@@ -81,17 +98,10 @@ pub async fn handler(
         .await?
         .is_none()
     {
-        let genesis = req
-            .commits
-            .first()
-            .map(|c| {
-                json!({
-                    "body": c.body,
-                    "head": c.head,
-                })
-                .to_string()
-            })
-            .unwrap_or_else(|| "{}".to_string());
+        let genesis = match files.first() {
+            Some(file) => serde_json::to_string(file)?,
+            None => "{}".to_string(),
+        };
         Contract {
             contract_id: req.contract_id.clone(),
             genesis,
@@ -103,7 +113,7 @@ pub async fn handler(
 
     let mut queued_commits = Vec::new();
     let mut already_sequenced = 0;
-    for commit_data in &req.commits {
+    for (commit_data, file) in req.commits.iter().zip(&files) {
         let keys = [
             ("contract_id".to_string(), req.contract_id.clone()),
             ("commit_id".to_string(), commit_data.commit_id.clone()),
@@ -117,15 +127,10 @@ pub async fn handler(
             }
         }
 
-        let commit_data_json = json!({
-            "body": commit_data.body,
-            "head": commit_data.head,
-        });
-
         let commit = Commit {
             contract_id: req.contract_id.clone(),
             commit_id: commit_data.commit_id.clone(),
-            commit_data: commit_data_json.to_string(),
+            commit_data: serde_json::to_string(file)?,
             timestamp,
             in_batch: None,
         };
@@ -133,8 +138,8 @@ pub async fn handler(
         Commit::save_to_final(&commit, datastore_manager).await?;
         let mut queued = json!({
             "commit_id": commit_data.commit_id,
-            "body": commit_data.body,
-            "head": commit_data.head,
+            "body": file.body,
+            "head": file.head,
         });
         if commit_data.reveal {
             queued["reveal"] = json!(true);
