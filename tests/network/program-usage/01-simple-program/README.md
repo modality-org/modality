@@ -45,11 +45,13 @@ Creates a commit with an "invoke" action that executes the program. The program 
 
 ## Program Logic
 
-The simple program:
-1. Accepts `message` and `count` arguments
-2. Posts the message to `/data/message`
-3. Posts the count to `/data/count`
-4. Posts a timestamp to `/data/executed_at`
+The generated program:
+1. Accepts a `message` argument
+2. Posts the message to `/data/message.text`
+3. Counts its runs at `/data/runs.num`
+
+It is written against the raw host ABI (`alloc` and `execute`); the host
+links no `wasm-bindgen` glue.
 
 ## Key Concepts
 
@@ -61,7 +63,6 @@ The simple program:
 ## Expected Output
 
 After invocation, the contract will have:
-- `/data/message` = "Hello from program"
-- `/data/count` = 42
-- `/data/executed_at` = [timestamp]
+- `/data/message.text` = "Hello from program"
+- `/data/runs.num` = 1
 

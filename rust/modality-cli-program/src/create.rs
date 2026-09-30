@@ -35,351 +35,261 @@ pub async fn run(opts: &Opts) -> Result<()> {
     println!();
 
     // Create directory structure
-    fs::create_dir_all(&dir).context("Failed to create project directory")?;
-
     let src_dir = dir.join("src");
-    fs::create_dir_all(&src_dir).context("Failed to create src directory")?;
+    fs::create_dir_all(&src_dir).context("Failed to create project directory")?;
 
-    let tests_dir = dir.join("tests");
-    fs::create_dir_all(&tests_dir).context("Failed to create tests directory")?;
-
-    // Generate template files
-    create_cargo_toml(&dir, &name)?;
-    create_lib_rs(&src_dir)?;
-    create_package_json(&dir, &name)?;
-    create_build_sh(&dir)?;
-    create_readme(&dir, &name)?;
-    create_tests(&tests_dir)?;
-
-    println!("✓ Created Cargo.toml");
-    println!("✓ Created src/lib.rs");
-    println!("✓ Created package.json");
-    println!("✓ Created build.sh");
-    println!("✓ Created README.md");
-    println!("✓ Created tests/lib.rs");
-    println!();
-    println!("Program project '{}' created successfully!", name);
-    println!();
-    println!("Next steps:");
-    println!("  1. cd {}", dir.display());
-    println!("  2. Implement your program logic in src/lib.rs");
-    println!("  3. Run './build.sh' to compile to WASM");
-    println!("  4. Upload with 'modal program upload'");
-    println!("  5. Invoke with 'modal contract commit --method invoke'");
-
-    Ok(())
-}
-
-fn create_cargo_toml(dir: &Path, name: &str) -> Result<()> {
-    let content = format!(
-        r#"[package]
-name = "{}"
-version = "0.1.0"
-edition = "2021"
-
-[lib]
-crate-type = ["cdylib"]
-
-[dependencies]
-wasm-bindgen = "0.2"
-serde = {{ version = "1.0", features = ["derive"] }}
-serde_json = "1.0"
-
-[profile.release]
-opt-level = "z"
-lto = true
-"#,
-        name
-    );
-
-    fs::write(dir.join("Cargo.toml"), content).context("Failed to write Cargo.toml")?;
-    Ok(())
-}
-
-fn create_lib_rs(src_dir: &Path) -> Result<()> {
-    let content = r#"use wasm_bindgen::prelude::*;
-use serde::{Deserialize, Serialize};
-use serde_json::Value;
-
-/// Input structure for programs
-/// This is passed to your execute function
-#[derive(Debug, Deserialize)]
-struct ProgramInput {
-    /// Custom arguments provided by the invoker
-    args: Value,
-    /// Context information from the blockchain
-    context: ProgramContext,
-}
-
-/// Context passed to programs during execution
-#[derive(Debug, Deserialize)]
-struct ProgramContext {
-    /// Contract ID being executed
-    contract_id: String,
-    /// Sequenced prefix length before this commit (not a replica clock)
-    block_height: u64,
-    /// Frozen at 0. Not wall-clock. Read posted state if you need time.
-    #[serde(default)]
-    timestamp: u64,
-    /// Lexicographically first signature public key on the invoke commit
-    invoker: String,
-    /// Commit being applied
-    #[serde(default)]
-    commit_id: String,
-    #[serde(default)]
-    parent_commit_id: Option<String>,
-    /// Accepted contract state. Keys are `/`-prefixed paths.
-    #[serde(default)]
-    state: Value,
-}
-
-/// Result of program execution
-#[derive(Debug, Serialize)]
-struct ProgramResult {
-    /// Actions to include in the commit
-    actions: Vec<CommitAction>,
-    /// Gas consumed during execution
-    gas_used: u64,
-    /// Any errors encountered during execution
-    errors: Vec<String>,
-}
-
-/// A commit action produced by the program
-#[derive(Debug, Serialize)]
-struct CommitAction {
-    /// Action method (post, create, send, recv, etc.)
-    method: String,
-    /// Path for the action (optional, depends on method)
-    #[serde(skip_serializing_if = "Option::is_none")]
-    path: Option<String>,
-    /// Value for the action
-    value: Value,
-}
-
-impl ProgramResult {
-    fn success(actions: Vec<CommitAction>, gas_used: u64) -> Self {
-        Self {
-            actions,
-            gas_used,
-            errors: Vec::new(),
-        }
-    }
-
-    fn error(gas_used: u64, error: String) -> Self {
-        Self {
-            actions: Vec::new(),
-            gas_used,
-            errors: vec![error],
-        }
-    }
-}
-
-/// Main program execution function
-/// 
-/// This function is called by the WASM runtime with a JSON string containing
-/// the input arguments and context. It should return a JSON string with the result.
-/// 
-/// TODO: Implement your program logic here
-#[wasm_bindgen]
-pub fn execute(input_json: &str) -> String {
-    let gas_used = 50; // Base gas cost
-
-    // Parse input
-    let input: ProgramInput = match serde_json::from_str(input_json) {
-        Ok(i) => i,
-        Err(e) => {
-            let result = ProgramResult::error(gas_used, format!("Invalid input: {}", e));
-            return serde_json::to_string(&result).unwrap();
-        }
-    };
-
-    // TODO: Extract your custom parameters from input.args
-    // Example:
-    // let my_param = match input.args.get("my_param").and_then(|v| v.as_str()) {
-    //     Some(p) => p,
-    //     None => {
-    //         let result = ProgramResult::error(gas_used, "Missing 'my_param'".to_string());
-    //         return serde_json::to_string(&result).unwrap();
-    //     }
-    // };
-
-    // TODO: Access frozen context if needed
-    // let contract_id = &input.context.contract_id;
-    // let block_height = input.context.block_height; // prefix length
-    // let timestamp = input.context.timestamp; // always 0
-    // let invoker = &input.context.invoker;
-    // let state = &input.context.state;
-
-    // TODO: Implement your program logic here
-    // Create actions based on your computation
-    
-    // Example: Create a simple POST action
-    let actions = vec![
-        CommitAction {
-            method: "post".to_string(),
-            path: Some("/data/result".to_string()),
-            value: serde_json::json!({
-                "computed_at": input.context.timestamp,
-                "computed_by": "program",
-                "result": "example_value"
-            }),
-        },
-    ];
-
-    let additional_gas = 100; // Gas cost for your computation
-
-    let result = ProgramResult::success(actions, gas_used + additional_gas);
-    serde_json::to_string(&result).unwrap()
-}
-
-// You can add helper functions here
-// fn my_helper_function(param: &str) -> String {
-//     // ...
-// }
-"#;
-
-    fs::write(src_dir.join("lib.rs"), content).context("Failed to write src/lib.rs")?;
-    Ok(())
-}
-
-fn create_package_json(dir: &Path, name: &str) -> Result<()> {
-    let content = format!(
-        r#"{{
-  "name": "{}",
-  "version": "0.1.0",
-  "description": "WASM program for Modality contracts",
-  "scripts": {{
-    "build": "wasm-pack build --target web --release"
-  }}
-}}
-"#,
-        name
-    );
-
-    fs::write(dir.join("package.json"), content).context("Failed to write package.json")?;
-    Ok(())
-}
-
-fn create_build_sh(dir: &Path) -> Result<()> {
-    let content = r#"#!/bin/bash
-set -e
-
-echo "Building WASM program..."
-wasm-pack build --target web --release
-
-echo "✓ Build complete!"
-echo "Output: pkg/*.wasm"
-"#;
-
-    let build_sh = dir.join("build.sh");
-    fs::write(&build_sh, content).context("Failed to write build.sh")?;
-
+    let lib = name.replace('-', "_");
+    write(&dir, "Cargo.toml", &cargo_toml(&name))?;
+    write(&dir, "rust-toolchain.toml", RUST_TOOLCHAIN)?;
+    write(&dir, "src/lib.rs", LIB_RS)?;
+    write(&dir, "build.sh", &build_sh(&lib))?;
+    write(&dir, "README.md", &readme(&name, &lib))?;
+    write(&dir, ".gitignore", "/target\n")?;
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
+        let build_sh = dir.join("build.sh");
         let mut perms = fs::metadata(&build_sh)?.permissions();
         perms.set_mode(0o755);
         fs::set_permissions(&build_sh, perms)?;
     }
 
+    println!("✓ Created Cargo.toml, rust-toolchain.toml, src/lib.rs, build.sh, README.md");
+    println!();
+    println!("Program project '{}' created successfully!", name);
+    println!();
+    println!("Next steps:");
+    println!("  1. cd {}", dir.display());
+    println!("  2. Write your program in `run` in src/lib.rs; `cargo test` runs it natively");
+    println!("  3. Run './build.sh' to compile to WASM (prints the path and sha256)");
+    println!("  4. Upload with 'modal program upload target/wasm32-unknown-unknown/release/{lib}.wasm'");
+    println!("  5. Invoke with 'modal contract commit --method invoke'");
+
     Ok(())
 }
 
-fn create_readme(dir: &Path, name: &str) -> Result<()> {
-    let content = format!(
-        r#"# {}
+fn write(dir: &Path, file: &str, content: &str) -> Result<()> {
+    fs::write(dir.join(file), content).with_context(|| format!("Failed to write {file}"))
+}
 
-A WASM program for Modality contracts.
+/// The compiler the generated project pins, as the pool and MOD emission
+/// programs do: a program's sha256 depends on the compiler that built it.
+const RUST_TOOLCHAIN: &str = r#"[toolchain]
+channel = "1.94.1"
+targets = ["wasm32-unknown-unknown"]
+"#;
 
-## What are WASM Programs?
+fn cargo_toml(name: &str) -> String {
+    format!(
+        r#"[package]
+name = "{name}"
+version = "0.1.0"
+edition = "2021"
+publish = false
 
-Programs are executable code stored in contracts that:
-- Take input arguments
-- Perform computation
-- Produce commit actions (post, create, send, etc.)
-- Are executed by validators during consensus
+# A program builds on its own, even inside another workspace.
+[workspace]
 
-Unlike predicates (which evaluate to true/false), programs generate actions.
+[lib]
+# cdylib is the program; rlib lets `cargo test` call it natively.
+crate-type = ["cdylib", "rlib"]
 
-## Building
+[dependencies]
+serde_json = "1.0"
 
-```bash
-./build.sh
-```
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
+"#
+    )
+}
 
-This compiles the Rust code to WASM using wasm-pack.
+/// A program written against the raw host ABI. The host links only
+/// `env.abort`, so the template uses no `wasm-bindgen`.
+const LIB_RS: &str = r#"//! A Modality program, written against the raw host ABI: the host calls
+//! `alloc(len)`, writes the input JSON there, calls `execute(ptr, len)`, and
+//! reads a little-endian `u32` length followed by the output JSON at the
+//! returned pointer. The host links no imports except `env.abort`.
+//!
+//! The input is `{"args": ..., "context": ...}`. `args` is what the invoke
+//! commit passed. `context` holds `contract_id`, `block_height` (the
+//! sequenced prefix length, not a clock), `timestamp` (always 0), `invoker`
+//! (the first signer of the invoke commit), `commit_id`, `parent_commit_id`,
+//! and `state`: the contract's accepted state, keyed by path.
+//!
+//! The output is `{"actions": [...], "gas_used": 0, "errors": [...]}`. The
+//! host meters gas itself. Any error refuses the whole commit.
 
-## Uploading
+use serde_json::{json, Value};
 
-```bash
-modal program upload pkg/{}_bg.wasm \
-  --contract-id mycontract \
-  --name {} \
-  --gas-limit 1000000
-```
+#[no_mangle]
+pub extern "C" fn alloc(len: i32) -> i32 {
+    let mut buf = Vec::<u8>::with_capacity(len.max(0) as usize);
+    let ptr = buf.as_mut_ptr();
+    core::mem::forget(buf);
+    ptr as i32
+}
 
-## Invoking
+/// # Safety
+/// `ptr` and `len` must describe bytes the host wrote after calling `alloc`.
+#[no_mangle]
+pub unsafe extern "C" fn execute(ptr: i32, len: i32) -> i32 {
+    let input = core::slice::from_raw_parts(ptr as *const u8, len.max(0) as usize);
+    let out = serde_json::to_vec(&respond(input)).unwrap_or_default();
+    let mut buf = Vec::with_capacity(4 + out.len());
+    buf.extend_from_slice(&(out.len() as u32).to_le_bytes());
+    buf.extend_from_slice(&out);
+    let ptr = buf.as_ptr();
+    core::mem::forget(buf);
+    ptr as i32
+}
 
-```bash
-modal contract commit \
-  --dir ./mycontract \
-  --method invoke \
-  --path "/__programs__/{}.wasm" \
-  --value '{{"args": {{"key": "value"}}}}'
-```
+/// The host's output object for one input, whether the program ran or not.
+pub fn respond(input: &[u8]) -> Value {
+    match serde_json::from_slice::<Value>(input)
+        .map_err(|e| format!("input is not JSON: {e}"))
+        .and_then(|input| run(&input["args"], &input["context"]))
+    {
+        Ok(actions) => json!({"actions": actions, "gas_used": 0, "errors": []}),
+        Err(error) => json!({"actions": [], "gas_used": 0, "errors": [error]}),
+    }
+}
 
-## How It Works
+/// Your program: the actions it adds to the commit. Replace this.
+///
+/// This one posts `args.message` to `/data/message.text` and counts its
+/// runs at `/data/runs.num`.
+fn run(args: &Value, context: &Value) -> Result<Vec<Value>, String> {
+    let message = args["message"]
+        .as_str()
+        .ok_or("args.message must be text")?;
+    let runs = context["state"]["/data/runs.num"].as_u64().unwrap_or(0);
+    Ok(vec![
+        json!({"method": "post", "path": "/data/message.text", "value": message}),
+        json!({"method": "post", "path": "/data/runs.num", "value": runs + 1}),
+    ])
+}
 
-1. User creates commit with "invoke" action
-2. User signs the commit
-3. Validators receive and validate signature
-4. Validators execute program deterministically
-5. Program returns actions (post, send, create, etc.)
-6. Actions are merged into commit and processed
-7. User's signature on invoke = indirect signature on results
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-## Program Structure
+    fn call(args: Value, state: Value) -> Value {
+        let input = json!({"args": args, "context": {"state": state}});
+        respond(input.to_string().as_bytes())
+    }
 
-```rust
-#[wasm_bindgen]
-pub fn execute(input_json: &str) -> String {{
-    // Parse input (args + context)
-    // Perform computation
-    // Return actions as JSON
-}}
-```
+    #[test]
+    fn posts_the_message_and_counts() {
+        let out = call(json!({"message": "hi"}), json!({"/data/runs.num": 2}));
+        assert_eq!(out["errors"], json!([]));
+        assert_eq!(out["actions"][0]["value"], "hi");
+        assert_eq!(out["actions"][1]["value"], 3);
+    }
 
-## Testing
+    #[test]
+    fn refuses_a_missing_message() {
+        let out = call(json!({}), json!({}));
+        assert_eq!(out["actions"], json!([]));
+        assert_eq!(out["errors"], json!(["args.message must be text"]));
+    }
+}
+"#;
 
-Run local tests:
+fn build_sh(lib: &str) -> String {
+    format!(
+        r#"#!/usr/bin/env bash
+# Build the program with the pinned toolchain. Prints the wasm path and its
+# sha256. The bytes depend on the host that built them (macOS or Linux,
+# arm64 or amd64); build in one pinned image if others must reproduce them.
+set -euo pipefail
+cd "$(dirname "$0")"
+
+# With rust-src installed, std's paths point into the local toolchain;
+# without it, at rustc's own /rustc/<commit>. Map the first to the second.
+SYSROOT=$(rustc --print sysroot)
+COMMIT=$(rustc -vV | sed -n 's/^commit-hash: //p')
+export RUSTFLAGS="--remap-path-prefix=$SYSROOT/lib/rustlib/src/rust=/rustc/$COMMIT --remap-path-prefix=${{CARGO_HOME:-$HOME/.cargo}}=/cargo --remap-path-prefix=$(pwd)=/src"
+cargo build -q --release --target wasm32-unknown-unknown
+WASM="$(pwd)/target/wasm32-unknown-unknown/release/{lib}.wasm"
+
+if command -v sha256sum >/dev/null; then
+    SHA=$(sha256sum "$WASM" | cut -d' ' -f1)
+else
+    SHA=$(shasum -a 256 "$WASM" | cut -d' ' -f1)
+fi
+echo "$WASM $SHA"
+"#
+    )
+}
+
+fn readme(name: &str, lib: &str) -> String {
+    format!(
+        r#"# {name}
+
+A Modality program. An `invoke` commit runs it on the sequencer; the actions
+it returns join that commit and are checked against the contract's rules
+like any other.
+
+## Test
 
 ```bash
 cargo test
 ```
 
-## Gas Usage
+The tests call `respond` natively with the same JSON the host passes.
 
-Programs are metered to prevent infinite loops. Set appropriate gas limits when uploading.
-"#,
-        name, name, name, name
-    );
+## Build
 
-    fs::write(dir.join("README.md"), content).context("Failed to write README.md")?;
-    Ok(())
+```bash
+./build.sh
+```
+
+Prints `target/wasm32-unknown-unknown/release/{lib}.wasm` and its sha256.
+
+## Upload
+
+```bash
+modal program upload target/wasm32-unknown-unknown/release/{lib}.wasm   --dir ./mycontract   --name {name}   --gas-limit 1000000
+```
+
+## Invoke
+
+```bash
+modal contract commit   --dir ./mycontract   --method invoke   --path "/__programs__/{name}.wasm"   --value '{{"args": {{"message": "hello"}}}}'
+```
+
+## The ABI
+
+The host calls `alloc(len)`, writes the input JSON there, and calls
+`execute(ptr, len)`. `execute` returns a pointer to a little-endian `u32`
+length followed by the output JSON. The host links only `env.abort`, so
+`wasm-bindgen` output does not run.
+
+Input: `{{"args": ..., "context": {{"contract_id", "block_height",
+"timestamp", "invoker", "commit_id", "parent_commit_id", "state"}}}}`.
+`timestamp` is always 0 and `block_height` is the sequenced prefix length:
+a program sees no clock.
+
+Output: `{{"actions": [...], "gas_used": 0, "errors": [...]}}`. Any error
+refuses the whole commit.
+"#
+    )
 }
 
-fn create_tests(tests_dir: &Path) -> Result<()> {
-    let content = r#"#[cfg(test)]
+#[cfg(test)]
 mod tests {
-    // Add your tests here
-    
-    #[test]
-    fn test_example() {
-        assert_eq!(2 + 2, 4);
-    }
-}
-"#;
+    use super::*;
 
-    fs::write(tests_dir.join("lib.rs"), content).context("Failed to write tests/lib.rs")?;
-    Ok(())
+    #[test]
+    fn the_template_uses_the_raw_host_abi() {
+        assert!(LIB_RS.contains("pub extern \"C\" fn alloc(len: i32) -> i32"));
+        assert!(LIB_RS.contains("pub unsafe extern \"C\" fn execute(ptr: i32, len: i32) -> i32"));
+        assert!(!LIB_RS.contains("wasm_bindgen"));
+        assert!(!cargo_toml("p").contains("wasm-bindgen"));
+        assert!(build_sh("my_prog").contains("release/my_prog.wasm"));
+    }
 }

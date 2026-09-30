@@ -17,7 +17,7 @@ echo "Building WASM program..."
 
 echo ""
 echo "✓ Program built successfully"
-echo "  Output: pkg/simple_program_bg.wasm"
+echo "  Output: target/wasm32-unknown-unknown/release/simple_program.wasm"
 echo ""
 echo "Next: Run ./03-upload-program.sh to upload to a contract"
 

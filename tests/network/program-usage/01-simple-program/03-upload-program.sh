@@ -15,7 +15,7 @@ fi
 # Upload program
 echo "Uploading program to contract..."
 modal program upload \
-    "$PROGRAM_DIR/pkg/simple_program_bg.wasm" \
+    "$PROGRAM_DIR/target/wasm32-unknown-unknown/release/simple_program.wasm" \
     --dir "$CONTRACT_DIR" \
     --name simple_program \
     --gas-limit 1000000
