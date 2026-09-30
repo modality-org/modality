@@ -10,88 +10,79 @@ Real-world examples of multiple agents using a hub to coordinate contracts.
 | [treasury-multisig](treasury-multisig.md) | 5 Board Members | 3-of-5 approval for payments |
 | [service-agreement](service-agreement.md) | Client, Provider | Milestone-based project |
 | [agent-swarm](agent-swarm.md) | Coordinator + Workers | Task distribution & rewards |
+| [members-only](members-only.md) | Members | Unanimous consent to change the membership |
+| [bank-deposits](bank-deposits.md) | Admin + Account holders | Accounts with deposits and withdrawals (JavaScript SDK) |
 
 ## Key Patterns
 
-### 1. Setup Phase
+Each scenario runs in order from an empty directory against a local hub.
+
+### 1. Setup
 ```bash
-# One party creates the contract
-modal hub create "Contract Name"
+# A hub for the demo
+modal hub start --host 127.0.0.1 --port 8080 --rpc-port 0 --data-dir .hub &
 
-# Add model and initial state
-modal c commit --all -m "Initialize"
-modal c push --remote hub
+# One party creates the contract: parties, model and rules, in one commit
+modal c create --dir mine && cd mine
+modal c set-named-id /parties/alice.id ../alice.passfile
+modal add-rule --name alice_signs 'always([-signed_by(/parties/alice.id)] false)'
+modal c commit --all --sign ../alice.passfile -m "Setup"
 
-# Invite other parties
-modal hub grant <contract_id> <identity_id> write
+# The first push names the hub URL and saves it as `origin`
+modal c push --remote http://127.0.0.1:8080/contracts/$(modal c id)
 ```
 
-### 2. Join Phase
+### 2. Join
 ```bash
-# Other parties clone and add their identity
-modal c create --contract-id <id>
-modal c pull --remote hub
-echo 'ed25519:my_key' > state/parties/me.id
-modal c commit --all -m "Join contract"
-modal c push --remote hub
+# Anyone copies the contract from its URL
+modal c pull http://127.0.0.1:8080/contracts/<contract-id> --dir theirs
 ```
 
-### 3. Execution Phase
+### 3. Execution
 ```bash
-# Pull latest state
-modal c pull --remote hub
-
-# Take an action (validated against model)
-modal c commit --action '{"method":"ACTION","action":"DO_THING"}' --sign me.passfile
-modal c push --remote hub
+modal c pull
+modal c commit --path /escrow/deposited.bool --value true --sign ../alice.passfile -m "Deposit"
+modal c push
 ```
 
-## Commit Types
-
-| Type | Purpose | Example |
-|------|---------|---------|
-| `POST` | Add/update data | Party registration, state files |
-| `RULE` | Add model/rules | `rules/escrow.modality` |
-| `ACTION` | Domain action | `DEPOSIT`, `APPROVE`, `SUBMIT` |
-
-## Validation
-
-The hub validates all ACTION commits:
-1. **State check** - Action allowed from current state?
-2. **Guard check** - Required signatures present?
-3. **Threshold check** - Multisig requirements met?
+Every copy checks each commit against the contract's model and rules before
+it is made, and the hub checks it again on push: signatures, then the rules.
 
 ## Common Patterns
 
-### Signature Guard
+The rules speak of what a commit writes and who signed it.
+
+### Signature guard
 ```modality
-state1 -> state2 : ACTION [+signed_by(/parties/alice.id)]
+always([+modifies(/escrow/released.bool) -signed_by(/parties/alice.id)] false)
 ```
 
-### Multi-Signature
+### Multi-signature
 ```modality
-state1 -> state2 : ACTION [+signed_by(/parties/a.id) +signed_by(/parties/b.id)]
+always(([+modifies(/treasury) -signed_by(/parties/a.id)] false) & ([+modifies(/treasury) -signed_by(/parties/b.id)] false))
 ```
 
-### Either-Or Signature
+### Either-or signature
 ```modality
-state1 -> state2 : ACTION [+signed_by(/parties/a.id) | +signed_by(/parties/b.id)]
+always([+modifies(/escrow/released.bool) -signed_by(/parties/a.id) -signed_by(/parties/b.id)] false)
 ```
 
 ### Threshold (n-of-m)
 ```modality
-state1 -> state2 : ACTION [+threshold(3, /approvals, /members)]
+always([+modifies(/payments) -threshold("3", /board)] false)
 ```
+
+### Order of steps
+```modality
+always([+modifies(/escrow/delivered.bool) -bool_true(/escrow/deposited.bool)] false)
+```
+
+A model that meets these rules gives each step its own edge, and says which
+paths the edge leaves alone: labels are open, so an edge that does not rule a
+write out may be taken by a commit that makes it.
 
 ## Running the Examples
 
-```bash
-# Start a hub
-modal hub start --detach
-
-# Register identities for each party
-modal hub register --output alice-creds.json
-modal hub register --output bob-creds.json
-
-# Follow the scenario steps...
-```
+Each scenario file is a script in order: run its `bash` blocks one after
+another from an empty directory, with `modal` on your `PATH`. The last block
+stops the hub.

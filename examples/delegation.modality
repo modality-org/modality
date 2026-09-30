@@ -1,58 +1,38 @@
-// Delegation: Principal grants Agent authority to act on their behalf
-// This pattern is useful for AI agents who need to delegate tasks
+// Delegation: a principal grants an agent authority to act on its behalf
+//
+// Useful for AI agents that delegate tasks. DELEGATE posts
+// /delegation/granted.bool true; REVOKE posts /delegation/revoked.bool true.
+// The agent acts only between the two.
+//
+// The actions (+DELEGATE, +ACT_ON_BEHALF, +REVOKE) are named by this contract.
+// Labels are open: an edge could be taken by a commit that also carries
+// another action, or another party's signature, unless the edge rules it
+// out. So each edge says which actions it is not, and which restricted
+// signers it does not carry. The nodes are witness nodes, not phases: the
+// phase lives in posted state flags, which the rules read.
 
 model Delegation {
   part authority {
-    // Principal grants delegation
-    init --> delegated: +DELEGATE +signed_by(principal)
-    
-    // Agent can act on behalf (multiple times)
-    delegated --> delegated: +ACT_ON_BEHALF +signed_by(agent)
-    
-    // Principal can revoke at any time
-    delegated --> revoked: +REVOKE +signed_by(principal)
-    
-    // Once revoked, no more agent actions
-    revoked --> revoked
+    q0 --> q1: +DELEGATE +signed_by(/parties/principal.id) -bool_true(/delegation/revoked.bool) -signed_by(/parties/agent.id) -ACT_ON_BEHALF -REVOKE
+    q1 --> q1: +ACT_ON_BEHALF +signed_by(/parties/agent.id) +bool_true(/delegation/granted.bool) -bool_true(/delegation/revoked.bool) -signed_by(/parties/principal.id) -DELEGATE -REVOKE
+    q1 --> q2: +REVOKE +signed_by(/parties/principal.id) +bool_true(/delegation/granted.bool) -signed_by(/parties/agent.id) -DELEGATE -ACT_ON_BEHALF
   }
 }
 
-// Guarantee: No agent actions after revocation
-formula NoActionsAfterRevoke {
-  always(
-    [-REVOKE] eventually(can_act) or
-    [+REVOKE] never(+ACT_ON_BEHALF)
-  )
-}
-
-// Guarantee: Only agent can act on behalf
+// Only the agent acts on the principal's behalf.
 formula OnlyAgentCanAct {
-  [+ACT_ON_BEHALF] <+signed_by(agent)> true
+  always([+ACT_ON_BEHALF -signed_by(/parties/agent.id)] false)
 }
 
-// Guarantee: Only principal can delegate or revoke
+// The agent acts only after a delegation, and never after a revocation.
+formula ActsOnlyWhileDelegated {
+  always(([+ACT_ON_BEHALF -bool_true(/delegation/granted.bool)] false) & ([+ACT_ON_BEHALF +bool_true(/delegation/revoked.bool)] false))
+}
+
+// Only the principal delegates or revokes.
 formula PrincipalControlsAuthority {
-  [+DELEGATE] <+signed_by(principal)> true
-  [+REVOKE] <+signed_by(principal)> true
+  always(([+DELEGATE -signed_by(/parties/principal.id)] false) & ([+REVOKE -signed_by(/parties/principal.id)] false))
 }
 
-// Test: Basic delegation flow
-test DelegationFlow {
-  d = clone(Delegation)
-  
-  // Principal delegates
-  d.commit(+DELEGATE +signed_by(principal))
-  assert d.state == "delegated"
-  
-  // Agent acts
-  d.commit(+ACT_ON_BEHALF +signed_by(agent))
-  assert d.state == "delegated"
-  
-  // Agent acts again
-  d.commit(+ACT_ON_BEHALF +signed_by(agent))
-  assert d.state == "delegated"
-  
-  // Principal revokes
-  d.commit(+REVOKE +signed_by(principal))
-  assert d.state == "revoked"
-}
+// Flow: the principal delegates; the agent acts any number of times; the
+// principal revokes, after which an ACT_ON_BEHALF commit is refused.

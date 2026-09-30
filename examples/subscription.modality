@@ -1,78 +1,41 @@
-// Subscription: Recurring access with periodic payments
-// Useful for API access, service agreements, memberships
+// Subscription: recurring access with periodic payments
+//
+// Useful for API access, service agreements and memberships. SUBSCRIBE,
+// RENEW and RESUBSCRIBE carry a +PAY and post /subscription/active.bool
+// true; EXPIRE and CANCEL post it false.
+//
+// EXPIRE is unsigned: a keeper posts it when the period ends. Time
+// predicates (`after`) are not evaluated yet, so no rule ties it to a date.
+//
+// The actions (+SUBSCRIBE, +ACCESS, +RENEW, +EXPIRE, +CANCEL, +RESUBSCRIBE) are named by this contract.
+// Labels are open: an edge could be taken by a commit that also carries
+// another action, or another party's signature, unless the edge rules it
+// out. So each edge says which actions it is not, and which restricted
+// signers it does not carry. The nodes are witness nodes, not phases: the
+// phase lives in posted state flags, which the rules read.
 
 model Subscription {
   part access {
-    // Subscribe with payment
-    init --> subscribed: +SUBSCRIBE +PAY +signed_by(subscriber)
-    
-    // Access the service (multiple times)
-    subscribed --> subscribed: +ACCESS +signed_by(subscriber)
-    
-    // Renew subscription
-    subscribed --> subscribed: +RENEW +PAY +signed_by(subscriber)
-    
-    // Subscription expires (time-based)
-    subscribed --> expired: +EXPIRE
-    
-    // Subscriber cancels
-    subscribed --> cancelled: +CANCEL +signed_by(subscriber)
-    
-    // Resubscribe from expired state
-    expired --> subscribed: +RESUBSCRIBE +PAY +signed_by(subscriber)
-    
-    // Resubscribe from cancelled state
-    cancelled --> subscribed: +RESUBSCRIBE +PAY +signed_by(subscriber)
+    q0 --> q1: +SUBSCRIBE +PAY +signed_by(/parties/subscriber.id) -ACCESS -RENEW -EXPIRE -CANCEL -RESUBSCRIBE
+    q1 --> q1: +ACCESS +signed_by(/parties/subscriber.id) +bool_true(/subscription/active.bool) -PAY -SUBSCRIBE -RENEW -EXPIRE -CANCEL -RESUBSCRIBE
+    q1 --> q1: +RENEW +PAY +signed_by(/parties/subscriber.id) +bool_true(/subscription/active.bool) -SUBSCRIBE -ACCESS -EXPIRE -CANCEL -RESUBSCRIBE
+    q1 --> q2: +EXPIRE +bool_true(/subscription/active.bool) -PAY -signed_by(/parties/subscriber.id) -SUBSCRIBE -ACCESS -RENEW -CANCEL -RESUBSCRIBE
+    q1 --> q2: +CANCEL +signed_by(/parties/subscriber.id) +bool_true(/subscription/active.bool) -PAY -SUBSCRIBE -ACCESS -RENEW -EXPIRE -RESUBSCRIBE
+    q2 --> q1: +RESUBSCRIBE +PAY +signed_by(/parties/subscriber.id) -bool_true(/subscription/active.bool) -SUBSCRIBE -ACCESS -RENEW -EXPIRE -CANCEL
   }
 }
 
-// Guarantee: No access without active subscription
+// No access without an active subscription.
 formula NoAccessWithoutSubscription {
-  [+ACCESS] <state: subscribed> true
+  always([+ACCESS -bool_true(/subscription/active.bool)] false)
 }
 
-// Guarantee: Every subscription requires payment
+// Every subscription, renewal and resubscription is paid.
 formula PaymentRequired {
-  [+SUBSCRIBE] <+PAY> true
-  [+RENEW] <+PAY> true
-  [+RESUBSCRIBE] <+PAY> true
+  always(([+SUBSCRIBE -PAY] false) & ([+RENEW -PAY] false) & ([+RESUBSCRIBE -PAY] false))
 }
 
-// Guarantee: Only subscriber can cancel
+// Only the subscriber cancels.
 formula OnlySubscriberCancels {
-  [+CANCEL] <+signed_by(subscriber)> true
-}
-
-// Test: Basic subscription lifecycle
-test SubscriptionLifecycle {
-  s = clone(Subscription)
-  
-  // Subscribe
-  s.commit(+SUBSCRIBE +PAY +signed_by(subscriber))
-  assert s.state == "subscribed"
-  
-  // Access service
-  s.commit(+ACCESS +signed_by(subscriber))
-  assert s.state == "subscribed"
-  
-  // Renew
-  s.commit(+RENEW +PAY +signed_by(subscriber))
-  assert s.state == "subscribed"
-  
-  // Cancel
-  s.commit(+CANCEL +signed_by(subscriber))
-  assert s.state == "cancelled"
-}
-
-// Test: Expiration and resubscription
-test ExpirationFlow {
-  s = clone(Subscription)
-  
-  s.commit(+SUBSCRIBE +PAY +signed_by(subscriber))
-  s.commit(+EXPIRE)
-  assert s.state == "expired"
-  
-  // Resubscribe
-  s.commit(+RESUBSCRIBE +PAY +signed_by(subscriber))
-  assert s.state == "subscribed"
+  always([+CANCEL -signed_by(/parties/subscriber.id)] false)
 }

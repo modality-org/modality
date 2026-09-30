@@ -1,317 +1,99 @@
-# Agent Swarm: Multi-Agent Task Coordination
+# Agent Swarm: Coordinator and Workers
 
-A coordinator agent distributes tasks to worker agents, tracks completion, and pays rewards.
+A coordinator posts a task, any worker on the team claims it and submits a
+result, and the coordinator approves and pays. The team is fixed at setup:
+`/coordinator.id` and the `.id` files under `/workers`.
 
-## Parties
-
-| Party | Role | Identity |
-|-------|------|----------|
-| Coordinator | Task Manager | `id_coord` |
-| Worker-A | Agent | `id_worker_a` |
-| Worker-B | Agent | `id_worker_b` |
-| Worker-C | Agent | `id_worker_c` |
-
-## Contract Model
+## Contract Rules
 
 ```modality
-model AgentSwarm {
-  state idle, task_posted, claimed, in_progress, submitted, 
-        reviewing, approved, paid, disputed, cancelled
-  
-  // Task lifecycle
-  idle -> task_posted : POST_TASK [+signed_by(/coordinator.id)]
-  task_posted -> claimed : CLAIM [+signed_by(/workers/*)]
-  task_posted -> cancelled : CANCEL [+signed_by(/coordinator.id)]
-  claimed -> in_progress : START [+signed_by(/workers/*)]
-  in_progress -> submitted : SUBMIT [+signed_by(/workers/*)]
-  submitted -> reviewing : BEGIN_REVIEW [+signed_by(/coordinator.id)]
-  reviewing -> approved : APPROVE [+signed_by(/coordinator.id)]
-  reviewing -> in_progress : REQUEST_CHANGES [+signed_by(/coordinator.id)]
-  approved -> paid : PAY [+signed_by(/coordinator.id)]
-  
-  // Disputes
-  reviewing -> disputed : DISPUTE [+signed_by(/workers/*)]
-  disputed -> approved : RESOLVE_FOR_WORKER [+signed_by(/coordinator.id)]
-  disputed -> cancelled : RESOLVE_FOR_COORD [+signed_by(/coordinator.id)]
-  
-  // Reset
-  paid -> idle : NEXT_TASK
-  cancelled -> idle : NEXT_TASK
-  
-  idle -> idle
-}
+// team_fixed
+always(([+modifies(/workers)] false) & ([+modifies(/coordinator.id)] false))
+// coordinator_posts_approves_pays
+always(([+modifies(/task/posted.bool) -signed_by(/coordinator.id)] false) & ([+modifies(/task/approved.bool) -signed_by(/coordinator.id)] false) & ([+modifies(/task/paid.bool) -signed_by(/coordinator.id)] false))
+// a_worker_claims_and_submits
+always(([+modifies(/task/claimed.bool) -any_signed(/workers)] false) & ([+modifies(/task/submitted.bool) -any_signed(/workers)] false))
+// claimed_once
+always([+modifies(/task/claimed.bool) +bool_true(/task/claimed.bool)] false)
+// in_order
+always(([+modifies(/task/claimed.bool) -bool_true(/task/posted.bool)] false) & ([+modifies(/task/submitted.bool) -bool_true(/task/claimed.bool)] false) & ([+modifies(/task/approved.bool) -bool_true(/task/submitted.bool)] false) & ([+modifies(/task/paid.bool) -bool_true(/task/approved.bool)] false))
+// paid_once
+always([+modifies(/task/paid.bool) +bool_true(/task/paid.bool)] false)
 ```
 
-## Interaction Flow
+`any_signed(/workers)` holds when any key under `/workers` signed the commit,
+so the rules name the team, not a particular worker.
 
-### 1. Coordinator sets up the swarm
+## Walkthrough
 
-```bash
-modal hub register --output coord-creds.json
-modal hub create "Research Swarm" --creds coord-creds.json
-# → con_swarm_001
+The commands run in order from an empty directory.
 
-mkdir swarm && cd swarm
-modal c create --contract-id con_swarm_001
-
-# Add model and coordinator identity
-cat > rules/swarm.modality << 'EOF'
-model AgentSwarm {
-  state idle, task_posted, claimed, in_progress, submitted, reviewing, approved, paid, cancelled
-  
-  idle -> task_posted : POST_TASK [+signed_by(/coordinator.id)]
-  task_posted -> claimed : CLAIM [+signed_by(/workers/*)]
-  task_posted -> cancelled : CANCEL [+signed_by(/coordinator.id)]
-  claimed -> in_progress : START [+signed_by(/workers/*)]
-  in_progress -> submitted : SUBMIT [+signed_by(/workers/*)]
-  submitted -> reviewing : BEGIN_REVIEW [+signed_by(/coordinator.id)]
-  reviewing -> approved : APPROVE [+signed_by(/coordinator.id)]
-  reviewing -> in_progress : REQUEST_CHANGES [+signed_by(/coordinator.id)]
-  approved -> paid : PAY [+signed_by(/coordinator.id)]
-  paid -> idle : NEXT_TASK
-  cancelled -> idle : NEXT_TASK
-}
-EOF
-
-mkdir -p state/workers
-echo 'ed25519:coord_key' > state/coordinator.id
-
-modal c commit --all -m "Initialize swarm"
-modal c remote add hub http://localhost:3100
-modal c push --remote hub
-
-# Invite workers
-modal hub grant con_swarm_001 id_worker_a write
-modal hub grant con_swarm_001 id_worker_b write
-modal hub grant con_swarm_001 id_worker_c write
-```
-
-### 2. Workers join the swarm
+### 1. Start a hub; the coordinator sets up the swarm
 
 ```bash
-# Worker A
-mkdir worker-a && cd worker-a
-modal c create --contract-id con_swarm_001
-modal c remote add hub http://localhost:3100
-modal c pull --remote hub
+mkdir swarm-demo && cd swarm-demo
+modal hub start --host 127.0.0.1 --port 8080 --rpc-port 0 --data-dir .hub &
+HUB=http://127.0.0.1:8080
+sleep 2
+for who in coord w1 w2 outsider; do modal id create --path $who.passfile; done
 
-echo 'ed25519:worker_a_key' > state/workers/worker_a.id
-cat > state/workers/worker_a.json << 'EOF'
-{
-  "name": "Worker A",
-  "skills": ["research", "writing"],
-  "hourly_rate": "50 USDC"
-}
-EOF
-modal c commit --all -m "Worker A joins swarm"
-modal c push --remote hub
-
-# Worker B, C do the same...
-```
-
-### 3. Coordinator posts a task
-
-```bash
-cd swarm
-modal c pull --remote hub
-
-cat > state/tasks/task_001.json << 'EOF'
-{
-  "id": "task_001",
-  "title": "Research AI agent frameworks",
-  "description": "Compare top 5 AI agent frameworks, produce report",
-  "reward": "200 USDC",
-  "deadline": "2026-02-03T00:00:00Z",
-  "required_skills": ["research", "writing"]
-}
-EOF
-
-modal c commit --action '{"method":"ACTION","action":"POST_TASK","data":{"task_id":"task_001"}}' \
-  --sign coord.passfile -m "Post task: Research AI frameworks"
-modal c push --remote hub
-# State: idle -> task_posted
-```
-
-### 4. Worker A claims the task
-
-```bash
-cd worker-a
-modal c pull --remote hub
-
-# Check available tasks
-cat state/tasks/task_001.json
-
-# Claim it
-cat > state/claims/task_001.json << 'EOF'
-{
-  "task_id": "task_001",
-  "worker": "worker_a",
-  "claimed_at": "2026-02-01T17:00:00Z",
-  "estimated_completion": "2026-02-02T12:00:00Z"
-}
-EOF
-
-modal c commit --action '{"method":"ACTION","action":"CLAIM","data":{"task_id":"task_001","worker":"worker_a"}}' \
-  --sign worker_a.passfile -m "Worker A claims task_001"
-modal c push --remote hub
-# State: task_posted -> claimed
-```
-
-### 5. Worker A starts work
-
-```bash
-modal c commit --action '{"method":"ACTION","action":"START","data":{"task_id":"task_001"}}' \
-  --sign worker_a.passfile -m "Worker A starts task_001"
-modal c push --remote hub
-# State: claimed -> in_progress
-```
-
-### 6. Worker A submits deliverable
-
-```bash
-cd worker-a
-modal c pull --remote hub
-
-cat > state/submissions/task_001.json << 'EOF'
-{
-  "task_id": "task_001",
-  "worker": "worker_a",
-  "submitted_at": "2026-02-02T10:00:00Z",
-  "deliverable": {
-    "report_url": "https://docs.example.com/ai-frameworks-report",
-    "summary": "Compared LangChain, AutoGPT, CrewAI, AgentGPT, SuperAGI",
-    "word_count": 3500
+modal c create --dir coord
+cd coord
+modal c set-named-id /coordinator.id ../coord.passfile
+modal c set-named-id /workers/w1.id ../w1.passfile
+modal c set-named-id /workers/w2.id ../w2.passfile
+cat > model/default.modality <<'EOF'
+model swarm_task {
+  part flow {
+    q0 --> q1
+    q1 --> q1: +signed_by(/coordinator.id) -bool_true(/task/posted.bool) +modifies(/task/posted.bool) -modifies(/task/claimed.bool) -modifies(/task/submitted.bool) -modifies(/task/approved.bool) -modifies(/task/paid.bool) -modifies(/workers) -modifies(/coordinator.id)
+    q1 --> q1: +any_signed(/workers) +bool_true(/task/posted.bool) -bool_true(/task/claimed.bool) +modifies(/task/claimed.bool) -modifies(/task/posted.bool) -modifies(/task/submitted.bool) -modifies(/task/approved.bool) -modifies(/task/paid.bool) -modifies(/workers) -modifies(/coordinator.id)
+    q1 --> q1: +any_signed(/workers) +bool_true(/task/claimed.bool) +modifies(/task/submitted.bool) -modifies(/task/posted.bool) -modifies(/task/claimed.bool) -modifies(/task/approved.bool) -modifies(/task/paid.bool) -modifies(/workers) -modifies(/coordinator.id)
+    q1 --> q1: +signed_by(/coordinator.id) +bool_true(/task/submitted.bool) +modifies(/task/approved.bool) -modifies(/task/posted.bool) -modifies(/task/claimed.bool) -modifies(/task/submitted.bool) -modifies(/task/paid.bool) -modifies(/workers) -modifies(/coordinator.id)
+    q1 --> q1: +signed_by(/coordinator.id) +bool_true(/task/approved.bool) -bool_true(/task/paid.bool) +modifies(/task/paid.bool) -modifies(/task/posted.bool) -modifies(/task/claimed.bool) -modifies(/task/submitted.bool) -modifies(/task/approved.bool) -modifies(/workers) -modifies(/coordinator.id)
   }
 }
 EOF
-
-modal c commit --action '{"method":"ACTION","action":"SUBMIT","data":{"task_id":"task_001"}}' \
-  --sign worker_a.passfile -m "Worker A submits task_001 deliverable"
-modal c push --remote hub
-# State: in_progress -> submitted
+modal add-rule --name team_fixed 'always(([+modifies(/workers)] false) & ([+modifies(/coordinator.id)] false))'
+modal add-rule --name coordinator_posts_approves_pays 'always(([+modifies(/task/posted.bool) -signed_by(/coordinator.id)] false) & ([+modifies(/task/approved.bool) -signed_by(/coordinator.id)] false) & ([+modifies(/task/paid.bool) -signed_by(/coordinator.id)] false))'
+modal add-rule --name a_worker_claims_and_submits 'always(([+modifies(/task/claimed.bool) -any_signed(/workers)] false) & ([+modifies(/task/submitted.bool) -any_signed(/workers)] false))'
+modal add-rule --name claimed_once 'always([+modifies(/task/claimed.bool) +bool_true(/task/claimed.bool)] false)'
+modal add-rule --name in_order 'always(([+modifies(/task/claimed.bool) -bool_true(/task/posted.bool)] false) & ([+modifies(/task/submitted.bool) -bool_true(/task/claimed.bool)] false) & ([+modifies(/task/approved.bool) -bool_true(/task/submitted.bool)] false) & ([+modifies(/task/paid.bool) -bool_true(/task/approved.bool)] false))'
+modal add-rule --name paid_once 'always([+modifies(/task/paid.bool) +bool_true(/task/paid.bool)] false)'
+modal c commit --all --sign ../coord.passfile -m "Swarm setup"
+modal c commit --path /task/posted.bool --value true --sign ../coord.passfile -m "Post task: summarize the dataset"
+CONTRACT=$(modal c id)
+modal c push --remote $HUB/contracts/$CONTRACT
+cd ..
 ```
 
-### 7. Coordinator reviews
+### 2. An outsider cannot claim; a worker can
 
 ```bash
-cd swarm
-modal c pull --remote hub
-
-# Begin review
-modal c commit --action '{"method":"ACTION","action":"BEGIN_REVIEW","data":{"task_id":"task_001"}}' \
-  --sign coord.passfile -m "Begin review of task_001"
-modal c push --remote hub
-# State: submitted -> reviewing
-
-# Review the submission
-cat state/submissions/task_001.json
-# ... looks good!
-
-# Approve
-modal c commit --action '{"method":"ACTION","action":"APPROVE","data":{"task_id":"task_001","rating":5}}' \
-  --sign coord.passfile -m "Approve task_001 - excellent work"
-modal c push --remote hub
-# State: reviewing -> approved
+modal c pull $HUB/contracts/$CONTRACT --dir w1
+cd w1
+if modal c commit --path /task/claimed.bool --value true --sign ../outsider.passfile -m "Claim"; then
+  echo "unexpected: an outsider claimed" && exit 1
+fi
+echo "refused: only a worker claims"
+modal c commit --path /task/claimed.bool --value true --sign ../w1.passfile -m "Claim"
+modal c commit --path /task/submitted.bool --value true --sign ../w1.passfile -m "Submit result"
+modal c push
+cd ..
 ```
 
-### 8. Coordinator pays
+### 3. The coordinator approves and pays, once
 
 ```bash
-cat > state/payments/task_001.json << 'EOF'
-{
-  "task_id": "task_001",
-  "worker": "worker_a",
-  "amount": "200 USDC",
-  "tx_hash": "0xpay123...",
-  "paid_at": "2026-02-02T14:00:00Z"
-}
-EOF
-
-modal c commit --action '{"method":"ACTION","action":"PAY","data":{"task_id":"task_001","tx_hash":"0xpay123"}}' \
-  --sign coord.passfile -m "Pay Worker A for task_001"
-modal c push --remote hub
-# State: approved -> paid
-```
-
-### 9. Ready for next task
-
-```bash
-modal c commit --action '{"method":"ACTION","action":"NEXT_TASK"}' \
-  --sign coord.passfile -m "Reset for next task"
-modal c push --remote hub
-# State: paid -> idle
-
-# Post next task...
-```
-
-## Parallel Tasks (Multiple Instances)
-
-For concurrent tasks, use separate contracts or track state per task:
-
-```bash
-# Post multiple tasks
-cat > state/tasks/task_002.json << 'EOF'
-{"id": "task_002", "title": "Write documentation", "reward": "150 USDC"}
-EOF
-
-cat > state/tasks/task_003.json << 'EOF'
-{"id": "task_003", "title": "Create demo video", "reward": "300 USDC"}
-EOF
-
-# Track state per task
-cat > state/task_states.json << 'EOF'
-{
-  "task_001": "paid",
-  "task_002": "in_progress",
-  "task_003": "claimed"
-}
-EOF
-```
-
-## Worker Statistics
-
-```bash
-# Track worker performance
-cat > state/worker_stats.json << 'EOF'
-{
-  "worker_a": {
-    "tasks_completed": 5,
-    "total_earned": "850 USDC",
-    "avg_rating": 4.8
-  },
-  "worker_b": {
-    "tasks_completed": 3,
-    "total_earned": "400 USDC", 
-    "avg_rating": 4.2
-  }
-}
-EOF
-```
-
-## Validation Examples
-
-### Invalid: Non-worker claims
-
-```bash
-# Random agent tries to claim
-modal c commit --action '{"method":"ACTION","action":"CLAIM"}' --sign random.passfile
-modal c push --remote hub
-# ❌ Error: "Must be signed by /workers/*"
-```
-
-### Invalid: Worker claims already-claimed task
-
-```bash
-# Task is in "claimed" state
-modal c commit --action '{"method":"ACTION","action":"CLAIM"}' --sign worker_b.passfile
-modal c push --remote hub
-# ❌ Error: "Action 'CLAIM' not allowed from state 'claimed'"
-```
-
-### Invalid: Worker approves own work
-
-```bash
-modal c commit --action '{"method":"ACTION","action":"APPROVE"}' --sign worker_a.passfile
-modal c push --remote hub
-# ❌ Error: "Must be signed by /coordinator.id"
+cd coord
+modal c pull
+modal c commit --path /task/approved.bool --value true --sign ../coord.passfile -m "Approve"
+modal c commit --path /task/paid.bool --value true --sign ../coord.passfile -m "Pay"
+if modal c commit --path /task/paid.bool --value true --sign ../coord.passfile -m "Pay again"; then
+  echo "unexpected: paid twice" && exit 1
+fi
+echo "refused: the task is paid once"
+modal c push
+cd ..
+kill %1
 ```

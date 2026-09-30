@@ -15,14 +15,17 @@
 model protection_rings {
   initial active
 
-  // App agent commits freely to app-repo
-  active -> active [+signed_by(/agents/app.id) +modifies(/app_repo)]
+  // Labels are open: an edge could be taken by a commit that also writes
+  // the other repo, or carries another signature, unless it says otherwise.
+
+  // App agent commits freely to app-repo, and only there
+  active -> active [+signed_by(/agents/app.id) +modifies(/app_repo) -modifies(/kernel_repo)]
 
   // Kernel agent commits to kernel-repo with human approval
-  active -> active [+signed_by(/agents/kernel.id) +signed_by(/humans/admin.id) +modifies(/kernel_repo)]
+  active -> active [+signed_by(/agents/kernel.id) +signed_by(/humans/admin.id) +modifies(/kernel_repo) -signed_by(/agents/app.id)]
 
   // Kernel agent can also commit to app-repo (e.g. exposing new APIs)
-  active -> active [+signed_by(/agents/kernel.id) +signed_by(/humans/admin.id) +modifies(/app_repo)]
+  active -> active [+signed_by(/agents/kernel.id) +signed_by(/humans/admin.id) +modifies(/app_repo) -modifies(/kernel_repo) -signed_by(/agents/app.id)]
 }
 
 // === RULES ===
@@ -30,31 +33,16 @@ model protection_rings {
 // Rule 1: App agent CANNOT touch kernel-repo — can't read, can't write.
 // The repo boundary enforces read isolation.
 // The contract enforces write isolation.
-rule app_cannot_touch_kernel {
-  formula {
-    always(
-      !<+signed_by(/agents/app.id) +modifies(/kernel_repo)> true
-    )
-  }
+formula app_cannot_touch_kernel {
+  always([+signed_by(/agents/app.id) +modifies(/kernel_repo)] false)
 }
 
-// Rule 2: ALL kernel-repo changes require dual signature.
-rule kernel_requires_dual_signature {
-  formula {
-    always(
-      !<+modifies(/kernel_repo)> true
-      | <+modifies(/kernel_repo) +signed_by(/agents/kernel.id) +signed_by(/humans/admin.id)> true
-    )
-  }
+// Rule 2: ALL kernel-repo changes require the kernel agent and the human.
+formula kernel_requires_dual_signature {
+  always(([+modifies(/kernel_repo) -signed_by(/agents/kernel.id)] false) & ([+modifies(/kernel_repo) -signed_by(/humans/admin.id)] false))
 }
 
 // Rule 3: Only known identities can commit.
-rule known_signers_only {
-  formula {
-    always(
-      <+signed_by(/agents/app.id)> true
-      | <+signed_by(/agents/kernel.id)> true
-      | <+signed_by(/humans/admin.id)> true
-    )
-  }
+formula known_signers_only {
+  always([-signed_by(/agents/app.id) -signed_by(/agents/kernel.id) -signed_by(/humans/admin.id)] false)
 }

@@ -1,156 +1,105 @@
 # Members-Only Contract
 
-Only members can post. Adding members requires unanimous consent.
-
-**Rules are persistent** - defined in contract, enforced by hub on all commits.
+Only members can commit. Changing the membership takes every current member's
+signature. The rules are part of the contract: every copy checks them on every
+commit, and they cannot be removed.
 
 ## State Structure
 
 ```
 /members/
-  alice.id → "alice_pubkey"
-  bob.id → "bob_pubkey"
-  carol.id → "carol_pubkey"
+  alice.id → alice's Modality ID
+  bob.id → bob's Modality ID
+  carol.id → carol's Modality ID
 ```
 
 ## Contract Rules
 
 ```modality
-rule member_required {
-  formula { always (any_signed(/members)) }
+// Every commit after the rules are added is signed by a member
+always([-any_signed(/members)] false)
+
+// A commit that changes /members is signed by every current member
+always([+modifies(/members) -all_signed(/members)] false)
+```
+
+`all_signed(/members)` reads the members in accepted state, so the second rule
+asks for more signatures as the membership grows. The rules name what a commit
+does (`modifies(/members)`), not an action label, so no model can dodge them
+by calling the change something else.
+
+## Walkthrough
+
+The commands run in order from an empty directory.
+
+### 1. Start a hub; Alice creates the contract
+
+```bash
+mkdir members-demo && cd members-demo
+modal hub start --host 127.0.0.1 --port 8080 --rpc-port 0 --data-dir .hub &
+HUB=http://127.0.0.1:8080
+sleep 2
+for who in alice bob carol eve; do modal id create --path $who.passfile; done
+
+modal c create --dir alice
+cd alice
+modal c set-named-id /members/alice.id ../alice.passfile
+cat > model/default.modality <<'EOF'
+model members_only {
+  part flow {
+    q0 --> q1
+    q1 --> q1: +any_signed(/members) -modifies(/members)
+    q1 --> q1: +any_signed(/members) +all_signed(/members)
+  }
 }
-
-rule add_member_unanimous {
-  formula { always([+ADD_MEMBER -all_signed(/members)] false) }
-}
+EOF
+modal add-rule --name member_required 'always([-any_signed(/members)] false)'
+modal add-rule --name membership_unanimous 'always([+modifies(/members) -all_signed(/members)] false)'
+modal c commit --all --sign ../alice.passfile -m "Members-only contract"
+CONTRACT=$(modal c id)
+modal c push --remote $HUB/contracts/$CONTRACT
 ```
 
-## How It Works
-
-1. Rules added via RULE commits accumulate in contract
-2. Hub evaluates EVERY new commit against ALL accumulated rules
-3. `any_signed(/members)` scans `/members/*.id` for pubkeys
-4. `all_signed(/members)` requires ALL those pubkeys as signers
-
-## Example Workflow
-
-### 1. Create Contract (First Member)
+### 2. Alice adds Bob; her signature is every member's
 
 ```bash
-# Alice creates contract and adds herself as first member
-modal contract create --id members_contract
-
-modal contract commit --method post \
-  --path /members/alice.id \
-  --value "$ALICE_KEY" \
-  --sign alice
-
-# Add the rules
-modal contract commit --method rule \
-  --value 'rule member_required { formula { always (any_signed(/members)) } }' \
-  --sign alice
-
-modal contract commit --method rule \
-  --value 'rule add_member_unanimous { formula { always([+ADD_MEMBER -all_signed(/members)] false) } }' \
-  --sign alice
-
-modal contract push
+modal c set-named-id /members/bob.id ../bob.passfile
+modal c commit --all --sign ../alice.passfile -m "Add Bob"
+modal c push
+cd ..
 ```
 
-### 2. Add Bob (Alice Signs)
+### 3. Bob takes a copy; adding Carol takes both of them
 
 ```bash
-# Alice is the only member, so only she needs to sign
-modal contract commit --method post \
-  --path /members/bob.id \
-  --value "$BOB_KEY" \
-  --sign alice
-
-modal contract commit --method action --action ADD_MEMBER \
-  --params '{"member": "bob"}' \
-  --sign alice
-
-modal contract push  # ✓ Passes: all_signed(/members) = [alice] ✓
+modal c pull $HUB/contracts/$CONTRACT --dir bob
+cd bob
+modal c set-named-id /members/carol.id ../carol.passfile
+if modal c commit --all --sign ../bob.passfile -m "Add Carol"; then
+  echo "unexpected: one member added another" && exit 1
+fi
+echo "refused: Alice must sign too"
+modal c commit --all --sign ../bob.passfile --sign ../alice.passfile -m "Add Carol"
+modal c push
 ```
 
-### 3. Add Carol (Alice + Bob Sign)
+### 4. A member posts; a stranger cannot
 
 ```bash
-# Now both must sign for ADD_MEMBER
-modal contract commit --method post \
-  --path /members/carol.id \
-  --value "$CAROL_KEY" \
-  --sign alice --sign bob
-
-modal contract commit --method action --action ADD_MEMBER \
-  --params '{"member": "carol"}' \
-  --sign alice --sign bob
-
-modal contract push  # ✓ Passes: all_signed(/members) = [alice, bob] ✓
-```
-
-### 4. Bob Posts Data
-
-```bash
-# Any member can post (any_signed)
-modal contract commit --method post \
-  --path /data/message.txt \
-  --value "Hello from Bob" \
-  --sign bob
-
-modal contract push  # ✓ Passes: any_signed(/members) includes bob ✓
-```
-
-### 5. Stranger Rejected
-
-```bash
-# Stranger not in /members/*.id
-modal contract commit --method post \
-  --path /data/hack.txt \
-  --value "Unauthorized!" \
-  --sign stranger
-
-modal contract push
-# ✗ Rejected: any_signed(/members) fails - stranger not a member
-```
-
-### 6. Partial Signatures Rejected
-
-```bash
-# Adding Dave without Carol's signature
-modal contract commit --method post \
-  --path /members/dave.id \
-  --value "$DAVE_KEY" \
-  --sign alice --sign bob  # Missing carol
-
-modal contract commit --method action --action ADD_MEMBER \
-  --params '{"member": "dave"}' \
-  --sign alice --sign bob
-
-modal contract push
-# ✗ Rejected: all_signed(/members) = [alice, bob, carol], missing carol
-```
-
-## Formula Resolution
-
-`all_signed(/members)` resolves by:
-1. Scanning contract state for keys matching `members/*.id`
-2. Extracting the string values (pubkeys)
-3. Checking ALL are present in commit signatures
-
-```rust
-// State:
-// "members/alice.id": "alice_key"
-// "members/bob.id": "bob_key"
-
-resolve_path_as_strings(state, "/members")
-// → ["alice_key", "bob_key"]
+modal c commit --path /notes/agenda.md --value "# Agenda" --sign ../bob.passfile -m "Agenda"
+modal c push
+if modal c commit --path /notes/spam.md --value "spam" --sign ../eve.passfile -m "Spam"; then
+  echo "unexpected: a non-member committed" && exit 1
+fi
+echo "refused: Eve is not a member"
+cd ..
+kill %1
 ```
 
 ## Key Points
 
-1. **Rules in contract** - not per-commit, not in hub code
-2. **Directory pattern** - `/members/*.id` not `/members.json`
-3. **Hub enforces** - evaluates all rules on every commit
-4. **Dynamic membership** - formula resolves current state each time
-5. **Unanimous add** - `always([+ADD_MEMBER -all_signed(/members)] false)`
+1. **Rules accumulate.** Each rule commit must leave a model that meets every
+   rule, old and new, so a later model cannot drop the membership rule.
+2. **The rule's meaning follows state.** `all_signed(/members)` counts the
+   members at the time of the commit.
+3. **Predicates, not labels.** The rules speak of paths and signatures.

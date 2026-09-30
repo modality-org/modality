@@ -419,9 +419,9 @@ if grep -Eq -- ' true[[:space:]]*->| implies ' "$ORACLE_ESCROW_EXAMPLE"; then
 fi
 
 service_agreement_example_required_patterns=(
-  "always(!paid | completed)"
-  "!accepted | eventually(completed | cancelled)"
-  "!completed | eventually(paid | disputed)"
+  "always([+COMPLETE -bool_true(/agreement/accepted.bool)] false)"
+  "always([+PAY -bool_true(/agreement/completed.bool)] false)"
+  "always([+signed_by(/parties/arbiter.id) -bool_true(/agreement/disputed.bool)] false)"
 )
 
 for pattern in "${service_agreement_example_required_patterns[@]}"; do
@@ -437,7 +437,8 @@ if grep -Eq -- 'paid[[:space:]]*->[[:space:]]*completed|accepted[[:space:]]*->[[
 fi
 
 agent_task_exchange_example_required_patterns=(
-  "!claimed | eventually(submitted | expired)"
+  "always([+ACCEPT -bool_true(/task/submitted.bool)] false)"
+  "always([+EXPIRE +bool_true(/task/claimed.bool)] false)"
 )
 
 for pattern in "${agent_task_exchange_example_required_patterns[@]}"; do
@@ -453,7 +454,7 @@ if grep -Eq -- 'claimed[[:space:]]*->[[:space:]]*eventually| implies ' "$AGENT_T
 fi
 
 hub_members_only_scenario_required_patterns=(
-  "always([+ADD_MEMBER -all_signed(/members)] false)"
+  "always([+modifies(/members) -all_signed(/members)] false)"
 )
 
 for pattern in "${hub_members_only_scenario_required_patterns[@]}"; do
@@ -1117,7 +1118,7 @@ if grep -Eq -- 'modal c set /parties/.+modal id get' "$DEV_CLI_INDEX_HTML"; then
 fi
 
 contract_hub_required_patterns=(
-  "modal c set-named-id /parties/bob.id ./bob.passfile"
+  "modal c set-named-id /parties/bob.id ../bob.passfile"
 )
 
 for pattern in "${contract_hub_required_patterns[@]}"; do
@@ -1727,12 +1728,9 @@ if grep -Eq -- ' true[[:space:]]*->| implies ' "$PENTAGON_CONSTRAINTS_BLOG"; the
 fi
 
 protection_rings_required_patterns=(
-  "!<+signed_by(/agents/app.id) +modifies(/kernel_repo)> true"
-  "!<+modifies(/kernel_repo)> true"
-  "<+modifies(/kernel_repo) +signed_by(/agents/kernel.id) +signed_by(/humans/admin.id)> true"
-  "<+signed_by(/agents/app.id)> true"
-  "<+signed_by(/agents/kernel.id)> true"
-  "<+signed_by(/humans/admin.id)> true"
+  "always([+signed_by(/agents/app.id) +modifies(/kernel_repo)] false)"
+  "always(([+modifies(/kernel_repo) -signed_by(/agents/kernel.id)] false) & ([+modifies(/kernel_repo) -signed_by(/humans/admin.id)] false))"
+  "always([-signed_by(/agents/app.id) -signed_by(/agents/kernel.id) -signed_by(/humans/admin.id)] false)"
 )
 
 for file in "$PROTECTION_RINGS_TUTORIAL" "$PROTECTION_RINGS_CONTRACT"; do

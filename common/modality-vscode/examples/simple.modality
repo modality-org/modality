@@ -1,5 +1,6 @@
 // Modality Language Example - New Brace-Based Syntax
-// Demonstrates models, formulas, rules, and contracts
+// Demonstrates models, formulas, contracts and tests; rules/authorized.modality
+// shows a rule file
 
 // ============================================================
 // MODELS
@@ -75,14 +76,8 @@ formula AuthRequired {
 // RULES
 // ============================================================
 
-export default rule {
-  starting_at $PARENT
-  formula {
-    always (
-      [<+signed_by(/users/alice.id)>] true | [<+signed_by(/users/bob.id)>] true
-    )
-  }
-}
+// A rule lives in its own rule file under rules/, not beside a model:
+// see rules/authorized.modality.
 
 // ============================================================
 // CONTRACTS

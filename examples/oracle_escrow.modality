@@ -1,65 +1,54 @@
 // Oracle-Verified Escrow Contract
 //
-// Buyer deposits funds, seller delivers goods.
-// A trusted oracle verifies delivery before funds release.
-// Includes timeout for buyer protection.
+// The buyer deposits, the seller ships, and a trusted oracle's attestation
+// decides whether the funds go to the seller or back to the buyer. A timeout
+// lets the buyer reclaim if the oracle never answers.
 //
-// Uses the oracle_attests predicate for external verification.
+// oracle_attests reads a signed attestation from the oracle whose key is
+// posted in accepted state. after(/escrow/deadline) is not evaluated by
+// validators yet, so it never holds: the timeout move below is not available
+// until it is. See docs/reference/standard-predicates.md.
+//
+// The actions (+DEPOSIT, +SHIP, ...) are named by this contract. Labels are
+// open, so each edge says which guarded actions it is not. The nodes q0..q4
+// are witness nodes, not escrow states.
 
 model oracle_escrow {
-  initial awaiting_deposit
-  
-  // Buyer deposits funds
-  awaiting_deposit -> funded [+DEPOSIT +signed_by(/users/buyer.id) +amount_gte(/escrow/price)]
-  
-  // Seller ships goods
-  funded -> shipped [+SHIP +signed_by(/users/seller.id)]
-  
-  // Oracle confirms delivery -> funds released to seller
-  shipped -> completed [+RELEASE +oracle_attests(/oracles/delivery, "delivered", "true")]
-  
-  // Dispute: oracle says not delivered -> buyer refund
-  shipped -> refunded [+REFUND +oracle_attests(/oracles/delivery, "delivered", "false")]
-  
-  // Timeout: if oracle doesn't respond within deadline, buyer can reclaim
-  shipped -> refunded [+TIMEOUT_REFUND +signed_by(/users/buyer.id) +after(/escrow/deadline)]
-  
-  // Terminal states
-  completed -> completed [+DONE]
-  refunded -> refunded [+DONE]
+  initial q0
+
+  // Buyer deposits at least the price
+  q0 -> q1 [+DEPOSIT +signed_by(/users/buyer.id) +num_gte(/escrow/deposit.num, /escrow/price.num) -SHIP -RELEASE -REFUND -TIMEOUT_REFUND]
+
+  // Seller ships
+  q1 -> q2 [+SHIP +signed_by(/users/seller.id) -DEPOSIT -RELEASE -REFUND -TIMEOUT_REFUND]
+
+  // Oracle confirms delivery: funds released to the seller
+  q2 -> q3 [+RELEASE +oracle_attests(/oracles/delivery, "delivered", "true") -DEPOSIT -SHIP -REFUND -TIMEOUT_REFUND]
+
+  // Oracle says not delivered: buyer refunded
+  q2 -> q4 [+REFUND +oracle_attests(/oracles/delivery, "delivered", "false") -DEPOSIT -SHIP -RELEASE -TIMEOUT_REFUND]
+
+  // Timeout: after the deadline the buyer reclaims
+  q2 -> q4 [+TIMEOUT_REFUND +signed_by(/users/buyer.id) +after(/escrow/deadline) -DEPOSIT -SHIP -RELEASE -REFUND]
 }
 
-// Protection: release requires oracle attestation of delivery
-rule release_requires_oracle {
-  starting_at $PARENT
-  formula {
-    always([+RELEASE -oracle_attests(/oracles/delivery, "delivered", "true")] false)
-  }
+// Release requires the oracle's attestation of delivery.
+formula release_requires_oracle {
+  always([+RELEASE -oracle_attests(/oracles/delivery, "delivered", "true")] false)
 }
 
-// Protection: refund requires oracle denial OR timeout
-rule refund_conditions {
-  starting_at $PARENT
-  formula {
-    always (
-      ([+REFUND -oracle_attests(/oracles/delivery, "delivered", "false")] false) &
-      (([+TIMEOUT_REFUND -signed_by(/users/buyer.id)] false) & ([+TIMEOUT_REFUND -after(/escrow/deadline)] false))
-    )
-  }
+// A refund requires the oracle's denial; a timeout refund requires the buyer
+// and the deadline.
+formula refund_conditions {
+  always(([+REFUND -oracle_attests(/oracles/delivery, "delivered", "false")] false) & (([+TIMEOUT_REFUND -signed_by(/users/buyer.id)] false) & ([+TIMEOUT_REFUND -after(/escrow/deadline)] false)))
 }
 
-// Protection: only buyer can deposit
-rule deposit_protection {
-  starting_at $PARENT
-  formula {
-    always([+DEPOSIT -signed_by(/users/buyer.id)] false)
-  }
+// Only the buyer deposits.
+formula deposit_protection {
+  always([+DEPOSIT -signed_by(/users/buyer.id)] false)
 }
 
-// Protection: only seller can ship
-rule ship_protection {
-  starting_at $PARENT
-  formula {
-    always([+SHIP -signed_by(/users/seller.id)] false)
-  }
+// Only the seller ships.
+formula ship_protection {
+  always([+SHIP -signed_by(/users/seller.id)] false)
 }

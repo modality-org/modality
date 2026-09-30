@@ -1,116 +1,95 @@
 // Agent Task Exchange
 //
-// Two agents cooperate: one requests a task, the other fulfills it.
-// Neither trusts the other. The contract ensures fair exchange.
+// Two agents cooperate: one requests a task, the other does it. Neither
+// trusts the other. The rules make the exchange fair: no payment without
+// submitted work, no refund without a dispute, and nothing after the task
+// closes.
 //
 // Requester: wants work done, has payment
 // Executor: can do work, wants payment
 //
-// The formulas guarantee: no work without payment, no payment without work.
+// Each step posts a flag under /task: CLAIM posts claimed.bool,
+// SUBMIT_RESULT submitted.bool, REJECT disputed.bool, and the step that ends
+// the task (ACCEPT, RELEASE, REFUND, EXPIRE) posts closed.bool.
+//
+// The actions (+POST_TASK, +CLAIM, +SUBMIT_RESULT, +ACCEPT, +REJECT, +RELEASE, +REFUND, +EXPIRE) are named by this contract. Labels are open: an edge
+// could be taken by a commit that also carries another action, or another
+// party's signature, unless the edge rules it out. So each edge says which
+// actions it is not, and which restricted signers it does not carry. The
+// nodes are witness nodes, not phases: the phase lives in posted state
+// flags, which the rules read.
 
 model TaskExchange {
   part flow {
-    // Requester posts task with escrowed payment
-    init --> posted: +POST_TASK +signed_by(requester)
-    
-    // Executor claims the task
-    posted --> claimed: +CLAIM +signed_by(executor)
-    
-    // Executor submits result
-    claimed --> submitted: +SUBMIT_RESULT +signed_by(executor)
-    
-    // Requester accepts (triggers payment)
-    submitted --> paid: +ACCEPT +signed_by(requester)
-    
-    // Requester rejects (dispute)
-    submitted --> disputed: +REJECT +signed_by(requester)
-    
-    // Arbiter resolves dispute
-    disputed --> paid: +RELEASE +signed_by(arbiter)
-    disputed --> refunded: +REFUND +signed_by(arbiter)
-    
-    // Task expires if unclaimed
-    posted --> expired: +EXPIRE
-    
-    // Terminal states
-    paid --> paid
-    refunded --> refunded
-    expired --> expired
+    q0 --> q1: +POST_TASK +signed_by(/parties/requester.id) -signed_by(/parties/arbiter.id) -bool_true(/task/closed.bool) -CLAIM -SUBMIT_RESULT -ACCEPT -REJECT -RELEASE -REFUND -EXPIRE
+    q1 --> q2: +CLAIM +signed_by(/parties/executor.id) -bool_true(/task/claimed.bool) -signed_by(/parties/arbiter.id) -bool_true(/task/closed.bool) -POST_TASK -SUBMIT_RESULT -ACCEPT -REJECT -RELEASE -REFUND -EXPIRE
+    q1 --> q5: +EXPIRE -bool_true(/task/claimed.bool) -signed_by(/parties/arbiter.id) -bool_true(/task/closed.bool) -POST_TASK -CLAIM -SUBMIT_RESULT -ACCEPT -REJECT -RELEASE -REFUND
+    q2 --> q3: +SUBMIT_RESULT +signed_by(/parties/executor.id) +bool_true(/task/claimed.bool) -signed_by(/parties/arbiter.id) -bool_true(/task/closed.bool) -POST_TASK -CLAIM -ACCEPT -REJECT -RELEASE -REFUND -EXPIRE
+    q3 --> q5: +ACCEPT +signed_by(/parties/requester.id) +bool_true(/task/submitted.bool) -signed_by(/parties/arbiter.id) -bool_true(/task/closed.bool) -POST_TASK -CLAIM -SUBMIT_RESULT -REJECT -RELEASE -REFUND -EXPIRE
+    q3 --> q4: +REJECT +signed_by(/parties/requester.id) +bool_true(/task/submitted.bool) -signed_by(/parties/arbiter.id) -bool_true(/task/closed.bool) -POST_TASK -CLAIM -SUBMIT_RESULT -ACCEPT -RELEASE -REFUND -EXPIRE
+    q4 --> q5: +RELEASE +signed_by(/parties/arbiter.id) +bool_true(/task/disputed.bool) -bool_true(/task/closed.bool) -POST_TASK -CLAIM -SUBMIT_RESULT -ACCEPT -REJECT -REFUND -EXPIRE
+    q4 --> q5: +REFUND +signed_by(/parties/arbiter.id) +bool_true(/task/disputed.bool) -bool_true(/task/closed.bool) -POST_TASK -CLAIM -SUBMIT_RESULT -ACCEPT -REJECT -RELEASE -EXPIRE
   }
 }
 
 // ============================================================
-// FORMULAS THAT AGENTS CAN VERIFY BEFORE PARTICIPATING
+// RULES AN AGENT CAN CHECK BEFORE PARTICIPATING
 // ============================================================
 
-// For the REQUESTER: "If I post a task, I'll either get work done or get refunded"
-formula RequesterProtection {
-  [+POST_TASK] eventually(paid | refunded | expired)
+// For the executor: only the requester posts, accepts or rejects; only the
+// executor claims and submits.
+formula PartiesSignTheirSteps {
+  always(([+POST_TASK -signed_by(/parties/requester.id)] false) & ([+ACCEPT -signed_by(/parties/requester.id)] false) & ([+REJECT -signed_by(/parties/requester.id)] false) & ([+CLAIM -signed_by(/parties/executor.id)] false) & ([+SUBMIT_RESULT -signed_by(/parties/executor.id)] false))
 }
 
-// For the EXECUTOR: "If I submit work, I'll eventually get paid or dispute resolved"
-formula ExecutorProtection {
-  [+SUBMIT_RESULT] eventually(paid | refunded)
-}
-
-// MUTUAL: No one loses funds - they end up somewhere valid
-formula FundsConservation {
-  always(eventually(paid | refunded | expired))
-}
-
-// SAFETY: Can't be both paid and refunded
-formula NoDoublePay {
-  always(not(paid & refunded))
-}
-
-// ORDERING: Payment requires submitted work
+// For the requester: payment only for submitted work.
 formula PaymentRequiresWork {
-  [+ACCEPT] submitted
+  always([+ACCEPT -bool_true(/task/submitted.bool)] false)
 }
 
-// ORDERING: Refund only through dispute
+// For the executor: a claimed task cannot expire under them.
+formula NoExpiryAfterClaim {
+  always([+EXPIRE +bool_true(/task/claimed.bool)] false)
+}
+
+// A refund, and an arbiter's release, only settle a dispute.
 formula RefundOnlyViaDispute {
-  [+REFUND] disputed
+  always(([+REFUND -bool_true(/task/disputed.bool)] false) & ([+RELEASE -bool_true(/task/disputed.bool)] false))
 }
 
-// FAIRNESS: Executor can always submit after claiming
-formula ExecutorCanSubmit {
-  !claimed | eventually(submitted | expired)
+// The arbiter signs nothing outside a dispute.
+formula ArbiterOnlyOnDispute {
+  always([+signed_by(/parties/arbiter.id) -bool_true(/task/disputed.bool)] false)
 }
 
-// LIVENESS: Disputes must resolve
-formula DisputeResolution {
-  [+REJECT] eventually(paid | refunded)
+// Nothing happens after the task closes, so it is paid or refunded once.
+formula NoDoublePay {
+  always([+bool_true(/task/closed.bool)] false)
 }
 
 // ============================================================
 // HOW AGENTS USE THIS
 // ============================================================
 //
-// Before participating, each agent:
-// 1. Fetches the contract model
-// 2. Runs: modality model check task_exchange.modality
-// 3. Verifies the formulas that protect THEM pass
+// Before participating, each agent checks the rules that protect it
+// against this model:
 //
-// Requester checks: RequesterProtection, FundsConservation
-// Executor checks: ExecutorProtection, PaymentRequiresWork
+//   modal model check agent_task_exchange.modality -f PaymentRequiresWork
+//   modal model check agent_task_exchange.modality -f NoExpiryAfterClaim
 //
-// If formulas pass, they KNOW the contract is safe.
-// No trust required - just math.
-//
-// Example agent flow:
+// and, once the contract exists, that its accepted rules include them:
+// rules only accumulate, so no later model can drop one.
 //
 //   Requester                          Executor
 //   ---------                          --------
-//   1. Verify contract formulas
-//   2. POST_TASK (sign + escrow)
-//                                      3. Verify contract formulas
+//   1. Check the rules
+//   2. POST_TASK (sign)
+//                                      3. Check the rules
 //                                      4. CLAIM (sign)
 //                                      5. Do the work
 //                                      6. SUBMIT_RESULT (sign)
-//   7. Review result
-//   8. ACCEPT (sign) → payment released
+//   7. Review the result
+//   8. ACCEPT (sign): payment released
 //                                      9. Receive payment
 //
-// At no point did either agent trust the other.
-// The contract enforced fair exchange.
+// Neither agent trusted the other. The rules enforced the exchange.

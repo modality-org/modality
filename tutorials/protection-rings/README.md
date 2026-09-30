@@ -40,9 +40,7 @@ The boundary isn't a linter rule. It's a **Modality verifiable contract** — ma
 ```modality
 rule app_cannot_touch_kernel {
   formula {
-    always(
-      !<+signed_by(/agents/app.id) +modifies(/kernel_repo)> true
-    )
+    always([+signed_by(/agents/app.id) +modifies(/kernel_repo)] false)
   }
 }
 ```
@@ -52,10 +50,7 @@ The app agent's identity key is not authorized for kernel-repo. Period.
 ```modality
 rule kernel_requires_dual_signature {
   formula {
-    always(
-      !<+modifies(/kernel_repo)> true
-      | <+modifies(/kernel_repo) +signed_by(/agents/kernel.id) +signed_by(/humans/admin.id)> true
-    )
+    always(([+modifies(/kernel_repo) -signed_by(/agents/kernel.id)] false) & ([+modifies(/kernel_repo) -signed_by(/humans/admin.id)] false))
   }
 }
 ```
@@ -65,11 +60,7 @@ Even the kernel agent can't act alone. Every kernel change needs a human.
 ```modality
 rule known_signers_only {
   formula {
-    always(
-      <+signed_by(/agents/app.id)> true
-      | <+signed_by(/agents/kernel.id)> true
-      | <+signed_by(/humans/admin.id)> true
-    )
+    always([-signed_by(/agents/app.id) -signed_by(/agents/kernel.id) -signed_by(/humans/admin.id)] false)
   }
 }
 ```

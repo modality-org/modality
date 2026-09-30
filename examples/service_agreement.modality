@@ -1,85 +1,67 @@
-// Service Agreement with Enforcing Formulas
+// Service Agreement
 //
-// A provider offers a service, consumer accepts, provider delivers, consumer pays.
-// Formulas ensure the protocol is fair to both parties.
+// A provider offers a service, the consumer accepts, the provider completes
+// the work, and the consumer pays. A consumer who disputes the work goes to
+// an arbiter, who pays the provider or refunds the consumer.
+//
+// Each step posts a flag under /agreement: ACCEPT posts accepted.bool,
+// COMPLETE completed.bool, DISPUTE disputed.bool, and the step that ends the
+// agreement (PAY, REFUND, CANCEL, EXPIRE) posts closed.bool. The rules read
+// those flags from accepted state, so they say what must have happened
+// before a step, not where a run is.
+//
+// The actions (+OFFER, +ACCEPT, +EXPIRE, +COMPLETE, +CANCEL, +PAY, +DISPUTE, +REFUND) are named by this contract. Labels are open: an edge
+// could be taken by a commit that also carries another action, or another
+// party's signature, unless the edge rules it out. So each edge says which
+// actions it is not, and which restricted signers it does not carry. The
+// nodes are witness nodes, not phases: the phase lives in posted state
+// flags, which the rules read.
 
 model ServiceAgreement {
   part flow {
-    init --> offered: +OFFER +signed_by(provider)
-    offered --> accepted: +ACCEPT +signed_by(consumer)
-    offered --> expired: +EXPIRE
-    accepted --> completed: +COMPLETE +signed_by(provider)
-    accepted --> cancelled: +CANCEL +signed_by(consumer)
-    completed --> paid: +PAY +signed_by(consumer) -signed_by(arbiter)
-    completed --> disputed: +DISPUTE +signed_by(consumer)
-    disputed --> paid: +PAY +signed_by(arbiter)
-    disputed --> refunded: +REFUND +signed_by(arbiter)
-    
-    // Terminal states
-    expired --> expired
-    cancelled --> cancelled
-    paid --> paid
-    refunded --> refunded
+    q0 --> q1: +OFFER +signed_by(/parties/provider.id) -signed_by(/parties/arbiter.id) -bool_true(/agreement/closed.bool) -ACCEPT -EXPIRE -COMPLETE -CANCEL -PAY -DISPUTE -REFUND
+    q1 --> q2: +ACCEPT +signed_by(/parties/consumer.id) -signed_by(/parties/arbiter.id) -bool_true(/agreement/closed.bool) -OFFER -EXPIRE -COMPLETE -CANCEL -PAY -DISPUTE -REFUND
+    q1 --> q5: +EXPIRE -signed_by(/parties/arbiter.id) -bool_true(/agreement/closed.bool) -OFFER -ACCEPT -COMPLETE -CANCEL -PAY -DISPUTE -REFUND
+    q2 --> q3: +COMPLETE +signed_by(/parties/provider.id) +bool_true(/agreement/accepted.bool) -signed_by(/parties/arbiter.id) -bool_true(/agreement/closed.bool) -OFFER -ACCEPT -EXPIRE -CANCEL -PAY -DISPUTE -REFUND
+    q2 --> q5: +CANCEL +signed_by(/parties/consumer.id) +bool_true(/agreement/accepted.bool) -bool_true(/agreement/completed.bool) -signed_by(/parties/arbiter.id) -bool_true(/agreement/closed.bool) -OFFER -ACCEPT -EXPIRE -COMPLETE -PAY -DISPUTE -REFUND
+    q3 --> q5: +PAY +signed_by(/parties/consumer.id) +bool_true(/agreement/completed.bool) -signed_by(/parties/arbiter.id) -bool_true(/agreement/closed.bool) -OFFER -ACCEPT -EXPIRE -COMPLETE -CANCEL -DISPUTE -REFUND
+    q3 --> q4: +DISPUTE +signed_by(/parties/consumer.id) +bool_true(/agreement/completed.bool) -signed_by(/parties/arbiter.id) -bool_true(/agreement/closed.bool) -OFFER -ACCEPT -EXPIRE -COMPLETE -CANCEL -PAY -REFUND
+    q4 --> q5: +PAY +signed_by(/parties/arbiter.id) +bool_true(/agreement/completed.bool) +bool_true(/agreement/disputed.bool) -bool_true(/agreement/closed.bool) -OFFER -ACCEPT -EXPIRE -COMPLETE -CANCEL -DISPUTE -REFUND
+    q4 --> q5: +REFUND +signed_by(/parties/arbiter.id) +bool_true(/agreement/disputed.bool) -bool_true(/agreement/closed.bool) -OFFER -ACCEPT -EXPIRE -COMPLETE -CANCEL -PAY -DISPUTE
   }
 }
 
-// ============================================================
-// ENFORCING FORMULAS
-// ============================================================
-
-// 1. Offer must be resolved (accepted, or expires)
-formula OfferResolution {
-  [+OFFER] eventually(accepted | expired)
+// Only the provider offers and completes; only the consumer accepts.
+formula PartiesSignTheirSteps {
+  always(([+OFFER -signed_by(/parties/provider.id)] false) & ([+COMPLETE -signed_by(/parties/provider.id)] false) & ([+ACCEPT -signed_by(/parties/consumer.id)] false))
 }
 
-// 2. Acceptance leads to outcome
-formula AcceptanceLeadsToOutcome {
-  [+ACCEPT] eventually(paid | refunded | cancelled)
-}
-
-// 3. Completion requires acceptance first
+// The work is completed only after the consumer accepted.
 formula CompletionRequiresAcceptance {
-  [+COMPLETE] accepted
+  always([+COMPLETE -bool_true(/agreement/accepted.bool)] false)
 }
 
-// 4. Payment only after completion
+// Payment only for completed work.
 formula PaymentAfterCompletion {
-  [+PAY] completed
+  always([+PAY -bool_true(/agreement/completed.bool)] false)
 }
 
-// 5. No payment without completion (stronger: globally)
-formula NoPaymentWithoutWork {
-  always(!paid | completed)
+// The consumer pays, or the arbiter does in a dispute.
+formula PayerIsConsumerOrArbiter {
+  always([+PAY -signed_by(/parties/consumer.id) -signed_by(/parties/arbiter.id)] false)
 }
 
-// 6. Dispute freezes until resolution
-formula DisputeFreeze {
-  [+DISPUTE] (not(paid) until (paid | refunded))
+// A refund only settles a dispute.
+formula RefundOnlyInDispute {
+  always([+REFUND -bool_true(/agreement/disputed.bool)] false)
 }
 
-// 7. Arbiter only acts on disputes
+// The arbiter signs nothing outside a dispute.
 formula ArbiterOnlyOnDispute {
-  [+PAY +signed_by(arbiter)] disputed &
-  [+REFUND +signed_by(arbiter)] disputed
+  always([+signed_by(/parties/arbiter.id) -bool_true(/agreement/disputed.bool)] false)
 }
 
-// 8. Consumer can always cancel before completion
-formula ConsumerCanCancel {
-  !accepted | eventually(completed | cancelled)
-}
-
-// 9. Provider gets paid for completed work (liveness)
-formula ProviderGetsPaid {
-  !completed | eventually(paid | disputed)
-}
-
-// 10. Mutual exclusion of terminal states
-formula MutualExclusion {
-  always(
-    not(paid & refunded) &
-    not(paid & cancelled) &
-    not(refunded & cancelled) &
-    not(expired & paid) &
-    not(expired & refunded)
-  )
+// Nothing happens after the agreement is closed.
+formula NothingAfterClose {
+  always([+bool_true(/agreement/closed.bool)] false)
 }

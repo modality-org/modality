@@ -1,34 +1,36 @@
 // Bank Deposits Contract
 //
-// Multi-account bank on a single contract.
-// Each account's balance tracked at /bank/accounts/{account_id}.json
-// 
-// WITHDRAW actions are validated by the hub directly:
-// - Verifies signer matches account owner
-// - Checks balance >= withdrawal amount
+// A multi-account bank on one contract. Each account's balance is tracked at
+// /bank/accounts/<account_id>.json. The admin registers accounts and can
+// pause the bank; PAUSE posts /bank/paused.bool true and RESUME false.
 //
-// No path interpolation needed - hub handles validation.
+// WITHDRAW is checked by the contract hub, not by these rules: it verifies
+// that the account's owner signed and that the balance covers the amount.
+// See examples/hub-scenarios/bank-deposits.md.
+//
+// The actions (+REGISTER_ACCOUNT, +DEPOSIT, +WITHDRAW, +PAUSE, +RESUME) are named by this contract.
+// Labels are open: an edge could be taken by a commit that also carries
+// another action, or another party's signature, unless the edge rules it
+// out. So each edge says which actions it is not, and which restricted
+// signers it does not carry. The nodes are witness nodes, not phases: the
+// phase lives in posted state flags, which the rules read.
 
 model bank {
-  initial open
-  
-  // Register new account (admin only)
-  open -> open [+REGISTER_ACCOUNT +signed_by(/bank/admin.id)]
-  
-  // Deposit to any registered account (signer = depositor)
-  open -> open [+DEPOSIT]
-  
-  // Withdraw from account (hub validates balance + signer)
-  open -> open [+WITHDRAW]
-  
-  // Admin controls
-  open -> paused [+PAUSE +signed_by(/bank/admin.id)]
-  paused -> open [+RESUME +signed_by(/bank/admin.id)]
+  part flow {
+    q0 --> q0: +REGISTER_ACCOUNT +signed_by(/bank/admin.id) -bool_true(/bank/paused.bool) -DEPOSIT -WITHDRAW -PAUSE -RESUME
+    q0 --> q0: +DEPOSIT -bool_true(/bank/paused.bool) -REGISTER_ACCOUNT -WITHDRAW -PAUSE -RESUME
+    q0 --> q0: +WITHDRAW -bool_true(/bank/paused.bool) -REGISTER_ACCOUNT -DEPOSIT -PAUSE -RESUME
+    q0 --> q1: +PAUSE +signed_by(/bank/admin.id) -bool_true(/bank/paused.bool) -REGISTER_ACCOUNT -DEPOSIT -WITHDRAW -RESUME
+    q1 --> q0: +RESUME +signed_by(/bank/admin.id) +bool_true(/bank/paused.bool) -REGISTER_ACCOUNT -DEPOSIT -WITHDRAW -PAUSE
+  }
 }
 
-// Note: WITHDRAW validation is handled by hub, not by modal rules.
-// Hub checks:
-//   1. Commit signed by account owner (from /bank/accounts/{id}.json -> "id" field)
-//   2. balance >= amount (from /bank/accounts/{id}.json -> "balance" field)
-//
-// This avoids the need for path interpolation in formulas.
+// Only the admin registers accounts, pauses and resumes.
+formula AdminControls {
+  always(([+REGISTER_ACCOUNT -signed_by(/bank/admin.id)] false) & ([+PAUSE -signed_by(/bank/admin.id)] false) & ([+RESUME -signed_by(/bank/admin.id)] false))
+}
+
+// While paused, the only move is the admin's RESUME.
+formula PausedMeansPaused {
+  always([+bool_true(/bank/paused.bool) -RESUME] false)
+}

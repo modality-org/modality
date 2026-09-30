@@ -7,21 +7,25 @@
 
 // Diamond: "there exists a transition"
 formula DiamondExample {
-  <+PAY> true                    // Some +PAY transition to true
+  // Some +PAY transition to true
+  <+PAY> true
 }
 
 // Box: "all transitions lead to"
 formula BoxExample {
-  [+EXECUTE] complete            // All +EXECUTE transitions lead to complete
+  // All +EXECUTE transitions lead to complete
+  [+EXECUTE] complete
 }
 
 // Unlabeled modal operators
 formula UnlabeledBox {
-  [] safe                        // All transitions lead to safe
+  // All transitions lead to safe
+  [] safe
 }
 
 formula UnlabeledDiamond {
-  <> goal                        // Some transition leads to goal
+  // Some transition leads to goal
+  <> goal
 }
 
 // Diamondbox: "committed" (can do AND cannot refuse)
@@ -60,7 +64,8 @@ formula UntilExample {
 
 // Combined temporal
 formula AlwaysEventually {
-  always(eventually(checkpoint))   // Infinitely often reach checkpoint
+  // Infinitely often reach checkpoint
+  always(eventually(checkpoint))
 }
 
 // ============================================================
@@ -70,13 +75,15 @@ formula AlwaysEventually {
 // Least fixed point (lfp): reachability properties
 // lfp(X, φ) = smallest set satisfying X = φ[X]
 formula LfpReachability {
-  lfp(X, goal | <>X)             // Can reach goal (= eventually(goal))
+  // Can reach goal (= eventually(goal))
+  lfp(X, goal | <>X)
 }
 
-// Greatest fixed point (gfp): invariant properties  
+// Greatest fixed point (gfp): invariant properties
 // gfp(X, φ) = largest set satisfying X = φ[X]
 formula GfpInvariant {
-  gfp(X, safe & []X)             // Always safe (= always(safe))
+  // Always safe (= always(safe))
+  gfp(X, safe & []X)
 }
 
 // Nested fixed points
@@ -98,31 +105,38 @@ formula NuNotation {
 // ============================================================
 
 formula Conjunction {
-  safe & ready                   // AND with &
+  // AND with &
+  safe & ready
 }
 
 formula ConjunctionWord {
-  safe and ready                 // AND with keyword
+  // AND with keyword
+  safe and ready
 }
 
 formula Disjunction {
-  error | warning               // OR with |
+  // OR with |
+  error | warning
 }
 
 formula DisjunctionWord {
-  error or warning              // OR with keyword
+  // OR with keyword
+  error or warning
 }
 
 formula Negation {
-  !error                        // NOT with !
+  // NOT with !
+  !error
 }
 
 formula NegationWord {
-  not error                     // NOT with keyword
+  // NOT with keyword
+  not error
 }
 
 formula Conditional {
-  !request | response           // Conditional rule in explicit Boolean form
+  // Conditional rule in explicit Boolean form
+  !request | response
 }
 
 // ============================================================

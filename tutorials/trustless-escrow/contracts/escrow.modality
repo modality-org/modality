@@ -22,20 +22,14 @@ model Escrow {
 // Protection rules — these can NEVER be bypassed. Each refuses every commit
 // that changes a part of the escrow without the named party's signature.
 
-rule buyer_must_sign_deposit {
-  formula {
-    always([+modifies(/escrow/deposited) -signed_by(/parties/buyer.id)] false)
-  }
+formula buyer_must_sign_deposit {
+  always([+modifies(/escrow/deposited) -signed_by(/parties/buyer.id)] false)
 }
 
-rule seller_must_sign_delivery {
-  formula {
-    always([+modifies(/escrow/delivered) -signed_by(/parties/seller.id)] false)
-  }
+formula seller_must_sign_delivery {
+  always([+modifies(/escrow/delivered) -signed_by(/parties/seller.id)] false)
 }
 
-rule buyer_must_sign_release {
-  formula {
-    always([+modifies(/escrow/released) -signed_by(/parties/buyer.id)] false)
-  }
+formula buyer_must_sign_release {
+  always([+modifies(/escrow/released) -signed_by(/parties/buyer.id)] false)
 }

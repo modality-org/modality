@@ -1,36 +1,38 @@
 // Two agents shake hands with enforced rules
 //
-// Every commit is a transition in the governing model.
-// add_rule transitions as +ADD_RULE, do +X as domain actions.
+// A and B each add a rule, then each says READY once. READY by A posts
+// /handshake/a_ready.bool true, and by B b_ready.bool.
+//
+// The actions (+ADD_RULE, +READY) are named by this contract.
+// Labels are open: an edge could be taken by a commit that also carries
+// another action, or another party's signature, unless the edge rules it
+// out. So each edge says which actions it is not, and which restricted
+// signers it does not carry. The nodes are witness nodes, not phases: the
+// phase lives in posted state flags, which the rules read.
 
-contract handshake {
-
-  commit {
-    signed_by A "0xA_SIG_COMMIT_0"
-    model {
-      part flow {
-        init --> a_ruled: +ADD_RULE +signed_by(A)
-        a_ruled --> b_ruled: +ADD_RULE +signed_by(B)
-        b_ruled --> a_ready: +READY +signed_by(A)
-        a_ready --> done: +READY +signed_by(B)
-      }
-    }
-    add_rule { eventually(done) }
+model Handshake {
+  part flow {
+    q0 --> q1: +ADD_RULE +signed_by(/parties/a.id) -signed_by(/parties/b.id) -READY
+    q1 --> q2: +ADD_RULE +signed_by(/parties/b.id) -signed_by(/parties/a.id) -READY
+    q2 --> q3: +READY +signed_by(/parties/a.id) -bool_true(/handshake/a_ready.bool) -signed_by(/parties/b.id) -ADD_RULE
+    q3 --> q4: +READY +signed_by(/parties/b.id) -bool_true(/handshake/b_ready.bool) -signed_by(/parties/a.id) -ADD_RULE
   }
-
-  commit {
-    signed_by B "0xB_SIG_COMMIT_1"
-    add_rule { eventually(done) }
-  }
-
-  commit {
-    signed_by A "0xA_SIG_COMMIT_2"
-    do +READY
-  }
-
-  commit {
-    signed_by B "0xB_SIG_COMMIT_3"
-    do +READY
-  }
-
 }
+
+// Every commit is signed by A or B.
+formula OnlyTheTwoAgents {
+  always([-signed_by(/parties/a.id) -signed_by(/parties/b.id)] false)
+}
+
+// Each agent says READY once.
+formula ReadyOnce {
+  always(([+READY +signed_by(/parties/a.id) +bool_true(/handshake/a_ready.bool)] false) & ([+READY +signed_by(/parties/b.id) +bool_true(/handshake/b_ready.bool)] false))
+}
+
+// Flow with the CLI, each agent committing to its own copy and pushing:
+//   modal add-rule --name only_the_two 'always([-signed_by(/parties/a.id) -signed_by(/parties/b.id)] false)'
+//   modal c commit --all --sign a
+//   modal add-rule --name ready_once '<the ReadyOnce formula>'
+//   modal c commit --all --sign b
+//   modal c commit --path /handshake/a_ready.bool --value true --sign a
+//   modal c commit --path /handshake/b_ready.bool --value true --sign b

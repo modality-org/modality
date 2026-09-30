@@ -1,0 +1,8 @@
+// A rule file: every commit after the one that adds this rule is signed by
+// Alice or Bob.
+export default rule {
+  starting_at $PARENT
+  formula {
+    always([-signed_by(/users/alice.id) -signed_by(/users/bob.id)] false)
+  }
+}

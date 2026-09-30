@@ -42,9 +42,10 @@ curl -s -X POST http://127.0.0.1:8080/contracts \
 ## Push/Pull Workflow
 
 ```bash
-modal c remote add origin http://127.0.0.1:8080/contracts/my-contract
-modal c push origin
-modal c pull origin
+# The first push names the hub URL and saves it as the `origin` remote
+modal c push --remote http://127.0.0.1:8080/contracts/my-contract
+modal c push
+modal c pull
 ```
 
 Credentials in `.modal-hub/credentials.json` are optional on the Rust hub.
@@ -56,17 +57,18 @@ accepts unauthenticated push/pull on localhost.
 ### Alice publishes
 
 ```bash
-modal c remote add origin http://127.0.0.1:8080/contracts/escrow-with-bob
-modal c push origin
+modal c push --remote http://127.0.0.1:8080/contracts/escrow-with-bob
 ```
 
 ### Bob clones and contributes
 
 ```bash
-modal c clone http://127.0.0.1:8080/contracts/escrow-with-bob
-modal c set-named-id /parties/bob.id ./bob.passfile
-modal c commit --all --sign bob.passfile -m "Bob joins"
-modal c push origin
+# A new copy in ./escrow-with-bob, with the hub saved as `origin`
+modal c pull http://127.0.0.1:8080/contracts/escrow-with-bob
+cd escrow-with-bob
+modal c set-named-id /parties/bob.id ../bob.passfile
+modal c commit --all --sign ../bob.passfile -m "Bob joins"
+modal c push
 ```
 
 ## Chain Sync (Decentralized)
@@ -74,8 +76,8 @@ modal c push origin
 For trustless operation, sync to the chain instead:
 
 ```bash
-modal c remote add chain /ip4/sequencer.modality.network/tcp/4001/p2p/12D3KooW...
-modal c push chain
+modal c push --remote-name chain --remote /ip4/<sequencer>/tcp/<port>/ws/p2p/12D3KooW...
+modal c push --remote-name chain
 ```
 
 Chain commits are validated by consensus — no single party can censor or tamper.

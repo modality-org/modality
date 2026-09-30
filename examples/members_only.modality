@@ -1,92 +1,68 @@
 // Members-Only Contract
 //
-// Only members can post to this contract.
-// Adding a new member requires ALL current members to sign.
+// Only members can commit. Changing the membership takes the signature of
+// every current member.
 //
-// State structure:
-//   /members/
-//     alice.id → "alice_pubkey_hex"
-//     bob.id → "bob_pubkey_hex"
+// State:
+//   /members/alice.id   alice's Modality ID
+//   /members/bob.id     bob's Modality ID
 //
-// When adding a RULE commit, you must also submit a MODEL that satisfies it.
+// The model is the witness a rule commit needs: each formula below holds
+// from the node the bootstrap commit reaches (q1). Nodes are witness nodes,
+// not contract phases.
 
 model members_only {
-  initial active
-  
-  // Simple self-loop - any commit is allowed structurally
-  // Permissions are enforced by rules via predicates, not model structure
-  active -> active []
-}
-
-// Rule 1: Any commit must be signed by at least one member
-//
-// The +any_signed predicate enumerates all .id files under /members/
-// and checks if at least one has signed this commit.
-rule member_required {
-  formula {
-    always(<+any_signed(/members)> true)
+  part flow {
+    // The bootstrap commit: the first member, this model and the rules
+    q0 --> q1
+    // A member writes outside /members
+    q1 --> q1: +any_signed(/members) -modifies(/members)
+    // A membership change carries every current member's signature
+    q1 --> q1: +any_signed(/members) +all_signed(/members)
   }
 }
 
-// Rule 2: Modifying membership requires ALL current members to sign
-//
-// The +modifies predicate checks if the commit writes to paths under /members/.
-// The interpretation of +all_signed(/members) evolves as members are added:
-//   - When alice is the only member: all_signed = [alice]
-//   - After bob is added: all_signed = [alice, bob]
-//   - After carol is added: all_signed = [alice, bob, carol]
-//
-// The RULE never changes, but its INTERPRETATION does based on state.
-rule membership_change_unanimous {
-  formula {
-    always([+modifies(/members) -all_signed(/members)] false)
-  }
+// Every commit after the rules are added is signed by a member.
+// +any_signed(/members) reads the .id files under /members in accepted state.
+formula member_required {
+  always([-any_signed(/members)] false)
+}
+
+// A commit that changes /members is signed by every current member.
+// all_signed(/members) is read from accepted state, so it grows as members
+// are added: alice alone, then alice and bob, then all three.
+formula membership_change_unanimous {
+  always([+modifies(/members) -all_signed(/members)] false)
 }
 
 // ============================================================
-// EXAMPLE WORKFLOW (using modal CLI)
+// WORKFLOW (modal CLI)
 // ============================================================
 //
-// 1. Create contract and add first member (alice):
-//    modal c create members_only
-//    modal c commit --method post --path /members/alice.id \
-//      --value "$(modal identity show alice --public-key-hex)" \
-//      --sign alice.key
+// 1. Create the contract and alice's identity:
+//    modal id create --name alice
+//    modal contract create
+//    modal c checkout
+//    modal c set-named-id /members/alice.id alice
 //
-// 2. Add rules WITH satisfying model (model witnesses rule satisfiability):
-//    modal c commit --method rule \
-//      --rule "rule member_required { formula { always(<+any_signed(/members)> true) } }" \
-//      --model "model members_only { initial active; active -> active [] }" \
-//      --sign alice.key
+// 2. Write the model above to model/default.modality, add the rules, and
+//    commit all of it signed by alice:
+//    modal add-rule --name member_required 'always([-any_signed(/members)] false)'
+//    modal add-rule --name membership_unanimous 'always([+modifies(/members) -all_signed(/members)] false)'
+//    modal c commit --all --sign alice -m "Bootstrap members-only contract"
 //
-//    modal c commit --method rule \
-//      --rule "rule membership_unanimous { formula { always([+modifies(/members) -all_signed(/members)] false) } }" \
-//      --model "model members_only { initial active; active -> active [] }" \
-//      --sign alice.key
+// 3. Alice adds Bob. She is the only member, so her signature is all of them:
+//    modal id create --name bob
+//    modal c set-named-id /members/bob.id bob
+//    modal c commit --all --sign alice -m "Add Bob"
 //
-// NOTE: Each rule commit includes a model that proves the rule is satisfiable.
-// The model acts as a witness. Without a satisfying model, the rule is rejected.
+// 4. Adding Carol now takes both alice and bob:
+//    modal id create --name carol
+//    modal c set-named-id /members/carol.id carol
+//    modal c commit --all --sign alice --sign bob -m "Add Carol"
 //
-// 4. Alice adds Bob (only alice needs to sign - she's the only member):
-//    modal c commit --method post --path /members/bob.id \
-//      --value "$(modal identity show bob --public-key-hex)" \
-//      --sign alice.key
-//    ✓ Passes: +modifies(/members)=true, +all_signed([alice])=true
+// 5. Any member may write outside /members:
+//    modal c commit --path /data/notes.md --value "# Meeting notes" --sign bob
 //
-// 5. Now to add Carol, BOTH alice and bob must sign:
-//    modal c commit --method post --path /members/carol.id \
-//      --value "$(modal identity show carol --public-key-hex)" \
-//      --sign alice.key --sign bob.key
-//    ✓ Passes: +modifies(/members)=true, +all_signed([alice,bob])=true
-//
-// 6. Any member can post data (not modifying /members):
-//    modal c commit --method post --path /data/notes.md \
-//      --value "# Meeting notes..." \
-//      --sign bob.key
-//    ✓ Passes: +any_signed(/members)=true, +modifies(/members)=false
-//
-// 7. Non-members rejected:
-//    modal c commit --method post --path /data/hack.md \
-//      --value "Unauthorized!" \
-//      --sign stranger.key
-//    ✗ Rejected: +any_signed(/members)=false (stranger ∉ members)
+// 6. A commit signed by a non-member is refused: +any_signed(/members) is
+//    false for it.

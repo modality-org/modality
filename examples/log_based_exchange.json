@@ -1,98 +1,99 @@
 {
-  "id": "exchange_001",
+  "description": "A two-party exchange as a Modality contract log, oldest commit first. Each commit_id is the SHA-256 of its body and head. Generated with the modal CLI: Alice bootstraps the parties, a model and two rules; Alice offers; Bob accepts. Every commit after the bootstrap must be signed by Alice or Bob, and /parties cannot change.",
+  "contract_id": "12D3KooWAjDoYD7bJr22qbQv3CUFuPfsHUJd2zur2Ck3iYPxaX2V",
   "commits": [
     {
-      "commit_id": 0,
-      "actions": [
+      "commit_id": "767203bce6200aa0da6f70c3fb098fbb49af54458deb8d667c6311b7f86583b8",
+      "body": [
         {
-          "type": "AddParty",
-          "party": "0xA1B2C3...",
-          "name": "Alice"
-        },
-        {
-          "type": "AddRule",
-          "name": "AliceProtection",
-          "formula": {
-            "name": "AliceProtection",
-            "expression": {
-              "Eventually": {
-                "Or": [
-                  { "Prop": "paid" },
-                  { "Prop": "refunded" }
-                ]
-              }
+          "method": "genesis",
+          "path": null,
+          "value": {
+            "genesis": {
+              "contract_id": "12D3KooWAjDoYD7bJr22qbQv3CUFuPfsHUJd2zur2Ck3iYPxaX2V",
+              "created_at": 1790792157,
+              "public_key": "12D3KooWAjDoYD7bJr22qbQv3CUFuPfsHUJd2zur2Ck3iYPxaX2V"
             }
           }
         }
       ],
-      "signed_by": "0xA1B2C3...",
-      "signature": "sig_alice_0",
-      "timestamp": 1706700000
+      "head": {}
     },
     {
-      "commit_id": 1,
-      "actions": [
+      "commit_id": "1c5344433e0be50c75e07e48cf634c049c56d6fb78b2a2994ee84a9778cc7f21",
+      "body": [
         {
-          "type": "AddParty",
-          "party": "0xD4E5F6...",
-          "name": "Bob"
+          "method": "post",
+          "path": "/parties/bob.id",
+          "value": "12D3KooWFPBWKNPNJdrGv8ZiWP7LbgDdsycxZDSnmRCHzp7ZWHCU"
         },
         {
-          "type": "AddRule",
-          "name": "BobProtection",
-          "formula": {
-            "name": "BobProtection",
-            "expression": {
-              "Eventually": {
-                "Or": [
-                  { "Prop": "delivered" },
-                  { "Prop": "refunded" }
-                ]
-              }
-            }
+          "method": "post",
+          "path": "/parties/alice.id",
+          "value": "12D3KooWEahMy9x8RYpdvqBwzsE5ZCMqF8Nx3cX9iZbTUAT3u8xs"
+        },
+        {
+          "method": "rule",
+          "path": "/rules/either_party.modality",
+          "value": "export default rule {\n  starting_at $PARENT\n  formula {\n    always([-signed_by(/parties/alice.id) -signed_by(/parties/bob.id)] false)\n  }\n}\n"
+        },
+        {
+          "method": "rule",
+          "path": "/rules/parties_fixed.modality",
+          "value": "export default rule {\n  starting_at $PARENT\n  formula {\n    always([+modifies(/parties)] false)\n  }\n}\n"
+        },
+        {
+          "method": "model",
+          "path": "/model/default.modality",
+          "value": "model exchange {\n  part flow {\n    q0 --> q1\n    q1 --> q1: +signed_by(/parties/alice.id) -modifies(/parties)\n    q1 --> q1: +signed_by(/parties/bob.id) -modifies(/parties)\n  }\n}\n"
+        }
+      ],
+      "head": {
+        "parent": "767203bce6200aa0da6f70c3fb098fbb49af54458deb8d667c6311b7f86583b8",
+        "message": "Alice and Bob agree the rules",
+        "signatures": {
+          "12D3KooWEahMy9x8RYpdvqBwzsE5ZCMqF8Nx3cX9iZbTUAT3u8xs": "fwdVvvmp871sD9otMCzzf6uRW1GjKh1MeFKPwKuhPpYk7372qEEFwyNtNhfiUUNMO/mgrCEZ21HsmzKTj4gnBg=="
+        }
+      }
+    },
+    {
+      "commit_id": "179179e3aad52760ccc9efeca4404756798d4c92a6cbf585e90495e45423b35d",
+      "body": [
+        {
+          "method": "post",
+          "path": "/exchange/offer.json",
+          "value": {
+            "give": "10 A",
+            "want": "20 B"
           }
         }
       ],
-      "signed_by": "0xD4E5F6...",
-      "signature": "sig_bob_1",
-      "timestamp": 1706700100
+      "head": {
+        "parent": "1c5344433e0be50c75e07e48cf634c049c56d6fb78b2a2994ee84a9778cc7f21",
+        "message": "Alice offers",
+        "signatures": {
+          "12D3KooWEahMy9x8RYpdvqBwzsE5ZCMqF8Nx3cX9iZbTUAT3u8xs": "e+Fc4sgBJG6A7195gk/8A89m1HKAwsdfHW/dmXP6pn1MGHDAWBMNBXcNDEtr503yFiQPZELvxh63JM3QpMlZDQ=="
+        }
+      }
     },
     {
-      "commit_id": 2,
-      "actions": [
-        { "type": "Finalize" }
-      ],
-      "signed_by": "0xA1B2C3...",
-      "signature": "sig_alice_2",
-      "timestamp": 1706700200
-    },
-    {
-      "commit_id": 3,
-      "actions": [
+      "commit_id": "c24340b50c59595547dacc8b5de0c252862a37eee76ff392f8e5326da68e9067",
+      "body": [
         {
-          "type": "Domain",
-          "properties": [
-            { "sign": "Plus", "name": "DELIVER" }
-          ]
+          "method": "post",
+          "path": "/exchange/accept.json",
+          "value": {
+            "offer": "/exchange/offer.json"
+          }
         }
       ],
-      "signed_by": "0xA1B2C3...",
-      "signature": "sig_alice_3",
-      "timestamp": 1706700300
-    },
-    {
-      "commit_id": 4,
-      "actions": [
-        {
-          "type": "Domain",
-          "properties": [
-            { "sign": "Plus", "name": "PAY" }
-          ]
+      "head": {
+        "parent": "179179e3aad52760ccc9efeca4404756798d4c92a6cbf585e90495e45423b35d",
+        "message": "Bob accepts",
+        "signatures": {
+          "12D3KooWFPBWKNPNJdrGv8ZiWP7LbgDdsycxZDSnmRCHzp7ZWHCU": "iYKHTQrm225O3CRc89G5rx3k7jQwPLH0jMrihm4atylcoumV8G0czkNuJplyRuhXtJoaXRc8Hdr8xofFBlC/Cg=="
         }
-      ],
-      "signed_by": "0xD4E5F6...",
-      "signature": "sig_bob_4",
-      "timestamp": 1706700400
+      }
     }
   ]
 }

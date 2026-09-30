@@ -22,7 +22,8 @@ required_patterns=(
   "\`/contracts/:id/log\` | \`GET\` | Get the commit log"
   "\`/contracts/:id/commits\` | \`POST\` | Submit a commit"
   "\`/templates\` | \`GET\` | List built-in templates"
-  "modal c remote add origin http://127.0.0.1:8080/contracts/<contract-id>"
+  "modal c push --remote http://127.0.0.1:8080/contracts/<contract-id>"
+  "modal c pull http://127.0.0.1:8080/contracts/<contract-id>"
   "\`--hub-creds <HUB_CREDS>\`"
   "command group does not create that credentials"
 )
@@ -47,7 +48,9 @@ for forbidden_pattern in \
   "modal hub info <CONTRACT_ID>" \
   "modal hub auth" \
   "\`MODAL_HUB_URL\`" \
-  "\`MODAL_PASSFILE\`"; do
+  "\`MODAL_PASSFILE\`" \
+  "modal c remote add" \
+  "modal c clone"; do
   if grep -Fq -- "$forbidden_pattern" "$DOC"; then
     echo "hub command reference still contains stale full-wrapper text: $forbidden_pattern" >&2
     exit 1

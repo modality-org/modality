@@ -1,87 +1,45 @@
-// Milestone-Based Project: Multi-phase work with staged payments
-// Common pattern for development contracts, freelance work
+// Milestone-Based Project: multi-phase work with staged payments
+//
+// A common pattern for development contracts and freelance work. Each step
+// posts a flag under /project (started, design_done, design_paid,
+// build_done, build_paid, test_done, test_paid), and the rules read them.
+//
+// The actions (+START, +COMPLETE_DESIGN, +PAY_DESIGN, +COMPLETE_BUILD, +PAY_BUILD, +COMPLETE_TEST, +PAY_TEST, +FINALIZE) are named by this contract.
+// Labels are open: an edge could be taken by a commit that also carries
+// another action, or another party's signature, unless the edge rules it
+// out. So each edge says which actions it is not, and which restricted
+// signers it does not carry. The nodes are witness nodes, not phases: the
+// phase lives in posted state flags, which the rules read.
 
 model MilestoneProject {
   part project {
-    // Client starts the project
-    init --> started: +START +signed_by(client)
-    
-    // Phase 1: Design
-    started --> design_complete: +COMPLETE_DESIGN +signed_by(contractor)
-    design_complete --> design_paid: +PAY_DESIGN +signed_by(client)
-    
-    // Phase 2: Build
-    design_paid --> build_complete: +COMPLETE_BUILD +signed_by(contractor)
-    build_complete --> build_paid: +PAY_BUILD +signed_by(client)
-    
-    // Phase 3: Test
-    build_paid --> test_complete: +COMPLETE_TEST +signed_by(contractor)
-    test_complete --> test_paid: +PAY_TEST +signed_by(client)
-    
-    // Project finished
-    test_paid --> finished: +FINALIZE
-    finished --> finished
+    q0 --> q1: +START +signed_by(/parties/client.id) -signed_by(/parties/contractor.id) -COMPLETE_DESIGN -PAY_DESIGN -COMPLETE_BUILD -PAY_BUILD -COMPLETE_TEST -PAY_TEST -FINALIZE
+    q1 --> q2: +COMPLETE_DESIGN +signed_by(/parties/contractor.id) +bool_true(/project/started.bool) -signed_by(/parties/client.id) -START -PAY_DESIGN -COMPLETE_BUILD -PAY_BUILD -COMPLETE_TEST -PAY_TEST -FINALIZE
+    q2 --> q3: +PAY_DESIGN +signed_by(/parties/client.id) +bool_true(/project/design_done.bool) -signed_by(/parties/contractor.id) -START -COMPLETE_DESIGN -COMPLETE_BUILD -PAY_BUILD -COMPLETE_TEST -PAY_TEST -FINALIZE
+    q3 --> q4: +COMPLETE_BUILD +signed_by(/parties/contractor.id) +bool_true(/project/design_paid.bool) -signed_by(/parties/client.id) -START -COMPLETE_DESIGN -PAY_DESIGN -PAY_BUILD -COMPLETE_TEST -PAY_TEST -FINALIZE
+    q4 --> q5: +PAY_BUILD +signed_by(/parties/client.id) +bool_true(/project/build_done.bool) -signed_by(/parties/contractor.id) -START -COMPLETE_DESIGN -PAY_DESIGN -COMPLETE_BUILD -COMPLETE_TEST -PAY_TEST -FINALIZE
+    q5 --> q6: +COMPLETE_TEST +signed_by(/parties/contractor.id) +bool_true(/project/build_paid.bool) -signed_by(/parties/client.id) -START -COMPLETE_DESIGN -PAY_DESIGN -COMPLETE_BUILD -PAY_BUILD -PAY_TEST -FINALIZE
+    q6 --> q7: +PAY_TEST +signed_by(/parties/client.id) +bool_true(/project/test_done.bool) -signed_by(/parties/contractor.id) -START -COMPLETE_DESIGN -PAY_DESIGN -COMPLETE_BUILD -PAY_BUILD -COMPLETE_TEST -FINALIZE
+    q7 --> q8: +FINALIZE +signed_by(/parties/client.id) +bool_true(/project/test_paid.bool) -signed_by(/parties/contractor.id) -START -COMPLETE_DESIGN -PAY_DESIGN -COMPLETE_BUILD -PAY_BUILD -COMPLETE_TEST -PAY_TEST
   }
 }
 
-// Guarantee: No payment without completion
+// No payment without the completed milestone.
 formula PayOnlyForCompleted {
-  [+PAY_DESIGN] <+COMPLETE_DESIGN> true
-  [+PAY_BUILD] <+COMPLETE_BUILD> true
-  [+PAY_TEST] <+COMPLETE_TEST> true
+  always(([+PAY_DESIGN -bool_true(/project/design_done.bool)] false) & ([+PAY_BUILD -bool_true(/project/build_done.bool)] false) & ([+PAY_TEST -bool_true(/project/test_done.bool)] false))
 }
 
-// Guarantee: Phases are sequential
+// Phases are sequential: each starts after the previous one is paid.
 formula SequentialPhases {
-  [+COMPLETE_BUILD] <+PAY_DESIGN> true
-  [+COMPLETE_TEST] <+PAY_BUILD> true
+  always(([+COMPLETE_BUILD -bool_true(/project/design_paid.bool)] false) & ([+COMPLETE_TEST -bool_true(/project/build_paid.bool)] false))
 }
 
-// Guarantee: Only contractor completes work
+// Only the contractor completes work.
 formula ContractorCompletesWork {
-  [+COMPLETE_DESIGN] <+signed_by(contractor)> true
-  [+COMPLETE_BUILD] <+signed_by(contractor)> true
-  [+COMPLETE_TEST] <+signed_by(contractor)> true
+  always(([+COMPLETE_DESIGN -signed_by(/parties/contractor.id)] false) & ([+COMPLETE_BUILD -signed_by(/parties/contractor.id)] false) & ([+COMPLETE_TEST -signed_by(/parties/contractor.id)] false))
 }
 
-// Guarantee: Only client pays
+// Only the client pays.
 formula ClientPays {
-  [+PAY_DESIGN] <+signed_by(client)> true
-  [+PAY_BUILD] <+signed_by(client)> true
-  [+PAY_TEST] <+signed_by(client)> true
-}
-
-// Test: Full project lifecycle
-test FullProject {
-  p = clone(MilestoneProject)
-  
-  // Start
-  p.commit(+START +signed_by(client))
-  assert p.state == "started"
-  
-  // Design phase
-  p.commit(+COMPLETE_DESIGN +signed_by(contractor))
-  p.commit(+PAY_DESIGN +signed_by(client))
-  
-  // Build phase
-  p.commit(+COMPLETE_BUILD +signed_by(contractor))
-  p.commit(+PAY_BUILD +signed_by(client))
-  
-  // Test phase
-  p.commit(+COMPLETE_TEST +signed_by(contractor))
-  p.commit(+PAY_TEST +signed_by(client))
-  
-  // Finalize
-  p.commit(+FINALIZE)
-  assert p.state == "finished"
-}
-
-// Test: Cannot skip phases
-test CannotSkipPhases {
-  p = clone(MilestoneProject)
-  
-  p.commit(+START +signed_by(client))
-  
-  // Try to pay without completion - should fail
-  // (This would be rejected by the model checker)
+  always(([+PAY_DESIGN -signed_by(/parties/client.id)] false) & ([+PAY_BUILD -signed_by(/parties/client.id)] false) & ([+PAY_TEST -signed_by(/parties/client.id)] false))
 }

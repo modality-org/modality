@@ -1,49 +1,46 @@
 // Treasury Multisig Contract
-// 
-// A 2-of-3 multisig treasury where any 2 of 3 keyholders can:
-// - Approve withdrawals
-// - Add/remove signers (with all 3 required)
 //
-// Uses the threshold predicate for flexible n-of-m verification.
+// A 2-of-3 multisig treasury:
+// - any 2 of the 3 keyholders execute a withdrawal
+// - changing the keyholders takes all 3
+// - only the proposer cancels a proposal
+//
+// threshold("n", /treasury/signers) counts the keys in the .id files under
+// /treasury/signers that signed the commit.
+//
+// The actions (+PROPOSE_WITHDRAWAL, +EXECUTE, ...) are named by this contract.
+// The nodes q0..q3 are witness nodes, not treasury states.
 
 model treasury {
-  initial locked
-  
-  // Standard withdrawal: 2-of-3 approval
-  locked -> pending_withdrawal [+PROPOSE_WITHDRAWAL +signed_by(/treasury/proposer.id)]
-  pending_withdrawal -> locked [+CANCEL +signed_by(/treasury/proposer.id)]
-  pending_withdrawal -> withdrawn [+EXECUTE +threshold(2, /treasury/signers)]
-  withdrawn -> locked [+RESET]
-  
-  // Emergency: all 3 required to change signers
-  locked -> signer_change [+PROPOSE_SIGNER_CHANGE +threshold(3, /treasury/signers)]
-  signer_change -> locked [+CONFIRM_SIGNER_CHANGE +threshold(3, /treasury/signers)]
-  signer_change -> locked [+CANCEL_SIGNER_CHANGE +signed_by(/treasury/proposer.id)]
+  initial q0
+
+  // Labels are open: an edge could be taken by a commit that also carries a
+  // guarded action unless the edge rules it out. So each edge says which of
+  // the guarded actions (EXECUTE, CANCEL, the signer change) it is not.
+
+  // Withdrawal: proposed by the proposer, executed by any 2 of 3
+  q0 -> q1 [+PROPOSE_WITHDRAWAL +signed_by(/treasury/proposer.id) -EXECUTE -CANCEL -PROPOSE_SIGNER_CHANGE -CONFIRM_SIGNER_CHANGE]
+  q1 -> q0 [+CANCEL +signed_by(/treasury/proposer.id) -EXECUTE -PROPOSE_SIGNER_CHANGE -CONFIRM_SIGNER_CHANGE]
+  q1 -> q2 [+EXECUTE +threshold("2", /treasury/signers) -CANCEL -PROPOSE_SIGNER_CHANGE -CONFIRM_SIGNER_CHANGE]
+  q2 -> q0 [+RESET +signed_by(/treasury/proposer.id) -EXECUTE -CANCEL -PROPOSE_SIGNER_CHANGE -CONFIRM_SIGNER_CHANGE]
+
+  // Signer change: all 3 propose and all 3 confirm
+  q0 -> q3 [+PROPOSE_SIGNER_CHANGE +threshold("3", /treasury/signers) -EXECUTE -CANCEL -CONFIRM_SIGNER_CHANGE]
+  q3 -> q0 [+CONFIRM_SIGNER_CHANGE +threshold("3", /treasury/signers) -EXECUTE -CANCEL -PROPOSE_SIGNER_CHANGE]
+  q3 -> q0 [+CANCEL_SIGNER_CHANGE +signed_by(/treasury/proposer.id) -EXECUTE -CANCEL -PROPOSE_SIGNER_CHANGE -CONFIRM_SIGNER_CHANGE]
 }
 
-// Protection: withdrawals must have valid threshold signatures
-rule withdrawal_protection {
-  starting_at $PARENT
-  formula {
-    always([+EXECUTE -threshold("2", /treasury/signers)] false)
-  }
+// A withdrawal executes only with 2 of the 3 signatures.
+formula withdrawal_protection {
+  always([+EXECUTE -threshold("2", /treasury/signers)] false)
 }
 
-// Protection: signer changes require unanimous consent  
-rule signer_change_protection {
-  starting_at $PARENT
-  formula {
-    always (
-      ([+PROPOSE_SIGNER_CHANGE -threshold("3", /treasury/signers)] false) &
-      ([+CONFIRM_SIGNER_CHANGE -threshold("3", /treasury/signers)] false)
-    )
-  }
+// Proposing and confirming a signer change each take all 3 signatures.
+formula signer_change_protection {
+  always(([+PROPOSE_SIGNER_CHANGE -threshold("3", /treasury/signers)] false) & ([+CONFIRM_SIGNER_CHANGE -threshold("3", /treasury/signers)] false))
 }
 
-// Protection: only proposer can cancel their own proposal
-rule cancel_protection {
-  starting_at $PARENT
-  formula {
-    always([+CANCEL -signed_by(/treasury/proposer.id)] false)
-  }
+// Only the proposer cancels a proposal.
+formula cancel_protection {
+  always([+CANCEL -signed_by(/treasury/proposer.id)] false)
 }

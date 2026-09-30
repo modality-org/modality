@@ -1,264 +1,153 @@
 # Escrow: 3-Party Hub Interaction
 
 Three agents (Buyer, Seller, Arbiter) use a hub to execute an escrow contract.
+Each step is a signed commit that posts a flag under `/escrow`; the rules say
+who may post each flag and what must be posted first.
 
 ## Parties
 
-| Party | Role | Identity |
+| Party | Role | Passfile |
 |-------|------|----------|
-| Alice | Buyer | `id_alice_abc` |
-| Bob | Seller | `id_bob_xyz` |
-| Carol | Arbiter | `id_carol_123` |
+| Alice | Buyer | `alice.passfile` |
+| Bob | Seller | `bob.passfile` |
+| Carol | Arbiter | `carol.passfile` |
 
-## Setup Phase
+The commands below run in order from an empty directory. Each party shares
+its public Modality ID with the others; here all passfiles sit side by side.
 
-### 1. Bob (Seller) creates the contract
+## Setup
+
+### 1. Start a hub and create identities
 
 ```bash
-# Bob starts the hub and registers
-modal hub start --detach
-modal hub register --output bob-creds.json
-
-# Bob creates the escrow contract
-modal hub create "Widget Sale Escrow" --creds bob-creds.json
-# → contract_id: con_escrow_001
+mkdir escrow-demo && cd escrow-demo
+modal hub start --host 127.0.0.1 --port 8080 --rpc-port 0 --data-dir .hub &
+HUB=http://127.0.0.1:8080
+sleep 2
+for who in alice bob carol; do modal id create --path $who.passfile; done
 ```
 
-### 2. Bob pushes the model and his identity
+### 2. Bob (Seller) creates the contract
+
+The model is the witness the rules need: after the setup commit, each move
+posts one flag, signed by the party the rules name. Labels are open, so each
+edge also says which paths it leaves alone.
 
 ```bash
-# Create contract directory
-mkdir escrow && cd escrow
-modal c create --contract-id con_escrow_001
+modal c create --dir bob
+cd bob
+modal c set-named-id /parties/buyer.id ../alice.passfile
+modal c set-named-id /parties/seller.id ../bob.passfile
+modal c set-named-id /parties/arbiter.id ../carol.passfile
 
-# Add parties
-echo 'ed25519:bob_pubkey_here' > state/parties/seller.id
-
-# Add the escrow model
-cat > rules/escrow.modality << 'EOF'
-model Escrow {
-  state init, deposited, delivered, disputed, released, refunded
-  
-  init -> deposited : DEPOSIT [+signed_by(/parties/buyer.id)]
-  deposited -> delivered : DELIVER [+signed_by(/parties/seller.id)]
-  delivered -> released : RELEASE [+signed_by(/parties/buyer.id)]
-  delivered -> disputed : DISPUTE [+signed_by(/parties/buyer.id)]
-  disputed -> refunded : REFUND [+signed_by(/parties/arbiter.id)]
-  disputed -> released : RELEASE [+signed_by(/parties/arbiter.id)]
-  
-  released -> released
-  refunded -> refunded
-}
-EOF
-
-# Commit and push
-modal c commit --all -m "Initial escrow setup by seller"
-modal c remote add hub http://localhost:3100
-modal c push --remote hub
-```
-
-### 3. Bob invites Alice (Buyer) and Carol (Arbiter)
-
-```bash
-# Alice and Carol register with the hub
-# Alice: modal hub register --output alice-creds.json
-# Carol: modal hub register --output carol-creds.json
-
-# Bob grants write access
-modal hub grant con_escrow_001 id_alice_abc write --creds bob-creds.json
-modal hub grant con_escrow_001 id_carol_123 write --creds bob-creds.json
-```
-
-### 4. Alice joins and adds her identity
-
-```bash
-# Alice pulls the contract
-mkdir alice-escrow && cd alice-escrow
-modal c create --contract-id con_escrow_001
-modal c remote add hub http://localhost:3100
-modal c pull --remote hub
-
-# Alice adds her identity
-echo 'ed25519:alice_pubkey_here' > state/parties/buyer.id
-modal c commit --all -m "Buyer joins"
-modal c push --remote hub
-```
-
-### 5. Carol joins and adds her identity
-
-```bash
-# Carol pulls and adds her identity
-mkdir carol-escrow && cd carol-escrow
-modal c create --contract-id con_escrow_001
-modal c remote add hub http://localhost:3100
-modal c pull --remote hub
-
-echo 'ed25519:carol_pubkey_here' > state/parties/arbiter.id
-modal c commit --all -m "Arbiter joins"
-modal c push --remote hub
-```
-
-## Execution Phase
-
-### 6. Alice deposits (ACTION commit)
-
-```bash
-# Alice pulls latest state
-cd alice-escrow
-modal c pull --remote hub
-
-# Alice creates a signed DEPOSIT action
-cat > commit-deposit.json << 'EOF'
-{
-  "method": "ACTION",
-  "action": "DEPOSIT",
-  "data": {
-    "amount": "100 USDC",
-    "tx_hash": "0xabc123..."
+cat > model/default.modality <<'EOF'
+model escrow {
+  part flow {
+    q0 --> q1
+    q1 --> q1: +signed_by(/parties/buyer.id) -signed_by(/parties/arbiter.id) +modifies(/escrow/deposited.bool) -modifies(/escrow/delivered.bool) -modifies(/escrow/disputed.bool) -modifies(/escrow/released.bool) -modifies(/escrow/refunded.bool) -modifies(/parties)
+    q1 --> q1: +signed_by(/parties/seller.id) -signed_by(/parties/arbiter.id) +bool_true(/escrow/deposited.bool) +modifies(/escrow/delivered.bool) -modifies(/escrow/deposited.bool) -modifies(/escrow/disputed.bool) -modifies(/escrow/released.bool) -modifies(/escrow/refunded.bool) -modifies(/parties)
+    q1 --> q1: +signed_by(/parties/buyer.id) -signed_by(/parties/arbiter.id) +bool_true(/escrow/delivered.bool) +modifies(/escrow/disputed.bool) -modifies(/escrow/deposited.bool) -modifies(/escrow/delivered.bool) -modifies(/escrow/released.bool) -modifies(/escrow/refunded.bool) -modifies(/parties)
+    q1 --> q1: +signed_by(/parties/buyer.id) -signed_by(/parties/arbiter.id) +bool_true(/escrow/delivered.bool) -bool_true(/escrow/refunded.bool) +modifies(/escrow/released.bool) -modifies(/escrow/deposited.bool) -modifies(/escrow/delivered.bool) -modifies(/escrow/disputed.bool) -modifies(/escrow/refunded.bool) -modifies(/parties)
+    q1 --> q1: +signed_by(/parties/arbiter.id) +bool_true(/escrow/delivered.bool) +bool_true(/escrow/disputed.bool) -bool_true(/escrow/refunded.bool) +modifies(/escrow/released.bool) -modifies(/escrow/deposited.bool) -modifies(/escrow/delivered.bool) -modifies(/escrow/disputed.bool) -modifies(/escrow/refunded.bool) -modifies(/parties)
+    q1 --> q1: +signed_by(/parties/arbiter.id) +bool_true(/escrow/disputed.bool) -bool_true(/escrow/released.bool) +modifies(/escrow/refunded.bool) -modifies(/escrow/deposited.bool) -modifies(/escrow/delivered.bool) -modifies(/escrow/disputed.bool) -modifies(/escrow/released.bool) -modifies(/parties)
   }
 }
 EOF
 
-# Sign and push
-modal c commit --action commit-deposit.json --sign alice.passfile -m "Deposit funds"
-modal c push --remote hub
-# Hub validates: DEPOSIT allowed from init, signed by buyer ✓
+modal add-rule --name parties_fixed 'always([+modifies(/parties)] false)'
+modal add-rule --name buyer_deposits 'always([+modifies(/escrow/deposited.bool) -signed_by(/parties/buyer.id)] false)'
+modal add-rule --name seller_delivers_after_deposit 'always(([+modifies(/escrow/delivered.bool) -signed_by(/parties/seller.id)] false) & ([+modifies(/escrow/delivered.bool) -bool_true(/escrow/deposited.bool)] false))'
+modal add-rule --name buyer_disputes_after_delivery 'always(([+modifies(/escrow/disputed.bool) -signed_by(/parties/buyer.id)] false) & ([+modifies(/escrow/disputed.bool) -bool_true(/escrow/delivered.bool)] false))'
+modal add-rule --name release 'always(([+modifies(/escrow/released.bool) -bool_true(/escrow/delivered.bool)] false) & ([+modifies(/escrow/released.bool) -signed_by(/parties/buyer.id) -signed_by(/parties/arbiter.id)] false) & ([+modifies(/escrow/released.bool) +signed_by(/parties/arbiter.id) -bool_true(/escrow/disputed.bool)] false))'
+modal add-rule --name arbiter_refunds_disputes 'always(([+modifies(/escrow/refunded.bool) -signed_by(/parties/arbiter.id)] false) & ([+modifies(/escrow/refunded.bool) -bool_true(/escrow/disputed.bool)] false))'
+modal add-rule --name settled_once 'always(([+modifies(/escrow/released.bool) +bool_true(/escrow/refunded.bool)] false) & ([+modifies(/escrow/refunded.bool) +bool_true(/escrow/released.bool)] false))'
+
+modal c commit --all --sign ../bob.passfile -m "Escrow setup by the seller"
+CONTRACT=$(modal c id)
+modal c push --remote $HUB/contracts/$CONTRACT
+cd ..
 ```
 
-### 7. Bob delivers
+### 3. Alice and Carol take their copies
 
 ```bash
-cd bob-escrow
-modal c pull --remote hub
-# Sees Alice's deposit
-
-cat > commit-deliver.json << 'EOF'
-{
-  "method": "ACTION",
-  "action": "DELIVER",
-  "data": {
-    "tracking": "FEDEX-123456",
-    "delivered_at": "2026-02-01T15:00:00Z"
-  }
-}
-EOF
-
-modal c commit --action commit-deliver.json --sign bob.passfile -m "Package delivered"
-modal c push --remote hub
-# Hub validates: DELIVER allowed from deposited, signed by seller ✓
+modal c pull $HUB/contracts/$CONTRACT --dir alice
+modal c pull $HUB/contracts/$CONTRACT --dir carol
 ```
 
-### 8a. Happy Path: Alice releases
+## Execution
+
+### 4. Alice deposits
 
 ```bash
-cd alice-escrow
-modal c pull --remote hub
-
-cat > commit-release.json << 'EOF'
-{
-  "method": "ACTION",
-  "action": "RELEASE",
-  "data": {
-    "rating": 5,
-    "comment": "Great seller!"
-  }
-}
-EOF
-
-modal c commit --action commit-release.json --sign alice.passfile -m "Release funds"
-modal c push --remote hub
-# Hub validates: RELEASE allowed from delivered, signed by buyer ✓
-# Contract complete!
+cd alice
+modal c commit --path /escrow/deposited.bool --value true --sign ../alice.passfile -m "Deposit"
+modal c push
+cd ..
 ```
 
-### 8b. Dispute Path: Alice disputes
+### 5. Bob cannot release the funds to himself
 
 ```bash
-cd alice-escrow
-modal c pull --remote hub
-
-cat > commit-dispute.json << 'EOF'
-{
-  "method": "ACTION",
-  "action": "DISPUTE",
-  "data": {
-    "reason": "Item not as described",
-    "evidence": ["photo1.jpg", "photo2.jpg"]
-  }
-}
-EOF
-
-modal c commit --action commit-dispute.json --sign alice.passfile -m "Dispute: item defective"
-modal c push --remote hub
-# Hub validates: DISPUTE allowed from delivered, signed by buyer ✓
+cd bob
+modal c pull
+if modal c commit --path /escrow/released.bool --value true --sign ../bob.passfile -m "Release"; then
+  echo "unexpected: the seller released" && exit 1
+fi
+echo "refused: only the buyer, or the arbiter in a dispute, releases"
 ```
 
-### 9. Carol (Arbiter) resolves dispute
+### 6. Bob delivers
 
 ```bash
-cd carol-escrow
-modal c pull --remote hub
-# Carol reviews evidence from Alice and Bob
-
-# Carol decides in favor of Alice
-cat > commit-refund.json << 'EOF'
-{
-  "method": "ACTION",
-  "action": "REFUND",
-  "data": {
-    "ruling": "Item significantly different from listing",
-    "refund_amount": "100 USDC"
-  }
-}
-EOF
-
-modal c commit --action commit-refund.json --sign carol.passfile -m "Arbiter: refund buyer"
-modal c push --remote hub
-# Hub validates: REFUND allowed from disputed, signed by arbiter ✓
-# Contract complete!
+modal c commit --path /escrow/delivered.bool --value true --sign ../bob.passfile -m "Deliver"
+modal c push
+cd ..
 ```
 
-## Final State
+### 7. Alice disputes the delivery
 
 ```bash
-modal c pull --remote hub
-modal c log
-
-# Commit history:
-# 1. init_seller - Bob adds model
-# 2. init_buyer - Alice joins
-# 3. init_arbiter - Carol joins
-# 4. action_deposit - Alice deposits
-# 5. action_deliver - Bob delivers
-# 6. action_dispute - Alice disputes
-# 7. action_refund - Carol rules
+cd alice
+modal c pull
+modal c commit --path /escrow/disputed.bool --value true --sign ../alice.passfile -m "Dispute"
+modal c push
+cd ..
 ```
 
-## Validation Examples
-
-### Invalid: Bob tries to release (wrong signer)
+### 8. Carol rules for the buyer
 
 ```bash
-cd bob-escrow
-modal c commit --action '{"method":"ACTION","action":"RELEASE"}' --sign bob.passfile
-modal c push --remote hub
-# ❌ Error: "Must be signed by /parties/buyer.id"
+cd carol
+modal c pull
+modal c commit --path /escrow/refunded.bool --value true --sign ../carol.passfile -m "Refund"
+modal c push
+cd ..
 ```
 
-### Invalid: Alice tries to release before delivery
+### 9. Nobody can release after the refund
 
 ```bash
-# If state is still "deposited"
-modal c commit --action '{"method":"ACTION","action":"RELEASE"}' --sign alice.passfile
-modal c push --remote hub
-# ❌ Error: "Action 'RELEASE' not allowed from state 'deposited'"
+cd alice
+modal c pull
+if modal c commit --path /escrow/released.bool --value true --sign ../alice.passfile -m "Release"; then
+  echo "unexpected: released after a refund" && exit 1
+fi
+echo "refused: the escrow settles once"
+modal c log | head -20
+cd ..
+kill %1
 ```
 
-### Invalid: Anyone tries to act after completion
+## What the rules guarantee
 
-```bash
-# After contract is in "released" or "refunded" state
-modal c commit --action '{"method":"ACTION","action":"DISPUTE"}' --sign alice.passfile
-modal c push --remote hub
-# ❌ Error: "Action 'DISPUTE' not allowed from state 'released'"
-```
+- Only the buyer deposits, and only the seller delivers, after the deposit.
+- Funds are released by the buyer after delivery, or by the arbiter in a
+  dispute; only the arbiter refunds, and only in a dispute.
+- The escrow settles once: no release after a refund, no refund after a
+  release.
+- The parties are fixed at setup.
+
+The hub stores and serves the log. It does not decide who may do what: each
+party's `modal c commit` checks the rules locally, and a network node checks
+them again when the log is pushed to a chain remote.

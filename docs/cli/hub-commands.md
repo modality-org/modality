@@ -66,14 +66,25 @@ curl http://127.0.0.1:8080/templates
 
 ## Contract Remotes
 
-For command-line contract work, configure an HTTP hub URL through the contract
-remote commands and then use `modal c push` or `modal c pull`:
+For command-line contract work, push to the contract's hub URL once; `push`
+saves it as the `origin` remote. Anyone else copies the contract from the same
+URL, and after that plain `modal c push` and `modal c pull` use it:
 
 ```bash
-modal c remote add origin http://127.0.0.1:8080/contracts/<contract-id>
-modal c push origin --sign ~/.modality/alice.mod_passfile
-modal c pull origin
+# The creator (contract id from .contract/config.json)
+modal c push --remote http://127.0.0.1:8080/contracts/<contract-id>
+
+# Another party: a new copy in ./<contract-id>, or --dir
+modal c pull http://127.0.0.1:8080/contracts/<contract-id>
+
+# Both, from then on
+modal c commit --path /notes/hi.text --value hi --sign ~/.modality/alice.mod_passfile
+modal c push
+modal c pull
 ```
+
+`modal hub start` does not authenticate pushes: anyone who can reach it can
+push to any contract it holds.
 
 HTTP hub remotes read credentials from `.modal-hub/credentials.json` by default,
 or from the `--hub-creds <HUB_CREDS>` option on `modal c push` and `modal c
