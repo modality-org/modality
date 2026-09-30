@@ -314,6 +314,30 @@ expect_log "Failed to process sequenced commit $RACE_ID.*forks the contract" "Th
 commit "$LP_WALLET" "The LP receives 1100 / 2 = 550 A" --method recv --send-commit-id "$REMOVE_ID" --asset-contract "$KA_ID" --asset-id tokA --amount 550
 commit "$LP_WALLET" "The LP receives 3638 / 2 = 1819 B" --method recv --send-commit-id "$REMOVE_ID" --send-index 1 --asset-contract "$KB_ID" --asset-id tokB --amount 1819
 
+echo ""
+echo "A trader with no copy of the pool pulls it from the node and swaps from there..."
+TRADER_POOL="./tmp/trader-pool"
+assert_success "modal contract pull --contract-id $POOL_ID --dir $TRADER_POOL --remote $REMOTE --output json" \
+  "The trader starts a copy of the pool from the node"
+TESTS_RUN=$((TESTS_RUN + 1))
+if [ "$(cat "$TRADER_POOL/.contract/HEAD")" = "$REMOVE_ID" ]; then
+    TESTS_PASSED=$((TESTS_PASSED + 1))
+    echo -e "  ${GREEN}✓${NC} The trader's copy is at the pool's head"
+else
+    TESTS_FAILED=$((TESTS_FAILED + 1))
+    echo -e "  ${RED}✗${NC} The trader's copy is at the pool's head"
+fi
+SWAP2='{"op":"swap","min_out":100}'
+commit "$TRADER_WALLET" "The trader sends 50 A with min_out 100" --method send --asset-contract "$KA_ID" --asset-id tokA --to-contract "$POOL_ID" --amount 50 --memo "'$SWAP2'"
+SWAP2_SEND=$LAST
+SWAP2_VALUE=$(invoke_value swap "$(claim "$SWAP2_SEND" "$TRADER_ID" "$KA_ID" tokA 50 "$SWAP2")")
+assert_success "modal contract commit --theory v2 --dir $TRADER_POOL --method invoke --path $PROGRAM --value '$SWAP2_VALUE' --sign $TRADER --output json" \
+  "The trader invokes the swap from their own copy"
+SWAP2_ID=$(cat "$TRADER_POOL/.contract/HEAD")
+push "$TRADER_POOL"
+expect_log "Sequenced commit $SWAP2_ID" "The trader's invoke should be sequenced" || true
+commit "$TRADER_WALLET" "The trader receives 1819 * 49.85 / 599.85 = 151 B" --method recv --send-commit-id "$SWAP2_ID" --asset-contract "$KB_ID" --asset-id tokB --amount 151
+
 set +e
 REPLAY_JSON=$(modal contract replay --remote "$REMOTE" --contract-id "$POOL_ID" --through "$REMOVE_ID" --output json 2>./tmp/replay.err)
 REPLAY_STATUS=$?

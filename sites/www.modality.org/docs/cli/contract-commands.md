@@ -402,7 +402,17 @@ Pull commits from a hub or chain.
 | `--dir <DIR>` | Contract directory (defaults to current directory) |
 | `--node-dir <DIR>` | Node directory for identity/config when using P2P remotes |
 | `--hub-creds <FILE>` | Hub credentials file for HTTP hub remotes |
+| `--contract-id <ID>` | Start a copy of this contract in `--dir`, which must not hold one yet, and pull its sequenced commits from `--remote` (saved as the remote) |
 | `--output <FORMAT>` | Output format: `text` or `json` |
+
+A node returns a contract's sequenced commits in log order, each after its
+parent. Pull checks that each hashes to its id, moves `HEAD` when it was
+unset or at the last pulled commit, and writes the state and rules files.
+
+```bash
+# Anyone with the contract id can take a copy and commit on its head
+modal c pull --contract-id 12D3KooW... --dir ./pool --remote /ip4/127.0.0.1/tcp/10101/ws/p2p/12D3KooW...
+```
 
 ## Replay
 

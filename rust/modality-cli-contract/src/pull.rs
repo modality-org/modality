@@ -40,6 +40,11 @@ pub struct Opts {
     #[clap(long)]
     hub_creds: Option<PathBuf>,
 
+    /// Start a copy of this contract in --dir, which must not hold one yet,
+    /// and pull its sequenced commits from --remote (saved as the remote)
+    #[clap(long)]
+    contract_id: Option<String>,
+
     /// Output format (json or text)
     #[clap(long, default_value = "text")]
     output: String,
@@ -58,8 +63,20 @@ pub async fn run(opts: &Opts) -> Result<()> {
         std::env::current_dir()?
     };
 
-    // Open contract store
-    let store = ContractStore::open(&contract_dir)?;
+    // Open contract store, or start one for --contract-id
+    let store = match &opts.contract_id {
+        Some(contract_id) => {
+            let url = opts.remote.clone().ok_or_else(|| {
+                anyhow::anyhow!("--contract-id needs --remote: the node to pull the contract from")
+            })?;
+            let store = ContractStore::init(&contract_dir, contract_id.clone())?;
+            let mut config = store.load_config()?;
+            config.add_remote(opts.remote_name.clone(), url);
+            store.save_config(&config)?;
+            store
+        }
+        None => ContractStore::open(&contract_dir)?,
+    };
     let config = store.load_config()?;
 
     // Get remote URL
@@ -200,30 +217,23 @@ pub async fn run(opts: &Opts) -> Result<()> {
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow::anyhow!("Missing commit id (hash or commit_id)"))?;
 
-        // For hub format, reconstruct body/head from data/parent
-        let (body, head) = if let Some(data) = commit_data.get("data") {
+        // For hub format, reconstruct body/head from data/parent. A node
+        // sends body and head whole, so the commit must hash to its id.
+        let commit: CommitFile = if let Some(data) = commit_data.get("data") {
             let parent = commit_data
                 .get("parent")
                 .and_then(|p| p.as_str())
                 .map(|s| s.to_string());
-            (data.clone(), json!({ "parent": parent }))
+            serde_json::from_value(json!({ "body": data, "head": { "parent": parent } }))?
         } else {
             let body = commit_data
                 .get("body")
-                .ok_or_else(|| anyhow::anyhow!("Missing body"))?
-                .clone();
+                .ok_or_else(|| anyhow::anyhow!("Missing body"))?;
             let head = commit_data
                 .get("head")
-                .ok_or_else(|| anyhow::anyhow!("Missing head"))?
-                .clone();
-            (body, head)
+                .ok_or_else(|| anyhow::anyhow!("Missing head"))?;
+            CommitFile::verified(commit_id, Some(body), Some(head))?
         };
-
-        // Reconstruct CommitFile
-        let commit: CommitFile = serde_json::from_value(json!({
-            "body": body,
-            "head": head,
-        }))?;
 
         // Save if we don't already have it
         if !store.has_commit(commit_id) {
@@ -238,9 +248,10 @@ pub async fn run(opts: &Opts) -> Result<()> {
     if let Some(latest) = latest_commit_id {
         store.set_remote_head(&opts.remote_name, &latest)?;
 
-        // If local HEAD is not set or is behind, update it
+        // Move local HEAD when it is unset or was at the remote's old head:
+        // commits arrive in log order, so the last is the new head.
         let local_head = store.get_head()?;
-        if local_head.is_none() {
+        if local_head.is_none() || local_head == since_commit {
             store.set_head(&latest)?;
         }
     }
