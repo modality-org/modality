@@ -91,7 +91,7 @@ fn program_state(store: &ContractStore) -> Result<Option<serde_json::Map<String,
         let files: Vec<_> = prefix.iter().map(|(_, file)| file.clone()).collect();
         let wasm = wasm_modules_from_commits(&files)?;
         let contract_id = store.load_config()?.contract_id;
-        let mut engine = crate::replay::CliWasmEngine;
+        let mut engine = crate::replay::CliWasmEngine::default();
         let expanded = expand_prefix(&contract_id, &prefix, &wasm, Some(&mut engine))?.0;
         Ok(Some(accepted_state_from_commits(&expanded)))
     }

@@ -418,6 +418,36 @@ impl DatastoreManager {
         Ok(events)
     }
 
+    /// Take queued events in order while the gas their commits declare
+    /// stays within `round_limit`; the rest stay queued for a later round.
+    /// The first event is always taken, so one oversized push cannot stall
+    /// the queue. `None` takes everything (a network with no gas schedule).
+    pub async fn drain_sequencer_events_within(
+        &self,
+        schedule: Option<&modality_common::gas::GasSchedule>,
+    ) -> Result<Vec<serde_json::Value>> {
+        let Some(schedule) = schedule else {
+            return self.drain_sequencer_events().await;
+        };
+        let events = self.load_sequencer_events()?;
+        let mut taken = Vec::new();
+        let mut declared = 0u64;
+        let mut rest = events.into_iter();
+        for event in rest.by_ref() {
+            let gas = declared_gas(schedule, &event);
+            if !taken.is_empty() && declared.saturating_add(gas) > schedule.round_limit {
+                let mut left = vec![event];
+                left.extend(rest);
+                self.store_sequencer_events(&left)?;
+                return Ok(taken);
+            }
+            declared = declared.saturating_add(gas);
+            taken.push(event);
+        }
+        self.store_sequencer_events(&[])?;
+        Ok(taken)
+    }
+
     fn load_sequencer_events(&self) -> Result<Vec<serde_json::Value>> {
         match self.node_state.get("pending_sequencer_events")? {
             Some(data) => Ok(serde_json::from_slice(&data).unwrap_or_default()),
@@ -452,6 +482,19 @@ impl DatastoreManager {
                 .unwrap_or(crate::DEFAULT_PREDICATE_THEORY_VERSION)
                 .to_string()
         };
+        let schedule = |cfg: &serde_json::Value| {
+            cfg.get("gas_schedule").and_then(|v| v.as_str()).unwrap_or("none").to_string()
+        };
+        let (was_gas, now_gas) = (schedule(&stored), schedule(network_config));
+        if was_gas != now_gas {
+            if let Some(contract_id) = self.first_contract_with_sequenced_commits()? {
+                return Err(crate::Error::InvalidData(format!(
+                    "network gas_schedule changed from {was_gas} to {now_gas}, but this node \
+                     holds sequenced commits of contract {contract_id} metered under {was_gas}. \
+                     Keep {was_gas}, or start a new chain with cleared storage"
+                )));
+            }
+        }
         let (was, now) = (version(&stored), version(network_config));
         if was == now {
             return Ok(());
@@ -504,6 +547,7 @@ impl DatastoreManager {
                 .unwrap_or(crate::DEFAULT_PREDICATE_THEORY_VERSION),
             "network_name": network_config.get("name").and_then(|v| v.as_str()).unwrap_or(""),
             "hash_lane": network_config.get("hash_lane").cloned().unwrap_or(serde_json::Value::Null),
+            "gas_schedule": network_config.get("gas_schedule").cloned().unwrap_or(serde_json::Value::Null),
         });
         self.node_state
             .put("validator_config", &serde_json::to_vec(&cfg)?)
@@ -582,6 +626,21 @@ impl DatastoreManager {
             .and_then(|v| v.as_str())
             .unwrap_or(crate::DEFAULT_PREDICATE_THEORY_VERSION)
             .to_string())
+    }
+
+    /// The gas schedule the network enforces, or `None` when it names none:
+    /// then commits are metered under v1 for reporting, and no limit is
+    /// enforced. A version this build does not know is an error.
+    pub fn gas_schedule(&self) -> Result<Option<&'static modality_common::gas::GasSchedule>> {
+        let cfg = self.validator_config()?;
+        match cfg.get("gas_schedule").and_then(|v| v.as_str()) {
+            None => Ok(None),
+            Some(name) => {
+                let version: modality_common::gas::ScheduleVersion =
+                    name.parse().map_err(crate::Error::InvalidData)?;
+                Ok(Some(modality_common::gas::GasSchedule::for_version(version)))
+            }
+        }
     }
 
     /// The network's hash-lane parameters, or `None` when the network has no
@@ -1089,8 +1148,54 @@ impl DatastoreManager {
     }
 }
 
+/// The gas a queued event's commits declare: each commit's `gas_limit`, or
+/// the schedule's default. Events that are not pushes declare none.
+fn declared_gas(schedule: &modality_common::gas::GasSchedule, event: &serde_json::Value) -> u64 {
+    if event.get("type").and_then(|t| t.as_str()) != Some("contract_push") {
+        return 0;
+    }
+    event
+        .get("data")
+        .and_then(|d| d.get("commits"))
+        .and_then(|c| c.as_array())
+        .map(|commits| {
+            commits.iter().fold(0u64, |sum, commit| {
+                let limit = commit
+                    .get("head")
+                    .and_then(|h| h.get("gas_limit"))
+                    .and_then(|g| g.as_u64())
+                    .unwrap_or(schedule.default_commit_limit);
+                sum.saturating_add(limit)
+            })
+        })
+        .unwrap_or(0)
+}
+
 #[cfg(test)]
 mod tests {
+
+    #[tokio::test]
+    async fn a_round_takes_events_until_their_declared_gas_reaches_its_limit() {
+        let mgr = DatastoreManager::create_in_memory().unwrap();
+        let push = |limit: u64| {
+            serde_json::json!({"type": "contract_push", "data": {"commits": [
+                {"commit_id": "x", "body": [], "head": {"gas_limit": limit}}
+            ]}})
+        };
+        let schedule = modality_common::gas::GasSchedule {
+            round_limit: 100,
+            ..modality_common::gas::SCHEDULE_V1
+        };
+        for event in [push(60), push(30), push(20), serde_json::json!({"type": "prefix_cert"}), push(10)] {
+            mgr.enqueue_sequencer_event(event).await.unwrap();
+        }
+        let first = mgr.drain_sequencer_events_within(Some(&schedule)).await.unwrap();
+        assert_eq!(first.len(), 2, "60 + 30 fit; 20 more would not");
+        let second = mgr.drain_sequencer_events_within(Some(&schedule)).await.unwrap();
+        assert_eq!(second.len(), 3, "20, the cert, and 10");
+        mgr.enqueue_sequencer_event(push(500)).await.unwrap();
+        assert_eq!(mgr.drain_sequencer_events_within(Some(&schedule)).await.unwrap().len(), 1, "an oversized push still goes, alone");
+    }
     use super::*;
 
     async fn save_commit(mgr: &DatastoreManager, commit_id: &str, in_batch: Option<&str>) {

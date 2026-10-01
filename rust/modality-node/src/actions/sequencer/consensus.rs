@@ -1350,7 +1350,8 @@ pub async fn spawn_consensus_loop_with_checkpoints(
 
                     let events = match &mgr {
                         Some(mgr) => {
-                            let raw = match mgr.drain_sequencer_events().await {
+                            let schedule = mgr.gas_schedule().ok().flatten();
+                            let raw = match mgr.drain_sequencer_events_within(schedule).await {
                                 Ok(events) => events,
                                 Err(e) => {
                                     log::warn!("Failed to drain sequencer events: {}", e);

@@ -12,6 +12,8 @@ use sha2::{Digest, Sha256};
 
 pub struct WasmInvokeEngine {
     gas_limit: u64,
+    fuel_limit: Option<u64>,
+    /// Fuel the last program used, measured by the runtime.
     pub last_gas_used: u64,
     pub last_program_path: Option<String>,
     pub last_actions_count: usize,
@@ -21,6 +23,7 @@ impl WasmInvokeEngine {
     pub fn new(gas_limit: u64) -> Self {
         Self {
             gas_limit,
+            fuel_limit: None,
             last_gas_used: 0,
             last_program_path: None,
             last_actions_count: 0,
@@ -47,17 +50,43 @@ pub fn execute_wasm_program(
     args: Value,
     context: ProgramContext,
 ) -> Result<modality_wasm_validation::ProgramResult> {
-    let input_json = encode_program_input(args, context)?;
+    execute_wasm_program_metered(wasm_bytes, gas_limit, args, context).0
+}
+
+/// [`execute_wasm_program`], with the fuel it used whether or not it
+/// finished.
+pub fn execute_wasm_program_metered(
+    wasm_bytes: &[u8],
+    gas_limit: u64,
+    args: Value,
+    context: ProgramContext,
+) -> (Result<modality_wasm_validation::ProgramResult>, u64) {
+    let input_json = match encode_program_input(args, context) {
+        Ok(input) => input,
+        Err(err) => return (Err(err), 0),
+    };
     let mut executor = WasmExecutor::new(gas_limit);
-    let result_json = executor
-        .execute(wasm_bytes, "execute", &input_json)
-        .map_err(|err| anyhow!("Program execution failed: {err}"))?;
-    let result = decode_program_result(&result_json)?;
-    validate_program_result(&result)?;
-    Ok(result)
+    let run = executor.execute(wasm_bytes, "execute", &input_json);
+    let fuel = executor.fuel_used();
+    let result = run
+        .map_err(|err| anyhow!("Program execution failed: {err}"))
+        .and_then(|json| decode_program_result(&json))
+        .and_then(|result| {
+            validate_program_result(&result)?;
+            Ok(result)
+        });
+    (result, fuel)
 }
 
 impl InvokeEngine for WasmInvokeEngine {
+    fn set_fuel_limit(&mut self, limit: u64) {
+        self.fuel_limit = Some(limit);
+    }
+
+    fn last_fuel(&self) -> u64 {
+        self.last_gas_used
+    }
+
     fn execute_invoke(
         &mut self,
         wasm: &ReplayWasm,
@@ -76,17 +105,19 @@ impl InvokeEngine for WasmInvokeEngine {
                 sha256
             );
         }
-        let gas_limit = wasm.gas_limit.min(self.gas_limit);
-        let result = execute_wasm_program(
+        let gas_limit = self.fuel_limit.take().unwrap_or(wasm.gas_limit.min(self.gas_limit));
+        self.last_gas_used = 0;
+        let (result, fuel) = execute_wasm_program_metered(
             &bytes,
             gas_limit,
             args.clone(),
             program_context_from_frozen(ctx),
-        )?;
+        );
+        self.last_gas_used = fuel;
+        let result = result?;
         if !result.is_success() {
             anyhow::bail!("Program execution failed: {:?}", result.errors);
         }
-        self.last_gas_used = result.gas_used;
         self.last_program_path = Some(wasm.path.clone());
         self.last_actions_count = result.actions.len();
         Ok(result

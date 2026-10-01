@@ -55,6 +55,10 @@ pub struct CommitHead {
     /// Rule that applies only to this commit, not accumulated into contract ruleset
     #[serde(skip_serializing_if = "Option::is_none")]
     pub rule_for_this_commit: Option<RuleForThisCommit>,
+    /// The most gas this commit may use. Signed with the rest of the head,
+    /// so no relay can raise it. Absent: the network schedule's default.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub gas_limit: Option<u64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -80,6 +84,7 @@ impl CommitFile {
                 evolution: None,
                 replay_bundles: None,
                 rule_for_this_commit: None,
+                gas_limit: None,
             },
         }
     }
@@ -94,6 +99,7 @@ impl CommitFile {
                 evolution: None,
                 replay_bundles: None,
                 rule_for_this_commit: None,
+                gas_limit: None,
             },
         }
     }

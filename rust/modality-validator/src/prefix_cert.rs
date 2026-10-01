@@ -169,7 +169,17 @@ pub async fn build_prefix_from_store(
     let commits = Commit::find_by_contract_multi(ds, source_contract).await?;
     let ids = commit_prefix_ids(&commits, through_commit)?;
     let digest = prefix_digest(&ids);
-    let gas_used = (ids.len() as u64).saturating_mul(GAS_PER_COMMIT);
+    // Re-checking a prefix costs what applying it did: the apply gas each
+    // commit recorded, under the same schedule. A commit applied before gas
+    // was recorded counts GAS_PER_COMMIT.
+    let mut gas_used = 0u64;
+    for id in &ids {
+        let apply = crate::contract_processor::recorded_gas(ds, source_contract, id)
+            .await?
+            .map(|gas| gas.apply)
+            .unwrap_or(GAS_PER_COMMIT);
+        gas_used = gas_used.saturating_add(apply);
+    }
     Ok((ids, digest, gas_used))
 }
 

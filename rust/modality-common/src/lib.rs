@@ -8,6 +8,7 @@ pub mod encrypted_text;
 pub mod exact_num;
 pub mod hash_commitment;
 pub mod amount;
+pub mod gas;
 pub mod miner_header;
 pub mod hash_tax;
 pub mod hub_client;

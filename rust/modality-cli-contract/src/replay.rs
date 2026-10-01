@@ -89,7 +89,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
 fn verify_artifact(artifact: &ReplayArtifact) -> Result<ReplayReport> {
     #[cfg(feature = "wasm")]
     {
-        let mut engine = CliWasmEngine;
+        let mut engine = CliWasmEngine::default();
         let needs_invoke = artifact.commits.iter().any(|commit| {
             commit
                 .body
@@ -262,7 +262,11 @@ fn print_report(opts: &Opts, artifact: &ReplayArtifact, report: &ReplayReport) -
 }
 
 #[cfg(feature = "wasm")]
-pub(crate) struct CliWasmEngine;
+#[derive(Default)]
+pub(crate) struct CliWasmEngine {
+    fuel_limit: Option<u64>,
+    last_fuel: u64,
+}
 
 #[cfg(all(feature = "wasm", feature = "model-status"))]
 pub(crate) fn prefix_from_store(store: &ContractStore) -> Result<Vec<(String, CommitFile)>> {
@@ -286,6 +290,14 @@ pub(crate) fn prefix_from_store(store: &ContractStore) -> Result<Vec<(String, Co
 
 #[cfg(feature = "wasm")]
 impl InvokeEngine for CliWasmEngine {
+    fn set_fuel_limit(&mut self, limit: u64) {
+        self.fuel_limit = Some(limit);
+    }
+
+    fn last_fuel(&self) -> u64 {
+        self.last_fuel
+    }
+
     fn execute_invoke(
         &mut self,
         wasm: &ReplayWasm,
@@ -315,8 +327,11 @@ impl InvokeEngine for CliWasmEngine {
             accepted_state_oracle_keys: ctx.accepted_state_oracle_keys.clone(),
         };
         let input_json = encode_program_input(args.clone(), context)?;
-        let mut executor = WasmExecutor::new(wasm.gas_limit);
-        let result_json = executor.execute(&bytes, "execute", &input_json)?;
+        let mut executor = WasmExecutor::new(self.fuel_limit.take().unwrap_or(wasm.gas_limit));
+        self.last_fuel = 0;
+        let run = executor.execute(&bytes, "execute", &input_json);
+        self.last_fuel = executor.fuel_used();
+        let result_json = run?;
         let result = decode_program_result(&result_json)?;
         validate_program_result(&result)?;
         if !result.is_success() {

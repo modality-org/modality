@@ -8,7 +8,7 @@ use serde_json::{Map, Value};
 use std::collections::BTreeMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use wasmtime::{Config, Engine, Module};
+use wasmtime::{Engine, Module};
 
 /// Evaluates WASM predicates to boolean propositions
 /// Handles cross-contract predicate execution and resolution with caching
@@ -21,10 +21,7 @@ pub struct PredicateExecutor {
 
 impl PredicateExecutor {
     pub fn new(datastore: Arc<Mutex<DatastoreManager>>, gas_limit: u64) -> Self {
-        // Create Wasmtime engine with fuel consumption enabled
-        let mut config = Config::new();
-        config.consume_fuel(true);
-        let engine = Engine::new(&config).expect("Failed to create WASM engine");
+        let engine = modality_wasm_runtime::executor::deterministic_engine();
 
         // Create cache with default limits (100 modules, 50MB)
         let cache = Arc::new(Mutex::new(WasmModuleCache::default()));
@@ -44,9 +41,7 @@ impl PredicateExecutor {
         max_modules: usize,
         max_size_mb: usize,
     ) -> Self {
-        let mut config = Config::new();
-        config.consume_fuel(true);
-        let engine = Engine::new(&config).expect("Failed to create WASM engine");
+        let engine = modality_wasm_runtime::executor::deterministic_engine();
 
         let cache = Arc::new(Mutex::new(WasmModuleCache::new(max_modules, max_size_mb)));
 

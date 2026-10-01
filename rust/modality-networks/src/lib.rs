@@ -137,6 +137,12 @@ pub struct NetworkInfo {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub predicate_theory_version: Option<String>,
 
+    /// Gas schedule version (`v1`) every node meters commits under and
+    /// enforces limits by. Omitted = metered under v1 for reporting only.
+    /// Fixed from genesis like the theory version.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub gas_schedule: Option<String>,
+
     /// Hash-lane parameters (`quota_per_block`, `floor_bits`, `algorithm`).
     /// Omitted = no hash lane. Fixed from genesis like the theory version.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -445,6 +451,7 @@ mod tests {
             initial_difficulty: None,
             target_block_time_secs: None,
             predicate_theory_version: None,
+            gas_schedule: None,
             hash_lane: None,
             mod_contract: None,
         };
@@ -472,6 +479,7 @@ mod tests {
             initial_difficulty: None,
             target_block_time_secs: None,
             predicate_theory_version: None,
+            gas_schedule: None,
             hash_lane: None,
             mod_contract: None,
         };
@@ -498,6 +506,7 @@ mod tests {
             initial_difficulty: None,
             target_block_time_secs: None,
             predicate_theory_version: None,
+            gas_schedule: None,
             hash_lane: None,
             mod_contract: None,
             checkpoints: Some(vec![

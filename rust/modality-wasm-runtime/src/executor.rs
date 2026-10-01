@@ -43,28 +43,44 @@ pub fn program_that_emits(actions: &serde_json::Value) -> Result<Vec<u8>> {
     fixed_result_wasm(&result.to_string())
 }
 
+/// The one wasmtime configuration every node runs programs and predicates
+/// under. Fuel is gas, so it must count the same everywhere: fuel on, NaNs
+/// canonical, no threads, no relaxed SIMD (whose results may differ by
+/// CPU). The wasmtime version is pinned for the same reason.
+pub fn deterministic_config() -> Config {
+    let mut config = Config::new();
+    config.consume_fuel(true);
+    config.cranelift_nan_canonicalization(true);
+    config.wasm_threads(false);
+    config.wasm_relaxed_simd(false);
+    config
+}
+
+/// An engine with [`deterministic_config`].
+pub fn deterministic_engine() -> Engine {
+    Engine::new(&deterministic_config()).expect("the deterministic wasmtime config is valid")
+}
+
 /// WASM executor with gas metering
 pub struct WasmExecutor {
     engine: Engine,
     gas_limit: u64,
+    fuel_used: u64,
 }
 
 impl WasmExecutor {
     /// Create a new WASM executor with a gas limit
     pub fn new(gas_limit: u64) -> Self {
-        // Configure engine with fuel consumption enabled
-        let mut config = Config::new();
-        config.consume_fuel(true);
-
-        let engine = Engine::new(&config).expect("Failed to create WASM engine");
-
-        Self { engine, gas_limit }
+        Self {
+            engine: deterministic_engine(),
+            gas_limit,
+            fuel_used: 0,
+        }
     }
 
     /// Validate a WASM module without executing it
     pub fn validate_module(wasm_bytes: &[u8]) -> Result<()> {
-        let config = Config::new();
-        let engine = Engine::new(&config)?;
+        let engine = deterministic_engine();
         Module::validate(&engine, wasm_bytes)?;
         Ok(())
     }
@@ -78,6 +94,26 @@ impl WasmExecutor {
         // Create a store with fuel
         let mut store = Store::new(&self.engine, ());
         store.set_fuel(self.gas_limit)?;
+        let result = self.run(&mut store, wasm_bytes, method, args);
+        // What ran is paid for, whether it finished or not.
+        let left = store.get_fuel().unwrap_or(0);
+        self.fuel_used = self.gas_limit - left;
+        if result.is_err() && left == 0 {
+            return Err(anyhow!(
+                "out of fuel: the program used all {} fuel it was given",
+                self.gas_limit
+            ));
+        }
+        result
+    }
+
+    fn run(
+        &self,
+        mut store: &mut Store<()>,
+        wasm_bytes: &[u8],
+        method: &str,
+        args: &str,
+    ) -> Result<String> {
 
         // Compile the module
         let module = Module::new(&self.engine, wasm_bytes)
@@ -148,17 +184,21 @@ impl WasmExecutor {
         self.gas_limit
     }
 
+    /// Fuel the last `execute` consumed, counted by wasmtime: all of the
+    /// limit when it ran out.
+    pub fn fuel_used(&self) -> u64 {
+        self.fuel_used
+    }
+
     /// Get remaining gas after execution
     pub fn remaining_gas(&self) -> u64 {
-        // Note: This requires storing the Store, which we currently don't do
-        // For now, return 0. In a real implementation, we'd track this properly.
-        0
+        self.gas_limit - self.fuel_used
     }
 
     /// Get gas metrics
     pub fn gas_metrics(&self) -> GasMetrics {
         GasMetrics {
-            used: self.gas_limit - self.remaining_gas(),
+            used: self.fuel_used,
             limit: self.gas_limit,
         }
     }
@@ -173,6 +213,49 @@ impl Default for WasmExecutor {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Fuel is consensus: this exact count must hold on every platform CI
+    /// runs. A change means the gas schedule changed.
+    #[test]
+    fn fuel_is_counted_and_fixed_for_a_known_program() {
+        let wasm = program_that_posts("/notes/x.text", "y").unwrap();
+        let mut executor = WasmExecutor::new(1_000_000);
+        executor.execute(&wasm, "execute", "{}").unwrap();
+        let first = executor.fuel_used();
+        assert!(first > 0);
+        executor.execute(&wasm, "execute", "{\"more\": \"input\"}").unwrap();
+        assert_eq!(executor.fuel_used(), first, "this program ignores its input");
+        assert_eq!(first, KNOWN_FUEL);
+
+        // 1000 rounds of integer and float arithmetic.
+        let counted = wat::parse_str(
+            r#"(module (memory (export "memory") 1)
+                 (func (export "alloc") (param i32) (result i32) i32.const 0)
+                 (func (export "execute") (param i32 i32) (result i32)
+                   (local $i i32) (local $f f64)
+                   (loop $l
+                     (local.set $f (f64.div (f64.add (local.get $f) (f64.const 1.5)) (f64.const 3)))
+                     (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                     (br_if $l (i32.lt_u (local.get $i) (i32.const 1000))))
+                   i32.const 0))"#,
+        )
+        .unwrap();
+        let mut executor = WasmExecutor::new(1_000_000);
+        let _ = executor.execute(&counted, "execute", "{}");
+        assert_eq!(executor.fuel_used(), KNOWN_LOOP_FUEL);
+
+        let spin = wat::parse_str(
+            r#"(module (memory (export "memory") 1)
+                 (func (export "alloc") (param i32) (result i32) i32.const 0)
+                 (func (export "execute") (param i32 i32) (result i32) (loop br 0) i32.const 0))"#,
+        )
+        .unwrap();
+        let mut executor = WasmExecutor::new(5_000);
+        assert!(executor.execute(&spin, "execute", "{}").is_err(), "out of fuel");
+        assert_eq!(executor.fuel_used(), 5_000, "running out uses the whole limit");
+    }
+    const KNOWN_FUEL: u64 = 4;
+    const KNOWN_LOOP_FUEL: u64 = 14_004;
 
     #[test]
     fn test_validate_module_invalid() {

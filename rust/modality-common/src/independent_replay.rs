@@ -95,6 +95,17 @@ pub trait InvokeEngine {
         args: &Value,
         ctx: &FrozenInvokeContext,
     ) -> Result<Vec<CommitAction>>;
+
+    /// Cap the fuel the next `execute_invoke` may use. An engine that does
+    /// not meter ignores it.
+    fn set_fuel_limit(&mut self, _limit: u64) {}
+
+    /// Fuel the last `execute_invoke` used, as the WASM runtime counted it,
+    /// whether or not the program finished. `0` for an engine that does not
+    /// meter.
+    fn last_fuel(&self) -> u64 {
+        0
+    }
 }
 
 pub fn prefix_digest(commit_ids: &[String]) -> String {
@@ -392,6 +403,23 @@ pub fn expand_invoke_actions(
     ctx: &FrozenInvokeContext,
     engine: &mut dyn InvokeEngine,
 ) -> Result<(CommitFile, usize)> {
+    let mut fuel_used = 0;
+    expand_invoke_actions_within(pending, wasm, ctx, engine, u64::MAX, &mut fuel_used)
+}
+
+/// [`expand_invoke_actions`] with at most `fuel_budget` fuel for all of the
+/// commit's invokes. Each program runs under the smaller of its module's
+/// `gas_limit` and what is left of the budget. `fuel_used` grows by what each
+/// program used, including one that fails or runs out, so a refused commit's
+/// work is still counted.
+pub fn expand_invoke_actions_within(
+    pending: &CommitFile,
+    wasm: &[ReplayWasm],
+    ctx: &FrozenInvokeContext,
+    engine: &mut dyn InvokeEngine,
+    fuel_budget: u64,
+    fuel_used: &mut u64,
+) -> Result<(CommitFile, usize)> {
     if !commit_has_invoke(pending) {
         return Ok((pending.clone(), 0));
     }
@@ -419,7 +447,14 @@ pub fn expand_invoke_actions(
             program: host_path(&module.path),
             sha256: module.sha256.to_ascii_lowercase(),
         };
-        let emitted = engine.execute_invoke(module, &args, ctx)?;
+        let left = fuel_budget.saturating_sub(*fuel_used);
+        if left == 0 {
+            anyhow::bail!("out of gas: no fuel left for INVOKE {path}");
+        }
+        engine.set_fuel_limit(module.gas_limit.min(left));
+        let emitted = engine.execute_invoke(module, &args, ctx);
+        *fuel_used = fuel_used.saturating_add(engine.last_fuel());
+        let emitted = emitted?;
         expanded_count += 1;
         new_body.extend(emitted.into_iter().map(|mut action| {
             action.emitted_by = Some(emitter.clone());

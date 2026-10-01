@@ -99,6 +99,12 @@ pub struct Opts {
     /// v2 for one that sets it to v2 (numbers compared as 64-bit floats)
     #[clap(long, default_value = "v3", value_parser = ["v0", "v2", "v3"])]
     theory: String,
+
+    /// The most gas this commit may use (signed into its head). Without it,
+    /// the network's default limit applies. `modal commit` prints the gas a
+    /// commit uses.
+    #[clap(long)]
+    gas_limit: Option<u64>,
 }
 
 /// A commit made by [`make`].
@@ -106,6 +112,8 @@ pub struct Committed {
     pub contract_id: String,
     pub commit_id: String,
     pub parent: Option<String>,
+    /// The gas the commit uses under schedule v1.
+    pub gas: modality_common::gas::GasUsed,
     theory_preview: Option<TheoryPreview>,
 }
 
@@ -299,6 +307,10 @@ pub async fn make(opts: &Opts) -> Result<Option<Committed>> {
         commit.add_action(opts.method.clone(), opts.path.clone(), value);
     }
 
+    if let Some(limit) = opts.gas_limit {
+        commit.head.gas_limit = Some(limit);
+    }
+
     // Sign the commit once per supplied passfile.
     if !opts.sign.is_empty() {
         let mut sig_obj = serde_json::Map::new();
@@ -327,6 +339,7 @@ pub async fn make(opts: &Opts) -> Result<Option<Committed>> {
     store.validate_commit_against_rules(&commit)?;
     let theory_preview =
         validate_commit_against_model(&dir, &store, &commit, &opts.theory)?;
+    let gas = estimate_gas(&store, &commit)?;
 
     let commit_id = commit.compute_id()?;
 
@@ -342,6 +355,7 @@ pub async fn make(opts: &Opts) -> Result<Option<Committed>> {
     }
 
     Ok(Some(Committed {
+        gas,
         contract_id: config.contract_id.clone(),
         commit_id,
         parent: parent_id,
@@ -354,12 +368,15 @@ pub async fn run(opts: &Opts) -> Result<()> {
         contract_id,
         commit_id,
         parent: parent_id,
+        gas,
         theory_preview,
     }) = make(opts).await?
     else {
         println!("Nothing to commit (working directories match committed state).");
         return Ok(());
     };
+    let gas_limit_shown = opts.gas_limit;
+
     // Output
     if opts.output == "json" {
         let mut out = serde_json::json!({
@@ -367,6 +384,13 @@ pub async fn run(opts: &Opts) -> Result<()> {
             "commit_id": commit_id,
             "parent": parent_id,
             "status": "committed",
+            "gas": {
+                "total": gas.total(),
+                "ordering": gas.ordering,
+                "apply": gas.apply,
+                "fuel": gas.fuel,
+                "limit": gas_limit_shown,
+            },
         });
         if let Some(preview) = &theory_preview {
             out["theory_preview"] = preview.json.clone();
@@ -376,6 +400,17 @@ pub async fn run(opts: &Opts) -> Result<()> {
         println!("✅ Commit created successfully!");
         println!("   Contract ID: {}", contract_id);
         println!("   Commit ID: {}", commit_id);
+        println!(
+            "   Gas: {} (ordering {}, apply {}{}){}",
+            gas.total(),
+            gas.ordering,
+            gas.apply,
+            if gas.fuel > 0 { format!(", fuel {}", gas.fuel) } else { String::new() },
+            match gas_limit_shown {
+                Some(limit) => format!(", limit {limit}"),
+                None => String::new(),
+            }
+        );
         if let Some(parent) = parent_id {
             println!("   Parent: {}", parent);
         }
@@ -506,6 +541,82 @@ fn theory_preview(
     })
 }
 
+/// The copy's commits, genesis first.
+fn history_oldest_first(store: &ContractStore) -> Result<Vec<CommitFile>> {
+    let mut commits = Vec::new();
+    let mut current = store.get_head()?;
+    while let Some(id) = current {
+        let commit = store.load_commit(&id)?;
+        current = commit.head.parent.clone().filter(|p| !p.is_empty());
+        commits.push(commit);
+    }
+    commits.reverse();
+    Ok(commits)
+}
+
+/// The gas `commit` uses under schedule v1, as a sequencer will meter it:
+/// its programs run here against the copy's history. Refuses a commit over
+/// its own `gas_limit`, as the network would.
+fn estimate_gas(
+    store: &ContractStore,
+    commit: &CommitFile,
+) -> Result<modality_common::gas::GasUsed> {
+    use modality_common::gas::{commit_limit, governing_source, meter, within_limit, SCHEDULE_V1};
+    let history = history_oldest_first(store)?;
+    #[allow(unused_mut)]
+    let mut accepted = history.clone();
+    #[allow(unused_mut)]
+    let mut expanded = commit.clone();
+    #[allow(unused_mut)]
+    let mut fuel = 0u64;
+    let limit = commit_limit(&SCHEDULE_V1, commit);
+    let governing = governing_source(&accepted, commit);
+    let before = meter(&SCHEDULE_V1, &governing, commit, commit, 0);
+    if commit.head.gas_limit.is_some() {
+        within_limit(&before, limit)?;
+    }
+    #[cfg(all(feature = "wasm", feature = "model-status"))]
+    {
+        use modality_common::independent_replay::{
+            commit_has_invoke, expand_invoke_actions_within, expand_prefix,
+            frozen_invoke_context, wasm_modules_from_commits,
+        };
+        if commit_has_invoke(commit) {
+            let prefix = if store.get_head()?.is_some() {
+                crate::replay::prefix_from_store(store)?
+            } else {
+                Vec::new()
+            };
+            let mut wasm = wasm_modules_from_commits(&history)?;
+            for module in wasm_modules_from_commits(std::slice::from_ref(commit))? {
+                if modality_common::independent_replay::lookup_wasm(&wasm, &module.path).is_none() {
+                    wasm.push(module);
+                }
+            }
+            let contract_id = store.load_config()?.contract_id;
+            let mut engine = crate::replay::CliWasmEngine::default();
+            if prefix.iter().any(|(_, file)| commit_has_invoke(file)) {
+                accepted = expand_prefix(&contract_id, &prefix, &wasm, Some(&mut engine))?.0;
+            }
+            let ctx = frozen_invoke_context(&contract_id, "pending", commit, &accepted);
+            expanded = expand_invoke_actions_within(
+                commit,
+                &wasm,
+                &ctx,
+                &mut engine,
+                limit.saturating_sub(before.total()),
+                &mut fuel,
+            )?
+            .0;
+        }
+    }
+    let used = meter(&SCHEDULE_V1, &governing, commit, &expanded, fuel);
+    if commit.head.gas_limit.is_some() {
+        within_limit(&used, limit)?;
+    }
+    Ok(used)
+}
+
 #[cfg(feature = "model-status")]
 fn validate_commit_against_model(
     dir: &std::path::Path,
@@ -548,7 +659,7 @@ fn validate_commit_against_model(
                 }
             }
             let contract_id = store.load_config()?.contract_id;
-            let mut engine = crate::replay::CliWasmEngine;
+            let mut engine = crate::replay::CliWasmEngine::default();
             let accepted = if prefix.iter().any(|(_, file)| commit_has_invoke(file)) {
                 expand_prefix(&contract_id, &prefix, &wasm, Some(&mut engine))?.0
             } else {

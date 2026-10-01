@@ -183,6 +183,23 @@ fn expanded_key(contract_id: &str, commit_id: &str) -> String {
     format!("/expanded_commits/{contract_id}/{commit_id}")
 }
 
+/// Where the gas a sequenced commit used is kept.
+pub fn gas_key(contract_id: &str, commit_id: &str) -> String {
+    format!("/commit_gas/{contract_id}/{commit_id}")
+}
+
+/// The gas a sequenced commit used, as recorded when it was applied.
+pub async fn recorded_gas(
+    ds: &DatastoreManager,
+    contract_id: &str,
+    commit_id: &str,
+) -> Result<Option<modality_common::gas::GasUsed>> {
+    Ok(ds
+        .get_data_by_key(&gas_key(contract_id, commit_id))
+        .await?
+        .and_then(|bytes| serde_json::from_slice(&bytes).ok()))
+}
+
 fn encode_expanded(commit: &CommitFile) -> Result<Vec<u8>> {
     let emitters: Vec<Value> = commit
         .body
@@ -377,7 +394,7 @@ impl ContractProcessor {
             .duration_since(std::time::UNIX_EPOCH)?
             .as_secs();
         let pending = crate::sequenced_rules::parse_commit_file(commit_data)?;
-        let expanded = self
+        let (expanded, gas) = self
             .assert_same_rules_as_local_verify(
                 contract_id,
                 commit_id,
@@ -403,6 +420,9 @@ impl ContractProcessor {
         let mut state_changes = Vec::new();
         let mut staged = StagedWrites::default();
         let mut send_index = 0u64;
+        staged
+            .data
+            .push((gas_key(contract_id, commit_id), serde_json::to_vec(&gas)?));
 
         for action in &expanded.body {
             let method = action.method.as_str();
@@ -477,7 +497,7 @@ impl ContractProcessor {
             state_changes.push(StateChange::ProgramInvoked {
                 contract_id: contract_id.to_string(),
                 program_name: program_name.to_string(),
-                gas_used: 0,
+                gas_used: gas.fuel,
                 actions_count: expanded
                     .body
                     .iter()
@@ -501,8 +521,9 @@ impl ContractProcessor {
         commit_id: &str,
         pending: &CommitFile,
         validation_timestamp: u64,
-    ) -> Result<CommitFile> {
-        let (accepted_raw, theory) = {
+    ) -> Result<(CommitFile, modality_common::gas::GasUsed)> {
+        use modality_common::gas;
+        let (accepted_raw, theory, schedule, metered_only) = {
             let ds = self.datastore.lock().await;
             crate::sequenced_rules::assert_extends_head(
                 &ds,
@@ -517,7 +538,16 @@ impl ContractProcessor {
                 pending.head.parent.as_deref(),
             )
             .await?;
-            (chain, crate::sequenced_rules::network_theory(&ds)?)
+            let schedule = ds.gas_schedule()?;
+            // The network writes the MOD contract (genesis, mints); nobody
+            // pays for those, so they are metered but not limited.
+            let network_written = ds.mod_contract_id()?.as_deref() == Some(contract_id);
+            (
+                chain,
+                crate::sequenced_rules::network_theory(&ds)?,
+                schedule.unwrap_or(&gas::SCHEDULE_V1),
+                schedule.is_none() || network_written,
+            )
         };
         if theory.at(accepted_raw.len()) != modality_lang::TheoryVersion::V0 {
             modality_common::commit_signatures::verify_commit_signatures(contract_id, pending)?;
@@ -542,18 +572,31 @@ impl ContractProcessor {
         } else {
             accepted_raw.iter().map(|(_, file)| file.clone()).collect()
         };
+        let governing = gas::governing_source(&accepted_expanded, pending);
+        let limit = if metered_only {
+            u64::MAX
+        } else {
+            gas::commit_limit(schedule, pending)
+        };
+        let before_programs = gas::meter(schedule, &governing, pending, pending, 0);
+        gas::within_limit(&before_programs, limit)?;
+        let mut fuel = 0;
         let pending_expanded = if commit_has_invoke(pending) {
             let ctx = frozen_invoke_context(contract_id, commit_id, pending, &accepted_expanded);
-            let (expanded, _) = modality_common::independent_replay::expand_invoke_actions(
+            let (expanded, _) = modality_common::independent_replay::expand_invoke_actions_within(
                 pending,
                 &wasm,
                 &ctx,
                 &mut engine,
+                limit.saturating_sub(before_programs.total()),
+                &mut fuel,
             )?;
             expanded
         } else {
             pending.clone()
         };
+        let used = gas::meter(schedule, &governing, pending, &pending_expanded, fuel);
+        gas::within_limit(&used, limit)?;
         if theory.at(accepted_raw.len()) != modality_lang::TheoryVersion::V0 {
             pending_expanded.validate()?;
         }
@@ -565,7 +608,7 @@ impl ContractProcessor {
             Some(validation_timestamp),
             theory,
         )?;
-        Ok(pending_expanded)
+        Ok((pending_expanded, used))
     }
 
     /// The history's expanded bodies as they were stored when each commit
@@ -4220,6 +4263,81 @@ model DeliveryOracle {
             err.to_string().contains("upgrade this node"),
             "unexpected error: {err}"
         );
+    }
+
+    fn note_commit(gas_limit: Option<u64>) -> String {
+        let mut head = serde_json::json!({});
+        if let Some(limit) = gas_limit {
+            head["gas_limit"] = limit.into();
+        }
+        serde_json::json!({
+            "body": [{"method": "post", "path": "/notes/a.text", "value": "hello"}],
+            "head": head
+        })
+        .to_string()
+    }
+
+    #[tokio::test]
+    async fn a_commit_records_its_gas_and_is_held_to_its_limit() {
+        let (metered, ds) = processor_on_network(serde_json::json!({"gas_schedule": "v1"})).await;
+        metered.process_commit("c1", "a", &note_commit(None)).await.unwrap();
+        let gas = recorded_gas(&*ds.lock().await, "c1", "a").await.unwrap().unwrap();
+        assert!(gas.apply >= modality_common::gas::SCHEDULE_V1.base && gas.ordering > 0);
+
+        let err = metered
+            .process_commit("c2", "b", &note_commit(Some(100)))
+            .await
+            .expect_err("100 gas does not cover the base cost");
+        assert!(err.to_string().contains("out of gas"), "{err}");
+        assert!(recorded_gas(&*ds.lock().await, "c2", "b").await.unwrap().is_none());
+
+        let (unmetered, ds) = processor_on_network(serde_json::json!({})).await;
+        unmetered
+            .process_commit("c2", "b", &note_commit(Some(100)))
+            .await
+            .expect("a network with no schedule meters but enforces nothing");
+        assert!(recorded_gas(&*ds.lock().await, "c2", "b").await.unwrap().is_some());
+    }
+
+    #[tokio::test]
+    async fn a_program_runs_only_on_the_gas_its_commit_has_left() {
+        let spin = wat::parse_str(
+            r#"(module (memory (export "memory") 1)
+                 (func (export "alloc") (param i32) (result i32) i32.const 0)
+                 (func (export "execute") (param i32 i32) (result i32) (loop br 0) i32.const 0))"#,
+        )
+        .unwrap();
+        let b64 = base64::Engine::encode(&base64::engine::general_purpose::STANDARD, &spin);
+        let (processor, datastore) =
+            processor_on_network(serde_json::json!({"gas_schedule": "v1"})).await;
+        sequence_commit(
+            &processor,
+            &datastore,
+            "c1",
+            "boot",
+            &serde_json::json!({
+                "body": [{"method": "post", "path": "/__programs__/spin.wasm", "value": b64}],
+                "head": {}
+            })
+            .to_string(),
+            "batch-boot",
+        )
+        .await;
+        let started = std::time::Instant::now();
+        let err = processor
+            .process_commit(
+                "c1",
+                "spin",
+                &serde_json::json!({
+                    "body": [{"method": "invoke", "path": "/__programs__/spin.wasm", "value": {"args": {}}}],
+                    "head": {"parent": "boot", "gas_limit": 200_000}
+                })
+                .to_string(),
+            )
+            .await
+            .expect_err("the program loops forever");
+        assert!(err.to_string().contains("fuel"), "{err}");
+        assert!(started.elapsed() < std::time::Duration::from_secs(5), "stopped by the commit's budget");
     }
 
     fn wasm_post_action() -> serde_json::Value {

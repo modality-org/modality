@@ -59,6 +59,7 @@ or an inline domain action.
 | `--quantity <QUANTITY>` | Asset quantity for `CREATE` commits |
 | `--divisibility <DIVISIBILITY>` | Asset divisibility for `CREATE` commits: every amount of the asset must be a multiple of it (`1` lets any whole number of units move) |
 | `--decimals <PLACES>` | Display decimals for `CREATE` commits: how a wallet shows amounts (`8` shows 150000000 as 1.5). No rule reads it |
+| `--gas-limit <GAS>` | The most gas the commit may use, signed into its head. Without it, the network's default applies. The commit prints the gas it uses. See [Gas](../concepts/gas.md) |
 | `--to-contract <TO_CONTRACT>` | Destination contract ID for `SEND` commits |
 | `--amount <AMOUNT>` | Amount for `SEND` commits; on a `RECV`, the amount it states it receives. Apply refuses a `RECV` whose statement differs from its `SEND` |
 | `--send-commit-id <SEND_COMMIT_ID>` | Source `SEND` commit ID for `RECV` commits |
