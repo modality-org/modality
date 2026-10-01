@@ -218,6 +218,7 @@ async fn status_json_handler(
         "validator_min_stake": status.validator_min_stake,
         "dest_apply_requires_cert": status.dest_apply_requires_cert,
         "predicate_theory_version": status.predicate_theory_version,
+        "gas_base_permille": status.gas_base_permille,
         "mod": {
             "address": status.mod_holdings.address,
             "held": status.mod_holdings.held,

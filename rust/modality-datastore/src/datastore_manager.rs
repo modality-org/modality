@@ -447,12 +447,12 @@ impl DatastoreManager {
         let Some(schedule) = schedule else {
             return self.drain_sequencer_events().await;
         };
-        let events = self.load_sequencer_events()?;
+        let events = by_tip(self.load_sequencer_events()?);
         let mut taken = Vec::new();
         let mut declared = 0u64;
         let mut rest = events.into_iter();
         for event in rest.by_ref() {
-            let gas = declared_gas(schedule, &event);
+            let gas = modality_common::gas::declared_by_event(schedule, &event);
             if !taken.is_empty() && declared.saturating_add(gas) > schedule.round_limit {
                 let mut left = vec![event];
                 left.extend(rest);
@@ -1232,6 +1232,36 @@ impl DatastoreManager {
     }
 }
 
+/// Queued events in the order a round takes them: events that are not
+/// pushes first, then pushes grouped by contract, highest tip first. A
+/// contract's pushes keep their order, so a child never goes ahead of its
+/// parent; equal tips keep queue order.
+fn by_tip(events: Vec<serde_json::Value>) -> Vec<serde_json::Value> {
+    let (pushes, mut ordered): (Vec<_>, Vec<_>) = events.into_iter().partition(|e| {
+        e.get("type").and_then(|t| t.as_str()) == Some("contract_push")
+    });
+    let mut groups: Vec<(String, u64, Vec<serde_json::Value>)> = Vec::new();
+    for push in pushes {
+        let contract = push
+            .get("data")
+            .and_then(|d| d.get("contract_id"))
+            .and_then(|c| c.as_str())
+            .unwrap_or_default()
+            .to_string();
+        let tip = modality_common::gas::tip_of_event(&push);
+        match groups.iter_mut().find(|(c, _, _)| *c == contract) {
+            Some((_, best, group)) => {
+                *best = (*best).max(tip);
+                group.push(push);
+            }
+            None => groups.push((contract, tip, vec![push])),
+        }
+    }
+    groups.sort_by_key(|(_, tip, _)| std::cmp::Reverse(*tip));
+    ordered.extend(groups.into_iter().flat_map(|(_, _, group)| group));
+    ordered
+}
+
 fn mod_balance_keys(mod_id: &str, owner: &str) -> std::collections::HashMap<String, String> {
     [
         ("contract_id".to_string(), mod_id.to_string()),
@@ -1240,29 +1270,6 @@ fn mod_balance_keys(mod_id: &str, owner: &str) -> std::collections::HashMap<Stri
     ]
     .into_iter()
     .collect()
-}
-
-/// The gas a queued event's commits declare: each commit's `gas_limit`, or
-/// the schedule's default. Events that are not pushes declare none.
-fn declared_gas(schedule: &modality_common::gas::GasSchedule, event: &serde_json::Value) -> u64 {
-    if event.get("type").and_then(|t| t.as_str()) != Some("contract_push") {
-        return 0;
-    }
-    event
-        .get("data")
-        .and_then(|d| d.get("commits"))
-        .and_then(|c| c.as_array())
-        .map(|commits| {
-            commits.iter().fold(0u64, |sum, commit| {
-                let limit = commit
-                    .get("head")
-                    .and_then(|h| h.get("gas_limit"))
-                    .and_then(|g| g.as_u64())
-                    .unwrap_or(schedule.default_commit_limit);
-                sum.saturating_add(limit)
-            })
-        })
-        .unwrap_or(0)
 }
 
 #[cfg(test)]
@@ -1284,11 +1291,34 @@ mod tests {
             mgr.enqueue_sequencer_event(event).await.unwrap();
         }
         let first = mgr.drain_sequencer_events_within(Some(&schedule)).await.unwrap();
-        assert_eq!(first.len(), 2, "60 + 30 fit; 20 more would not");
+        assert_eq!(first.len(), 3, "the cert goes first; then 60 + 30 fit and 20 more would not");
         let second = mgr.drain_sequencer_events_within(Some(&schedule)).await.unwrap();
-        assert_eq!(second.len(), 3, "20, the cert, and 10");
+        assert_eq!(second.len(), 2, "20 and 10");
         mgr.enqueue_sequencer_event(push(500)).await.unwrap();
         assert_eq!(mgr.drain_sequencer_events_within(Some(&schedule)).await.unwrap().len(), 1, "an oversized push still goes, alone");
+    }
+
+    #[test]
+    fn rounds_take_the_highest_tip_first_but_keep_each_contracts_order() {
+        let push = |contract: &str, id: &str, tip: u64| {
+            serde_json::json!({"type": "contract_push", "data": {"contract_id": contract, "commits": [
+                {"commit_id": id, "body": [], "head": {"gas_tip": tip}}
+            ]}})
+        };
+        let ordered = by_tip(vec![
+            push("a", "a1", 1),
+            push("b", "b1", 5),
+            serde_json::json!({"type": "prefix_cert"}),
+            push("a", "a2", 9),
+            push("c", "c1", 5),
+        ]);
+        let ids: Vec<&str> = ordered
+            .iter()
+            .map(|e| {
+                e.pointer("/data/commits/0/commit_id").and_then(|v| v.as_str()).unwrap_or("cert")
+            })
+            .collect();
+        assert_eq!(ids, vec!["cert", "a1", "a2", "b1", "c1"], "a's best tip is 9; b and c tie at 5");
     }
     use super::*;
 

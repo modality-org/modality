@@ -454,6 +454,141 @@ enum CommitApply {
     Failed,
 }
 
+const OWN_GAS_BASE_KEY: &str = "gas_base/own_last";
+
+/// The base price this node's next block states: from its last block's base
+/// and the gas that block's pushes declared. The floor before its first.
+pub(crate) fn own_next_base(mgr: &DatastoreManager) -> u64 {
+    use modality_common::gas::{next_base_permille, BASE_PERMILLE_FLOOR};
+    let Ok(Some(schedule)) = mgr.gas_schedule() else {
+        return BASE_PERMILLE_FLOOR;
+    };
+    let last: Option<serde_json::Value> = mgr
+        .node_state()
+        .get(OWN_GAS_BASE_KEY)
+        .ok()
+        .flatten()
+        .and_then(|bytes| serde_json::from_slice(&bytes).ok());
+    match last {
+        Some(last) => next_base_permille(
+            last.get("base").and_then(|v| v.as_u64()).unwrap_or(BASE_PERMILLE_FLOOR),
+            last.get("declared").and_then(|v| v.as_u64()).unwrap_or(0),
+            schedule.round_limit,
+        ),
+        None => BASE_PERMILLE_FLOOR,
+    }
+}
+
+/// On a network that prices gas, put this round's base price first in the
+/// block's events and remember it with the gas the block declares.
+fn state_gas_base(mgr: &DatastoreManager, round: u64, events: &mut Vec<serde_json::Value>) {
+    use modality_common::gas::{declared_by_event, gas_base_event};
+    let (Ok(price), Ok(Some(schedule))) = (mgr.gas_price(), mgr.gas_schedule()) else {
+        return;
+    };
+    if !price.is_priced() {
+        return;
+    }
+    let base = own_next_base(mgr);
+    let declared = events
+        .iter()
+        .fold(0u64, |sum, e| sum.saturating_add(declared_by_event(schedule, e)));
+    events.insert(0, gas_base_event(base));
+    let record = serde_json::json!({ "round": round, "base": base, "declared": declared });
+    if let Err(e) = mgr.node_state().put(OWN_GAS_BASE_KEY, record.to_string().as_bytes()) {
+        log::warn!("Failed to record this round's gas base: {}", e);
+    }
+}
+
+/// Whether a draft's stated base price follows from its proposer's previous
+/// block, when this node holds that block. A draft that states none, or
+/// whose previous block this node never saw, is not held back.
+async fn draft_base_follows_rule(
+    datastore: &Arc<Mutex<DatastoreManager>>,
+    block: &SequencerBlock,
+) -> bool {
+    use modality_common::gas::{declared_by_event, next_base_permille, stated_base, BASE_PERMILLE_FLOOR};
+    let Some(stated) = stated_base(&block.events) else {
+        return true;
+    };
+    if stated < BASE_PERMILLE_FLOOR {
+        return false;
+    }
+    let Ok(mgr) = tokio::time::timeout(TICK_DATASTORE_WAIT, datastore.lock()).await else {
+        return true;
+    };
+    let Ok(Some(schedule)) = mgr.gas_schedule() else {
+        return true;
+    };
+    let Some(prev_round) = block.round_id.checked_sub(1) else {
+        return true;
+    };
+    let Ok(Some(prev)) = SequencerBlock::find_by_round_peer_multi(&mgr, prev_round, &block.peer_id).await
+    else {
+        return true;
+    };
+    let declared = prev
+        .events
+        .iter()
+        .fold(0u64, |sum, e| sum.saturating_add(declared_by_event(schedule, e)));
+    let expected = next_base_permille(
+        stated_base(&prev.events).unwrap_or(BASE_PERMILLE_FLOOR),
+        declared,
+        schedule.round_limit,
+    );
+    stated == expected
+}
+
+/// What a certified block sets for the fees of the commits it orders: who
+/// certified it (they share the base fee), its proposer (who takes tips),
+/// and its stated base price.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct BlockFees {
+    pub recipients: Vec<String>,
+    pub proposer: String,
+    pub base_permille: u64,
+}
+
+impl BlockFees {
+    fn of(block: &SequencerBlock) -> Self {
+        let mut recipients: Vec<String> = block.acks.keys().cloned().collect();
+        recipients.push(block.peer_id.clone());
+        Self {
+            recipients,
+            proposer: block.peer_id.clone(),
+            base_permille: modality_common::gas::stated_base(&block.events)
+                .unwrap_or(modality_common::gas::BASE_PERMILLE_FLOOR),
+        }
+    }
+
+    fn to_json(&self) -> serde_json::Value {
+        serde_json::json!({
+            "fee_recipients": self.recipients,
+            "proposer": self.proposer,
+            "base_permille": self.base_permille,
+        })
+    }
+
+    fn from_parked(entry: &serde_json::Value) -> Self {
+        Self {
+            recipients: entry
+                .get("fee_recipients")
+                .and_then(|v| v.as_array())
+                .map(|a| a.iter().filter_map(|r| r.as_str().map(str::to_string)).collect())
+                .unwrap_or_default(),
+            proposer: entry
+                .get("proposer")
+                .and_then(|v| v.as_str())
+                .unwrap_or_default()
+                .to_string(),
+            base_permille: entry
+                .get("base_permille")
+                .and_then(|v| v.as_u64())
+                .unwrap_or(modality_common::gas::BASE_PERMILLE_FLOOR),
+        }
+    }
+}
+
 /// Where the fee a commit paid is recorded. A commit is charged once.
 pub(crate) fn fee_key(contract_id: &str, commit_id: &str) -> String {
     format!("/commit_fee/{contract_id}/{commit_id}")
@@ -471,7 +606,7 @@ async fn apply_pushed_commit(
     contract_id: &str,
     commit_entry: &serde_json::Value,
     batch_id: &str,
-    recipients: &[String],
+    fees: &BlockFees,
     receipts_in_push: u64,
 ) -> CommitApply {
     let payer = {
@@ -479,7 +614,15 @@ async fn apply_pushed_commit(
         let receipts = push_receipts(&mgr, contract_id, std::slice::from_ref(commit_entry))
             .await
             .unwrap_or(0);
-        match fee_payer(&mgr, contract_id, commit_entry, receipts.max(receipts_in_push)).await {
+        match fee_payer(
+            &mgr,
+            contract_id,
+            commit_entry,
+            receipts.max(receipts_in_push),
+            fees.base_permille,
+        )
+        .await
+        {
             Ok(payer) => payer,
             Err(reason) => {
                 log::warn!("Refusing commit for contract {}: {}", contract_id, reason);
@@ -501,7 +644,7 @@ async fn apply_pushed_commit(
                     &payer,
                     &gas,
                     &outcome,
-                    recipients,
+                    fees,
                     &cert_fees,
                 )
                 .await;
@@ -514,6 +657,8 @@ async fn apply_pushed_commit(
 pub(crate) struct Payer {
     id: String,
     limit: u64,
+    tip: u64,
+    base_permille: u64,
 }
 
 /// The payer of a pushed commit on a priced network, checked; `None` when
@@ -526,6 +671,7 @@ pub(crate) async fn fee_payer(
     contract_id: &str,
     commit_entry: &serde_json::Value,
     receipts_in_push: u64,
+    base_permille: u64,
 ) -> anyhow::Result<Option<Payer>> {
     let price = mgr.gas_price()?;
     if !price.is_priced() {
@@ -584,7 +730,17 @@ pub(crate) async fn fee_payer(
         .gas_schedule()?
         .ok_or_else(|| anyhow::anyhow!("gas is priced but the network names no schedule"))?;
     let limit = modality_common::gas::commit_limit(schedule, &commit);
-    let most = price.most(limit);
+    let at_base = price.at_base(base_permille);
+    let tip = commit.head.gas_tip.unwrap_or(0);
+    let per_gas = at_base.ordering.max(at_base.apply).saturating_add(tip);
+    if let Some(max) = commit.head.max_gas_price {
+        if per_gas > max {
+            anyhow::bail!(
+                "gas costs up to {per_gas} MOD units here (base {base_permille}‰ of the network price, tip {tip}), over the commit's max_gas_price {max}"
+            );
+        }
+    }
+    let most = limit.saturating_mul(per_gas);
     let held = mgr.mod_balance(&payer).await?;
     let receiving = if payer == contract_id { receipts_in_push } else { 0 };
     if held.saturating_add(receiving) < most {
@@ -592,7 +748,12 @@ pub(crate) async fn fee_payer(
             "the payer {payer} holds {held} MOD units (receiving {receiving} here), less than the {most} this commit can cost at its gas limit {limit}"
         );
     }
-    Ok(Some(Payer { id: payer, limit }))
+    Ok(Some(Payer {
+        id: payer,
+        limit,
+        tip,
+        base_permille,
+    }))
 }
 
 /// MOD the push's `RECV`s take into `contract_id`: applied `SEND`s of MOD
@@ -656,7 +817,7 @@ async fn charge(
     payer: &Payer,
     gas: &modality_common::gas::GasUsed,
     outcome: &CommitApply,
-    recipients: &[String],
+    fees: &BlockFees,
     cert_fees: &[(String, u64)],
 ) {
     let Some(commit_id) = commit_entry
@@ -674,11 +835,19 @@ async fn charge(
         }
     };
     let held = mgr.mod_balance(&payer.id).await.unwrap_or(0);
-    let fee = price.charge(gas, payer.limit).min(held);
-    let mut split = modality_common::gas::split_equally(fee, recipients);
+    let base_fee = price.at_base(payer.base_permille).charge(gas, payer.limit).min(held);
+    let mut split = modality_common::gas::split_equally(base_fee, &fees.recipients);
+    let tip = payer
+        .tip
+        .saturating_mul(gas.total().min(payer.limit))
+        .min(held - base_fee);
+    if tip > 0 && !fees.proposer.is_empty() {
+        split.push((fees.proposer.clone(), tip));
+    }
+    let fee = base_fee + if fees.proposer.is_empty() { 0 } else { tip };
     // Certificate fees, owed only by a commit that applied.
     if matches!(outcome, CommitApply::Sequenced) {
-        let mut left = held - fee;
+        let mut left = held.saturating_sub(fee);
         for (validator, owed) in cert_fees {
             let paid = (*owed).min(left);
             left -= paid;
@@ -695,6 +864,8 @@ async fn charge(
     let record = serde_json::json!({
         "payer": payer.id,
         "gas": gas,
+        "base_permille": payer.base_permille,
+        "tip": payer.tip,
         "fee": fee,
         "paid_to": split,
         "applied": matches!(outcome, CommitApply::Sequenced),
@@ -706,11 +877,13 @@ async fn charge(
         log::warn!("Failed to record the fee of commit {}: {}", commit_id, e);
     }
     log::info!(
-        "Commit {} charged {} MOD units to {} for {} gas ({})",
+        "Commit {} charged {} MOD units to {} for {} gas at base {}‰, tip {} ({})",
         commit_id,
         fee,
         payer.id,
         gas.total(),
+        payer.base_permille,
+        payer.tip,
         if matches!(outcome, CommitApply::Sequenced) { "applied" } else { "refused" }
     );
 }
@@ -957,7 +1130,7 @@ async fn park_commit(
     contract_id: &str,
     commit_entry: &serde_json::Value,
     batch_id: &str,
-    recipients: &[String],
+    fees: &BlockFees,
 ) {
     let Some(commit_id) = commit_entry
         .get("commit_id")
@@ -974,12 +1147,11 @@ async fn park_commit(
     {
         return;
     }
-    pending.push(serde_json::json!({
-        "contract_id": contract_id,
-        "commit": commit_entry,
-        "batch_id": batch_id,
-        "fee_recipients": recipients,
-    }));
+    let mut entry = fees.to_json();
+    entry["contract_id"] = contract_id.into();
+    entry["commit"] = commit_entry.clone();
+    entry["batch_id"] = batch_id.into();
+    pending.push(entry);
     if pending.len() > MAX_PARKED_COMMITS {
         let excess = pending.len() - MAX_PARKED_COMMITS;
         pending.drain(..excess);
@@ -991,14 +1163,6 @@ async fn park_commit(
         contract_id,
         queue.what
     );
-}
-
-fn parked_recipients(entry: &serde_json::Value) -> Vec<String> {
-    entry
-        .get("fee_recipients")
-        .and_then(|v| v.as_array())
-        .map(|a| a.iter().filter_map(|r| r.as_str().map(str::to_string)).collect())
-        .unwrap_or_default()
 }
 
 /// Retry parked commits now that what they wait for may have landed.
@@ -1027,14 +1191,14 @@ async fn retry_parked(
             .get("batch_id")
             .and_then(|v| v.as_str())
             .unwrap_or_default();
-        let recipients = parked_recipients(&entry);
+        let fees = BlockFees::from_parked(&entry);
         let outcome = apply_pushed_commit(
             processor,
             datastore,
             contract_id,
             commit_entry,
             batch_id,
-            &recipients,
+            &fees,
             0,
         )
         .await;
@@ -1060,7 +1224,7 @@ async fn retry_parked(
                 contract_id,
                 commit_entry,
                 batch_id,
-                &parked_recipients(&entry),
+                &BlockFees::from_parked(&entry),
             )
             .await;
         }
@@ -1082,10 +1246,9 @@ pub(crate) async fn apply_certified_contract_events(
         .unwrap_or_else(|| format!("round-{}", block.round_id));
 
     let processor = ContractProcessor::new(datastore.clone());
-    // Who certified this block: its proposer and every acker. They share
-    // the gas fees of the commits it ordered.
-    let mut recipients: Vec<String> = block.acks.keys().cloned().collect();
-    recipients.push(block.peer_id.clone());
+    // Who certified this block (its proposer and every acker) share the base
+    // fees of the commits it ordered; its proposer takes their tips.
+    let fees = BlockFees::of(block);
     let anchored = {
         let mgr = datastore.lock().await;
         hash_lane::index_certified(block, &batch_id, &mgr)
@@ -1168,13 +1331,12 @@ pub(crate) async fn apply_certified_contract_events(
                 contract_id,
                 commit_entry,
                 &batch_id,
-                &recipients,
+                &fees,
                 receipts,
             )
             .await;
             if let Some(queue) = parked_queue_for(&outcome) {
-                park_commit(datastore, queue, contract_id, commit_entry, &batch_id, &recipients)
-                    .await;
+                park_commit(datastore, queue, contract_id, commit_entry, &batch_id, &fees).await;
             }
         }
     }
@@ -1511,6 +1673,14 @@ pub async fn spawn_consensus_loop_with_checkpoints(
                                 continue;
                             }
 
+                            if !draft_base_follows_rule(&datastore, &block).await {
+                                log::warn!(
+                                    "Not acking round {} from {}: its gas base price does not follow from its previous block",
+                                    block.round_id,
+                                    &block.peer_id[..16.min(block.peer_id.len())]
+                                );
+                                continue;
+                            }
                             match ack_collector.handle_incoming_block(&block) {
                                 Ok(Some(ack)) => {
                                     if let Err(e) = communication.send_block_ack(
@@ -1652,7 +1822,7 @@ pub async fn spawn_consensus_loop_with_checkpoints(
                         (None, None) => HashMap::new(),
                     };
 
-                    let events = match &mgr {
+                    let mut events = match &mgr {
                         Some(mgr) => {
                             let schedule = mgr.gas_schedule().ok().flatten();
                             let raw = match mgr.drain_sequencer_events_within(schedule).await {
@@ -1677,6 +1847,9 @@ pub async fn spawn_consensus_loop_with_checkpoints(
                         }
                         None => Vec::new(),
                     };
+                    if let Some(mgr) = &mgr {
+                        state_gas_base(mgr, round, &mut events);
+                    }
                     drop(mgr);
 
                     let block = match create_sequencer_block(
@@ -2693,6 +2866,75 @@ model FirstContract {
         apply_certified_contract_events(&certified_block(vec![push], "batch-1"), &ds).await;
         assert!(in_batch_of(&ds, &payer_id, &id).await.is_none());
         assert_eq!(mod_of(&ds, &payer_id).await, 5_000);
+    }
+
+    fn priced_block(events: Vec<serde_json::Value>, batch: &str, base: u64) -> SequencerBlock {
+        let mut all = vec![modality_common::gas::gas_base_event(base)];
+        all.extend(events);
+        let mut block = certified_block(all, batch);
+        block.acks.insert("acker".into(), "sig".into());
+        block
+    }
+
+    #[tokio::test]
+    async fn the_base_price_scales_the_fee_and_the_tip_goes_to_the_proposer() {
+        let (ds, payer, payer_id) = priced_network(100_000_000).await;
+        let body = json!([{"method": "post", "path": "/notes/a.text", "value": "hi"}]);
+        let (_, push) = paid_push(&payer, &payer_id, body.clone(), json!({"gas_tip": 2}), true);
+        apply_certified_contract_events(&priced_block(vec![push], "b1", 1_000), &ds).await;
+        let at_floor = 100_000_000 - mod_of(&ds, &payer_id).await;
+        let tip_at_floor = mod_of(&ds, "seq").await - mod_of(&ds, "acker").await;
+        assert!(tip_at_floor > 0, "the proposer takes the tip on top of its share");
+
+        let (ds, payer, payer_id) = priced_network(100_000_000).await;
+        let (_, push) = paid_push(&payer, &payer_id, body, json!({"gas_tip": 2}), true);
+        apply_certified_contract_events(&priced_block(vec![push], "b1", 2_000), &ds).await;
+        let at_double = 100_000_000 - mod_of(&ds, &payer_id).await;
+        let tip_at_double = mod_of(&ds, "seq").await - mod_of(&ds, "acker").await;
+        assert_eq!(tip_at_double, tip_at_floor, "the tip does not scale with the base");
+        let base_at_floor = at_floor - tip_at_floor;
+        let base_at_double = at_double - tip_at_double;
+        assert!(
+            base_at_double.abs_diff(2 * base_at_floor) <= 1,
+            "twice the base, twice the base fee: {base_at_floor} then {base_at_double}"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_commit_whose_max_price_is_under_the_blocks_is_refused_free() {
+        let (ds, payer, payer_id) = priced_network(100_000_000).await;
+        let (id, push) = paid_push(
+            &payer,
+            &payer_id,
+            json!([{"method": "post", "path": "/notes/a.text", "value": "hi"}]),
+            json!({"max_gas_price": 1}),
+            true,
+        );
+        apply_certified_contract_events(&priced_block(vec![push], "b1", 3_000), &ds).await;
+        assert!(in_batch_of(&ds, &payer_id, &id).await.is_none());
+        assert_eq!(mod_of(&ds, &payer_id).await, 100_000_000);
+    }
+
+    #[tokio::test]
+    async fn an_acker_checks_a_drafts_base_against_its_proposers_previous_block() {
+        let (ds, _, _) = priced_network(0).await;
+        let full = json!({"type": "contract_push", "data": {"contract_id": "c", "commits": [
+            {"commit_id": "x", "body": [], "head": {"gas_limit": 1_000_000_000u64}}
+        ]}});
+        let mut prev = priced_block(vec![full], "b1", 1_000);
+        prev.round_id = 7;
+        prev.save_to_active(&*ds.lock().await).await.unwrap();
+        let draft = |base: u64| {
+            let mut b = priced_block(vec![], "b2", base);
+            b.round_id = 8;
+            b
+        };
+        assert!(draft_base_follows_rule(&ds, &draft(1_125)).await, "a full block raises it an eighth");
+        assert!(!draft_base_follows_rule(&ds, &draft(1_000)).await);
+        assert!(!draft_base_follows_rule(&ds, &draft(500)).await, "never below the floor");
+        let mut unknown = draft(4_000);
+        unknown.round_id = 20;
+        assert!(draft_base_follows_rule(&ds, &unknown).await, "no previous block held: not held back");
     }
 
     #[test]

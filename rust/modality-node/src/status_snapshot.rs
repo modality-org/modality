@@ -94,6 +94,9 @@ pub struct NodeStatus {
     /// Highest certified sequencer round seen per block author.
     pub last_cert_round_by_author: Vec<(String, u64)>,
     pub mod_holdings: ModHoldings,
+    /// The base price, in parts per thousand of the network's gas price, this
+    /// node's next block would state; `None` where gas is not priced.
+    pub gas_base_permille: Option<u64>,
 }
 
 /// The MOD this node's id holds, and the mint sends to it not yet received.
@@ -478,6 +481,11 @@ async fn collect_node_status_uncached(source: &NodeStatusSource) -> anyhow::Resu
         .unwrap_or(0);
     let last_cert_round_by_author = crate::actions::sequencer::cert_sync::last_cert_rounds(&mgr);
     let mod_holdings = mod_holdings(&mgr, &peerid_str).await;
+    let gas_base_permille = mgr
+        .gas_price()
+        .ok()
+        .filter(|p| p.is_priced())
+        .map(|_| crate::actions::sequencer::consensus::own_next_base(&mgr));
 
     let active_roles = derive_active_roles(
         &source.role,
@@ -532,6 +540,7 @@ async fn collect_node_status_uncached(source: &NodeStatusSource) -> anyhow::Resu
         pending_prefix_cert_requests,
         last_cert_round_by_author,
         mod_holdings,
+        gas_base_permille,
     })
 }
 
@@ -811,6 +820,7 @@ pub(crate) fn sample_status() -> NodeStatus {
         pending_prefix_cert_requests: 0,
         last_cert_round_by_author: vec![],
         mod_holdings: ModHoldings::default(),
+        gas_base_permille: None,
     }
 }
 

@@ -141,9 +141,48 @@ check "A commit that names no payer is refused at push" bash -c \
 check "The refusal names the payer" grep -q "names no payer" ./tmp/plain.out
 
 echo ""
+echo "A fee market: blocks state a base price, tips go to the proposer..."
+BASE=$(curl -s -m 20 http://127.0.0.1:18742/status.json | python3 -c "import json,sys; print(json.load(sys.stdin)['gas_base_permille'])")
+check "The status page shows the base price the node's next block states" test "$BASE" -ge 1000
+note() {
+    modal contract commit --dir ./tmp/alice --path "/notes/$1.text" --value "same size" \
+        --sign ./tmp/alice.mod_passfile --payer "$ALICE_ID" "${@:2}" --output json >> "$CURRENT_LOG" 2>&1
+    cat ./tmp/alice/.contract/HEAD
+}
+PLAIN=$(note n1)
+modal contract push --dir ./tmp/alice --remote "$REMOTE" --output json >> "$CURRENT_LOG" 2>&1
+expect_log "Commit $PLAIN charged" "An untipped note is charged"
+TIPPED=$(note n2 --gas-tip 5)
+modal contract push --dir ./tmp/alice --remote "$REMOTE" --output json >> "$CURRENT_LOG" 2>&1
+expect_log "Commit $TIPPED charged .* tip 5 " "A note tipping 5 per gas is charged with its tip"
+charged() { grep -oE "Commit $1 charged [0-9]+ MOD units to [^ ]+ for [0-9]+ gas at base [0-9]+" "$SEQUENCER_LOG" | head -1; }
+python3 - "$(charged "$PLAIN")" "$(charged "$TIPPED")" > ./tmp/tip-check <<'PY'
+import re, sys
+a, b = (re.search(r"charged (\d+) .* for (\d+) gas at base (\d+)", x).groups() for x in sys.argv[1:3])
+fee_a, gas_a, base_a = map(int, a)
+fee_b, gas_b, base_b = map(int, b)
+# Same price per gas at each block's base; the tipped one adds 5 per gas.
+expected_b = fee_a * gas_b * base_b // (gas_a * base_a) + 5 * gas_b
+print("ok" if abs(fee_b - expected_b) <= gas_b // 100 + 2 else f"{fee_b} vs {expected_b}")
+PY
+check "The tip adds 5 MOD units per gas to the fee" grep -q '^ok$' ./tmp/tip-check
+modal contract commit --dir ./tmp/carol --path /notes/y.text --value hi \
+    --sign ./tmp/carol.mod_passfile --payer "$CAROL_ID" --max-gas-price 0 --output json >> "$CURRENT_LOG" 2>&1 || true
+NOTE_CAP=$(note n3 --max-gas-price 0)
+check "A commit that will pay at most 0 per gas is refused at push" bash -c \
+    "! modal contract push --dir ./tmp/alice --remote '$REMOTE' --output json > ./tmp/cap.out 2>&1"
+check "The refusal names its max_gas_price" grep -q "max_gas_price 0" ./tmp/cap.out
+# Leave the refused note out of Alice's copy before the next section.
+python3 - ./tmp/alice "$TIPPED" <<'PY'
+import pathlib, sys
+pathlib.Path(sys.argv[1], ".contract", "HEAD").write_text(sys.argv[2])
+PY
+
+echo ""
 echo "A commit refused when applied still pays for its work..."
+sleep 11
 BEFORE=$(held ./tmp/alice)
-NODE_BEFORE=$NODE_HELD
+NODE_BEFORE=$(node_mod)
 modal contract commit --dir ./tmp/alice --method send --asset-contract "$MOD_ID" --asset-id MOD \
     --to-contract "$BOB_ID" --amount 9000000000000000 --sign ./tmp/alice.mod_passfile --payer "$ALICE_ID" \
     --output json >> "$CURRENT_LOG" 2>&1

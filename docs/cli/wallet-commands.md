@@ -80,6 +80,7 @@ modal wallet send --to <CONTRACT_ID> --amount 2.5 --asset tok --asset-contract <
 | `--asset <ASSET>` | `MOD` (the default), or an asset id with `--asset-contract` |
 | `--asset-contract <ID>` | The contract that created the asset; not needed for MOD |
 | `--memo <MEMO>` | A note for the receiver |
+| `--tip <UNITS>` | A tip per gas, to be ordered sooner when rounds are full |
 
 `send` refuses an amount the wallet does not hold, one finer than the
 asset's decimals, and one that is not a multiple of its divisibility. The

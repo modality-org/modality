@@ -99,6 +99,11 @@ pub struct SendOpts {
     #[clap(long)]
     memo: Option<String>,
 
+    /// A tip per gas for the sequencer, to be ordered sooner when rounds
+    /// are full
+    #[clap(long)]
+    tip: Option<u64>,
+
     #[clap(flatten)]
     wallet: WalletOpts,
 }
@@ -585,6 +590,10 @@ async fn send(opts: &SendOpts) -> Result<()> {
     ];
     if let Some(memo) = &opts.memo {
         args.extend_from_slice(&["--memo", memo]);
+    }
+    let tip_arg = opts.tip.map(|t| t.to_string());
+    if let Some(tip) = &tip_arg {
+        args.extend_from_slice(&["--gas-tip", tip]);
     }
     let commit_id = wallet.commit(&args).await?;
     let pushed = wallet.push().await?;

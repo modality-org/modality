@@ -84,6 +84,37 @@ Where gas is priced:
   rate times the prefix's gas), split equally among the named validators.
 - MOD moves; none is made or burned.
 
+### The price follows demand
+
+Each sequencer block on a priced network states a **base price**, first in
+its events, as parts per thousand of the network's `gas_price`. The block's
+signature, its acks and its certificate cover it, so every node charges the
+same. A proposer sets it from its own previous block, as Ethereum moves its
+base fee:
+
+- up to 1/8 higher when that block's pushes declared more than half the
+  round's gas total, up to 1/8 lower when less;
+- never below 1000, the network's price.
+
+A sequencer does not ack a draft whose base does not follow from the
+proposer's previous block, when it holds that block. The status page shows
+the base price the node's next block will state (`gas_base_permille`).
+
+A commit may also offer a **tip** per gas (`head.gas_tip`) and cap what it
+will pay per gas, base and tip together (`head.max_gas_price`):
+
+- the base fee is split among the block's certifiers, as above, and the tip
+  goes to the block's proposer;
+- sequencers fill rounds highest tip first, keeping each contract's commits
+  in order;
+- a commit whose cap is under the price is refused, uncharged.
+
+```bash
+modal contract commit --path /notes/a.text --value hi --sign alice --payer alice \
+  --gas-tip 5 --max-gas-price 50
+modal wallet send --to <ID> --amount 1 --tip 5
+```
+
 `modal wallet` names the wallet as payer on everything it writes. With
 `modal contract`, pass `--payer` and sign with the payer's key:
 

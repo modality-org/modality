@@ -106,7 +106,8 @@ echo "$RECV" >> "$CURRENT_LOG"
 ALICE_RECV=$(echo "$RECV" | json 'd["received"][0]["commit_id"]')
 check "recv pushes the genesis and the RECV" test "$(echo "$RECV" | json 'len(d["pushed"])')" = 2
 expect_log "Sequenced commit $ALICE_RECV" "The network sequences her RECV"
-check "The RECV is applied" bash -c "! grep -q 'Failed to process sequenced commit $ALICE_RECV' '$SEQUENCER_LOG'"
+# A RECV may first wait for its prefix-cert quorum; anything else is a failure.
+check "The RECV is applied" bash -c "! grep 'Failed to process sequenced commit $ALICE_RECV' '$SEQUENCER_LOG' | grep -vq 'missing prefix_cert'"
 sleep 2
 BALANCE=$(modal wallet balance --dir "$ALICE" --output json 2>>"$CURRENT_LOG")
 echo "$BALANCE" >> "$CURRENT_LOG"

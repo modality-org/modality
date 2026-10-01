@@ -63,6 +63,14 @@ pub struct CommitHead {
     /// the commit. Needed on a network that prices gas.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub payer: Option<String>,
+    /// A tip per gas, in the smallest unit of MOD, for the sequencer that
+    /// proposes the block ordering this commit. Sequencers fill rounds by tip.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub gas_tip: Option<u64>,
+    /// The most this commit will pay per gas, base and tip together. A
+    /// block whose price is higher refuses it, uncharged.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_gas_price: Option<u64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -90,6 +98,8 @@ impl CommitFile {
                 rule_for_this_commit: None,
                 gas_limit: None,
                 payer: None,
+                gas_tip: None,
+                max_gas_price: None,
             },
         }
     }
@@ -106,6 +116,8 @@ impl CommitFile {
                 rule_for_this_commit: None,
                 gas_limit: None,
                 payer: None,
+                gas_tip: None,
+                max_gas_price: None,
             },
         }
     }

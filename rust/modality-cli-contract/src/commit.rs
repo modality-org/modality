@@ -110,6 +110,15 @@ pub struct Opts {
     /// Its key must also sign (`--sign`). Needed where gas is priced.
     #[clap(long)]
     payer: Option<String>,
+
+    /// A tip per gas (smallest MOD units) for the sequencer that orders the
+    /// commit. Rounds fill highest tip first.
+    #[clap(long)]
+    gas_tip: Option<u64>,
+
+    /// The most the commit will pay per gas, base and tip together.
+    #[clap(long)]
+    max_gas_price: Option<u64>,
 }
 
 /// A commit made by [`make`].
@@ -318,6 +327,8 @@ pub async fn make(opts: &Opts) -> Result<Option<Committed>> {
     if let Some(payer) = &opts.payer {
         commit.head.payer = Some(crate::signer_set::signer_id(payer)?);
     }
+    commit.head.gas_tip = opts.gas_tip;
+    commit.head.max_gas_price = opts.max_gas_price;
 
     // Sign the commit once per supplied passfile.
     if !opts.sign.is_empty() {

@@ -227,8 +227,11 @@ async fn reject_unfunded(mgr: &DatastoreManager, req: &PushRequest) -> anyhow::R
         .map(|c| json!({"commit_id": c.commit_id, "body": c.body, "head": c.head}))
         .collect();
     let receipts = push_receipts(mgr, &req.contract_id, &entries).await?;
+    // The block that orders these is not made yet; check at the base this
+    // node would state next. Apply checks again at the block's own base.
+    let base = crate::actions::sequencer::consensus::own_next_base(mgr);
     for entry in &entries {
-        fee_payer(mgr, &req.contract_id, entry, receipts).await?;
+        fee_payer(mgr, &req.contract_id, entry, receipts, base).await?;
     }
     Ok(())
 }

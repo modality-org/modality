@@ -61,6 +61,8 @@ or an inline domain action.
 | `--decimals <PLACES>` | Display decimals for `CREATE` commits: how a wallet shows amounts (`8` shows 150000000 as 1.5). No rule reads it |
 | `--gas-limit <GAS>` | The most gas the commit may use, signed into its head. Without it, the network's default applies. The commit prints the gas it uses. See [Gas](../concepts/gas.md) |
 | `--payer <ID or PASSFILE>` | The wallet that pays the commit's gas where gas is priced. Its key must also sign (`--sign`). See [Gas](../concepts/gas.md) |
+| `--gas-tip <UNITS>` | A tip per gas for the sequencer that orders the commit. Rounds fill highest tip first |
+| `--max-gas-price <UNITS>` | The most the commit pays per gas, base and tip together; a block priced higher refuses it, uncharged |
 | `--to-contract <TO_CONTRACT>` | Destination contract ID for `SEND` commits |
 | `--amount <AMOUNT>` | Amount for `SEND` commits; on a `RECV`, the amount it states it receives. Apply refuses a `RECV` whose statement differs from its `SEND` |
 | `--send-commit-id <SEND_COMMIT_ID>` | Source `SEND` commit ID for `RECV` commits |

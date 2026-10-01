@@ -136,6 +136,99 @@ impl GasPrice {
     }
 }
 
+/// The base price is a multiplier on the network's `gas_price`, in parts per
+/// thousand. It never falls below 1000: the network price is the floor.
+pub const BASE_PERMILLE_FLOOR: u64 = 1_000;
+
+/// The event a proposer puts first in each block on a network that prices
+/// gas, stating the block's base price. The block's closing signature, its
+/// acks and its certificate cover it.
+pub const GAS_BASE_EVENT: &str = "gas_base";
+
+pub fn gas_base_event(base_permille: u64) -> serde_json::Value {
+    serde_json::json!({ "type": GAS_BASE_EVENT, "base_permille": base_permille })
+}
+
+/// The base price a block states, if it states one.
+pub fn stated_base(events: &[serde_json::Value]) -> Option<u64> {
+    events.iter().find_map(|e| {
+        (e.get("type").and_then(|t| t.as_str()) == Some(GAS_BASE_EVENT))
+            .then(|| e.get("base_permille").and_then(|b| b.as_u64()))
+            .flatten()
+    })
+}
+
+/// The base price of a proposer's next block, from its previous block's
+/// base and the gas that block's pushes declared, as EIP-1559 moves the base
+/// fee: up to 1/8 higher when the block was fuller than half the round
+/// limit, up to 1/8 lower when emptier, never below the floor.
+pub fn next_base_permille(prev_base: u64, prev_declared: u64, round_limit: u64) -> u64 {
+    let prev = prev_base.max(BASE_PERMILLE_FLOOR) as u128;
+    let target = (round_limit / 2).max(1) as u128;
+    let used = prev_declared as u128;
+    let next = if used >= target {
+        let delta = prev * (used - target) / target / 8;
+        prev + delta.max(if used > target { 1 } else { 0 })
+    } else {
+        prev - prev * (target - used) / target / 8
+    };
+    (next.min(u64::MAX as u128) as u64).max(BASE_PERMILLE_FLOOR)
+}
+
+/// The gas a queued or ordered event's commits declare: each commit's
+/// `gas_limit`, or the schedule's default. Events that are not pushes
+/// declare none.
+pub fn declared_by_event(schedule: &GasSchedule, event: &serde_json::Value) -> u64 {
+    if event.get("type").and_then(|t| t.as_str()) != Some("contract_push") {
+        return 0;
+    }
+    event
+        .get("data")
+        .and_then(|d| d.get("commits"))
+        .and_then(|c| c.as_array())
+        .map(|commits| {
+            commits.iter().fold(0u64, |sum, commit| {
+                let limit = commit
+                    .get("head")
+                    .and_then(|h| h.get("gas_limit"))
+                    .and_then(|g| g.as_u64())
+                    .unwrap_or(schedule.default_commit_limit);
+                sum.saturating_add(limit)
+            })
+        })
+        .unwrap_or(0)
+}
+
+/// The highest tip a push event's commits offer.
+pub fn tip_of_event(event: &serde_json::Value) -> u64 {
+    event
+        .get("data")
+        .and_then(|d| d.get("commits"))
+        .and_then(|c| c.as_array())
+        .map(|commits| {
+            commits
+                .iter()
+                .filter_map(|c| c.get("head").and_then(|h| h.get("gas_tip")).and_then(|t| t.as_u64()))
+                .max()
+                .unwrap_or(0)
+        })
+        .unwrap_or(0)
+}
+
+impl GasPrice {
+    /// The price per gas of each meter in a block whose base is
+    /// `base_permille`.
+    pub fn at_base(&self, base_permille: u64) -> GasPrice {
+        let scale = |p: u64| {
+            ((p as u128) * (base_permille.max(BASE_PERMILLE_FLOOR) as u128) / 1_000).min(u64::MAX as u128) as u64
+        };
+        GasPrice {
+            ordering: scale(self.ordering),
+            apply: scale(self.apply),
+        }
+    }
+}
+
 /// `amount` split equally among `recipients`, sorted and without
 /// duplicates; the remainder goes to the first. Every node gets the same
 /// split from the same set.
@@ -421,6 +514,20 @@ mod tests {
         assert_eq!(split, vec![("a".into(), 4), ("b".into(), 3), ("c".into(), 3)]);
         assert!(split_equally(10, &[]).is_empty());
         assert_eq!(split_equally(1, &["b".into(), "a".into()]), vec![("a".into(), 1)]);
+    }
+
+    #[test]
+    fn the_base_moves_by_an_eighth_toward_half_full_and_never_below_the_floor() {
+        let limit = 1_000_000;
+        assert_eq!(next_base_permille(1_000, 500_000, limit), 1_000, "half full: unchanged");
+        assert_eq!(next_base_permille(1_000, 1_000_000, limit), 1_125, "full: up an eighth");
+        assert_eq!(next_base_permille(2_000, 0, limit), 1_750, "empty: down an eighth");
+        assert_eq!(next_base_permille(1_000, 0, limit), 1_000, "never below the floor");
+        assert_eq!(next_base_permille(1_000, 500_001, limit), 1_001, "a little over moves it");
+        assert_eq!(GasPrice { ordering: 4, apply: 10 }.at_base(1_500), GasPrice { ordering: 6, apply: 15 });
+        let events = vec![serde_json::json!({"type": "prefix_cert"}), gas_base_event(1_250)];
+        assert_eq!(stated_base(&events), Some(1_250));
+        assert_eq!(stated_base(&events[..1]), None);
     }
 
     #[test]
