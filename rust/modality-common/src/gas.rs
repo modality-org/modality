@@ -104,6 +104,58 @@ impl GasSchedule {
     }
 }
 
+/// What one gas costs on a network, in the smallest unit of MOD, by meter.
+/// Fixed from genesis. All zero (the default) means gas is not priced.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GasPrice {
+    #[serde(default)]
+    pub ordering: u64,
+    #[serde(default)]
+    pub apply: u64,
+}
+
+impl GasPrice {
+    pub fn is_priced(&self) -> bool {
+        self.ordering > 0 || self.apply > 0
+    }
+
+    /// What `used` costs, never more than its total at `limit`: the
+    /// ordering gas is priced first, then apply gas up to the limit.
+    pub fn charge(&self, used: &GasUsed, limit: u64) -> u64 {
+        let ordering = used.ordering.min(limit);
+        let apply = used.apply.min(limit.saturating_sub(ordering));
+        ordering
+            .saturating_mul(self.ordering)
+            .saturating_add(apply.saturating_mul(self.apply))
+    }
+
+    /// The most a commit with `limit` can cost: every gas at the higher
+    /// price. What a payer must hold before the commit is ordered.
+    pub fn most(&self, limit: u64) -> u64 {
+        limit.saturating_mul(self.ordering.max(self.apply))
+    }
+}
+
+/// `amount` split equally among `recipients`, sorted and without
+/// duplicates; the remainder goes to the first. Every node gets the same
+/// split from the same set.
+pub fn split_equally(amount: u64, recipients: &[String]) -> Vec<(String, u64)> {
+    let mut sorted: Vec<String> = recipients.to_vec();
+    sorted.sort();
+    sorted.dedup();
+    if sorted.is_empty() || amount == 0 {
+        return Vec::new();
+    }
+    let share = amount / sorted.len() as u64;
+    let remainder = amount % sorted.len() as u64;
+    sorted
+        .into_iter()
+        .enumerate()
+        .map(|(i, who)| (who, share + if i == 0 { remainder } else { 0 }))
+        .filter(|(_, n)| *n > 0)
+        .collect()
+}
+
 /// The gas a commit used, by meter.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct GasUsed {
@@ -351,6 +403,24 @@ mod tests {
         let b = meter(s, rule, &two, &two, 0);
         let extra_bytes = serde_json::to_vec(&two.body).unwrap().len() - serde_json::to_vec(&one.body).unwrap().len();
         assert_eq!(b.apply - a.apply, 1_000_000 + 200 + s.per_body_byte * extra_bytes as u64);
+    }
+
+    #[test]
+    fn a_charge_prices_ordering_then_apply_up_to_the_limit() {
+        let price = GasPrice { ordering: 2, apply: 3 };
+        let used = GasUsed { ordering: 100, apply: 1_000, fuel: 0 };
+        assert_eq!(price.charge(&used, 10_000), 100 * 2 + 1_000 * 3);
+        assert_eq!(price.charge(&used, 600), 100 * 2 + 500 * 3, "apply is cut at the limit");
+        assert_eq!(price.most(600), 600 * 3);
+        assert!(!GasPrice::default().is_priced());
+    }
+
+    #[test]
+    fn a_fee_splits_equally_and_the_remainder_goes_to_the_first() {
+        let split = split_equally(10, &["c".into(), "a".into(), "b".into(), "a".into()]);
+        assert_eq!(split, vec![("a".into(), 4), ("b".into(), 3), ("c".into(), 3)]);
+        assert!(split_equally(10, &[]).is_empty());
+        assert_eq!(split_equally(1, &["b".into(), "a".into()]), vec![("a".into(), 1)]);
     }
 
     #[test]

@@ -57,6 +57,40 @@ threads, no relaxed SIMD.
 Commits the network itself writes, such as the MOD contract's genesis and
 mints, are metered but not limited.
 
+## Fees
+
+A network may price gas (`gas_price`, in the smallest unit of MOD per gas,
+for `ordering` and `apply`). A network that does must have a MOD contract
+and a gas schedule; both are fixed from genesis. With no price, gas is
+metered and limited but nothing is paid.
+
+Where gas is priced:
+
+- **Every commit names a payer** (`head.payer`): a wallet whose key signs
+  the commit. A commit with no payer, or whose payer has not signed, is
+  refused and charged nothing.
+- **The payer must hold the most the commit can cost**, its gas limit at
+  the higher price, before the commit is ordered. A wallet's own commit may
+  count the MOD it receives in the same push, so a new wallet's first push
+  (its genesis and a `RECV`) pays from what it receives.
+- **The commit is charged for the gas it used**, never more than its
+  limit: when it is applied, and also when its rules or an action refuse
+  it after it was metered, as a failed transaction is charged. A refused
+  commit is charged once; pushing it again is refused without charge.
+- **The fee goes to the sequencers that certified the block** that ordered
+  the commit, split equally (the remainder to the first by id).
+- **A dest `RECV` or `REPOST` that consumes a validator quorum** also pays
+  the network's certificate fee (`validation_fees`: a nominal fee plus a
+  rate times the prefix's gas), split equally among the named validators.
+- MOD moves; none is made or burned.
+
+`modal wallet` names the wallet as payer on everything it writes. With
+`modal contract`, pass `--payer` and sign with the payer's key:
+
+```bash
+modal contract commit --path /notes/a.text --value hi --sign alice --payer alice
+```
+
 ## Seeing it
 
 `modal contract commit` prints the gas a commit uses, and `--output json`

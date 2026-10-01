@@ -30,6 +30,11 @@ pub struct Opts {
     #[clap(long)]
     key: Option<String>,
 
+    /// The wallet that pays for the genesis, as a passfile: it is named in
+    /// the genesis head and signs it. Needed where gas is priced.
+    #[clap(long)]
+    payer: Option<String>,
+
     /// Output format (json or text)
     #[clap(long, default_value = "text")]
     output: String,
@@ -127,6 +132,18 @@ pub async fn make(opts: &Opts) -> Result<Created> {
         );
     }
 
+    if let Some(reference) = &opts.payer {
+        let path = modality_common::passfile::resolve_passfile_path(reference)?;
+        let payer_key = Keypair::from_json_file(path.to_str().unwrap_or_default())
+            .map_err(|e| anyhow::anyhow!("--payer {reference}: {e}"))?;
+        genesis_commit.head.payer = Some(payer_key.public_key_as_base58_identity());
+        let (key, signature) = modality_common::commit_signatures::sign_commit(
+            &payer_key,
+            &contract_id,
+            &genesis_commit,
+        )?;
+        genesis_commit.head.signatures = Some(serde_json::json!({ key: signature }));
+    }
     let genesis_commit_id = genesis_commit.compute_id()?;
     store.save_commit(&genesis_commit_id, &genesis_commit)?;
     store.set_head(&genesis_commit_id)?;

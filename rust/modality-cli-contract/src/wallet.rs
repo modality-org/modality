@@ -190,7 +190,7 @@ impl Wallet {
     async fn commit(&self, args: &[&str]) -> Result<String> {
         let dir = self.dir.to_string_lossy().to_string();
         let key = self.key.to_string_lossy().to_string();
-        let mut argv = vec!["commit", "--dir", &dir, "--sign", &key];
+        let mut argv = vec!["commit", "--dir", &dir, "--sign", &key, "--payer", &self.id];
         argv.extend_from_slice(args);
         let made = crate::commit::make(&crate::commit::Opts::parse_from(argv))
             .await?
@@ -341,7 +341,8 @@ async fn create(opts: &CreateOpts) -> Result<()> {
         let dir_arg = dir.to_string_lossy().to_string();
         let key_arg = key.to_string_lossy().to_string();
         let created = crate::create::make(&crate::create::Opts::parse_from([
-            "create", "--dir", &dir_arg, "--key", &key_arg, "--signer", &key_arg,
+            "create", "--dir", &dir_arg, "--key", &key_arg, "--signer", &key_arg, "--payer",
+            &key_arg,
         ]))
         .await?;
         debug_assert_eq!(created.contract_id, id);

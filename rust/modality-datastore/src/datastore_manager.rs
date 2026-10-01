@@ -367,6 +367,24 @@ impl DatastoreManager {
         }
 
         self.refuse_theory_change_under_contract_history(network_config)?;
+        let price: modality_common::gas::GasPrice = network_config
+            .get("gas_price")
+            .map(|v| serde_json::from_value(v.clone()))
+            .transpose()
+            .map_err(|e| crate::Error::InvalidData(format!("gas_price: {e}")))?
+            .unwrap_or_default();
+        if price.is_priced() {
+            if network_config.get("gas_schedule").is_none() {
+                return Err(crate::Error::InvalidData(
+                    "the network prices gas (gas_price) but names no gas_schedule".into(),
+                ));
+            }
+            if network_config.get("mod_contract").is_none() {
+                return Err(crate::Error::InvalidData(
+                    "the network prices gas, which is paid in MOD, but has no mod_contract".into(),
+                ));
+            }
+        }
         self.store_validator_config(network_config)?;
         self.apply_native_mod_genesis()?;
 
@@ -483,7 +501,12 @@ impl DatastoreManager {
                 .to_string()
         };
         let schedule = |cfg: &serde_json::Value| {
-            cfg.get("gas_schedule").and_then(|v| v.as_str()).unwrap_or("none").to_string()
+            let price = cfg.get("gas_price").cloned().unwrap_or(serde_json::Value::Null);
+            format!(
+                "{} at price {}",
+                cfg.get("gas_schedule").and_then(|v| v.as_str()).unwrap_or("none"),
+                if price.is_null() { "0".to_string() } else { price.to_string() }
+            )
         };
         let (was_gas, now_gas) = (schedule(&stored), schedule(network_config));
         if was_gas != now_gas {
@@ -548,6 +571,7 @@ impl DatastoreManager {
             "network_name": network_config.get("name").and_then(|v| v.as_str()).unwrap_or(""),
             "hash_lane": network_config.get("hash_lane").cloned().unwrap_or(serde_json::Value::Null),
             "gas_schedule": network_config.get("gas_schedule").cloned().unwrap_or(serde_json::Value::Null),
+            "gas_price": network_config.get("gas_price").cloned().unwrap_or(serde_json::Value::Null),
         });
         self.node_state
             .put("validator_config", &serde_json::to_vec(&cfg)?)
@@ -641,6 +665,66 @@ impl DatastoreManager {
                 Ok(Some(modality_common::gas::GasSchedule::for_version(version)))
             }
         }
+    }
+
+    /// What gas costs on this network. Zero (unpriced) unless it names
+    /// `gas_price`.
+    pub fn gas_price(&self) -> Result<modality_common::gas::GasPrice> {
+        let cfg = self.validator_config()?;
+        Ok(cfg
+            .get("gas_price")
+            .and_then(|v| serde_json::from_value(v.clone()).ok())
+            .unwrap_or_default())
+    }
+
+    /// What `owner` holds of the MOD contract's MOD; 0 on a network with
+    /// no MOD contract.
+    pub async fn mod_balance(&self, owner: &str) -> Result<u64> {
+        let Some(mod_id) = self.mod_contract_id()? else {
+            return Ok(0);
+        };
+        Ok(crate::models::AssetBalance::find_one_multi(self, mod_balance_keys(&mod_id, owner))
+            .await?
+            .map(|b| b.balance)
+            .unwrap_or(0))
+    }
+
+    /// Move a fee: `from` pays the sum of `to`, each recipient gets its
+    /// share. Refuses when `from` holds less, changing nothing.
+    pub async fn pay_mod_fee(&self, from: &str, to: &[(String, u64)]) -> Result<()> {
+        let Some(mod_id) = self.mod_contract_id()? else {
+            return Err(crate::Error::InvalidData("no MOD contract to pay a fee in".into()));
+        };
+        let total = to.iter().fold(0u64, |sum, (_, n)| sum.saturating_add(*n));
+        if total == 0 {
+            return Ok(());
+        }
+        let held = self.mod_balance(from).await?;
+        if held < total {
+            return Err(crate::Error::InvalidData(format!(
+                "{from} holds {held} MOD units, less than the fee {total}"
+            )));
+        }
+        let mut balances: std::collections::BTreeMap<String, u64> = std::collections::BTreeMap::new();
+        balances.insert(from.to_string(), held - total);
+        for (who, amount) in to {
+            let current = match balances.get(who) {
+                Some(n) => *n,
+                None => self.mod_balance(who).await?,
+            };
+            balances.insert(who.clone(), current.saturating_add(*amount));
+        }
+        for (owner, balance) in balances {
+            crate::models::AssetBalance {
+                contract_id: mod_id.clone(),
+                asset_id: "MOD".to_string(),
+                owner_contract_id: owner,
+                balance,
+            }
+            .save_to_final(self)
+            .await?;
+        }
+        Ok(())
     }
 
     /// The network's hash-lane parameters, or `None` when the network has no
@@ -1146,6 +1230,16 @@ impl DatastoreManager {
 
         Ok(count)
     }
+}
+
+fn mod_balance_keys(mod_id: &str, owner: &str) -> std::collections::HashMap<String, String> {
+    [
+        ("contract_id".to_string(), mod_id.to_string()),
+        ("asset_id".to_string(), "MOD".to_string()),
+        ("owner_contract_id".to_string(), owner.to_string()),
+    ]
+    .into_iter()
+    .collect()
 }
 
 /// The gas a queued event's commits declare: each commit's `gas_limit`, or

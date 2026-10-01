@@ -247,6 +247,13 @@ pub struct ContractProcessor {
     predicate_executor: PredicateExecutor,
     #[allow(dead_code)]
     program_executor: ProgramExecutor,
+    /// The gas the last `process_commit` used, once it was metered: also
+    /// when the commit was refused after that, so its work can be charged.
+    last_gas: std::sync::Mutex<Option<modality_common::gas::GasUsed>>,
+    /// Certificate fees the last `process_commit` owes: the quote for each
+    /// prefix its RECVs and REPOSTs consumed, split among the named
+    /// validators.
+    cert_fees: std::sync::Mutex<Vec<(String, u64)>>,
 }
 
 /// A dest `RECV` or `REPOST` whose source prefix has no validator quorum yet.
@@ -280,7 +287,42 @@ impl ContractProcessor {
             datastore,
             predicate_executor,
             program_executor,
+            last_gas: std::sync::Mutex::new(None),
+            cert_fees: std::sync::Mutex::new(Vec::new()),
         }
+    }
+
+    /// Certificate fees the last `process_commit` owes, by validator.
+    pub fn cert_fees(&self) -> Vec<(String, u64)> {
+        self.cert_fees.lock().unwrap_or_else(|e| e.into_inner()).clone()
+    }
+
+    /// Owe the certificate fee for consuming the prefix of `source` through
+    /// `through`: the network's `validation_fees` quote of its gas, split
+    /// equally among the named validators. Which validators' certificates a
+    /// node holds when it applies can differ between nodes, so the split is
+    /// over the named set, which every node agrees on.
+    async fn owe_cert_fee(&self, ds: &DatastoreManager, source: &str, through: &str) -> Result<()> {
+        if !ds.dest_apply_requires_validator_cert().unwrap_or(false) {
+            return Ok(());
+        }
+        let (_, _, gas) = crate::prefix_cert::build_prefix_from_store(ds, source, through).await?;
+        let fee = ds.validation_fees()?.quote(gas);
+        let split = modality_common::gas::split_equally(fee, &ds.validators()?);
+        self.cert_fees
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .extend(split);
+        Ok(())
+    }
+
+    /// The gas the last `process_commit` used, if it got as far as metering.
+    pub fn last_gas(&self) -> Option<modality_common::gas::GasUsed> {
+        *self.last_gas.lock().unwrap_or_else(|e| e.into_inner())
+    }
+
+    fn set_last_gas(&self, gas: Option<modality_common::gas::GasUsed>) {
+        *self.last_gas.lock().unwrap_or_else(|e| e.into_inner()) = gas;
     }
 
     pub async fn assert_source_commit_sequenced(
@@ -390,6 +432,8 @@ impl ContractProcessor {
         commit_id: &str,
         commit_data: &str,
     ) -> Result<Vec<StateChange>> {
+        self.set_last_gas(None);
+        self.cert_fees.lock().unwrap_or_else(|e| e.into_inner()).clear();
         let validation_timestamp = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)?
             .as_secs();
@@ -579,23 +623,32 @@ impl ContractProcessor {
             gas::commit_limit(schedule, pending)
         };
         let before_programs = gas::meter(schedule, &governing, pending, pending, 0);
+        self.set_last_gas(Some(before_programs));
         gas::within_limit(&before_programs, limit)?;
         let mut fuel = 0;
         let pending_expanded = if commit_has_invoke(pending) {
             let ctx = frozen_invoke_context(contract_id, commit_id, pending, &accepted_expanded);
-            let (expanded, _) = modality_common::independent_replay::expand_invoke_actions_within(
+            let expansion = modality_common::independent_replay::expand_invoke_actions_within(
                 pending,
                 &wasm,
                 &ctx,
                 &mut engine,
                 limit.saturating_sub(before_programs.total()),
                 &mut fuel,
-            )?;
-            expanded
+            );
+            match expansion {
+                Ok((expanded, _)) => expanded,
+                Err(err) => {
+                    // The fuel a failed program burned is still work done.
+                    self.set_last_gas(Some(gas::meter(schedule, &governing, pending, pending, fuel)));
+                    return Err(err);
+                }
+            }
         } else {
             pending.clone()
         };
         let used = gas::meter(schedule, &governing, pending, &pending_expanded, fuel);
+        self.set_last_gas(Some(used));
         gas::within_limit(&used, limit)?;
         if theory.at(accepted_raw.len()) != modality_lang::TheoryVersion::V0 {
             pending_expanded.validate()?;
@@ -923,6 +976,8 @@ impl ContractProcessor {
             "RECV",
         )
         .await?;
+        self.owe_cert_fee(&ds, &send_commit_data.contract_id, send_commit_id)
+            .await?;
 
         let send = Self::find_send(&ds, &send_commit_data, send_index).await?;
 
@@ -1310,6 +1365,8 @@ impl ContractProcessor {
             "REPOST",
         )
         .await?;
+        self.owe_cert_fee(&ds, &spec.source_contract, &spec.source_commit)
+            .await?;
         let source_key = format!("/contracts/{}{}", spec.source_contract, spec.source_path);
         let source_value_opt = ds.get_string(&source_key).await?;
         let source_value = source_value_opt.ok_or_else(|| {

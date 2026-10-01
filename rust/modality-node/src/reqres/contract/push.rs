@@ -89,6 +89,14 @@ pub async fn handler(
         });
     }
 
+    if let Err(e) = reject_unfunded(datastore_manager, &req).await {
+        return Ok(Response {
+            ok: false,
+            data: None,
+            errors: Some(json!({"error": e.to_string()})),
+        });
+    }
+
     let mut saved_count = 0;
     let timestamp = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)?
@@ -201,6 +209,26 @@ fn reject_unanchored_reveals(
                 }
             );
         }
+    }
+    Ok(())
+}
+
+/// On a network that prices gas, each commit names a payer that signed it
+/// and holds the most the commit can cost (counting MOD the push receives
+/// into the payer's own contract). Checked again when the commit is applied.
+async fn reject_unfunded(mgr: &DatastoreManager, req: &PushRequest) -> anyhow::Result<()> {
+    use crate::actions::sequencer::consensus::{fee_payer, push_receipts};
+    if !mgr.gas_price()?.is_priced() {
+        return Ok(());
+    }
+    let entries: Vec<Value> = req
+        .commits
+        .iter()
+        .map(|c| json!({"commit_id": c.commit_id, "body": c.body, "head": c.head}))
+        .collect();
+    let receipts = push_receipts(mgr, &req.contract_id, &entries).await?;
+    for entry in &entries {
+        fee_payer(mgr, &req.contract_id, entry, receipts).await?;
     }
     Ok(())
 }

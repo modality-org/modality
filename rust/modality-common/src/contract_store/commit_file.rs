@@ -59,6 +59,10 @@ pub struct CommitHead {
     /// so no relay can raise it. Absent: the network schedule's default.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub gas_limit: Option<u64>,
+    /// The wallet that pays this commit's gas, by its id. Its key must sign
+    /// the commit. Needed on a network that prices gas.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub payer: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -85,6 +89,7 @@ impl CommitFile {
                 replay_bundles: None,
                 rule_for_this_commit: None,
                 gas_limit: None,
+                payer: None,
             },
         }
     }
@@ -100,6 +105,7 @@ impl CommitFile {
                 replay_bundles: None,
                 rule_for_this_commit: None,
                 gas_limit: None,
+                payer: None,
             },
         }
     }

@@ -105,6 +105,11 @@ pub struct Opts {
     /// commit uses.
     #[clap(long)]
     gas_limit: Option<u64>,
+
+    /// The wallet that pays this commit's gas (Modality ID or passfile).
+    /// Its key must also sign (`--sign`). Needed where gas is priced.
+    #[clap(long)]
+    payer: Option<String>,
 }
 
 /// A commit made by [`make`].
@@ -309,6 +314,9 @@ pub async fn make(opts: &Opts) -> Result<Option<Committed>> {
 
     if let Some(limit) = opts.gas_limit {
         commit.head.gas_limit = Some(limit);
+    }
+    if let Some(payer) = &opts.payer {
+        commit.head.payer = Some(crate::signer_set::signer_id(payer)?);
     }
 
     // Sign the commit once per supplied passfile.

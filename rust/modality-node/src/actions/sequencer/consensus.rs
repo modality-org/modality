@@ -454,7 +454,268 @@ enum CommitApply {
     Failed,
 }
 
+/// Where the fee a commit paid is recorded. A commit is charged once.
+pub(crate) fn fee_key(contract_id: &str, commit_id: &str) -> String {
+    format!("/commit_fee/{contract_id}/{commit_id}")
+}
+
+/// Apply a pushed commit, and on a network that prices gas, charge its
+/// payer: before, the payer must be named, have signed, and hold the most
+/// the commit can cost (counting MOD the commit itself receives into it);
+/// after an outcome that is final (applied or refused, not parked), the gas
+/// the commit used is charged and split equally among `recipients`, the
+/// sequencers that certified the block that ordered it.
 async fn apply_pushed_commit(
+    processor: &ContractProcessor,
+    datastore: &Arc<Mutex<DatastoreManager>>,
+    contract_id: &str,
+    commit_entry: &serde_json::Value,
+    batch_id: &str,
+    recipients: &[String],
+    receipts_in_push: u64,
+) -> CommitApply {
+    let payer = {
+        let mgr = datastore.lock().await;
+        let receipts = push_receipts(&mgr, contract_id, std::slice::from_ref(commit_entry))
+            .await
+            .unwrap_or(0);
+        match fee_payer(&mgr, contract_id, commit_entry, receipts.max(receipts_in_push)).await {
+            Ok(payer) => payer,
+            Err(reason) => {
+                log::warn!("Refusing commit for contract {}: {}", contract_id, reason);
+                return CommitApply::Failed;
+            }
+        }
+    };
+    let outcome =
+        apply_pushed_commit_unpaid(processor, datastore, contract_id, commit_entry, batch_id).await;
+    if let Some(payer) = payer {
+        if matches!(outcome, CommitApply::Sequenced | CommitApply::Failed) {
+            if let Some(gas) = processor.last_gas() {
+                let mgr = datastore.lock().await;
+                let cert_fees = processor.cert_fees();
+                charge(
+                    &mgr,
+                    contract_id,
+                    commit_entry,
+                    &payer,
+                    &gas,
+                    &outcome,
+                    recipients,
+                    &cert_fees,
+                )
+                .await;
+            }
+        }
+    }
+    outcome
+}
+
+pub(crate) struct Payer {
+    id: String,
+    limit: u64,
+}
+
+/// The payer of a pushed commit on a priced network, checked; `None` when
+/// gas is not priced or the commit is already sequenced. A payer whose own
+/// contract receives MOD in the same push (`receipts_in_push`) may count it:
+/// a new wallet's first push, its genesis and a `RECV`, pays from what it
+/// receives.
+pub(crate) async fn fee_payer(
+    mgr: &DatastoreManager,
+    contract_id: &str,
+    commit_entry: &serde_json::Value,
+    receipts_in_push: u64,
+) -> anyhow::Result<Option<Payer>> {
+    let price = mgr.gas_price()?;
+    if !price.is_priced() {
+        return Ok(None);
+    }
+    let Some(commit_id) = commit_entry
+        .get("commit_id")
+        .or_else(|| commit_entry.get("hash"))
+        .and_then(|v| v.as_str())
+    else {
+        anyhow::bail!("the push names no commit id");
+    };
+    let keys = [
+        ("contract_id".to_string(), contract_id.to_string()),
+        ("commit_id".to_string(), commit_id.to_string()),
+    ]
+    .into_iter()
+    .collect();
+    if Commit::find_one_multi(mgr, keys)
+        .await?
+        .is_some_and(|c| c.is_sequenced())
+    {
+        return Ok(None);
+    }
+    if mgr.get_data_by_key(&fee_key(contract_id, commit_id)).await?.is_some() {
+        anyhow::bail!("commit {commit_id} was charged once already; it is not applied again");
+    }
+    let body = commit_entry.get("body").or_else(|| commit_entry.get("data"));
+    let commit = CommitFile::verified(commit_id, body, commit_entry.get("head"))?;
+    let payer = commit
+        .head
+        .payer
+        .clone()
+        .ok_or_else(|| anyhow::anyhow!("gas is priced here; the commit names no payer"))?;
+    let signed = commit
+        .head
+        .signatures
+        .as_ref()
+        .and_then(|s| s.get(&payer))
+        .and_then(|s| s.as_str())
+        .is_some_and(|signature| {
+            modality_common::commit_signatures::signing_payload(contract_id, &commit).is_ok_and(
+                |payload| {
+                    modality_common::commit_signatures::signature_verifies(
+                        &payer,
+                        signature,
+                        payload.as_bytes(),
+                    )
+                },
+            )
+        });
+    if !signed {
+        anyhow::bail!("the payer {payer} has not signed the commit");
+    }
+    let schedule = mgr
+        .gas_schedule()?
+        .ok_or_else(|| anyhow::anyhow!("gas is priced but the network names no schedule"))?;
+    let limit = modality_common::gas::commit_limit(schedule, &commit);
+    let most = price.most(limit);
+    let held = mgr.mod_balance(&payer).await?;
+    let receiving = if payer == contract_id { receipts_in_push } else { 0 };
+    if held.saturating_add(receiving) < most {
+        anyhow::bail!(
+            "the payer {payer} holds {held} MOD units (receiving {receiving} here), less than the {most} this commit can cost at its gas limit {limit}"
+        );
+    }
+    Ok(Some(Payer { id: payer, limit }))
+}
+
+/// MOD the push's `RECV`s take into `contract_id`: applied `SEND`s of MOD
+/// to it not yet received.
+pub(crate) async fn push_receipts(
+    mgr: &DatastoreManager,
+    contract_id: &str,
+    commits: &[serde_json::Value],
+) -> anyhow::Result<u64> {
+    use modality_datastore::models::{ReceivedSend, SendRecord};
+    let Some(mod_id) = mgr.mod_contract_id()? else {
+        return Ok(0);
+    };
+    let payer = contract_id;
+    let actions: Vec<serde_json::Value> = commits
+        .iter()
+        .filter_map(|c| c.get("body").and_then(|b| b.as_array()).cloned())
+        .flatten()
+        .collect();
+    let mut total = 0u64;
+    for action in actions.iter().filter(|a| {
+        a.get("method")
+            .and_then(|m| m.as_str())
+            .is_some_and(|m| m.eq_ignore_ascii_case("recv"))
+    }) {
+        let value = action.get("value").cloned().unwrap_or_default();
+        let action = modality_common::contract_store::CommitAction {
+            method: "recv".into(),
+            path: None,
+            value,
+            source_contract: None,
+            source_path: None,
+            source_commit: None,
+            emitted_by: None,
+        };
+        let Some(send_id) = action.value.get("send_commit_id").and_then(|v| v.as_str()) else {
+            continue;
+        };
+        let index = action.value.get("send_index").and_then(|v| v.as_u64()).unwrap_or(0);
+        let Some(send) = SendRecord::find(mgr, send_id, index).await? else {
+            continue;
+        };
+        if send.creator() == mod_id
+            && send.asset_id == "MOD"
+            && send.to_contract == payer
+            && !ReceivedSend::is_received(mgr, send_id, index).await?
+        {
+            total = total.saturating_add(send.amount);
+        }
+    }
+    Ok(total)
+}
+
+/// Charge `payer` for `gas`, split among `recipients`, and record it. A
+/// payer whose MOD fell below the charge (the commit spent it) pays what it
+/// holds.
+async fn charge(
+    mgr: &DatastoreManager,
+    contract_id: &str,
+    commit_entry: &serde_json::Value,
+    payer: &Payer,
+    gas: &modality_common::gas::GasUsed,
+    outcome: &CommitApply,
+    recipients: &[String],
+    cert_fees: &[(String, u64)],
+) {
+    let Some(commit_id) = commit_entry
+        .get("commit_id")
+        .or_else(|| commit_entry.get("hash"))
+        .and_then(|v| v.as_str())
+    else {
+        return;
+    };
+    let price = match mgr.gas_price() {
+        Ok(price) => price,
+        Err(e) => {
+            log::warn!("No gas price to charge commit {}: {}", commit_id, e);
+            return;
+        }
+    };
+    let held = mgr.mod_balance(&payer.id).await.unwrap_or(0);
+    let fee = price.charge(gas, payer.limit).min(held);
+    let mut split = modality_common::gas::split_equally(fee, recipients);
+    // Certificate fees, owed only by a commit that applied.
+    if matches!(outcome, CommitApply::Sequenced) {
+        let mut left = held - fee;
+        for (validator, owed) in cert_fees {
+            let paid = (*owed).min(left);
+            left -= paid;
+            if paid > 0 {
+                split.push((validator.clone(), paid));
+            }
+        }
+    }
+    let fee = split.iter().map(|(_, n)| *n).sum::<u64>();
+    if let Err(e) = mgr.pay_mod_fee(&payer.id, &split).await {
+        log::warn!("Failed to charge {} for commit {}: {}", payer.id, commit_id, e);
+        return;
+    }
+    let record = serde_json::json!({
+        "payer": payer.id,
+        "gas": gas,
+        "fee": fee,
+        "paid_to": split,
+        "applied": matches!(outcome, CommitApply::Sequenced),
+    });
+    if let Err(e) = mgr
+        .set_data_by_key(&fee_key(contract_id, commit_id), record.to_string().as_bytes())
+        .await
+    {
+        log::warn!("Failed to record the fee of commit {}: {}", commit_id, e);
+    }
+    log::info!(
+        "Commit {} charged {} MOD units to {} for {} gas ({})",
+        commit_id,
+        fee,
+        payer.id,
+        gas.total(),
+        if matches!(outcome, CommitApply::Sequenced) { "applied" } else { "refused" }
+    );
+}
+
+async fn apply_pushed_commit_unpaid(
     processor: &ContractProcessor,
     datastore: &Arc<Mutex<DatastoreManager>>,
     contract_id: &str,
@@ -696,6 +957,7 @@ async fn park_commit(
     contract_id: &str,
     commit_entry: &serde_json::Value,
     batch_id: &str,
+    recipients: &[String],
 ) {
     let Some(commit_id) = commit_entry
         .get("commit_id")
@@ -716,6 +978,7 @@ async fn park_commit(
         "contract_id": contract_id,
         "commit": commit_entry,
         "batch_id": batch_id,
+        "fee_recipients": recipients,
     }));
     if pending.len() > MAX_PARKED_COMMITS {
         let excess = pending.len() - MAX_PARKED_COMMITS;
@@ -728,6 +991,14 @@ async fn park_commit(
         contract_id,
         queue.what
     );
+}
+
+fn parked_recipients(entry: &serde_json::Value) -> Vec<String> {
+    entry
+        .get("fee_recipients")
+        .and_then(|v| v.as_array())
+        .map(|a| a.iter().filter_map(|r| r.as_str().map(str::to_string)).collect())
+        .unwrap_or_default()
 }
 
 /// Retry parked commits now that what they wait for may have landed.
@@ -756,8 +1027,17 @@ async fn retry_parked(
             .get("batch_id")
             .and_then(|v| v.as_str())
             .unwrap_or_default();
-        let outcome =
-            apply_pushed_commit(processor, datastore, contract_id, commit_entry, batch_id).await;
+        let recipients = parked_recipients(&entry);
+        let outcome = apply_pushed_commit(
+            processor,
+            datastore,
+            contract_id,
+            commit_entry,
+            batch_id,
+            &recipients,
+            0,
+        )
+        .await;
         if outcome == queue.waits_for {
             still_waiting.push(entry);
         } else if let Some(other) = parked_queue_for(&outcome) {
@@ -774,7 +1054,15 @@ async fn retry_parked(
             entry.get("commit"),
             entry.get("batch_id").and_then(|v| v.as_str()),
         ) {
-            park_commit(datastore, other, contract_id, commit_entry, batch_id).await;
+            park_commit(
+                datastore,
+                other,
+                contract_id,
+                commit_entry,
+                batch_id,
+                &parked_recipients(&entry),
+            )
+            .await;
         }
     }
 }
@@ -794,6 +1082,10 @@ pub(crate) async fn apply_certified_contract_events(
         .unwrap_or_else(|| format!("round-{}", block.round_id));
 
     let processor = ContractProcessor::new(datastore.clone());
+    // Who certified this block: its proposer and every acker. They share
+    // the gas fees of the commits it ordered.
+    let mut recipients: Vec<String> = block.acks.keys().cloned().collect();
+    recipients.push(block.peer_id.clone());
     let anchored = {
         let mgr = datastore.lock().await;
         hash_lane::index_certified(block, &batch_id, &mgr)
@@ -865,12 +1157,24 @@ pub(crate) async fn apply_certified_contract_events(
             }
         }
 
+        let receipts = {
+            let mgr = datastore.lock().await;
+            push_receipts(&mgr, contract_id, commits).await.unwrap_or(0)
+        };
         for commit_entry in commits {
-            let outcome =
-                apply_pushed_commit(&processor, datastore, contract_id, commit_entry, &batch_id)
-                    .await;
+            let outcome = apply_pushed_commit(
+                &processor,
+                datastore,
+                contract_id,
+                commit_entry,
+                &batch_id,
+                &recipients,
+                receipts,
+            )
+            .await;
             if let Some(queue) = parked_queue_for(&outcome) {
-                park_commit(datastore, queue, contract_id, commit_entry, &batch_id).await;
+                park_commit(datastore, queue, contract_id, commit_entry, &batch_id, &recipients)
+                    .await;
             }
         }
     }
@@ -2254,6 +2558,141 @@ model FirstContract {
         assert_eq!(dest_in_batch(&ds, &child).await.as_deref(), Some("batch-first"));
         let mgr = ds.lock().await;
         assert!(load_parked(&mgr, &PREFIX_CERT_QUEUE).is_empty());
+    }
+
+    /// A priced network with a MOD contract, and a payer holding `held`.
+    async fn priced_network(held: u64) -> (Arc<Mutex<DatastoreManager>>, Keypair, String) {
+        let ds = Arc::new(Mutex::new(DatastoreManager::create_in_memory().unwrap()));
+        let payer = Keypair::generate().unwrap();
+        let payer_id = payer.as_public_address();
+        {
+            let mgr = ds.lock().await;
+            mgr.load_network_config(&json!({
+                "gas_schedule": "v1",
+                "gas_price": {"ordering": 1, "apply": 1},
+                "mod_contract": {"contract_id": "modc"}
+            }))
+            .await
+            .unwrap();
+            mgr.set_mod_contract("modc", &Default::default()).unwrap();
+            modality_datastore::models::AssetBalance {
+                contract_id: "modc".into(),
+                asset_id: "MOD".into(),
+                owner_contract_id: payer_id.clone(),
+                balance: held,
+            }
+            .save_to_final(&mgr)
+            .await
+            .unwrap();
+        }
+        (ds, payer, payer_id)
+    }
+
+    /// A commit on the payer's own contract, paid and signed by it.
+    fn paid_push(
+        payer: &Keypair,
+        payer_id: &str,
+        body: serde_json::Value,
+        head_extra: serde_json::Value,
+        signed: bool,
+    ) -> (String, serde_json::Value) {
+        let mut head = json!({ "payer": payer_id });
+        for (k, v) in head_extra.as_object().unwrap() {
+            head[k] = v.clone();
+        }
+        let mut file: CommitFile = serde_json::from_value(json!({ "body": body, "head": head })).unwrap();
+        if signed {
+            let (key, sig) =
+                modality_common::commit_signatures::sign_commit(payer, payer_id, &file).unwrap();
+            file.head.signatures = Some(json!({ key: sig }));
+        }
+        let body = serde_json::to_value(&file.body).unwrap();
+        let head = serde_json::to_value(&file.head).unwrap();
+        pushed(payer_id, body, head)
+    }
+
+    async fn mod_of(ds: &Arc<Mutex<DatastoreManager>>, owner: &str) -> u64 {
+        ds.lock().await.mod_balance(owner).await.unwrap()
+    }
+
+    #[tokio::test]
+    async fn a_priced_commit_pays_its_gas_to_the_sequencers_that_certified_it() {
+        let (ds, payer, payer_id) = priced_network(100_000_000).await;
+        let (id, push) = paid_push(
+            &payer,
+            &payer_id,
+            json!([{"method": "post", "path": "/notes/a.text", "value": "hi"}]),
+            json!({}),
+            true,
+        );
+        apply_certified_contract_events(&certified_block(vec![push], "batch-1"), &ds).await;
+        assert_eq!(in_batch_of(&ds, &payer_id, &id).await.as_deref(), Some("batch-1"));
+        let paid_to_seq = mod_of(&ds, "seq").await;
+        assert!(paid_to_seq > 10_000, "base cost alone is 10,000 gas: {paid_to_seq}");
+        assert_eq!(mod_of(&ds, &payer_id).await + paid_to_seq, 100_000_000, "MOD is moved, not made");
+        let record = ds.lock().await.get_data_by_key(&fee_key(&payer_id, &id)).await.unwrap().unwrap();
+        let record: serde_json::Value = serde_json::from_slice(&record).unwrap();
+        assert_eq!(record["fee"], paid_to_seq);
+        assert_eq!(record["applied"], true);
+    }
+
+    #[tokio::test]
+    async fn a_refused_commit_is_charged_once_and_not_again() {
+        let (ds, payer, payer_id) = priced_network(100_000_000).await;
+        // A SEND of an asset the payer never created: refused at apply,
+        // after it was metered.
+        let (id, push) = paid_push(
+            &payer,
+            &payer_id,
+            json!([{"method": "send", "value": {"asset_id": "nope", "to_contract": "x", "amount": 1}}]),
+            json!({}),
+            true,
+        );
+        apply_certified_contract_events(&certified_block(vec![push.clone()], "batch-1"), &ds).await;
+        assert!(in_batch_of(&ds, &payer_id, &id).await.is_none());
+        let first = mod_of(&ds, "seq").await;
+        assert!(first > 0, "the refused commit paid for its work");
+
+        apply_certified_contract_events(&certified_block(vec![push], "batch-2"), &ds).await;
+        assert_eq!(mod_of(&ds, "seq").await, first, "replaying it charges nothing more");
+    }
+
+    #[tokio::test]
+    async fn a_commit_with_no_payer_or_an_unsigned_payer_is_refused_free() {
+        let (ds, payer, payer_id) = priced_network(100_000_000).await;
+        let (no_payer, push) = pushed(
+            &payer_id,
+            json!([{"method": "post", "path": "/notes/a.text", "value": "hi"}]),
+            json!({}),
+        );
+        apply_certified_contract_events(&certified_block(vec![push], "batch-1"), &ds).await;
+        assert!(in_batch_of(&ds, &payer_id, &no_payer).await.is_none());
+        let (unsigned, push) = paid_push(
+            &payer,
+            &payer_id,
+            json!([{"method": "post", "path": "/notes/b.text", "value": "hi"}]),
+            json!({}),
+            false,
+        );
+        apply_certified_contract_events(&certified_block(vec![push], "batch-2"), &ds).await;
+        assert!(in_batch_of(&ds, &payer_id, &unsigned).await.is_none());
+        assert_eq!(mod_of(&ds, "seq").await, 0);
+        assert_eq!(mod_of(&ds, &payer_id).await, 100_000_000);
+    }
+
+    #[tokio::test]
+    async fn a_payer_that_cannot_cover_its_limit_is_refused_free() {
+        let (ds, payer, payer_id) = priced_network(5_000).await;
+        let (id, push) = paid_push(
+            &payer,
+            &payer_id,
+            json!([{"method": "post", "path": "/notes/a.text", "value": "hi"}]),
+            json!({"gas_limit": 50_000}),
+            true,
+        );
+        apply_certified_contract_events(&certified_block(vec![push], "batch-1"), &ds).await;
+        assert!(in_batch_of(&ds, &payer_id, &id).await.is_none());
+        assert_eq!(mod_of(&ds, &payer_id).await, 5_000);
     }
 
     #[test]
