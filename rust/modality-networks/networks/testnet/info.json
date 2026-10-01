@@ -1,7 +1,7 @@
 {
   "config_version": 2,
   "name": "testnet",
-  "description": "Public hybrid testnet. Foundation bootstrappers listen on TCP 4040. Anyone may join by mining. The three bootstrappers are a named validator set (min stake 0) so dest REPOST/RECV can consume a prefix-cert QC. Not mainnet. MOD is the asset of the genesis MOD contract: 50 MOD per block (divisibility 10^8), halving every 10080 blocks (about 7 days). A development mint, not the mainnet schedule. Predicate theory v3.",
+  "description": "Public hybrid testnet. Foundation bootstrappers listen on TCP 4040. Anyone may join by mining. The three bootstrappers are a named validator set (min stake 0) so dest REPOST/RECV can consume a prefix-cert QC. Not mainnet. MOD is the asset of the genesis MOD contract: 50 MOD per block (divisibility 1, 8 decimals), halving every 10080 blocks (about 7 days). A development mint, not the mainnet schedule. Predicate theory v3.",
   "bootstrappers": [
     "/dns4/node1.testnet.modality.network/tcp/4040/ws/p2p/12D3KooWE4NPREQxLkevA5Rxd61Xiue4tTkUGN22qNABD7Mw5JhM",
     "/dns4/node2.testnet.modality.network/tcp/4040/ws/p2p/12D3KooWJpFYTRHNuPfwoj1hTf87aqB7CDJHKtVFp3RhPNB1DrRw",
@@ -24,19 +24,19 @@
   "initial_difficulty": 1,
   "target_block_time_secs": 60,
   "mod_contract": {
-    "contract_id": "12D3KooWMuAmyAH3JeCwb7CavDRN3c85SZ5Ps9P4XwAPtDECFihr",
+    "contract_id": "12D3KooWSaN2aW4dt6AtCKspJz1o7G5Txi24ddtZfuF7b4BQkovv",
     "commits": [
       {
-        "commit_id": "4b831a4f70811fd300140f9cccf4c351b43c80f21f6ef4f32b2d28a38d395981",
+        "commit_id": "21a1f45d31c0f1ee29f09ca58fd80f718bb8619c526f7035ee444bb64c021e04",
         "body": [
           {
             "method": "genesis",
             "path": null,
             "value": {
               "genesis": {
-                "contract_id": "12D3KooWMuAmyAH3JeCwb7CavDRN3c85SZ5Ps9P4XwAPtDECFihr",
-                "created_at": 1790818420,
-                "public_key": "12D3KooWMuAmyAH3JeCwb7CavDRN3c85SZ5Ps9P4XwAPtDECFihr"
+                "contract_id": "12D3KooWSaN2aW4dt6AtCKspJz1o7G5Txi24ddtZfuF7b4BQkovv",
+                "created_at": 1790860402,
+                "public_key": "12D3KooWSaN2aW4dt6AtCKspJz1o7G5Txi24ddtZfuF7b4BQkovv"
               }
             }
           }
@@ -44,7 +44,7 @@
         "head": {}
       },
       {
-        "commit_id": "572d1ec55d8a22722e088b99221ccb55e289ef5c0656206caffdb03a48ea8659",
+        "commit_id": "75bcea411050b4a0aa5efa2211c849a4cb660ef0078a7d774fb73e034cd0e60f",
         "body": [
           {
             "method": "post",
@@ -98,35 +98,36 @@
           }
         ],
         "head": {
-          "parent": "4b831a4f70811fd300140f9cccf4c351b43c80f21f6ef4f32b2d28a38d395981",
+          "parent": "21a1f45d31c0f1ee29f09ca58fd80f718bb8619c526f7035ee444bb64c021e04",
           "message": "Bootstrap",
           "signatures": {
-            "12D3KooWL17J7oMFoP3aWkFWxcDVsiJxMAYroUaTgJHAiP6gVcdv": "rFo+DtapKKJrK2S76HdXxY4FGWiNVn0tcVqkdFBy5hgUGPmeOnS7URfJtB2qlkYdpp+ETgZVlNm+VMFqxfAMDQ=="
+            "12D3KooWL17J7oMFoP3aWkFWxcDVsiJxMAYroUaTgJHAiP6gVcdv": "4e+7MLVHei03NNMu/oiU0djoQrNBBGYa2W3vWOB6iinCuChYzHm1zFbAvXtdW1YGHC0g5MbOHCOGBeHxfZjSAA=="
           }
         }
       },
       {
-        "commit_id": "2d9b24cb98d3d1edd251a450374c8506c83593bbf68ea8fc9d8a844b494a196a",
+        "commit_id": "dab7c06d36697c286055285f536ac8c1a7c1f55a42389704c1df810d662d6712",
         "body": [
           {
             "method": "create",
             "path": null,
             "value": {
               "asset_id": "MOD",
-              "divisibility": 100000000,
+              "decimals": 8,
+              "divisibility": 1,
               "quantity": 100800000000000
             }
           }
         ],
         "head": {
-          "parent": "572d1ec55d8a22722e088b99221ccb55e289ef5c0656206caffdb03a48ea8659",
+          "parent": "75bcea411050b4a0aa5efa2211c849a4cb660ef0078a7d774fb73e034cd0e60f",
           "signatures": {
-            "12D3KooWL17J7oMFoP3aWkFWxcDVsiJxMAYroUaTgJHAiP6gVcdv": "pzxT7P2tad5J+xi5T6XIh3rjlOnpqgFEA0sDlCBme874ex5Iae2/ve7zHXpuHiYflmEVoJuCCBxMxWnSA5t3DA=="
+            "12D3KooWL17J7oMFoP3aWkFWxcDVsiJxMAYroUaTgJHAiP6gVcdv": "npcVWBUtiCk06opffG5Pfc99gsaSP9/Ez8uqeqr7HGpDaQSk0uPPvL8qGlkKsfwRLEUMaR+pg53tjfO3W634Bw=="
           }
         }
       },
       {
-        "commit_id": "17807cb952e6e663645f19ee86f385554c562da8aa8a1c37a16df0f3beb67acc",
+        "commit_id": "c598489a7321fe36f146db43459dfde20f855f3f2cf263ecf4e62dfff7f30688",
         "body": [
           {
             "method": "rule",
@@ -155,10 +156,10 @@
           }
         ],
         "head": {
-          "parent": "2d9b24cb98d3d1edd251a450374c8506c83593bbf68ea8fc9d8a844b494a196a",
+          "parent": "dab7c06d36697c286055285f536ac8c1a7c1f55a42389704c1df810d662d6712",
           "message": "Rules",
           "signatures": {
-            "12D3KooWL17J7oMFoP3aWkFWxcDVsiJxMAYroUaTgJHAiP6gVcdv": "Z1C07HbNraJBPlIa8YnD4P/oVmWlE2ILz/3SlYREvsuoBe3Ggbad39XgXCMFG7IjCW9gxlpmk5CpvoAsc4ZRBw=="
+            "12D3KooWL17J7oMFoP3aWkFWxcDVsiJxMAYroUaTgJHAiP6gVcdv": "5XfOBVYAj/FnkVTYP2KyaqW9fXUvQsIclzoJgpVrzEEJ5tbHqL2PNqodHgdCUTxob75JpZMOiJ+bW9JZJn1KCQ=="
           }
         }
       }
