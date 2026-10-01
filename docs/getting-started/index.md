@@ -45,7 +45,7 @@ You can add Modality to almost any software project — the same way you might a
 
 ## On the public testnet
 
-The public testnet runs [predicate theory](../reference/predicate-theory) v2. Signatures are checked, and an edge whose labels cannot hold together is refused. `modal c commit` verifies under v2 by default. This testnet is not mainnet.
+The public testnet runs [predicate theory](../reference/predicate-theory) v3. Signatures are checked, an edge whose labels cannot hold together is refused, and numbers are compared exactly. `modal c commit` verifies under v3 by default. This testnet is not mainnet.
 
 A program there computes a move. The accumulated rules still bound what it may do. The [constant-product pool](../tutorials/constant-product-pool) is that contract: payouts go to someone who paid in, and a swap never lowers the fee-adjusted product. [`SEND`](../reference/commit-methods#send), [`RECV`](../reference/commit-methods#recv), and [`invoke`](../reference/commit-methods#invoke) are the commit methods that move assets and run the program.
 

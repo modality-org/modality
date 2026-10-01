@@ -62,7 +62,7 @@ or an inline domain action.
 | `--amount <AMOUNT>` | Amount for `SEND` commits; on a `RECV`, the amount it states it receives. Apply refuses a `RECV` whose statement differs from its `SEND` |
 | `--send-commit-id <SEND_COMMIT_ID>` | Source `SEND` commit ID for `RECV` commits |
 | `--send-index <N>` | Which `SEND` of that commit a `RECV` takes, from 0 (default); emitted `SEND`s count in `invoke` order |
-| `--theory <v0\|v2>` | Predicate theory local verify runs (default `v2`, what the testnet runs). Use `v0` for a network whose `network.json` leaves `predicate_theory_version` unset, such as the bundled devnets. The two differ both ways: `v2` refuses dead model edges that `v0` accepts, and accepts rules that `v0` refuses, such as `always([+SEND -any_signed(/claimants)] false)`. See [Predicate theory](../reference/predicate-theory.md) |
+| `--theory <v0\|v2\|v3>` | Predicate theory local verify runs (default `v3`, what the testnet runs). Use `v0` for a network whose `network.json` leaves `predicate_theory_version` unset, such as the bundled devnets, and `v2` for a network that sets `v2`. `v3` is `v2` with numbers compared exactly. `v2` and `v3` refuse dead model edges that `v0` accepts, and accept rules that `v0` refuses, such as `always([+SEND -any_signed(/claimants)] false)`. See [Predicate theory](../reference/predicate-theory.md) |
 
 **Examples:**
 ```bash
@@ -88,12 +88,12 @@ modal c commit --path /notes.text --value "signed update" --sign alice
 modal c commit --action '{"type":"DEPOSIT","amount":100}' --sign alice
 ```
 
-Under the default `--theory v2`, `modal c commit` refuses a model edge whose
+Under the default `--theory v3`, `modal c commit` refuses a model edge whose
 labels can never hold together, such as `+num_lt(/escrow/paid.num,"100")` beside
 `+num_gte(/escrow/paid.num,"100")`. With `--theory v0`, the commit is accepted
-and the output previews what `v2` would change about it, as a warning.
+and the output previews what `v3` would change about it, as a warning.
 Sequencers and validators refuse the commit if the network sets
-`predicate_theory_version` to `v2`. With `--output json`, the findings are
+`predicate_theory_version` to `v3`, as the testnet does. With `--output json`, the findings are
 under `theory_preview`.
 
 ## Checkout
@@ -473,7 +473,7 @@ one. The view is read-only. Sequencers and validators enforce the network's
 | Option | Description |
 |--------|-------------|
 | `--dir <DIR>` | Contract directory (defaults to current directory) |
-| `--theory <VERSION>` | Theory version to preview: `v2` (default), `v1`, or `v0`. Networks refuse `v1` |
+| `--theory <VERSION>` | Theory version to preview: `v3` (default), `v2`, `v1`, or `v0`. Networks refuse `v1`. v3's entailment is v2's |
 | `--output <FORMAT>` | Output format: `text` or `json` |
 
 ## Pack / Unpack

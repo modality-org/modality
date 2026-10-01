@@ -9,8 +9,10 @@ Install a current `modal` binary, create a joiner with a **new** key, and mine
 (or observe) against the public hybrid testnet.
 
 Bootstrap nodes are Foundation-operated. Anyone may join by mining. This is
-**not** mainnet. Testnet block subsidy is a small development mint, not the
-mainnet 21M schedule. The three bootstrappers also run as a **named
+**not** mainnet. It runs predicate theory v3. MOD is the asset of the genesis
+MOD contract: 50 MOD per block (divisibility 10^8), halving every 10080
+blocks (about 7 days). That is a development mint, not the mainnet 21M
+schedule. The three bootstrappers also run as a **named
 validator set** (min stake 0) so dest REPOST and dest RECV can
 consume a prefix-cert quorum certificate. That named set is a testnet
 bootstrap, not the mainnet stake-gated membership rule. Join remains by

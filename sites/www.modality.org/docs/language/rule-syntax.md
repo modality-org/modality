@@ -26,7 +26,7 @@ one fails. So a rule that no model can meet cannot be added.
 
 That does not prove the contract can always move. A rule such as
 `always([] false)` is met by a model with no moves, and then no commit is
-ever accepted again. The public testnet runs predicate theory v2 and refuses
+ever accepted again. The public testnet runs predicate theory v3 and refuses
 an edge whose labels cannot hold together, such as
 `+num_gt(/x.num, "5") +num_lt(/x.num, "3")`. A network that sets no version,
 such as the bundled devnets, runs v0 and reads each predicate label as an

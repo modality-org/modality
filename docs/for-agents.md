@@ -216,13 +216,14 @@ every rule, and refuses the commit if either fails. So:
 A model that meets the rules does not prove the contract can always move. A
 rule such as `always([] false)` is met by a model with no moves.
 
-The public testnet runs predicate theory v2. Signatures are checked. An edge
+The public testnet runs predicate theory v3. Signatures are checked. An edge
 whose labels cannot hold together, such as
-`+num_gt(/x.num, "5") +num_lt(/x.num, "3")`, is refused. A network that sets
+`+num_gt(/x.num, "5") +num_lt(/x.num, "3")`, is refused, and numbers are
+compared exactly. A network that sets
 no version, such as the bundled devnets, runs v0 and reads each label as an
 opaque name, so that edge can sit in a model and leave a rule with no commit
-that takes it. `modal c commit` verifies under v2 by default. `modal c theory`
-lists what v2 derives. See [Predicate theory](/docs/reference/predicate-theory).
+that takes it. `modal c commit` verifies under v3 by default. `modal c theory`
+lists what v3 derives. See [Predicate theory](/docs/reference/predicate-theory).
 
 A program on the testnet still has to satisfy the accumulated rules. The
 [constant-product pool](/docs/tutorials/constant-product-pool) computes each
@@ -234,7 +235,7 @@ and `invoke` are [commit methods](/docs/reference/commit-methods).
 ## Get Started
 
 - **[Getting Started Guide](/docs/getting-started)** — Install and create your first contract
-- **[Join the public testnet](/docs/cli/join-testnet)** — The testnet runs predicate theory v2
+- **[Join the public testnet](/docs/cli/join-testnet)** — The testnet runs predicate theory v3
 - **[Constant-product pool](/docs/tutorials/constant-product-pool)** — A program bounded by rules
 - **[Commit methods](/docs/reference/commit-methods)** — `POST`, `SEND`, `RECV`, `invoke`
 - **[Formula cookbook](/docs/language/formula-cookbook)** — Write a rule formula

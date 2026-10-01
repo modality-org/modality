@@ -217,11 +217,11 @@ mkdir -p pool/state/__programs__
 python3 -c 'import base64,sys; print(base64.b64encode(open(sys.argv[1],"rb").read()).decode(), end="")' \
   constant_product_pool.wasm > pool/state/__programs__/pool.wasm
 # write pool/model/default.modality as above
-modal commit --theory v2 --all --dir pool --sign founder -m Bootstrap
-modal contract commit --theory v2 --dir pool --method create --asset-id lp \
+modal commit --theory v3 --all --dir pool --sign founder -m Bootstrap
+modal contract commit --theory v3 --dir pool --method create --asset-id lp \
   --quantity 1000000000000 --divisibility 1 --sign founder
 # modal add-rule --dir pool '<rule>' for each rule above
-modal commit --theory v2 --all --dir pool --sign founder -m Rules
+modal commit --theory v3 --all --dir pool --sign founder -m Rules
 modal contract push --dir pool --remote <NODE>
 ```
 
@@ -234,7 +234,7 @@ modal contract commit --dir lp --method send --asset-contract <KB_ID> --asset-id
   --to-contract <POOL_ID> --amount 4000 --memo '{"op":"add"}'
 modal contract push --dir lp --remote <NODE>
 
-modal contract commit --theory v2 --dir pool --method invoke --path /__programs__/pool.wasm \
+modal contract commit --theory v3 --dir pool --method invoke --path /__programs__/pool.wasm \
   --value '{"args":{"op":"add","sends":[
     {"send_commit_id":"<SEND_A>","from_contract":"<LP_ID>","asset_contract":"<KA_ID>","asset_id":"tokA","amount":1000,"memo":{"op":"add"}},
     {"send_commit_id":"<SEND_B>","from_contract":"<LP_ID>","asset_contract":"<KB_ID>","asset_id":"tokB","amount":4000,"memo":{"op":"add"}}]}}' \

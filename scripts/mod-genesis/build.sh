@@ -123,9 +123,9 @@ model Mod {
 EOF
 
 commit() {
-    modal contract commit --theory v2 --dir "$DIR" --sign "$FOUNDATION" --output json "$@" >/dev/null
+    modal contract commit --theory v3 --dir "$DIR" --sign "$FOUNDATION" --output json "$@" >/dev/null
 }
-modal commit --theory v2 --all --dir "$DIR" --sign "$FOUNDATION" --output json --message Bootstrap >/dev/null
+modal commit --theory v3 --all --dir "$DIR" --sign "$FOUNDATION" --output json --message Bootstrap >/dev/null
 commit --method create --asset-id MOD --quantity "$QUANTITY" --divisibility "$DIVISIBILITY"
 python3 - "$PARAMS" <<'PY' | while read -r to amount; do commit --method send --asset-id MOD --to-contract "$to" --amount "$amount"; done
 import json, sys
@@ -141,7 +141,7 @@ add_rule emitted_counts_what_went_out "always([-tracks(/emission/emitted.num, \"
 add_rule parameters_fixed "always([+modifies(/network)] false)"
 add_rule program_fixed "always([+modifies(/__programs__)] false)"
 add_rule headers_are_mined "always([-mined_headers(/emission/blocks)] false)"
-modal commit --theory v2 --all --dir "$DIR" --sign "$FOUNDATION" --output json --message Rules >/dev/null
+modal commit --theory v3 --all --dir "$DIR" --sign "$FOUNDATION" --output json --message Rules >/dev/null
 
 CONTRACT_ID=$(modal contract id --dir "$DIR")
 python3 - "$DIR" "$CONTRACT_ID" "$OUT/genesis.json" <<'PY'

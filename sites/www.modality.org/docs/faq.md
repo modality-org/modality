@@ -82,8 +82,8 @@ See the [formula cookbook](/docs/language/formula-cookbook).
 No. A contract is files on disk. Start locally. When other parties need to
 replay the same log, [join the public testnet](/docs/cli/join-testnet) or use
 a [Contract Hub](/docs/tutorials/contract-hub). The testnet runs predicate
-theory v2: signatures are checked, and an edge whose labels cannot hold
-together is refused.
+theory v3: signatures are checked, an edge whose labels cannot hold
+together is refused, and numbers are compared exactly.
 
 ## How do I get started?
 

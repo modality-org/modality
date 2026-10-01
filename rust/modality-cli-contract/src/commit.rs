@@ -89,10 +89,10 @@ pub struct Opts {
     #[clap(long)]
     action: Option<String>,
 
-    /// Predicate theory local verify runs: v2, the testnet's. Use v0 for a
+    /// Predicate theory local verify runs: v3, the testnet's. Use v0 for a
     /// network whose network.json leaves predicate_theory_version unset, and
-    /// v3 for one that sets it to v3 (numbers compared exactly)
-    #[clap(long, default_value = "v2", value_parser = ["v0", "v2", "v3"])]
+    /// v2 for one that sets it to v2 (numbers compared as 64-bit floats)
+    #[clap(long, default_value = "v3", value_parser = ["v0", "v2", "v3"])]
     theory: String,
 }
 
@@ -349,7 +349,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
         if let Some(preview) = &theory_preview {
             println!();
             println!(
-                "⚠️  Predicate theory {} preview (local verify used --theory v0; the testnet, and any network that sets predicate_theory_version v2, enforces this):",
+                "⚠️  Predicate theory {} preview (local verify used --theory v0; the testnet, and any network that sets predicate_theory_version v3, enforces this):",
                 preview.theory
             );
             for line in &preview.lines {
@@ -487,7 +487,8 @@ fn validate_commit_against_model(
     use modality_lang::TheoryVersion;
 
     let version: TheoryVersion = theory.parse().map_err(anyhow::Error::msg)?;
-    // Under v0, local verify previews what v2 would refuse.
+    // Under v0, local verify previews what v3 (the testnet) would refuse.
+    // v3's entailment is v2's; its difference is exact numeric comparison.
     let v2 = version != TheoryVersion::V0;
     let activation = TheoryActivation::always(version);
 
@@ -542,7 +543,7 @@ fn validate_commit_against_model(
                 &model_content,
                 &accepted,
                 &pending,
-                TheoryVersion::V2,
+                TheoryVersion::V3,
             )));
         }
     }
@@ -562,7 +563,7 @@ fn validate_commit_against_model(
     if v2 {
         return Ok(None);
     }
-    Ok(shadow_findings_for_store(&model_content, store, commit, TheoryVersion::V2)
+    Ok(shadow_findings_for_store(&model_content, store, commit, TheoryVersion::V3)
         .ok()
         .and_then(theory_preview))
 }
@@ -613,7 +614,7 @@ mod tests {
         let err = validate_commit_against_model(&dir, &store, &commit, "v2")
             .expect_err("--theory v2 refuses the dead edge");
         assert!(err.to_string().contains("open --> refunded"), "{err}");
-        assert_eq!(preview.theory, "V2");
+        assert_eq!(preview.theory, "V3");
         assert!(preview.lines[0].contains("would be refused"), "{:?}", preview.lines);
         assert!(
             preview.lines.iter().any(|l| l.contains("open --> refunded")),
@@ -630,7 +631,7 @@ mod tests {
             "json",
         ]))
         .await
-        .expect_err("the default theory is v2, which refuses the dead edge");
+        .expect_err("the default theory is v3, which refuses the dead edge");
         assert!(err.to_string().contains("open --> refunded"), "{err}");
         crate::commit::run(&Opts::parse_from([
             "commit",
