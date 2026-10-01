@@ -235,6 +235,10 @@ pub struct ContractAsset {
     pub divisibility: u64,
     pub created_at: u64,
     pub creator_commit_id: String,
+    /// How many decimal places a wallet shows: 8 shows 150000000 as 1.5.
+    /// Display only; `divisibility` is what amounts must be multiples of.
+    #[serde(default)]
+    pub decimals: Option<u32>,
 }
 
 #[async_trait]
@@ -247,6 +251,7 @@ impl Model for ContractAsset {
         "divisibility",
         "created_at",
         "creator_commit_id",
+        "decimals",
     ];
     const FIELD_DEFAULTS: &'static [(&'static str, serde_json::Value)] = &[];
 
@@ -260,6 +265,7 @@ impl Model for ContractAsset {
             "creator_commit_id" => {
                 self.creator_commit_id = value.as_str().unwrap_or_default().to_string()
             }
+            "decimals" => self.decimals = value.as_u64().map(|d| d as u32),
             _ => {}
         }
     }
@@ -513,6 +519,21 @@ impl ReceivedSend {
         Self::find_one_from_store(datastore.sequencer_final(), keys).await
     }
 
+    /// Whether the `index`-th `SEND` of `send_commit_id` has been received.
+    pub async fn is_received(
+        datastore: &DatastoreManager,
+        send_commit_id: &str,
+        index: u64,
+    ) -> Result<bool> {
+        let keys = [(
+            "send_commit_id".to_string(),
+            Self::key_for(send_commit_id, index),
+        )]
+        .into_iter()
+        .collect();
+        Ok(Self::find_one_multi(datastore, keys).await?.is_some())
+    }
+
     /// Save this record to the SequencerFinal store
     pub async fn save_to_final(&self, datastore: &DatastoreManager) -> Result<()> {
         self.save_to_store(datastore.sequencer_final()).await
@@ -607,11 +628,62 @@ impl SendRecord {
     pub async fn save_to_final(&self, datastore: &DatastoreManager) -> Result<()> {
         self.save_to_store(datastore.sequencer_final()).await
     }
+
+    /// Every recorded `SEND` to `to_contract`, by commit and index.
+    pub async fn find_to_multi(datastore: &DatastoreManager, to_contract: &str) -> Result<Vec<Self>> {
+        let mut sends = Vec::new();
+        for item in datastore.sequencer_final().iterator("/sends") {
+            let (_, value) = item?;
+            let record = Self::from_json_string(std::str::from_utf8(&value)?)?;
+            if record.to_contract == to_contract {
+                sends.push(record);
+            }
+        }
+        sends.sort_by(|a, b| {
+            (&a.send_commit_id, a.send_index).cmp(&(&b.send_commit_id, b.send_index))
+        });
+        Ok(sends)
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn sends_are_found_by_recipient_and_marked_received() {
+        let ds = DatastoreManager::create_in_memory().unwrap();
+        let send = |commit: &str, index: u64, to: &str| SendRecord {
+            send_commit_id: commit.into(),
+            send_index: index,
+            from_contract: "bank".into(),
+            asset_id: "tok".into(),
+            to_contract: to.into(),
+            amount: 5,
+            asset_contract: String::new(),
+            memo: None,
+        };
+        for record in [send("c2", 1, "alice"), send("c1", 0, "alice"), send("c2", 0, "bob")] {
+            record.save_to_final(&ds).await.unwrap();
+        }
+        let to_alice = SendRecord::find_to_multi(&ds, "alice").await.unwrap();
+        let ids: Vec<_> = to_alice.iter().map(|s| (s.send_commit_id.as_str(), s.send_index)).collect();
+        assert_eq!(ids, vec![("c1", 0), ("c2", 1)]);
+        assert!(SendRecord::find_to_multi(&ds, "carol").await.unwrap().is_empty());
+
+        assert!(!ReceivedSend::is_received(&ds, "c2", 1).await.unwrap());
+        ReceivedSend {
+            send_commit_id: ReceivedSend::key_for("c2", 1),
+            recv_contract_id: "alice".into(),
+            recv_commit_id: "r1".into(),
+            received_at: 1,
+        }
+        .save_to_final(&ds)
+        .await
+        .unwrap();
+        assert!(ReceivedSend::is_received(&ds, "c2", 1).await.unwrap());
+        assert!(!ReceivedSend::is_received(&ds, "c2", 0).await.unwrap());
+    }
 
     #[tokio::test]
     async fn listing_finds_contracts_and_balances() {

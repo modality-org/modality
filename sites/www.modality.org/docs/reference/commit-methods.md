@@ -142,11 +142,16 @@ which separates a creator from an asset id in a held asset's name.
   "method": "create",
   "value": {
     "asset_id": "token1",
-    "quantity": 21000000,
-    "divisibility": 100000000
+    "quantity": 2100000000000000,
+    "divisibility": 1,
+    "decimals": 8
   }
 }
 ```
+
+`quantity` and every amount are in the asset's smallest unit. Every amount
+sent must be a multiple of `divisibility`. `decimals` is optional and only
+for display: with `8`, a wallet shows 150000000 as 1.5.
 
 ## SEND
 

@@ -1,3 +1,4 @@
+pub mod account;
 pub mod admission;
 pub mod catalog;
 pub mod list;

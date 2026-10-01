@@ -232,6 +232,7 @@ kill $HUB_PID
 | `asset_id` | Unique identifier within contract | Cannot duplicate |
 | `quantity` | Total supply | Must be > 0 |
 | `divisibility` | Smallest unit | Must be > 0, amounts must be divisible |
+| `decimals` | Display places (optional) | Whole number up to 19; display only |
 
 ## Error Codes
 

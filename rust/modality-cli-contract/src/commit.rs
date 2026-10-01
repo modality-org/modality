@@ -42,6 +42,11 @@ pub struct Opts {
     #[clap(long)]
     divisibility: Option<u64>,
 
+    /// Decimal places a wallet shows for the asset, for CREATE (display
+    /// only: 8 shows 150000000 as 1.5)
+    #[clap(long)]
+    decimals: Option<u32>,
+
     // SEND action fields
     /// Destination contract ID (for SEND method)
     #[clap(long)]
@@ -96,7 +101,17 @@ pub struct Opts {
     theory: String,
 }
 
-pub async fn run(opts: &Opts) -> Result<()> {
+/// A commit made by [`make`].
+pub struct Committed {
+    pub contract_id: String,
+    pub commit_id: String,
+    pub parent: Option<String>,
+    theory_preview: Option<TheoryPreview>,
+}
+
+/// Make the commit `opts` describes, check it, and move HEAD to it, without
+/// printing. `None` when there is nothing to commit.
+pub async fn make(opts: &Opts) -> Result<Option<Committed>> {
     // Determine contract directory
     let dir = if let Some(d) = &opts.dir {
         d.clone()
@@ -227,8 +242,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
 
         if changes == 0 {
             store.clear_pending_reposts(&committed_repost_dests)?;
-            println!("Nothing to commit (working directories match committed state).");
-            return Ok(());
+            return Ok(None);
         }
     } else if let Some(action_input) = &opts.action {
         // ACTION commit from JSON
@@ -327,10 +341,29 @@ pub async fn run(opts: &Opts) -> Result<()> {
         crate::checkout::checkout(&store)?;
     }
 
+    Ok(Some(Committed {
+        contract_id: config.contract_id.clone(),
+        commit_id,
+        parent: parent_id,
+        theory_preview,
+    }))
+}
+
+pub async fn run(opts: &Opts) -> Result<()> {
+    let Some(Committed {
+        contract_id,
+        commit_id,
+        parent: parent_id,
+        theory_preview,
+    }) = make(opts).await?
+    else {
+        println!("Nothing to commit (working directories match committed state).");
+        return Ok(());
+    };
     // Output
     if opts.output == "json" {
         let mut out = serde_json::json!({
-            "contract_id": config.contract_id,
+            "contract_id": contract_id,
             "commit_id": commit_id,
             "parent": parent_id,
             "status": "committed",
@@ -341,7 +374,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
         println!("{}", serde_json::to_string_pretty(&out)?);
     } else {
         println!("✅ Commit created successfully!");
-        println!("   Contract ID: {}", config.contract_id);
+        println!("   Contract ID: {}", contract_id);
         println!("   Commit ID: {}", commit_id);
         if let Some(parent) = parent_id {
             println!("   Parent: {}", parent);
@@ -678,11 +711,15 @@ fn build_create_value(opts: &Opts) -> Result<Value> {
         .divisibility
         .ok_or_else(|| anyhow::anyhow!("--divisibility is required for CREATE method"))?;
 
-    Ok(serde_json::json!({
+    let mut value = serde_json::json!({
         "asset_id": asset_id,
         "quantity": quantity,
         "divisibility": divisibility
-    }))
+    });
+    if let Some(decimals) = opts.decimals {
+        value["decimals"] = decimals.into();
+    }
+    Ok(value)
 }
 
 fn build_send_value(opts: &Opts) -> Result<Value> {

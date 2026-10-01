@@ -4230,6 +4230,7 @@ dependencies = [
  "modality-cli-common",
  "modality-common",
  "modality-lang",
+ "modality-networks",
  "modality-node",
  "modality-wasm-runtime",
  "modality-wasm-validation",

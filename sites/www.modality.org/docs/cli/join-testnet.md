@@ -10,7 +10,7 @@ Install a current `modal` binary, create a joiner with a **new** key, and mine
 
 Bootstrap nodes are Foundation-operated. Anyone may join by mining. This is
 **not** mainnet. It runs predicate theory v3. MOD is the asset of the genesis
-MOD contract: 50 MOD per block (divisibility 10^8), halving every 10080
+MOD contract: 50 MOD per block (8 decimals), halving every 10080
 blocks (about 7 days). That is a development mint, not the mainnet 21M
 schedule. The three bootstrappers also run as a **named
 validator set** (min stake 0) so dest REPOST and dest RECV can
@@ -89,6 +89,21 @@ modal contract push --dir ./my-contract --remote /dns4/node1.testnet.modality.ne
 ```
 
 Paths must be typed (`/data/message.text`). Push with `--remote <multiaddr>`.
+
+## Take your MOD
+
+Each block you mine nominates your node's peer id, and the network's mint
+sends that block's MOD there once the chain is two epochs past it. Your
+node's status page shows it under **MOD Held by Node**, with what waits to
+be received. Make the wallet at your node's key and receive:
+
+```bash
+modal wallet create --key ./my-node/node.modal_passfile --dir ./my-node-wallet
+modal wallet recv --dir ./my-node-wallet
+modal wallet balance --dir ./my-node-wallet
+```
+
+See [Wallet Commands](wallet-commands.md).
 
 See [Node Commands](node-commands.md) for `create`, `run-miner`, `run-hybrid`,
 and `ping`.

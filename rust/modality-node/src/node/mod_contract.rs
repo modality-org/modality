@@ -121,16 +121,22 @@ pub async fn apply_genesis(
     let asset = ContractAsset::find_one_multi(&mgr, keys)
         .await?
         .ok_or_else(|| anyhow!("the MOD contract's genesis creates no {ASSET}"))?;
+    if asset.divisibility != 1 {
+        bail!(
+            "the MOD contract creates {ASSET} at divisibility {}; every amount must then be a multiple of it, so a halved subsidy would stop emission. Create it at divisibility 1, with decimals for display",
+            asset.divisibility
+        );
+    }
     let emission = emission_from_state(&mgr, contract_id).await?;
     mgr.set_mod_contract(contract_id, &emission)?;
     log::info!(
-        "MOD contract {}: {} of {} genesis commits applied; {} {} at divisibility {}",
+        "MOD contract {}: {} of {} genesis commits applied; {} {} ({} decimals)",
         contract_id,
         applied,
         commits.len(),
         asset.quantity,
         ASSET,
-        asset.divisibility
+        asset.decimals.unwrap_or(0)
     );
     log::info!(
         "Network emission from the MOD contract: {}",

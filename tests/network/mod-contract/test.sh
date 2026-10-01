@@ -60,7 +60,7 @@ UNIT=100000000
 cat > ./tmp/params.json <<EOF
 {
   "quantity": $((21000000 * UNIT)),
-  "divisibility": $UNIT,
+  "decimals": 8,
   "block_subsidy": $((50 * UNIT)),
   "halving_interval": 4,
   "slow_start": 0,
@@ -105,6 +105,7 @@ import json, pathlib, sys
 node = pathlib.Path(sys.argv[1])
 config = json.loads((node / "config.json").read_text())
 config["network_config_path"] = "./network.json"
+config["status_port"] = 18741
 (node / "config.json").write_text(json.dumps(config, indent=2) + "\n")
 PY
 }
@@ -136,7 +137,7 @@ SEQUENCER_LOG="$LOG_DIR/${CURRENT_TEST}_sequencer.log"
 test_start_process "cd $NODE_DIR && modal node run-sequencer" "sequencer" >/dev/null
 assert_success "test_wait_for_port 10101" "Sequencer should listen on 10101"
 check "The node applies the 6 genesis commits through the contract processor" \
-    test_wait_for_log "$SEQUENCER_LOG" "MOD contract $MOD_ID: 6 of 6 genesis commits applied; $((21000000 * UNIT)) MOD at divisibility $UNIT" 10
+    test_wait_for_log "$SEQUENCER_LOG" "MOD contract $MOD_ID: 6 of 6 genesis commits applied; $((21000000 * UNIT)) MOD (8 decimals)" 10
 check "The network's emission is the contract's posts" \
     test_wait_for_log "$SEQUENCER_LOG" "Network emission from the MOD contract: {\"block_subsidy\":$((50 * UNIT)),\"halving_interval_blocks\":4,\"slow_start_blocks\":0,\"cap\":$((19000000 * UNIT))}" 10
 
@@ -274,6 +275,21 @@ print(json.dumps({'index': $NEXT, 'to': to, 'hash': f['Hash'], 'previous_hash': 
 SEQUENCER_LOG="$LOG_DIR/${CURRENT_TEST}_mined_sequencer.log"
 test_start_process "cd $NODE_DIR && modal node run-sequencer" "mined_sequencer" >/dev/null
 assert_success "test_wait_for_port 10101" "The node should listen on 10101 again"
+mod_status() {
+    curl -s -m 20 http://127.0.0.1:18741/status.json | python3 -c "import json,sys; m=json.load(sys.stdin)['mod']; print($1)"
+}
+settle_mints() {
+    # The minter catches up on finalized epochs after a restart, and every
+    # mint pays this node's id; wait until no new mint lands for ten seconds.
+    local prev=-1 now
+    for _ in $(seq 1 30); do
+        now=$(mod_status 'm["incoming_sends"]')
+        [ "$now" = "$prev" ] && return
+        prev=$now
+        sleep 10
+    done
+}
+settle_mints
 PULLED_HEAD=$(cat "$COPY/.contract/HEAD")
 modal contract commit --theory v2 --dir "$COPY" --method invoke --path "$PROGRAM" \
     --value "{\"args\":{\"op\":\"mint\",\"blocks\":[$HEADER]}}" \
@@ -389,6 +405,35 @@ modal contract repost "$MINED_ID" /emission/next_index.num --from-dir "$VIEW" --
 modal contract commit --dir ./tmp/payout-far --all --sign "$NODE_DIR/node.modal_passfile" --output json >> "$CURRENT_LOG" 2>&1
 refused "Below a later height, the same SEND is refused" send_out ./tmp/payout-far ./tmp/vest-far
 check "That refusal names the height too" grep -q "missing +num_gte" ./tmp/vest-far.err
+
+echo ""
+echo "The node's status page shows its MOD; its wallet receives the rest..."
+check "The status page reads MOD from the contract" test "$(mod_status 'm["source"]')" = contract
+check "It shows what the node's id holds, in MOD" test "$(mod_status 'm["held_display"]')" = "0"
+WAITING=$(mod_status 'm["incoming_sends"]')
+check "It counts the mint sends waiting for the node" test "$WAITING" -ge 1
+NODE_WALLET="./tmp/node-wallet"
+WALLET_OUT=$(modal wallet create --key "$NODE_DIR/node.modal_passfile" --dir "$NODE_WALLET" --remote "$REMOTE" \
+    --output json 2>>"$CURRENT_LOG" | python3 -c "import sys; s=sys.stdin.read(); print(s[s.rfind('{\n  \"address\"'):])")
+echo "$WALLET_OUT" >> "$CURRENT_LOG"
+check "The node's key finds its contract on the network" \
+    test "$(echo "$WALLET_OUT" | python3 -c "import json,sys; print(json.load(sys.stdin)['status'])")" = "copied from the network"
+WALLET_RECV=$(modal wallet recv --dir "$NODE_WALLET" --output json 2>>"$CURRENT_LOG")
+echo "$WALLET_RECV" >> "$CURRENT_LOG"
+RECEIVED=$(echo "$WALLET_RECV" | python3 -c "import json,sys; print(len(json.load(sys.stdin)['received']))")
+check "modal wallet recv receives every waiting mint send" test "$RECEIVED" = "$WAITING"
+LAST_RECV=$(echo "$WALLET_RECV" | python3 -c "import json,sys; print(json.load(sys.stdin)['received'][-1]['commit_id'])")
+expect_log "Sequenced commit $LAST_RECV" "The network sequences the receives"
+nothing_waits() {
+    for _ in $(seq 1 15); do
+        [ "$(mod_status 'm["incoming_sends"]')" = 0 ] && return 0
+        sleep 2
+    done
+    return 1
+}
+check "Nothing waits for the node any more" nothing_waits
+check "The status page and the wallet agree on what it holds" test "$(mod_status 'm["held_display"]')" = \
+    "$(modal wallet balance --dir "$NODE_WALLET" --output json 2>>"$CURRENT_LOG" | python3 -c "import json,sys; h=[x for x in json.load(sys.stdin)['holdings'] if x['asset']=='MOD']; print(h[0]['amount'] if h else '0')")"
 
 test_finalize
 exit $?

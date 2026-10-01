@@ -50,6 +50,11 @@ pub fn default_named_passfile_dir() -> Result<PathBuf> {
     Ok(modality_dir()?.join("passfiles"))
 }
 
+/// `$MODALITY_HOME/.modality/wallet` when set, otherwise `~/.modality/wallet`.
+pub fn default_wallet_dir() -> Result<PathBuf> {
+    Ok(modality_dir()?.join("wallet"))
+}
+
 /// `$MODALITY_HOME/.modality/ai.json` when set, otherwise `~/.modality/ai.json`.
 pub fn default_ai_config_path() -> Result<PathBuf> {
     Ok(modality_dir()?.join("ai.json"))
