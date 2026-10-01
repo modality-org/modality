@@ -41,6 +41,28 @@ pub fn program_context_from_frozen(ctx: &FrozenInvokeContext) -> ProgramContext 
     }
 }
 
+/// The posts `programs/mod-emission` reads. Nothing else in the contract
+/// state changes what a mint pays.
+fn emission_program_state(
+    state: &serde_json::Map<String, Value>,
+) -> serde_json::Map<String, Value> {
+    const KEYS: &[&str] = &[
+        "/network/emission/block_subsidy.num",
+        "/network/emission/halving_interval.num",
+        "/network/emission/slow_start.num",
+        "/network/emission/cap.num",
+        "/emission/next_index.num",
+        "/emission/emitted.num",
+    ];
+    KEYS.iter()
+        .filter_map(|key| {
+            state
+                .get(*key)
+                .map(|value| ((*key).to_string(), value.clone()))
+        })
+        .collect()
+}
+
 pub fn execute_wasm_program(
     wasm_bytes: &[u8],
     gas_limit: u64,
@@ -77,12 +99,14 @@ impl InvokeEngine for WasmInvokeEngine {
             );
         }
         let gas_limit = wasm.gas_limit.min(self.gas_limit);
-        let result = execute_wasm_program(
-            &bytes,
-            gas_limit,
-            args.clone(),
-            program_context_from_frozen(ctx),
-        )?;
+        let mut context = program_context_from_frozen(ctx);
+        // The emission program reads six posts. The contract state also holds
+        // every minted header and the program bytes, and that input grows
+        // without bound until the module traps. Hand it only what it reads.
+        if wasm.path.rsplit('/').next() == Some("emission.wasm") {
+            context.state = Value::Object(emission_program_state(&ctx.state));
+        }
+        let result = execute_wasm_program(&bytes, gas_limit, args.clone(), context)?;
         if !result.is_success() {
             anyhow::bail!("Program execution failed: {:?}", result.errors);
         }
@@ -108,7 +132,7 @@ impl InvokeEngine for WasmInvokeEngine {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use serde_json::Map;
+    use serde_json::{json, Map};
     use std::collections::BTreeMap;
 
     #[test]
@@ -143,5 +167,23 @@ mod tests {
             program_context.parent_commit_id.as_deref(),
             Some("accepted")
         );
+    }
+
+    #[test]
+    fn emission_context_keeps_the_schedule_and_drops_headers() {
+        let mut state = serde_json::Map::new();
+        state.insert(
+            "/network/emission/block_subsidy.num".into(),
+            json!(5_000_000_000u64),
+        );
+        state.insert("/emission/next_index.num".into(), json!(120));
+        state.insert("/emission/blocks/1.json".into(), json!({"hash": "h"}));
+        state.insert("/__programs__/emission.wasm".into(), json!("AGFzbQ=="));
+        let kept = super::emission_program_state(&state);
+        assert_eq!(kept.len(), 2);
+        assert!(kept.contains_key("/network/emission/block_subsidy.num"));
+        assert!(kept.contains_key("/emission/next_index.num"));
+        assert!(!kept.contains_key("/emission/blocks/1.json"));
+        assert!(!kept.contains_key("/__programs__/emission.wasm"));
     }
 }
