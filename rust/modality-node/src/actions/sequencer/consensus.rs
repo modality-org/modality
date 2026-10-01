@@ -442,7 +442,7 @@ async fn store_received_certified_block(
 }
 
 /// Outcome of applying one pushed commit from a certified block.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 enum CommitApply {
     Sequenced,
     AlreadySequenced,
@@ -500,6 +500,20 @@ async fn apply_pushed_commit(
         if let Some(refusal) = crate::node::mod_contract::refusal(&mgr, contract_id) {
             log::warn!("Refusing commit {}: {}", commit_id, refusal);
             return CommitApply::Failed;
+        }
+        // A commit whose parent waits waits behind it. Applied now it would
+        // fail for want of a sequenced parent, and be lost.
+        if let Some(parent) = commit_data.head.parent.as_deref().filter(|p| !p.is_empty()) {
+            if let Some(queue) = parked_parent_queue(&mgr, contract_id, parent).await {
+                log::info!(
+                    "Commit {} for contract {} follows {}, which waits for {}",
+                    commit_id,
+                    contract_id,
+                    parent,
+                    queue.what
+                );
+                return queue.waits_for.clone();
+            }
         }
         if hash_lane::is_reveal(commit_entry) {
             match hash_lane::check_reveal(&mgr, contract_id, commit_id, commit_entry) {
@@ -620,6 +634,30 @@ const ANCHOR_QUEUE: ParkedQueue = ParkedQueue {
 };
 
 const MAX_PARKED_COMMITS: usize = 256;
+
+/// The queue `parent` is parked in, when it is parked and not sequenced.
+async fn parked_parent_queue(
+    mgr: &DatastoreManager,
+    contract_id: &str,
+    parent: &str,
+) -> Option<&'static ParkedQueue> {
+    let keys = [
+        ("contract_id".to_string(), contract_id.to_string()),
+        ("commit_id".to_string(), parent.to_string()),
+    ]
+    .into_iter()
+    .collect();
+    if let Ok(Some(commit)) = Commit::find_one_multi(mgr, keys).await {
+        if commit.is_sequenced() {
+            return None;
+        }
+    }
+    [&PREFIX_CERT_QUEUE, &ANCHOR_QUEUE].into_iter().find(|queue| {
+        load_parked(mgr, queue)
+            .iter()
+            .any(|entry| pending_entry_matches(entry, contract_id, parent))
+    })
+}
 
 fn parked_queue_for(outcome: &CommitApply) -> Option<&'static ParkedQueue> {
     match outcome {
@@ -2169,6 +2207,52 @@ model FirstContract {
             dest_in_batch(&ds, &id).await.as_deref(),
             Some("batch-first")
         );
+    }
+
+    #[tokio::test]
+    async fn a_commit_after_a_parked_one_waits_behind_it() {
+        let ds = Arc::new(Mutex::new(DatastoreManager::create_in_memory().unwrap()));
+        let (id, push) = dest_push();
+        let (child, child_push) = pushed(
+            "dest",
+            json!([{"method": "post", "path": "/notes/after.text", "value": "next"}]),
+            json!({ "parent": id }),
+        );
+        sequenced_source_named(&ds, true, &["peer1", "peer2", "peer3"]).await;
+        let digest = {
+            let mgr = ds.lock().await;
+            build_prefix_from_store(&mgr, "src", "src-commit")
+                .await
+                .unwrap()
+                .1
+        };
+        apply_certified_contract_events(
+            &certified_block(vec![push, child_push], "batch-first"),
+            &ds,
+        )
+        .await;
+        assert!(dest_in_batch(&ds, &id).await.is_none());
+        assert!(dest_in_batch(&ds, &child).await.is_none());
+        {
+            let mgr = ds.lock().await;
+            assert_eq!(
+                load_parked(&mgr, &PREFIX_CERT_QUEUE).len(),
+                2,
+                "the child is parked behind its parent, not dropped"
+            );
+        }
+        apply_certified_contract_events(
+            &certified_block(
+                vec![prefix_cert_event("peer1", &digest), prefix_cert_event("peer2", &digest)],
+                "batch-certs",
+            ),
+            &ds,
+        )
+        .await;
+        assert_eq!(dest_in_batch(&ds, &id).await.as_deref(), Some("batch-first"));
+        assert_eq!(dest_in_batch(&ds, &child).await.as_deref(), Some("batch-first"));
+        let mgr = ds.lock().await;
+        assert!(load_parked(&mgr, &PREFIX_CERT_QUEUE).is_empty());
     }
 
     #[test]
