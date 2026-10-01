@@ -24,6 +24,8 @@ pub mod signer_set;
 pub mod status;
 pub mod theory;
 pub mod unpack;
+#[cfg(feature = "p2p")]
+pub mod wallet;
 pub mod wasm_upload;
 
 #[cfg(test)]

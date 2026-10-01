@@ -93,6 +93,85 @@ pub struct NodeStatus {
     pub pending_prefix_cert_requests: usize,
     /// Highest certified sequencer round seen per block author.
     pub last_cert_round_by_author: Vec<(String, u64)>,
+    pub mod_holdings: ModHoldings,
+}
+
+/// The MOD this node's id holds, and the mint sends to it not yet received.
+#[derive(Debug, Clone, Default)]
+pub struct ModHoldings {
+    /// The node's peer id: what its mined blocks nominate by default.
+    pub address: String,
+    pub held: u64,
+    /// Sent to the address and not yet taken with a `RECV`.
+    pub incoming: u64,
+    pub incoming_sends: usize,
+    pub decimals: Option<u32>,
+    /// `contract` on a MOD-contract network, `native` otherwise.
+    pub source: &'static str,
+}
+
+impl ModHoldings {
+    pub fn held_display(&self) -> String {
+        modality_common::amount::format_amount(self.held, self.decimals)
+    }
+
+    pub fn incoming_display(&self) -> String {
+        modality_common::amount::format_amount(self.incoming, self.decimals)
+    }
+}
+
+/// What `address` holds of MOD: on a MOD-contract network, its balance of the
+/// contract's asset and the `SEND`s of it not yet received; otherwise its
+/// node-local native balance.
+pub async fn mod_holdings(mgr: &DatastoreManager, address: &str) -> ModHoldings {
+    use modality_datastore::models::{AssetBalance, ContractAsset, ReceivedSend, SendRecord};
+    let Some(mod_id) = mgr.mod_contract_id().ok().flatten() else {
+        return ModHoldings {
+            address: address.to_string(),
+            held: mgr.native_mod_balance(address).unwrap_or(0),
+            source: "native",
+            ..Default::default()
+        };
+    };
+    let key = |pairs: &[(&str, &str)]| -> HashMap<String, String> {
+        pairs.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect()
+    };
+    let held = AssetBalance::find_one_multi(
+        mgr,
+        key(&[("contract_id", &mod_id), ("asset_id", "MOD"), ("owner_contract_id", address)]),
+    )
+    .await
+    .ok()
+    .flatten()
+    .map(|b| b.balance)
+    .unwrap_or(0);
+    let decimals = ContractAsset::find_one_multi(mgr, key(&[("contract_id", &mod_id), ("asset_id", "MOD")]))
+        .await
+        .ok()
+        .flatten()
+        .and_then(|a| a.decimals);
+    let (mut incoming, mut incoming_sends) = (0u64, 0usize);
+    for send in SendRecord::find_to_multi(mgr, address).await.unwrap_or_default() {
+        if send.creator() != mod_id || send.asset_id != "MOD" {
+            continue;
+        }
+        if ReceivedSend::is_received(mgr, &send.send_commit_id, send.send_index)
+            .await
+            .unwrap_or(true)
+        {
+            continue;
+        }
+        incoming = incoming.saturating_add(send.amount);
+        incoming_sends += 1;
+    }
+    ModHoldings {
+        address: address.to_string(),
+        held,
+        incoming,
+        incoming_sends,
+        decimals,
+        source: "contract",
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -398,6 +477,7 @@ async fn collect_node_status_uncached(source: &NodeStatusSource) -> anyhow::Resu
         .map(|r| r.len())
         .unwrap_or(0);
     let last_cert_round_by_author = crate::actions::sequencer::cert_sync::last_cert_rounds(&mgr);
+    let mod_holdings = mod_holdings(&mgr, &peerid_str).await;
 
     let active_roles = derive_active_roles(
         &source.role,
@@ -451,6 +531,7 @@ async fn collect_node_status_uncached(source: &NodeStatusSource) -> anyhow::Resu
         recent_prefix_certs,
         pending_prefix_cert_requests,
         last_cert_round_by_author,
+        mod_holdings,
     })
 }
 
@@ -729,6 +810,7 @@ pub(crate) fn sample_status() -> NodeStatus {
         recent_prefix_certs: vec![],
         pending_prefix_cert_requests: 0,
         last_cert_round_by_author: vec![],
+        mod_holdings: ModHoldings::default(),
     }
 }
 
@@ -736,6 +818,57 @@ pub(crate) fn sample_status() -> NodeStatus {
 mod tests {
     use super::*;
     use crate::constants::STATUS_RECENT_BLOCKS_COUNT;
+
+    #[tokio::test]
+    async fn mod_holdings_reads_the_mod_contract_and_what_waits() {
+        use modality_datastore::models::{AssetBalance, ContractAsset, SendRecord};
+        let mgr = DatastoreManager::create_in_memory().unwrap();
+        let native = mod_holdings(&mgr, "node").await;
+        assert_eq!((native.source, native.held, native.incoming_sends), ("native", 0, 0));
+
+        mgr.set_mod_contract("modc", &Default::default()).unwrap();
+        ContractAsset {
+            contract_id: "modc".into(),
+            asset_id: "MOD".into(),
+            quantity: 1_000_000_000_000,
+            divisibility: 1,
+            created_at: 0,
+            creator_commit_id: "g".into(),
+            decimals: Some(8),
+        }
+        .save_to_final(&mgr)
+        .await
+        .unwrap();
+        AssetBalance {
+            contract_id: "modc".into(),
+            asset_id: "MOD".into(),
+            owner_contract_id: "node".into(),
+            balance: 5_000_000_000,
+        }
+        .save_to_final(&mgr)
+        .await
+        .unwrap();
+        for (index, asset_contract, asset_id) in [(0, "", "MOD"), (1, "", "MOD"), (2, "other", "MOD")] {
+            SendRecord {
+                send_commit_id: "mint1".into(),
+                send_index: index,
+                from_contract: "modc".into(),
+                asset_id: asset_id.into(),
+                to_contract: "node".into(),
+                amount: 2_500_000_000,
+                asset_contract: asset_contract.into(),
+                memo: None,
+            }
+            .save_to_final(&mgr)
+            .await
+            .unwrap();
+        }
+        let held = mod_holdings(&mgr, "node").await;
+        assert_eq!(held.source, "contract");
+        assert_eq!(held.held_display(), "50");
+        assert_eq!(held.incoming_sends, 2, "the send of another contract's MOD is not MOD");
+        assert_eq!(held.incoming_display(), "50");
+    }
     use modality_datastore::models::miner::MinerBlock;
 
     #[test]

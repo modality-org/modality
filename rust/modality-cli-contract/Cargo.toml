@@ -9,7 +9,7 @@ homepage = "https://www.modality.org"
 
 [features]
 default = []
-p2p = ["dep:modality-node"]
+p2p = ["dep:modality-node", "dep:modality-networks"]
 model-status = ["modality-common/model-governance", "dep:modality-lang"]
 wasm = ["dep:modality-wasm-runtime", "dep:modality-wasm-validation"]
 full = ["p2p", "model-status", "wasm"]
@@ -20,6 +20,7 @@ modality-cli-ai = { path = "../modality-cli-ai", version = "0.1.0" }
 modality-common = { path = "../modality-common", version = "0.1.7" }
 modality-lang = { path = "../modality-lang", version = "0.1.7", optional = true }
 modality-node = { path = "../modality-node", version = "0.1.7", optional = true }
+modality-networks = { path = "../modality-networks", version = "0.1.0", optional = true }
 modality-wasm-runtime = { path = "../modality-wasm-runtime", version = "0.1.0", optional = true }
 modality-wasm-validation = { path = "../modality-wasm-validation", version = "0.1.0", optional = true }
 anyhow = "1.0"

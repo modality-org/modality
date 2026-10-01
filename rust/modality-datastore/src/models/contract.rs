@@ -235,6 +235,10 @@ pub struct ContractAsset {
     pub divisibility: u64,
     pub created_at: u64,
     pub creator_commit_id: String,
+    /// How many decimal places a wallet shows: 8 shows 150000000 as 1.5.
+    /// Display only; `divisibility` is what amounts must be multiples of.
+    #[serde(default)]
+    pub decimals: Option<u32>,
 }
 
 #[async_trait]
@@ -247,6 +251,7 @@ impl Model for ContractAsset {
         "divisibility",
         "created_at",
         "creator_commit_id",
+        "decimals",
     ];
     const FIELD_DEFAULTS: &'static [(&'static str, serde_json::Value)] = &[];
 
@@ -260,6 +265,7 @@ impl Model for ContractAsset {
             "creator_commit_id" => {
                 self.creator_commit_id = value.as_str().unwrap_or_default().to_string()
             }
+            "decimals" => self.decimals = value.as_u64().map(|d| d as u32),
             _ => {}
         }
     }
@@ -626,7 +632,7 @@ impl SendRecord {
     /// Every recorded `SEND` to `to_contract`, by commit and index.
     pub async fn find_to_multi(datastore: &DatastoreManager, to_contract: &str) -> Result<Vec<Self>> {
         let mut sends = Vec::new();
-        for item in datastore.sequencer_final().iterator("/sends/") {
+        for item in datastore.sequencer_final().iterator("/sends") {
             let (_, value) = item?;
             let record = Self::from_json_string(std::str::from_utf8(&value)?)?;
             if record.to_contract == to_contract {

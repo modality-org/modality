@@ -46,6 +46,7 @@ as `modality model lint`, `modality model synthesize`,
 | `modal local` | — | Local development utilities; full wrapper only |
 | `modal run` | — | Quick node runners; full wrapper only |
 | `modal chain` | — | Chain validation; full wrapper only |
+| `modal wallet` | — | Hold, receive and send assets with one key; full wrapper only. See [wallet-commands.md](wallet-commands.md) |
 
 ## Global Commands
 

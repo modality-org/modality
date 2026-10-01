@@ -35,7 +35,16 @@ pub struct Opts {
     output: String,
 }
 
-pub async fn run(opts: &Opts) -> Result<()> {
+/// A contract made by [`make`].
+pub struct Created {
+    pub contract_id: String,
+    pub dir: std::path::PathBuf,
+    pub genesis_commit_id: String,
+    pub signers: Vec<String>,
+}
+
+/// Create the contract `opts` describes, without printing.
+pub async fn make(opts: &Opts) -> Result<Created> {
     // Determine the contract directory
     let dir = if let Some(path) = &opts.dir {
         path.clone()
@@ -131,6 +140,23 @@ pub async fn run(opts: &Opts) -> Result<()> {
         }
         .save(&store)?;
     }
+
+    Ok(Created {
+        contract_id,
+        dir,
+        genesis_commit_id,
+        signers,
+    })
+}
+
+pub async fn run(opts: &Opts) -> Result<()> {
+    let Created {
+        contract_id,
+        dir,
+        genesis_commit_id,
+        signers,
+    } = make(opts).await?;
+    let paths: Vec<String> = (1..=signers.len()).map(signer_path).collect();
 
     // Output
     if opts.output == "json" {

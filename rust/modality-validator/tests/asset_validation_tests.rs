@@ -35,6 +35,7 @@ async fn test_send_insufficient_balance() {
             divisibility: 1,
             created_at: 1234567890,
             creator_commit_id: "genesis".to_string(),
+            decimals: None,
         };
         asset.save_to_final(&ds).await.unwrap();
 
@@ -96,6 +97,7 @@ async fn test_send_sufficient_balance() {
             divisibility: 1,
             created_at: 1234567890,
             creator_commit_id: "genesis".to_string(),
+            decimals: None,
         };
         asset.save_to_final(&ds).await.unwrap();
 
@@ -163,6 +165,7 @@ async fn test_recv_wrong_recipient() {
             divisibility: 1,
             created_at: 1234567890,
             creator_commit_id: "genesis".to_string(),
+            decimals: None,
         };
         asset.save_to_final(&ds).await.unwrap();
 
@@ -249,6 +252,7 @@ async fn test_recv_double_receive() {
             divisibility: 1,
             created_at: 1234567890,
             creator_commit_id: "genesis".to_string(),
+            decimals: None,
         };
         asset.save_to_final(&ds).await.unwrap();
 
@@ -339,6 +343,7 @@ async fn test_recv_valid() {
             divisibility: 1,
             created_at: 1234567890,
             creator_commit_id: "genesis".to_string(),
+            decimals: None,
         };
         asset.save_to_final(&ds).await.unwrap();
 

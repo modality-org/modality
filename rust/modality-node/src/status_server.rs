@@ -218,6 +218,16 @@ async fn status_json_handler(
         "validator_min_stake": status.validator_min_stake,
         "dest_apply_requires_cert": status.dest_apply_requires_cert,
         "predicate_theory_version": status.predicate_theory_version,
+        "mod": {
+            "address": status.mod_holdings.address,
+            "held": status.mod_holdings.held,
+            "held_display": status.mod_holdings.held_display(),
+            "incoming": status.mod_holdings.incoming,
+            "incoming_display": status.mod_holdings.incoming_display(),
+            "incoming_sends": status.mod_holdings.incoming_sends,
+            "decimals": status.mod_holdings.decimals,
+            "source": status.mod_holdings.source,
+        },
         "active_roles": status.active_roles,
         "peer_list": status
             .peers

@@ -4,7 +4,7 @@
 #   scripts/mod-genesis/build.sh --out DIR --foundation PASSFILE --params PARAMS.json [--wasm FILE] [--canonical]
 #
 # PARAMS.json:
-#   {"quantity": 2100000000000000, "divisibility": 100000000,
+#   {"quantity": 2100000000000000, "decimals": 8,
 #    "block_subsidy": 5000000000, "halving_interval": 210000, "slow_start": 0,
 #    "cap": 1900000000000000,
 #    "hash_func": "randomx", "genesis_block_hash": "<hash of miner block 0>",
@@ -13,7 +13,9 @@
 # `hash_func` is the miner chain's proof of work (default randomx), and
 # `genesis_block_hash`, when given, ties the first minted block to block 0.
 #
-# All amounts are in the smallest unit (1 MOD = divisibility units).
+# All amounts are in the smallest unit. MOD is created with divisibility 1,
+# so any whole number of smallest units moves, and `decimals` (default 8)
+# tells a wallet where the point goes: 1 MOD = 10^decimals units.
 # `quantity` is the whole supply, `cap` what emission may pay out of it, and
 # the allocations plus the cap may not exceed the quantity.
 #
@@ -65,13 +67,17 @@ print(v)
 PY
 }
 QUANTITY=$(param quantity)
-DIVISIBILITY=$(param divisibility)
+DECIMALS=$(python3 -c "import json,sys; print(json.load(open(sys.argv[1])).get('decimals', 8))" "$PARAMS")
 python3 - "$PARAMS" <<'PY'
 import json, sys
 p = json.load(open(sys.argv[1]))
 allocated = sum(a["amount"] for a in p.get("allocations", []))
-if p["quantity"] <= 0 or p["divisibility"] <= 0:
-    sys.exit("quantity and divisibility must be positive")
+if "divisibility" in p:
+    sys.exit("MOD moves in smallest units (divisibility 1); give `decimals` instead of `divisibility`")
+if p["quantity"] <= 0:
+    sys.exit("quantity must be positive")
+if not isinstance(p.get("decimals", 8), int) or not 0 <= p.get("decimals", 8) <= 19:
+    sys.exit("decimals must be a whole number from 0 to 19")
 if allocated + p.get("cap", 0) > p["quantity"]:
     sys.exit(f"allocations ({allocated}) plus the emission cap ({p.get('cap', 0)}) exceed the quantity ({p['quantity']})")
 for a in p.get("allocations", []):
@@ -126,7 +132,7 @@ commit() {
     modal contract commit --theory v3 --dir "$DIR" --sign "$FOUNDATION" --output json "$@" >/dev/null
 }
 modal commit --theory v3 --all --dir "$DIR" --sign "$FOUNDATION" --output json --message Bootstrap >/dev/null
-commit --method create --asset-id MOD --quantity "$QUANTITY" --divisibility "$DIVISIBILITY"
+commit --method create --asset-id MOD --quantity "$QUANTITY" --divisibility 1 --decimals "$DECIMALS"
 python3 - "$PARAMS" <<'PY' | while read -r to amount; do commit --method send --asset-id MOD --to-contract "$to" --amount "$amount"; done
 import json, sys
 for a in json.load(open(sys.argv[1])).get("allocations", []):

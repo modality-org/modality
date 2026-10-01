@@ -22,7 +22,7 @@ genesis commits in order. A network that names it does not also name
 |--------|--------------|-----------|
 | 1 | The contract's `genesis` | — |
 | 2 | Posts `/foundation.id`, the emission parameters, the two counters, and the program at `/__programs__/emission.wasm`; adds the model | `/foundation.id` (the model does not require it) |
-| 3 | `CREATE` MOD: the whole supply, and its divisibility | `/foundation.id` |
+| 3 | `CREATE` MOD: the whole supply, at divisibility 1, with its display decimals | `/foundation.id` |
 | 4… | One `SEND` of MOD for each genesis allocation | `/foundation.id` |
 | last | The rules | `/foundation.id` |
 
@@ -30,8 +30,11 @@ After the rules, the foundation's key can do nothing on the contract.
 
 ### Parameters
 
-All amounts are in the smallest unit; with divisibility `10^8`, one MOD is
-`100000000`.
+All amounts are in the smallest unit. MOD is created at divisibility 1, so
+any whole number of units moves, and with 8 decimals one MOD is
+`100000000`. A node refuses a MOD contract created at any other
+divisibility: every amount would have to be a multiple of it, and a halved
+subsidy would stop emission.
 
 | Path | Meaning |
 |------|---------|
@@ -161,17 +164,23 @@ modal contract commit --dir wallet --method recv --send-commit-id <SEND commit> 
 ### Taking a block's MOD
 
 A mint's `SEND` goes to the block's nominee: the miner's peer id, or an id
-named in the node's `miner_nominees`. The holder of that key creates the
-contract with that id, and receives each block's subsidy with a `RECV`:
+named in the node's `miner_nominees`. The holder of that key makes the
+wallet at that id and receives each block's subsidy:
 
 ```bash
-modal contract create --dir payout --key node.modal_passfile
-modal contract commit --dir payout --method recv --send-commit-id <mint commit> --send-index 0 \
-  --asset-contract <MOD contract id> --asset-id MOD --amount 5000000000
+modal wallet create --key node.modal_passfile --dir node-wallet
+modal wallet recv --dir node-wallet
 ```
 
-`--send-index` picks the block's `SEND` among the mint's, counting from 0.
-One key makes one contract.
+`recv` writes one `RECV` per waiting `SEND`, stating its amount, signed by the
+key. By hand, that is `modal contract commit --method recv --send-commit-id
+<mint commit> --send-index <n> --asset-contract <MOD contract id> --asset-id
+MOD --amount <units>`, where `--send-index` picks the block's `SEND` among the
+mint's, counting from 0. One key makes one contract.
+
+A node's status page shows what its peer id holds of MOD and what waits to
+be received (`mod` in `/status.json`). See
+[Wallet Commands](../cli/wallet-commands.md).
 
 ## Vesting by MOD height
 
@@ -207,7 +216,7 @@ accumulate, so a lock stays: a later model cannot drop it.
 scripts/mod-genesis/build.sh --out ./mod --foundation foundation.mod_passfile --params params.json
 ```
 
-`params.json` names `quantity`, `divisibility`, `block_subsidy`,
+`params.json` names `quantity`, `decimals` (default 8), `block_subsidy`,
 `halving_interval`, `slow_start`, `cap`, and `allocations` (each a `to`
 contract id and an `amount`), and optionally `hash_func` and
 `genesis_block_hash`. The script builds the program (`--canonical`

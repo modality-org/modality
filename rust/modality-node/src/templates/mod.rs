@@ -545,6 +545,20 @@ fn render_sequencer_committee(peers: &[String]) -> String {
         .join("\n                    ")
 }
 
+/// Under the MOD held: what waits to be received, if anything.
+fn mod_incoming_note(mod_holdings: &crate::status_snapshot::ModHoldings) -> String {
+    if mod_holdings.incoming_sends == 0 {
+        String::new()
+    } else {
+        format!(
+            "+ {} to receive ({} send{})",
+            mod_holdings.incoming_display(),
+            mod_holdings.incoming_sends,
+            if mod_holdings.incoming_sends == 1 { "" } else { "s" }
+        )
+    }
+}
+
 pub fn render_status_from_snapshot(status: &NodeStatus) -> String {
     let nomination = status
         .sequencer_nomination_epoch
@@ -570,6 +584,8 @@ pub fn render_status_from_snapshot(status: &NodeStatus) -> String {
         block_0_html: render_genesis(status.genesis.as_ref()),
         peers_html: render_peer_rows(&status.peers),
         blocks_mined_by_node: status.blocks_mined_by_node,
+        mod_held: status.mod_holdings.held_display(),
+        mod_incoming_note: mod_incoming_note(&status.mod_holdings),
         current_difficulty: status.current_difficulty.clone(),
         miner_hashrate: status.miner_hashrate.clone(),
         network_hashrate: status.network_hashrate.clone(),
@@ -623,6 +639,8 @@ pub fn render_status_page(vars: StatusPageVars) -> String {
             "{blocks_mined_by_node}",
             &vars.blocks_mined_by_node.to_string(),
         )
+        .replace("{mod_held}", &vars.mod_held)
+        .replace("{mod_incoming_note}", &vars.mod_incoming_note)
         .replace("{current_difficulty}", &vars.current_difficulty)
         .replace("{miner_hashrate}", &vars.miner_hashrate)
         .replace("{network_hashrate}", &vars.network_hashrate)
@@ -677,6 +695,8 @@ pub struct StatusPageVars {
     pub block_0_html: String,
     pub peers_html: String,
     pub blocks_mined_by_node: usize,
+    pub mod_held: String,
+    pub mod_incoming_note: String,
     pub current_difficulty: String,
     pub miner_hashrate: String,
     pub network_hashrate: String,
@@ -715,6 +735,8 @@ fn sample_vars() -> StatusPageVars {
         block_0_html: "<div>Test</div>".to_string(),
         peers_html: "<tr><td>Test Peer</td></tr>".to_string(),
         blocks_mined_by_node: 9,
+        mod_held: "450".to_string(),
+        mod_incoming_note: "+ 100 to receive".to_string(),
         current_difficulty: "12".to_string(),
         miner_hashrate: "0".to_string(),
         network_hashrate: "64.75".to_string(),

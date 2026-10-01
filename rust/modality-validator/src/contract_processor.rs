@@ -654,6 +654,17 @@ impl ContractProcessor {
             .and_then(|v| v.as_u64())
             .ok_or_else(|| anyhow::anyhow!("CREATE missing divisibility"))?;
 
+        // Display only. 10^19 overflows a u64, so at most 19 places.
+        let decimals = match value.get("decimals") {
+            None | Some(Value::Null) => None,
+            Some(v) => Some(
+                v.as_u64()
+                    .filter(|d| *d <= 19)
+                    .ok_or_else(|| anyhow::anyhow!("CREATE decimals must be a whole number up to 19"))?
+                    as u32,
+            ),
+        };
+
         let ds = self.datastore.lock().await;
 
         if staged.asset(&ds, contract_id, asset_id).await?.is_some() {
@@ -675,6 +686,7 @@ impl ContractProcessor {
             divisibility,
             created_at: timestamp,
             creator_commit_id: commit_id.to_string(),
+            decimals,
         });
 
         // The creating contract holds the whole quantity.

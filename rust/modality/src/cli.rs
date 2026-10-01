@@ -101,6 +101,13 @@ enum Commands {
         command: modality_cli_ai::Commands,
     },
 
+    #[cfg(feature = "full")]
+    #[command(about = "Wallet: hold, receive and send assets with one key")]
+    Wallet {
+        #[command(subcommand)]
+        command: modality_cli_contract::wallet::Commands,
+    },
+
     #[command(about = "Contract hub server commands")]
     #[cfg(feature = "full")]
     Hub {
@@ -684,6 +691,8 @@ pub async fn run() -> Result<()> {
         Commands::Contract(opts) => crate::cmds::contract::run(opts).await?,
         #[cfg(feature = "cli-ai")]
         Commands::Ai { command } => modality_cli_ai::run(command).await?,
+        #[cfg(feature = "full")]
+        Commands::Wallet { command } => modality_cli_contract::wallet::run(command).await?,
         #[cfg(feature = "full")]
         Commands::Hub { command } => match command {
             HubCommands::Start(opts) => modality_cli_hub::start::run(opts).await?,
