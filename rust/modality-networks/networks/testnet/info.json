@@ -15,6 +15,7 @@
   "validator_min_stake": 0,
   "repost_requires_validator_cert": true,
   "predicate_theory_version": "v3",
+  "gas_schedule": "v1",
   "hash_lane": {
     "quota_per_block": 64,
     "floor_bits": 16,
