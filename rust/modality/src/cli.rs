@@ -1143,8 +1143,12 @@ mod tests {
         ]);
         crate::cmds::id::create::run(&bob_create_opts).await?;
 
-        let alice_id = Keypair::from_json_file(alice_passfile_arg.as_str())?.as_public_address();
-        let bob_id = Keypair::from_json_file(bob_passfile_arg.as_str())?.as_public_address();
+        let alice_id = modality_common::peer_id::id_value(
+            &Keypair::from_json_file(alice_passfile_arg.as_str())?.as_public_address(),
+        );
+        let bob_id = modality_common::peer_id::id_value(
+            &Keypair::from_json_file(bob_passfile_arg.as_str())?.as_public_address(),
+        );
 
         let checkout_opts = modality_cli_contract::checkout::Opts::parse_from([
             "checkout",
@@ -1292,9 +1296,12 @@ mod tests {
         assert!(!contract_dir.join("example").exists());
         assert!(!home.path().join(".modality/example").exists());
 
-        let alice_id =
-            Keypair::from_json_file(alice_passfile.to_str().unwrap())?.as_public_address();
-        let bob_id = Keypair::from_json_file(bob_passfile.to_str().unwrap())?.as_public_address();
+        let alice_id = modality_common::peer_id::id_value(
+            &Keypair::from_json_file(alice_passfile.to_str().unwrap())?.as_public_address(),
+        );
+        let bob_id = modality_common::peer_id::id_value(
+            &Keypair::from_json_file(bob_passfile.to_str().unwrap())?.as_public_address(),
+        );
         assert_eq!(std::fs::read_to_string(&alice_id_file)?.trim(), alice_id);
         assert_eq!(std::fs::read_to_string(&bob_id_file)?.trim(), bob_id);
 

@@ -409,11 +409,6 @@ fn format_formula_for_explanation(formula: &CommitRuleFormula) -> String {
     }
 }
 
-/// Resolve a path in contract state to a list of identity strings
-///
-/// Supports two patterns:
-/// 1. Array value: /members.json → ["alice_key", "bob_key"]
-/// 2. Directory of .id files: /members → scans for /members/*.id values
 /// Whether `id` signed: compared as keys, so any spelling of a signer's
 /// key matches (see [`crate::peer_id::key_form`]).
 fn signed(ctx: &EvalContext, id: &str) -> bool {
@@ -421,6 +416,11 @@ fn signed(ctx: &EvalContext, id: &str) -> bool {
     ctx.signers.iter().any(|signer| crate::peer_id::key_form(signer) == id)
 }
 
+/// Resolve a path in contract state to a list of identity strings.
+///
+/// Supports two patterns:
+/// 1. Array value: /members.json → ["alice_key", "bob_key"]
+/// 2. Directory of .id files: /members → scans for /members/*.id values
 fn resolve_path_as_strings(state: &Value, path: &str) -> Vec<String> {
     let normalized = path.trim_start_matches('/');
 
