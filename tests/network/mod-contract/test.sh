@@ -335,6 +335,8 @@ check "Block 1's RECV was applied" bash -c "! grep -q 'Failed to process sequenc
 
 echo ""
 echo "Vesting by MOD height: the payout locks its MOD until the chain is paid past a height..."
+# A REPOST of the MOD contract waits for a validator's prefix cert, which
+# re-checks the contract's history: minutes on a debug build.
 VIEW="./tmp/mod-view"
 modal contract pull --contract-id "$MINED_ID" --remote "$REMOTE" --dir "$VIEW" >> "$CURRENT_LOG" 2>&1
 HEIGHT=$(cat "$VIEW/state/emission/next_index.num")
@@ -391,13 +393,13 @@ modal contract commit --dir "$PAYOUT" --all --sign "$NODE_DIR/node.modal_passfil
 REPOSTED=$(cat "$PAYOUT/.contract/HEAD")
 push "$PAYOUT"
 expect_log "REPOST validated: $(modal contract id --dir "$PAYOUT")$HEIGHT_PATH <- $MINED_ID:/emission/next_index.num" \
-    "The network checks the reposted height against the MOD contract"
-expect_log "Sequenced commit $REPOSTED" "The REPOST of MOD height $HEIGHT is sequenced"
+    "The network checks the reposted height against the MOD contract" 300
+expect_log "Sequenced commit $REPOSTED" "The REPOST of MOD height $HEIGHT is sequenced" 300
 send_out "$PAYOUT" ./tmp/vest-now
 VESTED=$(cat "$PAYOUT/.contract/HEAD")
 check "At the height, the owner's SEND passes the rules" test "$VESTED" != "$REPOSTED"
 push "$PAYOUT"
-expect_log "Sequenced commit $VESTED" "The network sequences the vested SEND"
+expect_log "Sequenced commit $VESTED" "The network sequences the vested SEND" 300
 check "The vested SEND is applied" bash -c "! grep -q 'Failed to process sequenced commit $VESTED' '$SEQUENCER_LOG'"
 
 lock ./tmp/payout-far $((HEIGHT + 1000))
