@@ -1,0 +1,6 @@
+export default rule {
+  starting_at $PARENT
+  formula {
+    always([+modifies(/rules) -all_signed(/maintainers)] false)
+  }
+}

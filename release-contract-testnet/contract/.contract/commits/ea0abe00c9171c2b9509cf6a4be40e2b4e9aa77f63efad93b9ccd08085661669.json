@@ -1,0 +1,51 @@
+{
+  "body": [
+    {
+      "method": "post",
+      "path": "/maintainers/1.id",
+      "value": "cpl6f4k65stqkpu6con3dnocnfshw54drxsyjfimog45yfulizbacjeaiajaazfab"
+    },
+    {
+      "method": "post",
+      "path": "/keys/ci.id",
+      "value": "c7zedyrvncfq3oyzuu4b3rabvgrffxmzl72wxbxxjgbeoxchv3lbcjeaiajaazfab"
+    },
+    {
+      "method": "rule",
+      "path": "/rules/model_by_maintainers.modality",
+      "value": "export default rule {\n  starting_at $PARENT\n  formula {\n    always([+modifies(/model) -all_signed(/maintainers)] false)\n  }\n}\n"
+    },
+    {
+      "method": "rule",
+      "path": "/rules/releases_by_ci.modality",
+      "value": "export default rule {\n  starting_at $PARENT\n  formula {\n    always([+modifies(/releases) -signed_by(/keys/ci.id)] false)\n  }\n}\n"
+    },
+    {
+      "method": "rule",
+      "path": "/rules/rules_by_maintainers.modality",
+      "value": "export default rule {\n  starting_at $PARENT\n  formula {\n    always([+modifies(/rules) -all_signed(/maintainers)] false)\n  }\n}\n"
+    },
+    {
+      "method": "rule",
+      "path": "/rules/keys_by_maintainers.modality",
+      "value": "export default rule {\n  starting_at $PARENT\n  formula {\n    always([+modifies(/keys) -all_signed(/maintainers)] false)\n  }\n}\n"
+    },
+    {
+      "method": "rule",
+      "path": "/rules/maintainers_by_maintainers.modality",
+      "value": "export default rule {\n  starting_at $PARENT\n  formula {\n    always([+modifies(/maintainers) -all_signed(/maintainers)] false)\n  }\n}\n"
+    },
+    {
+      "method": "model",
+      "path": "/model/default.modality",
+      "value": "model release {\n  part flow {\n    q0 --> q1\n    q1 --> q1: +signed_by(/keys/ci.id) -modifies(/keys) -modifies(/maintainers) -modifies(/rules) -modifies(/model)\n    q1 --> q1: +all_signed(/maintainers) -modifies(/releases)\n  }\n}\n"
+    }
+  ],
+  "head": {
+    "parent": "1b5958dc06e02fb5c8d1a8d30c5d0c98e466bc141c67d610e1b9bad3f512b9d6",
+    "message": "Release contract",
+    "signatures": {
+      "12D3KooWAJJijUsWbNuj5MAFrr2Beo6RBPfsjHNhmSv7HETEfDz9": "fgZ/JR2OSMbrEeUg8Qq0OTFcoA/CJUV4Ri8jeQBxYtdfZMC27dkGOEw3uZrhI/TzdK8ILruzfmY8288tZh0QBw=="
+    }
+  }
+}

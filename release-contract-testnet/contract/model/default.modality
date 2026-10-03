@@ -1,0 +1,7 @@
+model release {
+  part flow {
+    q0 --> q1
+    q1 --> q1: +signed_by(/keys/ci.id) -modifies(/keys) -modifies(/maintainers) -modifies(/rules) -modifies(/model)
+    q1 --> q1: +all_signed(/maintainers) -modifies(/releases)
+  }
+}
