@@ -5,12 +5,16 @@ on:
     branches: [main]
     paths:
       - 'rust/**'
+      - 'scripts/ci/**'
       - '.github/workflows/ci.yml'
   pull_request:
     branches: [main]
     paths:
       - 'rust/**'
+      - 'scripts/ci/**'
       - '.github/workflows/ci.yml'
+  # The release workflow runs the whole of CI on the commit it builds.
+  workflow_call:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -23,6 +27,14 @@ env:
   RUSTFLAGS: "-D warnings"
 
 jobs:
+  keys:
+    name: No live-network keys
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Refuse private keys a live network trusts
+        run: python3 scripts/ci/check-no-live-keys.py
+
   check:
     name: Check
     runs-on: ubuntu-latest
@@ -114,7 +126,10 @@ jobs:
           
       - name: Run tests
         working-directory: rust
-        run: cargo test --all --exclude modality-sequencer-consensus --exclude modality-sequencer --exclude modality-datastore --exclude modality-miner --exclude modality-observer --exclude modality-validator --exclude modality-node
+        # Every crate but the miner, whose RandomX tests take tens of minutes
+        # (T9). Consensus, apply, gas and fees live in the node, validator
+        # and datastore crates.
+        run: cargo test --all --exclude modality-miner
 
   clippy:
     name: Clippy

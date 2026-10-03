@@ -41,7 +41,7 @@ pub async fn sync_request(
 
 /// Example: Sync DAG with a peer
 ///
-/// ```no_run
+/// ```ignore
 /// use modality_node::actions::dag_sync;
 /// use modality_sequencer_consensus::narwhal::SyncRequest;
 ///

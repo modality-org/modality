@@ -1,0 +1,130 @@
+name: Release
+
+# A release is built here, from a `testnet-*` tag whose commit passes all of
+# CI, and named by a commit to the channel's release contract, signed by the
+# release key (secret RELEASE_CI_PASSFILE). A binary installs or upgrades only
+# if the release contract accepts that commit. Nothing is uploaded from here:
+# scripts/packages/publish-ci-release.sh downloads this run's artifact,
+# verifies it, and publishes it.
+
+on:
+  push:
+    tags: ['testnet-*']
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  CHANNEL: testnet
+
+jobs:
+  ci:
+    name: CI on the tagged commit
+    uses: ./.github/workflows/ci.yml
+
+  build-linux:
+    name: Build linux-x86_64
+    needs: ci
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.94.1
+      - name: Install system dependencies
+        run: |
+          sudo apt-get -o Acquire::Retries=3 update
+          sudo apt-get -o Acquire::Retries=3 install -y cmake clang libssl-dev pkg-config
+      - name: Build
+        working-directory: rust
+        env:
+          MODAL_GIT_BRANCH: testnet
+          MODAL_GIT_COMMIT: ${{ github.sha }}
+        run: cargo build --profile quick_release -p modal
+      - uses: actions/upload-artifact@v4
+        with:
+          name: modal-linux-x86_64
+          path: rust/target/quick_release/modal
+          if-no-files-found: error
+
+  build-macos:
+    name: Build darwin-aarch64
+    needs: ci
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.94.1
+      - name: Install system dependencies
+        run: brew install cmake pkg-config || true
+      - name: Build
+        working-directory: rust
+        env:
+          MODAL_GIT_BRANCH: testnet
+          MODAL_GIT_COMMIT: ${{ github.sha }}
+        run: cargo build --profile quick_release -p modal
+      - uses: actions/upload-artifact@v4
+        with:
+          name: modal-darwin-aarch64
+          path: rust/target/quick_release/modal
+          if-no-files-found: error
+
+  release:
+    name: Name the release in the release contract
+    needs: [build-linux, build-macos]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v4
+        with:
+          name: modal-linux-x86_64
+          path: build/binaries/linux-x86_64
+      - uses: actions/download-artifact@v4
+        with:
+          name: modal-darwin-aarch64
+          path: build/binaries/darwin-aarch64
+      - name: Assemble the package
+        run: |
+          chmod +x build/binaries/*/modal
+          VERSION="$(date -u +%Y%m%d_%H%M%S)-${GITHUB_SHA::8}"
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          cp scripts/packages/install.sh build/install.sh
+          python3 scripts/packages/write-manifest.py build "$VERSION" "$CHANNEL" "$GITHUB_SHA"
+          (cd build && sha256sum binaries/*/modal install.sh > SHA256SUMS)
+          cat build/SHA256SUMS
+      - name: Fetch the published release log
+        run: curl -fsSL "https://get.modality.org/$CHANNEL/release-contract/log.json" -o current-log.json
+      - name: Commit the release to the release contract
+        env:
+          RELEASE_CI_PASSFILE: ${{ secrets.RELEASE_CI_PASSFILE }}
+        run: |
+          umask 077
+          KEY="$RUNNER_TEMP/release.passfile"
+          printf '%s' "$RELEASE_CI_PASSFILE" > "$KEY"
+          mkdir -p build/release-contract
+          ./build/binaries/linux-x86_64/modal release publish \
+            --log current-log.json --out build/release-contract/log.json \
+            --channel "$CHANNEL" --version "$VERSION" --git-commit "$GITHUB_SHA" \
+            --file binaries/linux-x86_64/modal=build/binaries/linux-x86_64/modal \
+            --file binaries/darwin-aarch64/modal=build/binaries/darwin-aarch64/modal \
+            --file install.sh=build/install.sh \
+            --sign "$KEY"
+          rm -f "$KEY"
+      - name: Verify as an installed binary would
+        run: |
+          ./build/binaries/linux-x86_64/modal release verify \
+            --log build/release-contract/log.json --channel "$CHANNEL" --version "$VERSION" \
+            --file binaries/linux-x86_64/modal=build/binaries/linux-x86_64/modal \
+            --file binaries/darwin-aarch64/modal=build/binaries/darwin-aarch64/modal \
+            --file install.sh=build/install.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ env.VERSION }}
+          path: build
+          if-no-files-found: error
+      - name: Summary
+        run: |
+          echo "Release $VERSION built from $GITHUB_SHA and accepted by the release contract." >> "$GITHUB_STEP_SUMMARY"
+          echo "Publish: scripts/packages/publish-ci-release.sh ${{ github.run_id }}" >> "$GITHUB_STEP_SUMMARY"

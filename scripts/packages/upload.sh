@@ -17,6 +17,12 @@ if [[ -n "${MODAL_PACKAGE_CHANNEL:-}" ]]; then
     GIT_BRANCH="$MODAL_PACKAGE_CHANNEL"
 fi
 
+# testnet and mainnet packages are built in CI and named by the channel's
+# release contract; installs and upgrades refuse anything else. Publish them
+# with scripts/packages/publish-ci-release.sh <run id>.
+echo -e "\033[0;31m[ERROR]\033[0m upload.sh does not publish $GIT_BRANCH packages: they are built by the Release workflow and named by the release contract. Use scripts/packages/publish-ci-release.sh <run id>." >&2
+exit 1
+
 # Validate allowed branches
 ALLOWED_BRANCHES=("mainnet" "testnet")
 if [[ ! " ${ALLOWED_BRANCHES[@]} " =~ " ${GIT_BRANCH} " ]]; then
