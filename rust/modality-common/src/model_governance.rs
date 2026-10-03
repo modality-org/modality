@@ -1956,7 +1956,7 @@ impl CommitFacts {
                 .filter(|action| action.method.eq_ignore_ascii_case("post"))
                 .filter_map(|action| {
                     let path = action.path.as_deref()?;
-                    Some((normalize_path(path), action.value.clone()))
+                    Some((normalize_path(path), id_as_key(path, &action.value)))
                 })
                 .collect(),
             sends: commit
@@ -1967,7 +1967,7 @@ impl CommitFacts {
                     let v = &action.value;
                     Some((
                         asset_name(v)?,
-                        v.get("to_contract")?.as_str()?.to_string(),
+                        crate::peer_id::key_form(v.get("to_contract")?.as_str()?),
                         v.get("amount")?.as_u64()?,
                     ))
                 })
@@ -1986,7 +1986,7 @@ impl CommitFacts {
                 .iter()
                 .filter(|action| action.method.eq_ignore_ascii_case("recv"))
                 .filter_map(|action| action.value.get("from_contract")?.as_str())
-                .map(str::to_string)
+                .map(crate::peer_id::key_form)
                 .collect(),
             recv_claims: commit
                 .body
@@ -1999,7 +1999,10 @@ impl CommitFacts {
                 .iter()
                 .map(|action| action.emitted_by.clone())
                 .collect(),
-            state: state.clone(),
+            state: state
+                .iter()
+                .map(|(path, value)| (path.clone(), id_as_key(path, value)))
+                .collect(),
             replay_bundles: replay_bundle_statuses(
                 commit,
                 pending_commit_id,
@@ -2565,14 +2568,14 @@ impl CommitFacts {
                 return false;
             }
             match self.state.get(&normalize_path(dest)).and_then(Value::as_str) {
-                Some(id) => id,
+                Some(id) => crate::peer_id::key_form(id),
                 None => return false,
             }
         } else {
-            dest
+            crate::peer_id::key_form(dest)
         };
         self.sends.iter().all(|send| match send {
-            Some((id, to, _)) => id != asset || to == dest,
+            Some((id, to, _)) => id != asset || *to == dest,
             None => false,
         })
     }
@@ -3026,7 +3029,7 @@ impl RecvClaim {
             _ => None,
         };
         Self {
-            from: value.get("from_contract").and_then(Value::as_str).map(str::to_string),
+            from: value.get("from_contract").and_then(Value::as_str).map(crate::peer_id::key_form),
             asset: asset_name(value),
             amount: value.get("amount").and_then(Value::as_u64),
             memo,
@@ -3482,7 +3485,8 @@ fn replay_bundle_binding_mismatch(
         .get(&normalize_path(oracle_path))
         .and_then(Value::as_str)
     {
-        Some(accepted_oracle_pubkey) if accepted_oracle_pubkey == oracle_pubkey => {}
+        Some(accepted_oracle_pubkey)
+            if crate::peer_id::key_form(accepted_oracle_pubkey) == crate::peer_id::key_form(oracle_pubkey) => {}
         Some(accepted_oracle_pubkey) => {
             return Some(format!(
                 "oracle_attests replay bundle attestation oracle_pubkey {oracle_pubkey} does not match accepted state at {oracle_path} ({accepted_oracle_pubkey})"
@@ -3561,8 +3565,17 @@ fn extract_signers(commit: &CommitFile) -> HashSet<String> {
         .signatures
         .as_ref()
         .and_then(Value::as_object)
-        .map(|signatures| signatures.keys().cloned().collect())
+        .map(|signatures| signatures.keys().map(|key| crate::peer_id::key_form(key)).collect())
         .unwrap_or_default()
+}
+
+/// A `.id` value as [`crate::peer_id::key_form`], so rules compare keys, not spellings;
+/// any other value as is.
+fn id_as_key(path: &str, value: &Value) -> Value {
+    match value.as_str() {
+        Some(id) if path.ends_with(".id") => Value::String(crate::peer_id::key_form(id)),
+        _ => value.clone(),
+    }
 }
 
 fn normalize_path(path: &str) -> String {
@@ -4635,6 +4648,66 @@ model Contract {
         validate_pending_commit(accepted_model, &store, &bob_fairer_model)?;
 
         Ok(())
+    }
+
+    #[test]
+    fn signers_match_ids_as_keys_in_any_spelling() {
+        use crate::peer_id::{modality_peer_id, peer_id_to_cid};
+        let key = |secret: &libp2p_identity::ed25519::Keypair| {
+            let peer_id = libp2p_identity::PublicKey::from(secret.public()).to_peer_id();
+            (peer_id, hex::encode(secret.public().to_bytes()))
+        };
+        let (alice, alice_hex) = key(&libp2p_identity::ed25519::Keypair::generate());
+        let (bob, _) = key(&libp2p_identity::ed25519::Keypair::generate());
+        let mut current_states = HashSet::new();
+        current_states.insert("active".to_string());
+        let mut state = HashMap::new();
+        // Alice's ID in the standard form, Bob's in base58 as posted before it.
+        state.insert("m/alice.id".to_string(), Value::String(modality_peer_id(&alice)));
+        state.insert("m/bob.id".to_string(), Value::String(bob.to_base58()));
+        let signed = |keys: &[String]| {
+            let mut commit = CommitFile::new();
+            commit.add_action(
+                "post".to_string(),
+                Some("/n.json".to_string()),
+                serde_json::json!(1),
+            );
+            let signatures: serde_json::Map<String, Value> =
+                keys.iter().map(|k| (k.clone(), Value::from("sig"))).collect();
+            commit.head.signatures = Some(Value::Object(signatures));
+            CommitFacts::from_commit(&commit, &state)
+        };
+        let model = |label: &str| {
+            parse_content_lalrpop(&format!("model M {{\n  initial active\n  active --> active: +POST {label}\n}}\n"))
+                .unwrap()
+        };
+
+        // A base58 signature key is the standard-form ID's key.
+        let by_alice = model("+signed_by(/m/alice.id)");
+        assert!(has_valid_transition(&by_alice, &current_states, &signed(&[alice.to_base58()])));
+        assert!(has_valid_transition(&by_alice, &current_states, &signed(&[alice_hex.clone()])));
+
+        // Respelling a key does not dodge a negated signer.
+        let not_alice = model("-signed_by(/m/alice.id)");
+        for spelling in [alice.to_base58(), peer_id_to_cid(&alice), alice_hex.clone()] {
+            assert!(
+                !has_valid_transition(&not_alice, &current_states, &signed(&[spelling.clone()])),
+                "{spelling}"
+            );
+        }
+
+        // One key under two spellings is one signer.
+        let two = model("+threshold(\"2\", /m)");
+        assert!(!has_valid_transition(
+            &two,
+            &current_states,
+            &signed(&[alice.to_base58(), alice_hex])
+        ));
+        assert!(has_valid_transition(
+            &two,
+            &current_states,
+            &signed(&[alice.to_base58(), peer_id_to_cid(&bob)])
+        ));
     }
 
     #[test]

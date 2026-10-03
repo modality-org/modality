@@ -273,16 +273,16 @@ pub fn evaluate_formula_with_state(
 pub fn evaluate_formula_full(formula: &CommitRuleFormula, ctx: &EvalContext) -> bool {
     match formula {
         CommitRuleFormula::SignedByN { required, signers } => {
-            let count = signers.iter().filter(|s| ctx.signers.contains(s)).count();
+            let count = signers.iter().filter(|s| signed(ctx, s)).count();
             count >= *required
         }
-        CommitRuleFormula::SignedBy(signer) => ctx.signers.contains(signer),
+        CommitRuleFormula::SignedBy(signer) => signed(ctx, signer),
         CommitRuleFormula::AllSigned(path) => {
             let members = resolve_path_as_strings(ctx.state, path);
             if members.is_empty() {
                 true
             } else {
-                members.iter().all(|m| ctx.signers.contains(m))
+                members.iter().all(|m| signed(ctx, m))
             }
         }
         CommitRuleFormula::AnySigned(path) => {
@@ -290,7 +290,7 @@ pub fn evaluate_formula_full(formula: &CommitRuleFormula, ctx: &EvalContext) -> 
             if members.is_empty() {
                 true
             } else {
-                members.iter().any(|m| ctx.signers.contains(m))
+                members.iter().any(|m| signed(ctx, m))
             }
         }
         CommitRuleFormula::Modifies(prefix) => {
@@ -414,6 +414,13 @@ fn format_formula_for_explanation(formula: &CommitRuleFormula) -> String {
 /// Supports two patterns:
 /// 1. Array value: /members.json → ["alice_key", "bob_key"]
 /// 2. Directory of .id files: /members → scans for /members/*.id values
+/// Whether `id` signed: compared as keys, so any spelling of a signer's
+/// key matches (see [`crate::peer_id::key_form`]).
+fn signed(ctx: &EvalContext, id: &str) -> bool {
+    let id = crate::peer_id::key_form(id);
+    ctx.signers.iter().any(|signer| crate::peer_id::key_form(signer) == id)
+}
+
 fn resolve_path_as_strings(state: &Value, path: &str) -> Vec<String> {
     let normalized = path.trim_start_matches('/');
 

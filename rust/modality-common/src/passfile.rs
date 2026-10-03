@@ -103,13 +103,14 @@ pub fn write_named_public_id(name: &str, public_id: &str) -> Result<PathBuf> {
     write_named_public_id_in(&dir, name, public_id)
 }
 
-/// Write a public ID under an explicit ids directory (for tests).
+/// Write a public ID, in the standard Modality form, under an explicit ids
+/// directory (for tests).
 pub fn write_named_public_id_in(ids_dir: &Path, name: &str, public_id: &str) -> Result<PathBuf> {
     let filepath = named_id_path_in(ids_dir, name)?;
     if let Some(parent) = filepath.parent() {
         std::fs::create_dir_all(parent)?;
     }
-    std::fs::write(&filepath, public_id)?;
+    std::fs::write(&filepath, crate::peer_id::id_value(public_id))?;
     Ok(filepath)
 }
 
@@ -170,19 +171,20 @@ pub fn resolve_public_id_in(name_or_path: &str, home: &Path, cwd: &Path) -> Resu
     not_found(name_or_path, &looked)
 }
 
-/// Read a public address from a `.id` file or a passfile.
+/// Read a public address from a `.id` file or a passfile, in the standard
+/// Modality form.
 pub fn public_id_from_file(path: &Path) -> Result<String> {
     let path_str = path
         .to_str()
         .ok_or_else(|| anyhow!("Invalid file path: contains non-Unicode characters"))?;
     if let Ok(keypair) = Keypair::from_json_file(path_str) {
-        return Ok(keypair.as_public_address());
+        return Ok(crate::peer_id::id_value(&keypair.as_public_address()));
     }
     let text = std::fs::read_to_string(path)?.trim().to_string();
     if text.is_empty() {
         anyhow::bail!("Public ID file is empty: {}", path.display());
     }
-    Ok(crate::peer_id::normalize_peer_id(&text))
+    Ok(crate::peer_id::id_value(&text))
 }
 
 fn modality_home() -> Result<PathBuf> {
@@ -451,7 +453,7 @@ mod tests {
         let home = TempDir::new().unwrap();
         let cwd = TempDir::new().unwrap();
         let keypair = Keypair::generate().unwrap();
-        let passfile_id = keypair.as_public_address();
+        let passfile_id = crate::peer_id::id_value(&keypair.as_public_address());
 
         let passfile = home
             .path()

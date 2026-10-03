@@ -111,9 +111,10 @@ mod tests {
             contract_dir_arg.as_str(),
         ]);
         crate::set::run(&set_opts).await?;
+        // Written in the standard Modality form, whatever form was given.
         assert_eq!(
             std::fs::read_to_string(contract_dir.join("state/parties/alice.id"))?,
-            contract_id.as_str()
+            modality_common::peer_id::id_value(&contract_id)
         );
 
         let commit_opts = crate::commit::Opts::parse_from([
@@ -143,7 +144,7 @@ mod tests {
         assert_eq!(store.list_commits()?.len(), 2);
         assert_eq!(
             store.build_state_from_commits()?.get("/parties/alice.id"),
-            Some(&Value::String(contract_id))
+            Some(&Value::String(modality_common::peer_id::id_value(&contract_id)))
         );
 
         let id_opts = crate::id::Opts::parse_from(["id", "--dir", contract_dir_arg.as_str()]);

@@ -630,7 +630,7 @@ impl ContractStore {
             if let Some(obj) = sigs.as_object() {
                 // Format: { "pubkey": "signature" }
                 for key in obj.keys() {
-                    signers.push(key.clone());
+                    signers.push(crate::peer_id::key_form(key));
                 }
             }
         }

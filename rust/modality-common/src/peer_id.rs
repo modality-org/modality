@@ -9,13 +9,12 @@
 //! The Modality form is the base32 CID written backwards
 //! (`imqi74td…aiajaazfab`): lowercase, and its first characters differ from
 //! key to key, so a short prefix tells IDs apart. Its tail is fixed. It is the
-//! intended standard Modality ID; see `docs/concepts/modality-ids.md`.
+//! standard Modality ID, and what `.id` values hold; see
+//! `docs/concepts/modality-ids.md`.
 //!
-//! Until the cutover that doc describes, base58 is the only form Modality
-//! stores, signs, or compares: rules match signers by string, so a second
-//! spelling of one key would be a second signer. Parse what people type with
-//! [`parse_peer_id`] and keep [`canonical_peer_id`]'s output. Consensus data
-//! (commit signatures, blocks, acks, certificates) accepts base58 only.
+//! One key has many spellings, so rules never compare IDs as text: both
+//! sides go through [`key_form`] first. Commit signatures are still keyed in
+//! base58, contract IDs are base58, and a `/p2p/` multiaddr part must be.
 
 use anyhow::{anyhow, bail, Result};
 use libp2p_identity::PeerId;
@@ -52,6 +51,32 @@ fn parse_cid(text: &str) -> Result<PeerId> {
         [CID_V1, ..] => bail!("{text} is a CID, but not of a libp2p key"),
         _ => bail!("{text} is not a peer ID"),
     }
+}
+
+/// `text` as the Modality form of the key it names, in any spelling: a
+/// peer ID in any text form, or a 32-byte ed25519 key in hex. Text naming no
+/// key is returned as is. Compare keys through this, never as text.
+pub fn key_form(text: &str) -> String {
+    if let Ok(peer_id) = parse_peer_id(text) {
+        return modality_peer_id(&peer_id);
+    }
+    if text.len() == 64 {
+        if let Some(key) = hex::decode(text)
+            .ok()
+            .and_then(|bytes| libp2p_identity::ed25519::PublicKey::try_from_bytes(&bytes).ok())
+        {
+            return modality_peer_id(&libp2p_identity::PublicKey::from(key).to_peer_id());
+        }
+    }
+    text.to_string()
+}
+
+/// The Modality form of an ID given in any text form, for writing into a
+/// `.id` value; other text as given, for the caller to refuse.
+pub fn id_value(text: &str) -> String {
+    parse_peer_id(text)
+        .map(|peer_id| modality_peer_id(&peer_id))
+        .unwrap_or_else(|_| text.to_string())
 }
 
 /// The base58 form of a peer ID given in any text form.
@@ -110,6 +135,33 @@ mod tests {
             [&[CID_V1, LIBP2P_KEY][..], &parse_peer_id(BASE58).unwrap().to_bytes()].concat(),
         );
         assert!(parse_peer_id(&base36.chars().rev().collect::<String>()).is_err());
+    }
+
+    #[test]
+    fn every_spelling_of_a_key_has_one_key_form() {
+        let secret = libp2p_identity::ed25519::Keypair::generate();
+        let peer_id = libp2p_identity::PublicKey::from(secret.public()).to_peer_id();
+        let hex = hex::encode(secret.public().to_bytes());
+        let spellings = [
+            peer_id.to_base58(),
+            peer_id_to_cid(&peer_id),
+            modality_peer_id(&peer_id),
+            hex.clone(),
+            hex.to_uppercase(),
+        ];
+        for spelling in &spellings {
+            assert_eq!(key_form(spelling), modality_peer_id(&peer_id), "{spelling}");
+        }
+        assert_eq!(key_form("alice_key"), "alice_key");
+        assert_eq!(key_form("c_0123456789abcdef"), "c_0123456789abcdef");
+    }
+
+    #[test]
+    fn id_values_are_written_in_the_modality_form() {
+        assert_eq!(id_value(BASE58), MODALITY);
+        assert_eq!(id_value(BASE32), MODALITY);
+        assert_eq!(id_value(MODALITY), MODALITY);
+        assert_eq!(id_value("not an id"), "not an id");
     }
 
     #[test]

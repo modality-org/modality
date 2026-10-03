@@ -60,7 +60,7 @@ pub async fn make(opts: &Opts) -> Result<Created> {
     let signers = opts
         .signers
         .iter()
-        .map(|reference| crate::signer_set::signer_id(reference))
+        .map(|reference| crate::signer_set::signer_id(reference).map(|id| modality_common::peer_id::id_value(&id)))
         .collect::<Result<Vec<_>>>()?;
     for (i, id) in signers.iter().enumerate() {
         if signers[..i].contains(id) {

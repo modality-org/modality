@@ -161,7 +161,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
     }
 
     println!("✨ Successfully created a new Modality ID!");
-    println!("📍 Modality ID: {}", address);
+    println!("📍 Modality ID: {}", modality_common::peer_id::id_value(&address));
     if let Some(path) = derivation_path {
         println!("🔑 BIP44 Derivation Path: {}", path);
     }

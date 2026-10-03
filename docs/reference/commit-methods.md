@@ -41,7 +41,7 @@ Paths must end with a known extension:
 | `.datetime` | Date and time | `"2024-01-15T10:30:00Z"` |
 | `.json` | JSON object | `{"key": "value"}` |
 | `.md` | Markdown | `"# Title\n\nContent..."` |
-| `.id` | Modality ID | `"12D3KooW..."` |
+| `.id` | [Modality ID](../concepts/modality-ids.md), standard form | `"imqi74td...aiajaazfab"` |
 | `.wasm` | WebAssembly | Base64-encoded WASM |
 | `.modality` | Rules/formulas | Modality syntax |
 

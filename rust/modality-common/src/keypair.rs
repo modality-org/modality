@@ -1,7 +1,7 @@
 use anyhow::{anyhow, Result};
 use base58::ToBase58;
 use base64::prelude::*;
-use libp2p_identity::{ed25519, Keypair as Libp2pKeypair, PeerId, PublicKey as Libp2pPublicKey};
+use libp2p_identity::{ed25519, Keypair as Libp2pKeypair, PublicKey as Libp2pPublicKey};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -314,10 +314,8 @@ impl Keypair {
             .ok_or_else(|| anyhow!("Failed to extract public key ID"))?
             .as_str();
 
-        // Parse the peer ID
-        let peer_id = peer_id_str
-            .parse::<PeerId>()
-            .map_err(|e| anyhow!("Failed to parse peer ID: {:?}", e))?;
+        // Parse the peer ID, in any of its text forms
+        let peer_id = crate::peer_id::parse_peer_id(peer_id_str)?;
 
         let public_key = Libp2pPublicKey::try_decode_protobuf(peer_id.as_ref().digest())
             .map_err(|e| anyhow!("Failed to decode public key from peer ID: {}", e))?;

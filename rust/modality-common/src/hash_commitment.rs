@@ -131,13 +131,15 @@ pub fn genesis_names_signer_set(body: &[CommitAction], signers: &[String]) -> Re
             .filter_map(|a| a.value.as_str())
             .next_back()
     };
-    let mut wanted: Vec<&str> = signers.iter().map(String::as_str).collect();
+    // Compared as keys: a set may name a key in another spelling than its post.
+    let mut wanted: Vec<String> = signers.iter().map(|s| crate::peer_id::key_form(s)).collect();
     wanted.sort_unstable();
     let names_the_set = |paths: Vec<String>| {
-        let mut keys: Vec<&str> = match paths.iter().map(|p| posted(p)).collect::<Option<_>>() {
-            Some(keys) => keys,
-            None => return false,
-        };
+        let mut keys: Vec<String> =
+            match paths.iter().map(|p| posted(p).map(crate::peer_id::key_form)).collect::<Option<_>>() {
+                Some(keys) => keys,
+                None => return false,
+            };
         keys.sort_unstable();
         keys == wanted
     };
@@ -407,7 +409,7 @@ impl HashCommitment {
             if signers.is_empty() {
                 bail!("a posted signer set must name at least one key");
             }
-            if !signers.contains(&self.signer) {
+            if !signers.iter().any(|s| crate::peer_id::key_form(s) == crate::peer_id::key_form(&self.signer)) {
                 bail!(
                     "genesis hash commitment is signed by {}, which is not in the signer set it posts",
                     self.signer
@@ -473,7 +475,7 @@ impl HashCommitment {
             }
         }
         if let Some(set) = signer_set {
-            if !set.contains(&self.signer) {
+            if !set.iter().any(|s| crate::peer_id::key_form(s) == crate::peer_id::key_form(&self.signer)) {
                 bail!(
                     "hash commitment for contract {} is signed by {}, which is not in its signer set",
                     self.contract_id,

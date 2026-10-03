@@ -61,6 +61,9 @@ impl StateView for AcceptedState<'_> {
         match self.state.get(key(path)) {
             None => Lookup::Absent,
             Some(Value::Number(n)) => Lookup::Present(number(n)),
+            Some(Value::String(s)) if path.ends_with(".id") => {
+                Lookup::Present(StateValue::Text(crate::peer_id::key_form(s)))
+            }
             Some(Value::String(s)) => Lookup::Present(StateValue::Text(s.clone())),
             Some(Value::Bool(b)) => Lookup::Present(StateValue::Bool(*b)),
             Some(Value::Null | Value::Array(_) | Value::Object(_)) => {
@@ -69,15 +72,16 @@ impl StateView for AcceptedState<'_> {
         }
     }
 
-    /// Distinct key strings at `.id` paths at or under `prefix`: the set
-    /// `any_signed` / `all_signed` / `threshold` count over.
+    /// Distinct keys at `.id` paths at or under `prefix`, in key form (two
+    /// spellings of one key are one key): the set `any_signed` /
+    /// `all_signed` / `threshold` count over.
     fn keys_under(&self, prefix: &str) -> Option<Vec<String>> {
         let prefix = key(prefix);
         let keys: BTreeSet<String> = self
             .state
             .iter()
             .filter(|(k, _)| path_or_descendant(k, prefix) && k.ends_with(".id"))
-            .filter_map(|(_, v)| v.as_str().map(ToString::to_string))
+            .filter_map(|(_, v)| v.as_str().map(crate::peer_id::key_form))
             .collect();
         Some(keys.into_iter().collect())
     }

@@ -33,9 +33,9 @@ pub async fn run(opts: &Opts) -> Result<()> {
         std::fs::create_dir_all(parent)?;
     }
 
-    // Write the value; an ID is kept in base58
+    // Write the value; an ID in the standard Modality form
     let value = if path.ends_with(".id") {
-        modality_common::peer_id::normalize_peer_id(&opts.value)
+        modality_common::peer_id::id_value(&opts.value)
     } else {
         opts.value.clone()
     };

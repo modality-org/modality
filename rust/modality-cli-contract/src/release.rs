@@ -128,11 +128,12 @@ async fn init(opts: &InitOpts) -> Result<()> {
     let dir = dir_arg(&opts.dir);
     let created = crate::create::make(&crate::create::Opts::parse_from(["create", "--dir", &dir])).await?;
     let store = ContractStore::open(&opts.dir)?;
-    store.write_state("/keys/ci.id", &crate::signer_set::signer_id(&opts.ci)?.into())?;
+    let id = |reference: &str| crate::signer_set::signer_id(reference).map(|id| modality_common::peer_id::id_value(&id));
+    store.write_state("/keys/ci.id", &id(&opts.ci)?.into())?;
     for (i, maintainer) in opts.maintainers.iter().enumerate() {
         store.write_state(
             &format!("/maintainers/{}.id", i + 1),
-            &crate::signer_set::signer_id(maintainer)?.into(),
+            &id(maintainer)?.into(),
         )?;
     }
     std::fs::write(opts.dir.join("model").join("default.modality"), release::MODEL)?;

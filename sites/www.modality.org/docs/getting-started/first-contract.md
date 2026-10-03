@@ -47,7 +47,7 @@ modal id create --name example/alice
 
 ```output
 ✨ Successfully created a new Modality ID!
-📍 Modality ID: 12D3KooW…
+📍 Modality ID: imqi74td…
 💾 Modality Passfile saved to: ~/.modality/passfiles/example/alice.mod_passfile
 🪪 Public ID saved to: ~/.modality/ids/example/alice.id
 
@@ -60,7 +60,7 @@ modal id create --name example/bob
 
 ```output
 ✨ Successfully created a new Modality ID!
-📍 Modality ID: 12D3KooW…
+📍 Modality ID: imqi74td…
 💾 Modality Passfile saved to: ~/.modality/passfiles/example/bob.mod_passfile
 🪪 Public ID saved to: ~/.modality/ids/example/bob.id
 
@@ -91,7 +91,7 @@ modal set-named-id /parties/alice.id example/alice
 
 ```output
 ✅ Set state/parties/alice.id from example/alice
-   12D3KooW…
+   imqi74td…
 ```
 
 ```bash
@@ -100,7 +100,7 @@ modal set-named-id /parties/bob.id example/bob
 
 ```output
 ✅ Set state/parties/bob.id from example/bob
-   12D3KooW…
+   imqi74td…
 ```
 
 ```bash

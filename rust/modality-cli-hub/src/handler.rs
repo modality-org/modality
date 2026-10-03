@@ -578,7 +578,7 @@ impl HubHandler {
         let members = contract_state
             .get("members.json")
             .and_then(|m| m.as_array())
-            .map(|arr| arr.iter().filter_map(|v| v.as_str()).collect::<Vec<_>>())
+            .map(|arr| arr.iter().filter_map(|v| v.as_str()).map(modality_common::peer_id::key_form).collect::<Vec<_>>())
             .unwrap_or_default();
 
         // If no members list, contract is open (not a members-only contract)
@@ -588,7 +588,7 @@ impl HubHandler {
 
         // Check if any signer is a member
         for signer in commit_signers {
-            if members.contains(&signer.as_str()) {
+            if members.contains(&modality_common::peer_id::key_form(signer)) {
                 return Ok(());
             }
         }
@@ -608,7 +608,7 @@ impl HubHandler {
         let members = contract_state
             .get("members.json")
             .and_then(|m| m.as_array())
-            .map(|arr| arr.iter().filter_map(|v| v.as_str()).collect::<Vec<_>>())
+            .map(|arr| arr.iter().filter_map(|v| v.as_str()).map(modality_common::peer_id::key_form).collect::<Vec<_>>())
             .unwrap_or_default();
 
         // If no members yet, anyone can add first member
@@ -618,7 +618,7 @@ impl HubHandler {
 
         // All members must sign
         for member in &members {
-            if !commit_signers.iter().any(|s| s == *member) {
+            if !commit_signers.iter().any(|s| modality_common::peer_id::key_form(s) == *member) {
                 return Err(RpcError::Custom {
                     code: -32061,
                     message: format!(
@@ -681,7 +681,7 @@ impl HubHandler {
             })?;
 
         // Verify signer matches account owner
-        if !commit_signers.contains(&owner_id.to_string()) {
+        if !commit_signers.iter().any(|s| modality_common::peer_id::key_form(s) == modality_common::peer_id::key_form(owner_id)) {
             return Err(RpcError::Custom {
                 code: -32053,
                 message: format!("WITHDRAW must be signed by account owner '{}'", account_id),

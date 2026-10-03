@@ -316,15 +316,19 @@ impl CommitAction {
                 ),
             }
         } else if path.ends_with(".id") {
-            // Must be a string starting with "12D3KooW" (Modality ID / libp2p peer ID format)
+            // A Modality ID: the standard (reversed base32) form, or the
+            // base58 form posted before it.
             let id_str = self
                 .value
                 .as_str()
                 .ok_or_else(|| anyhow::anyhow!("Value for .id path must be a string"))?;
-            if !id_str.starts_with("12D3KooW") {
+            let standard = crate::peer_id::parse_peer_id(id_str)
+                .is_ok_and(|peer_id| crate::peer_id::modality_peer_id(&peer_id) == id_str);
+            if !standard && !id_str.starts_with("12D3KooW") {
                 anyhow::bail!(
-                    "Invalid Modality ID format '{}', expected peer ID (starts with 12D3KooW)",
-                    id_str
+                    "Invalid Modality ID '{}': expected the standard form (e.g. {}…), see `docs/concepts/modality-ids.md`",
+                    id_str,
+                    "imqi74tdhtmd"
                 );
             }
         } else if path.ends_with(".json") {

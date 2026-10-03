@@ -1,8 +1,8 @@
 //! What a commit signature signs, and how a node checks one.
 //!
 //! `head.signatures` maps a key to its signature over [`signing_payload`].
-//! A key is a Modality ID (a base58 ed25519 peer id, as `.id` files hold;
-//! base64 signature) or a 32-byte ed25519 public key as hex (hex signature).
+//! A key is a Modality ID in any of its text forms (base64 signature; see
+//! `peer_id`) or a 32-byte ed25519 public key as hex (hex signature).
 
 use crate::contract_store::CommitFile;
 use crate::json_stringify_deterministic::stringify_deterministic;
@@ -142,14 +142,20 @@ mod tests {
     }
 
     #[test]
-    fn a_key_spelled_as_a_cid_is_refused() {
-        // Rules match signers by string, so one key may have one spelling.
+    fn a_key_verifies_in_any_spelling() {
+        // Rules compare keys, not spellings (`peer_id::key_form`), so a
+        // respelled key is the same signer.
         let alice = Keypair::generate().unwrap();
         let (key, signature) = sign_commit(&alice, "c1", &commit("p1")).unwrap();
-        let cid = crate::peer_id::peer_id_to_cid(&crate::peer_id::parse_peer_id(&key).unwrap());
-        let mut respelled = commit("p1");
-        respelled.head.signatures = Some(json!({ cid: signature }));
-        assert!(verify_commit_signatures("c1", &respelled).is_err());
+        let peer_id = crate::peer_id::parse_peer_id(&key).unwrap();
+        for spelling in [
+            crate::peer_id::peer_id_to_cid(&peer_id),
+            crate::peer_id::modality_peer_id(&peer_id),
+        ] {
+            let mut respelled = commit("p1");
+            respelled.head.signatures = Some(json!({ spelling: signature.clone() }));
+            verify_commit_signatures("c1", &respelled).unwrap();
+        }
     }
 
     #[test]

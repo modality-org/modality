@@ -324,7 +324,7 @@ pub async fn make(opts: &Opts) -> Result<Option<Committed>> {
                 // For other methods (post, rule), use the --value flag
                 if let Some(value_str) = &opts.value {
                     if opts.path.as_deref().is_some_and(|p| p.ends_with(".id")) {
-                        Value::String(modality_common::peer_id::normalize_peer_id(value_str))
+                        Value::String(modality_common::peer_id::id_value(value_str))
                     } else {
                         // Try to parse as JSON, fallback to string
                         serde_json::from_str(value_str)
@@ -486,7 +486,7 @@ fn add_posts(commit: &mut CommitFile, posts: &[String]) -> Result<usize> {
         // still text.
         let textual = [".text", ".md", ".id", ".date"].iter().any(|ext| path.ends_with(ext));
         let value = if path.ends_with(".id") {
-            Value::String(modality_common::peer_id::normalize_peer_id(value))
+            Value::String(modality_common::peer_id::id_value(value))
         } else if textual {
             Value::String(value.to_string())
         } else {
