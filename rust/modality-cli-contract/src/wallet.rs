@@ -80,7 +80,7 @@ pub struct WalletOpts {
 #[derive(Debug, Parser)]
 pub struct SendOpts {
     /// The contract to pay
-    #[clap(long)]
+    #[clap(long, value_parser = modality_common::peer_id::peer_id_arg)]
     to: String,
 
     /// How much, in whole units of the asset (e.g. 1.5 MOD)
@@ -92,7 +92,7 @@ pub struct SendOpts {
     asset: String,
 
     /// The contract that created the asset (not needed for MOD)
-    #[clap(long)]
+    #[clap(long, value_parser = modality_common::peer_id::peer_id_arg)]
     asset_contract: Option<String>,
 
     /// A note for the receiver (JSON or text)

@@ -9,7 +9,7 @@ use modality_common::hub_client::HubClient;
 #[command(about = "Copy a value from another contract so this contract can refer to it")]
 pub struct Opts {
     /// Source contract ID
-    #[clap(index = 1)]
+    #[clap(index = 1, value_parser = modality_common::peer_id::peer_id_arg)]
     source_contract: String,
 
     /// Source path (e.g. /parties/alice.id)

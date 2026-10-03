@@ -10,7 +10,7 @@ use modality_datastore::DatastoreManager;
 #[command(about = "Get contract or commit information")]
 pub struct Opts {
     /// Contract ID
-    #[clap(long)]
+    #[clap(long, value_parser = modality_common::peer_id::peer_id_arg)]
     contract_id: String,
 
     /// Commit ID (optional, if not provided lists all commits for contract)

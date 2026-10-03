@@ -42,7 +42,7 @@ pub struct Opts {
 
     /// Start a copy of this contract in --dir, which must not hold one yet,
     /// and pull its sequenced commits from --remote (saved as the remote)
-    #[clap(long)]
+    #[clap(long, value_parser = modality_common::peer_id::peer_id_arg)]
     contract_id: Option<String>,
 
     /// Output format (json or text)

@@ -1,15 +1,21 @@
-//! The two text forms of a peer ID (a Modality ID is one).
+//! The text forms of a peer ID (a Modality ID is one).
 //!
 //! libp2p writes a peer ID either as its bare multihash in base58
 //! (`12D3KooW…`, the legacy form every implementation prints) or as a CIDv1
 //! with the `libp2p-key` codec in a multibase (`bafz…` in base32, `k51…` in
-//! base36). Both name the same bytes.
+//! base36). All name the same bytes, and all begin with the same characters
+//! for every ed25519 key.
 //!
-//! Base58 is the only form Modality stores, signs, or compares: rules match
-//! signers by string, so a second spelling of one key would be a second
-//! signer. Parse what people type with [`parse_peer_id`] and keep
-//! [`canonical_peer_id`]'s output. Consensus data (commit signatures, blocks,
-//! acks, certificates) accepts base58 only.
+//! The Modality form is the base32 CID written backwards
+//! (`imqi74td…aiajaazfab`): lowercase, and its first characters differ from
+//! key to key, so a short prefix tells IDs apart. Its tail is fixed. It is the
+//! intended standard Modality ID; see `docs/concepts/modality-ids.md`.
+//!
+//! Until the cutover that doc describes, base58 is the only form Modality
+//! stores, signs, or compares: rules match signers by string, so a second
+//! spelling of one key would be a second signer. Parse what people type with
+//! [`parse_peer_id`] and keep [`canonical_peer_id`]'s output. Consensus data
+//! (commit signatures, blocks, acks, certificates) accepts base58 only.
 
 use anyhow::{anyhow, bail, Result};
 use libp2p_identity::PeerId;
@@ -20,15 +26,24 @@ const CID_V1: u8 = 0x01;
 /// The `libp2p-key` multicodec, as its one-byte varint.
 const LIBP2P_KEY: u8 = 0x72;
 
-/// A peer ID in either text form. Per the libp2p spec, text starting with
-/// `1` or `Qm` is a base58 multihash; anything else must be a CIDv1 whose
-/// codec is `libp2p-key`.
+/// A peer ID in any text form. Per the libp2p spec, text starting with `1`
+/// or `Qm` is a base58 multihash; otherwise it is a CIDv1 whose codec is
+/// `libp2p-key`, or the Modality form (a base32 one, backwards).
 pub fn parse_peer_id(text: &str) -> Result<PeerId> {
     if text.starts_with('1') || text.starts_with("Qm") {
         return text
             .parse::<PeerId>()
             .map_err(|e| anyhow!("{text} is not a peer ID: {e}"));
     }
+    let forwards = parse_cid(text);
+    if forwards.is_ok() || !text.ends_with('b') {
+        return forwards;
+    }
+    let backwards: String = text.chars().rev().collect();
+    parse_cid(&backwards).map_err(|_| anyhow!("{text} is not a peer ID"))
+}
+
+fn parse_cid(text: &str) -> Result<PeerId> {
     let (_, bytes) =
         multibase::decode(text).map_err(|e| anyhow!("{text} is not a peer ID: {e}"))?;
     match bytes.as_slice() {
@@ -39,16 +54,21 @@ pub fn parse_peer_id(text: &str) -> Result<PeerId> {
     }
 }
 
-/// The base58 form of a peer ID given in either text form.
+/// The base58 form of a peer ID given in any text form.
 pub fn canonical_peer_id(text: &str) -> Result<String> {
     parse_peer_id(text).map(|peer_id| peer_id.to_base58())
 }
 
-/// `text` in base58 if it is a peer ID in CID form; otherwise `text` as
+/// `text` in base58 if it is a peer ID in another form; otherwise `text` as
 /// given, for IDs that need not be peer IDs (hub contracts are `c_…`) and
 /// for the caller to refuse what is neither.
 pub fn normalize_peer_id(text: &str) -> String {
     canonical_peer_id(text).unwrap_or_else(|_| text.to_string())
+}
+
+/// [`normalize_peer_id`] as a clap `value_parser`, for ID arguments.
+pub fn peer_id_arg(text: &str) -> Result<String, std::convert::Infallible> {
+    Ok(normalize_peer_id(text))
 }
 
 /// The CIDv1 form of `peer_id`, in base32 as the libp2p spec recommends.
@@ -56,6 +76,11 @@ pub fn peer_id_to_cid(peer_id: &PeerId) -> String {
     let mut bytes = vec![CID_V1, LIBP2P_KEY];
     bytes.extend_from_slice(&peer_id.to_bytes());
     multibase::encode(Base::Base32Lower, bytes)
+}
+
+/// The Modality form of `peer_id`: its base32 CID, backwards.
+pub fn modality_peer_id(peer_id: &PeerId) -> String {
+    peer_id_to_cid(peer_id).chars().rev().collect()
 }
 
 #[cfg(test)]
@@ -66,6 +91,7 @@ mod tests {
     // encoding (computed independently of this module).
     const BASE58: &str = "12D3KooW9pte76rpnggcLYkFaawuTEs5DC5axHkg3cK3cewGxxHd";
     const BASE32: &str = "bafzaajaiaejcaabcornvmd5g5bolzmcr6smsje7owdd3xk7lojqydmthdt47iqmi";
+    const MODALITY: &str = "imqi74tdhtmdyqjol7kx3ddwo7ejsms6rcmzlob5g5dmvnrocbaacjeaiajaazfab";
 
     #[test]
     fn both_forms_name_the_same_peer() {
@@ -75,8 +101,21 @@ mod tests {
     }
 
     #[test]
+    fn the_modality_form_is_the_base32_cid_backwards() {
+        assert_eq!(modality_peer_id(&parse_peer_id(BASE58).unwrap()), MODALITY);
+        assert_eq!(canonical_peer_id(MODALITY).unwrap(), BASE58);
+        // Only the base32 CID is read backwards.
+        let base36 = multibase::encode(
+            Base::Base36Lower,
+            [&[CID_V1, LIBP2P_KEY][..], &parse_peer_id(BASE58).unwrap().to_bytes()].concat(),
+        );
+        assert!(parse_peer_id(&base36.chars().rev().collect::<String>()).is_err());
+    }
+
+    #[test]
     fn normalizing_rewrites_only_cids() {
         assert_eq!(normalize_peer_id(BASE32), BASE58);
+        assert_eq!(normalize_peer_id(MODALITY), BASE58);
         assert_eq!(normalize_peer_id(BASE58), BASE58);
         assert_eq!(normalize_peer_id("c_0123456789abcdef"), "c_0123456789abcdef");
     }
@@ -98,6 +137,9 @@ mod tests {
         let cid = peer_id_to_cid(&peer_id);
         assert!(cid.starts_with("bafzaa"), "{cid}");
         assert_eq!(parse_peer_id(&cid).unwrap(), peer_id);
+        let modality = modality_peer_id(&peer_id);
+        assert!(modality.ends_with("aiajaazfab"), "{modality}");
+        assert_eq!(parse_peer_id(&modality).unwrap(), peer_id);
     }
 
     #[test]

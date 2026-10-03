@@ -25,6 +25,7 @@ const sidebars: SidebarsConfig = {
         'concepts/modal-logic',
         'concepts/predicates',
         'concepts/potentialism',
+        'concepts/modality-ids',
       ],
     },
     {

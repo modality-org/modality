@@ -49,7 +49,7 @@ pub struct Opts {
 
     // SEND action fields
     /// Destination contract ID (for SEND method)
-    #[clap(long)]
+    #[clap(long, value_parser = modality_common::peer_id::peer_id_arg)]
     to_contract: Option<String>,
 
     /// Amount to send (for SEND method). With RECV, the amount the SEND must move
@@ -58,7 +58,7 @@ pub struct Opts {
 
     /// Contract that created the asset, when it is not this contract (for SEND,
     /// and for RECV as the creator the SEND must move)
-    #[clap(long)]
+    #[clap(long, value_parser = modality_common::peer_id::peer_id_arg)]
     asset_contract: Option<String>,
 
     /// JSON the SEND carries for the recipient (for SEND method)
@@ -912,12 +912,12 @@ fn build_send_value(opts: &Opts) -> Result<Value> {
 
     let mut value = serde_json::json!({
         "asset_id": asset_id,
-        "to_contract": modality_common::peer_id::normalize_peer_id(to_contract),
+        "to_contract": to_contract,
         "amount": amount,
         "identifier": null
     });
     if let Some(creator) = &opts.asset_contract {
-        value["asset_contract"] = serde_json::json!(modality_common::peer_id::normalize_peer_id(creator));
+        value["asset_contract"] = serde_json::json!(creator);
     }
     if let Some(memo) = &opts.memo {
         value["memo"] = serde_json::from_str(memo)
@@ -942,7 +942,7 @@ fn build_recv_value(opts: &Opts) -> Result<Value> {
         value["asset_id"] = serde_json::json!(asset_id);
     }
     if let Some(creator) = &opts.asset_contract {
-        value["asset_contract"] = serde_json::json!(modality_common::peer_id::normalize_peer_id(creator));
+        value["asset_contract"] = serde_json::json!(creator);
     }
     if let Some(amount) = opts.amount {
         value["amount"] = serde_json::json!(amount);

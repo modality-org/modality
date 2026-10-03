@@ -17,7 +17,7 @@ pub struct Opts {
     pub dir: Option<PathBuf>,
 
     /// Node ID (peer ID) - if not provided, a new one will be generated
-    #[clap(long)]
+    #[clap(long, value_parser = modality_common::peer_id::peer_id_arg)]
     pub node_id: Option<String>,
 
     /// Data directory for multi-store architecture (default: ./data)

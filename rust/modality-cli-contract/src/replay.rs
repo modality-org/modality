@@ -45,7 +45,7 @@ pub struct Opts {
     remote: Option<String>,
 
     /// Contract id (required with --remote unless --dir has a contract)
-    #[clap(long)]
+    #[clap(long, value_parser = modality_common::peer_id::peer_id_arg)]
     contract_id: Option<String>,
 
     /// Sequenced tip to replay through (default: unique sequenced tip)
