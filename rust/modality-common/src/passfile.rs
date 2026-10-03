@@ -182,7 +182,7 @@ pub fn public_id_from_file(path: &Path) -> Result<String> {
     if text.is_empty() {
         anyhow::bail!("Public ID file is empty: {}", path.display());
     }
-    Ok(text)
+    Ok(crate::peer_id::normalize_peer_id(&text))
 }
 
 fn modality_home() -> Result<PathBuf> {

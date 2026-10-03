@@ -323,9 +323,13 @@ pub async fn make(opts: &Opts) -> Result<Option<Committed>> {
             _ => {
                 // For other methods (post, rule), use the --value flag
                 if let Some(value_str) = &opts.value {
-                    // Try to parse as JSON, fallback to string
-                    serde_json::from_str(value_str)
-                        .unwrap_or_else(|_| Value::String(value_str.clone()))
+                    if opts.path.as_deref().is_some_and(|p| p.ends_with(".id")) {
+                        Value::String(modality_common::peer_id::normalize_peer_id(value_str))
+                    } else {
+                        // Try to parse as JSON, fallback to string
+                        serde_json::from_str(value_str)
+                            .unwrap_or_else(|_| Value::String(value_str.clone()))
+                    }
                 } else {
                     anyhow::bail!("--value is required for method '{}'", opts.method);
                 }
@@ -481,7 +485,9 @@ fn add_posts(commit: &mut CommitFile, posts: &[String]) -> Result<usize> {
         // Text-typed paths keep the value as written: a sha of digits is
         // still text.
         let textual = [".text", ".md", ".id", ".date"].iter().any(|ext| path.ends_with(ext));
-        let value = if textual {
+        let value = if path.ends_with(".id") {
+            Value::String(modality_common::peer_id::normalize_peer_id(value))
+        } else if textual {
             Value::String(value.to_string())
         } else {
             serde_json::from_str(value).unwrap_or_else(|_| Value::String(value.to_string()))
@@ -906,12 +912,12 @@ fn build_send_value(opts: &Opts) -> Result<Value> {
 
     let mut value = serde_json::json!({
         "asset_id": asset_id,
-        "to_contract": to_contract,
+        "to_contract": modality_common::peer_id::normalize_peer_id(to_contract),
         "amount": amount,
         "identifier": null
     });
     if let Some(creator) = &opts.asset_contract {
-        value["asset_contract"] = serde_json::json!(creator);
+        value["asset_contract"] = serde_json::json!(modality_common::peer_id::normalize_peer_id(creator));
     }
     if let Some(memo) = &opts.memo {
         value["memo"] = serde_json::from_str(memo)
@@ -936,7 +942,7 @@ fn build_recv_value(opts: &Opts) -> Result<Value> {
         value["asset_id"] = serde_json::json!(asset_id);
     }
     if let Some(creator) = &opts.asset_contract {
-        value["asset_contract"] = serde_json::json!(creator);
+        value["asset_contract"] = serde_json::json!(modality_common::peer_id::normalize_peer_id(creator));
     }
     if let Some(amount) = opts.amount {
         value["amount"] = serde_json::json!(amount);

@@ -25,6 +25,7 @@ hex = "0.4"
 tokio = { version = "1.42.0", features = ["full"] }
 libp2p-identity = { version = "0.2.12", features = ["ed25519", "peerid", "rand"] }
 multiaddr = "0.18.2"
+multibase = "0.9"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 base58 = "0.2"

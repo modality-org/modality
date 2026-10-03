@@ -209,7 +209,7 @@ fn parse_peer_address(
     }
 
     // Try parsing as peer ID
-    if let Ok(peer_id) = peer_str.parse::<PeerId>() {
+    if let Ok(peer_id) = modality_common::peer_id::parse_peer_id(peer_str) {
         // Look for this peer in bootstrappers
         if let Some(ref bootstrappers) = config.bootstrappers {
             for addr in bootstrappers {

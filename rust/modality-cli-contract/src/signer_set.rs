@@ -48,7 +48,8 @@ pub fn signer_id(reference: &str) -> Result<String> {
             return Ok(keypair.public_key_as_base58_identity());
         }
     }
-    modality_common::keypair::Keypair::from_public_key(reference, "ed25519")
+    modality_common::peer_id::canonical_peer_id(reference)
+        .and_then(|id| modality_common::keypair::Keypair::from_public_key(&id, "ed25519"))
         .map(|k| k.public_key_as_base58_identity())
         .map_err(|_| anyhow::anyhow!("--signer {reference} is neither a passfile nor a Modality ID"))
 }

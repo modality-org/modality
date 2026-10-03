@@ -64,6 +64,7 @@ const sidebars: SidebarsConfig = {
         'tutorials/multisig-treasury',
         'tutorials/oracle-escrow',
         'tutorials/constant-product-pool',
+        'tutorials/agent-git-landing',
         'tutorials/contract-hub',
         'tutorials/hub-and-assets',
         'tutorials/js-sdk-hub',

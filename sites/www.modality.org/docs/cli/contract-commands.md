@@ -46,6 +46,7 @@ or an inline domain action.
 |--------|-------------|
 | `--path <PATH>` | State path to write for a single `POST`-style commit |
 | `--value <VALUE>` | Value for the single-path commit; strings, numbers, and JSON are accepted |
+| `--post <PATH=VALUE>` | Post a value at a path in this commit whether or not it changed; repeat for several paths. A `.text`, `.md`, `.id` or `.date` value is kept as text; any other is read as JSON, else as text. Alone, or beside `--all` or `--path` |
 | `--method <METHOD>` | Commit method for the single-path commit (default: `post`) |
 | `--dir <DIR>` | Contract directory (defaults to current directory) |
 | `--output <FORMAT>` | Output format: `text` or `json` |
@@ -88,6 +89,9 @@ modal c commit --method recv --send-commit-id <SEND_ID> --asset-contract <CREATO
 
 # Commit one state file
 modal c commit --path /notes.text --value "signed update" --sign alice
+
+# Restate several facts together, even ones that did not change
+modal c commit --post /run/sha.text=4f2a9c --post /run/passed.bool=true --sign ci
 
 # Commit a domain action
 modal c commit --action '{"type":"DEPOSIT","amount":100}' --sign alice
@@ -450,6 +454,7 @@ modal c replay --artifact prefix.json
 | `--dir <DIR>` | Local contract directory (used when not fetching) |
 | `--node-dir <DIR>` | Node directory for identity/config on P2P remotes |
 | `--output <FORMAT>` | Output format: `text` or `json` |
+| `--theory <v0\|v2\|v3>` | Predicate theory to replay a local `--dir` under (default `v3`, as `modal c commit` verifies). A fetched or saved artifact names its own theory |
 
 ## Theory
 

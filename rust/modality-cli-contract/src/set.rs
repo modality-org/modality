@@ -33,11 +33,16 @@ pub async fn run(opts: &Opts) -> Result<()> {
         std::fs::create_dir_all(parent)?;
     }
 
-    // Write the value
-    std::fs::write(&full_path, &opts.value)?;
+    // Write the value; an ID is kept in base58
+    let value = if path.ends_with(".id") {
+        modality_common::peer_id::normalize_peer_id(&opts.value)
+    } else {
+        opts.value.clone()
+    };
+    std::fs::write(&full_path, &value)?;
 
     println!("✅ Set state/{}", path);
-    println!("   Value: {}", opts.value);
+    println!("   Value: {}", value);
 
     Ok(())
 }

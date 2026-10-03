@@ -142,6 +142,17 @@ mod tests {
     }
 
     #[test]
+    fn a_key_spelled_as_a_cid_is_refused() {
+        // Rules match signers by string, so one key may have one spelling.
+        let alice = Keypair::generate().unwrap();
+        let (key, signature) = sign_commit(&alice, "c1", &commit("p1")).unwrap();
+        let cid = crate::peer_id::peer_id_to_cid(&crate::peer_id::parse_peer_id(&key).unwrap());
+        let mut respelled = commit("p1");
+        respelled.head.signatures = Some(json!({ cid: signature }));
+        assert!(verify_commit_signatures("c1", &respelled).is_err());
+    }
+
+    #[test]
     fn a_hex_ed25519_key_verifies_a_hex_signature() {
         let secret = libp2p_identity::ed25519::Keypair::generate();
         let key = hex::encode(secret.public().to_bytes());

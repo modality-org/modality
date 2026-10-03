@@ -4359,6 +4359,7 @@ dependencies = [
  "log",
  "modality-lang",
  "multiaddr",
+ "multibase",
  "num-bigint",
  "num-traits",
  "pbkdf2 0.12.2",
