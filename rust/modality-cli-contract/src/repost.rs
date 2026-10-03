@@ -9,7 +9,7 @@ use modality_common::hub_client::HubClient;
 #[command(about = "Copy a value from another contract so this contract can refer to it")]
 pub struct Opts {
     /// Source contract ID
-    #[clap(index = 1, value_parser = modality_common::peer_id::peer_id_arg)]
+    #[clap(index = 1, value_parser = modality_common::peer_id::contract_id_arg)]
     source_contract: String,
 
     /// Source path (e.g. /parties/alice.id)
@@ -77,7 +77,9 @@ fn fetch_from_local(
 ) -> Result<(serde_json::Value, String)> {
     let source = ContractStore::open(from_dir)?;
     let config = source.load_config()?;
-    if config.contract_id != source_contract {
+    if modality_common::peer_id::key_form(&config.contract_id)
+        != modality_common::peer_id::key_form(source_contract)
+    {
         anyhow::bail!(
             "Source directory contract ID {} does not match {}",
             config.contract_id,
