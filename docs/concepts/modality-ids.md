@@ -5,6 +5,8 @@ title: Modality IDs
 
 # Modality IDs
 
+The format is specified in [RFC-002: RCIDs](../rfcs/RFC-002-RCID.md).
+
 A Modality ID names an ed25519 public key. Contracts, signers, members,
 nodes, and validators are all named by one. It is a libp2p peer ID: the
 key's bytes behind a fixed header that says "identity multihash of an

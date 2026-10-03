@@ -1,4 +1,4 @@
-# RFC-003: The Modality SDK — Canonical TypeScript Library
+# Proposal: The Modality SDK — Canonical TypeScript Library
 
 **Status:** Draft  
 **Authors:** Gerold Steiner, rarepepi  

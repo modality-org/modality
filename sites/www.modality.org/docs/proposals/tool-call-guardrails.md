@@ -1,4 +1,4 @@
-# RFC-001: Tool Call Guardrails for AI Agent Sandboxes
+# Proposal: Tool Call Guardrails for AI Agent Sandboxes
 
 **Status:** Draft  
 **Authors:** Gerold Steiner, rarepepi  

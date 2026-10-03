@@ -1,4 +1,4 @@
-# RFC-002: Unbreakable Treasury — Prompt Injection CTF
+# Proposal: Unbreakable Treasury — Prompt Injection CTF
 
 **Status:** Draft  
 **Authors:** Gerold Steiner, rarepepi  

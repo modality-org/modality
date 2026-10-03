@@ -1,9 +1,9 @@
 ---
 sidebar_position: 1
-title: RFC-0001 Specification
+title: "RFC-001: Modal Contracts"
 ---
 
-# RFC-0001: Modal Contract Specification
+# RFC-001: Modal Contract Specification
 
 **Status:** Draft  
 **Author:** Gerold Steiner  
@@ -547,4 +547,4 @@ commit-hash     = 64HEXDIG
 
 ---
 
-*RFC-0001: Trust through verification, not reputation.* 🔐
+*RFC-001: Trust through verification, not reputation.* 🔐

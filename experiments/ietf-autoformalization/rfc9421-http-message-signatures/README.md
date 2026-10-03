@@ -41,7 +41,7 @@ HTTP Message Signatures defines a mechanism for creating, verifying, and validat
 - Policy-focused: "modify resource requires valid signature from owner"
 - Key rotation requires policy authority approval before use
 - Signature algorithm, covered components, and Signature-Input header syntax out of scope
-- Complements tool-call guardrails (RFC-001) for HTTP APIs
+- Complements tool-call guardrails ([proposal](../../../docs/proposals/tool-call-guardrails.md)) for HTTP APIs
 
 ## Out of Scope
 

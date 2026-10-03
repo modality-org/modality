@@ -91,7 +91,8 @@ const sidebars: SidebarsConfig = {
       label: 'Resources',
       items: [
         'resources/potentialist-lts',
-        'resources/rfc-0001',
+        'rfcs/RFC-001-MODAL-CONTRACTS',
+        'rfcs/RFC-002-RCID',
       ],
     },
     'faq',
