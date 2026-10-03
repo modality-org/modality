@@ -275,6 +275,7 @@ const PRICED_PREDICATES: &[&str] = &[
     "modifies",
     "post_to_path",
     "post_to",
+    "sets_from",
     "has_property",
     "state_exists",
     "text_eq",

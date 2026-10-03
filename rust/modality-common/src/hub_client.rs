@@ -131,11 +131,7 @@ impl HubClient {
         let data: Value = res.json().await?;
 
         if !status.is_success() {
-            let error = data
-                .get("error")
-                .and_then(|e| e.as_str())
-                .unwrap_or("Unknown error");
-            return Err(anyhow!("HTTP {}: {}", status, error));
+            return Err(hub_error(status, &data));
         }
 
         Ok(data)
@@ -161,11 +157,7 @@ impl HubClient {
         let data: Value = res.json().await?;
 
         if !status.is_success() {
-            let error = data
-                .get("error")
-                .and_then(|e| e.as_str())
-                .unwrap_or("Unknown error");
-            return Err(anyhow!("HTTP {}: {}", status, error));
+            return Err(hub_error(status, &data));
         }
 
         Ok(data)
@@ -300,4 +292,17 @@ pub fn contract_id_from_hub_url(url: &str) -> Option<String> {
             Some(id.to_string())
         }
     })
+}
+
+/// `HTTP 400 Bad Request: validation_failed: <why>`: the hub's error code and,
+/// when it gives one, its reason.
+fn hub_error(status: reqwest::StatusCode, data: &Value) -> anyhow::Error {
+    let error = data
+        .get("error")
+        .and_then(|e| e.as_str())
+        .unwrap_or("Unknown error");
+    match data.get("message").and_then(|m| m.as_str()).filter(|m| !m.is_empty()) {
+        Some(message) => anyhow!("HTTP {}: {}: {}", status, error, message),
+        None => anyhow!("HTTP {}: {}", status, error),
+    }
 }

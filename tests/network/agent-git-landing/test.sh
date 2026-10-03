@@ -132,8 +132,10 @@ assert_success "modal c commit --all --dir $TMP/scratch --sign $AGENT --output j
 FORGED=$(cat "$TMP/scratch/.contract/HEAD")
 cp "$TMP/scratch/.contract/commits/$FORGED.json" "$TMP/forge/.contract/commits/"
 echo "$FORGED" > "$TMP/forge/.contract/HEAD"
-assert_failure "modal c push --dir $TMP/forge --remote $MODAL_GIT_HUB --output json" \
+assert_failure "modal c push --dir $TMP/forge --remote $MODAL_GIT_HUB --output json 2> $TMP/forge.err" \
     "The hub refuses the forged land"
+assert_success "grep -q 'validation_failed' $TMP/forge.err && grep -q 'sets_from\|transition' $TMP/forge.err" \
+    "The hub's refusal names the rules it breaks"
 assert_failure "git -C $WORK push --quiet origin $SHA_C:main" "The origin still refuses the unlanded sha"
 
 echo ""

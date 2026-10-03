@@ -320,13 +320,17 @@ def cmd_audit(args):
     problems = []
     with Contract(hub_url(args)) as c:
         c.replay()
-        state, lands = {}, []
+        state, lands, genesis = {}, [], None
         for cid, commit in c.log():
             signers = sorted((commit.get("head", {}).get("signatures") or {}).keys())
             for action in commit.get("body", []):
                 if action.get("method") == "post" and action.get("path"):
                     state[action["path"]] = action.get("value")
             if any(a.get("path") == HEAD for a in commit.get("body", [])):
+                if state.get(CANDIDATE) is None:
+                    # The steward's bootstrap names the head the path starts from.
+                    genesis = state.get(HEAD)
+                    continue
                 lands.append({
                     "commit": cid,
                     "head": state.get(HEAD),
@@ -339,11 +343,12 @@ def cmd_audit(args):
     main = git("rev-parse", "refs/heads/main", repo=origin)
     if main != head:
         problems.append(f"origin main is {main}; the contract's head is {head}")
-    heads = [l["head"] for l in lands]
+    heads = [genesis] + [l["head"] for l in lands]
     for prev, nxt in zip(heads, heads[1:]):
         if run(["git", "-C", str(origin), "merge-base", "--is-ancestor", prev, nxt], check=False).returncode:
             problems.append(f"land {nxt} does not build on {prev}")
-    print(json.dumps({"head": head, "origin_main": main, "lands": lands, "problems": problems}, indent=2))
+    print(json.dumps({"head": head, "origin_main": main, "genesis_head": genesis, "lands": lands,
+                      "problems": problems}, indent=2))
     if problems:
         raise Refused("audit found problems")
 
