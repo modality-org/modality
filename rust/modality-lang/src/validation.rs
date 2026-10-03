@@ -221,6 +221,7 @@ pub const KNOWN_PREDICATES: &[&str] = &[
     "modifies",
     "post_to_path",
     "sets",
+    "sets_from",
     "posts_own_key",
     "sent_eq",
     "sent_lte",

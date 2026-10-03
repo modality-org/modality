@@ -94,6 +94,12 @@ pub struct Opts {
     #[clap(long)]
     action: Option<String>,
 
+    /// POST a value at a path in this commit, whether or not it changed;
+    /// repeat for several paths. The value is read as JSON, else as a
+    /// string. Alone, or beside --all or --path
+    #[clap(long = "post", value_name = "PATH=VALUE")]
+    posts: Vec<String>,
+
     /// Predicate theory local verify runs: v3, the testnet's. Use v0 for a
     /// network whose network.json leaves predicate_theory_version unset, and
     /// v2 for one that sets it to v2 (numbers compared as 64-bit floats)
@@ -262,10 +268,19 @@ pub async fn make(opts: &Opts) -> Result<Option<Committed>> {
             changes += 1;
         }
 
+        changes += add_posts(&mut commit, &opts.posts)?;
+
         if changes == 0 {
             store.clear_pending_reposts(&committed_repost_dests)?;
             return Ok(None);
         }
+    } else if !opts.posts.is_empty()
+        && opts.path.is_none()
+        && opts.value.is_none()
+        && opts.action.is_none()
+        && opts.method.eq_ignore_ascii_case("post")
+    {
+        add_posts(&mut commit, &opts.posts)?;
     } else if let Some(action_input) = &opts.action {
         // ACTION commit from JSON
         let action_json: Value = if action_input.ends_with(".json") {
@@ -319,6 +334,7 @@ pub async fn make(opts: &Opts) -> Result<Option<Committed>> {
 
         // Add action
         commit.add_action(opts.method.clone(), opts.path.clone(), value);
+        add_posts(&mut commit, &opts.posts)?;
     }
 
     if let Some(limit) = opts.gas_limit {
@@ -453,10 +469,33 @@ pub async fn run(opts: &Opts) -> Result<()> {
     Ok(())
 }
 
+/// `--post PATH=VALUE` actions, in the order given. Returns how many.
+fn add_posts(commit: &mut CommitFile, posts: &[String]) -> Result<usize> {
+    for post in posts {
+        let (path, value) = post
+            .split_once('=')
+            .ok_or_else(|| anyhow::anyhow!("--post wants PATH=VALUE, got '{post}'"))?;
+        if !path.starts_with('/') {
+            anyhow::bail!("--post path must start with '/', got '{path}'");
+        }
+        // Text-typed paths keep the value as written: a sha of digits is
+        // still text.
+        let textual = [".text", ".md", ".id", ".date"].iter().any(|ext| path.ends_with(ext));
+        let value = if textual {
+            Value::String(value.to_string())
+        } else {
+            serde_json::from_str(value).unwrap_or_else(|_| Value::String(value.to_string()))
+        };
+        commit.add_action("post".to_string(), Some(path.to_string()), value);
+    }
+    Ok(posts.len())
+}
+
 fn is_empty_commit(opts: &Opts) -> bool {
     // `modal commit --sign ...` with no path, value, or --all is a signed
     // empty commit: a signature and optional message, no actions.
     opts.path.is_none()
+        && opts.posts.is_empty()
         && opts.value.is_none()
         && opts.action.is_none()
         && !opts.all

@@ -35,9 +35,36 @@
             }}
             return pathForTab(tabName);
         }}
+        // Theme: `auto` follows the OS; `light` and `dark` pin it. The choice
+        // is kept in localStorage and set here so the page never flashes.
+        var THEME_KEY = 'modality-theme';
+        function readTheme() {{
+            try {{
+                var t = localStorage.getItem(THEME_KEY);
+                return t === 'light' || t === 'dark' ? t : 'auto';
+            }} catch (e) {{
+                return 'auto';
+            }}
+        }}
+        function applyTheme(choice) {{
+            if (choice === 'auto') document.documentElement.removeAttribute('data-theme');
+            else document.documentElement.setAttribute('data-theme', choice);
+            document.querySelectorAll('[data-theme-choice]').forEach(function(b) {{
+                b.setAttribute('aria-pressed', b.getAttribute('data-theme-choice') === choice ? 'true' : 'false');
+            }});
+        }}
+        function setTheme(choice) {{
+            try {{
+                if (choice === 'auto') localStorage.removeItem(THEME_KEY);
+                else localStorage.setItem(THEME_KEY, choice);
+            }} catch (e) {{}}
+            applyTheme(choice);
+        }}
+        document.addEventListener('DOMContentLoaded', function() {{ applyTheme(readTheme()); }});
         (function() {{
             document.documentElement.setAttribute('data-active-tab', tabFromPath(location.pathname));
             document.documentElement.setAttribute('data-scope', scopeFromLocation());
+            applyTheme(readTheme());
         }})();
     </script>
     <style>
@@ -52,6 +79,74 @@
             --line: #2a2a3a;
             --ok: #4ade80;
             --warn: #fbbf24;
+            --bad: #f87171;
+            --fork: #ff6c8c;
+            --sidebar: #101018;
+            --header-bg: rgba(10, 10, 15, 0.94);
+            --accent-soft: rgba(108, 140, 255, 0.14);
+            --on-accent: #050510;
+            --scroll-hover: #444;
+            --lane-0: #6c8cff;
+            --lane-1: #ff6c8c;
+            --lane-2: #4ade80;
+            --lane-3: #fbbf24;
+            --lane-4: #c084fc;
+            --lane-5: #67e8f9;
+            color-scheme: dark;
+        }}
+        @media (prefers-color-scheme: light) {{
+            :root:not([data-theme="dark"]) {{
+                --bg: #f6f7fb;
+                --panel: #ffffff;
+                --panel-2: #eef0f7;
+                --text: #1a1a2e;
+                --heading: #0a0a0f;
+                --dim: #6b6b85;
+                --accent: #3d5fe0;
+                --line: #dcdfea;
+                --ok: #15803d;
+                --warn: #b45309;
+                --bad: #dc2626;
+                --fork: #db2777;
+                --sidebar: #eceef5;
+                --header-bg: rgba(246, 247, 251, 0.94);
+                --accent-soft: rgba(61, 95, 224, 0.1);
+                --on-accent: #ffffff;
+                --scroll-hover: #b8bccb;
+                --lane-0: #3d5fe0;
+                --lane-1: #db2777;
+                --lane-2: #16a34a;
+                --lane-3: #d97706;
+                --lane-4: #9333ea;
+                --lane-5: #0891b2;
+                color-scheme: light;
+            }}
+        }}
+        :root[data-theme="light"] {{
+            --bg: #f6f7fb;
+            --panel: #ffffff;
+            --panel-2: #eef0f7;
+            --text: #1a1a2e;
+            --heading: #0a0a0f;
+            --dim: #6b6b85;
+            --accent: #3d5fe0;
+            --line: #dcdfea;
+            --ok: #15803d;
+            --warn: #b45309;
+            --bad: #dc2626;
+            --fork: #db2777;
+            --sidebar: #eceef5;
+            --header-bg: rgba(246, 247, 251, 0.94);
+            --accent-soft: rgba(61, 95, 224, 0.1);
+            --on-accent: #ffffff;
+            --scroll-hover: #b8bccb;
+            --lane-0: #3d5fe0;
+            --lane-1: #db2777;
+            --lane-2: #16a34a;
+            --lane-3: #d97706;
+            --lane-4: #9333ea;
+            --lane-5: #0891b2;
+            color-scheme: light;
         }}
         * {{ box-sizing: border-box; }}
         html {{
@@ -74,7 +169,7 @@
         .sidebar {{
             width: 240px;
             flex: 0 0 240px;
-            background: #101018;
+            background: var(--sidebar);
             border-right: 1px solid var(--line);
             display: flex;
             flex-direction: column;
@@ -132,6 +227,30 @@
             margin-top: auto;
             padding-top: 12px;
             border-top: 1px solid var(--line);
+        }}
+        .theme-switch {{
+            display: flex;
+            gap: 2px;
+            margin: 0 0 10px;
+            padding: 2px;
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: 999px;
+        }}
+        .theme-switch button {{
+            flex: 1;
+            background: transparent;
+            color: var(--dim);
+            border-radius: 999px;
+            padding: 4px 8px;
+            font-size: 0.72rem;
+        }}
+        .theme-switch button:hover {{
+            color: var(--text);
+        }}
+        .theme-switch button[aria-pressed="true"] {{
+            background: var(--accent-soft);
+            color: var(--accent);
         }}
         .side-note {{
             color: var(--dim);
@@ -275,7 +394,7 @@
             z-index: 2;
             margin: 0;
             padding: 16px 28px 12px;
-            background: rgba(10, 10, 15, 0.94);
+            background: var(--header-bg);
             border-bottom: 1px solid var(--line);
         }}
         .header .tab-copy {{
@@ -302,7 +421,7 @@
         .role-chip.on {{
             border-color: var(--accent);
             color: var(--accent);
-            background: rgba(108, 140, 255, 0.12);
+            background: var(--accent-soft);
         }}
         .tab-copy {{
             color: var(--dim);
@@ -362,7 +481,7 @@
             border-radius: 4px;
         }}
         .blocks-container::-webkit-scrollbar-thumb:hover {{
-            background: #444;
+            background: var(--scroll-hover);
         }}
         .tabs {{
             display: flex;
@@ -394,7 +513,7 @@
         html[data-active-tab="sequencers"] .tab[data-tab="sequencers"],
         html[data-active-tab="validators"] .tab[data-tab="validators"],
         html[data-active-tab="contracts"] .tab[data-tab="contracts"] {{
-            background: rgba(108, 140, 255, 0.14);
+            background: var(--accent-soft);
             color: var(--accent);
             border: 0;
             margin: 0;
@@ -425,7 +544,7 @@
         }}
         html[data-scope="node"] .scope-tab[data-scope="node"],
         html[data-scope="all"] .scope-tab[data-scope="all"] {{
-            background: rgba(108, 140, 255, 0.14);
+            background: var(--accent-soft);
             border-color: transparent;
             color: var(--accent);
         }}
@@ -459,7 +578,7 @@
         }}
         button {{
             background: var(--accent);
-            color: #050510;
+            color: var(--on-accent);
             border: 0;
             border-radius: 6px;
             font-weight: 650;
@@ -488,10 +607,10 @@
             font-size: 0.85rem;
         }}
         .ok {{ color: var(--ok); }}
-        .bad {{ color: #f87171; }}
+        .bad {{ color: var(--bad); }}
         .warn {{ color: var(--warn); }}
         .empty {{ color: var(--dim); padding: 12px 0; }}
-        #err {{ color: #f87171; margin: 0 0 12px; }}
+        #err {{ color: var(--bad); margin: 0 0 12px; }}
         .miner-picks {{
             display: flex;
             flex-wrap: wrap;
@@ -520,12 +639,12 @@
             background: var(--lane, var(--dim));
             flex: 0 0 auto;
         }}
-        .lane-0 {{ --lane: #6c8cff; }}
-        .lane-1 {{ --lane: #ff6c8c; }}
-        .lane-2 {{ --lane: #4ade80; }}
-        .lane-3 {{ --lane: #fbbf24; }}
-        .lane-4 {{ --lane: #c084fc; }}
-        .lane-5 {{ --lane: #67e8f9; }}
+        .lane-0 {{ --lane: var(--lane-0); }}
+        .lane-1 {{ --lane: var(--lane-1); }}
+        .lane-2 {{ --lane: var(--lane-2); }}
+        .lane-3 {{ --lane: var(--lane-3); }}
+        .lane-4 {{ --lane: var(--lane-4); }}
+        .lane-5 {{ --lane: var(--lane-5); }}
         .tip-grid {{
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
@@ -547,8 +666,8 @@
         .tip-card code {{ font-size: 0.8rem; }}
         .rel-same {{ color: var(--ok); }}
         .rel-behind {{ color: var(--warn); }}
-        .rel-fork {{ color: #ff6c8c; }}
-        .rel-err {{ color: #f87171; }}
+        .rel-fork {{ color: var(--fork); }}
+        .rel-err {{ color: var(--bad); }}
         .fork-banner {{ margin: 0 0 12px; }}
         .fork-board {{
             display: flex;
@@ -657,10 +776,10 @@
             if (currentText === timestamp.toString()) {{
                 const date = new Date(timestamp * 1000);
                 element.textContent = date.toLocaleString();
-                element.style.color = '#6c8cff';
+                element.style.color = 'var(--accent)';
             }} else {{
                 element.textContent = timestamp;
-                element.style.color = '#e8e8f0';
+                element.style.color = '';
             }}
         }}
         function captureScroll() {{
@@ -1356,6 +1475,11 @@
             <a class="tab" data-tab="contracts" href="/contracts" onclick="return tabClick(event, 'contracts')">Contracts</a>
         </nav>
         <div class="sidebar-foot">
+            <div class="theme-switch" role="group" aria-label="Theme">
+                <button type="button" data-theme-choice="auto" aria-pressed="true" onclick="setTheme('auto')">Auto</button>
+                <button type="button" data-theme-choice="light" aria-pressed="false" onclick="setTheme('light')">Light</button>
+                <button type="button" data-theme-choice="dark" aria-pressed="false" onclick="setTheme('dark')">Dark</button>
+            </div>
             <p class="side-note">Refreshes every {refresh_interval}s · <a href="/status.json">JSON</a> · <a href="https://testnet.modality.network">Join</a></p>
         </div>
     </aside>

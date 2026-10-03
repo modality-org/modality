@@ -1241,6 +1241,7 @@ const PREDICATES: &[(&str, &[Kind])] = {
         ("modifies", &[Path]),
         ("post_to_path", &[Path]),
         ("post_to", &[Path, Text]),
+        ("sets_from", &[Path, Path]),
         ("text_eq", &[TextPath, Text]),
         ("bool_true", &[BoolPath]),
         ("bool_false", &[BoolPath]),

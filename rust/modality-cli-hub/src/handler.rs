@@ -1229,6 +1229,17 @@ impl RpcHandler for HubHandler {
                 }
             }
 
+            // The accepted model and rules take it, as on the REST front end.
+            if let Some(contract) = contracts.get(&params.contract_id) {
+                crate::core::validate_pushed_commit(
+                    &params.contract_id,
+                    &body,
+                    &head,
+                    contract.commits.iter().map(|c| (&c.body, &c.head)),
+                )
+                .map_err(RpcError::InvalidParams)?;
+            }
+
             // For contracts with /members.json, validate signer is a member
             if let Some(contract) = contracts.get(&params.contract_id) {
                 let state = self.build_state(&contract.commits);
@@ -1537,5 +1548,51 @@ mod tests {
 
         let result = handler.validate_add_member(&state, &signers);
         assert!(result.is_ok(), "First member can be added by anyone");
+    }
+
+    fn rpc_commit(parent: Option<&str>, body: Value) -> SubmitCommitParams {
+        SubmitCommitParams {
+            contract_id: "c".to_string(),
+            commit: CommitDetail {
+                hash: String::new(),
+                parent: parent.map(str::to_string),
+                commit_type: "post".to_string(),
+                path: None,
+                payload: json!({ "body": body, "head": {} }),
+                timestamp: 0,
+                signatures: vec![],
+            },
+        }
+    }
+
+    #[tokio::test]
+    async fn submit_commit_refuses_what_the_rules_forbid() {
+        let dir = tempfile::tempdir().unwrap();
+        let handler = HubHandler::new(dir.path().to_path_buf());
+        let model = "model M {\n  part flow {\n    q0 --> q1\n    q1 --> q1: -modifies(/locked)\n  }\n}\n";
+        let rule = "export default rule {\n  formula {\n    always([+modifies(/locked)] false)\n  }\n}\n";
+        let genesis = handler
+            .submit_commit(rpc_commit(
+                None,
+                json!([
+                    {"method": "model", "path": "/model/default.modality", "value": model},
+                    {"method": "rule", "path": "/rules/locked.modality", "value": rule},
+                ]),
+            ))
+            .await
+            .expect("bootstrap");
+
+        let locked = json!([{"method": "post", "path": "/locked/x.text", "value": "x"}]);
+        let err = handler
+            .submit_commit(rpc_commit(Some(&genesis.hash), locked))
+            .await
+            .expect_err("a POST the rule forbids");
+        assert!(format!("{err:?}").contains("locked"), "{err:?}");
+
+        let open = json!([{"method": "post", "path": "/open.text", "value": "y"}]);
+        handler
+            .submit_commit(rpc_commit(Some(&genesis.hash), open))
+            .await
+            .expect("a POST the rules allow");
     }
 }

@@ -63,9 +63,18 @@ pub struct Opts {
     /// Output format (json or text)
     #[clap(long, default_value = "text")]
     output: String,
+
+    /// Predicate theory to replay a local --dir under, as `modal c commit
+    /// --theory` verifies with (default v3). A fetched or saved artifact
+    /// names its own theory.
+    #[clap(long, value_parser = ["v0", "v2", "v3"])]
+    theory: Option<String>,
 }
 
 pub async fn run(opts: &Opts) -> Result<()> {
+    if opts.theory.is_some() && (opts.artifact.is_some() || opts.remote.is_some()) {
+        anyhow::bail!("--theory applies to a local --dir; an artifact names its own theory");
+    }
     let artifact = if let Some(path) = &opts.artifact {
         load_artifact_json(&std::fs::read_to_string(path)?)?
     } else if let Some(remote) = &opts.remote {
@@ -143,7 +152,9 @@ fn artifact_from_local_dir(opts: &Opts) -> Result<ReplayArtifact> {
         prefix.push((id, file));
     }
     prefix.reverse();
-    artifact_from_prefix(&contract_id, &through, &prefix)
+    let mut artifact = artifact_from_prefix(&contract_id, &through, &prefix)?;
+    artifact.predicate_theory = opts.theory.clone().unwrap_or_else(|| "v3".to_string());
+    Ok(artifact)
 }
 
 async fn fetch_remote_artifact(opts: &Opts, remote: &str) -> Result<ReplayArtifact> {

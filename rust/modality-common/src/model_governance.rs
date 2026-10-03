@@ -1880,6 +1880,7 @@ pub(crate) const EVALUATED_PREDICATES: &[&str] = &[
     "modifies",
     "post_to_path",
     "post_to",
+    "sets_from",
     "has_property",
     "state_exists",
     "text_eq",
@@ -2070,6 +2071,10 @@ impl CommitFacts {
                 .unwrap_or(false),
             "post_to" => match (args.first(), args.get(1)) {
                 (Some(path), Some(value)) => self.sets_value(path, value),
+                _ => false,
+            },
+            "sets_from" => match args.as_slice() {
+                [to, from] => self.sets_from(to, from),
                 _ => false,
             },
             "has_property" => match (args.first(), args.get(1)) {
@@ -2506,6 +2511,21 @@ impl CommitFacts {
         let mut writes = self.posts.iter().filter(|(p, _)| *p == path).peekable();
         writes.peek().is_some()
             && writes.all(|(_, v)| predicate_arg_text(v).as_deref() == Some(value))
+    }
+
+    /// `sets_from(/to, /from)`: the commit posts to exactly `/to`, and every
+    /// post there writes the value accepted at `/from`, so `/to` holds after
+    /// the commit what `/from` held before it. Both arguments are paths.
+    fn sets_from(&self, to: &str, from: &str) -> bool {
+        if !to.starts_with('/') || !from.starts_with('/') {
+            return false;
+        }
+        let Some(source) = self.state.get(&normalize_path(from)) else {
+            return false;
+        };
+        let to = normalize_path(to);
+        let mut writes = self.posts.iter().filter(|(p, _)| *p == to).peekable();
+        writes.peek().is_some() && writes.all(|(_, v)| v == source)
     }
 
     /// What the commit's `SEND`s of `asset` move in total, zero when there
@@ -3588,6 +3608,10 @@ mod brute_tests;
 #[cfg(test)]
 #[path = "model_governance_outflow_tests.rs"]
 mod outflow_tests;
+
+#[cfg(test)]
+#[path = "model_governance_landing_tests.rs"]
+mod landing_tests;
 
 #[cfg(test)]
 mod tests {

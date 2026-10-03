@@ -1,0 +1,11 @@
+model GitLanding {
+  part flow {
+    q0 --> q1
+    q1 --> q1: +signed_by(/keys/steward.id) -modifies(/main)
+    q1 --> q1: +POST -RULE -MODEL +any_signed(/keys/agents) +post_to_path(/main/candidate/sha.text) -modifies(/main/head.text) -modifies(/main/candidate/ci) -modifies(/main/candidate/review) -modifies(/keys) -modifies(/policy)
+    q1 --> q1: +POST -RULE -MODEL +signed_by(/keys/ci.id) +post_to_path(/main/candidate/ci/sha.text) +post_to_path(/main/candidate/ci/base.text) +post_to_path(/main/candidate/ci/passed.bool) +post_to_path(/main/candidate/ci/protected.bool) -modifies(/main/head.text) -modifies(/main/candidate/sha.text) -modifies(/main/candidate/review) -modifies(/keys) -modifies(/policy)
+    q1 --> q1: +POST -RULE -MODEL +any_signed(/keys/reviewers) +post_to_path(/main/candidate/review/sha.text) -modifies(/main/head.text) -modifies(/main/candidate/sha.text) -modifies(/main/candidate/ci) -modifies(/keys) -modifies(/policy)
+    q1 --> q1: +POST -RULE -MODEL +any_signed(/keys/agents) +sets_from(/main/head.text, /main/candidate/sha.text) +text_eq(/main/candidate/ci/sha.text, /main/candidate/sha.text) +text_eq(/main/candidate/ci/base.text, /main/head.text) +bool_true(/main/candidate/ci/passed.bool) +bool_false(/main/candidate/ci/protected.bool) -modifies(/main/candidate) -modifies(/keys) -modifies(/policy)
+    q1 --> q1: +POST -RULE -MODEL +any_signed(/keys/agents) +sets_from(/main/head.text, /main/candidate/sha.text) +text_eq(/main/candidate/ci/sha.text, /main/candidate/sha.text) +text_eq(/main/candidate/ci/base.text, /main/head.text) +bool_true(/main/candidate/ci/passed.bool) +text_eq(/main/candidate/review/sha.text, /main/candidate/sha.text) -modifies(/main/candidate) -modifies(/keys) -modifies(/policy)
+  }
+}

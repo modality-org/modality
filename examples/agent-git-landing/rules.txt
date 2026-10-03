@@ -1,0 +1,27 @@
+# The landing rules, added in the steward's bootstrap commit. One per line:
+# name: formula. Proven with the model in modality-common landing_tests.
+
+# Who: only the steward changes keys, policy, the model or the rules.
+keys_by_steward: always([+modifies(/keys) -signed_by(/keys/steward.id)] false)
+policy_by_steward: always([+modifies(/policy) -signed_by(/keys/steward.id)] false)
+model_by_steward: always([+MODEL -signed_by(/keys/steward.id)] false)
+# Each piece of evidence is written by its own key.
+candidate_by_agent: always([+modifies(/main/candidate/sha.text) -any_signed(/keys/agents)] false)
+ci_by_runner: always([+modifies(/main/candidate/ci) -signed_by(/keys/ci.id)] false)
+review_by_reviewer: always([+modifies(/main/candidate/review) -any_signed(/keys/reviewers)] false)
+# An attestation writes all four facts together.
+ci_writes_sha: always([+modifies(/main/candidate/ci) -post_to_path(/main/candidate/ci/sha.text)] false)
+ci_writes_base: always([+modifies(/main/candidate/ci) -post_to_path(/main/candidate/ci/base.text)] false)
+ci_writes_passed: always([+modifies(/main/candidate/ci) -post_to_path(/main/candidate/ci/passed.bool)] false)
+ci_writes_protected: always([+modifies(/main/candidate/ci) -post_to_path(/main/candidate/ci/protected.bool)] false)
+# The land: an agent moves the head to exactly the candidate, a passing
+# fast-forward attested for that sha, reviewed if it is protected.
+land_by_agent: always([+modifies(/main/head.text) -any_signed(/keys/agents)] false)
+land_alone: always([+modifies(/main/head.text) +modifies(/main/candidate)] false)
+land_is_candidate: always([+modifies(/main/head.text) -sets_from(/main/head.text, /main/candidate/sha.text)] false)
+land_attested_sha: always([+modifies(/main/head.text) -text_eq(/main/candidate/ci/sha.text, /main/candidate/sha.text)] false)
+land_fast_forward: always([+modifies(/main/head.text) -text_eq(/main/candidate/ci/base.text, /main/head.text)] false)
+land_passed: always([+modifies(/main/head.text) -bool_true(/main/candidate/ci/passed.bool)] false)
+land_reviewed_if_protected: always([+modifies(/main/head.text) -bool_false(/main/candidate/ci/protected.bool) -text_eq(/main/candidate/review/sha.text, /main/candidate/sha.text)] false)
+# Last, so the steward signs every rule commit above it too.
+rules_by_steward: always([+RULE -signed_by(/keys/steward.id)] false)

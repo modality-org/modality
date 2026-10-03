@@ -45,6 +45,9 @@ const TABLE: &[(&str, &str, &str, Option<&str>)] = &[
     // The value is not modelled, so the declaration is necessary-only, and
     // two `sets` of one path to different values are not known to clash.
     ("post_to", "path", "(posts $1)", Some("")),
+    // `sets_from(/to, /from)`: every post to `/to` writes the value accepted
+    // at `/from`. Like `post_to`, only the post is known.
+    ("sets_from", "path path", "(posts $1)", Some("")),
     // `posts_own_key(/p.id)`: the commit posts to `/p.id` a key that signed
     // it. Signatures of pending keys are not a sort, so only the post is known.
     ("posts_own_key", "id-path", "(posts $1)", Some("")),

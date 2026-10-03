@@ -1953,9 +1953,10 @@ fn random_case(next: &mut impl FnMut() -> u64) -> (Vec<Property>, Option<Vec<(St
                 "threshold",
                 vec![["1", "2", "3"][pick(3)], PREFIXES[pick(4)]],
             ),
-            13 => match pick(4) {
+            13 => match pick(5) {
                 0 => ("posts_own_key", vec![["/w/k.id", "/w", "/z.id"][pick(3)]]),
                 1 => ("sent_eq", vec!["drops", ["1", "/x.num"][pick(2)]]),
+                2 => ("sets_from", vec![WRITES[pick(3)], TEXTS[pick(4)]]),
                 _ => (["modifies", "post_to_path"][pick(2)], vec![WRITES[pick(3)]]),
             },
             14 => {

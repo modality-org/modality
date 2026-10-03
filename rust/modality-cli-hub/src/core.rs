@@ -1365,42 +1365,13 @@ impl HubCore {
         head: &Value,
         commits: &[StoredCommit],
     ) -> Result<(), HubError> {
-        use modality_common::contract_store::CommitFile;
-        use modality_common::model_governance::{
-            validate_pending_commit_with_theory, TheoryActivation,
-        };
-        let to_file = |body: &Value, head: &Value| {
-            serde_json::from_value::<CommitFile>(json!({ "body": body, "head": head }))
-                .map_err(|e| HubError::ValidationFailed(format!("not a commit: {e}")))
-        };
-        let accepted = commits
-            .iter()
-            .map(|c| to_file(&c.body, &c.head))
-            .collect::<Result<Vec<_>, _>>()?;
-        let pending = to_file(body, head)?;
-        // Signatures are over the contract's own id, which its genesis names;
-        // the hub's name for the contract may differ.
-        let contract_id = accepted
-            .first()
-            .or(Some(&pending))
-            .and_then(|genesis| {
-                genesis.body.iter().find_map(|a| {
-                    a.value.get("genesis")?.get("contract_id")?.as_str().map(str::to_string)
-                })
-            })
-            .unwrap_or_else(|| hub_id.to_string());
-        modality_common::commit_signatures::verify_commit_signatures(&contract_id, &pending)
-            .map_err(|e| HubError::ValidationFailed(e.to_string()))?;
-        validate_pending_commit_with_theory(
-            "",
-            &accepted,
-            &pending,
-            None,
-            None,
-            None,
-            TheoryActivation::always(modality_lang::TheoryVersion::V2),
+        validate_pushed_commit(
+            hub_id,
+            body,
+            head,
+            commits.iter().map(|c| (&c.body, &c.head)),
         )
-        .map_err(|e| HubError::ValidationFailed(e.to_string()))
+        .map_err(HubError::ValidationFailed)
     }
 
     fn validate_repost_action(
@@ -1616,6 +1587,52 @@ fn compute_hash(body: &Value, head: &Value) -> String {
     let mut hasher = Sha256::new();
     hasher.update(json_str.as_bytes());
     format!("{:x}", hasher.finalize())
+}
+
+/// Check a pushed commit against the accepted log as `modal c commit` and a
+/// network node do: every signature verifies, and the accepted model and
+/// rules (theory `v2`) take it. Both hub front ends (REST and RPC) call this.
+pub(crate) fn validate_pushed_commit<'a>(
+    hub_id: &str,
+    body: &Value,
+    head: &Value,
+    accepted: impl Iterator<Item = (&'a Value, &'a Value)>,
+) -> Result<(), String> {
+    use modality_common::contract_store::CommitFile;
+    use modality_common::model_governance::{
+        validate_pending_commit_with_theory, TheoryActivation,
+    };
+    let to_file = |body: &Value, head: &Value| {
+        serde_json::from_value::<CommitFile>(json!({ "body": body, "head": head }))
+            .map_err(|e| format!("not a commit: {e}"))
+    };
+    let accepted = accepted
+        .map(|(body, head)| to_file(body, head))
+        .collect::<Result<Vec<_>, _>>()?;
+    let pending = to_file(body, head)?;
+    // Signatures are over the contract's own id, which its genesis names;
+    // the hub's name for the contract may differ.
+    let contract_id = accepted
+        .first()
+        .or(Some(&pending))
+        .and_then(|genesis| {
+            genesis.body.iter().find_map(|a| {
+                a.value.get("genesis")?.get("contract_id")?.as_str().map(str::to_string)
+            })
+        })
+        .unwrap_or_else(|| hub_id.to_string());
+    modality_common::commit_signatures::verify_commit_signatures(&contract_id, &pending)
+        .map_err(|e| e.to_string())?;
+    validate_pending_commit_with_theory(
+        "",
+        &accepted,
+        &pending,
+        None,
+        None,
+        None,
+        TheoryActivation::always(modality_lang::TheoryVersion::V2),
+    )
+    .map_err(|e| e.to_string())
 }
 
 #[cfg(test)]

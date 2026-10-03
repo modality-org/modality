@@ -390,6 +390,7 @@ def standardTable : List (String × String × String × Option String) := [
   ("modifies", "path", "(writes $1)", none),
   ("post_to_path", "path", "(posts $1)", none),
   ("post_to", "path", "(posts $1)", some ""),
+  ("sets_from", "path path", "(posts $1)", some ""),
   ("posts_own_key", "id-path", "(posts $1)", some ""),
   ("text_eq", "text-path text", "(= $1 $2)", none),
   ("bool_true", "bool-path", "$1", none),
@@ -429,7 +430,7 @@ def standard : Registry := registryWith []
 unknown name) never holds on the validator. -/
 def evaluated : List String := [
   "signed_by", "any_signed", "all_signed", "threshold", "modifies", "post_to_path",
-  "post_to", "has_property", "state_exists", "text_eq", "text_contains", "text_starts_with",
+  "post_to", "sets_from", "has_property", "state_exists", "text_eq", "text_contains", "text_starts_with",
   "text_ends_with", "amount_in_range", "num_eq", "num_gt", "num_gte", "num_lt", "num_lte",
   "bool_true", "bool_false", "oracle_attests", "sent_eq", "sent_lte", "sent_to",
   "posts_own_key", "emitted_by", "keeps_product",

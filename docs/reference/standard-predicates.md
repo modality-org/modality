@@ -25,6 +25,7 @@ local validator path.
 | `modifies(/path)` | Pending commit body paths | Matches `/path` itself or descendants such as `/path/alice.id` |
 | `post_to_path(/path)` | Pending commit body methods and paths | Matches a `POST` action to `/path` itself or a descendant |
 | `sets(/path, "value")` | Pending commit body `POST` actions and values | The commit posts to exactly `/path`, and every post there writes `value` |
+| `sets_from(/to, /from)` | Pending commit body `POST` actions and values, plus the accepted value at `/from` | The commit posts to exactly `/to`, and every post there writes the value accepted at `/from` |
 | `has_property(/path, "a.b")` | Accepted-state JSON at `/path` | Reads previously committed JSON and follows dot-separated object keys |
 | `state_exists(/path)` | Accepted-state path map | Checks that a path was already committed before the pending commit |
 | `text_eq(/path, "value")` or `text_eq(/left, /right)` | Accepted-state text | Compares previously committed string values or a committed string to a literal |
@@ -55,7 +56,7 @@ currently enforced by the local first-contract validator.
 | Predicate family | Local first-contract validator | Notes |
 |------------------|--------------------------------|-------|
 | Method labels such as `+POST`, `+REPOST`, and `+MODEL` | Enforced | Derived from pending commit body methods |
-| `signed_by`, `any_signed`, `all_signed`, `threshold`, `modifies`, `post_to_path`, `sets`, `has_property`, `state_exists`, `text_eq`, `text_contains`, `text_starts_with`, `text_ends_with`, `amount_in_range`, `num_eq`, `num_gt`, `num_gte`, `num_lt`, `num_lte`, `bool_true`, `bool_false` | Enforced | Derived from pending signatures, accepted state, pending methods, pending paths, accepted-state path existence, accepted-state JSON, accepted-state text, accepted-state numbers, and accepted-state booleans |
+| `signed_by`, `any_signed`, `all_signed`, `threshold`, `modifies`, `post_to_path`, `sets`, `sets_from`, `has_property`, `state_exists`, `text_eq`, `text_contains`, `text_starts_with`, `text_ends_with`, `amount_in_range`, `num_eq`, `num_gt`, `num_gte`, `num_lt`, `num_lte`, `bool_true`, `bool_false` | Enforced | Derived from pending signatures, accepted state, pending methods, pending paths, accepted-state path existence, accepted-state JSON, accepted-state text, accepted-state numbers, and accepted-state booleans |
 | `sent_eq`, `sent_lte`, `sent_to`, `posts_own_key`, `emitted_by`, `keeps_product`, `keeps_product_per_share`, `tracks`, `pays_senders`, `pays_memo_min`, `mined_headers` | Enforced | What the pending commit moves and who wrote it. See [Outflow Predicates](#outflow-predicates). Every node on a network must run a release that evaluates them before a contract relies on them: an older node holds them false |
 | `timestamp_valid` | Unit-tested extension module only | Implemented in `modality-wasm-validation`; not yet replay evidence for the local first-contract validator |
 | `oracle_attests` | Replay bundle only | Holds only when the commit carries a valid replay bundle for the claim |
@@ -198,6 +199,41 @@ A flag that guards a one-time move must be set, not merely written. With
 `-bool_true(/claimants/alice/claimed.bool) +post_to_path(/claimants/alice/claimed.bool)`
 a commit may write the flag `false` and leave the next move open. Write
 `+sets(/claimants/alice/claimed.bool, "true")`.
+
+### sets_from
+
+Checks that the pending commit copies an accepted value: what it writes at
+one path is what another path already holds.
+
+```modality
++sets_from(/main/head.text, /main/candidate/sha.text)
+```
+
+**Arguments:**
+- `to` — Exact path the commit writes
+- `from` — Path whose accepted value the commit must write there
+
+**Behavior:**
+- True when the commit has at least one `POST` to exactly `to`, every `POST`
+  to `to` writes the value accepted at `from`, and `from` holds a value. After
+  the commit, `to` holds what `from` held before it
+- Values compare exactly, type included: the text `"true"` is not the boolean
+  `true`
+- Both arguments are paths. `sets_from(/to, "literal")` never holds; use
+  `sets` for a literal
+- Reads accepted state at `from`, so a write to `from` in the same commit
+  does not count
+- Variables (`$k`) are not read in its arguments yet
+
+**Example:**
+```modality
+// The head moves only to the candidate that was attested
+always([+modifies(/main/head.text) -sets_from(/main/head.text, /main/candidate/sha.text)] false)
+```
+
+The theory knows only that `sets_from` posts to `to`, as for `sets`. Every
+node on a network must run a release that evaluates it before a contract
+relies on it: an older node holds it false.
 
 ## Outflow Predicates
 

@@ -1,0 +1,414 @@
+#!/usr/bin/env python3
+"""modal-git: land git commits through a Modality contract.
+
+Edits and local commits are free. The governed branch (`main` on a bare
+origin) moves only to the sha the contract accepts as `/main/head.text`, and
+the contract accepts a new head only along the path:
+
+  propose  an agent posts a candidate sha           (agent key)
+  attest   a runner tests exactly that sha          (ci key)
+  review   a reviewer approves that sha, when the   (reviewer key)
+           diff touches a protected path
+  land     an agent moves the head to the candidate (agent key)
+
+The rules live in the contract, not here. This tool only writes commits and
+reads state; the hub (and every replay) refuses what the rules forbid. The
+origin's `update` hook runs `modal-git verify-ref`, so `main` follows the
+contract and nothing else.
+
+Every command takes the contract URL from --hub or $MODAL_GIT_HUB, works in a
+fresh clone of the contract, and needs only `git` and `modal` on PATH.
+"""
+
+import argparse
+import json
+import os
+import pathlib
+import shutil
+import subprocess
+import sys
+import tempfile
+
+HERE = pathlib.Path(__file__).resolve().parent
+THEORY = os.environ.get("MODAL_GIT_THEORY", "v3")
+
+HEAD = "/main/head.text"
+CANDIDATE = "/main/candidate/sha.text"
+CI_SHA = "/main/candidate/ci/sha.text"
+CI_BASE = "/main/candidate/ci/base.text"
+CI_PASSED = "/main/candidate/ci/passed.bool"
+CI_PROTECTED = "/main/candidate/ci/protected.bool"
+REVIEW = "/main/candidate/review/sha.text"
+PROTECTED = "/policy/protected.text"
+TEST = "/policy/test.text"
+
+
+class Refused(Exception):
+    pass
+
+
+def run(cmd, cwd=None, check=True, capture=True, env=None):
+    proc = subprocess.run(
+        cmd,
+        cwd=cwd,
+        text=True,
+        capture_output=capture,
+        env=env,
+    )
+    if check and proc.returncode != 0:
+        detail = (proc.stderr or "") + (proc.stdout or "")
+        raise Refused(f"{' '.join(cmd)}\n{detail.strip()}")
+    return proc
+
+
+def git(*args, repo=None, check=True):
+    cmd = ["git"] + (["-C", str(repo)] if repo else []) + list(args)
+    return run(cmd, check=check).stdout.strip()
+
+
+def modal(*args, check=True):
+    return run(["modal"] + list(args), check=check)
+
+
+# ---------------------------------------------------------------------------
+# The contract
+
+
+class Contract:
+    """A fresh clone of the contract at the hub's head."""
+
+    def __init__(self, url):
+        self.url = url
+        self.tmp = tempfile.TemporaryDirectory(prefix="modal-git-")
+        self.dir = pathlib.Path(self.tmp.name) / "contract"
+        modal("c", "pull", url, "--dir", str(self.dir), "--output", "json")
+
+    def close(self):
+        self.tmp.cleanup()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        self.close()
+
+    def state_file(self, path):
+        return self.dir / "state" / path.lstrip("/")
+
+    def get(self, path):
+        f = self.state_file(path)
+        if not f.exists():
+            return None
+        text = f.read_text()
+        if path.endswith((".bool", ".num")):
+            return json.loads(text)
+        return text.strip()
+
+    def commit(self, writes, passfile, message):
+        """One signed commit posting every one of `writes` (path -> value),
+        changed or not, pushed to the hub."""
+        posts = []
+        for path, value in writes.items():
+            if isinstance(value, bool):
+                value = "true" if value else "false"
+            posts += ["--post", f"{path}={value}"]
+        modal(
+            "c", "commit", "--dir", str(self.dir), *posts, "--theory", THEORY,
+            "--sign", str(passfile), "--message", message, "--output", "json",
+        )
+        modal("c", "push", "--dir", str(self.dir), "--remote", self.url, "--output", "json")
+
+    def replay(self):
+        modal("c", "replay", "--dir", str(self.dir), "--theory", THEORY, "--output", "json")
+
+    def log(self):
+        """Commits from the first to the head, oldest first."""
+        commits_dir = self.dir / ".contract" / "commits"
+        head_file = self.dir / ".contract" / "HEAD"
+        head = head_file.read_text().strip() if head_file.exists() else ""
+        chain = []
+        while head:
+            c = json.loads((commits_dir / f"{head}.json").read_text())
+            chain.append((head, c))
+            head = c.get("head", {}).get("parent") or ""
+        return list(reversed(chain))
+
+
+def hub_url(args):
+    url = args.hub or os.environ.get("MODAL_GIT_HUB")
+    if not url:
+        raise Refused("no contract: pass --hub or set MODAL_GIT_HUB")
+    return url
+
+
+def passfile(args):
+    key = args.sign or os.environ.get("MODAL_GIT_KEY")
+    if not key:
+        raise Refused("no key: pass --sign or set MODAL_GIT_KEY")
+    return key
+
+
+# ---------------------------------------------------------------------------
+# Commands
+
+
+def cmd_init(args):
+    """The steward's bootstrap: keys, policy, head, model and rules in one
+    commit, then the origin's hook. Rules accumulate: decide them first."""
+    origin = pathlib.Path(args.origin).resolve()
+    head = git("rev-parse", "--verify", "refs/heads/main^{commit}", repo=origin)
+    with tempfile.TemporaryDirectory(prefix="modal-git-") as tmp:
+        d = pathlib.Path(tmp) / "contract"
+        modal("c", "create", "--dir", str(d), "--output", "json")
+        cid = modal("c", "id", "--dir", str(d)).stdout.strip()
+        modal("c", "checkout", "--dir", str(d))
+        named = [("/keys/steward.id", args.steward)]
+        named += [(f"/keys/agents/{pathlib.Path(p).stem.split('.')[0]}.id", p) for p in args.agent]
+        named += [("/keys/ci.id", args.ci)]
+        named += [(f"/keys/reviewers/{pathlib.Path(p).stem.split('.')[0]}.id", p) for p in args.reviewer]
+        for path, key in named:
+            modal("c", "set-named-id", path, key, "--dir", str(d))
+        modal("c", "set", "--dir", str(d), PROTECTED, "\n".join(args.protected))
+        modal("c", "set", "--dir", str(d), TEST, args.test)
+        modal("c", "set", "--dir", str(d), HEAD, head)
+        (d / "model").mkdir(exist_ok=True)
+        shutil.copy(HERE / "model" / "default.modality", d / "model" / "default.modality")
+        for name, formula in read_rules():
+            modal("c", "add-rule", "--name", name, "--dir", str(d), formula)
+        modal(
+            "c", "commit", "--all", "--dir", str(d), "--theory", THEORY,
+            "--sign", args.steward, "--message", "Bootstrap the landing contract", "--output", "json",
+        )
+        url = f"{args.hub.rstrip('/')}/contracts/{cid}"
+        modal("c", "push", "--dir", str(d), "--remote", url, "--output", "json")
+
+    hook = origin / "hooks" / "update"
+    hook.write_text(
+        "#!/bin/sh\n"
+        "# Installed by modal-git init: main moves only to the contract's head.\n"
+        f'exec "{HERE / "modal-git"}" verify-ref --hub "{url}" "$1" "$2" "$3"\n'
+    )
+    hook.chmod(0o755)
+    print(url)
+
+
+def read_rules():
+    rules = []
+    for line in (HERE / "rules.txt").read_text().splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        name, formula = line.split(":", 1)
+        rules.append((name.strip(), formula.strip()))
+    return rules
+
+
+def cmd_propose(args):
+    repo = pathlib.Path(args.repo)
+    sha = git("rev-parse", "--verify", f"{args.rev}^{{commit}}", repo=repo)
+    git("push", args.remote, f"{sha}:refs/candidates/{sha}", repo=repo)
+    with Contract(hub_url(args)) as c:
+        c.commit({CANDIDATE: sha}, passfile(args), f"Propose {sha[:12]}")
+    print(f"proposed {sha}")
+
+
+def cmd_attest(args):
+    """The runner: check out exactly the candidate, run the posted test
+    command, classify the diff against the posted globs, attest all four."""
+    origin = pathlib.Path(args.origin).resolve()
+    with Contract(hub_url(args)) as c:
+        sha, head = c.get(CANDIDATE), c.get(HEAD)
+        if not sha:
+            raise Refused("no candidate to attest")
+        with tempfile.TemporaryDirectory(prefix="modal-git-run-") as work:
+            git("clone", "--quiet", "--no-checkout", str(origin), work)
+            git("fetch", "--quiet", "origin", f"refs/candidates/{sha}", repo=work)
+            git("checkout", "--quiet", "--detach", sha, repo=work)
+            ff = run(["git", "-C", work, "merge-base", "--is-ancestor", head, sha], check=False)
+            base = head if ff.returncode == 0 else git("merge-base", head, sha, repo=work, check=False)
+            globs = [g for g in (c.get(PROTECTED) or "").splitlines() if g.strip()]
+            changed = git("diff", "--name-only", base or head, sha, repo=work).splitlines() if base else ["(unrelated history)"]
+            touched = []
+            if globs and base:
+                touched = git(
+                    "diff", "--name-only", base, sha, "--", *[f":(glob){g}" for g in globs], repo=work
+                ).splitlines()
+            protected = bool(touched) or not base
+            test = c.get(TEST) or "true"
+            result = run(["sh", "-c", test], cwd=work, check=False, capture=True)
+            passed = result.returncode == 0
+        c.commit(
+            {CI_SHA: sha, CI_BASE: base or "none", CI_PASSED: passed, CI_PROTECTED: protected},
+            passfile(args),
+            f"Attest {sha[:12]}: {'pass' if passed else 'fail'}",
+        )
+    print(json.dumps({
+        "sha": sha, "base": base or "none", "passed": passed, "protected": protected,
+        "changed": changed, "protected_paths": touched,
+        "test_output": (result.stdout + result.stderr)[-2000:],
+    }, indent=2))
+
+
+def cmd_review(args):
+    with Contract(hub_url(args)) as c:
+        sha = args.sha or c.get(CANDIDATE)
+        if not sha:
+            raise Refused("no candidate to review")
+        c.commit({REVIEW: sha}, passfile(args), f"Review {sha[:12]}")
+    print(f"reviewed {sha}")
+
+
+def cmd_land(args):
+    with Contract(hub_url(args)) as c:
+        sha = c.get(CANDIDATE)
+        if not sha:
+            raise Refused("no candidate to land")
+        c.commit({HEAD: sha}, passfile(args), f"Land {sha[:12]}")
+    if args.repo:
+        git("push", args.remote, f"{sha}:refs/heads/main", repo=args.repo)
+    print(f"landed {sha}")
+
+
+def cmd_status(args):
+    with Contract(hub_url(args)) as c:
+        s = {k: c.get(p) for k, p in [
+            ("head", HEAD), ("candidate", CANDIDATE), ("ci_sha", CI_SHA), ("ci_base", CI_BASE),
+            ("ci_passed", CI_PASSED), ("ci_protected", CI_PROTECTED), ("review", REVIEW),
+        ]}
+    cand = s["candidate"]
+    missing = []
+    if not cand:
+        missing.append("propose a candidate")
+    else:
+        if s["ci_sha"] != cand:
+            missing.append("attestation for the candidate")
+        elif s["ci_base"] != s["head"]:
+            missing.append("rebase: the candidate does not fast-forward the head")
+        elif s["ci_passed"] is not True:
+            missing.append("passing tests")
+        elif s["ci_protected"] is not False and s["review"] != cand:
+            missing.append("review of the candidate (protected paths)")
+    s["can_land"] = not missing
+    s["missing"] = missing
+    print(json.dumps(s, indent=2))
+
+
+def cmd_verify_ref(args):
+    """The origin's update hook. `main` moves only forward, only to the head
+    the contract accepts, and only after this machine replays the log."""
+    ref, old, new = args.ref, args.old, args.new
+    zero = "0" * 40
+    if ref != "refs/heads/main":
+        return
+    if new == zero:
+        raise Refused("main is governed: it cannot be deleted")
+    with Contract(hub_url(args)) as c:
+        c.replay()
+        head = c.get(HEAD)
+    if new != head:
+        raise Refused(f"main is governed: the contract's head is {head}, not {new}")
+    if old != zero:
+        ff = run(["git", "merge-base", "--is-ancestor", old, new], check=False)
+        if ff.returncode != 0:
+            raise Refused(f"main is governed: {new} does not fast-forward {old}")
+
+
+def cmd_audit(args):
+    """Replay the log, list every land and its evidence, and check that the
+    origin's main is the contract's head and each land builds on the last."""
+    origin = pathlib.Path(args.origin).resolve()
+    problems = []
+    with Contract(hub_url(args)) as c:
+        c.replay()
+        state, lands = {}, []
+        for cid, commit in c.log():
+            signers = sorted((commit.get("head", {}).get("signatures") or {}).keys())
+            for action in commit.get("body", []):
+                if action.get("method") == "post" and action.get("path"):
+                    state[action["path"]] = action.get("value")
+            if any(a.get("path") == HEAD for a in commit.get("body", [])):
+                lands.append({
+                    "commit": cid,
+                    "head": state.get(HEAD),
+                    "signed_by": signers,
+                    "ci": {"sha": state.get(CI_SHA), "base": state.get(CI_BASE),
+                           "passed": state.get(CI_PASSED), "protected": state.get(CI_PROTECTED)},
+                    "review": state.get(REVIEW),
+                })
+        head = c.get(HEAD)
+    main = git("rev-parse", "refs/heads/main", repo=origin)
+    if main != head:
+        problems.append(f"origin main is {main}; the contract's head is {head}")
+    heads = [l["head"] for l in lands]
+    for prev, nxt in zip(heads, heads[1:]):
+        if run(["git", "-C", str(origin), "merge-base", "--is-ancestor", prev, nxt], check=False).returncode:
+            problems.append(f"land {nxt} does not build on {prev}")
+    print(json.dumps({"head": head, "origin_main": main, "lands": lands, "problems": problems}, indent=2))
+    if problems:
+        raise Refused("audit found problems")
+
+
+def main():
+    p = argparse.ArgumentParser(prog="modal-git", description=__doc__.split("\n\n")[0])
+    sub = p.add_subparsers(dest="cmd", required=True)
+    common = argparse.ArgumentParser(add_help=False)
+    common.add_argument("--hub", help="contract URL (or $MODAL_GIT_HUB)")
+    _add = sub.add_parser
+    sub.add_parser = lambda name, **kw: _add(name, parents=[] if name == "init" else [common], **kw)
+
+    s = sub.add_parser("init", help="steward: bootstrap the contract and install the origin hook")
+    s.add_argument("--hub", required=True, help="hub base URL, e.g. http://127.0.0.1:8080")
+    s.add_argument("--origin", required=True, help="the governed bare repo")
+    s.add_argument("--steward", required=True)
+    s.add_argument("--agent", action="append", required=True)
+    s.add_argument("--ci", required=True)
+    s.add_argument("--reviewer", action="append", required=True)
+    s.add_argument("--protected", action="append", default=[], help="glob; repeat")
+    s.add_argument("--test", default="true", help="test command the runner runs")
+    s.set_defaults(fn=cmd_init)
+
+    for name, fn, help_ in [
+        ("propose", cmd_propose, "agent: push a sha as a candidate and post it"),
+        ("land", cmd_land, "agent: move the head to the candidate, then push main"),
+    ]:
+        s = sub.add_parser(name, help=help_)
+        s.add_argument("--sign", help="passfile (or $MODAL_GIT_KEY)")
+        s.add_argument("--repo", default=".", help="the agent's working repo")
+        s.add_argument("--remote", default="origin")
+        if name == "propose":
+            s.add_argument("--rev", default="HEAD")
+        s.set_defaults(fn=fn)
+
+    s = sub.add_parser("attest", help="runner: test the candidate and attest")
+    s.add_argument("--sign", help="passfile (or $MODAL_GIT_KEY)")
+    s.add_argument("--origin", required=True)
+    s.set_defaults(fn=cmd_attest)
+
+    s = sub.add_parser("review", help="reviewer: approve the candidate")
+    s.add_argument("--sign", help="passfile (or $MODAL_GIT_KEY)")
+    s.add_argument("--sha")
+    s.set_defaults(fn=cmd_review)
+
+    s = sub.add_parser("status", help="what the candidate still needs before it can land")
+    s.set_defaults(fn=cmd_status)
+
+    s = sub.add_parser("verify-ref", help="origin update hook")
+    s.add_argument("ref")
+    s.add_argument("old")
+    s.add_argument("new")
+    s.set_defaults(fn=cmd_verify_ref)
+
+    s = sub.add_parser("audit", help="replay the log and compare it with the origin")
+    s.add_argument("--origin", required=True)
+    s.set_defaults(fn=cmd_audit)
+
+    args = p.parse_args()
+    try:
+        args.fn(args)
+    except Refused as e:
+        print(f"modal-git: refused: {e}", file=sys.stderr)
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()
