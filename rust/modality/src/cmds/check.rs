@@ -18,6 +18,11 @@ pub struct Opts {
     /// Formula text to check (optional, if not provided will use --formula)
     #[arg(long)]
     pub formula_text: Option<String>,
+
+    /// Predicate theory version: v0 (default, labels are opaque names), v1, v2 or v3.
+    /// Networks and `modal c commit` verify under v3.
+    #[arg(long, default_value = "v0")]
+    pub theory: modality_lang::TheoryVersion,
 }
 
 pub async fn run(opts: &Opts) -> Result<()> {
@@ -68,12 +73,15 @@ pub async fn run(opts: &Opts) -> Result<()> {
     };
 
     // Create model checker and check the formula
-    let checker = modality_lang::ModelChecker::new(model);
+    let checker = modality_lang::ModelChecker::with_theory(model, opts.theory, None, None);
     let result = checker.check_formula(&formula);
     let result_any_state = checker.check_formula_any_state(&formula);
 
     // Output results
-    println!("🔍 Checking formula: {}", formula.name);
+    println!(
+        "🔍 Checking formula: {} (theory {:?})",
+        formula.name, opts.theory
+    );
     println!("📋 Formula: {:?}", formula.expression);
     println!();
 

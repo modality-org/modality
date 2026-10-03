@@ -1,0 +1,273 @@
+# Alice and Bob's first contract: two keys, an open model, no rules yet.
+
+[fixture]
+name = "first-contract"
+about = "Alice and Bob share a contract. Anyone can commit until a rule says otherwise."
+theory = "v3"
+paths = ["/notes"]
+model = '''
+model Contract {
+  part flow {
+    q0 --> q1
+    q1 --> q1
+  }
+}
+'''
+
+[fixture.state]
+"/parties/alice.id" = "KEY_ALICE"
+"/parties/bob.id" = "KEY_BOB"
+
+# ---------------------------------------------------------------------
+
+[[case]]
+id = "fc-either-signs"
+tags = ["signers"]
+request = "From now on, every commit has to be signed by Alice or Bob."
+paraphrases = [
+  "after this commit either alice or bob must sign",
+  "Going forward, no commit without a signature from at least one of Alice and Bob.",
+]
+why = "Either of two signers: one box with both negative literals, not two boxes."
+formula = 'always([-signed_by(/parties/alice.id) -signed_by(/parties/bob.id)] false)'
+witness = '''
+model Contract {
+  part flow {
+    q0 --> q1
+    q1 --> q1: +signed_by(/parties/alice.id)
+    q1 --> q1: +signed_by(/parties/bob.id)
+  }
+}
+'''
+
+[[case.allow]]
+name = "Alice posts a note"
+signers = ["alice"]
+post = { "/notes/a.text" = "hi" }
+
+[[case.allow]]
+name = "Bob posts a note"
+signers = ["bob"]
+post = { "/notes/b.text" = "hi" }
+
+[[case.forbid]]
+name = "an unsigned post"
+post = { "/notes/c.text" = "x" }
+leak = "q1 --> q1"
+
+[[case.forbid]]
+name = "Mallory posts"
+signers = ["mallory"]
+post = { "/notes/d.text" = "x" }
+leak = "q1 --> q1: -signed_by(/parties/alice.id) -signed_by(/parties/bob.id)"
+
+# ---------------------------------------------------------------------
+
+[[case]]
+id = "fc-alice-signs"
+tags = ["signers"]
+request = "After this commit, Alice has to sign every commit."
+paraphrases = [
+  "alice signs everything from here on",
+  "No later commit is valid unless Alice signed it.",
+]
+formula = 'always([-signed_by(/parties/alice.id)] false)'
+witness = '''
+model Contract {
+  part flow {
+    q0 --> q1
+    q1 --> q1: +signed_by(/parties/alice.id)
+  }
+}
+'''
+
+[[case.allow]]
+name = "Alice posts"
+signers = ["alice"]
+post = { "/notes/a.text" = "hi" }
+
+[[case.allow]]
+name = "Alice and Bob post together"
+signers = ["alice", "bob"]
+post = { "/notes/b.text" = "hi" }
+
+[[case.forbid]]
+name = "Bob posts alone"
+signers = ["bob"]
+post = { "/notes/c.text" = "x" }
+leak = "q1 --> q1: +signed_by(/parties/bob.id)"
+
+# ---------------------------------------------------------------------
+
+[[case]]
+id = "fc-alternate"
+tags = ["signers", "alternation"]
+difficulty = 3
+request = "From now on Alice and Bob take turns: each later commit is signed by one of them, and the same person never signs two in a row."
+paraphrases = [
+  "after this commit either alice or bob must sign in alternating turns",
+  "Strict alternation between Alice and Bob from the next commit on. No one goes twice in a row, and every commit needs one of them.",
+]
+why = "A second step's box nests under the first. The witness needs a node per last signer: returning to one shared node lets the same signer go again."
+formula = 'always(([-signed_by(/parties/alice.id) -signed_by(/parties/bob.id)] false) & ([+signed_by(/parties/alice.id)] [-signed_by(/parties/bob.id)] false) & ([+signed_by(/parties/bob.id)] [-signed_by(/parties/alice.id)] false))'
+witness = '''
+model Contract {
+  part flow {
+    q0 --> q1
+    q1 --> qa: +signed_by(/parties/alice.id) -signed_by(/parties/bob.id)
+    q1 --> qb: +signed_by(/parties/bob.id) -signed_by(/parties/alice.id)
+    qa --> qb: +signed_by(/parties/bob.id) -signed_by(/parties/alice.id)
+    qb --> qa: +signed_by(/parties/alice.id) -signed_by(/parties/bob.id)
+  }
+}
+'''
+
+[[case.allow]]
+name = "Alice, then Bob, then Alice"
+steps = [
+  { signers = ["alice"], post = { "/notes/1.text" = "a" } },
+  { signers = ["bob"], post = { "/notes/2.text" = "b" } },
+  { signers = ["alice"], post = { "/notes/3.text" = "a" } },
+]
+
+[[case.allow]]
+name = "Bob goes first"
+steps = [
+  { signers = ["bob"], post = { "/notes/1.text" = "b" } },
+  { signers = ["alice"], post = { "/notes/2.text" = "a" } },
+]
+
+[[case.forbid]]
+name = "Alice twice in a row"
+steps = [{ signers = ["alice"], post = { "/notes/1.text" = "a" } }]
+signers = ["alice"]
+post = { "/notes/2.text" = "a" }
+leak = "qa --> qa: +signed_by(/parties/alice.id)"
+
+[[case.forbid]]
+name = "an unsigned commit"
+post = { "/notes/1.text" = "x" }
+leak = "q1 --> q1"
+
+# ---------------------------------------------------------------------
+
+[[case]]
+id = "fc-both-sign"
+split = "heldout"
+tags = ["signers"]
+request = "From now on, nothing goes in unless both Alice and Bob signed it."
+paraphrases = [
+  "every later commit needs alice AND bob",
+  "After this commit, a commit is accepted only when it carries the signatures of Alice and of Bob.",
+]
+why = "Both signers: two boxes (or one conjunction), not one box with both literals."
+formula = 'always(([-signed_by(/parties/alice.id)] false) & ([-signed_by(/parties/bob.id)] false))'
+witness = '''
+model Contract {
+  part flow {
+    q0 --> q1
+    q1 --> q1: +signed_by(/parties/alice.id) +signed_by(/parties/bob.id)
+  }
+}
+'''
+
+[[case.allow]]
+name = "Alice and Bob post together"
+signers = ["alice", "bob"]
+post = { "/notes/a.text" = "hi" }
+
+[[case.forbid]]
+name = "Alice posts alone"
+signers = ["alice"]
+post = { "/notes/b.text" = "x" }
+leak = "q1 --> q1: +signed_by(/parties/alice.id)"
+
+[[case.forbid]]
+name = "Bob posts alone"
+signers = ["bob"]
+post = { "/notes/c.text" = "x" }
+leak = "q1 --> q1: +signed_by(/parties/bob.id)"
+
+# ---------------------------------------------------------------------
+
+[[case]]
+id = "fc-alice-never-and-always"
+split = "heldout"
+expect = "no_rule"
+tags = ["contradictory"]
+request = "From now on Alice must sign every commit, and Alice may never sign anything again."
+paraphrases = [
+  "alice has to sign each later commit but alice is banned from signing",
+]
+why = "Every later commit needs Alice's signature and none may have it: no later commit is possible."
+
+# ---------------------------------------------------------------------
+
+[[case]]
+id = "fc-bob-not-alone"
+split = "heldout"
+expect = "clarify"
+tags = ["signers", "ambiguous"]
+request = "Bob can't act alone anymore."
+paraphrases = [
+  "from now on bob needs someone else with him",
+]
+why = "Does Alice keep acting alone, or does every commit now need both?"
+
+[[case.reading]]
+assumption = "Any commit Bob signs must also be signed by Alice; Alice may still act alone."
+formula = 'always([+signed_by(/parties/bob.id) -signed_by(/parties/alice.id)] false)'
+witness = '''
+model Contract {
+  part flow {
+    q0 --> q1
+    q1 --> q1: -signed_by(/parties/bob.id)
+    q1 --> q1: +signed_by(/parties/alice.id) +signed_by(/parties/bob.id)
+  }
+}
+'''
+
+[[case.reading.allow]]
+name = "Alice posts alone"
+signers = ["alice"]
+post = { "/notes/a.text" = "hi" }
+
+[[case.reading.allow]]
+name = "Alice and Bob post together"
+signers = ["alice", "bob"]
+post = { "/notes/b.text" = "hi" }
+
+[[case.reading.forbid]]
+name = "Bob posts alone"
+signers = ["bob"]
+post = { "/notes/c.text" = "x" }
+leak = "q1 --> q1: +signed_by(/parties/bob.id)"
+
+[[case.reading]]
+assumption = "Every later commit needs both Alice and Bob."
+formula = 'always(([-signed_by(/parties/alice.id)] false) & ([-signed_by(/parties/bob.id)] false))'
+witness = '''
+model Contract {
+  part flow {
+    q0 --> q1
+    q1 --> q1: +signed_by(/parties/alice.id) +signed_by(/parties/bob.id)
+  }
+}
+'''
+
+[[case.reading.allow]]
+name = "Alice and Bob post together"
+signers = ["alice", "bob"]
+post = { "/notes/a.text" = "hi" }
+
+[[case.reading.forbid]]
+name = "Bob posts alone"
+signers = ["bob"]
+post = { "/notes/b.text" = "x" }
+leak = "q1 --> q1: +signed_by(/parties/bob.id)"
+
+[[case.reading.forbid]]
+name = "Alice posts alone"
+signers = ["alice"]
+post = { "/notes/c.text" = "x" }
+leak = "q1 --> q1: +signed_by(/parties/alice.id)"

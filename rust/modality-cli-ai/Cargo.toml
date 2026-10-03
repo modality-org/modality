@@ -10,6 +10,7 @@ homepage = "https://www.modality.org"
 [dependencies]
 modality-common = { path = "../modality-common", version = "0.1.7" }
 modality-lang = { path = "../modality-lang", version = "0.1.7" }
+modality-rule-suite = { path = "../modality-rule-suite", version = "0.1.0" }
 anyhow = "1.0"
 clap = { version = "4.1.11", features = ["derive", "env"] }
 serde = { version = "1.0", features = ["derive"] }

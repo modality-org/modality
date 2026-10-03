@@ -25,6 +25,7 @@ members = [
 , "modality-cli-node"
 , "modality-cli-contract"
 , "modality-cli-ai"
+, "modality-rule-suite"
 , "modality-cli-predicate"
 , "modality-cli-program"
 , "modality-cli-chain"

@@ -57,6 +57,27 @@ pub async fn suggest(
     }
 }
 
+/// Run the Cursor CLI once in print mode with `prompt` in `workspace`, and
+/// return what it printed.
+pub async fn run_prompt(
+    config: &AiConfig,
+    prompt: &str,
+    api_key: Option<&str>,
+    workspace: &Path,
+) -> Result<String> {
+    let invocation = invocation(
+        config,
+        prompt,
+        api_key,
+        Some(workspace),
+        SuggestPrintMode::Print,
+    )?;
+    let CursorAgentInvocation { bin, args, cwd, .. } = invocation;
+    tokio::task::spawn_blocking(move || run_command(&bin, &args, &cwd, true))
+        .await
+        .context("cursor-agent task failed")?
+}
+
 pub(crate) fn invocation(
     config: &AiConfig,
     prompt: &str,

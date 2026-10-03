@@ -4184,6 +4184,7 @@ dependencies = [
  "clap",
  "modality-common",
  "modality-lang",
+ "modality-rule-suite",
  "percent-encoding",
  "reqwest",
  "serde",
@@ -4562,6 +4563,18 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "uuid",
+]
+
+[[package]]
+name = "modality-rule-suite"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "modality-common",
+ "modality-lang",
+ "serde",
+ "serde_json",
+ "toml",
 ]
 
 [[package]]

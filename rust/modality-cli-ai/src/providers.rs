@@ -108,7 +108,25 @@ pub async fn complete(
     api_key: Option<&str>,
     poster: &dyn JsonPoster,
 ) -> Result<String> {
-    let system = suggest_rule_system_prompt();
+    complete_with_system(
+        config,
+        &suggest_rule_system_prompt(),
+        user_prompt,
+        api_key,
+        poster,
+    )
+    .await
+}
+
+/// One completion over HTTP with the caller's system prompt.
+pub async fn complete_with_system(
+    config: &AiConfig,
+    system: &str,
+    user_prompt: &str,
+    api_key: Option<&str>,
+    poster: &dyn JsonPoster,
+) -> Result<String> {
+    let system = system.to_string();
     let provider = config.provider()?;
     let model = config.model()?;
     match provider {
@@ -166,7 +184,7 @@ async fn complete_anthropic(
     let url = format!("{}/v1/messages", base.trim_end_matches('/'));
     let body = json!({
         "model": model,
-        "max_tokens": 1024,
+        "max_tokens": 4096,
         "system": system,
         "messages": [{"role": "user", "content": user_prompt}]
     });
@@ -216,7 +234,7 @@ async fn complete_bedrock(
     let body = json!({
         "system": [{"text": system}],
         "messages": [{"role": "user", "content": [{"text": user_prompt}]}],
-        "inferenceConfig": {"maxTokens": 1024}
+        "inferenceConfig": {"maxTokens": 4096}
     });
     let headers = sign_bedrock_headers(&url, &body, &region)?;
     let value = poster.post_json(&url, &headers, &body).await?;

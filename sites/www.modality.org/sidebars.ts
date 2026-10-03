@@ -80,6 +80,7 @@ const sidebars: SidebarsConfig = {
         'reference/commit-methods',
         'reference/contract-evolution',
         'reference/verifier-rejections',
+        'reference/ai-rule-suite',
         'reference/synthesis-review',
         'reference/gotchas',
       ],

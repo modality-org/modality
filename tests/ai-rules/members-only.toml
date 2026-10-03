@@ -1,0 +1,191 @@
+# A members-only contract: three members, a charter, and a rule already
+# in force that every commit needs a member's signature.
+
+[fixture]
+name = "members-only"
+about = "Carol, Dave and Erin are members. Every commit already needs a member's signature."
+theory = "v3"
+paths = ["/notes"]
+rules = ['always([-any_signed(/members)] false)']
+model = '''
+model Contract {
+  part flow {
+    q0 --> q1
+    q1 --> q1: +any_signed(/members)
+  }
+}
+'''
+
+[fixture.state]
+"/members/carol.id" = "KEY_CAROL"
+"/members/dave.id" = "KEY_DAVE"
+"/members/erin.id" = "KEY_ERIN"
+"/notes/charter.text" = "We share notes."
+"/notes/budget.text" = "0"
+
+# ---------------------------------------------------------------------
+
+[[case]]
+id = "mo-membership-unanimous"
+tags = ["membership", "guards", "safety"]
+difficulty = 2
+request = "From now on, adding or removing a member needs every member's signature."
+paraphrases = [
+  "membership changes are unanimous after this commit",
+  "Going forward, the member list can only be changed by a commit all current members signed.",
+]
+why = "The missing negative guard: without -modifies(/members), the one-member edge also changes membership."
+formula = 'always([+modifies(/members) -all_signed(/members)] false)'
+witness = '''
+model Contract {
+  part flow {
+    q0 --> q1
+    q1 --> q1: +any_signed(/members) -modifies(/members)
+    q1 --> q1: +any_signed(/members) +modifies(/members) +all_signed(/members)
+  }
+}
+'''
+
+[[case.allow]]
+name = "Carol posts a note"
+signers = ["carol"]
+post = { "/notes/a.text" = "hi" }
+
+[[case.allow]]
+name = "all three add Frank"
+signers = ["carol", "dave", "erin"]
+post = { "/members/frank.id" = "KEY_FRANK" }
+
+[[case.forbid]]
+name = "Carol adds Frank alone"
+signers = ["carol"]
+post = { "/members/frank.id" = "KEY_FRANK" }
+leak = "q1 --> q1: +any_signed(/members)"
+
+[[case.forbid]]
+name = "Carol and Dave add Frank without Erin"
+signers = ["carol", "dave"]
+post = { "/members/frank.id" = "KEY_FRANK" }
+leak = "q1 --> q1: +any_signed(/members) +modifies(/members)"
+
+# ---------------------------------------------------------------------
+
+[[case]]
+id = "mo-membership-two"
+split = "heldout"
+tags = ["membership", "threshold", "safety"]
+difficulty = 2
+request = "From now on any two members together can add or remove a member, but one member alone cannot."
+paraphrases = [
+  "membership changes need 2 member signatures",
+  "After this commit, a change to who the members are must be signed by at least two of the members.",
+]
+formula = 'always([+modifies(/members) -threshold("2", /members)] false)'
+witness = '''
+model Contract {
+  part flow {
+    q0 --> q1
+    q1 --> q1: +any_signed(/members) -modifies(/members)
+    q1 --> q1: +any_signed(/members) +modifies(/members) +threshold("2", /members)
+  }
+}
+'''
+
+[[case.allow]]
+name = "Carol and Dave add Frank"
+signers = ["carol", "dave"]
+post = { "/members/frank.id" = "KEY_FRANK" }
+
+[[case.allow]]
+name = "Erin posts a note"
+signers = ["erin"]
+post = { "/notes/a.text" = "hi" }
+
+[[case.forbid]]
+name = "Carol adds Frank alone"
+signers = ["carol"]
+post = { "/members/frank.id" = "KEY_FRANK" }
+leak = "q1 --> q1: +any_signed(/members)"
+
+# ---------------------------------------------------------------------
+
+[[case]]
+id = "mo-charter-frozen"
+tags = ["guards", "safety"]
+request = "The charter at /notes/charter.text can never be changed again."
+paraphrases = [
+  "freeze the charter",
+  "From the next commit on, no commit may write to /notes/charter.text, whoever signs it.",
+]
+formula = 'always([+modifies(/notes/charter.text)] false)'
+witness = '''
+model Contract {
+  part flow {
+    q0 --> q1
+    q1 --> q1: +any_signed(/members) -modifies(/notes/charter.text)
+  }
+}
+'''
+
+[[case.allow]]
+name = "Carol posts another note"
+signers = ["carol"]
+post = { "/notes/a.text" = "hi" }
+
+[[case.forbid]]
+name = "every member rewrites the charter"
+signers = ["carol", "dave", "erin"]
+post = { "/notes/charter.text" = "new" }
+leak = "q1 --> q1: +any_signed(/members)"
+
+# ---------------------------------------------------------------------
+
+[[case]]
+id = "mo-budget-needs-erin"
+split = "heldout"
+tags = ["signers", "guards"]
+difficulty = 2
+request = "Erin has to co-sign anything that changes /notes/budget.text."
+paraphrases = [
+  "budget edits need erin",
+  "From now on, a commit that writes the budget note is accepted only with Erin's signature.",
+]
+formula = 'always([+modifies(/notes/budget.text) -signed_by(/members/erin.id)] false)'
+witness = '''
+model Contract {
+  part flow {
+    q0 --> q1
+    q1 --> q1: +any_signed(/members) -modifies(/notes/budget.text)
+    q1 --> q1: +any_signed(/members) +signed_by(/members/erin.id)
+  }
+}
+'''
+
+[[case.allow]]
+name = "Carol posts a note"
+signers = ["carol"]
+post = { "/notes/a.text" = "hi" }
+
+[[case.allow]]
+name = "Erin and Carol set the budget"
+signers = ["erin", "carol"]
+post = { "/notes/budget.text" = "100" }
+
+[[case.forbid]]
+name = "Carol sets the budget alone"
+signers = ["carol"]
+post = { "/notes/budget.text" = "100" }
+leak = "q1 --> q1: +any_signed(/members)"
+
+# ---------------------------------------------------------------------
+
+[[case]]
+id = "mo-no-member-signs"
+split = "heldout"
+expect = "no_rule"
+tags = ["contradictory", "fit-existing"]
+request = "From now on, members may not sign anything."
+paraphrases = [
+  "no member signatures after this commit",
+]
+why = "The rule in force already needs a member's signature on every commit, and rules are never removed: no later commit is possible."

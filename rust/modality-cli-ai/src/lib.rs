@@ -3,6 +3,7 @@
 pub mod complete;
 pub mod config;
 pub mod cursor_agent;
+pub mod eval;
 pub mod providers;
 pub mod set;
 pub mod show;
@@ -26,6 +27,8 @@ pub enum Commands {
     Show(show::Opts),
     /// Remove the configured AI provider
     Unset(unset::Opts),
+    /// Grade AI-written rules against the rule suite (tests/ai-rules)
+    Eval(eval::Opts),
 }
 
 pub async fn run(command: &Commands) -> Result<()> {
@@ -33,6 +36,7 @@ pub async fn run(command: &Commands) -> Result<()> {
         Commands::Set(opts) => set::run(opts),
         Commands::Show(opts) => show::run(opts),
         Commands::Unset(opts) => unset::run(opts),
+        Commands::Eval(opts) => eval::run(opts).await,
     }
 }
 

@@ -1,0 +1,191 @@
+# An owner and the agent it pays: a budget, a pause switch, and a rule
+# already in force that one of the two keys signs every commit.
+
+[fixture]
+name = "allowance"
+about = "An owner gives an agent a spending allowance. Spends are recorded under /spend. Number and boolean predicates read accepted state, not the commit being made."
+theory = "v3"
+paths = ["/spend"]
+rules = ['always([-signed_by(/keys/owner.id) -signed_by(/keys/agent.id)] false)']
+model = '''
+model Contract {
+  part flow {
+    q0 --> q1
+    q1 --> q1: +signed_by(/keys/owner.id)
+    q1 --> q1: +signed_by(/keys/agent.id)
+  }
+}
+'''
+
+[fixture.state]
+"/keys/owner.id" = "KEY_OWNER"
+"/keys/agent.id" = "KEY_AGENT"
+"/budget/remaining.num" = 100
+"/status/paused.bool" = false
+
+# ---------------------------------------------------------------------
+
+[[case]]
+id = "al-spend-while-budget"
+tags = ["numbers", "safety"]
+difficulty = 3
+request = "The agent may record a spend under /spend only while the remaining budget at /budget/remaining.num is above zero. The owner can always record spends."
+paraphrases = [
+  "agent spends need budget left (> 0); owner spends anytime",
+  "From now on, a commit by the agent that writes under /spend is refused once /budget/remaining.num is zero or less, unless the owner signs it.",
+]
+why = "num_* reads accepted state, so the gate is the budget before the spend, not the amount in it."
+formula = 'always([+modifies(/spend) -signed_by(/keys/owner.id) -num_gt(/budget/remaining.num, "0")] false)'
+witness = '''
+model Contract {
+  part flow {
+    q0 --> q1
+    q1 --> q1: +signed_by(/keys/owner.id)
+    q1 --> q1: +signed_by(/keys/agent.id) -modifies(/spend)
+    q1 --> q1: +signed_by(/keys/agent.id) +num_gt(/budget/remaining.num, "0")
+  }
+}
+'''
+
+[[case.allow]]
+name = "the agent spends with budget left"
+signers = ["agent"]
+post = { "/spend/1.num" = 30 }
+
+[[case.allow]]
+name = "the owner spends after the budget runs out"
+steps = [{ signers = ["owner"], post = { "/budget/remaining.num" = 0 } }]
+signers = ["owner"]
+post = { "/spend/2.num" = 30 }
+
+[[case.forbid]]
+name = "the agent spends after the budget runs out"
+steps = [{ signers = ["owner"], post = { "/budget/remaining.num" = 0 } }]
+signers = ["agent"]
+post = { "/spend/2.num" = 30 }
+leak = "q1 --> q1: +signed_by(/keys/agent.id)"
+
+# ---------------------------------------------------------------------
+
+[[case]]
+id = "al-budget-by-owner"
+split = "heldout"
+tags = ["signers", "guards", "safety"]
+request = "Only the owner may change anything under /budget."
+paraphrases = [
+  "budget is owner-only",
+  "From now on, a commit that writes under /budget must carry the owner's signature.",
+]
+formula = 'always([+modifies(/budget) -signed_by(/keys/owner.id)] false)'
+witness = '''
+model Contract {
+  part flow {
+    q0 --> q1
+    q1 --> q1: +signed_by(/keys/owner.id)
+    q1 --> q1: +signed_by(/keys/agent.id) -modifies(/budget)
+  }
+}
+'''
+
+[[case.allow]]
+name = "the owner raises the budget"
+signers = ["owner"]
+post = { "/budget/remaining.num" = 500 }
+
+[[case.allow]]
+name = "the agent records a spend"
+signers = ["agent"]
+post = { "/spend/1.num" = 10 }
+
+[[case.forbid]]
+name = "the agent raises its own budget"
+signers = ["agent"]
+post = { "/budget/remaining.num" = 1000 }
+leak = "q1 --> q1: +signed_by(/keys/agent.id)"
+
+# ---------------------------------------------------------------------
+
+[[case]]
+id = "al-paused-owner-only"
+tags = ["booleans", "safety"]
+difficulty = 2
+request = "While /status/paused.bool is true, only the owner may commit."
+paraphrases = [
+  "when paused, owner only",
+  "From now on, if the contract is paused (/status/paused.bool is true), any commit without the owner's signature is refused.",
+]
+why = "bool_true reads accepted state: the pause takes effect from the commit after it."
+formula = 'always([-signed_by(/keys/owner.id) +bool_true(/status/paused.bool)] false)'
+witness = '''
+model Contract {
+  part flow {
+    q0 --> q1
+    q1 --> q1: +signed_by(/keys/owner.id)
+    q1 --> q1: +signed_by(/keys/agent.id) -bool_true(/status/paused.bool)
+  }
+}
+'''
+
+[[case.allow]]
+name = "the agent spends while not paused"
+signers = ["agent"]
+post = { "/spend/1.num" = 10 }
+
+[[case.allow]]
+name = "the owner pauses, then commits"
+steps = [{ signers = ["owner"], post = { "/status/paused.bool" = true } }]
+signers = ["owner"]
+post = { "/spend/1.num" = 10 }
+
+[[case.forbid]]
+name = "the agent spends while paused"
+steps = [{ signers = ["owner"], post = { "/status/paused.bool" = true } }]
+signers = ["agent"]
+post = { "/spend/1.num" = 10 }
+leak = "q1 --> q1: +signed_by(/keys/agent.id)"
+
+# ---------------------------------------------------------------------
+
+[[case]]
+id = "al-spend-both-keys"
+split = "heldout"
+tags = ["signers", "safety"]
+difficulty = 2
+request = "Recording a spend now needs both the owner and the agent to sign."
+paraphrases = [
+  "spends are 2-of-2 owner+agent",
+  "After this commit, any commit that writes under /spend is accepted only with the owner's and the agent's signatures together.",
+]
+formula = 'always(([+modifies(/spend) -signed_by(/keys/owner.id)] false) & ([+modifies(/spend) -signed_by(/keys/agent.id)] false))'
+witness = '''
+model Contract {
+  part flow {
+    q0 --> q1
+    q1 --> q1: +signed_by(/keys/owner.id) -modifies(/spend)
+    q1 --> q1: +signed_by(/keys/agent.id) -modifies(/spend)
+    q1 --> q1: +signed_by(/keys/owner.id) +signed_by(/keys/agent.id)
+  }
+}
+'''
+
+[[case.allow]]
+name = "owner and agent record a spend"
+signers = ["owner", "agent"]
+post = { "/spend/1.num" = 20 }
+
+[[case.allow]]
+name = "the owner changes the budget alone"
+signers = ["owner"]
+post = { "/budget/remaining.num" = 50 }
+
+[[case.forbid]]
+name = "the agent spends alone"
+signers = ["agent"]
+post = { "/spend/1.num" = 10 }
+leak = "q1 --> q1: +signed_by(/keys/agent.id)"
+
+[[case.forbid]]
+name = "the owner spends alone"
+signers = ["owner"]
+post = { "/spend/1.num" = 10 }
+leak = "q1 --> q1: +signed_by(/keys/owner.id)"

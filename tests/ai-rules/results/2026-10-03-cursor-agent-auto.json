@@ -1,0 +1,1036 @@
+{
+  "suite": "tests/ai-rules",
+  "source": "cursor-agent auto",
+  "content": "cookbook",
+  "runs": [
+    {
+      "case": "al-spend-while-budget",
+      "fixture": "allowance",
+      "tags": [
+        "numbers",
+        "safety"
+      ],
+      "wording": 0,
+      "attempt": 0,
+      "answer": {
+        "kind": "rule",
+        "formula": "always([+modifies(/spend) +signed_by(/keys/agent.id) -signed_by(/keys/owner.id) -num_gt(/budget/remaining.num, \"0\")] false)",
+        "witness": "model Contract {\n  part flow {\n    q0 --> q1\n    q1 --> q1: +signed_by(/keys/owner.id)\n    q1 --> q1: +signed_by(/keys/agent.id) -modifies(/spend)\n    q1 --> q1: +signed_by(/keys/agent.id) +num_gt(/budget/remaining.num, \"0\")\n  }\n}",
+        "assumption": "A spend is any write under /spend. An agent-only spend is allowed only when accepted remaining is already > 0; an owner-signed spend (including co-signed) is allowed even when remaining is 0.",
+        "question": null,
+        "explanation": "The standing box refuses an agent-signed, owner-unsigned write under /spend unless accepted remaining is already above zero. Owner-signed spends stay open, and the agent can still act on other paths when remaining is 0."
+      },
+      "raw": "{\"kind\": \"rule\", \"formula\": \"always([+modifies(/spend) +signed_by(/keys/agent.id) -signed_by(/keys/owner.id) -num_gt(/budget/remaining.num, \\\"0\\\")] false)\", \"witness\": \"model Contract {\\n  part flow {\\n    q0 --> q1\\n    q1 --> q1: +signed_by(/keys/owner.id)\\n    q1 --> q1: +signed_by(/keys/agent.id) -modifies(/spend)\\n    q1 --> q1: +signed_by(/keys/agent.id) +num_gt(/budget/remaining.num, \\\"0\\\")\\n  }\\n}\", \"assumption\": \"A spend is any write under /spend. An agent-only spend is allowed only when accepted remaining is already > 0; an owner-signed spend (including co-signed) is allowed even when remaining is 0.\", \"question\": \"\", \"explanation\": \"The standing box refuses an agent-signed, owner-unsigned write under /spend unless accepted remaining is already above zero. Owner-signed spends stay open, and the agent can still act on other paths when remaining is 0.\"}\n",
+      "grade": {
+        "pass": true,
+        "exact": true,
+        "kind": "rule",
+        "reading": 0,
+        "rule": {
+          "checks": [
+            {
+              "grade": "G0",
+              "status": "pass",
+              "notes": []
+            },
+            {
+              "grade": "G1",
+              "status": "pass",
+              "notes": []
+            },
+            {
+              "grade": "G2",
+              "status": "pass",
+              "notes": [
+                "met with the contract's rules by the answer's witness"
+              ]
+            },
+            {
+              "grade": "G3",
+              "status": "pass",
+              "notes": []
+            },
+            {
+              "grade": "G4",
+              "status": "pass",
+              "notes": []
+            },
+            {
+              "grade": "G5",
+              "status": "pass",
+              "notes": [
+                "0 disagreements on 9 probe models"
+              ]
+            },
+            {
+              "grade": "G6",
+              "status": "pass",
+              "notes": []
+            }
+          ],
+          "reasonable": true,
+          "exact": true
+        },
+        "notes": []
+      }
+    },
+    {
+      "case": "al-budget-by-owner",
+      "fixture": "allowance",
+      "tags": [
+        "signers",
+        "guards",
+        "safety"
+      ],
+      "wording": 0,
+      "attempt": 0,
+      "answer": {
+        "kind": "rule",
+        "formula": "always([+modifies(/budget) -signed_by(/keys/owner.id)] false)",
+        "witness": "model Contract {\n  part flow {\n    q0 --> q1\n    q1 --> q1: +signed_by(/keys/owner.id)\n    q1 --> q1: +signed_by(/keys/agent.id) -modifies(/budget)\n  }\n}",
+        "assumption": null,
+        "question": null,
+        "explanation": "From the next commit on, any write under /budget without the owner key is refused. The agent may still sign later commits that leave /budget unchanged."
+      },
+      "raw": "{\"kind\": \"rule\", \"formula\": \"always([+modifies(/budget) -signed_by(/keys/owner.id)] false)\", \"witness\": \"model Contract {\\n  part flow {\\n    q0 --> q1\\n    q1 --> q1: +signed_by(/keys/owner.id)\\n    q1 --> q1: +signed_by(/keys/agent.id) -modifies(/budget)\\n  }\\n}\", \"assumption\": \"\", \"question\": \"\", \"explanation\": \"From the next commit on, any write under /budget without the owner key is refused. The agent may still sign later commits that leave /budget unchanged.\"}\n",
+      "grade": {
+        "pass": true,
+        "exact": true,
+        "kind": "rule",
+        "reading": 0,
+        "rule": {
+          "checks": [
+            {
+              "grade": "G0",
+              "status": "pass",
+              "notes": []
+            },
+            {
+              "grade": "G1",
+              "status": "pass",
+              "notes": []
+            },
+            {
+              "grade": "G2",
+              "status": "pass",
+              "notes": [
+                "met with the contract's rules by the answer's witness"
+              ]
+            },
+            {
+              "grade": "G3",
+              "status": "pass",
+              "notes": []
+            },
+            {
+              "grade": "G4",
+              "status": "pass",
+              "notes": []
+            },
+            {
+              "grade": "G5",
+              "status": "pass",
+              "notes": [
+                "same text as the reference"
+              ]
+            },
+            {
+              "grade": "G6",
+              "status": "pass",
+              "notes": []
+            }
+          ],
+          "reasonable": true,
+          "exact": true
+        },
+        "notes": []
+      }
+    },
+    {
+      "case": "al-paused-owner-only",
+      "fixture": "allowance",
+      "tags": [
+        "booleans",
+        "safety"
+      ],
+      "wording": 0,
+      "attempt": 0,
+      "answer": {
+        "kind": "rule",
+        "formula": "always([+bool_true(/status/paused.bool) -signed_by(/keys/owner.id)] false)",
+        "witness": "model Contract {\n  part flow {\n    q0 --> q1\n    q1 --> q1: +signed_by(/keys/owner.id)\n    q1 --> q1: +signed_by(/keys/agent.id) +bool_false(/status/paused.bool)\n  }\n}",
+        "assumption": "When accepted-state /status/paused.bool is already true, a later commit must carry the owner's signature; the agent may still co-sign, and may commit alone only while paused is false. bool_* reads accepted state, so the commit that first sets paused is not itself treated as paused.",
+        "question": null,
+        "explanation": "Together with the existing owner-or-agent rule, this forbids agent-only commits while paused and still leaves owner-signed self-loops, so later commits remain possible."
+      },
+      "raw": "{\"kind\": \"rule\", \"formula\": \"always([+bool_true(/status/paused.bool) -signed_by(/keys/owner.id)] false)\", \"witness\": \"model Contract {\\n  part flow {\\n    q0 --> q1\\n    q1 --> q1: +signed_by(/keys/owner.id)\\n    q1 --> q1: +signed_by(/keys/agent.id) +bool_false(/status/paused.bool)\\n  }\\n}\", \"assumption\": \"When accepted-state /status/paused.bool is already true, a later commit must carry the owner's signature; the agent may still co-sign, and may commit alone only while paused is false. bool_* reads accepted state, so the commit that first sets paused is not itself treated as paused.\", \"question\": \"\", \"explanation\": \"Together with the existing owner-or-agent rule, this forbids agent-only commits while paused and still leaves owner-signed self-loops, so later commits remain possible.\"}\n",
+      "grade": {
+        "pass": true,
+        "exact": true,
+        "kind": "rule",
+        "reading": 0,
+        "rule": {
+          "checks": [
+            {
+              "grade": "G0",
+              "status": "pass",
+              "notes": []
+            },
+            {
+              "grade": "G1",
+              "status": "pass",
+              "notes": []
+            },
+            {
+              "grade": "G2",
+              "status": "pass",
+              "notes": [
+                "met with the contract's rules by the answer's witness"
+              ]
+            },
+            {
+              "grade": "G3",
+              "status": "pass",
+              "notes": []
+            },
+            {
+              "grade": "G4",
+              "status": "pass",
+              "notes": []
+            },
+            {
+              "grade": "G5",
+              "status": "pass",
+              "notes": [
+                "0 disagreements on 6 probe models"
+              ]
+            },
+            {
+              "grade": "G6",
+              "status": "pass",
+              "notes": []
+            }
+          ],
+          "reasonable": true,
+          "exact": true
+        },
+        "notes": []
+      }
+    },
+    {
+      "case": "al-spend-both-keys",
+      "fixture": "allowance",
+      "tags": [
+        "signers",
+        "safety"
+      ],
+      "wording": 0,
+      "attempt": 0,
+      "answer": {
+        "kind": "rule",
+        "formula": "always(([+modifies(/spend) -signed_by(/keys/owner.id)] false) & ([+modifies(/spend) -signed_by(/keys/agent.id)] false))",
+        "witness": "model Contract {\n  part flow {\n    q0 --> q1\n    q1 --> q1: +signed_by(/keys/owner.id) -modifies(/spend)\n    q1 --> q1: +signed_by(/keys/agent.id) -modifies(/spend)\n    q1 --> q1: +signed_by(/keys/owner.id) +signed_by(/keys/agent.id) +modifies(/spend)\n  }\n}",
+        "assumption": "A spend is any later commit that writes under /spend; other commits may still be signed by owner or agent alone.",
+        "question": null,
+        "explanation": "Two boxes are required so a write under /spend is refused unless both keys sign. Non-spend commits stay allowed under the existing either-signer rule."
+      },
+      "raw": "{\"kind\": \"rule\", \"formula\": \"always(([+modifies(/spend) -signed_by(/keys/owner.id)] false) & ([+modifies(/spend) -signed_by(/keys/agent.id)] false))\", \"witness\": \"model Contract {\\n  part flow {\\n    q0 --> q1\\n    q1 --> q1: +signed_by(/keys/owner.id) -modifies(/spend)\\n    q1 --> q1: +signed_by(/keys/agent.id) -modifies(/spend)\\n    q1 --> q1: +signed_by(/keys/owner.id) +signed_by(/keys/agent.id) +modifies(/spend)\\n  }\\n}\", \"assumption\": \"A spend is any later commit that writes under /spend; other commits may still be signed by owner or agent alone.\", \"question\": \"\", \"explanation\": \"Two boxes are required so a write under /spend is refused unless both keys sign. Non-spend commits stay allowed under the existing either-signer rule.\"}\n",
+      "grade": {
+        "pass": true,
+        "exact": true,
+        "kind": "rule",
+        "reading": 0,
+        "rule": {
+          "checks": [
+            {
+              "grade": "G0",
+              "status": "pass",
+              "notes": []
+            },
+            {
+              "grade": "G1",
+              "status": "pass",
+              "notes": []
+            },
+            {
+              "grade": "G2",
+              "status": "pass",
+              "notes": [
+                "met with the contract's rules by the answer's witness"
+              ]
+            },
+            {
+              "grade": "G3",
+              "status": "pass",
+              "notes": []
+            },
+            {
+              "grade": "G4",
+              "status": "pass",
+              "notes": []
+            },
+            {
+              "grade": "G5",
+              "status": "pass",
+              "notes": [
+                "same text as the reference"
+              ]
+            },
+            {
+              "grade": "G6",
+              "status": "pass",
+              "notes": []
+            }
+          ],
+          "reasonable": true,
+          "exact": true
+        },
+        "notes": []
+      }
+    },
+    {
+      "case": "fc-either-signs",
+      "fixture": "first-contract",
+      "tags": [
+        "signers"
+      ],
+      "wording": 0,
+      "attempt": 0,
+      "answer": {
+        "kind": "rule",
+        "formula": "always([-signed_by(/parties/alice.id) -signed_by(/parties/bob.id)] false)",
+        "witness": "model Contract {\n  part flow {\n    q0 --> q1\n    q1 --> q1: +signed_by(/parties/alice.id)\n    q1 --> q1: +signed_by(/parties/bob.id)\n  }\n}",
+        "assumption": null,
+        "question": null,
+        "explanation": "From now on every later commit must carry Alice's or Bob's signature; either key is enough."
+      },
+      "raw": "{\"kind\": \"rule\", \"formula\": \"always([-signed_by(/parties/alice.id) -signed_by(/parties/bob.id)] false)\", \"witness\": \"model Contract {\\n  part flow {\\n    q0 --> q1\\n    q1 --> q1: +signed_by(/parties/alice.id)\\n    q1 --> q1: +signed_by(/parties/bob.id)\\n  }\\n}\", \"assumption\": \"\", \"question\": \"\", \"explanation\": \"From now on every later commit must carry Alice's or Bob's signature; either key is enough.\"}\n",
+      "grade": {
+        "pass": true,
+        "exact": true,
+        "kind": "rule",
+        "reading": 0,
+        "rule": {
+          "checks": [
+            {
+              "grade": "G0",
+              "status": "pass",
+              "notes": []
+            },
+            {
+              "grade": "G1",
+              "status": "pass",
+              "notes": []
+            },
+            {
+              "grade": "G2",
+              "status": "pass",
+              "notes": [
+                "met with the contract's rules by the answer's witness"
+              ]
+            },
+            {
+              "grade": "G3",
+              "status": "pass",
+              "notes": []
+            },
+            {
+              "grade": "G4",
+              "status": "pass",
+              "notes": []
+            },
+            {
+              "grade": "G5",
+              "status": "pass",
+              "notes": [
+                "same text as the reference"
+              ]
+            },
+            {
+              "grade": "G6",
+              "status": "pass",
+              "notes": []
+            }
+          ],
+          "reasonable": true,
+          "exact": true
+        },
+        "notes": []
+      }
+    },
+    {
+      "case": "fc-alice-signs",
+      "fixture": "first-contract",
+      "tags": [
+        "signers"
+      ],
+      "wording": 0,
+      "attempt": 0,
+      "answer": {
+        "kind": "rule",
+        "formula": "always([-signed_by(/parties/alice.id)] false)",
+        "witness": "model Contract {\n  part flow {\n    q0 --> q1\n    q1 --> q1: +signed_by(/parties/alice.id)\n  }\n}",
+        "assumption": null,
+        "question": null,
+        "explanation": "From the next commit onward, any step that lacks Alice's signature is forbidden."
+      },
+      "raw": "{\"kind\": \"rule\", \"formula\": \"always([-signed_by(/parties/alice.id)] false)\", \"witness\": \"model Contract {\\n  part flow {\\n    q0 --> q1\\n    q1 --> q1: +signed_by(/parties/alice.id)\\n  }\\n}\", \"assumption\": \"\", \"question\": \"\", \"explanation\": \"From the next commit onward, any step that lacks Alice's signature is forbidden.\"}\n",
+      "grade": {
+        "pass": true,
+        "exact": true,
+        "kind": "rule",
+        "reading": 0,
+        "rule": {
+          "checks": [
+            {
+              "grade": "G0",
+              "status": "pass",
+              "notes": []
+            },
+            {
+              "grade": "G1",
+              "status": "pass",
+              "notes": []
+            },
+            {
+              "grade": "G2",
+              "status": "pass",
+              "notes": [
+                "met with the contract's rules by the answer's witness"
+              ]
+            },
+            {
+              "grade": "G3",
+              "status": "pass",
+              "notes": []
+            },
+            {
+              "grade": "G4",
+              "status": "pass",
+              "notes": []
+            },
+            {
+              "grade": "G5",
+              "status": "pass",
+              "notes": [
+                "same text as the reference"
+              ]
+            },
+            {
+              "grade": "G6",
+              "status": "pass",
+              "notes": []
+            }
+          ],
+          "reasonable": true,
+          "exact": true
+        },
+        "notes": []
+      }
+    },
+    {
+      "case": "fc-alternate",
+      "fixture": "first-contract",
+      "tags": [
+        "signers",
+        "alternation"
+      ],
+      "wording": 0,
+      "attempt": 0,
+      "answer": {
+        "kind": "rule",
+        "formula": "always(([-signed_by(/parties/alice.id) -signed_by(/parties/bob.id)] false) & ([+signed_by(/parties/alice.id)] [-signed_by(/parties/bob.id)] false) & ([+signed_by(/parties/bob.id)] [-signed_by(/parties/alice.id)] false))",
+        "witness": "model Contract {\n  part flow {\n    q0 --> q1\n    q1 --> q2: +signed_by(/parties/alice.id) -signed_by(/parties/bob.id)\n    q1 --> q3: +signed_by(/parties/bob.id) -signed_by(/parties/alice.id)\n    q2 --> q3: +signed_by(/parties/bob.id) -signed_by(/parties/alice.id)\n    q3 --> q2: +signed_by(/parties/alice.id) -signed_by(/parties/bob.id)\n  }\n}",
+        "assumption": "Either Alice or Bob may sign the first later commit; after that they must strictly alternate.",
+        "question": null,
+        "explanation": "From now on every commit must be signed by Alice or Bob, and a commit signed by one of them cannot be followed by another signed by the same person."
+      },
+      "raw": "{\"kind\": \"rule\", \"formula\": \"always(([-signed_by(/parties/alice.id) -signed_by(/parties/bob.id)] false) & ([+signed_by(/parties/alice.id)] [-signed_by(/parties/bob.id)] false) & ([+signed_by(/parties/bob.id)] [-signed_by(/parties/alice.id)] false))\", \"witness\": \"model Contract {\\n  part flow {\\n    q0 --> q1\\n    q1 --> q2: +signed_by(/parties/alice.id) -signed_by(/parties/bob.id)\\n    q1 --> q3: +signed_by(/parties/bob.id) -signed_by(/parties/alice.id)\\n    q2 --> q3: +signed_by(/parties/bob.id) -signed_by(/parties/alice.id)\\n    q3 --> q2: +signed_by(/parties/alice.id) -signed_by(/parties/bob.id)\\n  }\\n}\", \"assumption\": \"Either Alice or Bob may sign the first later commit; after that they must strictly alternate.\", \"question\": \"\", \"explanation\": \"From now on every commit must be signed by Alice or Bob, and a commit signed by one of them cannot be followed by another signed by the same person.\"}\n",
+      "grade": {
+        "pass": true,
+        "exact": true,
+        "kind": "rule",
+        "reading": 0,
+        "rule": {
+          "checks": [
+            {
+              "grade": "G0",
+              "status": "pass",
+              "notes": []
+            },
+            {
+              "grade": "G1",
+              "status": "pass",
+              "notes": []
+            },
+            {
+              "grade": "G2",
+              "status": "pass",
+              "notes": [
+                "met with the contract's rules by the answer's witness"
+              ]
+            },
+            {
+              "grade": "G3",
+              "status": "pass",
+              "notes": []
+            },
+            {
+              "grade": "G4",
+              "status": "pass",
+              "notes": []
+            },
+            {
+              "grade": "G5",
+              "status": "pass",
+              "notes": [
+                "same text as the reference"
+              ]
+            },
+            {
+              "grade": "G6",
+              "status": "pass",
+              "notes": []
+            }
+          ],
+          "reasonable": true,
+          "exact": true
+        },
+        "notes": []
+      }
+    },
+    {
+      "case": "fc-both-sign",
+      "fixture": "first-contract",
+      "tags": [
+        "signers"
+      ],
+      "wording": 0,
+      "attempt": 0,
+      "answer": {
+        "kind": "rule",
+        "formula": "always(([-signed_by(/parties/alice.id)] false) & ([-signed_by(/parties/bob.id)] false))",
+        "witness": "model Contract {\n  part flow {\n    q0 --> q1\n    q1 --> q1: +signed_by(/parties/alice.id) +signed_by(/parties/bob.id)\n  }\n}",
+        "assumption": "Every later commit must carry both Alice's and Bob's signatures.",
+        "question": null,
+        "explanation": "Two separate boxes require both keys; a single box with both -signed_by literals would allow either signer alone."
+      },
+      "raw": "{\"kind\": \"rule\", \"formula\": \"always(([-signed_by(/parties/alice.id)] false) & ([-signed_by(/parties/bob.id)] false))\", \"witness\": \"model Contract {\\n  part flow {\\n    q0 --> q1\\n    q1 --> q1: +signed_by(/parties/alice.id) +signed_by(/parties/bob.id)\\n  }\\n}\", \"assumption\": \"Every later commit must carry both Alice's and Bob's signatures.\", \"question\": \"\", \"explanation\": \"Two separate boxes require both keys; a single box with both -signed_by literals would allow either signer alone.\"}\n",
+      "grade": {
+        "pass": true,
+        "exact": true,
+        "kind": "rule",
+        "reading": 0,
+        "rule": {
+          "checks": [
+            {
+              "grade": "G0",
+              "status": "pass",
+              "notes": []
+            },
+            {
+              "grade": "G1",
+              "status": "pass",
+              "notes": []
+            },
+            {
+              "grade": "G2",
+              "status": "pass",
+              "notes": [
+                "met with the contract's rules by the answer's witness"
+              ]
+            },
+            {
+              "grade": "G3",
+              "status": "pass",
+              "notes": []
+            },
+            {
+              "grade": "G4",
+              "status": "pass",
+              "notes": []
+            },
+            {
+              "grade": "G5",
+              "status": "pass",
+              "notes": [
+                "same text as the reference"
+              ]
+            },
+            {
+              "grade": "G6",
+              "status": "pass",
+              "notes": []
+            }
+          ],
+          "reasonable": true,
+          "exact": true
+        },
+        "notes": []
+      }
+    },
+    {
+      "case": "fc-alice-never-and-always",
+      "fixture": "first-contract",
+      "tags": [
+        "contradictory"
+      ],
+      "wording": 0,
+      "attempt": 0,
+      "answer": {
+        "kind": "no_rule",
+        "formula": null,
+        "witness": null,
+        "assumption": null,
+        "question": null,
+        "explanation": "The request is contradictory: requiring Alice to sign every later commit and forbidding Alice from signing any later commit leaves no possible commit after the rule is added."
+      },
+      "raw": "{\"kind\": \"no_rule\", \"formula\": \"\", \"witness\": \"\", \"assumption\": \"\", \"question\": \"\", \"explanation\": \"The request is contradictory: requiring Alice to sign every later commit and forbidding Alice from signing any later commit leaves no possible commit after the rule is added.\"}\n",
+      "grade": {
+        "pass": true,
+        "exact": true,
+        "kind": "no_rule",
+        "reading": null,
+        "rule": null,
+        "notes": []
+      }
+    },
+    {
+      "case": "fc-bob-not-alone",
+      "fixture": "first-contract",
+      "tags": [
+        "signers",
+        "ambiguous"
+      ],
+      "wording": 0,
+      "attempt": 0,
+      "answer": {
+        "kind": "rule",
+        "formula": "always([+signed_by(/parties/bob.id) -signed_by(/parties/alice.id)] false)",
+        "witness": "model Contract {\n  part flow {\n    q0 --> q1\n    q1 --> q1: -signed_by(/parties/bob.id)\n    q1 --> q1: +signed_by(/parties/alice.id)\n  }\n}",
+        "assumption": "Bob may still commit, but only with Alice's co-signature; Alice, unsigned commits, and other keys remain free to act without Bob.",
+        "question": null,
+        "explanation": "A later commit that carries Bob's key and not Alice's is forbidden, so Bob cannot act by himself. Commits that omit Bob's signature, or that include Alice's, still satisfy the rule."
+      },
+      "raw": "{\"kind\": \"rule\", \"formula\": \"always([+signed_by(/parties/bob.id) -signed_by(/parties/alice.id)] false)\", \"witness\": \"model Contract {\\n  part flow {\\n    q0 --> q1\\n    q1 --> q1: -signed_by(/parties/bob.id)\\n    q1 --> q1: +signed_by(/parties/alice.id)\\n  }\\n}\", \"assumption\": \"Bob may still commit, but only with Alice's co-signature; Alice, unsigned commits, and other keys remain free to act without Bob.\", \"question\": \"\", \"explanation\": \"A later commit that carries Bob's key and not Alice's is forbidden, so Bob cannot act by himself. Commits that omit Bob's signature, or that include Alice's, still satisfy the rule.\"}\n",
+      "grade": {
+        "pass": true,
+        "exact": true,
+        "kind": "rule",
+        "reading": 0,
+        "rule": {
+          "checks": [
+            {
+              "grade": "G0",
+              "status": "pass",
+              "notes": []
+            },
+            {
+              "grade": "G1",
+              "status": "pass",
+              "notes": []
+            },
+            {
+              "grade": "G2",
+              "status": "pass",
+              "notes": [
+                "met with the contract's rules by the answer's witness"
+              ]
+            },
+            {
+              "grade": "G3",
+              "status": "pass",
+              "notes": []
+            },
+            {
+              "grade": "G4",
+              "status": "pass",
+              "notes": []
+            },
+            {
+              "grade": "G5",
+              "status": "pass",
+              "notes": [
+                "same text as the reference"
+              ]
+            },
+            {
+              "grade": "G6",
+              "status": "pass",
+              "notes": []
+            }
+          ],
+          "reasonable": true,
+          "exact": true
+        },
+        "notes": []
+      }
+    },
+    {
+      "case": "mo-membership-unanimous",
+      "fixture": "members-only",
+      "tags": [
+        "membership",
+        "guards",
+        "safety"
+      ],
+      "wording": 0,
+      "attempt": 0,
+      "answer": {
+        "kind": "rule",
+        "formula": "always([+modifies(/members) -all_signed(/members)] false)",
+        "witness": "model Contract {\n  part flow {\n    q0 --> q1\n    q1 --> q1: +any_signed(/members) -modifies(/members)\n    q1 --> q1: +all_signed(/members) +modifies(/members)\n  }\n}",
+        "assumption": "Any later write under /members (add, remove, or replace a member key) must be signed by every currently registered member; other commits still need only some member.",
+        "question": null,
+        "explanation": "The existing any-member rule stays in force for ordinary commits. This rule only tightens membership changes: a commit that writes under /members without all_signed(/members) is forbidden."
+      },
+      "raw": "{\"kind\": \"rule\", \"formula\": \"always([+modifies(/members) -all_signed(/members)] false)\", \"witness\": \"model Contract {\\n  part flow {\\n    q0 --> q1\\n    q1 --> q1: +any_signed(/members) -modifies(/members)\\n    q1 --> q1: +all_signed(/members) +modifies(/members)\\n  }\\n}\", \"assumption\": \"Any later write under /members (add, remove, or replace a member key) must be signed by every currently registered member; other commits still need only some member.\", \"question\": \"\", \"explanation\": \"The existing any-member rule stays in force for ordinary commits. This rule only tightens membership changes: a commit that writes under /members without all_signed(/members) is forbidden.\"}\n",
+      "grade": {
+        "pass": true,
+        "exact": true,
+        "kind": "rule",
+        "reading": 0,
+        "rule": {
+          "checks": [
+            {
+              "grade": "G0",
+              "status": "pass",
+              "notes": []
+            },
+            {
+              "grade": "G1",
+              "status": "pass",
+              "notes": []
+            },
+            {
+              "grade": "G2",
+              "status": "pass",
+              "notes": [
+                "met with the contract's rules by the answer's witness"
+              ]
+            },
+            {
+              "grade": "G3",
+              "status": "pass",
+              "notes": []
+            },
+            {
+              "grade": "G4",
+              "status": "pass",
+              "notes": []
+            },
+            {
+              "grade": "G5",
+              "status": "pass",
+              "notes": [
+                "same text as the reference"
+              ]
+            },
+            {
+              "grade": "G6",
+              "status": "pass",
+              "notes": []
+            }
+          ],
+          "reasonable": true,
+          "exact": true
+        },
+        "notes": []
+      }
+    },
+    {
+      "case": "mo-membership-two",
+      "fixture": "members-only",
+      "tags": [
+        "membership",
+        "threshold",
+        "safety"
+      ],
+      "wording": 0,
+      "attempt": 0,
+      "answer": {
+        "kind": "rule",
+        "formula": "always([+modifies(/members) -threshold(\"2\", /members)] false)",
+        "witness": "model Contract {\n  part flow {\n    q0 --> q1\n    q1 --> q1: +any_signed(/members) -modifies(/members)\n    q1 --> q1: +any_signed(/members) +threshold(\"2\", /members) +modifies(/members)\n  }\n}",
+        "assumption": "Any write under /members needs at least two signatures from the accepted /members keys (2-of-n, not a named pair and not unanimous). One member may still change other paths.",
+        "question": null,
+        "explanation": "The new rule forbids membership changes without two member signatures, and still allows a later commit: a single member can edit notes, and any two members can add or remove a member."
+      },
+      "raw": "{\"kind\": \"rule\", \"formula\": \"always([+modifies(/members) -threshold(\\\"2\\\", /members)] false)\", \"witness\": \"model Contract {\\n  part flow {\\n    q0 --> q1\\n    q1 --> q1: +any_signed(/members) -modifies(/members)\\n    q1 --> q1: +any_signed(/members) +threshold(\\\"2\\\", /members) +modifies(/members)\\n  }\\n}\", \"assumption\": \"Any write under /members needs at least two signatures from the accepted /members keys (2-of-n, not a named pair and not unanimous). One member may still change other paths.\", \"question\": \"\", \"explanation\": \"The new rule forbids membership changes without two member signatures, and still allows a later commit: a single member can edit notes, and any two members can add or remove a member.\"}\n",
+      "grade": {
+        "pass": true,
+        "exact": true,
+        "kind": "rule",
+        "reading": 0,
+        "rule": {
+          "checks": [
+            {
+              "grade": "G0",
+              "status": "pass",
+              "notes": []
+            },
+            {
+              "grade": "G1",
+              "status": "pass",
+              "notes": []
+            },
+            {
+              "grade": "G2",
+              "status": "pass",
+              "notes": [
+                "met with the contract's rules by the answer's witness"
+              ]
+            },
+            {
+              "grade": "G3",
+              "status": "pass",
+              "notes": []
+            },
+            {
+              "grade": "G4",
+              "status": "pass",
+              "notes": []
+            },
+            {
+              "grade": "G5",
+              "status": "pass",
+              "notes": [
+                "same text as the reference"
+              ]
+            },
+            {
+              "grade": "G6",
+              "status": "pass",
+              "notes": []
+            }
+          ],
+          "reasonable": true,
+          "exact": true
+        },
+        "notes": []
+      }
+    },
+    {
+      "case": "mo-charter-frozen",
+      "fixture": "members-only",
+      "tags": [
+        "guards",
+        "safety"
+      ],
+      "wording": 0,
+      "attempt": 0,
+      "answer": {
+        "kind": "rule",
+        "formula": "always([+modifies(/notes/charter.text)] false)",
+        "witness": "model Contract {\n  part flow {\n    q0 --> q1\n    q1 --> q1: +any_signed(/members) -modifies(/notes/charter.text)\n  }\n}",
+        "assumption": null,
+        "question": null,
+        "explanation": "After the commit that adds this rule, any later commit that writes /notes/charter.text is forbidden. Other member-signed commits remain possible."
+      },
+      "raw": "{\"kind\": \"rule\", \"formula\": \"always([+modifies(/notes/charter.text)] false)\", \"witness\": \"model Contract {\\n  part flow {\\n    q0 --> q1\\n    q1 --> q1: +any_signed(/members) -modifies(/notes/charter.text)\\n  }\\n}\", \"assumption\": \"\", \"question\": \"\", \"explanation\": \"After the commit that adds this rule, any later commit that writes /notes/charter.text is forbidden. Other member-signed commits remain possible.\"}\n",
+      "grade": {
+        "pass": true,
+        "exact": true,
+        "kind": "rule",
+        "reading": 0,
+        "rule": {
+          "checks": [
+            {
+              "grade": "G0",
+              "status": "pass",
+              "notes": []
+            },
+            {
+              "grade": "G1",
+              "status": "pass",
+              "notes": []
+            },
+            {
+              "grade": "G2",
+              "status": "pass",
+              "notes": [
+                "met with the contract's rules by the answer's witness"
+              ]
+            },
+            {
+              "grade": "G3",
+              "status": "pass",
+              "notes": []
+            },
+            {
+              "grade": "G4",
+              "status": "pass",
+              "notes": []
+            },
+            {
+              "grade": "G5",
+              "status": "pass",
+              "notes": [
+                "same text as the reference"
+              ]
+            },
+            {
+              "grade": "G6",
+              "status": "pass",
+              "notes": []
+            }
+          ],
+          "reasonable": true,
+          "exact": true
+        },
+        "notes": []
+      }
+    },
+    {
+      "case": "mo-budget-needs-erin",
+      "fixture": "members-only",
+      "tags": [
+        "signers",
+        "guards"
+      ],
+      "wording": 0,
+      "attempt": 0,
+      "answer": {
+        "kind": "rule",
+        "formula": "always([+modifies(/notes/budget.text) -signed_by(/members/erin.id)] false)",
+        "witness": "model Contract {\n  part flow {\n    q0 --> q1\n    q1 --> q1: +any_signed(/members) -modifies(/notes/budget.text)\n    q1 --> q1: +signed_by(/members/erin.id)\n  }\n}",
+        "assumption": "A later commit that writes /notes/budget.text must carry Erin's signature; she may be the only signer on that commit. Other later commits still need any member, as today.",
+        "question": null,
+        "explanation": "The existing member-signature rule stays in force. This rule only forbids writing the budget note without Erin, so Carol or Dave can still change other notes alone."
+      },
+      "raw": "{\"kind\": \"rule\", \"formula\": \"always([+modifies(/notes/budget.text) -signed_by(/members/erin.id)] false)\", \"witness\": \"model Contract {\\n  part flow {\\n    q0 --> q1\\n    q1 --> q1: +any_signed(/members) -modifies(/notes/budget.text)\\n    q1 --> q1: +signed_by(/members/erin.id)\\n  }\\n}\", \"assumption\": \"A later commit that writes /notes/budget.text must carry Erin's signature; she may be the only signer on that commit. Other later commits still need any member, as today.\", \"question\": \"\", \"explanation\": \"The existing member-signature rule stays in force. This rule only forbids writing the budget note without Erin, so Carol or Dave can still change other notes alone.\"}\n",
+      "grade": {
+        "pass": true,
+        "exact": true,
+        "kind": "rule",
+        "reading": 0,
+        "rule": {
+          "checks": [
+            {
+              "grade": "G0",
+              "status": "pass",
+              "notes": []
+            },
+            {
+              "grade": "G1",
+              "status": "pass",
+              "notes": []
+            },
+            {
+              "grade": "G2",
+              "status": "pass",
+              "notes": [
+                "met with the contract's rules by the answer's witness"
+              ]
+            },
+            {
+              "grade": "G3",
+              "status": "pass",
+              "notes": []
+            },
+            {
+              "grade": "G4",
+              "status": "pass",
+              "notes": []
+            },
+            {
+              "grade": "G5",
+              "status": "pass",
+              "notes": [
+                "same text as the reference"
+              ]
+            },
+            {
+              "grade": "G6",
+              "status": "pass",
+              "notes": []
+            }
+          ],
+          "reasonable": true,
+          "exact": true
+        },
+        "notes": []
+      }
+    },
+    {
+      "case": "mo-no-member-signs",
+      "fixture": "members-only",
+      "tags": [
+        "contradictory",
+        "fit-existing"
+      ],
+      "wording": 0,
+      "attempt": 0,
+      "answer": {
+        "kind": "no_rule",
+        "formula": null,
+        "witness": null,
+        "assumption": null,
+        "question": null,
+        "explanation": "The contract already requires every later commit to carry a member signature. Forbidding members from signing anything would make those two rules jointly unsatisfiable, so no later commit would be possible."
+      },
+      "raw": "{\"kind\": \"no_rule\", \"formula\": \"\", \"witness\": \"\", \"assumption\": \"\", \"question\": \"\", \"explanation\": \"The contract already requires every later commit to carry a member signature. Forbidding members from signing anything would make those two rules jointly unsatisfiable, so no later commit would be possible.\"}\n",
+      "grade": {
+        "pass": true,
+        "exact": true,
+        "kind": "no_rule",
+        "reading": null,
+        "rule": null,
+        "notes": []
+      }
+    }
+  ],
+  "summary": {
+    "runs": 15,
+    "reasonable": 15,
+    "exact": 15,
+    "safety_too_weak": 0,
+    "all_attempts_pass": null,
+    "by_tag": {
+      "alternation": [
+        1,
+        1
+      ],
+      "ambiguous": [
+        1,
+        1
+      ],
+      "booleans": [
+        1,
+        1
+      ],
+      "contradictory": [
+        2,
+        2
+      ],
+      "fit-existing": [
+        1,
+        1
+      ],
+      "guards": [
+        4,
+        4
+      ],
+      "membership": [
+        2,
+        2
+      ],
+      "numbers": [
+        1,
+        1
+      ],
+      "safety": [
+        7,
+        7
+      ],
+      "signers": [
+        8,
+        8
+      ],
+      "threshold": [
+        1,
+        1
+      ]
+    }
+  }
+}

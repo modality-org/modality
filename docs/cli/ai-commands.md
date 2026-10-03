@@ -5,7 +5,8 @@ title: AI Commands
 
 # AI Commands (`modal ai`)
 
-Configure the LLM used by `modal ai suggest-rule`. Config is stored at
+Configure the LLM used by `modal ai suggest-rule`, and measure how well it
+writes rules with `modal ai eval`. Config is stored at
 `$MODALITY_HOME/.modality/ai.json` (or `~/.modality/ai.json`).
 
 ## Set Provider
@@ -107,3 +108,27 @@ always([-signed_by(/parties/alice.id) -signed_by(/parties/bob.id)] false)
 ```
 
 That printed formula is example output; yours may differ.
+
+## Evaluate
+
+```bash
+modal ai eval [--references | --answers FILE] [--split dev|heldout] [--case PREFIX] [--tag TAG] [--paraphrases] [--repeat N] [--max-calls N] [--content none|cookbook] [--model MODEL] [--report FILE] [--verbose]
+```
+
+Grades AI-written rules against the rule suite in `tests/ai-rules`. Each case
+is a contract and a plain-language request. The validator grades the answer:
+it must parse and use only the contract's vocabulary, fit the rules already in
+force, accept the moves the request allows (**not too strong**), and refuse
+models that let through a move the request forbids (**not too weak**). A
+too-weak rule still verifies, which is why this is measured.
+
+```bash
+modal ai eval --references                  # the suite's own answers pass
+modal ai eval --split heldout --repeat 3    # ask the configured provider
+modal ai eval --answers answers.jsonl       # grade answers made elsewhere
+```
+
+Every provider from `modal ai set` works, including `cursor-agent`, which runs
+in an empty temporary workspace. See the [AI Rule Suite](/docs/reference/ai-rule-suite)
+for the grades, a worked example and results, and `tests/ai-rules/README.md` for
+the case format.
