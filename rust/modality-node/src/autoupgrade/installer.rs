@@ -82,8 +82,8 @@ pub async fn download_from_binary_server(base_url: &str, branch: &str) -> Result
         .get(&platform)
         .ok_or_else(|| anyhow!("No binary available for platform: {}", platform))?;
 
-    // Build download URL
-    let binary_url = format!("{}/{}/latest/{}", base_url, branch, binary_info.path);
+    // The versioned path: `latest` can move between our reads.
+    let binary_url = format!("{}/{}/{}/{}", base_url, branch, manifest.version, binary_info.path);
 
     // Create temporary directory for download
     let temp_dir = env::temp_dir();
@@ -94,9 +94,49 @@ pub async fn download_from_binary_server(base_url: &str, branch: &str) -> Result
         .await
         .context("Failed to download binary")?;
 
+    // Run nothing the release contract has not accepted.
+    if let Err(e) = verify_release(base_url, branch, &manifest.version, &binary_info.path, &temp_binary_path).await {
+        let _ = std::fs::remove_file(&temp_binary_path);
+        return Err(e.context(format!(
+            "refusing to upgrade to {}: the release contract does not accept it",
+            manifest.version
+        )));
+    }
+
     log::info!("Binary downloaded to: {}", temp_binary_path.display());
 
     Ok(temp_binary_path)
+}
+
+/// Check a downloaded binary against the channel's release contract, pinned
+/// in this build: the release `version` must be accepted, and the file's
+/// sha256 must be the one it names.
+pub async fn verify_release(
+    base_url: &str,
+    channel: &str,
+    version: &str,
+    package_path: &str,
+    binary: &std::path::Path,
+) -> Result<()> {
+    use modality_common::release;
+    let pin = release::pin_for(channel)
+        .ok_or_else(|| anyhow!("this build pins no release contract for {channel}"))?;
+    let log_url = release::log_url(base_url, channel);
+    let response = reqwest::get(&log_url).await.context("fetching the release log")?;
+    if !response.status().is_success() {
+        anyhow::bail!("{log_url}: HTTP {}", response.status());
+    }
+    let log = response.text().await?;
+    let bytes = std::fs::read(binary)?;
+    let entry = release::verify_download(&log, pin, channel, Some(version), package_path, &bytes)?;
+    log::info!(
+        "Release {} {} ({}) is accepted by release contract {}",
+        channel,
+        entry.version,
+        entry.git_commit,
+        pin.contract_id
+    );
+    Ok(())
 }
 
 #[cfg(test)]

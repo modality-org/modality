@@ -95,6 +95,28 @@ async fn fetch_manifest(base_url: &str, branch: &str, version: Option<&str>) -> 
     Ok(manifest)
 }
 
+/// Check a downloaded binary against the channel's release contract, pinned
+/// in this build.
+async fn verify_release(
+    base_url: &str,
+    channel: &str,
+    version: &str,
+    package_path: &str,
+    binary: &Path,
+) -> Result<()> {
+    use modality_common::release;
+    let pin = release::pin_for(channel)
+        .ok_or_else(|| anyhow!("this build pins no release contract for {channel}"))?;
+    let log_url = release::log_url(base_url, channel);
+    let response = reqwest::get(&log_url).await.context("fetching the release log")?;
+    if !response.status().is_success() {
+        anyhow::bail!("{log_url}: HTTP {}", response.status());
+    }
+    let log = response.text().await?;
+    release::verify_download(&log, pin, channel, Some(version), package_path, &fs::read(binary)?)?;
+    Ok(())
+}
+
 async fn download_binary(url: &str, dest_path: &Path) -> Result<()> {
     println!("⬇️  Downloading: {}", url);
 
@@ -179,17 +201,24 @@ pub async fn run(opts: &Opts) -> Result<()> {
         }
     }
 
-    // Download binary
+    // Download the versioned binary: `latest` can move between our reads.
     let binary_url = format!(
         "{}/{}/{}/{}",
-        opts.base_url,
-        opts.branch,
-        opts.version.as_ref().unwrap_or(&"latest".to_string()),
-        binary_info.path
+        opts.base_url, opts.branch, manifest.version, binary_info.path
     );
 
     let temp_path = current_exe.with_extension("tmp");
     download_binary(&binary_url, &temp_path).await?;
+
+    // Install nothing the release contract has not accepted.
+    if let Err(e) = verify_release(&opts.base_url, &opts.branch, &manifest.version, &binary_info.path, &temp_path).await {
+        let _ = fs::remove_file(&temp_path);
+        return Err(e.context(format!(
+            "not upgrading to {}: the release contract does not accept it",
+            manifest.version
+        )));
+    }
+    println!("🔏 Release {} is accepted by the release contract", manifest.version);
 
     println!("✅ Downloaded successfully");
     println!();

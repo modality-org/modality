@@ -15,6 +15,8 @@ pub mod log;
 pub mod pack;
 pub mod pull;
 pub mod push;
+#[cfg(feature = "model-status")]
+pub mod release;
 pub mod remote;
 pub mod replay;
 pub mod repost;

@@ -10,6 +10,8 @@ pub mod hash_commitment;
 pub mod amount;
 pub mod gas;
 pub mod miner_header;
+#[cfg(feature = "model-governance")]
+pub mod release;
 pub mod hash_tax;
 pub mod hub_client;
 pub mod independent_replay;

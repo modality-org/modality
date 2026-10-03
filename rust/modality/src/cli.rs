@@ -102,6 +102,13 @@ enum Commands {
     },
 
     #[cfg(feature = "full")]
+    #[command(about = "Release contract: publish and verify releases it accepts")]
+    Release {
+        #[command(subcommand)]
+        command: modality_cli_contract::release::Commands,
+    },
+
+    #[cfg(feature = "full")]
     #[command(about = "Wallet: hold, receive and send assets with one key")]
     Wallet {
         #[command(subcommand)]
@@ -693,6 +700,8 @@ pub async fn run() -> Result<()> {
         Commands::Ai { command } => modality_cli_ai::run(command).await?,
         #[cfg(feature = "full")]
         Commands::Wallet { command } => modality_cli_contract::wallet::run(command).await?,
+        #[cfg(feature = "full")]
+        Commands::Release { command } => modality_cli_contract::release::run(command).await?,
         #[cfg(feature = "full")]
         Commands::Hub { command } => match command {
             HubCommands::Start(opts) => modality_cli_hub::start::run(opts).await?,
