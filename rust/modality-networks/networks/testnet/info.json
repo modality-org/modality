@@ -25,19 +25,19 @@
   "initial_difficulty": 1,
   "target_block_time_secs": 60,
   "mod_contract": {
-    "contract_id": "12D3KooWNt1kXx8p8eHpZRbDQ8iedE47puEorgdCPx1BjKKERggX",
+    "contract_id": "wv562ivc2thp5jr3n32soqyxborhzdpcew6xfgwpkvah735hfaeacjeaiajaazfab",
     "commits": [
       {
-        "commit_id": "0b5fdb03f27032dab93a92064cdecf0479df61144b3fd1923569267d5a7bf3f2",
+        "commit_id": "9c75c4b623349c98dbdd3d89c99d2cb340bc4c8b584fbca83f1fea70f560c695",
         "body": [
           {
             "method": "genesis",
             "path": null,
             "value": {
               "genesis": {
-                "contract_id": "12D3KooWNt1kXx8p8eHpZRbDQ8iedE47puEorgdCPx1BjKKERggX",
-                "created_at": 1791048991,
-                "public_key": "12D3KooWNt1kXx8p8eHpZRbDQ8iedE47puEorgdCPx1BjKKERggX"
+                "contract_id": "wv562ivc2thp5jr3n32soqyxborhzdpcew6xfgwpkvah735hfaeacjeaiajaazfab",
+                "created_at": 1791068746,
+                "public_key": "12D3KooWAtuLHMh41zBiZg3jCHAtSurnKVb5WFP5qPpDX2R3T1B3"
               }
             }
           }
@@ -45,7 +45,7 @@
         "head": {}
       },
       {
-        "commit_id": "65f3ec679683555eadcaeb17334c8a6de3cce8a43ee873374e5266eb226955dc",
+        "commit_id": "3ed61bbd2f2300853ecf73b96fae700a1e24a00e321838373b1e6afe729731a3",
         "body": [
           {
             "method": "post",
@@ -99,15 +99,15 @@
           }
         ],
         "head": {
-          "parent": "0b5fdb03f27032dab93a92064cdecf0479df61144b3fd1923569267d5a7bf3f2",
+          "parent": "9c75c4b623349c98dbdd3d89c99d2cb340bc4c8b584fbca83f1fea70f560c695",
           "message": "Bootstrap",
           "signatures": {
-            "12D3KooWL17J7oMFoP3aWkFWxcDVsiJxMAYroUaTgJHAiP6gVcdv": "qgXtysVPxoIWgVpG/RLWJ7aeULv7MRmjU/Q0iTnMB7dNtNZg9pPeLcQS9dzwNBBF5cwpeVPrbQ9OYm4vEdUQAA=="
+            "12D3KooWL17J7oMFoP3aWkFWxcDVsiJxMAYroUaTgJHAiP6gVcdv": "2iVdtkS0k4BFNu0Eo6A2PhRJv+Kl3Ge4xwwKvuwCEfSdRZZUnqXbPsQzI/yDx9ZyD82/5qzEZg9XYR7f6Ff9DA=="
           }
         }
       },
       {
-        "commit_id": "7dad2aafb207d0ac8951dbf0970fdee4fea484892578eb4d495b2153c962d2ee",
+        "commit_id": "61f99b7a7b2e22e408c6641e5c2bffbbc8715b31168e7bb620cf93cecbae7554",
         "body": [
           {
             "method": "create",
@@ -121,14 +121,14 @@
           }
         ],
         "head": {
-          "parent": "65f3ec679683555eadcaeb17334c8a6de3cce8a43ee873374e5266eb226955dc",
+          "parent": "3ed61bbd2f2300853ecf73b96fae700a1e24a00e321838373b1e6afe729731a3",
           "signatures": {
-            "12D3KooWL17J7oMFoP3aWkFWxcDVsiJxMAYroUaTgJHAiP6gVcdv": "4Vr1QROMG1jJNzY3+a9K80fT9+MtApdUh/J823FJNByY/CnLs6jaqNSsOn9Si72Aqk8t5AoX+7USRCjaycvCBQ=="
+            "12D3KooWL17J7oMFoP3aWkFWxcDVsiJxMAYroUaTgJHAiP6gVcdv": "MUsAtkd1rZhkyRNerYBL+Rh3NtwTMwYqye0rwYbsN99wiYAEIMZ9zSmjS8e8J27VoIaff82iMPk1p4VR6Pt0DQ=="
           }
         }
       },
       {
-        "commit_id": "fb8e07cae487911861d225f16f3ca05c4051a934d3665de529ed9005ed53ee3d",
+        "commit_id": "a500b986d8e9d9233bd6b635efc78721c5ebfbe7201cfdea0e30dac91c8e1ba3",
         "body": [
           {
             "method": "rule",
@@ -157,10 +157,10 @@
           }
         ],
         "head": {
-          "parent": "7dad2aafb207d0ac8951dbf0970fdee4fea484892578eb4d495b2153c962d2ee",
+          "parent": "61f99b7a7b2e22e408c6641e5c2bffbbc8715b31168e7bb620cf93cecbae7554",
           "message": "Rules",
           "signatures": {
-            "12D3KooWL17J7oMFoP3aWkFWxcDVsiJxMAYroUaTgJHAiP6gVcdv": "Pc4E969NI2ppOWiWamCeSirVjjVIpGN/oEVt0ET/2rBsAbuI7yiTFIuYECbHjZdh/qAWawlFTD06eP5YQD+lDw=="
+            "12D3KooWL17J7oMFoP3aWkFWxcDVsiJxMAYroUaTgJHAiP6gVcdv": "9/AxWoEAzC5nM4dnLZbJUsGYk1TQvTVFbhGrWHAQAAMD5tSMh0ZlRhJyogNXZM/qtAJKhhfibTLiCiNSq45QBw=="
           }
         }
       }
