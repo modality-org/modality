@@ -25,19 +25,19 @@
   "initial_difficulty": 1,
   "target_block_time_secs": 60,
   "mod_contract": {
-    "contract_id": "12D3KooWSaN2aW4dt6AtCKspJz1o7G5Txi24ddtZfuF7b4BQkovv",
+    "contract_id": "12D3KooWNt1kXx8p8eHpZRbDQ8iedE47puEorgdCPx1BjKKERggX",
     "commits": [
       {
-        "commit_id": "21a1f45d31c0f1ee29f09ca58fd80f718bb8619c526f7035ee444bb64c021e04",
+        "commit_id": "0b5fdb03f27032dab93a92064cdecf0479df61144b3fd1923569267d5a7bf3f2",
         "body": [
           {
             "method": "genesis",
             "path": null,
             "value": {
               "genesis": {
-                "contract_id": "12D3KooWSaN2aW4dt6AtCKspJz1o7G5Txi24ddtZfuF7b4BQkovv",
-                "created_at": 1790860402,
-                "public_key": "12D3KooWSaN2aW4dt6AtCKspJz1o7G5Txi24ddtZfuF7b4BQkovv"
+                "contract_id": "12D3KooWNt1kXx8p8eHpZRbDQ8iedE47puEorgdCPx1BjKKERggX",
+                "created_at": 1791048991,
+                "public_key": "12D3KooWNt1kXx8p8eHpZRbDQ8iedE47puEorgdCPx1BjKKERggX"
               }
             }
           }
@@ -45,7 +45,7 @@
         "head": {}
       },
       {
-        "commit_id": "75bcea411050b4a0aa5efa2211c849a4cb660ef0078a7d774fb73e034cd0e60f",
+        "commit_id": "65f3ec679683555eadcaeb17334c8a6de3cce8a43ee873374e5266eb226955dc",
         "body": [
           {
             "method": "post",
@@ -85,7 +85,7 @@
           {
             "method": "post",
             "path": "/foundation.id",
-            "value": "12D3KooWL17J7oMFoP3aWkFWxcDVsiJxMAYroUaTgJHAiP6gVcdv"
+            "value": "zz5miskvinu5t3lq3ill37w6amqnyb2bdw4ck3eusajam6dov2fbcjeaiajaazfab"
           },
           {
             "method": "post",
@@ -99,15 +99,15 @@
           }
         ],
         "head": {
-          "parent": "21a1f45d31c0f1ee29f09ca58fd80f718bb8619c526f7035ee444bb64c021e04",
+          "parent": "0b5fdb03f27032dab93a92064cdecf0479df61144b3fd1923569267d5a7bf3f2",
           "message": "Bootstrap",
           "signatures": {
-            "12D3KooWL17J7oMFoP3aWkFWxcDVsiJxMAYroUaTgJHAiP6gVcdv": "4e+7MLVHei03NNMu/oiU0djoQrNBBGYa2W3vWOB6iinCuChYzHm1zFbAvXtdW1YGHC0g5MbOHCOGBeHxfZjSAA=="
+            "12D3KooWL17J7oMFoP3aWkFWxcDVsiJxMAYroUaTgJHAiP6gVcdv": "qgXtysVPxoIWgVpG/RLWJ7aeULv7MRmjU/Q0iTnMB7dNtNZg9pPeLcQS9dzwNBBF5cwpeVPrbQ9OYm4vEdUQAA=="
           }
         }
       },
       {
-        "commit_id": "dab7c06d36697c286055285f536ac8c1a7c1f55a42389704c1df810d662d6712",
+        "commit_id": "7dad2aafb207d0ac8951dbf0970fdee4fea484892578eb4d495b2153c962d2ee",
         "body": [
           {
             "method": "create",
@@ -121,14 +121,14 @@
           }
         ],
         "head": {
-          "parent": "75bcea411050b4a0aa5efa2211c849a4cb660ef0078a7d774fb73e034cd0e60f",
+          "parent": "65f3ec679683555eadcaeb17334c8a6de3cce8a43ee873374e5266eb226955dc",
           "signatures": {
-            "12D3KooWL17J7oMFoP3aWkFWxcDVsiJxMAYroUaTgJHAiP6gVcdv": "npcVWBUtiCk06opffG5Pfc99gsaSP9/Ez8uqeqr7HGpDaQSk0uPPvL8qGlkKsfwRLEUMaR+pg53tjfO3W634Bw=="
+            "12D3KooWL17J7oMFoP3aWkFWxcDVsiJxMAYroUaTgJHAiP6gVcdv": "4Vr1QROMG1jJNzY3+a9K80fT9+MtApdUh/J823FJNByY/CnLs6jaqNSsOn9Si72Aqk8t5AoX+7USRCjaycvCBQ=="
           }
         }
       },
       {
-        "commit_id": "c598489a7321fe36f146db43459dfde20f855f3f2cf263ecf4e62dfff7f30688",
+        "commit_id": "fb8e07cae487911861d225f16f3ca05c4051a934d3665de529ed9005ed53ee3d",
         "body": [
           {
             "method": "rule",
@@ -157,10 +157,10 @@
           }
         ],
         "head": {
-          "parent": "dab7c06d36697c286055285f536ac8c1a7c1f55a42389704c1df810d662d6712",
+          "parent": "7dad2aafb207d0ac8951dbf0970fdee4fea484892578eb4d495b2153c962d2ee",
           "message": "Rules",
           "signatures": {
-            "12D3KooWL17J7oMFoP3aWkFWxcDVsiJxMAYroUaTgJHAiP6gVcdv": "5XfOBVYAj/FnkVTYP2KyaqW9fXUvQsIclzoJgpVrzEEJ5tbHqL2PNqodHgdCUTxob75JpZMOiJ+bW9JZJn1KCQ=="
+            "12D3KooWL17J7oMFoP3aWkFWxcDVsiJxMAYroUaTgJHAiP6gVcdv": "Pc4E969NI2ppOWiWamCeSirVjjVIpGN/oEVt0ET/2rBsAbuI7yiTFIuYECbHjZdh/qAWawlFTD06eP5YQD+lDw=="
           }
         }
       }
