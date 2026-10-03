@@ -49,7 +49,7 @@ pub struct Opts {
 
     // SEND action fields
     /// Destination contract ID (for SEND method)
-    #[clap(long, value_parser = modality_common::peer_id::peer_id_arg)]
+    #[clap(long, value_parser = modality_common::peer_id::contract_id_arg)]
     to_contract: Option<String>,
 
     /// Amount to send (for SEND method). With RECV, the amount the SEND must move
@@ -58,7 +58,7 @@ pub struct Opts {
 
     /// Contract that created the asset, when it is not this contract (for SEND,
     /// and for RECV as the creator the SEND must move)
-    #[clap(long, value_parser = modality_common::peer_id::peer_id_arg)]
+    #[clap(long, value_parser = modality_common::peer_id::contract_id_arg)]
     asset_contract: Option<String>,
 
     /// JSON the SEND carries for the recipient (for SEND method)

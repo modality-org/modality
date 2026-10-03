@@ -34,7 +34,7 @@ enum AssetCommand {
         asset_id: String,
 
         /// Owner contract ID (optional, defaults to this contract)
-        #[clap(long, value_parser = modality_common::peer_id::peer_id_arg)]
+        #[clap(long, value_parser = modality_common::peer_id::contract_id_arg)]
         owner: Option<String>,
     },
 }

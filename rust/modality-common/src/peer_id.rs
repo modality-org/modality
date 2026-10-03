@@ -109,9 +109,16 @@ pub fn normalize_peer_id(text: &str) -> String {
     canonical_peer_id(text).unwrap_or_else(|_| text.to_string())
 }
 
-/// [`normalize_peer_id`] as a clap `value_parser`, for ID arguments.
+/// [`normalize_peer_id`] as a clap `value_parser`, for ID arguments that
+/// stay base58 (a payer, a node id, a `/p2p/` peer).
 pub fn peer_id_arg(text: &str) -> Result<String, std::convert::Infallible> {
     Ok(normalize_peer_id(text))
+}
+
+/// A contract-id argument. Any spelling of a peer ID is rewritten to the
+/// Modality spelling; text that is not a peer ID is kept (`c_…`).
+pub fn contract_id_arg(text: &str) -> Result<String, std::convert::Infallible> {
+    Ok(id_value(text))
 }
 
 /// The CIDv1 form of `peer_id`, in base32 as the libp2p spec recommends.
@@ -199,6 +206,12 @@ mod tests {
         assert_eq!(
             id_spellings(BASE32),
             vec![BASE32.to_string(), MODALITY.to_string(), BASE58.to_string()]
+        );
+        assert_eq!(contract_id_arg(BASE58).unwrap(), MODALITY);
+        assert_eq!(contract_id_arg(MODALITY).unwrap(), MODALITY);
+        assert_eq!(
+            contract_id_arg("c_0123456789abcdef").unwrap(),
+            "c_0123456789abcdef"
         );
         assert_eq!(id_spellings("alice"), vec!["alice".to_string()]);
         assert_eq!(
