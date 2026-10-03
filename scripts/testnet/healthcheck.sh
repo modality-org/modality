@@ -100,9 +100,9 @@ else
     "$MODAL" node create --dir "$ping_dir" --testnet >/tmp/modality-health-create.txt
   fi
   declare -a targets=(
-    '/dns4/node1.testnet.modality.network/tcp/4040/ws/p2p/12D3KooWE4NPREQxLkevA5Rxd61Xiue4tTkUGN22qNABD7Mw5JhM'
-    '/dns4/node2.testnet.modality.network/tcp/4040/ws/p2p/12D3KooWJpFYTRHNuPfwoj1hTf87aqB7CDJHKtVFp3RhPNB1DrRw'
-    '/dns4/node3.testnet.modality.network/tcp/4040/ws/p2p/12D3KooWLHTsoeBE1ZWBgzumeSi6hsm3o9AndFufrGx7xLTyq2dw'
+    '/dns4/node1.testnet.modality.network/tcp/4040/ws/p2p/12D3KooWJs3d1Q4FdJ2nsuN1ALcU2NvVjZ44khXKuFrCaH12SADx'
+    '/dns4/node2.testnet.modality.network/tcp/4040/ws/p2p/12D3KooWN7qfmSKaLkHJ6ABgj2nixEjta8DUX7K1S8oth5rwcgSi'
+    '/dns4/node3.testnet.modality.network/tcp/4040/ws/p2p/12D3KooWJSVWV2YSqXrEgqytBok672qRs5BS2EseKe8kzhEWXyJi'
   )
   for t in "${targets[@]}"; do
     if "$MODAL" node ping --dir "$ping_dir" --target "$t" >/tmp/modality-health-ping.txt 2>&1; then

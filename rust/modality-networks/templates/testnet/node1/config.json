@@ -1,6 +1,6 @@
 {
   "config_version": 2,
-  "id": "12D3KooWE4NPREQxLkevA5Rxd61Xiue4tTkUGN22qNABD7Mw5JhM",
+  "id": "12D3KooWJs3d1Q4FdJ2nsuN1ALcU2NvVjZ44khXKuFrCaH12SADx",
   "passfile_path": "./node.modal_passfile",
   "data_dir": "./data",
   "logs_path": "./logs",
@@ -12,15 +12,15 @@
     "/ip4/0.0.0.0/tcp/4040/ws"
   ],
   "bootstrappers": [
-    "/dns4/node2.testnet.modality.network/tcp/4040/ws/p2p/12D3KooWJpFYTRHNuPfwoj1hTf87aqB7CDJHKtVFp3RhPNB1DrRw",
-    "/dns4/node3.testnet.modality.network/tcp/4040/ws/p2p/12D3KooWLHTsoeBE1ZWBgzumeSi6hsm3o9AndFufrGx7xLTyq2dw"
+    "/dns4/node2.testnet.modality.network/tcp/4040/ws/p2p/12D3KooWN7qfmSKaLkHJ6ABgj2nixEjta8DUX7K1S8oth5rwcgSi",
+    "/dns4/node3.testnet.modality.network/tcp/4040/ws/p2p/12D3KooWJSVWV2YSqXrEgqytBok672qRs5BS2EseKe8kzhEWXyJi"
   ],
   "network_config_path": "modality-networks://testnet",
   "run_miner": true,
   "miner_nominees": [
-    "12D3KooWE4NPREQxLkevA5Rxd61Xiue4tTkUGN22qNABD7Mw5JhM",
-    "12D3KooWJpFYTRHNuPfwoj1hTf87aqB7CDJHKtVFp3RhPNB1DrRw",
-    "12D3KooWLHTsoeBE1ZWBgzumeSi6hsm3o9AndFufrGx7xLTyq2dw"
+    "12D3KooWJs3d1Q4FdJ2nsuN1ALcU2NvVjZ44khXKuFrCaH12SADx",
+    "12D3KooWN7qfmSKaLkHJ6ABgj2nixEjta8DUX7K1S8oth5rwcgSi",
+    "12D3KooWJSVWV2YSqXrEgqytBok672qRs5BS2EseKe8kzhEWXyJi"
   ],
   "hybrid_consensus": true,
   "run_sequencer": true,

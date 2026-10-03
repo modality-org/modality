@@ -14,7 +14,7 @@ DIR="${DIR:-$HOME/testnet0}"
 BIN_DIR="${BIN_DIR:-$HOME/.modality/bin}"
 BINARY_URL="${BINARY_URL:-https://get.modality.org/testnet/latest/binaries/linux-x86_64/modal}"
 TEMPLATE="testnet/node0"
-EXPECTED_ID="12D3KooWSB2d9ddmQkvwpPWFXVJrgnDqEiaRTQXguTacwnxL6MrE"
+EXPECTED_ID="12D3KooWA8wKNQsXys1FyFQ8pGF8Tv3sYLYMm7Ds2nR5w8vhXkQr"
 
 mkdir -p "$BIN_DIR"
 echo "Installing modal from $BINARY_URL"

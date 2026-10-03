@@ -615,8 +615,11 @@ mod tests {
             assert_eq!(cfg["run_validator"], true);
             assert_eq!(cfg["listeners"][0], "/ip4/0.0.0.0/tcp/4040/ws");
             assert_eq!(cfg["passfile_path"], "./node.modal_passfile");
+            assert!(tmpl.passfile.is_none(), "a public network's template carries no key");
             let id = cfg["id"].as_str().expect("template id");
-            assert!(tmpl.passfile.contains(id), "passfile must match config id");
+            let testnet = networks::testnet();
+            assert!(testnet.validators.as_ref().unwrap().iter().any(|v| v == id));
+            assert!(testnet.bootstrappers.iter().any(|b| b.ends_with(&format!("/p2p/{id}"))));
             let status = cfg["status_url"].as_str().unwrap_or("");
             assert!(
                 status.contains("testnet.modality.network"),
@@ -635,8 +638,7 @@ mod tests {
         assert_eq!(cfg["run_miner"], false);
         assert_eq!(cfg["run_sequencer"], false);
         assert_eq!(cfg["listeners"][0], "/ip4/0.0.0.0/tcp/4040/ws");
-        let id = cfg["id"].as_str().expect("template id");
-        assert!(tmpl.passfile.contains(id), "passfile must match config id");
+        assert!(tmpl.passfile.is_none(), "a public network's template carries no key");
         assert_eq!(cfg["status_url"], "https://node0.testnet.modality.network");
         assert!(templates::list().contains(&"testnet/node0"));
     }

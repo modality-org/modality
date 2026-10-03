@@ -23,9 +23,9 @@ LIBSSL11_URL="${LIBSSL11_URL:-http://archive.ubuntu.com/ubuntu/pool/main/o/opens
 
 EXPECTED_IDS=(
     ""
-    "12D3KooWE4NPREQxLkevA5Rxd61Xiue4tTkUGN22qNABD7Mw5JhM"
-    "12D3KooWJpFYTRHNuPfwoj1hTf87aqB7CDJHKtVFp3RhPNB1DrRw"
-    "12D3KooWLHTsoeBE1ZWBgzumeSi6hsm3o9AndFufrGx7xLTyq2dw"
+    "12D3KooWJs3d1Q4FdJ2nsuN1ALcU2NvVjZ44khXKuFrCaH12SADx"
+    "12D3KooWN7qfmSKaLkHJ6ABgj2nixEjta8DUX7K1S8oth5rwcgSi"
+    "12D3KooWJSVWV2YSqXrEgqytBok672qRs5BS2EseKe8kzhEWXyJi"
 )
 
 if [[ ! "$NODE" =~ ^[123]$ ]]; then
