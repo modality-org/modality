@@ -19,6 +19,8 @@ reviewer's signature, however it is prompted.
 The network test `tests/network/agent-git-landing` runs everything below
 against a local hub. The tool, model and rules are in
 `examples/agent-git-landing`.
+Every check and its latest result is listed on
+[Test Results](agent-git-landing-results.md).
 
 ## The pieces
 

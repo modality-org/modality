@@ -277,6 +277,8 @@ async fn api_contract_handler(
     id: String,
     source: NodeStatusSource,
 ) -> Result<impl warp::Reply, warp::Rejection> {
+    // Contracts are stored under base58; a pasted ID may be in any form.
+    let id = modality_common::peer_id::normalize_peer_id(&id);
     let mgr = source.datastore.lock().await;
     match explorer::inspect_contract(&mgr, &id)
         .await
@@ -294,6 +296,8 @@ async fn api_commits_handler(
     id: String,
     source: NodeStatusSource,
 ) -> Result<impl warp::Reply, warp::Rejection> {
+    // Contracts are stored under base58; a pasted ID may be in any form.
+    let id = modality_common::peer_id::normalize_peer_id(&id);
     let mgr = source.datastore.lock().await;
     match explorer::list_commits(&mgr, &id)
         .await
@@ -311,6 +315,8 @@ async fn api_replay_handler(
     id: String,
     source: NodeStatusSource,
 ) -> Result<impl warp::Reply, warp::Rejection> {
+    // Contracts are stored under base58; a pasted ID may be in any form.
+    let id = modality_common::peer_id::normalize_peer_id(&id);
     let mgr = source.datastore.lock().await;
     match explorer::replay_contract(&mgr, &id, None).await {
         Ok(Some(replay)) => Ok(cors_json_status(StatusCode::OK, replay)),

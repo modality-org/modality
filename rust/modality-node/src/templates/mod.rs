@@ -62,15 +62,32 @@ fn link_role_label(label: &str) -> String {
         .join("+")
 }
 
+/// A node or contract ID as shown: the standard Modality form when it is a
+/// peer ID, other text as is. Links and anchors keep the ID as stored.
+fn shown_id(id: &str) -> String {
+    modality_common::peer_id::id_value(id)
+}
+
+/// [`shown_id`], shortened: a peer ID from the front (the Modality form ends
+/// the same way for every ID), anything else from the middle.
+fn short_id(id: &str, keep: usize) -> String {
+    let shown = shown_id(id);
+    if modality_common::peer_id::parse_peer_id(id).is_ok() && shown.len() > keep * 2 {
+        format!("{}...", &shown[..keep * 2])
+    } else {
+        truncate_middle(&shown, keep)
+    }
+}
+
 fn peer_code_link(href: &str, peer_id: &str, keep: Option<usize>) -> String {
     let shown = match keep {
-        Some(keep) => truncate_middle(peer_id, keep),
-        None => peer_id.to_string(),
+        Some(keep) => short_id(peer_id, keep),
+        None => shown_id(peer_id),
     };
     format!(
         r#"<a href="{}" title="{}"><code>{}</code></a>"#,
         esc(href),
-        esc(peer_id),
+        esc(&shown_id(peer_id)),
         esc(&shown)
     )
 }
@@ -125,7 +142,7 @@ fn render_block_status_row(block: &BlockStatus) -> String {
 
 /// Template for a peer row in the peers table
 pub fn render_peer_row(peer_id: &str) -> String {
-    format!("<tr><td><code>{}</code></td></tr>", peer_id)
+    format!("<tr><td><code>{}</code></td></tr>", esc(&shown_id(peer_id)))
 }
 
 /// Template for a peer row with status URL
@@ -133,10 +150,11 @@ pub fn render_peer_row_with_url(peer_id: &str, status_url: Option<&str>) -> Stri
     if let Some(url) = status_url {
         format!(
             r#"<tr><td><code>{}</code></td><td><a href="{}" target="_blank">Status</a></td></tr>"#,
-            peer_id, url
+            esc(&shown_id(peer_id)),
+            url
         )
     } else {
-        format!("<tr><td><code>{}</code></td><td>-</td></tr>", peer_id)
+        format!("<tr><td><code>{}</code></td><td>-</td></tr>", esc(&shown_id(peer_id)))
     }
 }
 
@@ -159,11 +177,11 @@ pub fn render_peer_row_with_metadata(
         format!(
             r#"<a href="{}" target="_blank" rel="noopener" title="{}"><code>{}</code></a>"#,
             esc(url),
-            esc(peer_id),
-            esc(peer_id)
+            esc(&shown_id(peer_id)),
+            esc(&shown_id(peer_id))
         )
     } else {
-        format!("<code>{}</code>", esc(peer_id))
+        format!("<code>{}</code>", esc(&shown_id(peer_id)))
     };
 
     format!(
@@ -476,7 +494,7 @@ pub fn render_prefix_cert_row(cert: &PrefixCertStatus) -> String {
             &contract,
             &format!(
                 "<code>{}</code>",
-                esc(&truncate_middle(&cert.source_contract, 10))
+                esc(&short_id(&cert.source_contract, 10))
             )
         ),
         xref(
@@ -569,7 +587,7 @@ pub fn render_status_from_snapshot(status: &NodeStatus) -> String {
         connected_peers: status.connected_peers,
         total_miner_blocks: status.total_miner_blocks,
         cumulative_difficulty: status.cumulative_difficulty,
-        peerid: status.peerid.clone(),
+        peerid: shown_id(&status.peerid),
         network_name: status.network_name.clone(),
         role_display: link_role_label(&status.role_display),
         role_chips_html: render_role_chips(&status.active_roles),
@@ -716,6 +734,26 @@ pub struct StatusPageVars {
     pub pending_prefix_cert_requests: usize,
     pub named_validators_html: String,
     pub prefix_certs_html: String,
+}
+
+#[cfg(test)]
+mod id_display_tests {
+    use super::*;
+
+    const BASE58: &str = "12D3KooW9pte76rpnggcLYkFaawuTEs5DC5axHkg3cK3cewGxxHd";
+    const MODALITY: &str = "imqi74tdhtmdyqjol7kx3ddwo7ejsms6rcmzlob5g5dmvnrocbaacjeaiajaazfab";
+
+    #[test]
+    fn peer_ids_show_in_the_modality_form_but_link_by_base58() {
+        let link = peer_code_link(&format!("/nodes#node-{BASE58}"), BASE58, Some(4));
+        assert!(link.contains(&format!("href=\"/nodes#node-{BASE58}\"")), "{link}");
+        assert!(link.contains(&format!("title=\"{MODALITY}\"")), "{link}");
+        assert!(link.contains("<code>imqi74td...</code>"), "{link}");
+        assert_eq!(shown_id(BASE58), MODALITY);
+        assert_eq!(short_id(MODALITY, 4), "imqi74td...");
+        assert_eq!(shown_id("c_0123456789abcdef"), "c_0123456789abcdef");
+        assert!(render_peer_row(BASE58).contains(MODALITY));
+    }
 }
 
 #[cfg(test)]

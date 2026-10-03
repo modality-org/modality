@@ -66,6 +66,7 @@ const sidebars: SidebarsConfig = {
         'tutorials/oracle-escrow',
         'tutorials/constant-product-pool',
         'tutorials/agent-git-landing',
+        'tutorials/agent-git-landing-results',
         'tutorials/contract-hub',
         'tutorials/hub-and-assets',
         'tutorials/js-sdk-hub',
