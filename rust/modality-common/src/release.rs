@@ -50,8 +50,8 @@ pub struct Pin {
 
 /// The release contract for the `testnet` channel.
 pub const TESTNET: Pin = Pin {
-    contract_id: "12D3KooWPENDING",
-    genesis_commit_id: "PENDING",
+    contract_id: "12D3KooWKGq653tYqRCyvcjQtDdKqLxcUZXxaJqv6KNHFwxuq53g",
+    genesis_commit_id: "1b5958dc06e02fb5c8d1a8d30c5d0c98e466bc141c67d610e1b9bad3f512b9d6",
 };
 
 /// The pinned contract for `channel`, if this build trusts one.
