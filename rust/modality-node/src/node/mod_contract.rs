@@ -158,7 +158,12 @@ pub fn mint_commit(head: &str, blocks: &[MinerBlock]) -> CommitFile {
                 "hash": b.hash,
                 "previous_hash": b.previous_hash,
                 "timestamp": b.timestamp,
-                "data_hash": b.data_hash,
+                // Gossip stores this empty. It is fixed by the nominee and the
+                // miner number, which is the preimage the block was mined with.
+                "data_hash": modality_common::miner_header::data_hash(
+                    &b.nominated_peer_id,
+                    b.miner_number,
+                ),
                 "difficulty": b.target_difficulty,
                 "nonce": b.nonce,
                 "miner_number": b.miner_number,
@@ -315,4 +320,33 @@ fn theory_number(version: &str) -> u32 {
         .strip_prefix('v')
         .and_then(|n| n.parse().ok())
         .unwrap_or(0)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_mint_recomputes_the_data_hash_gossip_left_empty() {
+        let block = MinerBlock::new_canonical(
+            "h".into(),
+            1,
+            0,
+            1,
+            "prev".into(),
+            String::new(),
+            7,
+            1,
+            "12D3KooWAlice".into(),
+            42,
+        );
+        let file = mint_commit("head", &[block]);
+        let posted = file.body[0].value["args"]["blocks"][0]["data_hash"]
+            .as_str()
+            .unwrap();
+        assert_eq!(
+            posted,
+            modality_common::miner_header::data_hash("12D3KooWAlice", 42)
+        );
+    }
 }

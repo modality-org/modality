@@ -107,12 +107,11 @@ impl InvokeEngine for WasmInvokeEngine {
         }
         let gas_limit = self.fuel_limit.take().unwrap_or(wasm.gas_limit.min(self.gas_limit));
         self.last_gas_used = 0;
-        let (result, fuel) = execute_wasm_program_metered(
-            &bytes,
-            gas_limit,
-            args.clone(),
-            program_context_from_frozen(ctx),
+        let mut context = program_context_from_frozen(ctx);
+        context.state = Value::Object(
+            modality_common::independent_replay::program_state_view(&wasm.path, &ctx.state),
         );
+        let (result, fuel) = execute_wasm_program_metered(&bytes, gas_limit, args.clone(), context);
         self.last_gas_used = fuel;
         let result = result?;
         if !result.is_success() {
@@ -139,7 +138,7 @@ impl InvokeEngine for WasmInvokeEngine {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use serde_json::Map;
+    use serde_json::{json, Map};
     use std::collections::BTreeMap;
 
     #[test]
@@ -174,5 +173,23 @@ mod tests {
             program_context.parent_commit_id.as_deref(),
             Some("accepted")
         );
+    }
+
+    #[test]
+    fn emission_context_keeps_the_schedule_and_drops_headers() {
+        let mut state = serde_json::Map::new();
+        state.insert(
+            "/network/emission/block_subsidy.num".into(),
+            json!(5_000_000_000u64),
+        );
+        state.insert("/emission/next_index.num".into(), json!(120));
+        state.insert("/emission/blocks/1.json".into(), json!({"hash": "h"}));
+        state.insert("/__programs__/emission.wasm".into(), json!("AGFzbQ=="));
+        let kept = modality_common::independent_replay::program_state_view("/__programs__/emission.wasm", &state);
+        assert_eq!(kept.len(), 2);
+        assert!(kept.contains_key("/network/emission/block_subsidy.num"));
+        assert!(kept.contains_key("/emission/next_index.num"));
+        assert!(!kept.contains_key("/emission/blocks/1.json"));
+        assert!(!kept.contains_key("/__programs__/emission.wasm"));
     }
 }

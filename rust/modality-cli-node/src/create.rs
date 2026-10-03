@@ -176,7 +176,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
                 .ok_or_else(|| anyhow::anyhow!("Invalid template format: {}", template))?;
 
             (
-                Some(tmpl.passfile.to_string()),
+                tmpl.passfile.map(str::to_string),
                 Some(tmpl.config.to_string()),
                 Some(network_name.to_string()),
             )

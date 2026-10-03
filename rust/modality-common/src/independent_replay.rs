@@ -108,6 +108,29 @@ pub trait InvokeEngine {
     }
 }
 
+/// The state a program is handed. The emission program
+/// (`programs/mod-emission`, at a path ending `emission.wasm`) reads six
+/// posts; the contract also holds every minted header and the program
+/// bytes, which grow until the module traps, so it gets only those six.
+/// Every engine, the sequencer's and a stranger's replay, hands the same.
+pub fn program_state_view(program_path: &str, state: &Map<String, Value>) -> Map<String, Value> {
+    const EMISSION_READS: &[&str] = &[
+        "/network/emission/block_subsidy.num",
+        "/network/emission/halving_interval.num",
+        "/network/emission/slow_start.num",
+        "/network/emission/cap.num",
+        "/emission/next_index.num",
+        "/emission/emitted.num",
+    ];
+    if program_path.rsplit('/').next() != Some("emission.wasm") {
+        return state.clone();
+    }
+    EMISSION_READS
+        .iter()
+        .filter_map(|key| state.get(*key).map(|value| ((*key).to_string(), value.clone())))
+        .collect()
+}
+
 pub fn prefix_digest(commit_ids: &[String]) -> String {
     let mut hasher = Sha256::new();
     for id in commit_ids {

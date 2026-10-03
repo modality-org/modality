@@ -265,10 +265,12 @@ pub mod networks {
 
 /// Node templates for creating pre-configured nodes
 pub mod templates {
-    /// Represents a node template with passfile and config
+    /// Represents a node template: its config, and for local devnets a
+    /// shared test identity. Public networks' templates carry no key: a node
+    /// made from one generates its own, which never leaves its machine.
     #[derive(Debug, Clone)]
     pub struct NodeTemplate {
-        pub passfile: &'static str,
+        pub passfile: Option<&'static str>,
         pub config: &'static str,
     }
 
@@ -276,43 +278,43 @@ pub mod templates {
     pub fn get(path: &str) -> Option<NodeTemplate> {
         match path {
             "devnet1/node1" => Some(NodeTemplate {
-                passfile: include_str!("../templates/devnet1/node1/node.modal_passfile"),
+                passfile: Some(include_str!("../templates/devnet1/node1/node.modal_passfile")),
                 config: include_str!("../templates/devnet1/node1/config.json"),
             }),
             "devnet2/node1" => Some(NodeTemplate {
-                passfile: include_str!("../templates/devnet2/node1/node.modal_passfile"),
+                passfile: Some(include_str!("../templates/devnet2/node1/node.modal_passfile")),
                 config: include_str!("../templates/devnet2/node1/config.json"),
             }),
             "devnet2/node2" => Some(NodeTemplate {
-                passfile: include_str!("../templates/devnet2/node2/node.modal_passfile"),
+                passfile: Some(include_str!("../templates/devnet2/node2/node.modal_passfile")),
                 config: include_str!("../templates/devnet2/node2/config.json"),
             }),
             "devnet3/node1" => Some(NodeTemplate {
-                passfile: include_str!("../templates/devnet3/node1/node.modal_passfile"),
+                passfile: Some(include_str!("../templates/devnet3/node1/node.modal_passfile")),
                 config: include_str!("../templates/devnet3/node1/config.json"),
             }),
             "devnet3/node2" => Some(NodeTemplate {
-                passfile: include_str!("../templates/devnet3/node2/node.modal_passfile"),
+                passfile: Some(include_str!("../templates/devnet3/node2/node.modal_passfile")),
                 config: include_str!("../templates/devnet3/node2/config.json"),
             }),
             "devnet3/node3" => Some(NodeTemplate {
-                passfile: include_str!("../templates/devnet3/node3/node.modal_passfile"),
+                passfile: Some(include_str!("../templates/devnet3/node3/node.modal_passfile")),
                 config: include_str!("../templates/devnet3/node3/config.json"),
             }),
             "testnet/node1" => Some(NodeTemplate {
-                passfile: include_str!("../templates/testnet/node1/node.modal_passfile"),
+                passfile: None,
                 config: include_str!("../templates/testnet/node1/config.json"),
             }),
             "testnet/node2" => Some(NodeTemplate {
-                passfile: include_str!("../templates/testnet/node2/node.modal_passfile"),
+                passfile: None,
                 config: include_str!("../templates/testnet/node2/config.json"),
             }),
             "testnet/node3" => Some(NodeTemplate {
-                passfile: include_str!("../templates/testnet/node3/node.modal_passfile"),
+                passfile: None,
                 config: include_str!("../templates/testnet/node3/config.json"),
             }),
             "testnet/node0" => Some(NodeTemplate {
-                passfile: include_str!("../templates/testnet/node0/node.modal_passfile"),
+                passfile: None,
                 config: include_str!("../templates/testnet/node0/config.json"),
             }),
             _ => None,
@@ -390,15 +392,18 @@ mod tests {
         );
         assert_eq!(testnet.blocks_per_epoch, Some(40));
         assert_eq!(testnet.initial_difficulty, Some(1));
-        assert_eq!(testnet.emission.as_ref().unwrap().block_subsidy, 50);
-        assert_eq!(
-            testnet.validators.as_ref().unwrap().as_slice(),
-            [
-                "12D3KooWE4NPREQxLkevA5Rxd61Xiue4tTkUGN22qNABD7Mw5JhM",
-                "12D3KooWJpFYTRHNuPfwoj1hTf87aqB7CDJHKtVFp3RhPNB1DrRw",
-                "12D3KooWLHTsoeBE1ZWBgzumeSi6hsm3o9AndFufrGx7xLTyq2dw"
-            ]
-        );
+        // MOD is the MOD contract's asset; the testnet names no native emission.
+        assert!(testnet.emission.is_none());
+        assert!(testnet.mod_contract.is_some());
+        // The named validators are the three bootstrappers.
+        let validators = testnet.validators.as_ref().unwrap();
+        assert_eq!(validators.len(), 3);
+        for validator in validators {
+            assert!(
+                testnet.bootstrappers.iter().any(|b| b.ends_with(&format!("/p2p/{validator}"))),
+                "validator {validator} is not a bootstrapper"
+            );
+        }
         assert_eq!(testnet.validator_min_stake, 0);
         assert!(testnet.repost_requires_validator_cert);
         assert_eq!(testnet.target_block_time_secs, Some(60));

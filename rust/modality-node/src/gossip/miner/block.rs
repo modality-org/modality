@@ -49,13 +49,21 @@ impl MinerBlockGossip {
         let nonce = self.nonce.parse::<u128>().unwrap_or(0);
         let difficulty = self.difficulty.parse::<u128>().unwrap_or(1000);
 
+        // Gossip carries the nominee and miner number, not the data hash.
+        // That hash is determined by those two, and it is what the block was
+        // mined against. Storing it empty makes a later mint fail
+        // `mined_headers`, which recomputes the hash and compares.
+        let data_hash = modality_common::miner_header::data_hash(
+            &self.nominated_peer_id,
+            self.miner_number,
+        );
         MinerBlock::new_canonical(
             self.hash.clone(),
             self.index,
             self.epoch,
             timestamp,
             self.previous_hash.clone(),
-            String::new(), // data_hash - will be set by the model
+            data_hash,
             nonce,
             difficulty,
             self.nominated_peer_id.clone(),
@@ -336,6 +344,10 @@ mod tests {
         assert_eq!(miner_block.hash, gossip.hash);
         assert_eq!(miner_block.index, gossip.index);
         assert!(miner_block.is_canonical);
+        assert_eq!(
+            miner_block.data_hash,
+            modality_common::miner_header::data_hash(&gossip.nominated_peer_id, gossip.miner_number)
+        );
 
         let gossip2 = MinerBlockGossip::from_miner_block(&miner_block);
         assert_eq!(gossip2.hash, gossip.hash);

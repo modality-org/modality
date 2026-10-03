@@ -323,7 +323,10 @@ impl InvokeEngine for CliWasmEngine {
             invoker: ctx.invoker.clone(),
             commit_id: ctx.commit_id.clone(),
             parent_commit_id: ctx.parent_commit_id.clone(),
-            state: Value::Object(ctx.state.clone()),
+            state: Value::Object(modality_common::independent_replay::program_state_view(
+                &wasm.path,
+                &ctx.state,
+            )),
             accepted_state_oracle_keys: ctx.accepted_state_oracle_keys.clone(),
         };
         let input_json = encode_program_input(args.clone(), context)?;
