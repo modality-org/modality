@@ -300,7 +300,10 @@ async fn clone_from_url(url: &str, opts: &Opts) -> Result<()> {
     }
 
     // Use contract ID as directory name
-    let contract_dir = opts.dir.clone().unwrap_or_else(|| PathBuf::from(&contract_id));
+    let contract_dir = opts
+        .dir
+        .clone()
+        .unwrap_or_else(|| PathBuf::from(&contract_id));
     if contract_dir.exists() {
         anyhow::bail!("Directory '{}' already exists", contract_dir.display());
     }

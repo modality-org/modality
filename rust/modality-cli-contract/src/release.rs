@@ -14,7 +14,9 @@ use modality_common::release::{self, Entry, Log, LogCommit, Pin};
 
 #[derive(Debug, Subcommand)]
 pub enum Commands {
-    #[command(about = "Make a release contract: the CI key may post releases; maintainers change the rest")]
+    #[command(
+        about = "Make a release contract: the CI key may post releases; maintainers change the rest"
+    )]
     Init(InitOpts),
     #[command(about = "Append a release, signed by the release key, to a release log")]
     Publish(PublishOpts),
@@ -108,13 +110,21 @@ pub async fn run(command: &Commands) -> Result<()> {
         Commands::Export(opts) => {
             let log = export(&ContractStore::open(&opts.dir)?)?;
             std::fs::write(&opts.out, serde_json::to_string_pretty(&log)?)?;
-            println!("✅ Wrote {} commit(s) to {}", log.commits.len(), opts.out.display());
+            println!(
+                "✅ Wrote {} commit(s) to {}",
+                log.commits.len(),
+                opts.out.display()
+            );
             Ok(())
         }
         Commands::Import(opts) => {
             let log: Log = serde_json::from_str(&std::fs::read_to_string(&opts.log)?)?;
             import(&log, &opts.dir)?;
-            println!("✅ Imported {} commit(s) into {}", log.commits.len(), opts.dir.display());
+            println!(
+                "✅ Imported {} commit(s) into {}",
+                log.commits.len(),
+                opts.dir.display()
+            );
             Ok(())
         }
     }
@@ -126,9 +136,12 @@ fn dir_arg(dir: &Path) -> String {
 
 async fn init(opts: &InitOpts) -> Result<()> {
     let dir = dir_arg(&opts.dir);
-    let created = crate::create::make(&crate::create::Opts::parse_from(["create", "--dir", &dir])).await?;
+    let created =
+        crate::create::make(&crate::create::Opts::parse_from(["create", "--dir", &dir])).await?;
     let store = ContractStore::open(&opts.dir)?;
-    let id = |reference: &str| crate::signer_set::signer_id(reference).map(|id| modality_common::peer_id::id_value(&id));
+    let id = |reference: &str| {
+        crate::signer_set::signer_id(reference).map(|id| modality_common::peer_id::id_value(&id))
+    };
     store.write_state("/keys/ci.id", &id(&opts.ci)?.into())?;
     for (i, maintainer) in opts.maintainers.iter().enumerate() {
         store.write_state(
@@ -136,7 +149,10 @@ async fn init(opts: &InitOpts) -> Result<()> {
             &id(maintainer)?.into(),
         )?;
     }
-    std::fs::write(opts.dir.join("model").join("default.modality"), release::MODEL)?;
+    std::fs::write(
+        opts.dir.join("model").join("default.modality"),
+        release::MODEL,
+    )?;
     let rules_dir = opts.dir.join("rules");
     std::fs::create_dir_all(&rules_dir)?;
     for (name, formula) in release::RULES {
@@ -193,7 +209,10 @@ async fn publish(opts: &PublishOpts) -> Result<()> {
         &release::entry_path(&opts.channel, &opts.version),
         &serde_json::to_value(&entry)?,
     )?;
-    store.write_state(&release::latest_path(&opts.channel), &opts.version.clone().into())?;
+    store.write_state(
+        &release::latest_path(&opts.channel),
+        &opts.version.clone().into(),
+    )?;
     let dir = dir_arg(&work);
     crate::commit::make(&crate::commit::Opts::parse_from([
         "commit",
@@ -206,12 +225,20 @@ async fn publish(opts: &PublishOpts) -> Result<()> {
         &format!("Release {} {}", opts.channel, opts.version),
     ]))
     .await?
-    .ok_or_else(|| anyhow!("the release commit is empty: is {} already published?", opts.version))?;
+    .ok_or_else(|| {
+        anyhow!(
+            "the release commit is empty: is {} already published?",
+            opts.version
+        )
+    })?;
     let out = export(&store)?;
     release::verify_log(&out, pin_of(&out)).context("the release contract refuses this release")?;
     std::fs::write(&opts.out, serde_json::to_string_pretty(&out)?)?;
     let _ = std::fs::remove_dir_all(&work);
-    println!("✅ Release {} {} accepted by contract {}", opts.channel, opts.version, out.contract_id);
+    println!(
+        "✅ Release {} {} accepted by contract {}",
+        opts.channel, opts.version, out.contract_id
+    );
     Ok(())
 }
 
@@ -248,12 +275,15 @@ async fn verify(opts: &VerifyOpts) -> Result<()> {
         release::check_file(&entry, path, &std::fs::read(local)?)?;
     }
     if opts.output == "json" {
-        println!("{}", serde_json::to_string_pretty(&serde_json::json!({
-            "verified": true,
-            "contract_id": pin.contract_id,
-            "release": entry,
-            "files_checked": opts.files.len(),
-        }))?);
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&serde_json::json!({
+                "verified": true,
+                "contract_id": pin.contract_id,
+                "release": entry,
+                "files_checked": opts.files.len(),
+            }))?
+        );
     } else {
         println!(
             "✅ {} release {} ({}) is accepted by release contract {}; {} file(s) match",
@@ -297,7 +327,10 @@ pub fn export(store: &ContractStore) -> Result<Log> {
         });
     }
     commits.reverse();
-    Ok(Log { contract_id, commits })
+    Ok(Log {
+        contract_id,
+        commits,
+    })
 }
 
 /// A contract directory holding `log`.

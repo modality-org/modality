@@ -127,7 +127,11 @@ pub fn program_state_view(program_path: &str, state: &Map<String, Value>) -> Map
     }
     EMISSION_READS
         .iter()
-        .filter_map(|key| state.get(*key).map(|value| ((*key).to_string(), value.clone())))
+        .filter_map(|key| {
+            state
+                .get(*key)
+                .map(|value| ((*key).to_string(), value.clone()))
+        })
         .collect()
 }
 
@@ -1143,7 +1147,10 @@ model FirstContract {
         let report = replay("sig", "v2");
         assert!(!report.ok);
         assert!(
-            report.errors.iter().any(|err| err.contains("does not verify")),
+            report
+                .errors
+                .iter()
+                .any(|err| err.contains("does not verify")),
             "{:?}",
             report.errors
         );

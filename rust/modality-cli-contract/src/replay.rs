@@ -335,8 +335,7 @@ impl InvokeEngine for CliWasmEngine {
             commit_id: ctx.commit_id.clone(),
             parent_commit_id: ctx.parent_commit_id.clone(),
             state: Value::Object(modality_common::independent_replay::program_state_view(
-                &wasm.path,
-                &ctx.state,
+                &wasm.path, &ctx.state,
             )),
             accepted_state_oracle_keys: ctx.accepted_state_oracle_keys.clone(),
         };

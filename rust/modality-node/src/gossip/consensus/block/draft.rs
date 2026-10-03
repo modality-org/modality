@@ -9,10 +9,7 @@ use modality_sequencer_consensus::communication::Message as ConsensusMessage;
 
 pub const TOPIC: &str = "/consensus/block/draft";
 
-pub async fn handler(
-    data: String,
-    consensus_tx: mpsc::Sender<ConsensusMessage>,
-) -> Result<()> {
+pub async fn handler(data: String, consensus_tx: mpsc::Sender<ConsensusMessage>) -> Result<()> {
     let block_data =
         serde_json::from_str::<serde_json::Value>(&data).unwrap_or(serde_json::Value::Null);
     let block = SequencerBlock::from_json_string(&data.clone())?;

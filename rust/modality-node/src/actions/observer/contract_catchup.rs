@@ -15,8 +15,8 @@ use tokio::sync::Mutex;
 use modality_common::contract_store::CommitFile;
 use modality_datastore::models::{Commit, Contract};
 use modality_datastore::DatastoreManager;
-use modality_validator::ContractProcessor;
 use modality_sequencer_consensus::communication::Message as ConsensusMessage;
+use modality_validator::ContractProcessor;
 
 use crate::actions::sequencer::consensus::apply_certified_contract_events;
 use crate::constants::REQRES_TIMEOUT_SECS;
@@ -246,13 +246,18 @@ async fn catchup_contract(
                     if err.to_string().contains("missing prefix_cert")
                         && fetched_certs_for.insert(commit_id.clone())
                     {
-                        let stored =
-                            fetch_prefix_certs(swarm, reqres_txs, peer_addr, datastore, &commit_entry)
-                                .await
-                                .unwrap_or_else(|e| {
-                                    log::debug!("Prefix certs for {commit_id}: {e}");
-                                    0
-                                });
+                        let stored = fetch_prefix_certs(
+                            swarm,
+                            reqres_txs,
+                            peer_addr,
+                            datastore,
+                            &commit_entry,
+                        )
+                        .await
+                        .unwrap_or_else(|e| {
+                            log::debug!("Prefix certs for {commit_id}: {e}");
+                            0
+                        });
                         if stored > 0 {
                             progressed = true;
                         }
@@ -322,8 +327,14 @@ async fn fetch_prefix_certs(
         if let Some(contract) = &source_contract {
             req["source_contract"] = serde_json::json!(contract);
         }
-        let resp = request_json(swarm, reqres_txs, peer_addr, "/contract/prefix_certs", Some(req))
-            .await?;
+        let resp = request_json(
+            swarm,
+            reqres_txs,
+            peer_addr,
+            "/contract/prefix_certs",
+            Some(req),
+        )
+        .await?;
         let certs = resp
             .get("certs")
             .and_then(|v| v.as_array())

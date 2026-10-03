@@ -413,7 +413,9 @@ fn format_formula_for_explanation(formula: &CommitRuleFormula) -> String {
 /// key matches (see [`crate::peer_id::key_form`]).
 fn signed(ctx: &EvalContext, id: &str) -> bool {
     let id = crate::peer_id::key_form(id);
-    ctx.signers.iter().any(|signer| crate::peer_id::key_form(signer) == id)
+    ctx.signers
+        .iter()
+        .any(|signer| crate::peer_id::key_form(signer) == id)
 }
 
 /// Resolve a path in contract state to a list of identity strings.

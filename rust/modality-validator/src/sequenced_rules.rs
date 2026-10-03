@@ -1,9 +1,9 @@
 use anyhow::Result;
 use modality_common::contract_store::CommitFile;
 use modality_common::model_governance::TheoryActivation;
-use modality_lang::TheoryVersion;
 use modality_datastore::models::Commit;
 use modality_datastore::DatastoreManager;
+use modality_lang::TheoryVersion;
 use std::collections::{HashMap, HashSet};
 
 pub use modality_common::independent_replay::parse_commit_file;
@@ -54,7 +54,12 @@ pub async fn assert_extends_head(
         if !commit.is_sequenced() || commit.commit_id == commit_id {
             continue;
         }
-        if parse_commit_file(&commit.commit_data)?.head.parent.as_deref() == parent {
+        if parse_commit_file(&commit.commit_data)?
+            .head
+            .parent
+            .as_deref()
+            == parent
+        {
             anyhow::bail!(
                 "commit '{}' forks the contract: sequenced commit '{}' already follows {}; commit again on the current head",
                 commit_id,

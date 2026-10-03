@@ -55,11 +55,16 @@ pub async fn apply_genesis(
             bail!("the MOD contract needs predicate theory v2, which verifies commit signatures; this network runs {theory}");
         }
         if let Some(held) = mgr.mod_contract_id()? {
-            if held != contract_id {
+            if modality_common::peer_id::key_form(&held)
+                != modality_common::peer_id::key_form(contract_id)
+            {
                 bail!("this data dir holds MOD contract {held}, not {contract_id}; clear its storage to join this network");
             }
         }
-        if Contract::find_by_id_multi(&mgr, contract_id).await?.is_none() {
+        if Contract::find_by_id_multi(&mgr, contract_id)
+            .await?
+            .is_none()
+        {
             Contract {
                 contract_id: contract_id.to_string(),
                 genesis: commits[0].to_string(),
@@ -200,7 +205,9 @@ pub async fn mint_finalized(datastore: &Arc<Mutex<DatastoreManager>>) -> Result<
             let Some(tip) = canonical.iter().map(|b| b.index).max() else {
                 return Ok(minted);
             };
-            let next = read_whole(&mgr, &contract_id, "emission/next_index").await?.max(1);
+            let next = read_whole(&mgr, &contract_id, "emission/next_index")
+                .await?
+                .max(1);
             let epoch = next / per_epoch;
             if tip / per_epoch < epoch + FINALITY_EPOCHS {
                 return Ok(minted);
@@ -254,30 +261,47 @@ pub fn spawn_minter(datastore: Arc<Mutex<DatastoreManager>>) {
 }
 
 async fn read_whole(mgr: &DatastoreManager, contract_id: &str, path: &str) -> Result<u64> {
-    let key = format!("/contracts/{contract_id}/{path}.num");
-    Ok(match mgr.get_data_by_key(&key).await? {
-        None => 0,
-        Some(raw) => String::from_utf8_lossy(&raw).trim_matches('"').parse().unwrap_or(0),
-    })
+    for id in modality_common::peer_id::id_spellings(contract_id) {
+        let key = format!("/contracts/{id}/{path}.num");
+        if let Some(raw) = mgr.get_data_by_key(&key).await? {
+            return Ok(String::from_utf8_lossy(&raw)
+                .trim_matches('"')
+                .parse()
+                .unwrap_or(0));
+        }
+    }
+    Ok(0)
 }
 
 /// A client commit to the MOD contract. Only its genesis and the network's
 /// own mint commits write it.
 pub fn refusal(mgr: &DatastoreManager, contract_id: &str) -> Option<String> {
     match mgr.mod_contract_id() {
-        Ok(Some(id)) if id == contract_id => Some(format!(
-            "contract {contract_id} is the network's MOD contract; only the network writes it"
-        )),
+        Ok(Some(id))
+            if modality_common::peer_id::key_form(&id)
+                == modality_common::peer_id::key_form(contract_id) =>
+        {
+            Some(format!(
+                "contract {contract_id} is the network's MOD contract; only the network writes it"
+            ))
+        }
         _ => None,
     }
 }
 
 async fn emission_from_state(mgr: &DatastoreManager, contract_id: &str) -> Result<EmissionConfig> {
     let read = |name: &'static str| async move {
-        let key = format!("/contracts/{contract_id}/network/emission/{name}.num");
-        match mgr.get_data_by_key(&key).await? {
+        let mut found: Option<(String, Vec<u8>)> = None;
+        for id in modality_common::peer_id::id_spellings(contract_id) {
+            let key = format!("/contracts/{id}/network/emission/{name}.num");
+            if let Some(raw) = mgr.get_data_by_key(&key).await? {
+                found = Some((key, raw));
+                break;
+            }
+        }
+        match found {
             None => Ok::<u64, anyhow::Error>(0),
-            Some(raw) => {
+            Some((key, raw)) => {
                 let text = String::from_utf8_lossy(&raw);
                 text.trim_matches('"')
                     .parse()
@@ -294,7 +318,11 @@ async fn emission_from_state(mgr: &DatastoreManager, contract_id: &str) -> Resul
     })
 }
 
-async fn find(mgr: &DatastoreManager, contract_id: &str, commit_id: &str) -> Result<Option<Commit>> {
+async fn find(
+    mgr: &DatastoreManager,
+    contract_id: &str,
+    commit_id: &str,
+) -> Result<Option<Commit>> {
     let keys = [
         ("contract_id".to_string(), contract_id.to_string()),
         ("commit_id".to_string(), commit_id.to_string()),

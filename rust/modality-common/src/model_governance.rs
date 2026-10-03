@@ -2276,7 +2276,10 @@ impl CommitFacts {
                         Some(format!(
                             "a RECV from {} of {} {} asks {field} {min}",
                             claim.from.as_deref().unwrap_or("?"),
-                            claim.amount.map(|n| n.to_string()).unwrap_or_else(|| "?".into()),
+                            claim
+                                .amount
+                                .map(|n| n.to_string())
+                                .unwrap_or_else(|| "?".into()),
                             claim.asset.as_deref().unwrap_or("?"),
                         ))
                     })
@@ -2567,7 +2570,11 @@ impl CommitFacts {
             if !(dest.ends_with(".text") || dest.ends_with(".id")) {
                 return false;
             }
-            match self.state.get(&normalize_path(dest)).and_then(Value::as_str) {
+            match self
+                .state
+                .get(&normalize_path(dest))
+                .and_then(Value::as_str)
+            {
                 Some(id) => crate::peer_id::key_form(id),
                 None => return false,
             }
@@ -2598,8 +2605,7 @@ impl CommitFacts {
     /// leaves it alone. With a fee `f` in `[0, 1)`, a number that grows counts
     /// only `1 - f` of its growth, so a swap must pay the fee on what it puts in.
     fn keeps_product(&self, a: &str, b: &str, fee: Option<&str>) -> bool {
-        if !a.ends_with(".num") || !b.ends_with(".num") || normalize_path(a) == normalize_path(b)
-        {
+        if !a.ends_with(".num") || !b.ends_with(".num") || normalize_path(a) == normalize_path(b) {
             return false;
         }
         let fee = match fee {
@@ -2636,7 +2642,9 @@ impl CommitFacts {
         let paths = [a, b, supply];
         if paths.iter().any(|p| !p.ends_with(".num"))
             || normalize_path(a) == normalize_path(b)
-            || paths[..2].iter().any(|p| normalize_path(p) == normalize_path(supply))
+            || paths[..2]
+                .iter()
+                .any(|p| normalize_path(p) == normalize_path(supply))
         {
             return false;
         }
@@ -2647,7 +2655,10 @@ impl CommitFacts {
         ) else {
             return false;
         };
-        if [&a0, &a1, &b0, &b1, &s0, &s1].iter().any(|n| n.is_negative()) {
+        if [&a0, &a1, &b0, &b1, &s0, &s1]
+            .iter()
+            .any(|n| n.is_negative())
+        {
             return false;
         }
         if fee.is_some() && s0 == s1 {
@@ -2762,14 +2773,22 @@ impl CommitFacts {
         };
         let Some(received) = self.recvs.iter().try_fold(0u128, |total, recv| {
             let (id, amount) = recv.as_ref()?;
-            Some(if id == asset { total + u128::from(*amount) } else { total })
+            Some(if id == asset {
+                total + u128::from(*amount)
+            } else {
+                total
+            })
         }) else {
             return false;
         };
         let (Ok(sent), Ok(received)) = (i64::try_from(sent), i64::try_from(received)) else {
             return false;
         };
-        let (inflow, outflow) = if issued { (sent, received) } else { (received, sent) };
+        let (inflow, outflow) = if issued {
+            (sent, received)
+        } else {
+            (received, sent)
+        };
         after.sub(&before) == Exact::from_int(inflow).sub(&Exact::from_int(outflow))
     }
 
@@ -2811,8 +2830,7 @@ impl CommitFacts {
         !self.emitters.is_empty()
             && self.emitters.iter().all(|emitter| {
                 emitter.as_ref().is_some_and(|e| {
-                    e.program == program
-                        && sha256.is_none_or(|h| e.sha256.eq_ignore_ascii_case(h))
+                    e.program == program && sha256.is_none_or(|h| e.sha256.eq_ignore_ascii_case(h))
                 })
             })
     }
@@ -3029,7 +3047,10 @@ impl RecvClaim {
             _ => None,
         };
         Self {
-            from: value.get("from_contract").and_then(Value::as_str).map(crate::peer_id::key_form),
+            from: value
+                .get("from_contract")
+                .and_then(Value::as_str)
+                .map(crate::peer_id::key_form),
             asset: asset_name(value),
             amount: value.get("amount").and_then(Value::as_u64),
             memo,
@@ -3486,7 +3507,8 @@ fn replay_bundle_binding_mismatch(
         .and_then(Value::as_str)
     {
         Some(accepted_oracle_pubkey)
-            if crate::peer_id::key_form(accepted_oracle_pubkey) == crate::peer_id::key_form(oracle_pubkey) => {}
+            if crate::peer_id::key_form(accepted_oracle_pubkey)
+                == crate::peer_id::key_form(oracle_pubkey) => {}
         Some(accepted_oracle_pubkey) => {
             return Some(format!(
                 "oracle_attests replay bundle attestation oracle_pubkey {oracle_pubkey} does not match accepted state at {oracle_path} ({accepted_oracle_pubkey})"
@@ -3565,7 +3587,12 @@ fn extract_signers(commit: &CommitFile) -> HashSet<String> {
         .signatures
         .as_ref()
         .and_then(Value::as_object)
-        .map(|signatures| signatures.keys().map(|key| crate::peer_id::key_form(key)).collect())
+        .map(|signatures| {
+            signatures
+                .keys()
+                .map(|key| crate::peer_id::key_form(key))
+                .collect()
+        })
         .unwrap_or_default()
 }
 
@@ -4663,7 +4690,10 @@ model Contract {
         current_states.insert("active".to_string());
         let mut state = HashMap::new();
         // Alice's ID in the standard form, Bob's in base58 as posted before it.
-        state.insert("m/alice.id".to_string(), Value::String(modality_peer_id(&alice)));
+        state.insert(
+            "m/alice.id".to_string(),
+            Value::String(modality_peer_id(&alice)),
+        );
         state.insert("m/bob.id".to_string(), Value::String(bob.to_base58()));
         let signed = |keys: &[String]| {
             let mut commit = CommitFile::new();
@@ -4672,20 +4702,32 @@ model Contract {
                 Some("/n.json".to_string()),
                 serde_json::json!(1),
             );
-            let signatures: serde_json::Map<String, Value> =
-                keys.iter().map(|k| (k.clone(), Value::from("sig"))).collect();
+            let signatures: serde_json::Map<String, Value> = keys
+                .iter()
+                .map(|k| (k.clone(), Value::from("sig")))
+                .collect();
             commit.head.signatures = Some(Value::Object(signatures));
             CommitFacts::from_commit(&commit, &state)
         };
         let model = |label: &str| {
-            parse_content_lalrpop(&format!("model M {{\n  initial active\n  active --> active: +POST {label}\n}}\n"))
-                .unwrap()
+            parse_content_lalrpop(&format!(
+                "model M {{\n  initial active\n  active --> active: +POST {label}\n}}\n"
+            ))
+            .unwrap()
         };
 
         // A base58 signature key is the standard-form ID's key.
         let by_alice = model("+signed_by(/m/alice.id)");
-        assert!(has_valid_transition(&by_alice, &current_states, &signed(&[alice.to_base58()])));
-        assert!(has_valid_transition(&by_alice, &current_states, &signed(&[alice_hex.clone()])));
+        assert!(has_valid_transition(
+            &by_alice,
+            &current_states,
+            &signed(&[alice.to_base58()])
+        ));
+        assert!(has_valid_transition(
+            &by_alice,
+            &current_states,
+            &signed(&[alice_hex.clone()])
+        ));
 
         // Respelling a key does not dodge a negated signer.
         let not_alice = model("-signed_by(/m/alice.id)");

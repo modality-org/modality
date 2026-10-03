@@ -65,7 +65,11 @@ pub struct HashCommitment {
 
 /// What a contract's key signs to post a signer set: the set, for this
 /// contract's genesis commit.
-pub fn signer_set_payload(contract_id: &str, genesis_commit_id: &str, signers: &[String]) -> String {
+pub fn signer_set_payload(
+    contract_id: &str,
+    genesis_commit_id: &str,
+    signers: &[String],
+) -> String {
     stringify_deterministic(
         &json!({
             "type": "modality-signer-set",
@@ -84,7 +88,9 @@ pub fn sign_signer_set(
     genesis_commit_id: &str,
     signers: &[String],
 ) -> Result<String> {
-    let contract_id = contract_key.public_key_as_base58_identity();
+    // The contract id is the Modality spelling, which is what `create` stores
+    // and what this signature covers.
+    let contract_id = crate::peer_id::id_value(&contract_key.public_key_as_base58_identity());
     contract_key.sign_string_as_base64_pad(&signer_set_payload(
         &contract_id,
         genesis_commit_id,
@@ -132,14 +138,20 @@ pub fn genesis_names_signer_set(body: &[CommitAction], signers: &[String]) -> Re
             .next_back()
     };
     // Compared as keys: a set may name a key in another spelling than its post.
-    let mut wanted: Vec<String> = signers.iter().map(|s| crate::peer_id::key_form(s)).collect();
+    let mut wanted: Vec<String> = signers
+        .iter()
+        .map(|s| crate::peer_id::key_form(s))
+        .collect();
     wanted.sort_unstable();
     let names_the_set = |paths: Vec<String>| {
-        let mut keys: Vec<String> =
-            match paths.iter().map(|p| posted(p).map(crate::peer_id::key_form)).collect::<Option<_>>() {
-                Some(keys) => keys,
-                None => return false,
-            };
+        let mut keys: Vec<String> = match paths
+            .iter()
+            .map(|p| posted(p).map(crate::peer_id::key_form))
+            .collect::<Option<_>>()
+        {
+            Some(keys) => keys,
+            None => return false,
+        };
         keys.sort_unstable();
         keys == wanted
     };
@@ -409,7 +421,10 @@ impl HashCommitment {
             if signers.is_empty() {
                 bail!("a posted signer set must name at least one key");
             }
-            if !signers.iter().any(|s| crate::peer_id::key_form(s) == crate::peer_id::key_form(&self.signer)) {
+            if !signers
+                .iter()
+                .any(|s| crate::peer_id::key_form(s) == crate::peer_id::key_form(&self.signer))
+            {
                 bail!(
                     "genesis hash commitment is signed by {}, which is not in the signer set it posts",
                     self.signer
@@ -437,7 +452,10 @@ impl HashCommitment {
             &self.signature,
             self.signing_payload().as_bytes(),
         ) {
-            bail!("hash commitment signature by {} does not verify", self.signer);
+            bail!(
+                "hash commitment signature by {} does not verify",
+                self.signer
+            );
         }
         Ok(())
     }
@@ -475,7 +493,10 @@ impl HashCommitment {
             }
         }
         if let Some(set) = signer_set {
-            if !set.iter().any(|s| crate::peer_id::key_form(s) == crate::peer_id::key_form(&self.signer)) {
+            if !set
+                .iter()
+                .any(|s| crate::peer_id::key_form(s) == crate::peer_id::key_form(&self.signer))
+            {
                 bail!(
                     "hash commitment for contract {} is signed by {}, which is not in its signer set",
                     self.contract_id,
@@ -527,7 +548,11 @@ impl HashCommitment {
     /// Order in which records compete for a block: most work first, then by
     /// commit hash.
     pub fn auction_key(&self) -> ([u8; 32], String, String) {
-        (self.work_digest(), self.commit_id.clone(), self.contract_id.clone())
+        (
+            self.work_digest(),
+            self.commit_id.clone(),
+            self.contract_id.clone(),
+        )
     }
 }
 
@@ -537,8 +562,23 @@ pub fn select_for_block(
     mut records: Vec<HashCommitment>,
     quota: usize,
 ) -> (Vec<HashCommitment>, Vec<HashCommitment>) {
+    // Two spellings of one contract are one contract. Drop the duplicate
+    // before the auction, whose order still uses the stored text.
+    records.sort_by(|a, b| {
+        (
+            crate::peer_id::key_form(&a.contract_id),
+            a.commit_id.as_str(),
+        )
+            .cmp(&(
+                crate::peer_id::key_form(&b.contract_id),
+                b.commit_id.as_str(),
+            ))
+    });
+    records.dedup_by(|a, b| {
+        crate::peer_id::key_form(&a.contract_id) == crate::peer_id::key_form(&b.contract_id)
+            && a.commit_id == b.commit_id
+    });
     records.sort_by_cached_key(HashCommitment::auction_key);
-    records.dedup_by(|a, b| a.contract_id == b.contract_id && a.commit_id == b.commit_id);
     let rest = records.split_off(quota.min(records.len()));
     (records, rest)
 }
@@ -567,7 +607,10 @@ pub fn check_block_events(
         let set = signer_sets(&record.contract_id);
         record.verify_for_vote(params, window, set.as_deref())?;
         if !seen.insert((record.contract_id.clone(), record.commit_id.clone())) {
-            bail!("hash commitment {} appears twice in one block", record.commit_id);
+            bail!(
+                "hash commitment {} appears twice in one block",
+                record.commit_id
+            );
         }
         if seen.len() > params.quota_per_block {
             bail!(
@@ -629,9 +672,15 @@ mod tests {
         AnchorWindow {
             epoch: 5,
             anchors: vec![
-                EpochAnchor { epoch: 4, anchor: "cd".repeat(32) },
+                EpochAnchor {
+                    epoch: 4,
+                    anchor: "cd".repeat(32),
+                },
                 anchor(),
-                EpochAnchor { epoch: 6, anchor: "ef".repeat(32) },
+                EpochAnchor {
+                    epoch: 6,
+                    anchor: "ef".repeat(32),
+                },
             ],
         }
     }
@@ -658,7 +707,9 @@ mod tests {
 
         let mut moved = good.clone();
         moved.commit_id = "22".repeat(32);
-        let err = moved.verify_for_vote(&params(8), &window(), None).unwrap_err();
+        let err = moved
+            .verify_for_vote(&params(8), &window(), None)
+            .unwrap_err();
         assert!(err.to_string().contains("signature"), "{err}");
 
         let mut weak = good.clone();
@@ -666,13 +717,29 @@ mod tests {
         while weak.work_bits() >= 8 {
             weak.nonce += 1;
         }
-        let err = weak.verify_for_vote(&params(8), &window(), None).unwrap_err();
+        let err = weak
+            .verify_for_vote(&params(8), &window(), None)
+            .unwrap_err();
         assert!(err.to_string().contains("floor"), "{err}");
 
-        let mut stale = HashCommitment::signed(&keypair, "contract-a", &"11".repeat(32), None).unwrap();
-        stale.grind(&EpochAnchor { epoch: 2, anchor: "cd".repeat(32) }, 8).unwrap();
-        let err = stale.verify_for_vote(&params(8), &window(), None).unwrap_err();
-        assert!(err.to_string().contains("not a current epoch anchor"), "{err}");
+        let mut stale =
+            HashCommitment::signed(&keypair, "contract-a", &"11".repeat(32), None).unwrap();
+        stale
+            .grind(
+                &EpochAnchor {
+                    epoch: 2,
+                    anchor: "cd".repeat(32),
+                },
+                8,
+            )
+            .unwrap();
+        let err = stale
+            .verify_for_vote(&params(8), &window(), None)
+            .unwrap_err();
+        assert!(
+            err.to_string().contains("not a current epoch anchor"),
+            "{err}"
+        );
 
         let mut body_hash = good.clone();
         body_hash.commit_id = "not-a-hash".into();
@@ -690,8 +757,13 @@ mod tests {
         check_block_events(&events[..2], Some(&p), &window(), &open).unwrap();
         let err = check_block_events(&events, Some(&p), &window(), &open).unwrap_err();
         assert!(err.to_string().contains("more than 2"), "{err}");
-        let err = check_block_events(&[events[0].clone(), events[0].clone()], Some(&p), &window(), &open)
-            .unwrap_err();
+        let err = check_block_events(
+            &[events[0].clone(), events[0].clone()],
+            Some(&p),
+            &window(),
+            &open,
+        )
+        .unwrap_err();
         assert!(err.to_string().contains("twice"), "{err}");
         let err = check_block_events(&events[..1], None, &window(), &open).unwrap_err();
         assert!(err.to_string().contains("no hash lane"), "{err}");
@@ -706,17 +778,26 @@ mod tests {
             .collect();
         let (taken, rest) = select_for_block(records.clone(), 2);
         assert_eq!((taken.len(), rest.len()), (2, 4));
-        let strongest = records.iter().map(HashCommitment::auction_key).min().unwrap();
+        let strongest = records
+            .iter()
+            .map(HashCommitment::auction_key)
+            .min()
+            .unwrap();
         assert_eq!(taken[0].auction_key(), strongest);
 
-        let events: Vec<Value> = records.iter().rev().map(|r| r.to_event().unwrap()).collect();
+        let events: Vec<Value> = records
+            .iter()
+            .rev()
+            .map(|r| r.to_event().unwrap())
+            .collect();
         assert_eq!(records_to_index(&events, &params(2), &open), taken);
     }
 
     #[test]
     fn a_signer_set_keeps_other_keys_off_the_contract() {
         let contract = Keypair::generate().unwrap();
-        let cid = contract.public_key_as_base58_identity();
+        let cid = crate::peer_id::id_value(&contract.public_key_as_base58_identity());
+        assert!(cid.ends_with("aiajaazfab"), "{cid}");
         let genesis_id = "11".repeat(32);
         let alice = Keypair::generate().unwrap();
         let bob = Keypair::generate().unwrap();
@@ -727,15 +808,27 @@ mod tests {
         ];
         let attested = sign_signer_set(&contract, &genesis_id, &set).unwrap();
 
-        let mut genesis =
-            HashCommitment::signed_genesis(&alice, &cid, &genesis_id, set.clone(), attested.clone())
-                .unwrap();
+        let mut genesis = HashCommitment::signed_genesis(
+            &alice,
+            &cid,
+            &genesis_id,
+            set.clone(),
+            attested.clone(),
+        )
+        .unwrap();
         genesis.grind(&anchor(), 4).unwrap();
-        genesis.verify_for_vote(&params(4), &window(), None).unwrap();
+        genesis
+            .verify_for_vote(&params(4), &window(), None)
+            .unwrap();
 
-        let mut outsider_genesis =
-            HashCommitment::signed_genesis(&mallory, &cid, &genesis_id, set.clone(), attested.clone())
-                .unwrap();
+        let mut outsider_genesis = HashCommitment::signed_genesis(
+            &mallory,
+            &cid,
+            &genesis_id,
+            set.clone(),
+            attested.clone(),
+        )
+        .unwrap();
         outsider_genesis.grind(&anchor(), 4).unwrap();
         let err = outsider_genesis.verify_record().unwrap_err();
         assert!(err.to_string().contains("not in the signer set"), "{err}");
@@ -752,7 +845,9 @@ mod tests {
         )
         .unwrap();
         copied.grind(&anchor(), 4).unwrap();
-        let err = copied.verify_for_vote(&params(4), &window(), None).unwrap_err();
+        let err = copied
+            .verify_for_vote(&params(4), &window(), None)
+            .unwrap_err();
         assert!(err.to_string().contains("contract's own key"), "{err}");
         let mut unattested = copied.clone();
         unattested.contract_signature = None;
@@ -766,13 +861,9 @@ mod tests {
         assert!(widened.verify_record().is_err());
 
         let extension = |keypair: &Keypair| {
-            let mut r = HashCommitment::signed(
-                keypair,
-                &cid,
-                &"22".repeat(32),
-                Some(&"11".repeat(32)),
-            )
-            .unwrap();
+            let mut r =
+                HashCommitment::signed(keypair, &cid, &"22".repeat(32), Some(&"11".repeat(32)))
+                    .unwrap();
             r.grind(&anchor(), 4).unwrap();
             r
         };
@@ -784,7 +875,9 @@ mod tests {
             .unwrap_err();
         assert!(err.to_string().contains("not in its signer set"), "{err}");
 
-        let err = genesis.verify_for_vote(&params(4), &window(), Some(&set)).unwrap_err();
+        let err = genesis
+            .verify_for_vote(&params(4), &window(), Some(&set))
+            .unwrap_err();
         assert!(err.to_string().contains("already has"), "{err}");
 
         let three: Vec<String> = (0..3)
@@ -794,14 +887,16 @@ mod tests {
         let other = Keypair::generate().unwrap();
         let mut big = HashCommitment::signed_genesis(
             &alice,
-            &other.public_key_as_base58_identity(),
+            &crate::peer_id::id_value(&other.public_key_as_base58_identity()),
             &"33".repeat(32),
             three.clone(),
             sign_signer_set(&other, &"33".repeat(32), &three).unwrap(),
         )
         .unwrap();
         big.grind(&anchor(), 4).unwrap();
-        let err = big.verify_for_vote(&params(4), &window(), None).unwrap_err();
+        let err = big
+            .verify_for_vote(&params(4), &window(), None)
+            .unwrap_err();
         assert!(err.to_string().contains("allows 2"), "{err}");
 
         let mut body_hash = HashCommitment::signed(&alice, "c", &"11".repeat(32), None).unwrap();
@@ -834,7 +929,10 @@ mod tests {
         let set = vec!["KA".to_string(), "KB".to_string()];
         let paths = vec![signer_path(1), signer_path(2)];
         let rule = creation_rule(&paths);
-        assert_eq!(rule, "always([-signed_by(/signers/1.id) -signed_by(/signers/2.id)] false)");
+        assert_eq!(
+            rule,
+            "always([-signed_by(/signers/1.id) -signed_by(/signers/2.id)] false)"
+        );
         let body = vec![
             action("post", "/signers/1.id", json!("KA")),
             action("post", "/signers/2.id", json!("KB")),
@@ -849,7 +947,9 @@ mod tests {
             action(
                 "rule",
                 "/rules/r.modality",
-                json!(rule_file("always( [ -signed_by(/signers/2.id)\n -signed_by(/signers/1.id) ] false )")),
+                json!(rule_file(
+                    "always( [ -signed_by(/signers/2.id)\n -signed_by(/signers/1.id) ] false )"
+                )),
             ),
         ];
         genesis_names_signer_set(&spaced, &set).unwrap();
@@ -871,7 +971,9 @@ mod tests {
         weaker[2] = action(
             "rule",
             "/rules/signers.modality",
-            json!(rule_file("always([+POST -signed_by(/signers/1.id) -signed_by(/signers/2.id)] false)")),
+            json!(rule_file(
+                "always([+POST -signed_by(/signers/1.id) -signed_by(/signers/2.id)] false)"
+            )),
         );
         refused(&weaker, &set);
         let mut bare = body.clone();
@@ -895,13 +997,20 @@ mod tests {
         assert_eq!(window_epochs(0), vec![0, 1]);
         assert_eq!(window_epochs(5), vec![4, 5, 6]);
         assert_eq!(static_anchor("devnet1"), static_anchor("devnet1"));
-        assert_ne!(static_anchor("devnet1").anchor, static_anchor("testnet").anchor);
+        assert_ne!(
+            static_anchor("devnet1").anchor,
+            static_anchor("testnet").anchor
+        );
     }
 
     #[test]
     fn params_refuse_what_this_build_cannot_enforce() {
-        assert!(HashLaneParams::from_value(&json!({"quota_per_block": 8, "floor_bits": 8})).is_ok());
-        assert!(HashLaneParams::from_value(&json!({"quota_per_block": 0, "floor_bits": 8})).is_err());
+        assert!(
+            HashLaneParams::from_value(&json!({"quota_per_block": 8, "floor_bits": 8})).is_ok()
+        );
+        assert!(
+            HashLaneParams::from_value(&json!({"quota_per_block": 0, "floor_bits": 8})).is_err()
+        );
         assert!(HashLaneParams::from_value(
             &json!({"quota_per_block": 8, "floor_bits": 8, "algorithm": "randomx"})
         )

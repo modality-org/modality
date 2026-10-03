@@ -277,7 +277,7 @@ async fn api_contract_handler(
     id: String,
     source: NodeStatusSource,
 ) -> Result<impl warp::Reply, warp::Rejection> {
-    // Contracts are stored under base58; a pasted ID may be in any form.
+    // A pasted ID may be in any form. Lookup resolves it to the stored spelling.
     let id = modality_common::peer_id::normalize_peer_id(&id);
     let mgr = source.datastore.lock().await;
     match explorer::inspect_contract(&mgr, &id)
@@ -296,7 +296,7 @@ async fn api_commits_handler(
     id: String,
     source: NodeStatusSource,
 ) -> Result<impl warp::Reply, warp::Rejection> {
-    // Contracts are stored under base58; a pasted ID may be in any form.
+    // A pasted ID may be in any form. Lookup resolves it to the stored spelling.
     let id = modality_common::peer_id::normalize_peer_id(&id);
     let mgr = source.datastore.lock().await;
     match explorer::list_commits(&mgr, &id)
@@ -315,7 +315,7 @@ async fn api_replay_handler(
     id: String,
     source: NodeStatusSource,
 ) -> Result<impl warp::Reply, warp::Rejection> {
-    // Contracts are stored under base58; a pasted ID may be in any form.
+    // A pasted ID may be in any form. Lookup resolves it to the stored spelling.
     let id = modality_common::peer_id::normalize_peer_id(&id);
     let mgr = source.datastore.lock().await;
     match explorer::replay_contract(&mgr, &id, None).await {

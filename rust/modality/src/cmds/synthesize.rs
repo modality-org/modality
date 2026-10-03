@@ -1445,11 +1445,12 @@ fn with_bootstrap_edge(mut model: modality_lang::Model) -> modality_lang::Model 
         .into_iter()
         .next();
     let mut nodes: Vec<&mut String> = Vec::new();
-    for transition in model
-        .transitions
-        .iter_mut()
-        .chain(model.parts.iter_mut().flat_map(|p| p.transitions.iter_mut()))
-    {
+    for transition in model.transitions.iter_mut().chain(
+        model
+            .parts
+            .iter_mut()
+            .flat_map(|p| p.transitions.iter_mut()),
+    ) {
         nodes.push(&mut transition.from);
         nodes.push(&mut transition.to);
     }
@@ -1464,7 +1465,13 @@ fn with_bootstrap_edge(mut model: modality_lang::Model) -> modality_lang::Model 
         ("q0".to_string(), format!("q{start}"))
     } else {
         let boot = (0..)
-            .map(|i| if i == 0 { "bootstrap".to_string() } else { format!("bootstrap{i}") })
+            .map(|i| {
+                if i == 0 {
+                    "bootstrap".to_string()
+                } else {
+                    format!("bootstrap{i}")
+                }
+            })
             .find(|n| !taken.contains(n))
             .unwrap();
         (boot, start.unwrap_or_else(|| "q1".to_string()))

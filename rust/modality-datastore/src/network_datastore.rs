@@ -235,7 +235,10 @@ impl NetworkDatastore {
         &self,
         contract_id: &str,
     ) -> Result<crate::NetworkParameters> {
-        let prefix = format!("/contracts/{}/network", contract_id);
+        let prefixes: Vec<String> = modality_common::peer_id::id_spellings(contract_id)
+            .into_iter()
+            .map(|id| format!("/contracts/{id}/network"))
+            .collect();
 
         let mut name = String::new();
         let mut description = String::new();
@@ -246,15 +249,17 @@ impl NetworkDatastore {
         let mut miner_hash_func: Option<String> = None;
         let mut mining_hash_params: Option<serde_json::Value> = None;
 
-        // Iterate over all keys with the prefix
-        for result in self.iterator(&prefix) {
+        // Iterate over all keys with the prefix, in whichever spelling the
+        // contract id was stored.
+        for prefix in &prefixes {
+        for result in self.iterator(prefix) {
             let (key, value) = result?;
             let key_str = String::from_utf8(key.to_vec())?;
             let value_str = String::from_utf8(value.to_vec())?;
 
             // Parse the key to extract the parameter name
             // Format: /contracts/${contract_id}/network/${param}.${type}
-            if let Some(param_path) = key_str.strip_prefix(&format!("{}/", prefix)) {
+            if let Some(param_path) = key_str.strip_prefix(&format!("{prefix}/")) {
                 match param_path {
                     path if path.starts_with("name.") => {
                         name = value_str;
@@ -289,6 +294,7 @@ impl NetworkDatastore {
                     }
                 }
             }
+        }
         }
 
         // Sort sequencers by their indices (they may come in any order from iterator)

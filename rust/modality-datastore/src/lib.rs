@@ -16,8 +16,8 @@ pub use network_params::{
     DEFAULT_PREDICATE_THEORY_VERSION, VALIDATOR_QC_DENOMINATOR, VALIDATOR_QC_NUMERATOR,
 };
 pub use stores::{
-    MinerActiveStore, MinerCanonStore, MinerForksStore, NodeStateStore, Store,
-    SequencerActiveStore, SequencerFinalStore,
+    MinerActiveStore, MinerCanonStore, MinerForksStore, NodeStateStore, SequencerActiveStore,
+    SequencerFinalStore, Store,
 };
 
 pub type Result<T> = std::result::Result<T, Error>;

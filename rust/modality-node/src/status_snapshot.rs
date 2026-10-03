@@ -137,24 +137,35 @@ pub async fn mod_holdings(mgr: &DatastoreManager, address: &str) -> ModHoldings 
         };
     };
     let key = |pairs: &[(&str, &str)]| -> HashMap<String, String> {
-        pairs.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect()
+        pairs
+            .iter()
+            .map(|(k, v)| (k.to_string(), v.to_string()))
+            .collect()
     };
     let held = AssetBalance::find_one_multi(
         mgr,
-        key(&[("contract_id", &mod_id), ("asset_id", "MOD"), ("owner_contract_id", address)]),
+        key(&[
+            ("contract_id", &mod_id),
+            ("asset_id", "MOD"),
+            ("owner_contract_id", address),
+        ]),
     )
     .await
     .ok()
     .flatten()
     .map(|b| b.balance)
     .unwrap_or(0);
-    let decimals = ContractAsset::find_one_multi(mgr, key(&[("contract_id", &mod_id), ("asset_id", "MOD")]))
-        .await
-        .ok()
-        .flatten()
-        .and_then(|a| a.decimals);
+    let decimals =
+        ContractAsset::find_one_multi(mgr, key(&[("contract_id", &mod_id), ("asset_id", "MOD")]))
+            .await
+            .ok()
+            .flatten()
+            .and_then(|a| a.decimals);
     let (mut incoming, mut incoming_sends) = (0u64, 0usize);
-    for send in SendRecord::find_to_multi(mgr, address).await.unwrap_or_default() {
+    for send in SendRecord::find_to_multi(mgr, address)
+        .await
+        .unwrap_or_default()
+    {
         if send.creator() != mod_id || send.asset_id != "MOD" {
             continue;
         }
@@ -283,16 +294,9 @@ pub fn derive_active_roles(
     peerid: &str,
 ) -> Vec<&'static str> {
     let r = role.trim().to_ascii_lowercase();
-    let miner = run_miner
-        || matches!(
-            r.as_str(),
-            "miner" | "hybrid" | "miner+sequencer"
-        );
+    let miner = run_miner || matches!(r.as_str(), "miner" | "hybrid" | "miner+sequencer");
     let sequencer = run_sequencer
-        || matches!(
-            r.as_str(),
-            "sequencer" | "hybrid" | "miner+sequencer"
-        )
+        || matches!(r.as_str(), "sequencer" | "hybrid" | "miner+sequencer")
         || (hybrid_consensus && miner);
     let validator = run_validator
         || named_validators.iter().any(|id| id == peerid)
@@ -834,7 +838,10 @@ mod tests {
         use modality_datastore::models::{AssetBalance, ContractAsset, SendRecord};
         let mgr = DatastoreManager::create_in_memory().unwrap();
         let native = mod_holdings(&mgr, "node").await;
-        assert_eq!((native.source, native.held, native.incoming_sends), ("native", 0, 0));
+        assert_eq!(
+            (native.source, native.held, native.incoming_sends),
+            ("native", 0, 0)
+        );
 
         mgr.set_mod_contract("modc", &Default::default()).unwrap();
         ContractAsset {
@@ -858,7 +865,9 @@ mod tests {
         .save_to_final(&mgr)
         .await
         .unwrap();
-        for (index, asset_contract, asset_id) in [(0, "", "MOD"), (1, "", "MOD"), (2, "other", "MOD")] {
+        for (index, asset_contract, asset_id) in
+            [(0, "", "MOD"), (1, "", "MOD"), (2, "other", "MOD")]
+        {
             SendRecord {
                 send_commit_id: "mint1".into(),
                 send_index: index,
@@ -876,7 +885,10 @@ mod tests {
         let held = mod_holdings(&mgr, "node").await;
         assert_eq!(held.source, "contract");
         assert_eq!(held.held_display(), "50");
-        assert_eq!(held.incoming_sends, 2, "the send of another contract's MOD is not MOD");
+        assert_eq!(
+            held.incoming_sends, 2,
+            "the send of another contract's MOD is not MOD"
+        );
         assert_eq!(held.incoming_display(), "50");
     }
     use modality_datastore::models::miner::MinerBlock;
@@ -1023,8 +1035,7 @@ mod tests {
 
     #[test]
     fn validator_role_is_validator_only() {
-        let roles =
-            derive_active_roles("validator", false, false, true, false, &[], "peer");
+        let roles = derive_active_roles("validator", false, false, true, false, &[], "peer");
         assert_eq!(roles, vec!["Validator"]);
     }
 }

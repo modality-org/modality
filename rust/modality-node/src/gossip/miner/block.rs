@@ -53,10 +53,8 @@ impl MinerBlockGossip {
         // That hash is determined by those two, and it is what the block was
         // mined against. Storing it empty makes a later mint fail
         // `mined_headers`, which recomputes the hash and compares.
-        let data_hash = modality_common::miner_header::data_hash(
-            &self.nominated_peer_id,
-            self.miner_number,
-        );
+        let data_hash =
+            modality_common::miner_header::data_hash(&self.nominated_peer_id, self.miner_number);
         MinerBlock::new_canonical(
             self.hash.clone(),
             self.index,
@@ -346,7 +344,10 @@ mod tests {
         assert!(miner_block.is_canonical);
         assert_eq!(
             miner_block.data_hash,
-            modality_common::miner_header::data_hash(&gossip.nominated_peer_id, gossip.miner_number)
+            modality_common::miner_header::data_hash(
+                &gossip.nominated_peer_id,
+                gossip.miner_number
+            )
         );
 
         let gossip2 = MinerBlockGossip::from_miner_block(&miner_block);

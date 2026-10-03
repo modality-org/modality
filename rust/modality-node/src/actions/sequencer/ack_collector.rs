@@ -467,9 +467,14 @@ mod tests {
         assert!(collector.handle_incoming_block(&block).unwrap().is_some());
 
         let mut conflicting = create_test_block(&other_peer_id, 1, &other_keypair);
-        conflicting.events.push(serde_json::json!({"type": "other"}));
+        conflicting
+            .events
+            .push(serde_json::json!({"type": "other"}));
         conflicting.generate_sigs(&other_keypair).unwrap();
-        assert!(collector.handle_incoming_block(&conflicting).unwrap().is_none());
+        assert!(collector
+            .handle_incoming_block(&conflicting)
+            .unwrap()
+            .is_none());
     }
 
     #[test]
@@ -533,11 +538,15 @@ mod tests {
         let mut collector = AckCollector::new(peer_id.clone(), keypair.clone(), 1);
 
         let mut uncertified = create_test_block(&peer_id, 2, &keypair);
-        uncertified.events.push(serde_json::json!({"type": "contract_push", "n": 1}));
+        uncertified
+            .events
+            .push(serde_json::json!({"type": "contract_push", "n": 1}));
         collector.register_our_block(uncertified);
 
         let mut certified = create_test_block(&peer_id, 3, &keypair);
-        certified.events.push(serde_json::json!({"type": "contract_push", "n": 2}));
+        certified
+            .events
+            .push(serde_json::json!({"type": "contract_push", "n": 2}));
         collector.register_our_block(certified);
         assert!(collector.try_self_ack(3).unwrap());
         assert!(collector.form_certificate(3).is_some());

@@ -60,7 +60,10 @@ pub async fn make(opts: &Opts) -> Result<Created> {
     let signers = opts
         .signers
         .iter()
-        .map(|reference| crate::signer_set::signer_id(reference).map(|id| modality_common::peer_id::id_value(&id)))
+        .map(|reference| {
+            crate::signer_set::signer_id(reference)
+                .map(|id| modality_common::peer_id::id_value(&id))
+        })
         .collect::<Result<Vec<_>>>()?;
     for (i, id) in signers.iter().enumerate() {
         if signers[..i].contains(id) {
@@ -76,7 +79,7 @@ pub async fn make(opts: &Opts) -> Result<Created> {
         }
         None => Keypair::generate()?,
     };
-    let contract_id = keypair.as_public_address();
+    let contract_id = modality_common::peer_id::id_value(&keypair.as_public_address());
 
     // Initialize the contract store
     let store = ContractStore::init(&dir, contract_id.clone())?;

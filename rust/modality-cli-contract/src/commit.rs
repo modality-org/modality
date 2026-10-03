@@ -376,8 +376,7 @@ pub async fn make(opts: &Opts) -> Result<Option<Committed>> {
 
     // Validate against contract rules (signature predicates, etc.)
     store.validate_commit_against_rules(&commit)?;
-    let theory_preview =
-        validate_commit_against_model(&dir, &store, &commit, &opts.theory)?;
+    let theory_preview = validate_commit_against_model(&dir, &store, &commit, &opts.theory)?;
     let gas = estimate_gas(&store, &commit)?;
 
     let commit_id = commit.compute_id()?;
@@ -444,7 +443,11 @@ pub async fn run(opts: &Opts) -> Result<()> {
             gas.total(),
             gas.ordering,
             gas.apply,
-            if gas.fuel > 0 { format!(", fuel {}", gas.fuel) } else { String::new() },
+            if gas.fuel > 0 {
+                format!(", fuel {}", gas.fuel)
+            } else {
+                String::new()
+            },
             match gas_limit_shown {
                 Some(limit) => format!(", limit {limit}"),
                 None => String::new(),
@@ -484,7 +487,9 @@ fn add_posts(commit: &mut CommitFile, posts: &[String]) -> Result<usize> {
         }
         // Text-typed paths keep the value as written: a sha of digits is
         // still text.
-        let textual = [".text", ".md", ".id", ".date"].iter().any(|ext| path.ends_with(ext));
+        let textual = [".text", ".md", ".id", ".date"]
+            .iter()
+            .any(|ext| path.ends_with(ext));
         let value = if path.ends_with(".id") {
             Value::String(modality_common::peer_id::id_value(value))
         } else if textual {
@@ -642,8 +647,8 @@ fn estimate_gas(
     #[cfg(all(feature = "wasm", feature = "model-status"))]
     {
         use modality_common::independent_replay::{
-            commit_has_invoke, expand_invoke_actions_within, expand_prefix,
-            frozen_invoke_context, wasm_modules_from_commits,
+            commit_has_invoke, expand_invoke_actions_within, expand_prefix, frozen_invoke_context,
+            wasm_modules_from_commits,
         };
         if commit_has_invoke(commit) {
             let prefix = if store.get_head()?.is_some() {
@@ -747,12 +752,14 @@ fn validate_commit_against_model(
             if v2 {
                 return Ok(None);
             }
-            return Ok(theory_preview(modality_common::model_governance::shadow_findings(
-                &model_content,
-                &accepted,
-                &pending,
-                TheoryVersion::V3,
-            )));
+            return Ok(theory_preview(
+                modality_common::model_governance::shadow_findings(
+                    &model_content,
+                    &accepted,
+                    &pending,
+                    TheoryVersion::V3,
+                ),
+            ));
         }
     }
 
@@ -771,9 +778,11 @@ fn validate_commit_against_model(
     if v2 {
         return Ok(None);
     }
-    Ok(shadow_findings_for_store(&model_content, store, commit, TheoryVersion::V3)
-        .ok()
-        .and_then(theory_preview))
+    Ok(
+        shadow_findings_for_store(&model_content, store, commit, TheoryVersion::V3)
+            .ok()
+            .and_then(theory_preview),
+    )
 }
 
 #[cfg(all(test, feature = "model-status"))]
@@ -823,9 +832,16 @@ mod tests {
             .expect_err("--theory v2 refuses the dead edge");
         assert!(err.to_string().contains("open --> refunded"), "{err}");
         assert_eq!(preview.theory, "V3");
-        assert!(preview.lines[0].contains("would be refused"), "{:?}", preview.lines);
         assert!(
-            preview.lines.iter().any(|l| l.contains("open --> refunded")),
+            preview.lines[0].contains("would be refused"),
+            "{:?}",
+            preview.lines
+        );
+        assert!(
+            preview
+                .lines
+                .iter()
+                .any(|l| l.contains("open --> refunded")),
             "{:?}",
             preview.lines
         );
@@ -920,8 +936,8 @@ fn build_send_value(opts: &Opts) -> Result<Value> {
         value["asset_contract"] = serde_json::json!(creator);
     }
     if let Some(memo) = &opts.memo {
-        value["memo"] = serde_json::from_str(memo)
-            .map_err(|e| anyhow::anyhow!("--memo must be JSON: {e}"))?;
+        value["memo"] =
+            serde_json::from_str(memo).map_err(|e| anyhow::anyhow!("--memo must be JSON: {e}"))?;
     }
     Ok(value)
 }

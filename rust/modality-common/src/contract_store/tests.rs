@@ -129,11 +129,12 @@ fn held_assets_and_recv_statements_are_well_formed() {
     };
     let create = |id: &str| json!({"asset_id": id, "quantity": 1, "divisibility": 1});
     assert!(check("create", create("tok")).is_ok());
-    assert!(check("create", create("KA:tok")).is_err(), "':' names a held asset");
+    assert!(
+        check("create", create("KA:tok")).is_err(),
+        "':' names a held asset"
+    );
 
-    let send = |creator: serde_json::Value| {
-        json!({"asset_contract": creator, "asset_id": "tok", "to_contract": "P", "amount": 5, "memo": {"op": "swap"}})
-    };
+    let send = |creator: serde_json::Value| json!({"asset_contract": creator, "asset_id": "tok", "to_contract": "P", "amount": 5, "memo": {"op": "swap"}});
     assert!(check("send", send(json!("KA"))).is_ok());
     assert!(check("send", send(json!(null))).is_ok());
     assert!(check("send", send(json!(""))).is_err());
@@ -170,7 +171,12 @@ fn test_recv_action_validation_fails_without_send_commit_id() {
 
 #[test]
 fn test_recv_send_index_must_be_a_whole_number() {
-    for (index, ok) in [(json!(1), true), (json!(null), true), (json!(-1), false), (json!("1"), false)] {
+    for (index, ok) in [
+        (json!(1), true),
+        (json!(null), true),
+        (json!(-1), false),
+        (json!("1"), false),
+    ] {
         let mut commit = CommitFile::new();
         commit.add_action(
             "recv".to_string(),
@@ -552,7 +558,11 @@ fn test_working_tree_roundtrip_repost() {
 fn test_post_num_path_requires_a_number() {
     let post = |value| {
         let mut commit = CommitFile::new();
-        commit.add_action("post".to_string(), Some("/escrow/paid.num".to_string()), value);
+        commit.add_action(
+            "post".to_string(),
+            Some("/escrow/paid.num".to_string()),
+            value,
+        );
         commit.validate()
     };
     assert!(post(json!(100)).is_ok());
@@ -573,7 +583,11 @@ fn a_received_commit_must_hash_to_its_id() {
 
     let other = json!([{"method": "post", "path": "/a.text", "value": "b"}]);
     let err = CommitFile::verified(&id, Some(&other), Some(&head)).unwrap_err();
-    assert!(err.to_string().contains("is not what its body and head hash to"), "{err}");
+    assert!(
+        err.to_string()
+            .contains("is not what its body and head hash to"),
+        "{err}"
+    );
     assert!(CommitFile::verified("made-up", Some(&body), Some(&head)).is_err());
 
     let mut padded = head.clone();

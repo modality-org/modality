@@ -83,7 +83,10 @@ pub async fn download_from_binary_server(base_url: &str, branch: &str) -> Result
         .ok_or_else(|| anyhow!("No binary available for platform: {}", platform))?;
 
     // The versioned path: `latest` can move between our reads.
-    let binary_url = format!("{}/{}/{}/{}", base_url, branch, manifest.version, binary_info.path);
+    let binary_url = format!(
+        "{}/{}/{}/{}",
+        base_url, branch, manifest.version, binary_info.path
+    );
 
     // Create temporary directory for download
     let temp_dir = env::temp_dir();
@@ -95,7 +98,15 @@ pub async fn download_from_binary_server(base_url: &str, branch: &str) -> Result
         .context("Failed to download binary")?;
 
     // Run nothing the release contract has not accepted.
-    if let Err(e) = verify_release(base_url, branch, &manifest.version, &binary_info.path, &temp_binary_path).await {
+    if let Err(e) = verify_release(
+        base_url,
+        branch,
+        &manifest.version,
+        &binary_info.path,
+        &temp_binary_path,
+    )
+    .await
+    {
         let _ = std::fs::remove_file(&temp_binary_path);
         return Err(e.context(format!(
             "refusing to upgrade to {}: the release contract does not accept it",
@@ -122,7 +133,9 @@ pub async fn verify_release(
     let pin = release::pin_for(channel)
         .ok_or_else(|| anyhow!("this build pins no release contract for {channel}"))?;
     let log_url = release::log_url(base_url, channel);
-    let response = reqwest::get(&log_url).await.context("fetching the release log")?;
+    let response = reqwest::get(&log_url)
+        .await
+        .context("fetching the release log")?;
     if !response.status().is_success() {
         anyhow::bail!("{log_url}: HTTP {}", response.status());
     }

@@ -13,8 +13,9 @@
 //! `docs/concepts/modality-ids.md`.
 //!
 //! One key has many spellings, so rules never compare IDs as text: both
-//! sides go through [`key_form`] first. Commit signatures are still keyed in
-//! base58, contract IDs are base58, and a `/p2p/` multiaddr part must be.
+//! sides go through [`key_form`] first. A contract ID is the Modality
+//! spelling. Commit signatures are still keyed in base58, `head.payer` is
+//! base58, and a `/p2p/` multiaddr part must be.
 
 use anyhow::{anyhow, bail, Result};
 use libp2p_identity::PeerId;
@@ -46,8 +47,9 @@ fn parse_cid(text: &str) -> Result<PeerId> {
     let (_, bytes) =
         multibase::decode(text).map_err(|e| anyhow!("{text} is not a peer ID: {e}"))?;
     match bytes.as_slice() {
-        [CID_V1, LIBP2P_KEY, multihash @ ..] => PeerId::from_bytes(multihash)
-            .map_err(|e| anyhow!("{text} is not a peer ID: {e}")),
+        [CID_V1, LIBP2P_KEY, multihash @ ..] => {
+            PeerId::from_bytes(multihash).map_err(|e| anyhow!("{text} is not a peer ID: {e}"))
+        }
         [CID_V1, ..] => bail!("{text} is a CID, but not of a libp2p key"),
         _ => bail!("{text} is not a peer ID"),
     }
@@ -82,6 +84,22 @@ pub fn id_value(text: &str) -> String {
 /// The base58 form of a peer ID given in any text form.
 pub fn canonical_peer_id(text: &str) -> Result<String> {
     parse_peer_id(text).map(|peer_id| peer_id.to_base58())
+}
+
+/// Spellings to try when a store keyed a contract by whichever form was
+/// written. The given text comes first, then the Modality spelling, then
+/// base58. Text that is not a peer ID is returned alone (`c_…`, `"alice"`).
+pub fn id_spellings(text: &str) -> Vec<String> {
+    let mut out = vec![text.to_string()];
+    let Ok(peer) = parse_peer_id(text) else {
+        return out;
+    };
+    for spelling in [modality_peer_id(&peer), peer.to_base58()] {
+        if !out.iter().any(|have| have == &spelling) {
+            out.push(spelling);
+        }
+    }
+    out
 }
 
 /// `text` in base58 if it is a peer ID in another form; otherwise `text` as
@@ -132,7 +150,11 @@ mod tests {
         // Only the base32 CID is read backwards.
         let base36 = multibase::encode(
             Base::Base36Lower,
-            [&[CID_V1, LIBP2P_KEY][..], &parse_peer_id(BASE58).unwrap().to_bytes()].concat(),
+            [
+                &[CID_V1, LIBP2P_KEY][..],
+                &parse_peer_id(BASE58).unwrap().to_bytes(),
+            ]
+            .concat(),
         );
         assert!(parse_peer_id(&base36.chars().rev().collect::<String>()).is_err());
     }
@@ -165,11 +187,35 @@ mod tests {
     }
 
     #[test]
+    fn a_contract_lookup_tries_each_spelling_of_the_key() {
+        assert_eq!(
+            id_spellings(BASE58),
+            vec![BASE58.to_string(), MODALITY.to_string()]
+        );
+        assert_eq!(
+            id_spellings(MODALITY),
+            vec![MODALITY.to_string(), BASE58.to_string()]
+        );
+        assert_eq!(
+            id_spellings(BASE32),
+            vec![BASE32.to_string(), MODALITY.to_string(), BASE58.to_string()]
+        );
+        assert_eq!(id_spellings("alice"), vec!["alice".to_string()]);
+        assert_eq!(
+            id_spellings("c_0123456789abcdef"),
+            vec!["c_0123456789abcdef".to_string()]
+        );
+    }
+
+    #[test]
     fn normalizing_rewrites_only_cids() {
         assert_eq!(normalize_peer_id(BASE32), BASE58);
         assert_eq!(normalize_peer_id(MODALITY), BASE58);
         assert_eq!(normalize_peer_id(BASE58), BASE58);
-        assert_eq!(normalize_peer_id("c_0123456789abcdef"), "c_0123456789abcdef");
+        assert_eq!(
+            normalize_peer_id("c_0123456789abcdef"),
+            "c_0123456789abcdef"
+        );
     }
 
     #[test]
@@ -185,7 +231,9 @@ mod tests {
 
     #[test]
     fn a_fresh_key_round_trips() {
-        let peer_id = libp2p_identity::Keypair::generate_ed25519().public().to_peer_id();
+        let peer_id = libp2p_identity::Keypair::generate_ed25519()
+            .public()
+            .to_peer_id();
         let cid = peer_id_to_cid(&peer_id);
         assert!(cid.starts_with("bafzaa"), "{cid}");
         assert_eq!(parse_peer_id(&cid).unwrap(), peer_id);
@@ -200,9 +248,19 @@ mod tests {
         let mut dag_pb = vec![CID_V1, 0x70];
         dag_pb.extend_from_slice(&peer_id.to_bytes());
         let dag_pb = multibase::encode(Base::Base32Lower, dag_pb);
-        assert!(parse_peer_id(&dag_pb).is_err(), "codec other than libp2p-key");
+        assert!(
+            parse_peer_id(&dag_pb).is_err(),
+            "codec other than libp2p-key"
+        );
 
-        for text in ["", "bafz", "hello", "12D3KooW", &BASE58[..40], &BASE32[..40]] {
+        for text in [
+            "",
+            "bafz",
+            "hello",
+            "12D3KooW",
+            &BASE58[..40],
+            &BASE32[..40],
+        ] {
             assert!(parse_peer_id(text).is_err(), "{text:?}");
         }
     }

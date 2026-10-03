@@ -2,8 +2,8 @@ pub mod contract;
 pub mod miner;
 pub mod modality;
 pub mod peer_info;
-pub mod transaction;
 pub mod sequencer;
+pub mod transaction;
 pub mod wasm_module;
 
 // Re-export commonly used types

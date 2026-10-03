@@ -45,20 +45,36 @@ mod tests {
         let temp_dir = TempDir::new()?;
         let dir = temp_dir.path().join("c");
         let dir_arg = dir.to_string_lossy().to_string();
-        crate::create::run(&crate::create::Opts::parse_from(["create", "--dir", dir_arg.as_str()])).await?;
+        crate::create::run(&crate::create::Opts::parse_from([
+            "create",
+            "--dir",
+            dir_arg.as_str(),
+        ]))
+        .await?;
         std::fs::write(
             dir.join("model/default.modality"),
             "model m {\n  part flow {\n    q0 --> q1\n    q1 --> q1: +modifies(/x/a.text) -modifies(/x/b.text)\n  }\n}\n",
         )?;
         crate::commit::run(&crate::commit::Opts::parse_from([
-            "commit", "--all", "--dir", dir_arg.as_str(), "--message", "model",
+            "commit",
+            "--all",
+            "--dir",
+            dir_arg.as_str(),
+            "--message",
+            "model",
         ]))
         .await?;
         std::fs::remove_file(dir.join("model/default.modality"))?;
 
         let write = |path: &'static str| {
             crate::commit::Opts::parse_from([
-                "commit", "--dir", dir_arg.as_str(), "--path", path, "--value", "v",
+                "commit",
+                "--dir",
+                dir_arg.as_str(),
+                "--path",
+                path,
+                "--value",
+                "v",
             ])
         };
         crate::commit::run(&write("/x/a.text")).await?;
@@ -68,7 +84,12 @@ mod tests {
         assert!(err.to_string().contains("No valid transition"), "{err}");
 
         // checkout writes the accepted model back to the working tree
-        crate::checkout::run(&crate::checkout::Opts::parse_from(["checkout", "--dir", dir_arg.as_str()])).await?;
+        crate::checkout::run(&crate::checkout::Opts::parse_from([
+            "checkout",
+            "--dir",
+            dir_arg.as_str(),
+        ]))
+        .await?;
         assert!(std::fs::read_to_string(dir.join("model/default.modality"))?.contains("/x/a.text"));
         Ok(())
     }
@@ -90,6 +111,10 @@ mod tests {
 
         let store = ContractStore::open(&contract_dir)?;
         let contract_id = store.load_config()?.contract_id;
+        assert!(
+            contract_id.ends_with("aiajaazfab"),
+            "a new contract id is the Modality spelling, got {contract_id}"
+        );
         let genesis_head = store
             .get_head()?
             .expect("contract creation should write a genesis HEAD");
@@ -144,7 +169,9 @@ mod tests {
         assert_eq!(store.list_commits()?.len(), 2);
         assert_eq!(
             store.build_state_from_commits()?.get("/parties/alice.id"),
-            Some(&Value::String(modality_common::peer_id::id_value(&contract_id)))
+            Some(&Value::String(modality_common::peer_id::id_value(
+                &contract_id
+            )))
         );
 
         let id_opts = crate::id::Opts::parse_from(["id", "--dir", contract_dir_arg.as_str()]);

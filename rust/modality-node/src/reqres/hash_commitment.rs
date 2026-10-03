@@ -83,7 +83,9 @@ pub async fn get_handler(data: Option<Value>, mgr: &DatastoreManager) -> Result<
     };
     let Some(commit_id) = data.get("commit_id").and_then(Value::as_str) else {
         let records = mgr.hash_commitments_for(contract_id)?;
-        return Ok(answered(json!({"contract_id": contract_id, "records": records})));
+        return Ok(answered(
+            json!({"contract_id": contract_id, "records": records}),
+        ));
     };
     let record = mgr.hash_commitment(contract_id, commit_id)?;
     let keys = [
@@ -168,7 +170,10 @@ mod tests {
     #[tokio::test]
     async fn a_network_without_the_lane_refuses_records() {
         let mgr = DatastoreManager::create_in_memory().unwrap();
-        assert_eq!(params_handler(&mgr).await.unwrap().data.unwrap()["enabled"], false);
+        assert_eq!(
+            params_handler(&mgr).await.unwrap().data.unwrap()["enabled"],
+            false
+        );
         let keypair = Keypair::generate().unwrap();
         let record = HashCommitment::signed(&keypair, "c", &"11".repeat(32), None).unwrap();
         let response = submit_handler(Some(serde_json::to_value(&record).unwrap()), &mgr)

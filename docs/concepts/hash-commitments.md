@@ -89,7 +89,7 @@ The set is fixed at creation, in two places:
   `/signers/1.id`, `/signers/2.id`, …, a model whose every step after
   genesis is signed by one of them, and the creation rule
   `always([-signed_by(/signers/1.id) -signed_by(/signers/2.id)] false)`.
-- **For the hash lane.** A contract id is the public key `create` makes.
+- **For the hash lane.** A contract id is the public key `create` makes, in the Modality spelling.
   That key signs the set once, and is then discarded. The signature is kept
   in `.contract/signer_set.json`, and `anchor` posts it with the set on the
   genesis hash commitment.

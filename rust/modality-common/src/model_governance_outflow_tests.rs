@@ -6,7 +6,9 @@
 
 use super::*;
 use crate::contract_store::{CommitAction, Emitter};
-use crate::independent_replay::{expand_invoke_actions, FrozenInvokeContext, InvokeEngine, ReplayWasm};
+use crate::independent_replay::{
+    expand_invoke_actions, FrozenInvokeContext, InvokeEngine, ReplayWasm,
+};
 use serde_json::json;
 
 const V0: TheoryVersion = TheoryVersion::V0;
@@ -47,21 +49,37 @@ fn v3_compares_numbers_exactly_where_f64_rounds() {
     ];
     let under = |theory, name, args: &[&str]| holds_under(theory, &state, name, args);
     let two53 = "9007199254740992";
-    assert!(!under(V2, "num_gt", &["/big.num", two53]), "f64 rounds 2^53 + 1 down");
+    assert!(
+        !under(V2, "num_gt", &["/big.num", two53]),
+        "f64 rounds 2^53 + 1 down"
+    );
     assert!(under(V2, "num_eq", &["/big.num", two53]));
     assert!(under(V3, "num_gt", &["/big.num", two53]));
     assert!(!under(V3, "num_eq", &["/big.num", two53]));
     assert!(under(V3, "num_eq", &["/big.num", "9007199254740993"]));
-    assert!(!under(V3, "num_lte", &["/big.num", "9.007199254740993e15"]), "no exponent literals");
+    assert!(
+        !under(V3, "num_lte", &["/big.num", "9.007199254740993e15"]),
+        "no exponent literals"
+    );
 
     let near = "0.10000000000000001";
-    assert!(under(V2, "num_eq", &["/tenth.num", near]), "one f64 for both");
+    assert!(
+        under(V2, "num_eq", &["/tenth.num", near]),
+        "one f64 for both"
+    );
     assert!(under(V3, "num_lt", &["/tenth.num", near]));
     assert!(under(V3, "num_eq", &["/tenth.num", "0.1"]));
-    assert!(under(V3, "num_gte", &["/big.num", "/tenth.num"]), "a path on the right");
+    assert!(
+        under(V3, "num_gte", &["/big.num", "/tenth.num"]),
+        "a path on the right"
+    );
 
-    let range = |theory, lo: &str, hi: &str| under(theory, "amount_in_range", &["/big.num", lo, hi]);
-    assert!(range(V2, two53, two53), "f64 rounds 2^53 + 1 into [2^53, 2^53]");
+    let range =
+        |theory, lo: &str, hi: &str| under(theory, "amount_in_range", &["/big.num", lo, hi]);
+    assert!(
+        range(V2, two53, two53),
+        "f64 rounds 2^53 + 1 into [2^53, 2^53]"
+    );
     assert!(!range(V3, two53, two53));
     assert!(range(V3, two53, "9007199254740994"));
     assert!(!under(V3, "num_gt", &["/big.num", "many"]), "not a number");
@@ -150,7 +168,10 @@ fn sent_predicates_read_what_the_pending_sends_move() {
     assert!(h("sent_to", &["drops", "w1"]));
     assert!(h("sent_to", &["drops", "/claimants/alice/wallet.text"]));
     assert!(!h("sent_to", &["gold", "w1"]));
-    assert!(h("sent_to", &["silver", "anywhere"]), "no SEND of the asset");
+    assert!(
+        h("sent_to", &["silver", "anywhere"]),
+        "no SEND of the asset"
+    );
 
     // Amounts are whole numbers; paths are read by type.
     assert!(!h("sent_eq", &["drops", "10.0"]));
@@ -161,7 +182,11 @@ fn sent_predicates_read_what_the_pending_sends_move() {
 
     // A malformed SEND makes every sent_* predicate fail.
     let mut bad = c.clone();
-    bad.add_action("send".to_string(), None, json!({"asset_id": "drops", "to_contract": "w1"}));
+    bad.add_action(
+        "send".to_string(),
+        None,
+        json!({"asset_id": "drops", "to_contract": "w1"}),
+    );
     for (name, args) in [
         ("sent_eq", ["drops", "10"]),
         ("sent_lte", ["drops", "100"]),
@@ -178,11 +203,20 @@ fn posts_own_key_needs_the_posted_key_to_sign() {
     };
     let h = |c: &CommitFile, path: &str| holds(c, &[], "posts_own_key", &[path]);
     assert!(h(&post(json!("KEY_C"), &["KEY_C"]), "/claimants/carol.id"));
-    assert!(h(&post(json!("KEY_C"), &["KEY_C", "KEY_M"]), "/claimants/carol.id"));
+    assert!(h(
+        &post(json!("KEY_C"), &["KEY_C", "KEY_M"]),
+        "/claimants/carol.id"
+    ));
     assert!(!h(&post(json!("KEY_C"), &["KEY_M"]), "/claimants/carol.id"));
     assert!(!h(&post(json!(7), &["KEY_C"]), "/claimants/carol.id"));
-    assert!(!h(&post(json!("KEY_C"), &["KEY_C"]), "/claimants/dave.id"), "no post there");
-    assert!(!h(&post(json!("KEY_C"), &["KEY_C"]), "/claimants"), "an .id path");
+    assert!(
+        !h(&post(json!("KEY_C"), &["KEY_C"]), "/claimants/dave.id"),
+        "no post there"
+    );
+    assert!(
+        !h(&post(json!("KEY_C"), &["KEY_C"]), "/claimants"),
+        "an .id path"
+    );
     let two = signed(
         commit(vec![
             ("post", "/claimants/carol.id", json!("KEY_C")),
@@ -190,7 +224,10 @@ fn posts_own_key_needs_the_posted_key_to_sign() {
         ]),
         &["KEY_C"],
     );
-    assert!(!h(&two, "/claimants/carol.id"), "every key posted there signs");
+    assert!(
+        !h(&two, "/claimants/carol.id"),
+        "every key posted there signs"
+    );
 }
 
 #[test]
@@ -204,11 +241,21 @@ fn emitted_by_holds_only_when_the_program_wrote_every_action() {
     assert!(!h(&out, &[program, "abd"]), "other bytes");
     assert!(!h(&out, &["/__programs__/other.wasm"]));
     assert!(!h(&out, &["/__programs__/payout.text"]), "a .wasm path");
-    assert!(!h(&CommitFile::new(), &[program]), "an empty commit emitted nothing");
+    assert!(
+        !h(&CommitFile::new(), &[program]),
+        "an empty commit emitted nothing"
+    );
 
     let mut mixed = out.clone();
-    mixed.add_action("send".to_string(), None, json!({"asset_id": "drops", "to_contract": "me", "amount": 5}));
-    assert!(!h(&mixed, &[program]), "a hand-written SEND beside the program's");
+    mixed.add_action(
+        "send".to_string(),
+        None,
+        json!({"asset_id": "drops", "to_contract": "me", "amount": 5}),
+    );
+    assert!(
+        !h(&mixed, &[program]),
+        "a hand-written SEND beside the program's"
+    );
 
     // Provenance is never read from a commit: a posted commit cannot claim it.
     let posted = json!({
@@ -225,7 +272,10 @@ fn emitted_by_holds_only_when_the_program_wrote_every_action() {
     assert!(!h(&parsed, &[program]));
     let reread: CommitFile = serde_json::from_str(&serde_json::to_string(&out).unwrap()).unwrap();
     assert!(reread.body[0].emitted_by.is_none());
-    assert_eq!(reread.compute_id().unwrap(), sends(&[("drops", "w1", json!(5))]).compute_id().unwrap());
+    assert_eq!(
+        reread.compute_id().unwrap(),
+        sends(&[("drops", "w1", json!(5))]).compute_id().unwrap()
+    );
 }
 
 struct PaysOut;
@@ -249,8 +299,16 @@ fn expansion_marks_what_the_program_emitted() {
         gas_limit: 1,
         bytes_b64: "AA==".to_string(),
     };
-    let mut pending = commit(vec![("invoke", "/__programs__/payout.wasm", json!({"args": {}}))]);
-    pending.add_action("post".to_string(), Some("/notes/n.text".to_string()), json!("n"));
+    let mut pending = commit(vec![(
+        "invoke",
+        "/__programs__/payout.wasm",
+        json!({"args": {}}),
+    )]);
+    pending.add_action(
+        "post".to_string(),
+        Some("/notes/n.text".to_string()),
+        json!("n"),
+    );
     let ctx = crate::independent_replay::frozen_invoke_context("c", "p", &pending, &[]);
     let (expanded, count) = expand_invoke_actions(&pending, &[wasm], &ctx, &mut PaysOut).unwrap();
     assert_eq!(count, 1);
@@ -378,17 +436,29 @@ fn faucet_drips_the_posted_amount_once_to_registered_holders() {
     }
     // The registry path itself has no type, so no commit may write it.
     let mut untyped = carol.clone();
-    untyped.add_action("post".to_string(), Some("/claimants".to_string()), json!("KEY_C"));
+    untyped.add_action(
+        "post".to_string(),
+        Some("/claimants".to_string()),
+        json!("KEY_C"),
+    );
     assert!(untyped.validate().is_err());
     // A sibling of the registry is no slot: no claimant reads it.
     let mut sibling = carol.clone();
-    sibling.add_action("post".to_string(), Some("/claimants.id".to_string()), json!("KEY_C"));
+    sibling.add_action(
+        "post".to_string(),
+        Some("/claimants.id".to_string()),
+        json!("KEY_C"),
+    );
     validate(&accepted, &sibling, V2).expect("outside the registry");
     validate(&accepted, &carol, V2).expect("Carol registers herself");
     accepted.push(carol);
 
     // The drip is exactly the posted amount, however it is split.
-    for (amounts, why) in [(&[11][..], "too much"), (&[9][..], "too little"), (&[10, 1][..], "an extra SEND")] {
+    for (amounts, why) in [
+        (&[11][..], "too much"),
+        (&[9][..], "too little"),
+        (&[10, 1][..], "an extra SEND"),
+    ] {
         for theory in [V0, V2] {
             let err = validate(&accepted, &drip("carol", amounts, "KEY_C"), theory).expect_err(why);
             assert!(err.to_string().contains("sent_eq"), "{why}: {err}");
@@ -409,7 +479,10 @@ fn faucet_drips_the_posted_amount_once_to_registered_holders() {
     assert!(err.to_string().contains("claimed.bool"), "{err}");
 
     // The config does not move, so neither does the drip size.
-    let bump = signed(commit(vec![("post", "/config/drip.num", json!(1000))]), &["KEY_A"]);
+    let bump = signed(
+        commit(vec![("post", "/config/drip.num", json!(1000))]),
+        &["KEY_A"],
+    );
     validate(&accepted, &bump, V2).expect_err("the drip size is fixed");
 
     // The rules outlive the model: a replacement that drops the amount or
@@ -421,7 +494,10 @@ fn faucet_drips_the_posted_amount_once_to_registered_holders() {
         let sloppy = FAUCET.replace(from, to);
         let replace = commit(vec![("model", "/model/default.modality", json!(sloppy))]);
         let err = validate(&accepted, &replace, V2).expect_err(from);
-        assert!(err.to_string().contains("Model violates rule"), "{from}: {err}");
+        assert!(
+            err.to_string().contains("Model violates rule"),
+            "{from}: {err}"
+        );
     }
 }
 
@@ -462,9 +538,18 @@ fn only_the_posted_program_moves_the_treasury() {
     let payout = || sends(&[("drops", "w1", json!(5))]);
     validate(&accepted, &emitted(payout(), PAYOUT, PAYOUT_SHA), V2).expect("the program pays");
     for (pending, why) in [
-        (signed(payout(), &["KEY_O"]), "the owner writes a SEND by hand"),
-        (emitted(payout(), "/__programs__/other.wasm", PAYOUT_SHA), "another program"),
-        (emitted(payout(), PAYOUT, "0000"), "other bytes at the same path"),
+        (
+            signed(payout(), &["KEY_O"]),
+            "the owner writes a SEND by hand",
+        ),
+        (
+            emitted(payout(), "/__programs__/other.wasm", PAYOUT_SHA),
+            "another program",
+        ),
+        (
+            emitted(payout(), PAYOUT, "0000"),
+            "other bytes at the same path",
+        ),
     ] {
         for theory in [V0, V2] {
             let err = validate(&accepted, &pending, theory).expect_err(why);
@@ -472,7 +557,11 @@ fn only_the_posted_program_moves_the_treasury() {
         }
     }
     let mut mixed = emitted(payout(), PAYOUT, PAYOUT_SHA);
-    mixed.add_action("send".to_string(), None, json!({"asset_id": "drops", "to_contract": "me", "amount": 500}));
+    mixed.add_action(
+        "send".to_string(),
+        None,
+        json!({"asset_id": "drops", "to_contract": "me", "amount": 500}),
+    );
     validate(&accepted, &mixed, V2).expect_err("a hand-written SEND rides along");
 
     // Rewriting the program is refused, and so is a model that lets the owner pay.
@@ -482,18 +571,24 @@ fn only_the_posted_program_moves_the_treasury() {
         r#"+emitted_by(/__programs__/payout.wasm, "5f1e")"#,
         "+signed_by(/owner.id)",
     );
-    let replace = commit(vec![("model", "/model/default.modality", json!(owner_pays))]);
+    let replace = commit(vec![(
+        "model",
+        "/model/default.modality",
+        json!(owner_pays),
+    )]);
     let err = validate(&accepted, &replace, V2).expect_err("rules still bind");
     assert!(err.to_string().contains("Model violates rule"), "{err}");
 }
-
 
 // ---------------------------------------------------------------------------
 // A pool's swap invariant: the reserve product does not fall
 // ---------------------------------------------------------------------------
 
 fn reserves(a: Value, b: Value) -> CommitFile {
-    commit(vec![("post", "/reserves/a.num", a), ("post", "/reserves/b.num", b)])
+    commit(vec![
+        ("post", "/reserves/a.num", a),
+        ("post", "/reserves/b.num", b),
+    ])
 }
 
 #[test]
@@ -512,34 +607,65 @@ fn keeps_product_compares_the_product_after_the_commit_with_before() {
     // 110 * 91 = 10010 and 110 * 90.9 = 9999, against 100 * 100.
     assert!(k(&reserves(json!(110), json!(91)), &ab));
     assert!(!k(&reserves(json!(110), json!(90.9)), &ab));
-    assert!(k(&CommitFile::new(), &ab), "unchanged reserves keep the product");
+    assert!(
+        k(&CommitFile::new(), &ab),
+        "unchanged reserves keep the product"
+    );
     // Only 99.7% of what goes in counts: 109.97 * 90.91 < 10000 <= 110 * 90.91.
     let no_fee_paid = reserves(json!(110), json!(90.91));
     assert!(k(&no_fee_paid, &ab));
     assert!(!k(&no_fee_paid, &with_fee("0.003")));
     assert!(!k(&no_fee_paid, &with_fee("/config/fee.num")));
-    assert!(k(&reserves(json!(110), json!(91)), &with_fee("/config/fee.num")));
+    assert!(k(
+        &reserves(json!(110), json!(91)),
+        &with_fee("/config/fee.num")
+    ));
     // A commit that writes one reserve twice ends at the last write.
     let mut twice = reserves(json!(50), json!(91));
-    twice.add_action("post".to_string(), Some("/reserves/a.num".to_string()), json!(110));
+    twice.add_action(
+        "post".to_string(),
+        Some("/reserves/a.num".to_string()),
+        json!(110),
+    );
     assert!(k(&twice, &ab));
 
     let fine = reserves(json!(110), json!(91));
     for (args, why) in [
         (vec!["/reserves/a.num", "/reserves/a.num"], "one path twice"),
-        (vec!["/reserves/a.text", "/reserves/b.num"], "not a .num path"),
-        (vec!["/reserves/c.num", "/reserves/b.num"], "no accepted number"),
-        (vec!["/reserves/neg.num", "/reserves/b.num"], "a negative reserve"),
+        (
+            vec!["/reserves/a.text", "/reserves/b.num"],
+            "not a .num path",
+        ),
+        (
+            vec!["/reserves/c.num", "/reserves/b.num"],
+            "no accepted number",
+        ),
+        (
+            vec!["/reserves/neg.num", "/reserves/b.num"],
+            "a negative reserve",
+        ),
         (with_fee("1").to_vec(), "a fee of one"),
         (with_fee("-0.1").to_vec(), "a negative fee"),
-        (with_fee("/config/fee.text").to_vec(), "a fee path of another type"),
+        (
+            with_fee("/config/fee.text").to_vec(),
+            "a fee path of another type",
+        ),
         (with_fee("0.3%").to_vec(), "a fee that is not a decimal"),
-        (vec!["/reserves/a.num", "/reserves/b.num", "0", "extra"], "too many arguments"),
+        (
+            vec!["/reserves/a.num", "/reserves/b.num", "0", "extra"],
+            "too many arguments",
+        ),
     ] {
         assert!(!k(&fine, &args), "{why}");
     }
-    assert!(!k(&reserves(json!("110"), json!(91)), &ab), "a pending write that is text");
-    assert!(!k(&reserves(json!(-5), json!(-3000)), &ab), "a pending negative reserve");
+    assert!(
+        !k(&reserves(json!("110"), json!(91)), &ab),
+        "a pending write that is text"
+    );
+    assert!(
+        !k(&reserves(json!(-5), json!(-3000)), &ab),
+        "a pending negative reserve"
+    );
 }
 
 const POOL_PROGRAM: &str = "/__programs__/pool.wasm";
@@ -559,8 +685,16 @@ model Pool {
 #[test]
 fn a_pool_program_that_drains_or_skips_the_fee_is_refused() {
     let mut bootstrap = reserves(json!(100), json!(100));
-    bootstrap.add_action("model".to_string(), Some("/model/default.modality".to_string()), json!(POOL));
-    bootstrap.add_action("post".to_string(), Some("/config/fee.num".to_string()), json!(0.003));
+    bootstrap.add_action(
+        "model".to_string(),
+        Some("/model/default.modality".to_string()),
+        json!(POOL),
+    );
+    bootstrap.add_action(
+        "post".to_string(),
+        Some("/config/fee.num".to_string()),
+        json!(0.003),
+    );
     let mut accepted = vec![bootstrap];
     for rule in [
         r#"always([+modifies(/reserves) -emitted_by(/__programs__/pool.wasm, "5f1e")] false)"#,
@@ -576,7 +710,10 @@ fn a_pool_program_that_drains_or_skips_the_fee_is_refused() {
     let swap = |a: Value, b: Value| emitted(reserves(a, b), POOL_PROGRAM, PAYOUT_SHA);
     for (pending, why) in [
         (swap(json!(110), json!(50)), "a program that drains b"),
-        (swap(json!(110), json!(90.91)), "a program that skips the fee"),
+        (
+            swap(json!(110), json!(90.91)),
+            "a program that skips the fee",
+        ),
     ] {
         for theory in [V0, V2] {
             let err = validate(&accepted, &pending, theory).expect_err(why);
@@ -595,7 +732,11 @@ fn a_pool_program_that_drains_or_skips_the_fee_is_refused() {
         " +keeps_product(/reserves/a.num, /reserves/b.num, /config/fee.num)",
         "",
     );
-    let replace = commit(vec![("model", "/model/default.modality", json!(no_invariant))]);
+    let replace = commit(vec![(
+        "model",
+        "/model/default.modality",
+        json!(no_invariant),
+    )]);
     let err = validate(&accepted, &replace, V2).expect_err("rules still bind");
     assert!(err.to_string().contains("Model violates rule"), "{err}");
 }
@@ -623,7 +764,8 @@ fn held(asset: &str) -> (Option<&str>, &str) {
 
 fn recv(from: &str, asset: &str, amount: u64) -> CommitAction {
     let (creator, id) = held(asset);
-    let mut value = json!({"send_commit_id": "s", "from_contract": from, "asset_id": id, "amount": amount});
+    let mut value =
+        json!({"send_commit_id": "s", "from_contract": from, "asset_id": id, "amount": amount});
     if let Some(creator) = creator {
         value["asset_contract"] = json!(creator);
     }
@@ -656,7 +798,10 @@ fn pool_output(actions: Vec<CommitAction>) -> CommitFile {
 }
 
 fn reserves_after(a: u64, b: u64) -> Vec<CommitAction> {
-    vec![post("/reserves/a.num", json!(a)), post("/reserves/b.num", json!(b))]
+    vec![
+        post("/reserves/a.num", json!(a)),
+        post("/reserves/b.num", json!(b)),
+    ]
 }
 
 fn tracks_all() -> String {
@@ -698,7 +843,10 @@ fn full_pool_rules() -> Vec<String> {
 
 #[test]
 fn tracks_and_pays_senders_read_what_the_commit_moves() {
-    let state = [("/reserves/a.num", json!(100)), ("/lp/supply.num", json!(10))];
+    let state = [
+        ("/reserves/a.num", json!(100)),
+        ("/lp/supply.num", json!(10)),
+    ];
     let h = |c: &CommitFile, name: &str, args: &[&str]| holds(c, &state, name, args);
     let c = |actions: Vec<CommitAction>| {
         let mut c = CommitFile::new();
@@ -706,28 +854,78 @@ fn tracks_and_pays_senders_read_what_the_commit_moves() {
         c
     };
 
-    let swap_in = c(vec![recv("T", TOK_A, 7), post("/reserves/a.num", json!(107))]);
+    let swap_in = c(vec![
+        recv("T", TOK_A, 7),
+        post("/reserves/a.num", json!(107)),
+    ]);
     assert!(h(&swap_in, "tracks", &["/reserves/a.num", TOK_A]));
-    assert!(!h(&swap_in, "tracks", &["/reserves/a.num", "tokA"]), "an own asset of that id is another asset");
-    let pay_out = c(vec![send(TOK_A, "T", 7), post("/reserves/a.num", json!(93))]);
+    assert!(
+        !h(&swap_in, "tracks", &["/reserves/a.num", "tokA"]),
+        "an own asset of that id is another asset"
+    );
+    let pay_out = c(vec![
+        send(TOK_A, "T", 7),
+        post("/reserves/a.num", json!(93)),
+    ]);
     assert!(h(&pay_out, "tracks", &["/reserves/a.num", TOK_A]));
-    let skim = c(vec![send(TOK_A, "T", 7), post("/reserves/a.num", json!(95))]);
-    assert!(!h(&skim, "tracks", &["/reserves/a.num", TOK_A]), "the reserve must fall by what left");
-    assert!(!h(&c(vec![send(TOK_A, "T", 7)]), "tracks", &["/reserves/a.num", TOK_A]), "unposted outflow");
-    assert!(h(&c(vec![]), "tracks", &["/reserves/a.num", TOK_A]), "nothing moves, nothing changes");
+    let skim = c(vec![
+        send(TOK_A, "T", 7),
+        post("/reserves/a.num", json!(95)),
+    ]);
+    assert!(
+        !h(&skim, "tracks", &["/reserves/a.num", TOK_A]),
+        "the reserve must fall by what left"
+    );
+    assert!(
+        !h(
+            &c(vec![send(TOK_A, "T", 7)]),
+            "tracks",
+            &["/reserves/a.num", TOK_A]
+        ),
+        "unposted outflow"
+    );
+    assert!(
+        h(&c(vec![]), "tracks", &["/reserves/a.num", TOK_A]),
+        "nothing moves, nothing changes"
+    );
     let mut unstated = recv("T", TOK_A, 7);
     unstated.value.as_object_mut().unwrap().remove("amount");
-    assert!(!h(&c(vec![unstated, post("/reserves/a.num", json!(107))]), "tracks", &["/reserves/a.num", TOK_A]));
+    assert!(!h(
+        &c(vec![unstated, post("/reserves/a.num", json!(107))]),
+        "tracks",
+        &["/reserves/a.num", TOK_A]
+    ));
 
     let mint = c(vec![send("lp", "L", 5), post("/lp/supply.num", json!(15))]);
     assert!(h(&mint, "tracks", &["/lp/supply.num", "lp", "issued"]));
-    assert!(!h(&mint, "tracks", &["/lp/supply.num", "lp"]), "a supply grows when shares go out");
+    assert!(
+        !h(&mint, "tracks", &["/lp/supply.num", "lp"]),
+        "a supply grows when shares go out"
+    );
     assert!(!h(&mint, "tracks", &["/lp/supply.num", "lp", "held"]));
 
-    assert!(h(&c(vec![recv("T", TOK_A, 7), send(TOK_B, "T", 3)]), "pays_senders", &[TOK_B]));
-    assert!(!h(&c(vec![recv("T", TOK_A, 7), send(TOK_B, "M", 3)]), "pays_senders", &[TOK_B]));
-    assert!(h(&c(vec![recv("T", TOK_A, 7), send(TOK_B, "M", 3)]), "pays_senders", &[TOK_A]), "no SEND of it");
-    assert!(!h(&c(vec![send(TOK_B, "T", 3)]), "pays_senders", &[TOK_B]), "nobody paid in");
+    assert!(h(
+        &c(vec![recv("T", TOK_A, 7), send(TOK_B, "T", 3)]),
+        "pays_senders",
+        &[TOK_B]
+    ));
+    assert!(!h(
+        &c(vec![recv("T", TOK_A, 7), send(TOK_B, "M", 3)]),
+        "pays_senders",
+        &[TOK_B]
+    ));
+    assert!(
+        h(
+            &c(vec![recv("T", TOK_A, 7), send(TOK_B, "M", 3)]),
+            "pays_senders",
+            &[TOK_A]
+        ),
+        "no SEND of it"
+    );
+    assert!(
+        !h(&c(vec![send(TOK_B, "T", 3)]), "pays_senders", &[TOK_B]),
+        "nobody paid in"
+    );
 
     // sent_* name a held asset by its creator, and an own asset by its id.
     let both = c(vec![send(TOK_A, "T", 4), send("tokA", "T", 6)]);
@@ -737,8 +935,21 @@ fn tracks_and_pays_senders_read_what_the_commit_moves() {
     // Liquidity per share: 100 * 100 * 10^2 against 150 * 150 * 15^2 after a proportional add.
     let per = |a: u64, s: u64| {
         let mut commit = c(vec![]);
-        commit.body = vec![post("/reserves/a.num", json!(a)), post("/reserves/b.num", json!(a)), post("/lp/supply.num", json!(s))];
-        holds(&commit, &[("/reserves/a.num", json!(100)), ("/reserves/b.num", json!(100)), ("/lp/supply.num", json!(10))], "keeps_product_per_share", &["/reserves/a.num", "/reserves/b.num", "/lp/supply.num"])
+        commit.body = vec![
+            post("/reserves/a.num", json!(a)),
+            post("/reserves/b.num", json!(a)),
+            post("/lp/supply.num", json!(s)),
+        ];
+        holds(
+            &commit,
+            &[
+                ("/reserves/a.num", json!(100)),
+                ("/reserves/b.num", json!(100)),
+                ("/lp/supply.num", json!(10)),
+            ],
+            "keeps_product_per_share",
+            &["/reserves/a.num", "/reserves/b.num", "/lp/supply.num"],
+        )
     };
     assert!(per(150, 15), "a proportional add");
     assert!(!per(150, 16), "one share too many");
@@ -746,14 +957,52 @@ fn tracks_and_pays_senders_read_what_the_commit_moves() {
     assert!(!per(49, 5), "paid out too much");
 
     // With a fee, an unchanged supply holds a swap to the fee-adjusted product.
-    let fee_state = [("/reserves/a.num", json!(1000)), ("/reserves/b.num", json!(4000)), ("/lp/supply.num", json!(2000)), ("/config/fee.num", json!(0.003))];
+    let fee_state = [
+        ("/reserves/a.num", json!(1000)),
+        ("/reserves/b.num", json!(4000)),
+        ("/lp/supply.num", json!(2000)),
+        ("/config/fee.num", json!(0.003)),
+    ];
     let swap_writing_supply = |out: u64| {
-        c(vec![post("/reserves/a.num", json!(1100)), post("/reserves/b.num", json!(4000 - out)), post("/lp/supply.num", json!(2000))])
+        c(vec![
+            post("/reserves/a.num", json!(1100)),
+            post("/reserves/b.num", json!(4000 - out)),
+            post("/lp/supply.num", json!(2000)),
+        ])
     };
-    let args = ["/reserves/a.num", "/reserves/b.num", "/lp/supply.num", "/config/fee.num"];
-    assert!(holds(&swap_writing_supply(363), &fee_state, "keeps_product_per_share", &args[..3]), "no fee asked");
-    assert!(!holds(&swap_writing_supply(363), &fee_state, "keeps_product_per_share", &args), "skips the fee");
-    assert!(holds(&swap_writing_supply(362), &fee_state, "keeps_product_per_share", &args), "pays it");
+    let args = [
+        "/reserves/a.num",
+        "/reserves/b.num",
+        "/lp/supply.num",
+        "/config/fee.num",
+    ];
+    assert!(
+        holds(
+            &swap_writing_supply(363),
+            &fee_state,
+            "keeps_product_per_share",
+            &args[..3]
+        ),
+        "no fee asked"
+    );
+    assert!(
+        !holds(
+            &swap_writing_supply(363),
+            &fee_state,
+            "keeps_product_per_share",
+            &args
+        ),
+        "skips the fee"
+    );
+    assert!(
+        holds(
+            &swap_writing_supply(362),
+            &fee_state,
+            "keeps_product_per_share",
+            &args
+        ),
+        "pays it"
+    );
 
     // A memo's minimum: paid at least that of another asset, or refunded.
     let min_out = |n: u64| json!({"op": "swap", "min_out": n});
@@ -763,16 +1012,49 @@ fn tracks_and_pays_senders_read_what_the_commit_moves() {
         h(&c(actions), "pays_memo_min", &["min_out"])
     };
     assert!(asked(min_out(300), vec![send(TOK_B, "T", 362)]));
-    assert!(!asked(min_out(400), vec![send(TOK_B, "T", 362)]), "below min_out");
-    assert!(asked(min_out(400), vec![send(TOK_A, "T", 100)]), "the deposit returned");
-    assert!(!asked(min_out(400), vec![send(TOK_A, "T", 99)]), "not all of it");
-    assert!(!asked(min_out(300), vec![send(TOK_B, "M", 362)]), "paid to someone else");
-    assert!(asked(json!("{\"op\":\"swap\",\"min_out\":300}"), vec![send(TOK_B, "T", 362)]), "a memo as JSON text");
+    assert!(
+        !asked(min_out(400), vec![send(TOK_B, "T", 362)]),
+        "below min_out"
+    );
+    assert!(
+        asked(min_out(400), vec![send(TOK_A, "T", 100)]),
+        "the deposit returned"
+    );
+    assert!(
+        !asked(min_out(400), vec![send(TOK_A, "T", 99)]),
+        "not all of it"
+    );
+    assert!(
+        !asked(min_out(300), vec![send(TOK_B, "M", 362)]),
+        "paid to someone else"
+    );
+    assert!(
+        asked(
+            json!("{\"op\":\"swap\",\"min_out\":300}"),
+            vec![send(TOK_B, "T", 362)]
+        ),
+        "a memo as JSON text"
+    );
     assert!(asked(json!({"op": "remove"}), vec![]), "no min_out asked");
-    assert!(h(&c(vec![recv("T", TOK_A, 100)]), "pays_memo_min", &["min_out"]), "no memo");
+    assert!(
+        h(
+            &c(vec![recv("T", TOK_A, 100)]),
+            "pays_memo_min",
+            &["min_out"]
+        ),
+        "no memo"
+    );
     let mut unstated = recv_memo("T", TOK_A, 100, min_out(300));
-    unstated.value.as_object_mut().unwrap().remove("from_contract");
-    assert!(!h(&c(vec![unstated, send(TOK_B, "T", 362)]), "pays_memo_min", &["min_out"]));
+    unstated
+        .value
+        .as_object_mut()
+        .unwrap()
+        .remove("from_contract");
+    assert!(!h(
+        &c(vec![unstated, send(TOK_B, "T", 362)]),
+        "pays_memo_min",
+        &["min_out"]
+    ));
 }
 
 #[test]
@@ -784,7 +1066,11 @@ fn a_pool_pays_only_who_paid_in_and_keeps_its_product() {
         ("post", "/reserves/b.num", json!(0)),
         ("post", "/lp/supply.num", json!(0)),
     ]);
-    bootstrap.add_action("create".to_string(), None, json!({"asset_id": "lp", "quantity": 1_000_000_000u64, "divisibility": 1}));
+    bootstrap.add_action(
+        "create".to_string(),
+        None,
+        json!({"asset_id": "lp", "quantity": 1_000_000_000u64, "divisibility": 1}),
+    );
     let mut accepted = vec![bootstrap];
     for rule in full_pool_rules() {
         let pending = rule_commit(&rule);
@@ -794,19 +1080,42 @@ fn a_pool_pays_only_who_paid_in_and_keeps_its_product() {
 
     // L adds 1000 A and 4000 B; the first deposit mints sqrt(1000 * 4000) shares.
     let add = pool_output(
-        [vec![recv("L", TOK_A, 1000), recv("L", TOK_B, 4000), send("lp", "L", 2000)], reserves_after(1000, 4000), vec![post("/lp/supply.num", json!(2000))]].concat(),
+        [
+            vec![
+                recv("L", TOK_A, 1000),
+                recv("L", TOK_B, 4000),
+                send("lp", "L", 2000),
+            ],
+            reserves_after(1000, 4000),
+            vec![post("/lp/supply.num", json!(2000))],
+        ]
+        .concat(),
     );
     validate(&accepted, &add, V2).expect("the first deposit");
     accepted.push(add);
 
     // T swaps 100 A: out = 4000 * 100 * 997 / (1000 * 1000 + 100 * 997) = 362.6.
     let swap = |out: u64, to: &str, a_after: u64| {
-        pool_output([vec![recv("T", TOK_A, 100), send(TOK_B, to, out)], reserves_after(a_after, 4000 - out)].concat())
+        pool_output(
+            [
+                vec![recv("T", TOK_A, 100), send(TOK_B, to, out)],
+                reserves_after(a_after, 4000 - out),
+            ]
+            .concat(),
+        )
     };
     for (pending, why, says) in [
-        (swap(400, "T", 1100), "pays more than the curve", "keeps_product"),
+        (
+            swap(400, "T", 1100),
+            "pays more than the curve",
+            "keeps_product",
+        ),
         (swap(362, "M", 1100), "pays someone else", "pays_senders"),
-        (swap(362, "T", 1200), "posts reserves the flow does not explain", "tracks"),
+        (
+            swap(362, "T", 1200),
+            "posts reserves the flow does not explain",
+            "tracks",
+        ),
     ] {
         for theory in [V0, V2] {
             let err = validate(&accepted, &pending, theory).expect_err(why);
@@ -826,7 +1135,13 @@ fn a_pool_pays_only_who_paid_in_and_keeps_its_product() {
     // A swap that pays less than the trader's min_out, rather than refunding.
     let short = |memo_min: u64| {
         let memo = json!({"op": "swap", "min_out": memo_min});
-        pool_output([vec![recv_memo("T", TOK_A, 100, memo), send(TOK_B, "T", 362)], reserves_after(1100, 3638)].concat())
+        pool_output(
+            [
+                vec![recv_memo("T", TOK_A, 100, memo), send(TOK_B, "T", 362)],
+                reserves_after(1100, 3638),
+            ]
+            .concat(),
+        )
     };
     let err = validate(&accepted, &short(400), V2).expect_err("below min_out");
     assert!(err.to_string().contains("pays_memo_min"), "{err}");
@@ -845,7 +1160,11 @@ fn a_pool_pays_only_who_paid_in_and_keeps_its_product() {
     let remove = |a_out: u64, b_out: u64, burned_to: u64| {
         pool_output(
             [
-                vec![recv("L", "lp", 1000), send(TOK_A, "L", a_out), send(TOK_B, "L", b_out)],
+                vec![
+                    recv("L", "lp", 1000),
+                    send(TOK_A, "L", a_out),
+                    send(TOK_B, "L", b_out),
+                ],
                 reserves_after(1100 - a_out, 3638 - b_out),
                 vec![post("/lp/supply.num", json!(burned_to))],
             ]
@@ -854,7 +1173,8 @@ fn a_pool_pays_only_who_paid_in_and_keeps_its_product() {
     };
     let err = validate(&accepted, &remove(600, 1819, 1000), V2).expect_err("more than half of A");
     assert!(err.to_string().contains("keeps_product_per_share"), "{err}");
-    let err = validate(&accepted, &remove(550, 1819, 1100), V2).expect_err("the supply falls by what came back");
+    let err = validate(&accepted, &remove(550, 1819, 1100), V2)
+        .expect_err("the supply falls by what came back");
     assert!(err.to_string().contains("tracks"), "{err}");
     validate(&accepted, &remove(550, 1819, 1000), V2).expect("a pro-rata remove");
 
@@ -901,15 +1221,33 @@ fn mined_headers_holds_only_for_linked_headers_with_their_work() {
         holds(c, state, "mined_headers", &["/emission/blocks"])
     };
 
-    assert!(check(&posting(&[(1, &b1), (2, &b2)]), &[sha.clone(), genesis.clone()]));
-    assert!(check(&CommitFile::new(), &[sha.clone()]), "no header posted");
+    assert!(check(
+        &posting(&[(1, &b1), (2, &b2)]),
+        &[sha.clone(), genesis.clone()]
+    ));
     assert!(
-        check(&posting(&[(2, &b2)]), &[sha.clone(), ("/emission/blocks/1.json", b1.clone())]),
+        check(&CommitFile::new(), &[sha.clone()]),
+        "no header posted"
+    );
+    assert!(
+        check(
+            &posting(&[(2, &b2)]),
+            &[sha.clone(), ("/emission/blocks/1.json", b1.clone())]
+        ),
         "block 2 links to an accepted block 1"
     );
-    assert!(!check(&posting(&[(2, &b2)]), &[sha.clone()]), "block 1 is nowhere");
     assert!(
-        !check(&posting(&[(1, &b1)]), &[sha.clone(), ("/network/emission/genesis_block_hash.text", json!("g1"))]),
+        !check(&posting(&[(2, &b2)]), &[sha.clone()]),
+        "block 1 is nowhere"
+    );
+    assert!(
+        !check(
+            &posting(&[(1, &b1)]),
+            &[
+                sha.clone(),
+                ("/network/emission/genesis_block_hash.text", json!("g1"))
+            ]
+        ),
         "block 1 must follow the genesis block"
     );
     assert_eq!(
@@ -923,11 +1261,23 @@ fn mined_headers_holds_only_for_linked_headers_with_their_work() {
         h[field] = value;
         check(&posting(&[(1, &h)]), &[sha.clone(), genesis.clone()])
     };
-    assert!(!tampered("to", json!("12D3KooWMallory")), "the payee is under the data hash");
+    assert!(
+        !tampered("to", json!("12D3KooWMallory")),
+        "the payee is under the data hash"
+    );
     assert!(!tampered("miner_number", json!(8)));
     assert!(!tampered("nonce", json!("0")) || b1["nonce"] == json!("0"));
     assert!(!tampered("hash", json!("00")));
-    assert!(!tampered("index", json!(3)), "the header's index is its path's");
-    assert!(!tampered("difficulty", json!("1000000000000")), "the hash does not meet it");
-    assert!(!check(&posting(&[(0, &b1)]), &[sha]), "block 0 is genesis, not mined");
+    assert!(
+        !tampered("index", json!(3)),
+        "the header's index is its path's"
+    );
+    assert!(
+        !tampered("difficulty", json!("1000000000000")),
+        "the hash does not meet it"
+    );
+    assert!(
+        !check(&posting(&[(0, &b1)]), &[sha]),
+        "block 0 is genesis, not mined"
+    );
 }

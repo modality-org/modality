@@ -294,7 +294,10 @@ impl ContractProcessor {
 
     /// Certificate fees the last `process_commit` owes, by validator.
     pub fn cert_fees(&self) -> Vec<(String, u64)> {
-        self.cert_fees.lock().unwrap_or_else(|e| e.into_inner()).clone()
+        self.cert_fees
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .clone()
     }
 
     /// Owe the certificate fee for consuming the prefix of `source` through
@@ -433,7 +436,10 @@ impl ContractProcessor {
         commit_data: &str,
     ) -> Result<Vec<StateChange>> {
         self.set_last_gas(None);
-        self.cert_fees.lock().unwrap_or_else(|e| e.into_inner()).clear();
+        self.cert_fees
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .clear();
         let validation_timestamp = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)?
             .as_secs();
@@ -585,7 +591,10 @@ impl ContractProcessor {
             let schedule = ds.gas_schedule()?;
             // The network writes the MOD contract (genesis, mints); nobody
             // pays for those, so they are metered but not limited.
-            let network_written = ds.mod_contract_id()?.as_deref() == Some(contract_id);
+            let network_written = ds.mod_contract_id()?.is_some_and(|id| {
+                modality_common::peer_id::key_form(&id)
+                    == modality_common::peer_id::key_form(contract_id)
+            });
             (
                 chain,
                 crate::sequenced_rules::network_theory(&ds)?,
@@ -640,7 +649,9 @@ impl ContractProcessor {
                 Ok((expanded, _)) => expanded,
                 Err(err) => {
                     // The fuel a failed program burned is still work done.
-                    self.set_last_gas(Some(gas::meter(schedule, &governing, pending, pending, fuel)));
+                    self.set_last_gas(Some(gas::meter(
+                        schedule, &governing, pending, pending, fuel,
+                    )));
                     return Err(err);
                 }
             }
@@ -751,15 +762,13 @@ impl ContractProcessor {
             .ok_or_else(|| anyhow::anyhow!("CREATE missing divisibility"))?;
 
         // Display only. 10^19 overflows a u64, so at most 19 places.
-        let decimals = match value.get("decimals") {
-            None | Some(Value::Null) => None,
-            Some(v) => Some(
-                v.as_u64()
-                    .filter(|d| *d <= 19)
-                    .ok_or_else(|| anyhow::anyhow!("CREATE decimals must be a whole number up to 19"))?
-                    as u32,
-            ),
-        };
+        let decimals =
+            match value.get("decimals") {
+                None | Some(Value::Null) => None,
+                Some(v) => Some(v.as_u64().filter(|d| *d <= 19).ok_or_else(|| {
+                    anyhow::anyhow!("CREATE decimals must be a whole number up to 19")
+                })? as u32),
+            };
 
         let ds = self.datastore.lock().await;
 
@@ -849,12 +858,9 @@ impl ContractProcessor {
 
         let ds = self.datastore.lock().await;
 
-        let asset = staged
-            .asset(&ds, creator, asset_id)
-            .await?
-            .ok_or_else(|| {
-                anyhow::anyhow!("Asset {} not found in contract {}", asset_id, creator)
-            })?;
+        let asset = staged.asset(&ds, creator, asset_id).await?.ok_or_else(|| {
+            anyhow::anyhow!("Asset {} not found in contract {}", asset_id, creator)
+        })?;
 
         // Check if amount is valid (respects divisibility)
         if amount % asset.divisibility != 0 && asset.divisibility > 1 {
@@ -1043,7 +1049,11 @@ impl ContractProcessor {
         };
         if let Some(claimed) = claim("from_contract") {
             if claimed.as_str() != Some(send.from_contract.as_str()) {
-                return Err(mismatch("from_contract", claimed, send.from_contract.clone()));
+                return Err(mismatch(
+                    "from_contract",
+                    claimed,
+                    send.from_contract.clone(),
+                ));
             }
         }
         let creator = send.creator();
@@ -1635,7 +1645,8 @@ mod tests {
             0x00, 0x61, 0x73, 0x6d, // Magic number
             0x01, 0x00, 0x00, 0x00, // Version
         ];
-        let wasm_base64 = base64::Engine::encode(&base64::engine::general_purpose::STANDARD, &minimal_wasm);
+        let wasm_base64 =
+            base64::Engine::encode(&base64::engine::general_purpose::STANDARD, &minimal_wasm);
 
         // Test WASM upload via POST with .wasm extension (simple string value)
         let commit_data = serde_json::json!({
@@ -1703,7 +1714,8 @@ mod tests {
         let processor = ContractProcessor::new(datastore.clone());
 
         let minimal_wasm = vec![0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00];
-        let wasm_base64 = base64::Engine::encode(&base64::engine::general_purpose::STANDARD, &minimal_wasm);
+        let wasm_base64 =
+            base64::Engine::encode(&base64::engine::general_purpose::STANDARD, &minimal_wasm);
 
         // Test WASM upload via POST with object value including gas_limit
         let commit_data = serde_json::json!({
@@ -4291,7 +4303,10 @@ model DeliveryOracle {
             .process_commit("c1", "bootstrap", &bootstrap_commit_json().to_string())
             .await
             .expect_err("v1 accepts rules some runs break");
-        assert!(err.to_string().contains("v1 is withdrawn"), "unexpected error: {err}");
+        assert!(
+            err.to_string().contains("v1 is withdrawn"),
+            "unexpected error: {err}"
+        );
     }
 
     #[tokio::test]
@@ -4337,8 +4352,14 @@ model DeliveryOracle {
     #[tokio::test]
     async fn a_commit_records_its_gas_and_is_held_to_its_limit() {
         let (metered, ds) = processor_on_network(serde_json::json!({"gas_schedule": "v1"})).await;
-        metered.process_commit("c1", "a", &note_commit(None)).await.unwrap();
-        let gas = recorded_gas(&*ds.lock().await, "c1", "a").await.unwrap().unwrap();
+        metered
+            .process_commit("c1", "a", &note_commit(None))
+            .await
+            .unwrap();
+        let gas = recorded_gas(&*ds.lock().await, "c1", "a")
+            .await
+            .unwrap()
+            .unwrap();
         assert!(gas.apply >= modality_common::gas::SCHEDULE_V1.base && gas.ordering > 0);
 
         let err = metered
@@ -4346,14 +4367,20 @@ model DeliveryOracle {
             .await
             .expect_err("100 gas does not cover the base cost");
         assert!(err.to_string().contains("out of gas"), "{err}");
-        assert!(recorded_gas(&*ds.lock().await, "c2", "b").await.unwrap().is_none());
+        assert!(recorded_gas(&*ds.lock().await, "c2", "b")
+            .await
+            .unwrap()
+            .is_none());
 
         let (unmetered, ds) = processor_on_network(serde_json::json!({})).await;
         unmetered
             .process_commit("c2", "b", &note_commit(Some(100)))
             .await
             .expect("a network with no schedule meters but enforces nothing");
-        assert!(recorded_gas(&*ds.lock().await, "c2", "b").await.unwrap().is_some());
+        assert!(recorded_gas(&*ds.lock().await, "c2", "b")
+            .await
+            .unwrap()
+            .is_some());
     }
 
     #[tokio::test]
@@ -4394,7 +4421,10 @@ model DeliveryOracle {
             .await
             .expect_err("the program loops forever");
         assert!(err.to_string().contains("fuel"), "{err}");
-        assert!(started.elapsed() < std::time::Duration::from_secs(5), "stopped by the commit's budget");
+        assert!(
+            started.elapsed() < std::time::Duration::from_secs(5),
+            "stopped by the commit's budget"
+        );
     }
 
     fn wasm_post_action() -> serde_json::Value {
@@ -4532,7 +4562,10 @@ model DeliveryOracle {
         assert_eq!(stored.body.len(), 1);
         assert_eq!(stored.body[0].method, "post");
         assert_eq!(
-            stored.body[0].emitted_by.as_ref().map(|e| e.program.as_str()),
+            stored.body[0]
+                .emitted_by
+                .as_ref()
+                .map(|e| e.program.as_str()),
             Some("/__programs__/gate.wasm")
         );
         assert_eq!(stored.head.parent.as_deref(), Some("bootstrap"));
@@ -4552,11 +4585,19 @@ model DeliveryOracle {
         let files: Vec<CommitFile> = accepted.iter().map(|(_, f)| f.clone()).collect();
         let wasm = wasm_modules_from_commits(&files).unwrap();
         let mut engine = WasmInvokeEngine::new(DEFAULT_GAS_LIMIT);
-        let again = expand_prefix("c1", &accepted, &wasm, Some(&mut engine)).unwrap().0;
+        let again = expand_prefix("c1", &accepted, &wasm, Some(&mut engine))
+            .unwrap()
+            .0;
         let emitters = |commits: &[CommitFile]| -> Vec<Option<Emitter>> {
-            commits.iter().flat_map(|c| c.body.iter().map(|a| a.emitted_by.clone())).collect()
+            commits
+                .iter()
+                .flat_map(|c| c.body.iter().map(|a| a.emitted_by.clone()))
+                .collect()
         };
-        assert_eq!(serde_json::to_value(&from_store).unwrap(), serde_json::to_value(&again).unwrap());
+        assert_eq!(
+            serde_json::to_value(&from_store).unwrap(),
+            serde_json::to_value(&again).unwrap()
+        );
         assert_eq!(emitters(&from_store), emitters(&again));
 
         let mut next = invoke_commit(true);
@@ -4625,7 +4666,10 @@ model DeliveryOracle {
         })
         .to_string();
         sequence_commit(&processor, &datastore, "faucet", "split", &split, "b2").await;
-        assert_eq!(balance_of(&datastore, "faucet", "drops", "faucet").await, 89);
+        assert_eq!(
+            balance_of(&datastore, "faucet", "drops", "faucet").await,
+            89
+        );
 
         let recv = |id: &str, index| recv_json(id, index).to_string();
         processor
@@ -4643,7 +4687,9 @@ model DeliveryOracle {
             .await
             .expect_err("each SEND is received once");
         assert!(
-            again.to_string().contains("SEND 1 of commit split already received"),
+            again
+                .to_string()
+                .contains("SEND 1 of commit split already received"),
             "unexpected error: {again}"
         );
         let first_again = processor
@@ -4694,17 +4740,35 @@ model DeliveryOracle {
             .process_commit("bob", "own", &one(send_json("carol", 4), "bob-recv"))
             .await
             .expect_err("bob created no drops");
-        assert!(own.to_string().contains("Asset drops not found in contract bob"), "{own}");
+        assert!(
+            own.to_string()
+                .contains("Asset drops not found in contract bob"),
+            "{own}"
+        );
         let self_named = processor
-            .process_commit("bob", "self", &one(held_send_json("bob", "carol", 4), "bob-recv"))
+            .process_commit(
+                "bob",
+                "self",
+                &one(held_send_json("bob", "carol", 4), "bob-recv"),
+            )
             .await
             .expect_err("an own asset omits asset_contract");
-        assert!(self_named.to_string().contains("must omit asset_contract"), "{self_named}");
+        assert!(
+            self_named.to_string().contains("must omit asset_contract"),
+            "{self_named}"
+        );
         let too_much = processor
-            .process_commit("bob", "much", &one(held_send_json("faucet", "carol", 11), "bob-recv"))
+            .process_commit(
+                "bob",
+                "much",
+                &one(held_send_json("faucet", "carol", 11), "bob-recv"),
+            )
             .await
             .expect_err("bob holds 10");
-        assert!(too_much.to_string().contains("Insufficient balance"), "{too_much}");
+        assert!(
+            too_much.to_string().contains("Insufficient balance"),
+            "{too_much}"
+        );
 
         let to_carol = one(held_send_json("faucet", "carol", 4), "bob-recv");
         sequence_commit(&processor, &datastore, "bob", "to-carol", &to_carol, "b4").await;
@@ -4717,10 +4781,17 @@ model DeliveryOracle {
         let home = one(held_send_json("faucet", "faucet", 4), "carol-recv");
         sequence_commit(&processor, &datastore, "carol", "home", &home, "b6").await;
         processor
-            .process_commit("faucet", "faucet-recv", &one(recv_json("home", None)["body"][0].clone(), "to-bob"))
+            .process_commit(
+                "faucet",
+                "faucet-recv",
+                &one(recv_json("home", None)["body"][0].clone(), "to-bob"),
+            )
             .await
             .unwrap();
-        assert_eq!(balance_of(&datastore, "faucet", "drops", "faucet").await, 94);
+        assert_eq!(
+            balance_of(&datastore, "faucet", "drops", "faucet").await,
+            94
+        );
         assert_eq!(balance_of(&datastore, "faucet", "drops", "carol").await, 0);
     }
 
@@ -4732,7 +4803,15 @@ model DeliveryOracle {
         sequence_commit(&processor, &datastore, "faucet", "create", &create, "b1").await;
         let mut send = send_json("pool", 4);
         send["value"]["memo"] = serde_json::json!({ "min_out": 3 });
-        sequence_commit(&processor, &datastore, "faucet", "s", &one(send, "create"), "b2").await;
+        sequence_commit(
+            &processor,
+            &datastore,
+            "faucet",
+            "s",
+            &one(send, "create"),
+            "b2",
+        )
+        .await;
 
         let claim = |extra: serde_json::Value| {
             let mut value = serde_json::json!({ "send_commit_id": "s" });
@@ -4743,13 +4822,41 @@ model DeliveryOracle {
                 .to_string()
         };
         for (extra, why, says) in [
-            (serde_json::json!({ "amount": 5 }), "the amount", "has amount 4, not 5"),
-            (serde_json::json!({ "asset_contract": "faucet", "asset_id": "gold" }), "the asset", "has asset_id drops"),
-            (serde_json::json!({ "from_contract": "mallory" }), "the sender", "has from_contract faucet"),
-            (serde_json::json!({ "asset_id": "drops" }), "an own asset", "not one this contract created"),
-            (serde_json::json!({ "asset_contract": "other" }), "the creator", "has asset_contract faucet"),
-            (serde_json::json!({ "asset_contract": "pool" }), "the receiver as creator", "must omit asset_contract"),
-            (serde_json::json!({ "memo": { "min_out": 0 } }), "the memo", "has memo {\"min_out\":3}"),
+            (
+                serde_json::json!({ "amount": 5 }),
+                "the amount",
+                "has amount 4, not 5",
+            ),
+            (
+                serde_json::json!({ "asset_contract": "faucet", "asset_id": "gold" }),
+                "the asset",
+                "has asset_id drops",
+            ),
+            (
+                serde_json::json!({ "from_contract": "mallory" }),
+                "the sender",
+                "has from_contract faucet",
+            ),
+            (
+                serde_json::json!({ "asset_id": "drops" }),
+                "an own asset",
+                "not one this contract created",
+            ),
+            (
+                serde_json::json!({ "asset_contract": "other" }),
+                "the creator",
+                "has asset_contract faucet",
+            ),
+            (
+                serde_json::json!({ "asset_contract": "pool" }),
+                "the receiver as creator",
+                "must omit asset_contract",
+            ),
+            (
+                serde_json::json!({ "memo": { "min_out": 0 } }),
+                "the memo",
+                "has memo {\"min_out\":3}",
+            ),
         ] {
             let err = processor
                 .process_commit("pool", why, &claim(extra))
@@ -4810,7 +4917,10 @@ model DeliveryOracle {
         })
         .to_string();
         sequence_commit(&processor, &datastore, "treasury", "pay", &invoke, "b2").await;
-        assert_eq!(balance_of(&datastore, "treasury", "drops", "treasury").await, 90);
+        assert_eq!(
+            balance_of(&datastore, "treasury", "drops", "treasury").await,
+            90
+        );
 
         processor
             .process_commit("bob", "r0", &recv_json("pay", None).to_string())
@@ -4842,15 +4952,23 @@ model DeliveryOracle {
             .process_commit("faucet", "overdraw", &overdraw)
             .await
             .expect_err("the second SEND overdraws");
-        assert!(err.to_string().contains("Insufficient balance: have 40, need 60"));
-        assert_eq!(balance_of(&datastore, "faucet", "drops", "faucet").await, 100);
+        assert!(err
+            .to_string()
+            .contains("Insufficient balance: have 40, need 60"));
+        assert_eq!(
+            balance_of(&datastore, "faucet", "drops", "faucet").await,
+            100
+        );
         let ds = datastore.lock().await;
         assert!(ds
             .get_data_by_key("/contracts/faucet/note.text")
             .await
             .unwrap()
             .is_none());
-        assert!(SendRecord::find(&ds, "overdraw", 0).await.unwrap().is_none());
+        assert!(SendRecord::find(&ds, "overdraw", 0)
+            .await
+            .unwrap()
+            .is_none());
     }
 
     #[tokio::test]

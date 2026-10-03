@@ -30,15 +30,11 @@ async fn main() -> Result<()> {
 
     let temp_dir1 = tempfile::tempdir()?;
     let storage_path1 = temp_dir1.path().join("node1_data");
-    let datastore1 = Arc::new(Mutex::new(DatastoreManager::open(
-        &storage_path1,
-    )?));
+    let datastore1 = Arc::new(Mutex::new(DatastoreManager::open(&storage_path1)?));
 
     let temp_dir2 = tempfile::tempdir()?;
     let storage_path2 = temp_dir2.path().join("node2_data");
-    let datastore2 = Arc::new(Mutex::new(DatastoreManager::open(
-        &storage_path2,
-    )?));
+    let datastore2 = Arc::new(Mutex::new(DatastoreManager::open(&storage_path2)?));
 
     println!("  ✓ Datastores created\n");
 

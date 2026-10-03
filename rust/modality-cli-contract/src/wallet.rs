@@ -184,11 +184,15 @@ impl Wallet {
         )
         .await?;
         if !response.ok {
-            bail!("{} cannot show the account: {:?}", self.remote, response.errors);
+            bail!(
+                "{} cannot show the account: {:?}",
+                self.remote,
+                response.errors
+            );
         }
-        Ok(serde_json::from_value(
-            response.data.ok_or_else(|| anyhow!("{} sent no account", self.remote))?,
-        )?)
+        Ok(serde_json::from_value(response.data.ok_or_else(|| {
+            anyhow!("{} sent no account", self.remote)
+        })?)?)
     }
 
     /// Make a commit with `args` (after `commit`), signed by the wallet's key.
@@ -238,7 +242,11 @@ impl Wallet {
             let commit = self.store.load_commit(&id)?;
             for action in commit.body.iter().filter(|a| a.method == "recv") {
                 if let Some(send) = action.value.get("send_commit_id").and_then(Value::as_str) {
-                    let index = action.value.get("send_index").and_then(Value::as_u64).unwrap_or(0);
+                    let index = action
+                        .value
+                        .get("send_index")
+                        .and_then(Value::as_u64)
+                        .unwrap_or(0);
                     received.insert((send.to_string(), index));
                 }
             }
@@ -284,8 +292,6 @@ impl Account {
             format!("{asset_id} ({asset_contract})")
         }
     }
-
-
 }
 
 pub use modality_common::amount::{format_amount, parse_amount};
@@ -297,16 +303,18 @@ async fn create(opts: &CreateOpts) -> Result<()> {
     }
     std::fs::create_dir_all(&dir)?;
     let key = match &opts.key {
-        Some(reference) => std::fs::canonicalize(
-            modality_common::passfile::resolve_passfile_path(reference)?,
-        )?,
+        Some(reference) => {
+            std::fs::canonicalize(modality_common::passfile::resolve_passfile_path(reference)?)?
+        }
         None => {
             let path = dir.join("owner.mod_passfile");
             Keypair::generate()?.as_json_file(&path.to_string_lossy())?;
             std::fs::canonicalize(path)?
         }
     };
-    let id = Keypair::from_json_file(&key.to_string_lossy())?.as_public_address();
+    let id = modality_common::peer_id::id_value(
+        &Keypair::from_json_file(&key.to_string_lossy())?.as_public_address(),
+    );
     let remote = match &opts.remote {
         Some(remote) => remote.clone(),
         None => default_remote()?,

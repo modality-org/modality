@@ -34,11 +34,26 @@ pub const MODEL: &str = r#"model release {
 /// The release contract's rules, by name. Rules accumulate, so these hold
 /// for the contract's life.
 pub const RULES: &[(&str, &str)] = &[
-    ("releases_by_ci", "always([+modifies(/releases) -signed_by(/keys/ci.id)] false)"),
-    ("keys_by_maintainers", "always([+modifies(/keys) -all_signed(/maintainers)] false)"),
-    ("maintainers_by_maintainers", "always([+modifies(/maintainers) -all_signed(/maintainers)] false)"),
-    ("rules_by_maintainers", "always([+modifies(/rules) -all_signed(/maintainers)] false)"),
-    ("model_by_maintainers", "always([+modifies(/model) -all_signed(/maintainers)] false)"),
+    (
+        "releases_by_ci",
+        "always([+modifies(/releases) -signed_by(/keys/ci.id)] false)",
+    ),
+    (
+        "keys_by_maintainers",
+        "always([+modifies(/keys) -all_signed(/maintainers)] false)",
+    ),
+    (
+        "maintainers_by_maintainers",
+        "always([+modifies(/maintainers) -all_signed(/maintainers)] false)",
+    ),
+    (
+        "rules_by_maintainers",
+        "always([+modifies(/rules) -all_signed(/maintainers)] false)",
+    ),
+    (
+        "model_by_maintainers",
+        "always([+modifies(/model) -all_signed(/maintainers)] false)",
+    ),
 ];
 
 /// A release contract a binary trusts: its id and genesis commit.
@@ -64,7 +79,11 @@ pub fn pin_for(channel: &str) -> Option<Pin> {
 
 /// Where a channel's release log is published.
 pub fn log_url(base_url: &str, channel: &str) -> String {
-    format!("{}/{}/release-contract/log.json", base_url.trim_end_matches('/'), channel)
+    format!(
+        "{}/{}/release-contract/log.json",
+        base_url.trim_end_matches('/'),
+        channel
+    )
 }
 
 /// A release contract's log: every commit, genesis first.
@@ -112,7 +131,10 @@ pub fn verify_log(log: &Log, pin: Pin) -> Result<Map<String, Value>> {
             pin.contract_id
         );
     }
-    let first = log.commits.first().ok_or_else(|| anyhow!("the release log is empty"))?;
+    let first = log
+        .commits
+        .first()
+        .ok_or_else(|| anyhow!("the release log is empty"))?;
     if first.commit_id != pin.genesis_commit_id {
         bail!(
             "the release log starts at {}, not the pinned genesis {}",
@@ -127,7 +149,10 @@ pub fn verify_log(log: &Log, pin: Pin) -> Result<Map<String, Value>> {
             .with_context(|| format!("release log commit {}", commit.commit_id))?;
         let file_parent = file.head.parent.clone().filter(|p| !p.is_empty());
         if file_parent != parent {
-            bail!("release log commit {} does not follow the one before it", commit.commit_id);
+            bail!(
+                "release log commit {} does not follow the one before it",
+                commit.commit_id
+            );
         }
         parent = Some(commit.commit_id.clone());
         prefix.push((commit.commit_id.clone(), file));
@@ -140,7 +165,9 @@ pub fn verify_log(log: &Log, pin: Pin) -> Result<Map<String, Value>> {
         TheoryActivation::always(modality_lang::TheoryVersion::V3),
     )
     .context("the release contract refuses its own log")?;
-    Ok(crate::independent_replay::accepted_state_from_commits(&accepted))
+    Ok(crate::independent_replay::accepted_state_from_commits(
+        &accepted,
+    ))
 }
 
 /// The release `version` of `channel` in a verified state, or the channel's
@@ -160,7 +187,11 @@ pub fn entry(state: &Map<String, Value>, channel: &str, version: Option<&str>) -
     let entry: Entry = serde_json::from_value(value.clone())
         .with_context(|| format!("release {version} is malformed"))?;
     if entry.version != version || entry.channel != channel {
-        bail!("release {version} names {} {}", entry.channel, entry.version);
+        bail!(
+            "release {version} names {} {}",
+            entry.channel,
+            entry.version
+        );
     }
     Ok(entry)
 }
@@ -245,7 +276,10 @@ mod tests {
         }
 
         fn log(&self) -> Log {
-            Log { contract_id: self.id.clone(), commits: self.commits.clone() }
+            Log {
+                contract_id: self.id.clone(),
+                commits: self.commits.clone(),
+            }
         }
 
         fn pin(&self) -> Pin {
@@ -259,8 +293,15 @@ mod tests {
     fn release_contract(ci: &Keypair, maintainer: &Keypair) -> Chain {
         let contract = Keypair::generate().unwrap();
         let id = contract.as_public_address();
-        let mut chain = Chain { contract, id: id.clone(), commits: vec![] };
-        chain.push(json!([{"method": "genesis", "value": {"genesis": {"contract_id": id}}}]), &[]);
+        let mut chain = Chain {
+            contract,
+            id: id.clone(),
+            commits: vec![],
+        };
+        chain.push(
+            json!([{"method": "genesis", "value": {"genesis": {"contract_id": id}}}]),
+            &[],
+        );
         let mut setup = vec![
             json!({"method": "post", "path": "/keys/ci.id", "value": ci.public_key_as_base58_identity()}),
             json!({"method": "post", "path": "/maintainers/1.id", "value": maintainer.public_key_as_base58_identity()}),
@@ -298,9 +339,11 @@ mod tests {
         chain.push(release_body("v1", b"binary one"), &[&ci]);
         let log = serde_json::to_string(&chain.log()).unwrap();
         let path = "binaries/linux-x86_64/modal";
-        let entry = verify_download(&log, chain.pin(), "testnet", None, path, b"binary one").unwrap();
+        let entry =
+            verify_download(&log, chain.pin(), "testnet", None, path, b"binary one").unwrap();
         assert_eq!(entry.version, "v1");
-        let err = verify_download(&log, chain.pin(), "testnet", None, path, b"tampered").unwrap_err();
+        let err =
+            verify_download(&log, chain.pin(), "testnet", None, path, b"tampered").unwrap_err();
         assert!(err.to_string().contains("but release v1 names"), "{err}");
     }
 
@@ -311,7 +354,10 @@ mod tests {
         let mut chain = release_contract(&ci, &maintainer);
         chain.push(release_body("v1", b"evil"), &[&mallory]);
         let err = verify_log(&chain.log(), chain.pin()).unwrap_err();
-        assert!(format!("{err:#}").contains("signed_by(/keys/ci.id)"), "{err:#}");
+        assert!(
+            format!("{err:#}").contains("signed_by(/keys/ci.id)"),
+            "{err:#}"
+        );
     }
 
     #[test]
@@ -322,7 +368,10 @@ mod tests {
 
         let mut stolen = release_contract(&ci, &maintainer);
         stolen.push(rotate.clone(), &[&ci]);
-        assert!(verify_log(&stolen.log(), stolen.pin()).is_err(), "the CI key alone cannot rotate");
+        assert!(
+            verify_log(&stolen.log(), stolen.pin()).is_err(),
+            "the CI key alone cannot rotate"
+        );
 
         let mut rotated = release_contract(&ci, &maintainer);
         rotated.push(rotate, &[&maintainer]);
@@ -330,7 +379,10 @@ mod tests {
         let state = verify_log(&rotated.log(), rotated.pin()).unwrap();
         assert_eq!(entry(&state, "testnet", None).unwrap().version, "v2");
         rotated.push(release_body("v3", b"three"), &[&ci]);
-        assert!(verify_log(&rotated.log(), rotated.pin()).is_err(), "the old key is out");
+        assert!(
+            verify_log(&rotated.log(), rotated.pin()).is_err(),
+            "the old key is out"
+        );
     }
 
     #[test]
@@ -344,6 +396,9 @@ mod tests {
         let mut tampered = chain.log();
         tampered.commits[2].body[0]["value"]["files"]["binaries/linux-x86_64/modal"] =
             sha256_hex(b"evil").into();
-        assert!(verify_log(&tampered, chain.pin()).is_err(), "the id no longer matches");
+        assert!(
+            verify_log(&tampered, chain.pin()).is_err(),
+            "the id no longer matches"
+        );
     }
 }

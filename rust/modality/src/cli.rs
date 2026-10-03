@@ -290,9 +290,7 @@ enum NodeCommands {
     #[command(about = "Run a sequencer node (orders events; does not mine)")]
     RunSequencer(modality_cli_node::run_sequencer::Opts),
 
-    #[command(
-        about = "Run a validator node (prefix certificates; does not mine or sequence)"
-    )]
+    #[command(about = "Run a validator node (prefix certificates; does not mine or sequence)")]
     RunValidator(modality_cli_node::run_validator::Opts),
 
     #[command(about = "Run an observer node (observes mining, does not mine)")]
@@ -711,9 +709,7 @@ pub async fn run() -> Result<()> {
             RunCommands::Miner(opts) => modality_cli_node::run_miner::run(opts).await?,
             RunCommands::Hybrid(opts) => modality_cli_node::run_hybrid::run(opts).await?,
             RunCommands::Sequencer(opts) => modality_cli_node::run_sequencer::run(opts).await?,
-            RunCommands::Validator(opts) => {
-                modality_cli_node::run_validator::run(opts).await?
-            }
+            RunCommands::Validator(opts) => modality_cli_node::run_validator::run(opts).await?,
             RunCommands::Observer(opts) => modality_cli_node::run_observer::run(opts).await?,
         },
         #[cfg(feature = "full")]
@@ -836,14 +832,9 @@ mod tests {
     #[test]
     fn node_run_validator_parses() {
         use clap::Parser;
-        let cli = Cli::try_parse_from([
-            "modality",
-            "node",
-            "run-validator",
-            "--dir",
-            "./tmp/node1",
-        ])
-        .unwrap();
+        let cli =
+            Cli::try_parse_from(["modality", "node", "run-validator", "--dir", "./tmp/node1"])
+                .unwrap();
         match cli.command {
             Commands::Node {
                 command: Some(NodeCommands::RunValidator(opts)),

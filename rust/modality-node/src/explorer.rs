@@ -84,14 +84,11 @@ pub async fn inspect_contract(
     datastore: &DatastoreManager,
     contract_id: &str,
 ) -> Result<Option<ContractInspect>> {
-    let commits = Commit::find_by_contract_multi(datastore, contract_id).await?;
-    if commits.is_empty()
-        && Contract::find_by_id_multi(datastore, contract_id)
-            .await?
-            .is_none()
-    {
+    let Some(contract_id) = stored_contract_id(datastore, contract_id).await? else {
         return Ok(None);
-    }
+    };
+    let contract_id = contract_id.as_str();
+    let commits = Commit::find_by_contract_multi(datastore, contract_id).await?;
 
     let summary = summarize_from_commits(datastore, contract_id, &commits).await?;
     let (mut state, model, rules) = split_state_tree(&commits);
@@ -129,6 +126,17 @@ fn merge_applied_state(
     contract_id: &str,
     state: &mut BTreeMap<String, Value>,
 ) -> Result<()> {
+    for spelling in modality_common::peer_id::id_spellings(contract_id) {
+        merge_applied_prefix(datastore, &spelling, state)?;
+    }
+    Ok(())
+}
+
+fn merge_applied_prefix(
+    datastore: &DatastoreManager,
+    contract_id: &str,
+    state: &mut BTreeMap<String, Value>,
+) -> Result<()> {
     let prefix = format!("/contracts/{contract_id}");
     for entry in datastore.node_state().iterator(&prefix) {
         let (key, value) = entry?;
@@ -154,15 +162,24 @@ pub async fn list_commits(
     datastore: &DatastoreManager,
     contract_id: &str,
 ) -> Result<Option<Vec<CommitView>>> {
-    let commits = Commit::find_by_contract_multi(datastore, contract_id).await?;
-    if commits.is_empty()
-        && Contract::find_by_id_multi(datastore, contract_id)
-            .await?
-            .is_none()
-    {
+    let Some(contract_id) = stored_contract_id(datastore, contract_id).await? else {
         return Ok(None);
-    }
+    };
+    let commits = Commit::find_by_contract_multi(datastore, &contract_id).await?;
     Ok(Some(commits.iter().map(commit_view).collect()))
+}
+
+/// The spelling this contract was stored under. A pasted ID in any form of
+/// the same key resolves to it. `None` when nothing is stored.
+async fn stored_contract_id(
+    datastore: &DatastoreManager,
+    contract_id: &str,
+) -> Result<Option<String>> {
+    if let Some(contract) = Contract::find_by_id_multi(datastore, contract_id).await? {
+        return Ok(Some(contract.contract_id));
+    }
+    let commits = Commit::find_by_contract_multi(datastore, contract_id).await?;
+    Ok(commits.first().map(|commit| commit.contract_id.clone()))
 }
 
 pub async fn replay_contract(
@@ -170,15 +187,12 @@ pub async fn replay_contract(
     contract_id: &str,
     through_commit: Option<&str>,
 ) -> Result<Option<ReplayView>> {
+    let Some(contract_id) = stored_contract_id(datastore, contract_id).await? else {
+        return Ok(None);
+    };
+    let contract_id = contract_id.as_str();
     let commits = Commit::find_by_contract_multi(datastore, contract_id).await?;
     if commits.iter().all(|c| !c.is_sequenced()) {
-        if commits.is_empty()
-            && Contract::find_by_id_multi(datastore, contract_id)
-                .await?
-                .is_none()
-        {
-            return Ok(None);
-        }
         anyhow::bail!("no sequenced commits for contract {contract_id}");
     }
     let artifact = export_replay_artifact(datastore, contract_id, through_commit).await?;
@@ -386,9 +400,8 @@ mod tests {
     async fn inspect_shows_program_posts_and_held_assets() {
         let ds = Arc::new(Mutex::new(DatastoreManager::create_in_memory().unwrap()));
         let processor = ContractProcessor::new(ds.clone());
-        let wasm =
-            modality_wasm_runtime::program_that_posts("/notes/from-program.text", "emitted")
-                .unwrap();
+        let wasm = modality_wasm_runtime::program_that_posts("/notes/from-program.text", "emitted")
+            .unwrap();
         let sequence = |commit_id: &'static str, body: Value| {
             let processor = &processor;
             let ds = ds.clone();
@@ -433,7 +446,10 @@ mod tests {
         )
         .await;
         drop(processor);
-        let mgr = Arc::try_unwrap(ds).ok().expect("processor dropped").into_inner();
+        let mgr = Arc::try_unwrap(ds)
+            .ok()
+            .expect("processor dropped")
+            .into_inner();
         let inspect = inspect_contract(&mgr, "treasury").await.unwrap().unwrap();
         assert_eq!(inspect.state["/notes/from-program.text"], "emitted");
         assert!(inspect.state.contains_key("/__programs__/note.wasm"));

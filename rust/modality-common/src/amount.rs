@@ -62,11 +62,17 @@ mod tests {
         assert_eq!(parse_amount("1.5", mod_places).unwrap(), 150_000_000);
         assert_eq!(parse_amount("50", mod_places).unwrap(), 5_000_000_000);
         assert_eq!(parse_amount(".25", Some(2)).unwrap(), 25);
-        assert!(parse_amount("0.000000001", mod_places).is_err(), "nine places");
+        assert!(
+            parse_amount("0.000000001", mod_places).is_err(),
+            "nine places"
+        );
         assert!(parse_amount("1.5", None).is_err(), "no decimals shown");
         assert!(parse_amount("0", mod_places).is_err());
         assert!(parse_amount("-1", mod_places).is_err());
         assert!(parse_amount("1e3", mod_places).is_err());
-        assert!(parse_amount("999999999999", mod_places).is_err(), "overflow");
+        assert!(
+            parse_amount("999999999999", mod_places).is_err(),
+            "overflow"
+        );
     }
 }

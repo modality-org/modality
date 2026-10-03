@@ -107,16 +107,11 @@ pub fn verify_cert_signature(cert: &PrefixCert) -> Result<bool> {
 }
 
 pub fn signer_is_named(cert: &PrefixCert, validators: &[String]) -> bool {
-    validators
-        .iter()
-        .any(|id| id == &cert.validator_peer_id)
+    validators.iter().any(|id| id == &cert.validator_peer_id)
 }
 
 /// Cheap inclusion check: well-formed, named signer, signature. No model replay.
-pub fn cheap_include_prefix_cert(
-    event: &serde_json::Value,
-    validators: &[String],
-) -> Result<()> {
+pub fn cheap_include_prefix_cert(event: &serde_json::Value, validators: &[String]) -> Result<()> {
     let cert: PrefixCert = serde_json::from_value(event.clone())?;
     if cert.event_type != PREFIX_CERT_TYPE {
         anyhow::bail!("not a prefix_cert");

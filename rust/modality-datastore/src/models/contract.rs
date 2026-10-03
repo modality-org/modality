@@ -70,10 +70,17 @@ impl Contract {
         datastore: &DatastoreManager,
         contract_id: &str,
     ) -> Result<Option<Self>> {
-        let keys = [("contract_id".to_string(), contract_id.to_string())]
-            .into_iter()
-            .collect();
-        Self::find_one_from_store(datastore.sequencer_final(), keys).await
+        for spelling in modality_common::peer_id::id_spellings(contract_id) {
+            let keys = [("contract_id".to_string(), spelling)]
+                .into_iter()
+                .collect();
+            if let Some(contract) =
+                Self::find_one_from_store(datastore.sequencer_final(), keys).await?
+            {
+                return Ok(Some(contract));
+            }
+        }
+        Ok(None)
     }
 
     /// Save this contract to the SequencerFinal store
@@ -128,6 +135,16 @@ impl Commit {
         datastore: &DatastoreManager,
         contract_id: &str,
     ) -> Result<Vec<Self>> {
+        for spelling in modality_common::peer_id::id_spellings(contract_id) {
+            let commits = Self::commits_under(datastore, &spelling).await?;
+            if !commits.is_empty() {
+                return Ok(commits);
+            }
+        }
+        Ok(Vec::new())
+    }
+
+    async fn commits_under(datastore: &DatastoreManager, contract_id: &str) -> Result<Vec<Self>> {
         let prefix = format!("/commits/{}", contract_id);
         let mut commits = Vec::new();
 
@@ -386,7 +403,9 @@ impl AssetBalance {
                 if let (Some(cid), Some(aid), Some(oid)) =
                     (parts.get(2), parts.get(3), parts.get(4))
                 {
-                    if *oid == owner_contract_id {
+                    if modality_common::peer_id::key_form(oid)
+                        == modality_common::peer_id::key_form(owner_contract_id)
+                    {
                         let keys = [
                             ("contract_id".to_string(), cid.to_string()),
                             ("asset_id".to_string(), aid.to_string()),
@@ -630,12 +649,17 @@ impl SendRecord {
     }
 
     /// Every recorded `SEND` to `to_contract`, by commit and index.
-    pub async fn find_to_multi(datastore: &DatastoreManager, to_contract: &str) -> Result<Vec<Self>> {
+    pub async fn find_to_multi(
+        datastore: &DatastoreManager,
+        to_contract: &str,
+    ) -> Result<Vec<Self>> {
         let mut sends = Vec::new();
         for item in datastore.sequencer_final().iterator("/sends") {
             let (_, value) = item?;
             let record = Self::from_json_string(std::str::from_utf8(&value)?)?;
-            if record.to_contract == to_contract {
+            if modality_common::peer_id::key_form(&record.to_contract)
+                == modality_common::peer_id::key_form(to_contract)
+            {
                 sends.push(record);
             }
         }
@@ -663,13 +687,23 @@ mod tests {
             asset_contract: String::new(),
             memo: None,
         };
-        for record in [send("c2", 1, "alice"), send("c1", 0, "alice"), send("c2", 0, "bob")] {
+        for record in [
+            send("c2", 1, "alice"),
+            send("c1", 0, "alice"),
+            send("c2", 0, "bob"),
+        ] {
             record.save_to_final(&ds).await.unwrap();
         }
         let to_alice = SendRecord::find_to_multi(&ds, "alice").await.unwrap();
-        let ids: Vec<_> = to_alice.iter().map(|s| (s.send_commit_id.as_str(), s.send_index)).collect();
+        let ids: Vec<_> = to_alice
+            .iter()
+            .map(|s| (s.send_commit_id.as_str(), s.send_index))
+            .collect();
         assert_eq!(ids, vec![("c1", 0), ("c2", 1)]);
-        assert!(SendRecord::find_to_multi(&ds, "carol").await.unwrap().is_empty());
+        assert!(SendRecord::find_to_multi(&ds, "carol")
+            .await
+            .unwrap()
+            .is_empty());
 
         assert!(!ReceivedSend::is_received(&ds, "c2", 1).await.unwrap());
         ReceivedSend {
@@ -696,7 +730,8 @@ mod tests {
         .save_to_final(&ds)
         .await
         .unwrap();
-        for (asset_contract, owner, balance) in [("c1", "c1", 5), ("c1", "c2", 7), ("c3", "c2", 1)] {
+        for (asset_contract, owner, balance) in [("c1", "c1", 5), ("c1", "c2", 7), ("c3", "c2", 1)]
+        {
             AssetBalance {
                 contract_id: asset_contract.into(),
                 asset_id: "drops".into(),
@@ -717,5 +752,40 @@ mod tests {
             .collect();
         held.sort();
         assert_eq!(held, vec![("c1".to_string(), 7), ("c3".to_string(), 1)]);
+    }
+
+    #[tokio::test]
+    async fn a_contract_stored_in_the_modality_spelling_is_found_by_base58() {
+        let ds = DatastoreManager::create_in_memory().unwrap();
+        let key = modality_common::keypair::Keypair::generate().unwrap();
+        let base58 = key.as_public_address();
+        let modality = modality_common::peer_id::id_value(&base58);
+        Contract {
+            contract_id: modality.clone(),
+            genesis: "{}".into(),
+            created_at: 1,
+        }
+        .save_to_final(&ds)
+        .await
+        .unwrap();
+        let found = Contract::find_by_id_multi(&ds, &base58)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(found.contract_id, modality);
+
+        Commit {
+            contract_id: modality.clone(),
+            commit_id: "abc".into(),
+            commit_data: "{}".into(),
+            timestamp: 1,
+            in_batch: None,
+        }
+        .save_to_final(&ds)
+        .await
+        .unwrap();
+        let commits = Commit::find_by_contract_multi(&ds, &base58).await.unwrap();
+        assert_eq!(commits.len(), 1);
+        assert_eq!(commits[0].contract_id, modality);
     }
 }

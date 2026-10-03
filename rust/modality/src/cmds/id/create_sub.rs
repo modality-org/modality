@@ -173,7 +173,10 @@ pub async fn run(opts: &Opts) -> Result<()> {
     }
 
     println!("\n✨ Successfully created sub-keypair!");
-    println!("📍 Modality ID: {}", modality_common::peer_id::id_value(&address));
+    println!(
+        "📍 Modality ID: {}",
+        modality_common::peer_id::id_value(&address)
+    );
     println!("🏷️  Seed Derivation: seed:{}", opts.seed);
     println!("💾 Modality Passfile saved to: {}", filepath.display());
     if opts.path.is_none() {

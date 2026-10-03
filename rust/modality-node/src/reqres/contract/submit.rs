@@ -87,7 +87,11 @@ mod tests {
         let response = handler(Some(data), &mgr, _tx.clone()).await.unwrap();
         assert!(response.ok);
         let mut file = CommitFile::new();
-        file.add_action("post".into(), Some("/a.text".into()), serde_json::json!("a"));
+        file.add_action(
+            "post".into(),
+            Some("/a.text".into()),
+            serde_json::json!("a"),
+        );
         assert_eq!(
             response.data.unwrap()["commit_id"],
             serde_json::json!(file.compute_id().unwrap())

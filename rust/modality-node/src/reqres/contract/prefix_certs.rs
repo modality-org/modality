@@ -84,6 +84,9 @@ mod tests {
         let unknown = handler(Some(json!({ "through_commit": "nope" })), &mgr, tx)
             .await
             .unwrap();
-        assert!(unknown.data.unwrap()["certs"].as_array().unwrap().is_empty());
+        assert!(unknown.data.unwrap()["certs"]
+            .as_array()
+            .unwrap()
+            .is_empty());
     }
 }

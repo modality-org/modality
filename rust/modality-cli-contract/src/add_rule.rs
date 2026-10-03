@@ -73,7 +73,10 @@ pub async fn run(opts: &Opts) -> Result<()> {
         .filter(|e| e.path().extension().is_some_and(|x| x == "modality"))
         .filter_map(|e| {
             let content = std::fs::read_to_string(e.path()).ok()?;
-            Some((format!("rules/{}", e.file_name().to_string_lossy()), content))
+            Some((
+                format!("rules/{}", e.file_name().to_string_lossy()),
+                content,
+            ))
         })
         .collect();
     store.write_rule(&rule_path, &serde_json::Value::String(rule_content.clone()))?;

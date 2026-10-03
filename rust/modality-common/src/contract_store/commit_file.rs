@@ -178,9 +178,7 @@ impl CommitFile {
         .map_err(|e| anyhow::anyhow!("commit {commit_id} is not a commit: {e}"))?;
         let computed = file.compute_id()?;
         if computed != commit_id {
-            anyhow::bail!(
-                "commit {commit_id} is not what its body and head hash to ({computed})"
-            );
+            anyhow::bail!("commit {commit_id} is not what its body and head hash to ({computed})");
         }
         Ok(file)
     }

@@ -39,8 +39,10 @@ pub async fn run(opts: &Opts) -> Result<()> {
     } else {
         String::new()
     };
-    let theory: modality_lang::TheoryVersion =
-        opts.theory.parse().map_err(|err: String| anyhow::anyhow!(err))?;
+    let theory: modality_lang::TheoryVersion = opts
+        .theory
+        .parse()
+        .map_err(|err: String| anyhow::anyhow!(err))?;
     let view = derived_view_for_store(&fallback, &store, TheoryActivation::always(theory))?;
 
     if opts.output == "json" {

@@ -17,8 +17,8 @@
 //! ```
 
 use crate::stores::{
-    MinerActiveStore, MinerCanonStore, MinerForksStore, NodeStateStore, Store,
-    SequencerActiveStore, SequencerFinalStore,
+    MinerActiveStore, MinerCanonStore, MinerForksStore, NodeStateStore, SequencerActiveStore,
+    SequencerFinalStore, Store,
 };
 use crate::Result;
 use std::fs;
@@ -501,11 +501,20 @@ impl DatastoreManager {
                 .to_string()
         };
         let schedule = |cfg: &serde_json::Value| {
-            let price = cfg.get("gas_price").cloned().unwrap_or(serde_json::Value::Null);
+            let price = cfg
+                .get("gas_price")
+                .cloned()
+                .unwrap_or(serde_json::Value::Null);
             format!(
                 "{} at price {}",
-                cfg.get("gas_schedule").and_then(|v| v.as_str()).unwrap_or("none"),
-                if price.is_null() { "0".to_string() } else { price.to_string() }
+                cfg.get("gas_schedule")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("none"),
+                if price.is_null() {
+                    "0".to_string()
+                } else {
+                    price.to_string()
+                }
             )
         };
         let (was_gas, now_gas) = (schedule(&stored), schedule(network_config));
@@ -537,7 +546,12 @@ impl DatastoreManager {
             let (key, value) = entry?;
             let sequenced = serde_json::from_slice::<serde_json::Value>(&value)
                 .ok()
-                .and_then(|commit| commit.get("in_batch").and_then(|b| b.as_str()).map(|b| !b.is_empty()))
+                .and_then(|commit| {
+                    commit
+                        .get("in_batch")
+                        .and_then(|b| b.as_str())
+                        .map(|b| !b.is_empty())
+                })
                 .unwrap_or(false);
             if sequenced {
                 let key = String::from_utf8_lossy(&key).to_string();
@@ -662,7 +676,9 @@ impl DatastoreManager {
             Some(name) => {
                 let version: modality_common::gas::ScheduleVersion =
                     name.parse().map_err(crate::Error::InvalidData)?;
-                Ok(Some(modality_common::gas::GasSchedule::for_version(version)))
+                Ok(Some(modality_common::gas::GasSchedule::for_version(
+                    version,
+                )))
             }
         }
     }
@@ -680,20 +696,41 @@ impl DatastoreManager {
     /// What `owner` holds of the MOD contract's MOD; 0 on a network with
     /// no MOD contract.
     pub async fn mod_balance(&self, owner: &str) -> Result<u64> {
-        let Some(mod_id) = self.mod_contract_id()? else {
-            return Ok(0);
-        };
-        Ok(crate::models::AssetBalance::find_one_multi(self, mod_balance_keys(&mod_id, owner))
+        Ok(self
+            .mod_balance_row(owner)
             .await?
             .map(|b| b.balance)
             .unwrap_or(0))
+    }
+
+    /// The stored MOD balance row for `owner`, under whichever spelling of
+    /// the MOD contract and of `owner` it was written.
+    async fn mod_balance_row(&self, owner: &str) -> Result<Option<crate::models::AssetBalance>> {
+        let Some(mod_id) = self.mod_contract_id()? else {
+            return Ok(None);
+        };
+        for asset in modality_common::peer_id::id_spellings(&mod_id) {
+            for who in modality_common::peer_id::id_spellings(owner) {
+                if let Some(balance) = crate::models::AssetBalance::find_one_multi(
+                    self,
+                    mod_balance_keys(&asset, &who),
+                )
+                .await?
+                {
+                    return Ok(Some(balance));
+                }
+            }
+        }
+        Ok(None)
     }
 
     /// Move a fee: `from` pays the sum of `to`, each recipient gets its
     /// share. Refuses when `from` holds less, changing nothing.
     pub async fn pay_mod_fee(&self, from: &str, to: &[(String, u64)]) -> Result<()> {
         let Some(mod_id) = self.mod_contract_id()? else {
-            return Err(crate::Error::InvalidData("no MOD contract to pay a fee in".into()));
+            return Err(crate::Error::InvalidData(
+                "no MOD contract to pay a fee in".into(),
+            ));
         };
         let total = to.iter().fold(0u64, |sum, (_, n)| sum.saturating_add(*n));
         if total == 0 {
@@ -705,18 +742,28 @@ impl DatastoreManager {
                 "{from} holds {held} MOD units, less than the fee {total}"
             )));
         }
-        let mut balances: std::collections::BTreeMap<String, u64> = std::collections::BTreeMap::new();
-        balances.insert(from.to_string(), held - total);
+        // Key by the key, not the spelling, and write back onto the row that
+        // already holds the balance so a base58 payer debits a Modality-form
+        // contract id.
+        let mut slots: std::collections::BTreeMap<String, (String, String, u64)> =
+            std::collections::BTreeMap::new();
+        let (asset, owner, _) = self.balance_slot(&mod_id, from).await?;
+        slots.insert(
+            modality_common::peer_id::key_form(from),
+            (asset, owner, held - total),
+        );
         for (who, amount) in to {
-            let current = match balances.get(who) {
-                Some(n) => *n,
-                None => self.mod_balance(who).await?,
-            };
-            balances.insert(who.clone(), current.saturating_add(*amount));
+            let key = modality_common::peer_id::key_form(who);
+            if let Some(slot) = slots.get_mut(&key) {
+                slot.2 = slot.2.saturating_add(*amount);
+            } else {
+                let (asset, owner, current) = self.balance_slot(&mod_id, who).await?;
+                slots.insert(key, (asset, owner, current.saturating_add(*amount)));
+            }
         }
-        for (owner, balance) in balances {
+        for (_, (asset, owner, balance)) in slots {
             crate::models::AssetBalance {
-                contract_id: mod_id.clone(),
+                contract_id: asset,
                 asset_id: "MOD".to_string(),
                 owner_contract_id: owner,
                 balance,
@@ -725,6 +772,15 @@ impl DatastoreManager {
             .await?;
         }
         Ok(())
+    }
+
+    /// `(asset contract id, owner spelling, balance)` for a fee movement.
+    /// An existing row keeps the spelling it was stored under.
+    async fn balance_slot(&self, mod_id: &str, owner: &str) -> Result<(String, String, u64)> {
+        if let Some(row) = self.mod_balance_row(owner).await? {
+            return Ok((row.contract_id, row.owner_contract_id, row.balance));
+        }
+        Ok((mod_id.to_string(), owner.to_string(), 0))
     }
 
     /// The network's hash-lane parameters, or `None` when the network has no
@@ -851,7 +907,8 @@ impl DatastoreManager {
                     "sequencer": entry["sequencer"],
                     "work_digest": entry["work_digest"],
                 });
-                self.sequencer_final.put(&set_key, &serde_json::to_vec(&set)?)?;
+                self.sequencer_final
+                    .put(&set_key, &serde_json::to_vec(&set)?)?;
             }
         }
 
@@ -859,7 +916,8 @@ impl DatastoreManager {
         if !lower_than(self.sequencer_final.get(&key)?) {
             return Ok(false);
         }
-        self.sequencer_final.put(&key, &serde_json::to_vec(entry)?)?;
+        self.sequencer_final
+            .put(&key, &serde_json::to_vec(entry)?)?;
         Ok(true)
     }
 
@@ -872,7 +930,11 @@ impl DatastoreManager {
     /// The signer set in force for a record in `round`: one certified in an
     /// earlier round. A set certified in the same round does not yet bind
     /// that round's other blocks, whose order differs between nodes.
-    pub fn hash_signer_set_before(&self, contract_id: &str, round: u64) -> Result<Option<Vec<String>>> {
+    pub fn hash_signer_set_before(
+        &self,
+        contract_id: &str,
+        round: u64,
+    ) -> Result<Option<Vec<String>>> {
         Ok(self
             .hash_signer_set_at(contract_id)?
             .filter(|(_, set_round)| *set_round < round)
@@ -880,10 +942,16 @@ impl DatastoreManager {
     }
 
     fn hash_signer_set_at(&self, contract_id: &str) -> Result<Option<(Vec<String>, u64)>> {
-        Ok(self
-            .sequencer_final
-            .get(&hash_signer_set_key(contract_id))?
-            .and_then(|data| parse_signer_set(&data)))
+        for spelling in modality_common::peer_id::id_spellings(contract_id) {
+            if let Some(parsed) = self
+                .sequencer_final
+                .get(&hash_signer_set_key(&spelling))?
+                .and_then(|data| parse_signer_set(&data))
+            {
+                return Ok(Some(parsed));
+            }
+        }
+        Ok(None)
     }
 
     pub fn hash_signer_sets(&self) -> Result<std::collections::HashMap<String, Vec<String>>> {
@@ -891,9 +959,10 @@ impl DatastoreManager {
         for item in self.sequencer_final.iterator("/hash_signer_sets") {
             let (key, value) = item?;
             let key = String::from_utf8_lossy(&key).to_string();
-            if let (Some(contract_id), Some((set, _))) =
-                (key.strip_prefix("/hash_signer_sets/"), parse_signer_set(&value))
-            {
+            if let (Some(contract_id), Some((set, _))) = (
+                key.strip_prefix("/hash_signer_sets/"),
+                parse_signer_set(&value),
+            ) {
                 sets.insert(contract_id.to_string(), set);
             }
         }
@@ -905,21 +974,32 @@ impl DatastoreManager {
         contract_id: &str,
         commit_id: &str,
     ) -> Result<Option<serde_json::Value>> {
-        Ok(self
-            .sequencer_final
-            .get(&hash_commitment_key(contract_id, commit_id))?
-            .and_then(|data| serde_json::from_slice(&data).ok()))
+        for spelling in modality_common::peer_id::id_spellings(contract_id) {
+            if let Some(entry) = self
+                .sequencer_final
+                .get(&hash_commitment_key(&spelling, commit_id))?
+                .and_then(|data| serde_json::from_slice(&data).ok())
+            {
+                return Ok(Some(entry));
+            }
+        }
+        Ok(None)
     }
 
     pub fn hash_commitments_for(&self, contract_id: &str) -> Result<Vec<serde_json::Value>> {
         let mut entries = Vec::new();
-        for item in self
-            .sequencer_final
-            .iterator(&format!("/hash_commitments/{contract_id}"))
-        {
-            let (_, value) = item?;
-            if let Ok(entry) = serde_json::from_slice(&value) {
-                entries.push(entry);
+        for spelling in modality_common::peer_id::id_spellings(contract_id) {
+            for item in self
+                .sequencer_final
+                .iterator(&format!("/hash_commitments/{spelling}"))
+            {
+                let (_, value) = item?;
+                if let Ok(entry) = serde_json::from_slice::<serde_json::Value>(&value) {
+                    entries.push(entry);
+                }
+            }
+            if !entries.is_empty() {
+                break;
             }
         }
         Ok(entries)
@@ -998,7 +1078,11 @@ impl DatastoreManager {
     }
 
     /// Record the MOD contract and take the network's emission from it.
-    pub fn set_mod_contract(&self, contract_id: &str, emission: &crate::EmissionConfig) -> Result<()> {
+    pub fn set_mod_contract(
+        &self,
+        contract_id: &str,
+        emission: &crate::EmissionConfig,
+    ) -> Result<()> {
         self.node_state
             .put(MOD_CONTRACT_KEY, contract_id.as_bytes())?;
         let mut cfg: serde_json::Value = match self.node_state.get("network_config")? {
@@ -1237,9 +1321,9 @@ impl DatastoreManager {
 /// contract's pushes keep their order, so a child never goes ahead of its
 /// parent; equal tips keep queue order.
 fn by_tip(events: Vec<serde_json::Value>) -> Vec<serde_json::Value> {
-    let (pushes, mut ordered): (Vec<_>, Vec<_>) = events.into_iter().partition(|e| {
-        e.get("type").and_then(|t| t.as_str()) == Some("contract_push")
-    });
+    let (pushes, mut ordered): (Vec<_>, Vec<_>) = events
+        .into_iter()
+        .partition(|e| e.get("type").and_then(|t| t.as_str()) == Some("contract_push"));
     let mut groups: Vec<(String, u64, Vec<serde_json::Value>)> = Vec::new();
     for push in pushes {
         let contract = push
@@ -1287,15 +1371,38 @@ mod tests {
             round_limit: 100,
             ..modality_common::gas::SCHEDULE_V1
         };
-        for event in [push(60), push(30), push(20), serde_json::json!({"type": "prefix_cert"}), push(10)] {
+        for event in [
+            push(60),
+            push(30),
+            push(20),
+            serde_json::json!({"type": "prefix_cert"}),
+            push(10),
+        ] {
             mgr.enqueue_sequencer_event(event).await.unwrap();
         }
-        let first = mgr.drain_sequencer_events_within(Some(&schedule)).await.unwrap();
-        assert_eq!(first.len(), 3, "the cert goes first; then 60 + 30 fit and 20 more would not");
-        let second = mgr.drain_sequencer_events_within(Some(&schedule)).await.unwrap();
+        let first = mgr
+            .drain_sequencer_events_within(Some(&schedule))
+            .await
+            .unwrap();
+        assert_eq!(
+            first.len(),
+            3,
+            "the cert goes first; then 60 + 30 fit and 20 more would not"
+        );
+        let second = mgr
+            .drain_sequencer_events_within(Some(&schedule))
+            .await
+            .unwrap();
         assert_eq!(second.len(), 2, "20 and 10");
         mgr.enqueue_sequencer_event(push(500)).await.unwrap();
-        assert_eq!(mgr.drain_sequencer_events_within(Some(&schedule)).await.unwrap().len(), 1, "an oversized push still goes, alone");
+        assert_eq!(
+            mgr.drain_sequencer_events_within(Some(&schedule))
+                .await
+                .unwrap()
+                .len(),
+            1,
+            "an oversized push still goes, alone"
+        );
     }
 
     #[test]
@@ -1315,10 +1422,16 @@ mod tests {
         let ids: Vec<&str> = ordered
             .iter()
             .map(|e| {
-                e.pointer("/data/commits/0/commit_id").and_then(|v| v.as_str()).unwrap_or("cert")
+                e.pointer("/data/commits/0/commit_id")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("cert")
             })
             .collect();
-        assert_eq!(ids, vec!["cert", "a1", "a2", "b1", "c1"], "a's best tip is 9; b and c tie at 5");
+        assert_eq!(
+            ids,
+            vec!["cert", "a1", "a2", "b1", "c1"],
+            "a's best tip is 9; b and c tie at 5"
+        );
     }
     use super::*;
 
@@ -1346,7 +1459,9 @@ mod tests {
             .await
             .expect("an unsequenced push was never judged");
         assert_eq!(mgr.predicate_theory_version().unwrap(), "v2");
-        mgr.load_network_config(&v2).await.expect("same version again");
+        mgr.load_network_config(&v2)
+            .await
+            .expect("same version again");
 
         save_commit(&mgr, "accepted", Some("batch")).await;
         let err = mgr

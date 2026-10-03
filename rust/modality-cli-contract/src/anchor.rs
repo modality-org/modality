@@ -87,10 +87,13 @@ pub async fn run(opts: &Opts) -> Result<()> {
             anchor(opts, &store, &remote_url, &config.contract_id, &commits).await?
         };
         if opts.output == "json" {
-            println!("{}", serde_json::to_string_pretty(&json!({
-                "contract_id": config.contract_id,
-                "commits": results,
-            }))?);
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&json!({
+                    "contract_id": config.contract_id,
+                    "commits": results,
+                }))?
+            );
         } else {
             for r in &results {
                 println!(
@@ -111,8 +114,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
 
 #[cfg(feature = "p2p")]
 async fn request(opts: &Opts, remote_url: &str, path: &str, data: &Value) -> Result<Value> {
-    let response =
-        crate::push::p2p_request(opts.node_dir.as_ref(), remote_url, path, data).await?;
+    let response = crate::push::p2p_request(opts.node_dir.as_ref(), remote_url, path, data).await?;
     if !response.ok {
         let why = response
             .errors
@@ -166,7 +168,10 @@ async fn anchor(
     let params: HashLaneParams = serde_json::from_value(lane["params"].clone())?;
     let current: EpochAnchor = serde_json::from_value(lane["current"].clone())
         .map_err(|_| anyhow::anyhow!("The node has no current epoch anchor yet; retry shortly."))?;
-    let bits = opts.bits.unwrap_or(params.floor_bits).max(params.floor_bits);
+    let bits = opts
+        .bits
+        .unwrap_or(params.floor_bits)
+        .max(params.floor_bits);
 
     let keypair = match &opts.sign {
         Some(reference) => {
@@ -182,7 +187,10 @@ async fn anchor(
     // A contract created with --signer posts its set on the genesis record.
     let signer_set = crate::signer_set::SignerSet::load(store)?;
     if let Some(set) = &signer_set {
-        if !set.signers.contains(&keypair.public_key_as_base58_identity()) {
+        if !set
+            .signers
+            .contains(&keypair.public_key_as_base58_identity())
+        {
             anyhow::bail!(
                 "This contract's hash commitments must be signed by one of its signers ({}); pass --sign",
                 set.signers.join(", ")

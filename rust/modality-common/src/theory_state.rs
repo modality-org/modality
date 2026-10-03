@@ -262,6 +262,9 @@ mod tests {
         }
         assert!(reg.declaration("oracle_attests").is_none());
         assert_eq!(reg.declaration("num_gt"), standard().declaration("num_gt"));
-        assert_eq!(reg.declaration("post_to"), standard().declaration("post_to"));
+        assert_eq!(
+            reg.declaration("post_to"),
+            standard().declaration("post_to")
+        );
     }
 }

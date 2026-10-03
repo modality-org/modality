@@ -172,7 +172,7 @@ fn create_contract(dir: Option<&PathBuf>, output: &str) -> Result<()> {
 
     // Generate a keypair for the contract
     let keypair = Keypair::generate()?;
-    let contract_id = keypair.as_public_address();
+    let contract_id = modality_common::peer_id::id_value(&keypair.as_public_address());
 
     // Initialize the contract store
     let store = ContractStore::init(&dir, contract_id.clone())?;

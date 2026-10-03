@@ -136,7 +136,10 @@ fn commits() -> Vec<CommitFile> {
 }
 
 fn atom_property(atom: &str, sign: PropertySign) -> Property {
-    let text = format!("{}{atom}", if sign == PropertySign::Plus { '+' } else { '-' });
+    let text = format!(
+        "{}{atom}",
+        if sign == PropertySign::Plus { '+' } else { '-' }
+    );
     let model = format!("model M {{\n  part p {{\n    q0 --> q0: {text}\n  }}\n}}");
     let m = modality_lang::parse_all_models_content_lalrpop(&model)
         .unwrap_or_else(|e| panic!("{text}: {e}"))
@@ -219,12 +222,7 @@ fn label_of(p: &Property) -> Label {
 }
 
 /// The set of (node, state) where `e` holds, over every commit.
-fn eval(
-    e: &F,
-    g: &Graph,
-    w: &World,
-    env: &mut Vec<(String, Vec<bool>)>,
-) -> Vec<bool> {
+fn eval(e: &F, g: &Graph, w: &World, env: &mut Vec<(String, Vec<bool>)>) -> Vec<bool> {
     let n = g.nodes.len() * w.states.len();
     let at = |node: usize, s: usize| node * w.states.len() + s;
     let step = |labels: &[Label], phi: &[bool], all: bool| -> Vec<bool> {
@@ -309,11 +307,17 @@ fn eval(
         F::Lfp(x, body) => fix(x, body, false, env),
         F::Gfp(x, body) => fix(x, body, true, env),
         F::Eventually(a) => {
-            let body = F::Or(a.clone(), Box::new(F::Diamond(vec![], Box::new(F::Var("#e".into())))));
+            let body = F::Or(
+                a.clone(),
+                Box::new(F::Diamond(vec![], Box::new(F::Var("#e".into())))),
+            );
             fix("#e", &body, false, env)
         }
         F::Always(a) => {
-            let body = F::And(a.clone(), Box::new(F::Box(vec![], Box::new(F::Var("#a".into())))));
+            let body = F::And(
+                a.clone(),
+                Box::new(F::Box(vec![], Box::new(F::Var("#a".into())))),
+            );
             fix("#a", &body, true, env)
         }
         F::Until(a, b) => {
@@ -412,7 +416,12 @@ fn random_model(rng: &mut Rng) -> (String, Graph) {
     (model, graph)
 }
 
-fn accepted(model: &Model, formula: &Formula, theory: TheoryVersion, state: &HashMap<String, Value>) -> bool {
+fn accepted(
+    model: &Model,
+    formula: &Formula,
+    theory: TheoryVersion,
+    state: &HashMap<String, Value>,
+) -> bool {
     let rule = AnchoredRule {
         formula: formula.clone(),
         formula_source: String::new(),
@@ -462,7 +471,12 @@ fn v2_accepts_only_rules_every_run_meets() {
         failures.is_empty(),
         "{} of {accepts} accepted rules fail:\n{}",
         failures.len(),
-        failures.iter().take(5).cloned().collect::<Vec<_>>().join("\n\n")
+        failures
+            .iter()
+            .take(5)
+            .cloned()
+            .collect::<Vec<_>>()
+            .join("\n\n")
     );
     assert!(accepts > rounds as usize / 10, "accepted {accepts}");
     eprintln!("accepted {accepts}; refused though true {refused_true}");

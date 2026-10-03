@@ -26,9 +26,9 @@ impl SignerSet {
             return Ok(None);
         }
         let text = std::fs::read_to_string(&path)?;
-        Ok(Some(
-            serde_json::from_str(&text).with_context(|| format!("{} is unreadable", path.display()))?,
-        ))
+        Ok(Some(serde_json::from_str(&text).with_context(|| {
+            format!("{} is unreadable", path.display())
+        })?))
     }
 
     pub fn save(&self, store: &ContractStore) -> Result<()> {
@@ -43,13 +43,16 @@ impl SignerSet {
 pub fn signer_id(reference: &str) -> Result<String> {
     if let Ok(path) = modality_common::passfile::resolve_passfile_path(reference) {
         if Path::new(&path).exists() {
-            let keypair =
-                modality_common::keypair::Keypair::from_json_file(path.to_str().unwrap_or_default())?;
+            let keypair = modality_common::keypair::Keypair::from_json_file(
+                path.to_str().unwrap_or_default(),
+            )?;
             return Ok(keypair.public_key_as_base58_identity());
         }
     }
     modality_common::peer_id::canonical_peer_id(reference)
         .and_then(|id| modality_common::keypair::Keypair::from_public_key(&id, "ed25519"))
         .map(|k| k.public_key_as_base58_identity())
-        .map_err(|_| anyhow::anyhow!("--signer {reference} is neither a passfile nor a Modality ID"))
+        .map_err(|_| {
+            anyhow::anyhow!("--signer {reference} is neither a passfile nor a Modality ID")
+        })
 }

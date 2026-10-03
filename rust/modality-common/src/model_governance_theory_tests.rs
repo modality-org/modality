@@ -340,19 +340,19 @@ fn a_posted_rule_may_not_name_a_model_node() {
         "model M {\n  part p {\n    safe --> safe: +POST\n  }\n}\n",
         vec![("/notes/m.text", json!("m"))],
     )];
-    for rule in [
-        "always(safe)",
-        "<+POST> safe",
-        "lfp(X, safe | <+POST> X)",
-    ] {
+    for rule in ["always(safe)", "<+POST> safe", "lfp(X, safe | <+POST> X)"] {
         let err = validate(&accepted, &rule_commit(rule), V0).expect_err(rule);
         assert!(
             err.to_string().contains("`safe` names a model node"),
             "{rule}: {err}"
         );
     }
-    validate(&accepted, &rule_commit("gfp(X, [+POST] X & <+POST> true)"), V0)
-        .expect("bound variables are not node names");
+    validate(
+        &accepted,
+        &rule_commit("gfp(X, [+POST] X & <+POST> true)"),
+        V0,
+    )
+    .expect("bound variables are not node names");
 
     let logged = then(&accepted, &rule_commit("always(safe)"));
     validate(&logged, &note(), V0).expect("a logged node-name rule still replays");
@@ -368,8 +368,9 @@ fn g22_a_diamond_does_not_count_an_edge_the_theory_cannot_decide() {
     validate(&accepted, &rule_commit(rule), V0).expect("V0 counts an unmentioned name");
     let err = validate(&accepted, &rule_commit(rule), V1).expect_err("V1");
     assert!(
-        err.to_string()
-            .contains("cannot show that a commit takes these transitions with the diamond's labels"),
+        err.to_string().contains(
+            "cannot show that a commit takes these transitions with the diamond's labels"
+        ),
         "{err}"
     );
     validate(&accepted, &rule_commit("[] always(<+POST> true)"), V1)
@@ -390,7 +391,10 @@ model Contract {
   }
 }
 "#;
-    let accepted = [model_commit(ESCROW, vec![("/oracles/delivery.id", json!("K"))])];
+    let accepted = [model_commit(
+        ESCROW,
+        vec![("/oracles/delivery.id", json!("K"))],
+    )];
     let rule = r#"always(!<+RELEASE> true | <+RELEASE +oracle_attests(/oracles/delivery.id, "delivered", "true")> true)"#;
     for v in [V0, V1, TheoryVersion::V2] {
         validate(&accepted, &rule_commit(rule), v).unwrap_or_else(|e| panic!("{v:?}: {e}"));
@@ -401,7 +405,11 @@ model Contract {
     let attests = |sign| {
         let p = Property::new_predicate_from_call_args(
             "oracle_attests".to_string(),
-            vec!["/oracles/delivery.id".into(), "delivered".into(), "true".into()],
+            vec![
+                "/oracles/delivery.id".into(),
+                "delivered".into(),
+                "true".into(),
+            ],
         );
         if sign == PropertySign::Plus {
             p
@@ -409,7 +417,12 @@ model Contract {
             p.negated()
         }
     };
-    let with = |sign| vec![Property::new(PropertySign::Plus, "RELEASE".into()), attests(sign)];
+    let with = |sign| {
+        vec![
+            Property::new(PropertySign::Plus, "RELEASE".into()),
+            attests(sign),
+        ]
+    };
     assert_eq!(theory.consistent(&with(PropertySign::Plus)).tri, Tri::True);
     assert_eq!(theory.consistent(&with(PropertySign::Minus)).tri, Tri::True);
     let both = [with(PropertySign::Plus), vec![attests(PropertySign::Minus)]].concat();
@@ -1619,7 +1632,10 @@ fn flow_never_drops_an_edge_a_run_takes() {
         // Not vacuous: an edge that undoes a carried label is dropped.
         let mut edges = edges;
         edges[1].lits = Some(theory.expand_all(&[flip(rng.pick(&e1))]).0);
-        if !flow_seeded(&edges, &["n0".to_string()], &[]).dead_after.is_empty() {
+        if !flow_seeded(&edges, &["n0".to_string()], &[])
+            .dead_after
+            .is_empty()
+        {
             dropped += 1;
         }
     }
@@ -1904,12 +1920,18 @@ fn sets_holds_when_every_write_to_the_path_is_the_value() {
     assert!(!holds_on(&[("/p.text", json!("b"))], "a"));
     assert!(!holds_on(&[], "a"), "no write, so the path is not set");
     assert!(!holds_on(&[("/q.text", json!("a"))], "a"));
-    assert!(!holds_on(&[("/p.text/x", json!("a"))], "a"), "a descendant is not the path");
+    assert!(
+        !holds_on(&[("/p.text/x", json!("a"))], "a"),
+        "a descendant is not the path"
+    );
     assert!(
         !holds_on(&[("/p.text", json!("a")), ("/p.text", json!("b"))], "a"),
         "a second write of another value"
     );
-    assert!(holds_on(&[("p.text", json!("a")), ("/p.text", json!("a"))], "a"));
+    assert!(holds_on(
+        &[("p.text", json!("a")), ("/p.text", json!("a"))],
+        "a"
+    ));
     assert!(holds_on(&[("/p.text", json!(5))], "5"));
     assert!(!holds_on(&[("/p.text", json!({"v": "a"}))], "a"));
 }
@@ -1932,13 +1954,28 @@ fn a_predicate_with_an_argument_of_the_wrong_kind_never_holds() {
     };
     for theory in [TheoryVersion::V1, TheoryVersion::V2] {
         assert!(holds(theory, "text_eq", &["/x.text", "5"]));
-        assert!(!holds(theory, "text_eq", &["/y.num", "5"]), "text_eq reads a .text path");
+        assert!(
+            !holds(theory, "text_eq", &["/y.num", "5"]),
+            "text_eq reads a .text path"
+        );
         assert!(holds(theory, "num_gt", &["/x.num", "4"]));
-        assert!(!holds(theory, "num_gt", &["/x.num", "four"]), "the bound is not a number");
-        assert!(!holds(theory, "num_gt", &["/x.num", "1e0"]), "the bound is not a decimal");
+        assert!(
+            !holds(theory, "num_gt", &["/x.num", "four"]),
+            "the bound is not a number"
+        );
+        assert!(
+            !holds(theory, "num_gt", &["/x.num", "1e0"]),
+            "the bound is not a decimal"
+        );
     }
-    assert!(holds(TheoryVersion::V0, "text_eq", &["/y.num", "5"]), "V0 is unchanged");
-    assert!(holds(TheoryVersion::V0, "num_gt", &["/x.num", "1e0"]), "V0 is unchanged");
+    assert!(
+        holds(TheoryVersion::V0, "text_eq", &["/y.num", "5"]),
+        "V0 is unchanged"
+    );
+    assert!(
+        holds(TheoryVersion::V0, "num_gt", &["/x.num", "1e0"]),
+        "V0 is unchanged"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -1951,7 +1988,11 @@ fn bootstrap(model: &str, posts: Vec<(&str, Value)>, formulas: &[&str]) -> Commi
     let mut c = model_commit(model, posts);
     for (i, formula) in formulas.iter().enumerate() {
         let rule = format!("export default rule {{\n  formula {{\n    {formula}\n  }}\n}}\n");
-        c.add_action("rule".to_string(), Some(format!("/rules/r{i}.modality")), json!(rule));
+        c.add_action(
+            "rule".to_string(),
+            Some(format!("/rules/r{i}.modality")),
+            json!(rule),
+        );
     }
     c
 }
@@ -1993,8 +2034,12 @@ fn multisig_treasury_tutorial_needs_two_keyholders_under_treasury() {
         validate(&accepted, &withdraw, theory).expect_err("unsigned");
         validate(&accepted, &signed(withdraw.clone(), &["KEY_A"]), theory)
             .expect_err("one keyholder cannot withdraw");
-        validate(&accepted, &signed(withdraw.clone(), &["KEY_A", "KEY_X"]), theory)
-            .expect_err("an outside key does not count");
+        validate(
+            &accepted,
+            &signed(withdraw.clone(), &["KEY_A", "KEY_X"]),
+            theory,
+        )
+        .expect_err("an outside key does not count");
         validate(&accepted, &signed(withdraw, &["KEY_B", "KEY_C"]), theory)
             .expect("two keyholders withdraw");
 
@@ -2002,8 +2047,12 @@ fn multisig_treasury_tutorial_needs_two_keyholders_under_treasury() {
         validate(&accepted, &signed(swap_key, &["KEY_A"]), theory)
             .expect_err("Alice alone cannot replace Bob's key");
         let open = TREASURY.replace(r#"+threshold("2", /treasury)"#, "");
-        validate(&accepted, &signed(model_commit(&open, vec![]), &["KEY_A"]), theory)
-            .expect_err("a model without the threshold fails the rules");
+        validate(
+            &accepted,
+            &signed(model_commit(&open, vec![]), &["KEY_A"]),
+            theory,
+        )
+        .expect_err("a model without the threshold fails the rules");
     }
 }
 
@@ -2052,8 +2101,12 @@ fn oracle_escrow_tutorial_releases_only_on_an_attestation() {
             r#"+oracle_attests(/oracles/delivery.id, "delivered", "true")"#,
             "",
         );
-        validate(&accepted, &signed(model_commit(&open, vec![]), &["KEY_SELLER"]), theory)
-            .expect_err("a model that releases without the oracle fails the rules");
+        validate(
+            &accepted,
+            &signed(model_commit(&open, vec![]), &["KEY_SELLER"]),
+            theory,
+        )
+        .expect_err("a model that releases without the oracle fails the rules");
     }
 }
 
@@ -2071,13 +2124,19 @@ model Contract {
         let text = format!(
             "export default rule {{\n  formula {{\n    always(<+sets(/p.text, \"{value}\")> true)\n  }}\n}}\n"
         );
-        commit(vec![("rule", "/rules/r.modality", json!(text)), ("post", "/p.text", json!("a"))])
+        commit(vec![
+            ("rule", "/rules/r.modality", json!(text)),
+            ("post", "/p.text", json!("a")),
+        ])
     };
     for theory in [V0, V1, V2] {
         let accepted = vec![model_commit(model, vec![])];
         let err = validate(&accepted, &rule("b"), theory)
             .expect_err("no commit on the edge sets /p.text to b");
-        assert!(err.to_string().contains("Model violates rule"), "{theory:?}: {err}");
+        assert!(
+            err.to_string().contains("Model violates rule"),
+            "{theory:?}: {err}"
+        );
         // From V1 `sets` is declared necessary-only, so a diamond over it
         // never counts, even on an edge that sets the value.
         if theory == V0 {
@@ -2106,7 +2165,11 @@ fn members_only_tutorial_needs_every_member_to_change_membership() {
     let post = |path: &str, value: &str| commit(vec![("post", path, json!(value))]);
     for theory in [V0, V2] {
         let first = signed(
-            bootstrap(MEMBERS_ONLY, vec![("/members/alice.id", json!("KEY_A"))], &MEMBERS_ONLY_RULES),
+            bootstrap(
+                MEMBERS_ONLY,
+                vec![("/members/alice.id", json!("KEY_A"))],
+                &MEMBERS_ONLY_RULES,
+            ),
             &["KEY_A"],
         );
         validate(&[], &first, theory).expect("bootstrap");

@@ -109,19 +109,31 @@ mod tests {
         let good = signed(&alice, "c1", commit("p1"));
         verify_commit_signatures("c1", &good).unwrap();
 
-        assert!(verify_commit_signatures("c2", &good).is_err(), "another contract");
+        assert!(
+            verify_commit_signatures("c2", &good).is_err(),
+            "another contract"
+        );
 
         let mut moved = good.clone();
         moved.head.parent = Some("p2".to_string());
-        assert!(verify_commit_signatures("c1", &moved).is_err(), "another parent");
+        assert!(
+            verify_commit_signatures("c1", &moved).is_err(),
+            "another parent"
+        );
 
         let mut edited = good.clone();
         edited.body[0].value = Value::String("goodbye".to_string());
-        assert!(verify_commit_signatures("c1", &edited).is_err(), "another body");
+        assert!(
+            verify_commit_signatures("c1", &edited).is_err(),
+            "another body"
+        );
 
         let mut bundled = good.clone();
         bundled.head.message = Some("added later".to_string());
-        assert!(verify_commit_signatures("c1", &bundled).is_err(), "another head");
+        assert!(
+            verify_commit_signatures("c1", &bundled).is_err(),
+            "another head"
+        );
     }
 
     #[test]
@@ -135,7 +147,10 @@ mod tests {
         let (_, bob_signature) = sign_commit(&bob, "c1", &forged).unwrap();
         forged.head.signatures =
             Some(json!({ alice.public_key_as_base58_identity(): bob_signature }));
-        assert!(verify_commit_signatures("c1", &forged).is_err(), "Bob's signature under Alice's key");
+        assert!(
+            verify_commit_signatures("c1", &forged).is_err(),
+            "Bob's signature under Alice's key"
+        );
 
         forged.head.signatures = Some(json!(["not", "a", "map"]));
         assert!(verify_commit_signatures("c1", &forged).is_err());

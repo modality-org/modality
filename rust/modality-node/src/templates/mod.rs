@@ -13,14 +13,18 @@ pub const STATUS_TEMPLATE: &str = include_str!("status.html");
 pub use crate::status_snapshot::display_node_role;
 
 pub fn render_role_chips(active: &[&str]) -> String {
-    [("Miner", "/miners"), ("Sequencer", "/sequencers"), ("Validator", "/validators")]
-        .iter()
-        .map(|(role, href)| {
-            let on = if active.contains(role) { " on" } else { "" };
-            format!(r#"<a class="role-chip{on}" href="{href}">{role}</a>"#)
-        })
-        .collect::<Vec<_>>()
-        .join("")
+    [
+        ("Miner", "/miners"),
+        ("Sequencer", "/sequencers"),
+        ("Validator", "/validators"),
+    ]
+    .iter()
+    .map(|(role, href)| {
+        let on = if active.contains(role) { " on" } else { "" };
+        format!(r#"<a class="role-chip{on}" href="{href}">{role}</a>"#)
+    })
+    .collect::<Vec<_>>()
+    .join("")
 }
 
 fn esc(value: &str) -> String {
@@ -154,7 +158,10 @@ pub fn render_peer_row_with_url(peer_id: &str, status_url: Option<&str>) -> Stri
             url
         )
     } else {
-        format!("<tr><td><code>{}</code></td><td>-</td></tr>", esc(&shown_id(peer_id)))
+        format!(
+            "<tr><td><code>{}</code></td><td>-</td></tr>",
+            esc(&shown_id(peer_id))
+        )
     }
 }
 
@@ -339,7 +346,10 @@ pub fn render_nominee_row(rank: usize, block_idx: u64, block_hash: &str, peer_id
     format!(
         "<tr><td>{}</td><td>{}</td><td><code>{}</code></td><td>{}</td></tr>",
         rank,
-        xref(&format!("/miners#block-{block_idx}"), &block_idx.to_string()),
+        xref(
+            &format!("/miners#block-{block_idx}"),
+            &block_idx.to_string()
+        ),
         esc(&truncate_middle(block_hash, 8)),
         peer_code_link(
             &format!("/sequencers#sequencer-{peer_id}"),
@@ -492,10 +502,7 @@ pub fn render_prefix_cert_row(cert: &PrefixCertStatus) -> String {
         "<tr><td>{}</td><td>{}</td><td>{}</td><td><code>{}</code></td></tr>",
         xref(
             &contract,
-            &format!(
-                "<code>{}</code>",
-                esc(&short_id(&cert.source_contract, 10))
-            )
+            &format!("<code>{}</code>", esc(&short_id(&cert.source_contract, 10)))
         ),
         xref(
             &commit,
@@ -572,7 +579,11 @@ fn mod_incoming_note(mod_holdings: &crate::status_snapshot::ModHoldings) -> Stri
             "+ {} to receive ({} send{})",
             mod_holdings.incoming_display(),
             mod_holdings.incoming_sends,
-            if mod_holdings.incoming_sends == 1 { "" } else { "s" }
+            if mod_holdings.incoming_sends == 1 {
+                ""
+            } else {
+                "s"
+            }
         )
     }
 }
@@ -746,7 +757,10 @@ mod id_display_tests {
     #[test]
     fn peer_ids_show_in_the_modality_form_but_link_by_base58() {
         let link = peer_code_link(&format!("/nodes#node-{BASE58}"), BASE58, Some(4));
-        assert!(link.contains(&format!("href=\"/nodes#node-{BASE58}\"")), "{link}");
+        assert!(
+            link.contains(&format!("href=\"/nodes#node-{BASE58}\"")),
+            "{link}"
+        );
         assert!(link.contains(&format!("title=\"{MODALITY}\"")), "{link}");
         assert!(link.contains("<code>imqi74td...</code>"), "{link}");
         assert_eq!(shown_id(BASE58), MODALITY);

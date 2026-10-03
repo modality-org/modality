@@ -96,10 +96,7 @@ pub async fn load_network_config(
         }
 
         if let Some(validators) = network_info.validators {
-            log::info!(
-                "Found {} validators in network config",
-                validators.len()
-            );
+            log::info!("Found {} validators in network config", validators.len());
             config_json["validators"] = serde_json::json!(validators);
         }
         config_json["validator_min_stake"] = serde_json::json!(network_info.validator_min_stake);
@@ -179,7 +176,8 @@ pub async fn load_network_config(
         }
         log::info!(
             "Predicate theory: {}",
-            mgr.predicate_theory_version().unwrap_or_else(|_| "v0".into())
+            mgr.predicate_theory_version()
+                .unwrap_or_else(|_| "v0".into())
         );
         match mgr.hash_lane_params()? {
             Some(p) => log::info!(

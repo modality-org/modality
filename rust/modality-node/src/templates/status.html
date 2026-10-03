@@ -1459,7 +1459,7 @@
             var lists = '';
             if (self && Array.isArray(self.data.named_validators)) {{
                 var items = self.data.named_validators.map(function (id) {{
-                    return '<li>' + peerLink(id, 'validators', choices, id) + '</li>';
+                    return '<li>' + peerLink(id, 'validators', choices, modalityId(id)) + '</li>';
                 }}).join('');
                 lists = '<div class="status-card"><h2>This node\'s named validators</h2>' +
                     (items ? '<ul class="listeners">' + items + '</ul>' : '<p class="tab-copy">No named validators on this network.</p>') +

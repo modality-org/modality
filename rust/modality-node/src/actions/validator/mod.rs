@@ -98,11 +98,7 @@ pub async fn queue_requests_for_events(
     own_peer_id: &str,
     events: &[serde_json::Value],
 ) -> Result<usize> {
-    if !mgr
-        .validators()?
-        .iter()
-        .any(|p| p == own_peer_id)
-    {
+    if !mgr.validators()?.iter().any(|p| p == own_peer_id) {
         return Ok(0);
     }
     let requests = prefix_cert_requests_for_events(mgr, events).await?;
@@ -148,7 +144,11 @@ async fn republish_own_prefix_cert(
         return Ok(());
     };
     mgr.enqueue_sequencer_event(cert).await?;
-    log::info!("Re-publishing prefix_cert for {} through {}", source, through);
+    log::info!(
+        "Re-publishing prefix_cert for {} through {}",
+        source,
+        through
+    );
     Ok(())
 }
 

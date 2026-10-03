@@ -313,7 +313,12 @@ mod tests {
             ]
         });
 
-        assert!(handler(Some(push.clone()), &mgr, tx.clone()).await.unwrap().ok);
+        assert!(
+            handler(Some(push.clone()), &mgr, tx.clone())
+                .await
+                .unwrap()
+                .ok
+        );
         mgr.drain_sequencer_events().await.unwrap();
         let keys = [
             ("contract_id".to_string(), "c".to_string()),
@@ -321,7 +326,10 @@ mod tests {
         ]
         .into_iter()
         .collect::<std::collections::HashMap<_, _>>();
-        let mut genesis = Commit::find_one_multi(&mgr, keys.clone()).await.unwrap().unwrap();
+        let mut genesis = Commit::find_one_multi(&mgr, keys.clone())
+            .await
+            .unwrap()
+            .unwrap();
         genesis.in_batch = Some("batch-1".into());
         genesis.save_to_final(&mgr).await.unwrap();
 
@@ -355,10 +363,16 @@ mod tests {
             let response = handler(Some(data), &mgr, tx.clone()).await.unwrap();
             assert!(!response.ok);
             let err = response.errors.unwrap().to_string();
-            assert!(err.contains("is not what its body and head hash to"), "{err}");
+            assert!(
+                err.contains("is not what its body and head hash to"),
+                "{err}"
+            );
         }
         assert!(mgr.drain_sequencer_events().await.unwrap().is_empty());
-        assert!(Contract::find_by_id_multi(&mgr, "c").await.unwrap().is_none());
+        assert!(Contract::find_by_id_multi(&mgr, "c")
+            .await
+            .unwrap()
+            .is_none());
     }
 
     #[tokio::test]

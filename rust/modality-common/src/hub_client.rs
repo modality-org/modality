@@ -301,7 +301,11 @@ fn hub_error(status: reqwest::StatusCode, data: &Value) -> anyhow::Error {
         .get("error")
         .and_then(|e| e.as_str())
         .unwrap_or("Unknown error");
-    match data.get("message").and_then(|m| m.as_str()).filter(|m| !m.is_empty()) {
+    match data
+        .get("message")
+        .and_then(|m| m.as_str())
+        .filter(|m| !m.is_empty())
+    {
         Some(message) => anyhow!("HTTP {}: {}: {}", status, error, message),
         None => anyhow!("HTTP {}: {}", status, error),
     }

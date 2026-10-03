@@ -78,7 +78,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Query by hash
     println!("\n📊 Querying blocks...\n");
 
-
     if let Some(block) = MinerBlock::find_by_hash_multi(&datastore, "block_hash_3").await? {
         println!("Found block by hash 'block_hash_3':");
         println!("  Index: {}", block.index);
@@ -89,7 +88,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Find all canonical blocks in epoch 0
     println!("\nFinding all canonical blocks in epoch 0:");
-    let epoch_0_blocks = MinerBlock::find_canonical_by_epoch_multi(&datastore, 0, CURRENT_EPOCH).await?;
+    let epoch_0_blocks =
+        MinerBlock::find_canonical_by_epoch_multi(&datastore, 0, CURRENT_EPOCH).await?;
     println!("  Found {} canonical blocks", epoch_0_blocks.len());
     for block in &epoch_0_blocks {
         println!(
@@ -126,7 +126,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Find canonical block at index
     println!("\nFinding canonical block at index 3:");
-    if let Some(block) = MinerBlock::find_canonical_by_index_multi(&datastore, 3, CURRENT_EPOCH).await? {
+    if let Some(block) =
+        MinerBlock::find_canonical_by_index_multi(&datastore, 3, CURRENT_EPOCH).await?
+    {
         println!("  Found canonical block: {}", block.hash);
         println!("  Nominated peer ID: {}", block.nominated_peer_id);
         println!("  Miner number: {}", block.miner_number);
@@ -163,8 +165,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Statistics
     println!("\n📊 Final Statistics:");
-    let all_canonical_epoch_0 = MinerBlock::find_canonical_by_epoch_multi(&datastore, 0, CURRENT_EPOCH).await?;
-    let all_canonical_epoch_1 = MinerBlock::find_canonical_by_epoch_multi(&datastore, 1, CURRENT_EPOCH).await?;
+    let all_canonical_epoch_0 =
+        MinerBlock::find_canonical_by_epoch_multi(&datastore, 0, CURRENT_EPOCH).await?;
+    let all_canonical_epoch_1 =
+        MinerBlock::find_canonical_by_epoch_multi(&datastore, 1, CURRENT_EPOCH).await?;
     let all_orphaned = MinerBlock::find_all_orphaned_multi(&datastore).await?;
 
     println!(

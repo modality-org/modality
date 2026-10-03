@@ -19,7 +19,7 @@ libp2p writes the same peer ID in more than one way. For one key:
 | base58 multihash (libp2p's legacy form) | `12D3KooW9pte76rpnggcLYkFaawuTEs5DC5axHkg3cK3cewGxxHd` |
 | CIDv1, base32 (libp2p's newer form) | `bafzaajaiaejcaabcornvmd5g5bolzmcr6smsje7owdd3xk7lojqydmthdt47iqmi` |
 | CIDv1, base36 | `k51qzi5uqu5d…` |
-| **Modality spelling** | lowercase base32 CID, mirrored so the type is at the end | `imqi74tdhtmdyqjol7kx3ddwo7ejsms6rcmzlob5g5dmvnrocbaacjeaiajaazfab` |
+| **Modality spelling** | `imqi74tdhtmdyqjol7kx3ddwo7ejsms6rcmzlob5g5dmvnrocbaacjeaiajaazfab` |
 
 The Modality spelling is the lowercase CIDv1 base32 form, mirrored so the
 type is at the end of the string. Forward forms open with a fixed type
@@ -38,11 +38,14 @@ front (`imqi74td…`), never by keeping its end: every Modality ID ends in
   `modal set-named-id`, `modal c set`, `modal c commit --post`, and
   `modal c create --signer` write it. A `.id` value posted earlier in base58
   stays valid.
-- **Contract IDs** and the keys of `head.signatures` are base58, and so is
-  `head.payer`.
+- **Contract IDs** are the Modality spelling. `modal contract create` prints
+  that spelling, and the genesis commit stores it. A contract created
+  earlier keeps the spelling its signatures cover. Lookups take either
+  spelling of the same key.
+- The keys of `head.signatures` and `head.payer` stay base58.
 - **A node's status page** shows node and contract IDs, and `.id` values,
-  in the Modality spelling, shortened from the front. Its links, anchors and
-  `status.json` keep base58, so nodes of different versions still match
+  in the Modality spelling, shortened from the front. Node links, anchors
+  and `status.json` keep base58, so nodes of different versions still match
   each other; `/contracts/<id>` takes either form.
 - **A `/p2p/` part of a multiaddr** must be base58: libp2p's multiaddr
   parser accepts no other form there.

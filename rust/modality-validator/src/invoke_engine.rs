@@ -105,12 +105,15 @@ impl InvokeEngine for WasmInvokeEngine {
                 sha256
             );
         }
-        let gas_limit = self.fuel_limit.take().unwrap_or(wasm.gas_limit.min(self.gas_limit));
+        let gas_limit = self
+            .fuel_limit
+            .take()
+            .unwrap_or(wasm.gas_limit.min(self.gas_limit));
         self.last_gas_used = 0;
         let mut context = program_context_from_frozen(ctx);
-        context.state = Value::Object(
-            modality_common::independent_replay::program_state_view(&wasm.path, &ctx.state),
-        );
+        context.state = Value::Object(modality_common::independent_replay::program_state_view(
+            &wasm.path, &ctx.state,
+        ));
         let (result, fuel) = execute_wasm_program_metered(&bytes, gas_limit, args.clone(), context);
         self.last_gas_used = fuel;
         let result = result?;
@@ -185,7 +188,10 @@ mod tests {
         state.insert("/emission/next_index.num".into(), json!(120));
         state.insert("/emission/blocks/1.json".into(), json!({"hash": "h"}));
         state.insert("/__programs__/emission.wasm".into(), json!("AGFzbQ=="));
-        let kept = modality_common::independent_replay::program_state_view("/__programs__/emission.wasm", &state);
+        let kept = modality_common::independent_replay::program_state_view(
+            "/__programs__/emission.wasm",
+            &state,
+        );
         assert_eq!(kept.len(), 2);
         assert!(kept.contains_key("/network/emission/block_subsidy.num"));
         assert!(kept.contains_key("/emission/next_index.num"));

@@ -87,8 +87,15 @@ impl GasSchedule {
     /// per-use work ([`Self::per_predicate_unit`]).
     pub fn per_predicate(&self, predicate: &str) -> u64 {
         match predicate {
-            "keeps_product" | "keeps_product_per_share" | "tracks" | "pays_senders"
-            | "pays_memo_min" | "sent_eq" | "sent_lte" | "sent_to" | "emitted_by" => 1_000,
+            "keeps_product"
+            | "keeps_product_per_share"
+            | "tracks"
+            | "pays_senders"
+            | "pays_memo_min"
+            | "sent_eq"
+            | "sent_lte"
+            | "sent_to"
+            | "emitted_by" => 1_000,
             "oracle_attests" | "mined_headers" => 5_000,
             _ => 100,
         }
@@ -208,7 +215,11 @@ pub fn tip_of_event(event: &serde_json::Value) -> u64 {
         .map(|commits| {
             commits
                 .iter()
-                .filter_map(|c| c.get("head").and_then(|h| h.get("gas_tip")).and_then(|t| t.as_u64()))
+                .filter_map(|c| {
+                    c.get("head")
+                        .and_then(|h| h.get("gas_tip"))
+                        .and_then(|t| t.as_u64())
+                })
                 .max()
                 .unwrap_or(0)
         })
@@ -220,7 +231,8 @@ impl GasPrice {
     /// `base_permille`.
     pub fn at_base(&self, base_permille: u64) -> GasPrice {
         let scale = |p: u64| {
-            ((p as u128) * (base_permille.max(BASE_PERMILLE_FLOOR) as u128) / 1_000).min(u64::MAX as u128) as u64
+            ((p as u128) * (base_permille.max(BASE_PERMILLE_FLOOR) as u128) / 1_000)
+                .min(u64::MAX as u128) as u64
         };
         GasPrice {
             ordering: scale(self.ordering),
@@ -378,11 +390,13 @@ pub fn meter(
     expanded: &CommitFile,
     fuel: u64,
 ) -> GasUsed {
-    let ordering = schedule
-        .per_ordered_byte
-        .saturating_mul(json_len(pending));
+    let ordering = schedule.per_ordered_byte.saturating_mul(json_len(pending));
     let mut apply = schedule.base;
-    apply = apply.saturating_add(schedule.per_body_byte.saturating_mul(json_len(&expanded.body)));
+    apply = apply.saturating_add(
+        schedule
+            .per_body_byte
+            .saturating_mul(json_len(&expanded.body)),
+    );
     for action in &expanded.body {
         apply = apply.saturating_add(schedule.per_action(&action.method));
     }
@@ -399,7 +413,11 @@ pub fn meter(
         .map(|s| s.len() as u64)
         .unwrap_or(0);
     apply = apply.saturating_add(schedule.per_signature.saturating_mul(signatures));
-    apply = apply.saturating_add(schedule.per_check_byte.saturating_mul(governing.len() as u64));
+    apply = apply.saturating_add(
+        schedule
+            .per_check_byte
+            .saturating_mul(governing.len() as u64),
+    );
     for (name, first_arg) in predicate_uses(governing) {
         apply = apply.saturating_add(schedule.per_predicate(name));
         let unit = schedule.per_predicate_unit(name);
@@ -437,12 +455,17 @@ pub fn within_limit(used: &GasUsed, limit: u64) -> Result<()> {
 /// The limit `pending` runs under: its own `gas_limit`, or the schedule's
 /// default.
 pub fn commit_limit(schedule: &GasSchedule, pending: &CommitFile) -> u64 {
-    pending.head.gas_limit.unwrap_or(schedule.default_commit_limit)
+    pending
+        .head
+        .gas_limit
+        .unwrap_or(schedule.default_commit_limit)
 }
 
 /// Bytes of `value` as compact JSON.
 fn json_len<T: Serialize>(value: &T) -> u64 {
-    serde_json::to_vec(value).map(|v| v.len() as u64).unwrap_or(0)
+    serde_json::to_vec(value)
+        .map(|v| v.len() as u64)
+        .unwrap_or(0)
 }
 
 #[cfg(test)]
@@ -473,11 +496,17 @@ mod tests {
         let bare = meter(s, "", &post, &post, 0);
         let body_len = serde_json::to_vec(&post.body).unwrap().len() as u64;
         assert_eq!(bare.apply, s.base + s.per_body_byte * body_len + 200);
-        assert_eq!(bare.ordering, s.per_ordered_byte * serde_json::to_vec(&post).unwrap().len() as u64);
+        assert_eq!(
+            bare.ordering,
+            s.per_ordered_byte * serde_json::to_vec(&post).unwrap().len() as u64
+        );
 
         let governed = meter(s, "always([-signed_by(/a.id)] false)", &post, &post, 0);
         let source_len = "always([-signed_by(/a.id)] false)".len() as u64;
-        assert_eq!(governed.apply - bare.apply, s.per_check_byte * source_len + 100);
+        assert_eq!(
+            governed.apply - bare.apply,
+            s.per_check_byte * source_len + 100
+        );
 
         let with_fuel = meter(s, "", &post, &post, 14_004);
         assert_eq!(with_fuel.apply - bare.apply, 14_004);
@@ -488,23 +517,39 @@ mod tests {
     fn mined_headers_costs_a_randomx_hash_per_header() {
         let s = &SCHEDULE_V1;
         let rule = "always([-mined_headers(/emission/blocks)] false)";
-        let one = commit(json!([{"method": "post", "path": "/emission/blocks/1.json", "value": {}}]));
+        let one =
+            commit(json!([{"method": "post", "path": "/emission/blocks/1.json", "value": {}}]));
         let two = commit(json!([
             {"method": "post", "path": "/emission/blocks/1.json", "value": {}},
             {"method": "post", "path": "/emission/blocks/2.json", "value": {}}
         ]));
         let a = meter(s, rule, &one, &one, 0);
         let b = meter(s, rule, &two, &two, 0);
-        let extra_bytes = serde_json::to_vec(&two.body).unwrap().len() - serde_json::to_vec(&one.body).unwrap().len();
-        assert_eq!(b.apply - a.apply, 1_000_000 + 200 + s.per_body_byte * extra_bytes as u64);
+        let extra_bytes = serde_json::to_vec(&two.body).unwrap().len()
+            - serde_json::to_vec(&one.body).unwrap().len();
+        assert_eq!(
+            b.apply - a.apply,
+            1_000_000 + 200 + s.per_body_byte * extra_bytes as u64
+        );
     }
 
     #[test]
     fn a_charge_prices_ordering_then_apply_up_to_the_limit() {
-        let price = GasPrice { ordering: 2, apply: 3 };
-        let used = GasUsed { ordering: 100, apply: 1_000, fuel: 0 };
+        let price = GasPrice {
+            ordering: 2,
+            apply: 3,
+        };
+        let used = GasUsed {
+            ordering: 100,
+            apply: 1_000,
+            fuel: 0,
+        };
         assert_eq!(price.charge(&used, 10_000), 100 * 2 + 1_000 * 3);
-        assert_eq!(price.charge(&used, 600), 100 * 2 + 500 * 3, "apply is cut at the limit");
+        assert_eq!(
+            price.charge(&used, 600),
+            100 * 2 + 500 * 3,
+            "apply is cut at the limit"
+        );
         assert_eq!(price.most(600), 600 * 3);
         assert!(!GasPrice::default().is_priced());
     }
@@ -512,21 +557,60 @@ mod tests {
     #[test]
     fn a_fee_splits_equally_and_the_remainder_goes_to_the_first() {
         let split = split_equally(10, &["c".into(), "a".into(), "b".into(), "a".into()]);
-        assert_eq!(split, vec![("a".into(), 4), ("b".into(), 3), ("c".into(), 3)]);
+        assert_eq!(
+            split,
+            vec![("a".into(), 4), ("b".into(), 3), ("c".into(), 3)]
+        );
         assert!(split_equally(10, &[]).is_empty());
-        assert_eq!(split_equally(1, &["b".into(), "a".into()]), vec![("a".into(), 1)]);
+        assert_eq!(
+            split_equally(1, &["b".into(), "a".into()]),
+            vec![("a".into(), 1)]
+        );
     }
 
     #[test]
     fn the_base_moves_by_an_eighth_toward_half_full_and_never_below_the_floor() {
         let limit = 1_000_000;
-        assert_eq!(next_base_permille(1_000, 500_000, limit), 1_000, "half full: unchanged");
-        assert_eq!(next_base_permille(1_000, 1_000_000, limit), 1_125, "full: up an eighth");
-        assert_eq!(next_base_permille(2_000, 0, limit), 1_750, "empty: down an eighth");
-        assert_eq!(next_base_permille(1_000, 0, limit), 1_000, "never below the floor");
-        assert_eq!(next_base_permille(1_000, 500_001, limit), 1_001, "a little over moves it");
-        assert_eq!(GasPrice { ordering: 4, apply: 10 }.at_base(1_500), GasPrice { ordering: 6, apply: 15 });
-        let events = vec![serde_json::json!({"type": "prefix_cert"}), gas_base_event(1_250)];
+        assert_eq!(
+            next_base_permille(1_000, 500_000, limit),
+            1_000,
+            "half full: unchanged"
+        );
+        assert_eq!(
+            next_base_permille(1_000, 1_000_000, limit),
+            1_125,
+            "full: up an eighth"
+        );
+        assert_eq!(
+            next_base_permille(2_000, 0, limit),
+            1_750,
+            "empty: down an eighth"
+        );
+        assert_eq!(
+            next_base_permille(1_000, 0, limit),
+            1_000,
+            "never below the floor"
+        );
+        assert_eq!(
+            next_base_permille(1_000, 500_001, limit),
+            1_001,
+            "a little over moves it"
+        );
+        assert_eq!(
+            GasPrice {
+                ordering: 4,
+                apply: 10
+            }
+            .at_base(1_500),
+            GasPrice {
+                ordering: 6,
+                apply: 15
+            }
+        );
+        let events = vec![
+            serde_json::json!({"type": "prefix_cert"}),
+            gas_base_event(1_250),
+        ];
         assert_eq!(stated_base(&events), Some(1_250));
         assert_eq!(stated_base(&events[..1]), None);
     }
@@ -534,10 +618,17 @@ mod tests {
     #[test]
     fn the_limit_is_the_commits_own_or_the_default() {
         let mut c = commit(json!([]));
-        assert_eq!(commit_limit(&SCHEDULE_V1, &c), SCHEDULE_V1.default_commit_limit);
+        assert_eq!(
+            commit_limit(&SCHEDULE_V1, &c),
+            SCHEDULE_V1.default_commit_limit
+        );
         c.head.gas_limit = Some(50_000);
         assert_eq!(commit_limit(&SCHEDULE_V1, &c), 50_000);
-        let used = GasUsed { ordering: 10, apply: 50_000, fuel: 0 };
+        let used = GasUsed {
+            ordering: 10,
+            apply: 50_000,
+            fuel: 0,
+        };
         let err = within_limit(&used, 50_000).unwrap_err().to_string();
         assert!(err.contains("out of gas") && err.contains("50010"), "{err}");
     }
@@ -545,11 +636,19 @@ mod tests {
     #[test]
     fn the_governing_source_is_the_last_model_and_every_rule() {
         let accepted = vec![
-            commit(json!([{"method": "model", "path": "/model/default.modality", "value": "model A"}])),
+            commit(
+                json!([{"method": "model", "path": "/model/default.modality", "value": "model A"}]),
+            ),
             commit(json!([{"method": "rule", "path": "/rules/r1.modality", "value": "rule one"}])),
-            commit(json!([{"method": "model", "path": "/model/default.modality", "value": "model B"}])),
+            commit(
+                json!([{"method": "model", "path": "/model/default.modality", "value": "model B"}]),
+            ),
         ];
-        let pending = commit(json!([{"method": "rule", "path": "/rules/r2.modality", "value": "rule two"}]));
-        assert_eq!(governing_source(&accepted, &pending), "model B\nrule one\nrule two\n");
+        let pending =
+            commit(json!([{"method": "rule", "path": "/rules/r2.modality", "value": "rule two"}]));
+        assert_eq!(
+            governing_source(&accepted, &pending),
+            "model B\nrule one\nrule two\n"
+        );
     }
 }

@@ -7,8 +7,8 @@ mod data;
 pub(crate) mod hash_commitment;
 pub mod inspect;
 mod ping;
-use data as reqres_data;
 pub use contract::admission::{PushAdmission, PushLimits};
+use data as reqres_data;
 use tokio::sync::mpsc;
 
 use modality_datastore::DatastoreManager;
@@ -73,9 +73,12 @@ pub async fn handle_request(
         "/consensus/status" => {
             consensus::status::handler(Some(data.clone()), datastore_manager).await?
         }
-        "/consensus/block/ack" => consensus::block::ack::handler(Some(data.clone()), consensus_tx).await?,
+        "/consensus/block/ack" => {
+            consensus::block::ack::handler(Some(data.clone()), consensus_tx).await?
+        }
         consensus::block::certified_since::PATH => {
-            consensus::block::certified_since::handler(Some(data.clone()), datastore_manager).await?
+            consensus::block::certified_since::handler(Some(data.clone()), datastore_manager)
+                .await?
         }
         "/data/miner_block/get" => {
             reqres_data::miner_block::get::handler(Some(data.clone()), datastore_manager).await?

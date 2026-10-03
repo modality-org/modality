@@ -9,9 +9,9 @@ use modality_common::keypair::{Keypair, KeypairOrPublicKey};
 use modality_datastore::models::{Commit, Contract, SequencerBlock};
 use modality_datastore::{DatastoreManager, Store};
 use modality_networks::CheckpointMode;
+use modality_sequencer_consensus::communication::{Communication, Message as ConsensusMessage};
 use modality_validator::prefix_cert::{self, PREFIX_CERT_TYPE};
 use modality_validator::ContractProcessor;
-use modality_sequencer_consensus::communication::{Communication, Message as ConsensusMessage};
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Arc;
@@ -93,7 +93,8 @@ impl SequencingControl {
     }
 
     pub(crate) fn set_committee(&self, sequencers: &[String]) {
-        self.committee_size.store(sequencers.len(), Ordering::SeqCst);
+        self.committee_size
+            .store(sequencers.len(), Ordering::SeqCst);
         if let Ok(mut committee) = self.committee.write() {
             *committee = sequencers.to_vec();
         }
@@ -341,12 +342,8 @@ async fn queue_peer_prefix_cert_requests(
     if block.peer_id == own_peer_id || block.events.is_empty() {
         return;
     }
-    match crate::actions::validator::queue_requests_for_events(
-        mgr,
-        own_peer_id,
-        &block.events,
-    )
-    .await
+    match crate::actions::validator::queue_requests_for_events(mgr, own_peer_id, &block.events)
+        .await
     {
         Ok(0) => {}
         Ok(n) => log::info!(
@@ -355,7 +352,10 @@ async fn queue_peer_prefix_cert_requests(
             &block.peer_id[..16.min(block.peer_id.len())],
             block.round_id
         ),
-        Err(e) => log::warn!("Failed to queue prefix-cert requests from peer block: {}", e),
+        Err(e) => log::warn!(
+            "Failed to queue prefix-cert requests from peer block: {}",
+            e
+        ),
     }
 }
 
@@ -471,7 +471,9 @@ pub(crate) fn own_next_base(mgr: &DatastoreManager) -> u64 {
         .and_then(|bytes| serde_json::from_slice(&bytes).ok());
     match last {
         Some(last) => next_base_permille(
-            last.get("base").and_then(|v| v.as_u64()).unwrap_or(BASE_PERMILLE_FLOOR),
+            last.get("base")
+                .and_then(|v| v.as_u64())
+                .unwrap_or(BASE_PERMILLE_FLOOR),
             last.get("declared").and_then(|v| v.as_u64()).unwrap_or(0),
             schedule.round_limit,
         ),
@@ -490,12 +492,15 @@ fn state_gas_base(mgr: &DatastoreManager, round: u64, events: &mut Vec<serde_jso
         return;
     }
     let base = own_next_base(mgr);
-    let declared = events
-        .iter()
-        .fold(0u64, |sum, e| sum.saturating_add(declared_by_event(schedule, e)));
+    let declared = events.iter().fold(0u64, |sum, e| {
+        sum.saturating_add(declared_by_event(schedule, e))
+    });
     events.insert(0, gas_base_event(base));
     let record = serde_json::json!({ "round": round, "base": base, "declared": declared });
-    if let Err(e) = mgr.node_state().put(OWN_GAS_BASE_KEY, record.to_string().as_bytes()) {
+    if let Err(e) = mgr
+        .node_state()
+        .put(OWN_GAS_BASE_KEY, record.to_string().as_bytes())
+    {
         log::warn!("Failed to record this round's gas base: {}", e);
     }
 }
@@ -507,7 +512,9 @@ async fn draft_base_follows_rule(
     datastore: &Arc<Mutex<DatastoreManager>>,
     block: &SequencerBlock,
 ) -> bool {
-    use modality_common::gas::{declared_by_event, next_base_permille, stated_base, BASE_PERMILLE_FLOOR};
+    use modality_common::gas::{
+        declared_by_event, next_base_permille, stated_base, BASE_PERMILLE_FLOOR,
+    };
     let Some(stated) = stated_base(&block.events) else {
         return true;
     };
@@ -523,14 +530,14 @@ async fn draft_base_follows_rule(
     let Some(prev_round) = block.round_id.checked_sub(1) else {
         return true;
     };
-    let Ok(Some(prev)) = SequencerBlock::find_by_round_peer_multi(&mgr, prev_round, &block.peer_id).await
+    let Ok(Some(prev)) =
+        SequencerBlock::find_by_round_peer_multi(&mgr, prev_round, &block.peer_id).await
     else {
         return true;
     };
-    let declared = prev
-        .events
-        .iter()
-        .fold(0u64, |sum, e| sum.saturating_add(declared_by_event(schedule, e)));
+    let declared = prev.events.iter().fold(0u64, |sum, e| {
+        sum.saturating_add(declared_by_event(schedule, e))
+    });
     let expected = next_base_permille(
         stated_base(&prev.events).unwrap_or(BASE_PERMILLE_FLOOR),
         declared,
@@ -574,7 +581,11 @@ impl BlockFees {
             recipients: entry
                 .get("fee_recipients")
                 .and_then(|v| v.as_array())
-                .map(|a| a.iter().filter_map(|r| r.as_str().map(str::to_string)).collect())
+                .map(|a| {
+                    a.iter()
+                        .filter_map(|r| r.as_str().map(str::to_string))
+                        .collect()
+                })
                 .unwrap_or_default(),
             proposer: entry
                 .get("proposer")
@@ -696,10 +707,16 @@ pub(crate) async fn fee_payer(
     {
         return Ok(None);
     }
-    if mgr.get_data_by_key(&fee_key(contract_id, commit_id)).await?.is_some() {
+    if mgr
+        .get_data_by_key(&fee_key(contract_id, commit_id))
+        .await?
+        .is_some()
+    {
         anyhow::bail!("commit {commit_id} was charged once already; it is not applied again");
     }
-    let body = commit_entry.get("body").or_else(|| commit_entry.get("data"));
+    let body = commit_entry
+        .get("body")
+        .or_else(|| commit_entry.get("data"));
     let commit = CommitFile::verified(commit_id, body, commit_entry.get("head"))?;
     let payer = commit
         .head
@@ -742,7 +759,13 @@ pub(crate) async fn fee_payer(
     }
     let most = limit.saturating_mul(per_gas);
     let held = mgr.mod_balance(&payer).await?;
-    let receiving = if payer == contract_id { receipts_in_push } else { 0 };
+    let receiving = if modality_common::peer_id::key_form(&payer)
+        == modality_common::peer_id::key_form(contract_id)
+    {
+        receipts_in_push
+    } else {
+        0
+    };
     if held.saturating_add(receiving) < most {
         anyhow::bail!(
             "the payer {payer} holds {held} MOD units (receiving {receiving} here), less than the {most} this commit can cost at its gas limit {limit}"
@@ -792,7 +815,11 @@ pub(crate) async fn push_receipts(
         let Some(send_id) = action.value.get("send_commit_id").and_then(|v| v.as_str()) else {
             continue;
         };
-        let index = action.value.get("send_index").and_then(|v| v.as_u64()).unwrap_or(0);
+        let index = action
+            .value
+            .get("send_index")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(0);
         let Some(send) = SendRecord::find(mgr, send_id, index).await? else {
             continue;
         };
@@ -835,7 +862,10 @@ async fn charge(
         }
     };
     let held = mgr.mod_balance(&payer.id).await.unwrap_or(0);
-    let base_fee = price.at_base(payer.base_permille).charge(gas, payer.limit).min(held);
+    let base_fee = price
+        .at_base(payer.base_permille)
+        .charge(gas, payer.limit)
+        .min(held);
     let mut split = modality_common::gas::split_equally(base_fee, &fees.recipients);
     let tip = payer
         .tip
@@ -858,7 +888,12 @@ async fn charge(
     }
     let fee = split.iter().map(|(_, n)| *n).sum::<u64>();
     if let Err(e) = mgr.pay_mod_fee(&payer.id, &split).await {
-        log::warn!("Failed to charge {} for commit {}: {}", payer.id, commit_id, e);
+        log::warn!(
+            "Failed to charge {} for commit {}: {}",
+            payer.id,
+            commit_id,
+            e
+        );
         return;
     }
     let record = serde_json::json!({
@@ -871,7 +906,10 @@ async fn charge(
         "applied": matches!(outcome, CommitApply::Sequenced),
     });
     if let Err(e) = mgr
-        .set_data_by_key(&fee_key(contract_id, commit_id), record.to_string().as_bytes())
+        .set_data_by_key(
+            &fee_key(contract_id, commit_id),
+            record.to_string().as_bytes(),
+        )
         .await
     {
         log::warn!("Failed to record the fee of commit {}: {}", commit_id, e);
@@ -884,7 +922,11 @@ async fn charge(
         gas.total(),
         payer.base_permille,
         payer.tip,
-        if matches!(outcome, CommitApply::Sequenced) { "applied" } else { "refused" }
+        if matches!(outcome, CommitApply::Sequenced) {
+            "applied"
+        } else {
+            "refused"
+        }
     );
 }
 
@@ -1086,11 +1128,13 @@ async fn parked_parent_queue(
             return None;
         }
     }
-    [&PREFIX_CERT_QUEUE, &ANCHOR_QUEUE].into_iter().find(|queue| {
-        load_parked(mgr, queue)
-            .iter()
-            .any(|entry| pending_entry_matches(entry, contract_id, parent))
-    })
+    [&PREFIX_CERT_QUEUE, &ANCHOR_QUEUE]
+        .into_iter()
+        .find(|queue| {
+            load_parked(mgr, queue)
+                .iter()
+                .any(|entry| pending_entry_matches(entry, contract_id, parent))
+        })
 }
 
 fn parked_queue_for(outcome: &CommitApply) -> Option<&'static ParkedQueue> {
@@ -1336,7 +1380,15 @@ pub(crate) async fn apply_certified_contract_events(
             )
             .await;
             if let Some(queue) = parked_queue_for(&outcome) {
-                park_commit(datastore, queue, contract_id, commit_entry, &batch_id, &fees).await;
+                park_commit(
+                    datastore,
+                    queue,
+                    contract_id,
+                    commit_entry,
+                    &batch_id,
+                    &fees,
+                )
+                .await;
             }
         }
     }
@@ -1436,7 +1488,11 @@ async fn run_store_batch(
                         block.round_id,
                         &block.peer_id[..16.min(block.peer_id.len())],
                         block.events.len(),
-                        if received == ReceivedCert::Duplicate { " (already stored)" } else { "" }
+                        if received == ReceivedCert::Duplicate {
+                            " (already stored)"
+                        } else {
+                            ""
+                        }
                     );
                     to_apply.push(block);
                 }
@@ -2131,8 +2187,7 @@ mod tests {
         let ds = Arc::new(Mutex::new(DatastoreManager::create_in_memory().unwrap()));
         let (id, push) = dest_push();
         sequenced_source(&ds, false).await;
-        apply_certified_contract_events(&certified_block(vec![push], "batch-ok"), &ds)
-            .await;
+        apply_certified_contract_events(&certified_block(vec![push], "batch-ok"), &ds).await;
         assert_eq!(dest_in_batch(&ds, &id).await.as_deref(), Some("batch-ok"));
     }
 
@@ -2141,11 +2196,7 @@ mod tests {
         let ds = Arc::new(Mutex::new(DatastoreManager::create_in_memory().unwrap()));
         let (id, push) = dest_push();
         sequenced_source(&ds, true).await;
-        apply_certified_contract_events(
-            &certified_block(vec![push], "batch-fail"),
-            &ds,
-        )
-        .await;
+        apply_certified_contract_events(&certified_block(vec![push], "batch-fail"), &ds).await;
         assert!(dest_in_batch(&ds, &id).await.is_none());
     }
 
@@ -2172,15 +2223,9 @@ mod tests {
             "gas_used": 1,
             "fee_quoted": 0
         });
-        apply_certified_contract_events(
-            &certified_block(vec![push, cert], "batch-cert"),
-            &ds,
-        )
-        .await;
-        assert_eq!(
-            dest_in_batch(&ds, &id).await.as_deref(),
-            Some("batch-cert")
-        );
+        apply_certified_contract_events(&certified_block(vec![push, cert], "batch-cert"), &ds)
+            .await;
+        assert_eq!(dest_in_batch(&ds, &id).await.as_deref(), Some("batch-cert"));
     }
 
     #[tokio::test]
@@ -2196,10 +2241,7 @@ mod tests {
                 .1
         };
         apply_certified_contract_events(
-            &certified_block(
-                vec![push, prefix_cert_event("peer1", &digest)],
-                "batch-one",
-            ),
+            &certified_block(vec![push, prefix_cert_event("peer1", &digest)], "batch-one"),
             &ds,
         )
         .await;
@@ -2230,10 +2272,7 @@ mod tests {
             &ds,
         )
         .await;
-        assert_eq!(
-            dest_in_batch(&ds, &id).await.as_deref(),
-            Some("batch-qc")
-        );
+        assert_eq!(dest_in_batch(&ds, &id).await.as_deref(), Some("batch-qc"));
     }
 
     #[tokio::test]
@@ -2268,11 +2307,7 @@ mod tests {
         let ds = Arc::new(Mutex::new(DatastoreManager::create_in_memory().unwrap()));
         let (id, push) = dest_recv_push();
         sequenced_mod_send(&ds, false).await;
-        apply_certified_contract_events(
-            &certified_block(vec![push], "batch-recv"),
-            &ds,
-        )
-        .await;
+        apply_certified_contract_events(&certified_block(vec![push], "batch-recv"), &ds).await;
         assert_eq!(
             in_batch_of(&ds, "bob", &id).await.as_deref(),
             Some("batch-recv")
@@ -2284,11 +2319,7 @@ mod tests {
         let ds = Arc::new(Mutex::new(DatastoreManager::create_in_memory().unwrap()));
         let (id, push) = dest_recv_push();
         sequenced_mod_send(&ds, true).await;
-        apply_certified_contract_events(
-            &certified_block(vec![push], "batch-fail"),
-            &ds,
-        )
-        .await;
+        apply_certified_contract_events(&certified_block(vec![push], "batch-fail"), &ds).await;
         assert!(in_batch_of(&ds, "bob", &id).await.is_none());
         let mgr = ds.lock().await;
         let requests = mgr.drain_prefix_cert_requests().unwrap();
@@ -2325,12 +2356,21 @@ mod tests {
         ] {
             apply_certified_contract_events(&certified_block(vec![event], batch), &ds).await;
         }
-        assert_eq!(in_batch_of(&ds, "pool", &first).await.as_deref(), Some("b1"));
-        assert!(in_batch_of(&ds, "pool", &second).await.is_none(), "a fork of the log");
+        assert_eq!(
+            in_batch_of(&ds, "pool", &first).await.as_deref(),
+            Some("b1")
+        );
+        assert!(
+            in_batch_of(&ds, "pool", &second).await.is_none(),
+            "a fork of the log"
+        );
         assert_eq!(in_batch_of(&ds, "pool", &next).await.as_deref(), Some("b3"));
         let mgr = ds.lock().await;
         assert_eq!(
-            mgr.get_string("/contracts/pool/note.text").await.unwrap().as_deref(),
+            mgr.get_string("/contracts/pool/note.text")
+                .await
+                .unwrap()
+                .as_deref(),
             Some("next")
         );
     }
@@ -2347,7 +2387,11 @@ mod tests {
         apply_certified_contract_events(&certified_block(vec![event], "b0"), &ds).await;
         assert!(in_batch_of(&ds, "c", &id).await.is_none());
         let mgr = ds.lock().await;
-        assert!(mgr.get_string("/contracts/c/a.text").await.unwrap().is_none());
+        assert!(mgr
+            .get_string("/contracts/c/a.text")
+            .await
+            .unwrap()
+            .is_none());
     }
 
     #[tokio::test]
@@ -2371,11 +2415,7 @@ mod tests {
             "gas_used": 1,
             "fee_quoted": 0
         });
-        apply_certified_contract_events(
-            &certified_block(vec![push, cert], "batch-qc"),
-            &ds,
-        )
-        .await;
+        apply_certified_contract_events(&certified_block(vec![push, cert], "batch-qc"), &ds).await;
         assert_eq!(
             in_batch_of(&ds, "bob", &id).await.as_deref(),
             Some("batch-qc")
@@ -2403,8 +2443,7 @@ model FirstContract {
     async fn modeled_unsigned_commit_is_not_sequenced() {
         let ds = Arc::new(Mutex::new(DatastoreManager::create_in_memory().unwrap()));
         let (boot, boot_push) = pushed("c1", bootstrap_body(), json!({}));
-        apply_certified_contract_events(&certified_block(vec![boot_push], "batch-boot"), &ds)
-            .await;
+        apply_certified_contract_events(&certified_block(vec![boot_push], "batch-boot"), &ds).await;
         assert_eq!(
             in_batch_of(&ds, "c1", &boot).await.as_deref(),
             Some("batch-boot")
@@ -2415,11 +2454,8 @@ model FirstContract {
             json!([{ "method": "post", "path": "/notes/unsigned.text", "value": "no" }]),
             json!({ "parent": boot }),
         );
-        apply_certified_contract_events(
-            &certified_block(vec![unsigned_push], "batch-bad"),
-            &ds,
-        )
-        .await;
+        apply_certified_contract_events(&certified_block(vec![unsigned_push], "batch-bad"), &ds)
+            .await;
         assert!(
             in_batch_of(&ds, "c1", &unsigned).await.is_none(),
             "unsigned commit that local verify rejects must not be sequenced"
@@ -2430,8 +2466,7 @@ model FirstContract {
     async fn modeled_signed_commit_is_sequenced() {
         let ds = Arc::new(Mutex::new(DatastoreManager::create_in_memory().unwrap()));
         let (boot, boot_push) = pushed("c1", bootstrap_body(), json!({}));
-        apply_certified_contract_events(&certified_block(vec![boot_push], "batch-boot"), &ds)
-            .await;
+        apply_certified_contract_events(&certified_block(vec![boot_push], "batch-boot"), &ds).await;
 
         let (signed, signed_push) = pushed(
             "c1",
@@ -2441,8 +2476,7 @@ model FirstContract {
                 "signatures": { "alice_key": "sig" }
             }),
         );
-        apply_certified_contract_events(&certified_block(vec![signed_push], "batch-ok"), &ds)
-            .await;
+        apply_certified_contract_events(&certified_block(vec![signed_push], "batch-ok"), &ds).await;
         assert_eq!(
             in_batch_of(&ds, "c1", &signed).await.as_deref(),
             Some("batch-ok")
@@ -2545,13 +2579,8 @@ model FirstContract {
             "re-applying a duplicate keeps the first sequencing"
         );
         assert_eq!(
-            accept_received_certified_block(
-                &received,
-                &author.as_public_address(),
-                4,
-                &receiver
-            )
-            .await,
+            accept_received_certified_block(&received, &author.as_public_address(), 4, &receiver)
+                .await,
             ReceivedCert::Own
         );
         let mgr = receiver.lock().await;
@@ -2574,9 +2603,18 @@ model FirstContract {
         run_store_batch(
             vec![
                 StoreJob::Round(11),
-                StoreJob::PeerCert { block: good.clone(), committee_size: 4 },
-                StoreJob::PeerCert { block: good.clone(), committee_size: 4 },
-                StoreJob::PeerCert { block: short.clone(), committee_size: 4 },
+                StoreJob::PeerCert {
+                    block: good.clone(),
+                    committee_size: 4,
+                },
+                StoreJob::PeerCert {
+                    block: good.clone(),
+                    committee_size: 4,
+                },
+                StoreJob::PeerCert {
+                    block: short.clone(),
+                    committee_size: 4,
+                },
                 StoreJob::Round(12),
             ],
             "receiver",
@@ -2587,10 +2625,12 @@ model FirstContract {
         assert_eq!(in_batch_of(&receiver, "src", &genesis).await, good.cert);
         let mgr = receiver.lock().await;
         assert_eq!(mgr.get_current_round().await.unwrap(), 12);
-        assert!(SequencerBlock::find_final_by_round_peer_multi(&mgr, 9, &short.peer_id)
-            .await
-            .unwrap()
-            .is_none());
+        assert!(
+            SequencerBlock::find_final_by_round_peer_multi(&mgr, 9, &short.peer_id)
+                .await
+                .unwrap()
+                .is_none()
+        );
         assert_eq!(
             super::super::cert_sync::last_cert_rounds(&mgr),
             vec![(author.as_public_address(), 8)]
@@ -2608,10 +2648,12 @@ model FirstContract {
             ReceivedCert::Invalid
         );
         let mgr = receiver.lock().await;
-        assert!(SequencerBlock::find_final_by_round_peer_multi(&mgr, 3, &block.peer_id)
-            .await
-            .unwrap()
-            .is_none());
+        assert!(
+            SequencerBlock::find_final_by_round_peer_multi(&mgr, 3, &block.peer_id)
+                .await
+                .unwrap()
+                .is_none()
+        );
     }
 
     #[tokio::test]
@@ -2661,11 +2703,7 @@ model FirstContract {
                 .unwrap()
                 .1
         };
-        apply_certified_contract_events(
-            &certified_block(vec![push], "batch-first"),
-            &ds,
-        )
-        .await;
+        apply_certified_contract_events(&certified_block(vec![push], "batch-first"), &ds).await;
         apply_certified_contract_events(
             &certified_block(vec![prefix_cert_event("peer1", &digest)], "batch-c1"),
             &ds,
@@ -2721,14 +2759,23 @@ model FirstContract {
         }
         apply_certified_contract_events(
             &certified_block(
-                vec![prefix_cert_event("peer1", &digest), prefix_cert_event("peer2", &digest)],
+                vec![
+                    prefix_cert_event("peer1", &digest),
+                    prefix_cert_event("peer2", &digest),
+                ],
                 "batch-certs",
             ),
             &ds,
         )
         .await;
-        assert_eq!(dest_in_batch(&ds, &id).await.as_deref(), Some("batch-first"));
-        assert_eq!(dest_in_batch(&ds, &child).await.as_deref(), Some("batch-first"));
+        assert_eq!(
+            dest_in_batch(&ds, &id).await.as_deref(),
+            Some("batch-first")
+        );
+        assert_eq!(
+            dest_in_batch(&ds, &child).await.as_deref(),
+            Some("batch-first")
+        );
         let mgr = ds.lock().await;
         assert!(load_parked(&mgr, &PREFIX_CERT_QUEUE).is_empty());
     }
@@ -2773,7 +2820,8 @@ model FirstContract {
         for (k, v) in head_extra.as_object().unwrap() {
             head[k] = v.clone();
         }
-        let mut file: CommitFile = serde_json::from_value(json!({ "body": body, "head": head })).unwrap();
+        let mut file: CommitFile =
+            serde_json::from_value(json!({ "body": body, "head": head })).unwrap();
         if signed {
             let (key, sig) =
                 modality_common::commit_signatures::sign_commit(payer, payer_id, &file).unwrap();
@@ -2799,11 +2847,27 @@ model FirstContract {
             true,
         );
         apply_certified_contract_events(&certified_block(vec![push], "batch-1"), &ds).await;
-        assert_eq!(in_batch_of(&ds, &payer_id, &id).await.as_deref(), Some("batch-1"));
+        assert_eq!(
+            in_batch_of(&ds, &payer_id, &id).await.as_deref(),
+            Some("batch-1")
+        );
         let paid_to_seq = mod_of(&ds, "seq").await;
-        assert!(paid_to_seq > 10_000, "base cost alone is 10,000 gas: {paid_to_seq}");
-        assert_eq!(mod_of(&ds, &payer_id).await + paid_to_seq, 100_000_000, "MOD is moved, not made");
-        let record = ds.lock().await.get_data_by_key(&fee_key(&payer_id, &id)).await.unwrap().unwrap();
+        assert!(
+            paid_to_seq > 10_000,
+            "base cost alone is 10,000 gas: {paid_to_seq}"
+        );
+        assert_eq!(
+            mod_of(&ds, &payer_id).await + paid_to_seq,
+            100_000_000,
+            "MOD is moved, not made"
+        );
+        let record = ds
+            .lock()
+            .await
+            .get_data_by_key(&fee_key(&payer_id, &id))
+            .await
+            .unwrap()
+            .unwrap();
         let record: serde_json::Value = serde_json::from_slice(&record).unwrap();
         assert_eq!(record["fee"], paid_to_seq);
         assert_eq!(record["applied"], true);
@@ -2827,7 +2891,11 @@ model FirstContract {
         assert!(first > 0, "the refused commit paid for its work");
 
         apply_certified_contract_events(&certified_block(vec![push], "batch-2"), &ds).await;
-        assert_eq!(mod_of(&ds, "seq").await, first, "replaying it charges nothing more");
+        assert_eq!(
+            mod_of(&ds, "seq").await,
+            first,
+            "replaying it charges nothing more"
+        );
     }
 
     #[tokio::test]
@@ -2884,14 +2952,20 @@ model FirstContract {
         apply_certified_contract_events(&priced_block(vec![push], "b1", 1_000), &ds).await;
         let at_floor = 100_000_000 - mod_of(&ds, &payer_id).await;
         let tip_at_floor = mod_of(&ds, "seq").await - mod_of(&ds, "acker").await;
-        assert!(tip_at_floor > 0, "the proposer takes the tip on top of its share");
+        assert!(
+            tip_at_floor > 0,
+            "the proposer takes the tip on top of its share"
+        );
 
         let (ds, payer, payer_id) = priced_network(100_000_000).await;
         let (_, push) = paid_push(&payer, &payer_id, body, json!({"gas_tip": 2}), true);
         apply_certified_contract_events(&priced_block(vec![push], "b1", 2_000), &ds).await;
         let at_double = 100_000_000 - mod_of(&ds, &payer_id).await;
         let tip_at_double = mod_of(&ds, "seq").await - mod_of(&ds, "acker").await;
-        assert_eq!(tip_at_double, tip_at_floor, "the tip does not scale with the base");
+        assert_eq!(
+            tip_at_double, tip_at_floor,
+            "the tip does not scale with the base"
+        );
         let base_at_floor = at_floor - tip_at_floor;
         let base_at_double = at_double - tip_at_double;
         assert!(
@@ -2929,12 +3003,21 @@ model FirstContract {
             b.round_id = 8;
             b
         };
-        assert!(draft_base_follows_rule(&ds, &draft(1_125)).await, "a full block raises it an eighth");
+        assert!(
+            draft_base_follows_rule(&ds, &draft(1_125)).await,
+            "a full block raises it an eighth"
+        );
         assert!(!draft_base_follows_rule(&ds, &draft(1_000)).await);
-        assert!(!draft_base_follows_rule(&ds, &draft(500)).await, "never below the floor");
+        assert!(
+            !draft_base_follows_rule(&ds, &draft(500)).await,
+            "never below the floor"
+        );
         let mut unknown = draft(4_000);
         unknown.round_id = 20;
-        assert!(draft_base_follows_rule(&ds, &unknown).await, "no previous block held: not held back");
+        assert!(
+            draft_base_follows_rule(&ds, &unknown).await,
+            "no previous block held: not held back"
+        );
     }
 
     #[test]
