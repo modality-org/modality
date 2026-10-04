@@ -164,7 +164,7 @@ mod tests {
         
         // Save genesis through the mutex
         let mgr = datastore.lock().await;
-        genesis_mb.save_to_active(&*mgr).await.unwrap();
+        genesis_mb.save_to_active(&mgr).await.unwrap();
         drop(mgr);
         
         // Re-initialize to pick up genesis
@@ -187,4 +187,3 @@ mod tests {
         assert_eq!(tip, 1);
     }
 }
-

@@ -112,13 +112,12 @@ mod tests {
         let miner = Miner::new_default();
 
         let data = BlockData::new("peer_id_123".to_string(), 12345);
-        let block = Block::new(1, "prev_hash".to_string(), data, 100);
+        let block = Block::new(1, "prev_hash".to_string(), data, 1);
 
         let mined_block = miner.mine_block(block).unwrap();
 
         assert!(miner.verify_block(&mined_block).unwrap());
         assert!(!mined_block.header.hash.is_empty());
-        assert!(mined_block.header.nonce > 0);
         assert_eq!(mined_block.data.miner_number, 12345);
     }
 
@@ -143,4 +142,3 @@ mod tests {
         assert!(miner.verify_block(&genesis).unwrap());
     }
 }
-

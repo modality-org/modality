@@ -798,6 +798,17 @@ impl Blockchain {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::MinerConfig;
+
+    // These tests exercise chain behavior, not the network's RandomX hash.
+    fn test_chain(config: ChainConfig) -> Blockchain {
+        let mut chain = Blockchain::new_with_default_genesis(config);
+        chain.miner = Miner::new(MinerConfig {
+            hash_func_name: Some("sha256"),
+            ..MinerConfig::default()
+        });
+        chain
+    }
     
     #[test]
     fn test_new_blockchain_default_genesis() {
@@ -827,7 +838,7 @@ mod tests {
     
     #[test]
     fn next_mine_index_follows_tip_when_an_earlier_index_is_missing() {
-        let mut chain = Blockchain::new_with_default_genesis(ChainConfig {
+        let mut chain = test_chain(ChainConfig {
             initial_difficulty: 1000,
             target_block_time_secs: 60,
             mining_delay_ms: None,
@@ -849,7 +860,7 @@ mod tests {
 
     #[test]
     fn test_mine_block() {
-        let mut chain = Blockchain::new_with_default_genesis(
+        let mut chain = test_chain(
             ChainConfig {
                 initial_difficulty: 100, // Low difficulty for fast test
                 target_block_time_secs: 600,
@@ -868,7 +879,7 @@ mod tests {
     
     #[test]
     fn test_validate_chain() {
-        let mut chain = Blockchain::new_with_default_genesis(
+        let mut chain = test_chain(
             ChainConfig {
                 initial_difficulty: 100,
                 target_block_time_secs: 600,
@@ -885,7 +896,7 @@ mod tests {
     fn test_count_blocks_by_nominated_peer() {
         let nominated_peer_id = "nominated_peer_1".to_string();
         
-        let mut chain = Blockchain::new_with_default_genesis(
+        let mut chain = test_chain(
             ChainConfig {
                 initial_difficulty: 100,
                 target_block_time_secs: 600,
@@ -904,7 +915,7 @@ mod tests {
     
     #[test]
     fn test_epoch_progression() {
-        let mut chain = Blockchain::new_with_default_genesis(
+        let mut chain = test_chain(
             ChainConfig {
                 initial_difficulty: 50, // Very low for fast mining
                 target_block_time_secs: 600,
@@ -929,7 +940,7 @@ mod tests {
     
     #[test]
     fn test_get_block_by_hash() {
-        let mut chain = Blockchain::new_with_default_genesis(
+        let mut chain = test_chain(
             ChainConfig {
                 initial_difficulty: 100,
                 target_block_time_secs: 600,
@@ -947,7 +958,7 @@ mod tests {
     
     #[test]
     fn test_get_epoch_blocks_excludes_genesis() {
-        let mut chain = Blockchain::new_with_default_genesis(
+        let mut chain = test_chain(
             ChainConfig {
                 initial_difficulty: 50,
                 target_block_time_secs: 600,
@@ -972,7 +983,7 @@ mod tests {
     
     #[test]
     fn test_get_epoch_shuffled_nominations_incomplete() {
-        let mut chain = Blockchain::new_with_default_genesis(
+        let mut chain = test_chain(
             ChainConfig {
                 initial_difficulty: 50,
                 target_block_time_secs: 60,
@@ -992,7 +1003,7 @@ mod tests {
     
     #[test]
     fn test_get_epoch_shuffled_nominations_complete() {
-        let mut chain = Blockchain::new_with_default_genesis(
+        let mut chain = test_chain(
             ChainConfig {
                 initial_difficulty: 50,
                 target_block_time_secs: 60,
@@ -1020,7 +1031,7 @@ mod tests {
     
     #[test]
     fn test_get_epoch_shuffled_peer_ids() {
-        let mut chain = Blockchain::new_with_default_genesis(
+        let mut chain = test_chain(
             ChainConfig {
                 initial_difficulty: 50,
                 target_block_time_secs: 60,
@@ -1048,7 +1059,7 @@ mod tests {
     
     #[test]
     fn test_epoch_shuffled_nominations_deterministic() {
-        let mut chain = Blockchain::new_with_default_genesis(
+        let mut chain = test_chain(
             ChainConfig {
                 initial_difficulty: 50,
                 target_block_time_secs: 60,
@@ -1069,4 +1080,3 @@ mod tests {
         assert_eq!(shuffled1, shuffled2);
     }
 }
-

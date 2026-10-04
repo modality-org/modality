@@ -11,14 +11,14 @@
 
 #[cfg(all(test, feature = "persistence"))]
 mod orphan_detection_tests {
-    use crate::{Block, BlockData, Miner};
+    use crate::{Block, BlockData, Miner, MinerConfig};
     use modality_datastore::{DatastoreManager, models::MinerBlock};
     use modality_observer::{ChainObserver, ForkConfig};
     use std::sync::Arc;
     use tokio::sync::Mutex;
 
     /// Helper to create and mine a block with specific properties
-    /// Uses difficulty=1 for fast testing
+    /// Uses cheap SHA-256 mining; these tests exercise fork and orphan handling.
     fn create_and_mine_block(
         index: u64,
         previous_hash: String,
@@ -27,7 +27,10 @@ mod orphan_detection_tests {
     ) -> Block {
         let block_data = BlockData::new(nominated_peer_id, miner_number);
         let block = Block::new(index, previous_hash, block_data, 1);
-        let miner = Miner::new_default();
+        let miner = Miner::new(MinerConfig {
+            hash_func_name: Some("sha256"),
+            ..MinerConfig::default()
+        });
         miner.mine_block(block).expect("Mining should succeed")
     }
 
@@ -277,4 +280,3 @@ mod orphan_detection_tests {
         assert!(!block_3_final.is_orphaned, "Block 3 should no longer be orphaned");
     }
 }
-

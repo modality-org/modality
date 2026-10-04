@@ -72,7 +72,7 @@ fn test_multiple_epochs() {
 
     assert_eq!(epoch_0.len(), 40);
     assert_eq!(epoch_1.len(), 40);
-    assert!(epoch_2.len() > 0);
+    assert!(!epoch_2.is_empty());
 }
 
 #[test]
@@ -443,7 +443,7 @@ async fn test_sequential_mining_after_sync() {
         
         for block in blocks_from_node1 {
             let synced_block = block.clone();
-            synced_block.save_to_active(&*ds2).await.unwrap();
+            synced_block.save_to_active(&ds2).await.unwrap();
             println!("  📥 Synced block {} from Node 1", synced_block.index);
         }
     }
@@ -495,7 +495,7 @@ async fn test_sequential_mining_after_sync() {
             .expect("Block 2 should exist on node2");
         
         let synced_block = block2_data.clone();
-        synced_block.save_to_active(&*ds1).await.unwrap();
+        synced_block.save_to_active(&ds1).await.unwrap();
         println!("  📥 Synced block {} from Node 2", synced_block.index);
     }
     
@@ -574,4 +574,3 @@ fn test_mining_with_randomx() {
     
     println!("✅ RandomX mining test passed!");
 }
-
