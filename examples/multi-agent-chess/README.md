@@ -1,4 +1,4 @@
-# AI chess: chat against a contract
+# Multi-agent chess: chat against a contract
 
 Every piece is an agent: sixteen per side. On each turn the agents of the
 side to move agree on a plan, the best move their shared engine finds. Some
@@ -52,8 +52,8 @@ referee played is an accepted commit with at least four Black signatures.
 pip install -r requirements.txt     # python-chess
 # a current modal on PATH, or MODAL=/path/to/modal
 
-python3 ai_chess.py play --seed 7 --fault 0.1     # one narrated game
-python3 ai_chess.py sweep --games 16 --rates 0,0.05,0.1,0.2 --rogue-row
+python3 multi_agent_chess.py play --seed 7 --fault 0.1     # one narrated game
+python3 multi_agent_chess.py sweep --games 16 --rates 0,0.05,0.1,0.2 --rogue-row
 ```
 
 `play` writes `out/game-<seed>.json`, a `.pgn`, an `.html` replay that steps

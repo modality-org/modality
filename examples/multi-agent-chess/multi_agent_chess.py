@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""ai_chess: thirty-two agents, one board.
+"""multi_agent_chess: thirty-two agents, one board.
 
 Every piece is an agent. On each turn the agents of the side to move score
 their moves with the same engine, and the team plan is the best move. The
@@ -22,8 +22,8 @@ agents can never change. Every Black agent's move is a real commit checked by
 `modal`. The referee reads Black's move from the contract head and nothing
 else.
 
-  ai_chess.py play  --seed 7 --fault 0.1      one narrated game, with a replay
-  ai_chess.py sweep --games 12                win rates across fault rates
+  multi_agent_chess.py play  --seed 7 --fault 0.1      one narrated game, with a replay
+  multi_agent_chess.py sweep --games 12                win rates across fault rates
 
 Needs python-chess (requirements.txt) and a current `modal` on PATH, or set
 MODAL to its path.
@@ -519,7 +519,7 @@ def write_pgn(game, path):
         board.push_uci(p["played"]["uci"])
     result = {"white": "1-0", "black": "0-1", None: "1/2-1/2"}[game["winner"]]
     headers = [
-        ("Event", "ai_chess"),
+        ("Event", "multi-agent chess"),
         ("White", "16 agents over chat"),
         ("Black", "16 agents under a Modality contract"),
         ("Result", result),
@@ -609,7 +609,7 @@ def cmd_sweep(args):
     scenarios = [(f"faults {r:g}", faults_from(args, r)) for r in rates]
     if args.rogue_row:
         scenarios.append(("rogue only", Faults(rogue=True)))
-    workdir = pathlib.Path(tempfile.mkdtemp(prefix="ai-chess-"))
+    workdir = pathlib.Path(tempfile.mkdtemp(prefix="multi-agent-chess-"))
     tasks = [(label, (seed, faults, workdir / f"scenario-{i}", args.depth, args.max_plies))
              for i, (label, faults) in enumerate(scenarios)
              for seed in range(args.seed, args.seed + args.games)]
