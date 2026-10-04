@@ -1,0 +1,2 @@
+team_moves: always([-threshold("4", /team/pieces)] false)
+roster_locked: always([+modifies(/team)] false)

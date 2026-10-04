@@ -1,9 +1,14 @@
 ---
-sidebar_position: 6
-title: Agent on a Git Repo
+sidebar_position: 17
+title: An Agent May Edit, and May Not Land
 ---
 
-# An Agent on a Git Repo
+# An Agent May Edit, and May Not Land
+
+This is the sixteenth tutorial, after
+[The program and the invariant](constant-product-pool). Edits are free.
+Landing on the governed branch is propose, attest, review, land. A land
+that skips the path is the refusal.
 
 A coding agent works in a git repo. It edits any file, runs anything, and
 commits locally as often as it likes. None of that touches a contract. What
@@ -143,3 +148,5 @@ skips local verify gets nowhere. The origin's hook replays the log
   own. The log shows it when they do.
 - Rules only accumulate. Decide the rules before the bootstrap; none can
   be loosened later.
+
+Next: [Hand it over](hand-it-over).

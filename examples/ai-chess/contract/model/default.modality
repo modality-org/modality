@@ -1,0 +1,6 @@
+model Contract {
+  part flow {
+    q0 --> q1
+    q1 --> q1: +threshold("4", /team/pieces) -modifies(/team)
+  }
+}

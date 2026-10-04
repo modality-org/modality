@@ -162,7 +162,7 @@ fi
 
 members_only_required_patterns=(
   "always([+modifies(/members) -all_signed(/members)] false)"
-  "always([+modifies(/config) -signed_by(/admin.id)] false)"
+  "always([-any_signed(/members)] false)"
 )
 
 for pattern in "${members_only_required_patterns[@]}"; do
@@ -212,7 +212,7 @@ if grep -Eq -- ' true[[:space:]]*->| implies ' "$MULTISIG_TREASURY_TUTORIAL"; th
 fi
 
 oracle_escrow_required_patterns=(
-  "always([+modifies(/escrow/release.json) -oracle_attests(/oracles/delivery.id, \"delivered\", \"true\")] false)"
+  "always([+modifies(/escrow/release.text) -text_eq(/delivery.text, \"yes\")] false)"
 )
 
 for pattern in "${oracle_escrow_required_patterns[@]}"; do

@@ -1,161 +1,85 @@
 ---
-sidebar_position: 2
-title: Multisig Treasury
+sidebar_position: 8
+title: Two of Three
 ---
 
-# Building a Multisig Treasury Contract
+# Two of Three
 
-Learn to create a 2-of-3 multisig treasury using the `threshold` predicate.
+A note in the treasury contract can be one holder's word. A spend takes two
+of the three. One holder moving the funds is the refusal.
 
-## What We're Building
-
-A treasury contract where:
-- 3 keyholders control the funds
-- Every commit after the first needs a keyholder's signature
-- Any keyholder can post a withdrawal proposal
-- A withdrawal, or a change to a keyholder's key, needs 2 of the 3 keyholders
-  on the same commit
-
-## Step 1: Create Identities
+`threshold("2", /treasury)` counts distinct keys posted under `/treasury`.
+The same key written in two spellings is one signer. Rules compare keys.
+See [Modality IDs](../concepts/modality-ids).
 
 ```bash
-# Create keyholder identities
-modal id create --name alice
-modal id create --name bob
-modal id create --name carol
+modal id create --name example/erin
+modal contract create --dir ./treasury
+cd treasury
+modal checkout
+modal set-named-id /treasury/alice.id example/alice
+modal set-named-id /treasury/bob.id example/bob
+modal set-named-id /treasury/carol.id example/erin
+modal add-rule --name signed 'always([-any_signed(/treasury)] false)'
+modal add-rule --name spend \
+  'always([+modifies(/treasury) -threshold("2", /treasury)] false)'
 ```
-
-## Step 2: Create the Contract
-
-```bash
-mkdir treasury && cd treasury
-modal contract create
-modal c checkout
-```
-
-## Step 3: Set Up State
-
-```bash
-# Add keyholder identities
-modal c set-named-id /treasury/alice.id alice
-modal c set-named-id /treasury/bob.id bob
-modal c set-named-id /treasury/carol.id carol
-```
-
-`threshold("2", /treasury)` counts the keys in the `*.id` files under
-`/treasury`, so the keyholder list is those three files. Proposals live
-outside `/treasury`, under `/proposals`; executed withdrawals live under
-`/treasury/withdrawals`.
-
-## Step 4: Define the Rules
-
-Create `rules/treasury-auth.modality`. Every commit after the one that adds it
-must carry a keyholder's signature:
 
 ```modality
-export default rule {
-  starting_at $PARENT
-  formula {
-    always([-any_signed(/treasury)] false)
-  }
-}
-```
-
-Create `rules/treasury-threshold.modality`. A commit that writes anything under
-`/treasury`, a withdrawal or a key, must carry two keyholders' signatures:
-
-```modality
-export default rule {
-  starting_at $PARENT
-  formula {
-    always([+modifies(/treasury) -threshold("2", /treasury)] false)
-  }
-}
-```
-
-The second rule covers the keys too. Without it, Alice could sign a commit that
-replaces Bob's key with a second key of her own, and then meet the threshold
-alone.
-
-## Step 5: Write the Witness Model
-
-The model shows the rules can be met. The first commit installs the keys, the
-rules and the model, so its edge is unlabeled. After that, a step either leaves
-`/treasury` alone and has one keyholder's signature, or has two.
-
-`model/treasury.modality`:
-
-```modality
-model Treasury {
+model Contract {
   part flow {
     q0 --> q1
     q1 --> q1: +any_signed(/treasury) -modifies(/treasury)
-    q1 --> q1: +any_signed(/treasury) +threshold("2", /treasury)
+    q1 --> q1: +threshold("2", /treasury) +modifies(/treasury)
   }
 }
 ```
 
-The rules, not the model, protect the treasury. A later `MODEL` commit is
-judged by the model it posts, so a replacement that drops the threshold edge
-fails the second rule and is refused.
-
-You can ask the synthesizer for a candidate model and check it against a rule:
-
 ```bash
-modality model synthesize --rule rules/treasury-threshold.modality --verify -o model/candidate.modality
+modal commit --all -m "Treasury"
+modal commit --path /notes.text --value hello --sign example/alice -m "A note"
+modal commit \
+  --path /treasury/spend.text \
+  --value "pay the vendor" \
+  --sign example/alice \
+  -m "One holder"
 ```
 
-Review any candidate against both rules before you commit it.
+The note lands. The spend does not.
 
-## Step 6: Commit and Test
-
-```bash
-modal c commit --all --sign alice -m "Initialize treasury"
+```output
+No valid transition for local commit from current states {"q1"}
+Closest candidate transition: q1 -> q1 [+any_signed(/treasury) -modifies(/treasury)]; failed predicates: forbidden -modifies(/treasury) matched
 ```
 
-### Propose a Withdrawal
-
-Any keyholder can propose:
-
-```bash
-mkdir -p state/proposals
-echo '{"amount": 100, "to": "recipient_address"}' > state/proposals/withdrawal.json
-modal c commit --all --sign alice -m "Alice proposes withdrawal"
-```
-
-### Execute with Two Keyholders
-
-The withdrawal commit carries both signatures:
+The spend edge is the other one. It wanted two signatures. The refusal also
+names it: `missing +threshold("2", /treasury)`, one authorized signature of
+two, from three members. Sign with a second holder. Two signatures on one
+commit are `modal c commit --all --sign bob --sign carol` when those are the
+identity names. With the names above:
 
 ```bash
-mkdir -p state/treasury/withdrawals
-cp state/proposals/withdrawal.json state/treasury/withdrawals/0001.json
-modal c commit --all --sign bob --sign carol -m "Execute withdrawal"
+modal commit --all \
+  --sign example/alice \
+  --sign example/bob \
+  --path /treasury/spend.text \
+  --value "pay the vendor" \
+  -m "Two holders"
 ```
 
-The same commit with only `--sign bob` is refused. Approvals in separate
-commits do not add up: `threshold` counts the signatures on one commit.
+`--path` on that command posts the spend in the same commit as the
+signatures. If `/treasury/spend.text` is already in the working tree from
+the refused attempt, `modal commit --all --sign example/alice --sign example/bob`
+is the same spend. It lands.
 
-## How Threshold Works
+## The idea
 
-The `threshold("n", /path)` predicate:
+`threshold("n", /path)` holds when at least `n` distinct keys posted under
+that path signed this commit. The box
+`always([+modifies(/treasury) -threshold("2", /treasury)] false)` forbids a
+change under `/treasury` that arrived with fewer than two. The witness
+still has a one-signature step, and that step is marked
+`-modifies(/treasury)`, so a note keeps working. Threshold is a
+[standard predicate](../reference/standard-predicates).
 
-1. Reads the keys in the accepted `*.id` files at `/path` and below
-2. Collects the signatures on the pending commit
-3. Counts the unique signers whose keys are on that list
-4. Holds when the count is at least `n`
-
-**Key features:**
-- The same signer counts once
-- Signatures from keys not on the list do not count
-- Works with any n-of-m configuration
-
-## Available Templates
-
-List all synthesis templates:
-
-```bash
-modality model synthesize --list
-```
-
-Templates include: `escrow`, `handshake`, `mutual_cooperation`, `atomic_swap`, `multisig`, `service_agreement`, `delegation`, `auction`, `subscription`, `milestone`.
+Next: [Pay someone](pay-someone).

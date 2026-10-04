@@ -567,7 +567,6 @@ possible, not a lock on Alice. The rule stayed put. Bob replaced the witness.
 
 ## What's Next?
 
-- [Core Concepts](/docs/concepts) — How models, rules, and predicates fit together
-- [CLI Reference](/docs/cli) — The rest of the commands
-- [AI Commands](/docs/cli/ai-commands) — Point `modal ai suggest-rule` at your choice of provider
-- [Language Reference](/docs/language) — Model and rule syntax in more depth
+The series after this page is [After Your First Contract](/docs/tutorials).
+The next one freezes a note this contract would still let you change:
+[The commit that used to work](/docs/tutorials/rule-that-stays).

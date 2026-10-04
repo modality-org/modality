@@ -1,9 +1,13 @@
 ---
-sidebar_position: 5
-title: Constant-Product Pool
+sidebar_position: 16
+title: The Program and the Invariant
 ---
 
-# A Constant-Product Pool
+# The Program and the Invariant
+
+This is the fifteenth tutorial, after
+[Commit, then show](commit-then-show). A program computes the move. The
+rules check the result. The refusal is a swap that breaks the invariant.
 
 A pool holds two assets created by other contracts. Liquidity providers
 deposit both and receive shares; traders swap one asset for the other at a
@@ -297,3 +301,5 @@ Ordering is public:
 - The first depositor sets the price and can skew the share ratio with an
   unbalanced first deposit. Later depositors bound their loss with
   `min_shares`.
+
+Next: [An agent may edit, and may not land](agent-git-landing).
