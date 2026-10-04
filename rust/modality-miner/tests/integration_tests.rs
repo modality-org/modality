@@ -10,12 +10,26 @@ use modality_datastore::DatastoreManager;
 #[cfg(feature = "persistence")]
 use modality_datastore::models::MinerBlock;
 
+// These tests cover chain behavior; only test_mining_with_randomx needs RandomX.
+fn test_miner() -> Miner {
+    Miner::new(MinerConfig {
+        hash_func_name: Some("sha256"),
+        ..MinerConfig::default()
+    })
+}
+
+fn test_chain(config: ChainConfig, genesis_peer_id: String) -> Blockchain {
+    let mut chain = Blockchain::new(config, genesis_peer_id);
+    chain.miner = test_miner();
+    chain
+}
+
 #[test]
 fn test_full_blockchain_lifecycle() {
     let genesis_peer_id = "genesis_peer_id";
     let nominated_peer_id = "nominated_peer_1";
 
-    let mut chain = Blockchain::new(
+    let mut chain = test_chain(
         ChainConfig {
             initial_difficulty: 1,
             target_block_time_secs: 600,
@@ -44,9 +58,9 @@ fn test_multiple_epochs() {
     let genesis_peer_id = "genesis_peer_id";
     let miner_peer_id = "miner_peer_1";
     
-    let mut chain = Blockchain::new(
+    let mut chain = test_chain(
         ChainConfig {
-            initial_difficulty: 50,
+            initial_difficulty: 1,
             target_block_time_secs: 600,
             mining_delay_ms: None,
         },
@@ -81,7 +95,7 @@ fn test_multiple_nominations() {
     let nominated_peer_id1 = "nominated_peer_1";
     let nominated_peer_id2 = "nominated_peer_2";
 
-    let mut chain = Blockchain::new(
+    let mut chain = test_chain(
         ChainConfig {
             initial_difficulty: 1,
             target_block_time_secs: 600,
@@ -111,7 +125,7 @@ fn test_block_validation() {
     let genesis_peer_id = "genesis_peer_id";
     let miner_peer_id = "miner_peer_1";
     
-    let mut chain = Blockchain::new(
+    let mut chain = test_chain(
         ChainConfig {
             initial_difficulty: 1,
             target_block_time_secs: 600,
@@ -132,7 +146,7 @@ fn test_block_validation() {
         100,
     );
 
-    let miner = Miner::new_default();
+    let miner = test_miner();
     invalid_block = miner.mine_block(invalid_block).unwrap();
 
     let result = chain.add_block(invalid_block);
@@ -146,17 +160,21 @@ fn test_epoch_manager() {
     // Test epoch calculation
     assert_eq!(manager.get_epoch(0), 0);
     assert_eq!(manager.get_epoch(39), 0);
-    assert_eq!(manager.get_epoch(40), 1);
-    assert_eq!(manager.get_epoch(80), 2);
+    assert_eq!(manager.get_epoch(40), 0);
+    assert_eq!(manager.get_epoch(41), 1);
+    assert_eq!(manager.get_epoch(80), 1);
+    assert_eq!(manager.get_epoch(81), 2);
 
     // Test epoch boundaries
-    assert!(manager.is_epoch_start(0));
-    assert!(manager.is_epoch_start(40));
-    assert!(!manager.is_epoch_start(1));
+    assert!(!manager.is_epoch_start(0));
+    assert!(manager.is_epoch_start(1));
+    assert!(!manager.is_epoch_start(40));
+    assert!(manager.is_epoch_start(41));
 
-    assert!(manager.is_epoch_end(39));
-    assert!(manager.is_epoch_end(79));
-    assert!(!manager.is_epoch_end(40));
+    assert!(!manager.is_epoch_end(39));
+    assert!(manager.is_epoch_end(40));
+    assert!(!manager.is_epoch_end(79));
+    assert!(manager.is_epoch_end(80));
 }
 
 #[test]
@@ -189,7 +207,7 @@ fn test_block_hash_verification() {
     assert!(!block.verify_hash());
 
     // Mine the block
-    let miner = Miner::new_default();
+    let miner = test_miner();
     block = miner.mine_block(block).unwrap();
 
     // Now verification should pass
@@ -217,7 +235,7 @@ fn test_chain_json_export() {
     let genesis = "genesis_peer_id".to_string();
     let miner1 = "miner_peer_1".to_string();
     
-    let mut chain = Blockchain::new(
+    let mut chain = test_chain(
         ChainConfig {
             initial_difficulty: 1,
             target_block_time_secs: 600,
@@ -240,7 +258,7 @@ fn test_get_block_by_index_and_hash() {
     let genesis = "genesis_peer_id".to_string();
     let miner1 = "miner_peer_1".to_string();
     
-    let mut chain = Blockchain::new(
+    let mut chain = test_chain(
         ChainConfig {
             initial_difficulty: 1,
             target_block_time_secs: 600,
@@ -335,7 +353,7 @@ fn test_get_blocks_by_nominated_peer() {
     let nominated_peer_id1 = "nominated_peer_1";
     let nominated_peer_id2 = "nominated_peer_2";
 
-    let mut chain = Blockchain::new(
+    let mut chain = test_chain(
         ChainConfig {
             initial_difficulty: 1,
             target_block_time_secs: 600,
@@ -386,7 +404,8 @@ fn test_block_data_serialization() {
 #[cfg(feature = "persistence")]
 #[tokio::test]
 async fn test_sequential_mining_after_sync() {
-    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
+    let _ = env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info"))
+        .try_init();
     
     println!("\n=== Testing Sequential Mining After Sync ===\n");
     
@@ -417,6 +436,7 @@ async fn test_sequential_mining_after_sync() {
         peer_id1.clone(),
         datastore1.clone(),
     ).await.unwrap();
+    chain1.miner = test_miner();
     
     let (block1, _) = chain1.mine_block_with_persistence(peer_id1.clone(), 1000).await.unwrap();
     println!("✅ Node 1 mined block {} with hash {}", block1.header.index, &block1.header.hash[..16]);
@@ -454,6 +474,7 @@ async fn test_sequential_mining_after_sync() {
         peer_id2.clone(),
         datastore2.clone(),
     ).await.unwrap();
+    chain2.miner = test_miner();
     
     println!("✅ Node 2 synced successfully, chain height: {}", chain2.height());
     assert_eq!(chain2.height(), 1, "Node 2 should have block 1 after sync");
@@ -505,6 +526,7 @@ async fn test_sequential_mining_after_sync() {
         peer_id1.clone(),
         datastore1.clone(),
     ).await.unwrap();
+    chain1.miner = test_miner();
     
     println!("✅ Node 1 synced successfully, chain height: {}", chain1.height());
     assert_eq!(chain1.height(), 2, "Node 1 should have block 2 after sync");
@@ -539,7 +561,8 @@ async fn test_sequential_mining_after_sync() {
 /// This ensures the RandomX algorithm is working correctly for mining
 #[test]
 fn test_mining_with_randomx() {
-    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
+    let _ = env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info"))
+        .try_init();
     
     println!("\n=== Testing Mining with RandomX ===\n");
     

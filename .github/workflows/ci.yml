@@ -128,10 +128,8 @@ jobs:
           
       - name: Run tests
         working-directory: rust
-        # Every crate but the miner, whose RandomX tests take tens of minutes
-        # (T9). Consensus, apply, gas and fees live in the node, validator
-        # and datastore crates.
-        run: cargo test --all --exclude modality-miner
+        # Miner chain tests use fast SHA-256 fixtures; explicit RandomX coverage remains.
+        run: cargo test --all
 
   clippy:
     name: Clippy
