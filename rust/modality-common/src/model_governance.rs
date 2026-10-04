@@ -2138,20 +2138,20 @@ impl CommitFacts {
                 .unwrap_or(false),
             "sent_eq" => match (args.first(), args.get(1)) {
                 (Some(asset), Some(amount)) => self
-                    .sent_total(asset)
+                    .sent_total(&asset_key(asset))
                     .zip(self.whole_amount(amount))
                     .is_some_and(|(sent, amount)| sent == amount),
                 _ => false,
             },
             "sent_lte" => match (args.first(), args.get(1)) {
                 (Some(asset), Some(amount)) => self
-                    .sent_total(asset)
+                    .sent_total(&asset_key(asset))
                     .zip(self.whole_amount(amount))
                     .is_some_and(|(sent, amount)| sent <= amount),
                 _ => false,
             },
             "sent_to" => match (args.first(), args.get(1)) {
-                (Some(asset), Some(dest)) => self.sent_only_to(asset, dest),
+                (Some(asset), Some(dest)) => self.sent_only_to(&asset_key(asset), dest),
                 _ => false,
             },
             "posts_own_key" => args
@@ -2163,7 +2163,7 @@ impl CommitFacts {
                 .map(|program| self.emitted_by(program, args.get(1).map(String::as_str)))
                 .unwrap_or(false),
             "pays_senders" => match args.as_slice() {
-                [asset] => self.pays_senders(asset),
+                [asset] => self.pays_senders(&asset_key(asset)),
                 _ => false,
             },
             "keeps_product_per_share" => match args.as_slice() {
@@ -2180,8 +2180,10 @@ impl CommitFacts {
                 _ => false,
             },
             "tracks" => match args.as_slice() {
-                [path, asset] => self.tracks(path, asset, false),
-                [path, asset, sign] if sign == "issued" => self.tracks(path, asset, true),
+                [path, asset] => self.tracks(path, &asset_key(asset), false),
+                [path, asset, sign] if sign == "issued" => {
+                    self.tracks(path, &asset_key(asset), true)
+                }
                 _ => false,
             },
             "keeps_product" => match (args.first(), args.get(1), args.len()) {
@@ -3065,8 +3067,18 @@ fn asset_name(value: &Value) -> Option<String> {
     let id = value.get("asset_id")?.as_str()?;
     Some(match value.get("asset_contract").filter(|v| !v.is_null()) {
         None => id.to_string(),
-        Some(creator) => format!("{}:{id}", creator.as_str()?),
+        Some(creator) => asset_key(&format!("{}:{id}", creator.as_str()?)),
     })
+}
+
+/// An asset's name with its creator in the Modality spelling: one key has
+/// many spellings, so `<creator>:<asset>` names compare after this. A
+/// contract's own asset (no creator) is unchanged.
+fn asset_key(name: &str) -> String {
+    match name.rsplit_once(':') {
+        Some((creator, id)) => format!("{}:{id}", crate::peer_id::key_form(creator)),
+        None => name.to_string(),
+    }
 }
 
 fn replay_bundle_statuses(

@@ -42,6 +42,24 @@ fn holds_under(theory: TheoryVersion, state: &[(&str, Value)], name: &str, args:
 }
 
 #[test]
+fn a_held_asset_is_the_same_asset_in_any_spelling_of_its_creator() {
+    let key = crate::keypair::Keypair::generate().unwrap();
+    let base58 = key.public_key_as_base58_identity();
+    let modality = crate::peer_id::key_form(&base58);
+    assert_ne!(base58, modality, "two spellings of one key");
+    let mut c = CommitFile::new();
+    c.add_action(
+        "send".to_string(),
+        None,
+        json!({"asset_id": "MOD", "asset_contract": base58, "to_contract": "x", "amount": 10}),
+    );
+    for named in [format!("{modality}:MOD"), format!("{base58}:MOD")] {
+        assert!(holds(&c, &[], "sent_eq", &[named.as_str(), "10"]), "{named}");
+    }
+    assert!(!holds(&c, &[], "sent_eq", &["someone-else:MOD", "10"]));
+}
+
+#[test]
 fn v3_compares_numbers_exactly_where_f64_rounds() {
     let state = [
         ("/big.num", json!(9_007_199_254_740_993u64)),
