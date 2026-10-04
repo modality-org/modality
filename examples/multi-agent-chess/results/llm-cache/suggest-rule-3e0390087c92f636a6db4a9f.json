@@ -1,0 +1,5 @@
+{
+ "kind": "suggest-rule",
+ "input": "Every commit must be signed by at least twelve Black agents whose keys are under /team/pieces.",
+ "response": "always([-threshold(\"12\", /team/pieces)] false)"
+}

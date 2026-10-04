@@ -1,0 +1,5 @@
+{
+ "kind": "suggest-rule",
+ "input": "A commit may write /turn/move.text and /turn/ply.num only if it is signed by at least two of the sixteen keys stored at /team/pieces/<agent>.id.",
+ "response": "always(([+modifies(/turn/move.text) -threshold(\"2\", /team/pieces)] false) & ([+modifies(/turn/ply.num) -threshold(\"2\", /team/pieces)] false))"
+}

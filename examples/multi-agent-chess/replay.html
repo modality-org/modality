@@ -181,11 +181,13 @@ function parseFen(fen) {
 }
 
 function header() {
-  const f = game.faults;
+  const st = game.setup;
   const result = game.winner ? `${game.winner[0].toUpperCase() + game.winner.slice(1)} wins` : "Draw";
   document.getElementById("sub").textContent =
-    `${result} (${game.reason}), ${plies.length} plies. Seed ${game.seed}; panic ${f.panic}, greed ${f.greed}, amnesia ${f.amnesia}` +
-    (f.rogue ? `; rogue agents ${game.rogue.white} and ${game.rogue.black}` : "") + ".";
+    `${result} (${game.reason}), ${plies.length} plies. Seed ${game.seed}; fault rate ${st.fault}` +
+    (st.pawns === "personalities" ? "; pawns have personalities" : "") +
+    (st.white === "rules-md" ? `; RULES.md holds an agent back ${st.compliance * 100}% of the time` : "") +
+    (st.rogue ? `; rogue agents ${game.rogue.white} and ${game.rogue.black}` : "") + ".";
   const card = (side, title, note, extra) => {
     const s = summary[side];
     return `<div class="side"><h2>${title} <span>${note}</span></h2><div class="stats">
@@ -194,10 +196,15 @@ function header() {
       <div class="stat"><b>${s.centipawns_lost}</b><small>centipawns lost to them</small></div>
     </div>${extra}</div>`;
   };
+  const note = t => `<div class="row muted" style="margin-top:8px;font-size:13px">${t}</div>`;
+  const whiteRules = game.white_team.rules || [];
+  const blackRules = (game.contract.rules || []).filter(r => r.outcome === "accepted");
   document.getElementById("sides").innerHTML =
-    card("white", "White", "· 16 agents over chat", "") +
-    card("black", "Black", "· 16 agents under a Modality contract",
-      `<div class="row muted" style="margin-top:8px;font-size:13px">${game.contract.accepted} commits accepted, ${game.contract.refused} refused by <code>modal</code></div>`);
+    card("white", "White", `· 16 agents, ${esc(game.labels.white)}`,
+      st.white === "rules-md" ? note(`RULES.md at the end: ${whiteRules.length ? whiteRules.map(r => esc(r.rule)).join(" · ") : "empty"}`) : "") +
+    card("black", "Black", `· 16 agents, ${esc(game.labels.black)}`,
+      note(`${game.contract.accepted} commits accepted, ${game.contract.refused} refused by <code>modal</code>. Rules: ` +
+        (blackRules.length ? blackRules.map(r => `<code>${esc(r.formula)}</code>`).join(" · ") : "none")));
 }
 
 function drawBoard() {
@@ -232,13 +239,13 @@ function drawPanel() {
     el.innerHTML = `<h3>Start</h3>
       <p class="row">Every piece is an agent. Each turn the agents of the side to move agree on a plan, the best move their shared engine finds.
       Some agents go their own way: a threatened piece panics, a piece grabs a capture, or the chosen piece forgets the plan.</p>
-      <p class="row"><b>White</b> coordinates over chat: the referee plays the first White move it receives.</p>
-      <p class="row"><b>Black</b> coordinates through a Modality contract: a Black move counts only when four of the sixteen Black agents sign the commit, and <code>modal</code> refuses the rest.</p>
+      <p class="row"><b>White</b> coordinates over chat: the referee plays the first White move it receives.${game.setup.white === "rules-md" ? " White also keeps a RULES.md that any White agent can edit and nothing checks; after a costly off-plan move, an agent adds a rule." : ""}</p>
+      <p class="row"><b>Black</b> coordinates through a Modality contract: the referee plays the first Black move the contract accepts, and <code>modal</code> refuses the rest. ${game.setup.black === "self-ruled" ? "The contract starts with no rules; after a costly off-plan move, an agent writes one and the team commits it." : "A commit needs four of the sixteen Black agents' signatures."}</p>
       <p class="row muted">Use ▶, the arrow keys, or “Next incident”.</p>`;
     return;
   }
   const p = plies[cur - 1];
-  const side = p.side === "white" ? "White (chat)" : "Black (contract)";
+  const side = p.side === "white" ? `White (${esc(game.labels.white)})` : `Black (${esc(game.labels.black)})`;
   let html = `<h3>${moveNo(p)} ${esc(p.played.san)} <span class="muted" style="font-weight:400;font-size:14px">· ${side}</span></h3>`;
   html += `<div class="row">Team plan: <b>${esc(p.plan.san)}</b> by ${esc(p.plan.agent)}</div>`;
   if (offPlan(p)) {
@@ -251,12 +258,18 @@ function drawPanel() {
   if (list.length) {
     html += `<div style="margin-top:10px">`;
     for (const a of list) {
-      const cls = a.outcome === "played" || a.outcome === "accepted" ? "played" : a.outcome === "refused" ? "refused" : "late";
+      const cls = a.outcome === "played" || a.outcome === "accepted" ? "played" : a.outcome === "refused" || a.outcome === "held back" ? "refused" : "late";
       html += `<div class="attempt"><b>${esc(a.agent)}</b> <span class="muted">(${esc(a.kind)})</span> sent ${esc(a.san)}
         <span class="badge ${cls}">${esc(a.outcome)}</span>
         ${a.detail ? `<div class="detail">${esc(a.detail)}</div>` : ""}</div>`;
     }
     html += `</div>`;
+  }
+  for (const e of p.events || []) {
+    const cls = e.outcome === "refused" || e.type === "wipe" || (e.type === "hijack" && e.outcome === "accepted") ? "refused" : e.type === "stall" ? "late" : "played";
+    html += `<div class="attempt"><span class="badge ${cls}" style="margin-left:0">${esc(e.type)}</span> ${esc(e.text)}
+      ${e.formula && e.type !== "hijack" ? `<div class="detail">${esc(e.formula)}</div>` : ""}
+      ${e.detail ? `<div class="detail">${esc(e.detail)}</div>` : ""}</div>`;
   }
   el.innerHTML = html;
 }
@@ -267,7 +280,7 @@ function drawMoves() {
     if (p.side === "white") html += `<span class="num">${Math.ceil(p.ply / 2)}.</span>`;
     const cls = [];
     if (offPlan(p)) cls.push("inc");
-    else if (stray(p).length && p.side === "black") cls.push("inc", "rej");
+    else if (stray(p).length || (p.events || []).length) cls.push("inc", "rej");
     if (i + 1 === cur) cls.push("cur");
     html += `<a data-i="${i + 1}" class="${cls.join(" ")}">${esc(p.played.san)}</a>`;
   });
@@ -284,7 +297,7 @@ function go(i) {
 }
 
 function nextIncident() {
-  for (let i = cur + 1; i <= plies.length; i++) if (stray(plies[i - 1]).length) return go(i);
+  for (let i = cur + 1; i <= plies.length; i++) if (stray(plies[i - 1]).length || (plies[i - 1].events || []).length) return go(i);
 }
 
 function sweep() {
@@ -299,7 +312,7 @@ function sweep() {
   let html = "<thead><tr>" + head.map(h => `<th>${h}</th>`).join("") + "</tr></thead><tbody>";
   for (const r of rows) {
     const cell = (v, d = 1) => `<td${v === 0 ? ' class="zero"' : ""}>${typeof v === "number" ? v.toFixed(d) : esc(v)}</td>`;
-    html += `<tr><td>${esc(r.scenario)}</td><td>${r.white_wins}</td><td>${r.draws}</td><td>${r.black_wins}</td>` +
+    html += `<tr><td>${esc(r.experiment || r.scenario)}</td><td>${r.white_wins}</td><td>${r.draws}</td><td>${r.black_wins}</td>` +
       `<td>${r.black_score.toFixed(2)}</td>` +
       cell(r.white_off_plan_attempts) + cell(r.white_off_plan_played) +
       cell(r.black_off_plan_attempts) + cell(r.black_off_plan_played) + "</tr>";

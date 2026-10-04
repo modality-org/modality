@@ -1,0 +1,5 @@
+{
+ "kind": "suggest-rule",
+ "input": "A commit that writes /turn/move.text and /turn/ply.num is accepted only if it is signed by at least twelve of the sixteen keys at /team/pieces/<agent>.id.",
+ "response": "always([+modifies(/turn/move.text) +modifies(/turn/ply.num) -threshold(\"12\", /team/pieces)] false)"
+}

@@ -1,0 +1,5 @@
+{
+ "kind": "suggest-rule",
+ "input": "Every commit must be signed by at least twelve of the sixteen keys at /team/pieces/.",
+ "response": "always([-threshold(\"12\", /team/pieces)] false)"
+}

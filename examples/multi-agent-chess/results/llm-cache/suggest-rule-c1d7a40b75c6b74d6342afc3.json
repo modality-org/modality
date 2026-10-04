@@ -1,0 +1,5 @@
+{
+ "kind": "suggest-rule",
+ "input": "Every commit must also be signed by at least twelve agents whose keys are at /team/pieces/.",
+ "response": "always([-threshold(\"12\", /team/pieces)] false)"
+}

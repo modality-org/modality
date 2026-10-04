@@ -1,0 +1,5 @@
+{
+ "kind": "suggest-rule",
+ "input": "Every commit that posts to /turn/move.text and /turn/ply.num must be signed by at least twelve of the sixteen keys under /team/pieces.",
+ "response": "always([+post_to_path(/turn/move.text) +post_to_path(/turn/ply.num) -threshold(\"12\", /team/pieces)] false)"
+}

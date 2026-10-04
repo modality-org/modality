@@ -1,0 +1,5 @@
+{
+ "kind": "suggest-rule",
+ "input": "Every commit must be signed by at least twelve distinct agents from /team/pieces, not by queen_d8 alone.",
+ "response": "always([-threshold(\"12\", /team/pieces)] false)"
+}

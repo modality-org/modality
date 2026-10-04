@@ -91,6 +91,7 @@ const sidebars: SidebarsConfig = {
         },
       ],
     },
+    'multi-agent-chess',
     {
       type: 'category',
       label: 'Reference',

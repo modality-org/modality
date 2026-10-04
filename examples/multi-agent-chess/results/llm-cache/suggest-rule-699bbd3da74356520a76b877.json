@@ -1,0 +1,5 @@
+{
+ "kind": "suggest-rule",
+ "input": "A commit that writes /turn/move.text and /turn/ply.num must be signed by at least eight of the sixteen keys stored at /team/pieces/<agent>.id.",
+ "response": "always([+modifies(/turn/move.text) +modifies(/turn/ply.num) -threshold(\"8\", /team/pieces)] false)"
+}

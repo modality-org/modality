@@ -8,31 +8,31 @@ agents are not perfect, and both sides draw their faults from the same rates:
   panic    a threatened piece runs, whatever the plan says
   greed    a piece grabs a capture, whatever the plan says
   amnesia  the piece the team chose forgets the plan and moves somewhere else
-  rogue    one compromised piece plays its worst move every turn (--rogue)
+  rogue    one compromised agent plays its worst move every turn (--rogue)
 
-The sides differ only in how a move reaches the referee.
+The sides differ in how a move reaches the referee (coordination.py):
 
-White coordinates over chat. Any White agent can send a move, and the referee
-plays the first one it gets: the plan, or an agent that went its own way.
+  White --white chat       any agent can send a move; the referee plays the first
+        --white rules-md   the same, plus a RULES.md any White agent can edit
+  Black --black contract   a Modality contract: 4 of 16 signatures, roster locked
+        --black self-ruled a Modality contract with no rules; the agents add them
 
-Black coordinates through a Modality contract (contract/). A Black move is
-the /turn/move.text of an accepted commit, the contract accepts a commit only
-with signatures from four of the sixteen Black agents, and the roster of
-agents can never change. Every Black agent's move is a real commit checked by
-`modal`. The referee reads Black's move from the contract head and nothing
-else.
+With --pawns personalities, each pawn has its own fault rates and compliance;
+the other pieces do not.
 
-  multi_agent_chess.py play  --seed 7 --fault 0.1      one narrated game, with a replay
-  multi_agent_chess.py sweep --games 12                win rates across fault rates
+  multi_agent_chess.py play --seed 7                       one narrated game, with a replay
+  multi_agent_chess.py play --white rules-md --black self-ruled --seed 3
+  multi_agent_chess.py experiments --games 16              every setup in EXPERIMENTS
 
 Needs python-chess (requirements.txt) and a current `modal` on PATH, or set
-MODAL to its path.
+MODAL to its path. RULES.md and self-ruled setups ask a language model for
+rules through the `agent` CLI (cursor-agent; set AGENT_CLI) and through
+`modal contract ai suggest-rule`; answers are cached under --cache.
 """
 
 import argparse
 import concurrent.futures
 import dataclasses
-import html
 import json
 import os
 import pathlib
@@ -41,410 +41,51 @@ import re
 import shutil
 import subprocess
 import sys
-import tempfile
 
 import chess
+
+from agents import attempts_for_turn, choose_rogue, follow_move, initial_agents, make_traits, pick_plan
+from coordination import Chat, ContractTeam, Refused
+from engine import MATE, material, score_moves
+from retro import LLM
 
 HERE = pathlib.Path(__file__).resolve().parent
 MODAL = os.environ.get("MODAL", "modal")
 
-THRESHOLD = 4  # matches contract/rules.txt and contract/model/default.modality
-
-VALUE = {
-    chess.PAWN: 100,
-    chess.KNIGHT: 320,
-    chess.BISHOP: 330,
-    chess.ROOK: 500,
-    chess.QUEEN: 900,
-    chess.KING: 0,
-}
-MATE = 100_000
-INF = 10 * MATE
-
-
-# ---------------------------------------------------------------------------
-# The engine every agent shares: one reply deep, then captures
-
-
-def positional(piece, sq, queens_on):
-    f, r = chess.square_file(sq), chess.square_rank(sq)
-    centre = 3.5 - max(abs(f - 3.5), abs(r - 3.5))  # 0 at the edge, 3 in the middle
-    t = piece.piece_type
-    if t == chess.PAWN:
-        advance = r - 1 if piece.color == chess.WHITE else 6 - r
-        return advance * 8 + (int(centre * 4) if 2 <= f <= 5 else 0)
-    if t in (chess.KNIGHT, chess.BISHOP):
-        return int(centre * 10)
-    if t == chess.QUEEN:
-        return int(centre * 3)
-    if t == chess.KING:
-        return -int(centre * 10) if queens_on else int(centre * 8)
-    return 0
-
-
-def evaluate(board):
-    """Score for the side to move."""
-    pieces = board.piece_map()
-    queens_on = any(p.piece_type == chess.QUEEN for p in pieces.values())
-    score = 0
-    for sq, p in pieces.items():
-        v = VALUE[p.piece_type] + positional(p, sq, queens_on)
-        score += v if p.color == chess.WHITE else -v
-    return score if board.turn == chess.WHITE else -score
-
-
-def capture_order(board, move):
-    victim = board.piece_type_at(move.to_square) or chess.PAWN
-    attacker = board.piece_type_at(move.from_square)
-    return VALUE[victim] * 10 - VALUE[attacker]
-
-
-def quiesce(board, alpha, beta, depth=0):
-    stand = evaluate(board)
-    if stand >= beta or depth >= 4:
-        return stand
-    alpha = max(alpha, stand)
-    captures = [m for m in board.legal_moves if board.is_capture(m)]
-    captures.sort(key=lambda m: capture_order(board, m), reverse=True)
-    for m in captures:
-        board.push(m)
-        s = -quiesce(board, -beta, -alpha, depth + 1)
-        board.pop()
-        if s >= beta:
-            return s
-        alpha = max(alpha, s)
-    return alpha
-
-
-def search(board, depth, alpha, beta, ply):
-    if board.is_checkmate():
-        return -MATE + ply
-    if board.is_stalemate() or board.is_insufficient_material():
-        return 0
-    if depth == 0:
-        return quiesce(board, alpha, beta)
-    moves = sorted(
-        board.legal_moves,
-        key=lambda m: capture_order(board, m) if board.is_capture(m) else -INF,
-        reverse=True,
-    )
-    best = -INF
-    for m in moves:
-        board.push(m)
-        s = -search(board, depth - 1, -beta, -alpha, ply + 1)
-        board.pop()
-        best = max(best, s)
-        alpha = max(alpha, s)
-        if alpha >= beta:
-            break
-    return best
-
-
-def score_moves(board, depth):
-    """Every legal move with its exact score, for the side to move."""
-    scores = {}
-    for m in board.legal_moves:
-        board.push(m)
-        scores[m] = -search(board, depth - 1, -INF, INF, 1)
-        board.pop()
-    return scores
-
-
-def material(board):
-    return sum(
-        VALUE[p.piece_type] * (1 if p.color == chess.WHITE else -1)
-        for p in board.piece_map().values()
-    )
-
-
-# ---------------------------------------------------------------------------
-# The agents
-
 
 @dataclasses.dataclass
-class Faults:
-    panic: float = 0.0
-    greed: float = 0.0
-    amnesia: float = 0.0
+class Setup:
+    name: str = "custom"
+    white: str = "chat"  # chat | rules-md
+    black: str = "contract"  # contract | self-ruled
+    pawns: str = "uniform"  # uniform | personalities
+    fault: float = 0.1
+    compliance: float = 0.5  # how often a RULES.md rule holds an agent back
     rogue: bool = False
     rogue_from: int = 10  # ply
+    max_retros: int = 3  # per side, per game
+    note: str = ""
 
 
-@dataclasses.dataclass
-class Attempt:
-    agent: str
-    kind: str  # plan, panic, greed, amnesia, rogue
-    move: chess.Move
-
-
-def initial_agents(board):
-    """Square -> agent name. An agent is named for its piece and home square."""
-    return {
-        sq: f"{chess.piece_name(p.piece_type)}_{chess.square_name(sq)}"
-        for sq, p in board.piece_map().items()
-    }
-
-
-def follow_move(board, move, at):
-    """Move agent names with the pieces. Returns the captured agent, if any."""
-    captured = None
-    if board.is_en_passant(move):
-        captured = at.pop(move.to_square + (-8 if board.turn == chess.WHITE else 8), None)
-    elif board.is_capture(move):
-        captured = at.pop(move.to_square, None)
-    at[move.to_square] = at.pop(move.from_square)
-    if board.is_castling(move):
-        rank = chess.square_rank(move.from_square)
-        if chess.square_file(move.to_square) == 6:
-            at[chess.square(5, rank)] = at.pop(chess.square(7, rank))
-        else:
-            at[chess.square(3, rank)] = at.pop(chess.square(0, rank))
-    return captured
-
-
-def threatened(board, sq):
-    piece = board.piece_at(sq)
-    attackers = board.attackers(not piece.color, sq)
-    if not attackers:
-        return False
-    if not board.is_attacked_by(piece.color, sq):
-        return True
-    cheapest = min(VALUE[board.piece_type_at(a)] or 10_000 for a in attackers)
-    return cheapest < VALUE[piece.piece_type]
-
-
-def pick_plan(scores, rng, margin):
-    best = max(scores.values())
-    near = sorted((m for m, s in scores.items() if s >= best - margin), key=lambda m: m.uci())
-    return rng.choice(near)
-
-
-def attempts_for_turn(board, scores, plan, at, faults, rng, rogue, ply):
-    """What each agent of the side to move sends this turn.
-
-    The first attempt is the chosen agent's: the plan, or an amnesiac's move.
-    The rest are the agents that went their own way.
-    """
-    own = {}
-    for m in scores:
-        own.setdefault(m.from_square, []).append(m)
-    chosen = Attempt(at[plan.from_square], "plan", plan)
-    others = []
-    for sq in sorted(own):
-        name, moves = at[sq], own[sq]
-        piece = board.piece_at(sq)
-        if name == rogue and ply >= faults.rogue_from:
-            worst = min(moves, key=lambda m: (scores[m], m.uci()))
-            if sq == plan.from_square:
-                chosen = Attempt(name, "rogue", worst)
-            elif worst != plan:
-                others.append(Attempt(name, "rogue", worst))
-            continue
-        if sq == plan.from_square:
-            if rng.random() < faults.amnesia:
-                rest = sorted((m for m in moves if m != plan), key=lambda m: m.uci())
-                if rest:
-                    chosen = Attempt(name, "amnesia", rng.choice(rest))
-            continue
-        if piece.piece_type != chess.KING and threatened(board, sq) and rng.random() < faults.panic:
-            others.append(Attempt(name, "panic", max(moves, key=lambda m: (scores[m], m.uci()))))
-            continue
-        captures = [m for m in moves if board.is_capture(m)]
-        if captures and rng.random() < faults.greed:
-            grab = max(
-                captures,
-                key=lambda m: (VALUE[board.piece_type_at(m.to_square) or chess.PAWN], scores[m], m.uci()),
-            )
-            others.append(Attempt(name, "greed", grab))
-    return [chosen] + others
-
-
-# ---------------------------------------------------------------------------
-# White: chat. The referee plays the first move it gets.
-
-
-def resolve_chat(attempts, rng):
-    order = list(attempts)
-    rng.shuffle(order)
-    played = order[0]
-    outcomes = []
-    for a in attempts:
-        if a is played:
-            outcomes.append((a, "played", None))
-        else:
-            outcomes.append((a, "too late", "the referee had already taken another White move"))
-    return played.move, outcomes
-
-
-# ---------------------------------------------------------------------------
-# Black: a Modality contract. The referee reads the move at the contract head.
-
-
-class Refused(Exception):
-    pass
-
-
-def modal(*args, cwd):
-    proc = subprocess.run([MODAL, *args], cwd=cwd, capture_output=True, text=True)
-    return proc.returncode == 0, (proc.stderr or "") + (proc.stdout or "")
-
-
-def why_refused(output):
-    m = re.search(r"failed predicates: ([^;]*)", output)
-    detail = m.group(1) if m else output.strip().splitlines()[0] if output.strip() else "refused"
-    return detail.strip()
-
-
-class TeamContract:
-    """Black's team contract, in its own directory."""
-
-    def __init__(self, root, names):
-        self.root = pathlib.Path(root)
-        self.root.mkdir(parents=True, exist_ok=True)
-        self.commits = {"accepted": 0, "refused": 0}
-        self._run("contract", "create")
-        (self.root / "keys").mkdir(exist_ok=True)
-        for name in names:
-            self._run("id", "create", "--path", f"keys/{name}.passfile")
-            self._run("contract", "set-named-id", f"/team/pieces/{name}.id", f"./keys/{name}.passfile")
-        shutil.copytree(HERE / "contract" / "model", self.root / "model", dirs_exist_ok=True)
-        for line in (HERE / "contract" / "rules.txt").read_text().splitlines():
-            if line.strip():
-                rule, formula = line.split(":", 1)
-                self._run("contract", "add-rule", "--name", rule.strip(), formula.strip())
-        # The bootstrap commit: roster, model and rules. Any key may sign it;
-        # the rules bind every commit after it.
-        self._run("contract", "commit", "--all", "--sign", f"keys/{names[0]}.passfile", "-m", "team roster")
-
-    def _run(self, *args):
-        ok, out = modal(*args, cwd=self.root)
-        if not ok:
-            raise Refused(f"modal {' '.join(args)}\n{out.strip()}")
-        return out
-
-    def submit(self, move, ply, signers, message):
-        turn = self.root / "state" / "turn"
-        turn.mkdir(parents=True, exist_ok=True)
-        (turn / "move.text").write_text(move.uci())
-        (turn / "ply.num").write_text(str(ply))
-        args = ["contract", "commit", "--all", "-m", message]
-        for name in signers:
-            args += ["--sign", f"keys/{name}.passfile"]
-        ok, out = modal(*args, cwd=self.root)
-        self.commits["accepted" if ok else "refused"] += 1
-        return ok, out
-
-    def head(self):
-        """The accepted head: (move, ply, signer count)."""
-        store = self.root / ".contract"
-        head_id = (store / "HEAD").read_text().strip()
-        commit = json.loads((store / "commits" / f"{head_id}.json").read_text())
-        body = {a["path"]: a.get("value") for a in commit["body"]}
-        move = body.get("/turn/move.text")
-        ply = body.get("/turn/ply.num")
-        return (chess.Move.from_uci(move) if move else None), ply, len(commit["head"]["signatures"])
-
-
-def resolve_contract(attempts, contract, roster, rogue, ply, plan):
-    outcomes = []
-    strays = set()
-    for a in attempts:
-        if a.kind == "plan":
-            continue
-        strays.add(a.agent)
-        ok, out = contract.submit(a.move, ply, [a.agent], f"ply {ply}: {a.agent} ({a.kind})")
-        outcomes.append((a, "accepted" if ok else "refused", None if ok else why_refused(out)))
-    # Everyone else signs the plan they agreed to. A rogue never signs.
-    endorsers = [n for n in roster if n not in strays and n != rogue]
-    ok, out = contract.submit(plan, ply, endorsers, f"ply {ply}: team plan")
-    if not ok:
-        raise Refused(f"the team plan was refused at ply {ply}: {why_refused(out)}")
-    move, head_ply, signers = contract.head()
-    if head_ply != ply:
-        raise Refused(f"contract head is at ply {head_ply}, expected {ply}")
-    chosen = attempts[0]
-    if chosen.kind == "plan":
-        outcomes.insert(0, (chosen, "played", f"accepted with {signers} of {len(roster)} signatures"))
-    return move, outcomes
+EXPERIMENTS = [
+    Setup("control", fault=0.0, note="No faults: the contract should change nothing"),
+    Setup("baseline", note="Chat against the preset contract"),
+    Setup("rules-md", white="rules-md", note="White writes RULES.md; agents follow it half the time"),
+    Setup("rules-md-obeyed", white="rules-md", compliance=1.0, note="White writes RULES.md; agents always follow it"),
+    Setup("self-ruled", black="self-ruled", note="Black starts with no rules and writes its own"),
+    Setup("rules-md-vs-self-ruled", white="rules-md", black="self-ruled",
+          note="Both sides write their own rules: a file against a contract"),
+    Setup("rogue-baseline", rogue=True, note="A rogue agent on each side, against the preset contract"),
+    Setup("rogue-self-ruled", white="rules-md", black="self-ruled", rogue=True,
+          note="A rogue agent on each side, when both sides write their own rules"),
+    Setup("pawns", pawns="personalities", note="Pawns differ; chat against the preset contract"),
+    Setup("pawns-self-ruled", white="rules-md", black="self-ruled", pawns="personalities",
+          note="Pawns differ; both sides write their own rules"),
+]
 
 
 # ---------------------------------------------------------------------------
 # A game
-
-
-def play_game(seed, faults, workdir, depth=2, margin=20, max_plies=160, narrate=False):
-    board = chess.Board()
-    at = initial_agents(board)
-    rng = {chess.WHITE: random.Random(f"{seed}-white"), chess.BLACK: random.Random(f"{seed}-black")}
-    roster = {
-        color: sorted(n for sq, n in at.items() if board.color_at(sq) == color)
-        for color in (chess.WHITE, chess.BLACK)
-    }
-    rogue = {chess.WHITE: None, chess.BLACK: None}
-    if faults.rogue:
-        for color in rogue:
-            rogue[color] = random.Random(f"{seed}-rogue").choice(
-                [n for n in roster[color] if not n.startswith("king")]
-            )
-    contract = TeamContract(pathlib.Path(workdir) / f"black-{seed}", roster[chess.BLACK])
-
-    plies = []
-    while not board.is_game_over(claim_draw=True) and len(board.move_stack) < max_plies:
-        side = board.turn
-        ply = len(board.move_stack) + 1
-        scores = score_moves(board, depth)
-        plan = pick_plan(scores, rng[side], margin)
-        attempts = attempts_for_turn(board, scores, plan, at, faults, rng[side], rogue[side], ply)
-        if side == chess.WHITE:
-            played, outcomes = resolve_chat(attempts, rng[side])
-        else:
-            played, outcomes = resolve_contract(attempts, contract, roster[side], rogue[side], ply, plan)
-        if played not in scores:
-            raise Refused(f"ply {ply}: {played} is not a legal move")
-
-        record = {
-            "ply": ply,
-            "side": "white" if side == chess.WHITE else "black",
-            "plan": {"uci": plan.uci(), "san": board.san(plan), "agent": at[plan.from_square], "score": scores[plan]},
-            "played": {"uci": played.uci(), "san": board.san(played), "agent": at[played.from_square], "score": scores[played]},
-            "cost": scores[plan] - scores[played],
-            "attempts": [
-                {
-                    "agent": a.agent,
-                    "kind": a.kind,
-                    "uci": a.move.uci(),
-                    "san": board.san(a.move),
-                    "outcome": outcome,
-                    "detail": detail,
-                }
-                for a, outcome, detail in outcomes
-            ],
-        }
-        captured = follow_move(board, played, at)
-        board.push(played)
-        record["captured"] = captured
-        record["fen"] = board.fen()
-        plies.append(record)
-        if narrate:
-            narrate_ply(record)
-
-    outcome = board.outcome(claim_draw=True)
-    if outcome:
-        winner = {True: "white", False: "black", None: None}[outcome.winner]
-        reason = outcome.termination.name.lower().replace("_", " ")
-    else:
-        diff = material(board)
-        winner = "white" if diff >= 300 else "black" if diff <= -300 else None
-        reason = f"adjudicated on material after {max_plies} plies ({diff:+d})"
-    return {
-        "seed": seed,
-        "faults": dataclasses.asdict(faults),
-        "rogue": {"white": rogue[chess.WHITE], "black": rogue[chess.BLACK]},
-        "winner": winner,
-        "reason": reason,
-        "plies": plies,
-        "contract": {"dir": str(contract.root), **contract.commits},
-    }
 
 
 def lost(record):
@@ -468,6 +109,130 @@ def move_number(record):
     return f"{n}." if record["side"] == "white" else f"{n}..."
 
 
+def describe_incident(record):
+    """What a retro is told: the same words for both sides."""
+    stray = next((a for a in record["attempts"] if a["uci"] == record["played"]["uci"] and a["kind"] != "plan"), None)
+    who = f"{stray['agent']} ({stray['kind']})" if stray else record["played"]["agent"]
+    return (f"On move {move_number(record)} the team planned {record['plan']['san']} "
+            f"({record['plan']['agent']}), but {who} sent {record['played']['san']} instead, "
+            f"and that move was played, {describe_cost(record)}.")
+
+
+def play_game(setup, seed, workdir, llm=None, depth=2, margin=20, max_plies=160, narrate=False):
+    workdir = pathlib.Path(workdir)
+    board = chess.Board()
+    at = initial_agents(board)
+    rng = {chess.WHITE: random.Random(f"{seed}-white"), chess.BLACK: random.Random(f"{seed}-black")}
+    roster = {
+        color: sorted(n for sq, n in at.items() if board.color_at(sq) == color)
+        for color in (chess.WHITE, chess.BLACK)
+    }
+    traits = make_traits(list(at.values()), setup.fault, setup.compliance, setup.pawns, seed)
+    rogue = {c: (choose_rogue(seed, roster[c]) if setup.rogue else None) for c in roster}
+    coord = {
+        chess.WHITE: Chat(workdir / f"white-{seed}", setup.white == "rules-md", llm, setup.max_retros),
+        chess.BLACK: ContractTeam(workdir / f"black-{seed}", roster[chess.BLACK], MODAL,
+                                  preset=setup.black == "contract", llm=llm, max_retros=setup.max_retros),
+    }
+
+    plies, forfeit, forfeit_events = [], None, []
+    while not board.is_game_over(claim_draw=True) and len(board.move_stack) < max_plies:
+        side = board.turn
+        ply = len(board.move_stack) + 1
+        active_rogue = rogue[side] if ply >= setup.rogue_from else None
+        scores = score_moves(board, depth)
+        plan = first_plan = pick_plan(scores, rng[side], margin)
+        # A side that gets no move accepted tries again. If the piece it chose
+        # did not send the plan twice, the team plans around that piece. The side
+        # forfeits when its agreed plan itself is refused three times: its
+        # rules block the team.
+        events, played, plan_refused, passed_over, misses = [], None, 0, set(), {}
+        for _ in range(20):
+            attempts = attempts_for_turn(board, scores, plan, at, traits, rng[side], active_rogue)
+            played, outcomes, ev = coord[side].resolve(ply, attempts, plan, rng[side], traits,
+                                                       active_rogue, roster[side])
+            events += ev
+            if played is not None:
+                break
+            plan_refused += any(a.kind == "plan" and o == "refused" for a, o, _ in outcomes)
+            if plan_refused >= 3:
+                events.append({"type": "stall", "text": "the team's own plan was refused three times"})
+                break
+            sent = "; ".join(f"{a.agent} ({a.kind}) {board.san(a.move)}: {o}" for a, o, _ in outcomes)
+            if attempts[0].kind != "plan":
+                misses[plan.from_square] = misses.get(plan.from_square, 0) + 1
+                if misses[plan.from_square] >= 2:  # asked twice: plan around that piece
+                    passed_over.add(plan.from_square)
+                    rest = {m: s for m, s in scores.items() if m.from_square not in passed_over}
+                    if rest:
+                        plan = pick_plan(rest, rng[side], margin)
+                    else:  # no other piece can move: ask the same ones again
+                        passed_over.clear()
+                        misses.clear()
+            again = "asked for" if plan.from_square not in passed_over and misses.get(plan.from_square) else "planned"
+            events.append({"type": "stall", "text": f"no move was accepted ({sent}), so the team {again} "
+                                                    f"{board.san(plan)} ({at[plan.from_square]})"})
+        if played is None:
+            forfeit = "white" if side == chess.WHITE else "black"
+            forfeit_events = events
+            if narrate:
+                for e in events:
+                    print(f"    * {e['text']}")
+                print(f"ply {ply}: {forfeit} could get no move accepted and forfeits")
+            break
+        if played not in scores:
+            raise Refused(f"ply {ply}: {played} is not a legal move")
+
+        record = {
+            "ply": ply,
+            "side": "white" if side == chess.WHITE else "black",
+            "plan": {"uci": plan.uci(), "san": board.san(plan), "agent": at[plan.from_square], "score": scores[plan]},
+            "played": {"uci": played.uci(), "san": board.san(played), "agent": at[played.from_square], "score": scores[played]},
+            "cost": scores[plan] - scores[played],
+            "first_plan": first_plan.uci(),
+            "replan_cost": scores[first_plan] - scores[plan],
+            "attempts": [
+                {"agent": a.agent, "kind": a.kind, "uci": a.move.uci(), "san": board.san(a.move),
+                 "outcome": outcome, "detail": detail}
+                for a, outcome, detail in outcomes
+            ],
+        }
+        incident = describe_incident(record) if played != plan else None
+        events += coord[side].after_ply(record, incident, roster[side], active_rogue)
+        record["events"] = events
+        captured = follow_move(board, played, at)
+        board.push(played)
+        record["captured"] = captured
+        record["fen"] = board.fen()
+        plies.append(record)
+        if narrate:
+            narrate_ply(record)
+
+    if forfeit:
+        winner = "black" if forfeit == "white" else "white"
+        reason = f"{forfeit} got no move accepted and forfeited"
+    elif (outcome := board.outcome(claim_draw=True)):
+        winner = {True: "white", False: "black", None: None}[outcome.winner]
+        reason = outcome.termination.name.lower().replace("_", " ")
+    else:
+        diff = material(board)
+        winner = "white" if diff >= 300 else "black" if diff <= -300 else None
+        reason = f"adjudicated on material after {max_plies} plies ({diff:+d})"
+    return {
+        "seed": seed,
+        "setup": dataclasses.asdict(setup),
+        "labels": {"white": coord[chess.WHITE].label, "black": coord[chess.BLACK].label},
+        "rogue": {"white": rogue[chess.WHITE], "black": rogue[chess.BLACK]},
+        "pawns": {n: dataclasses.asdict(t) for n, t in traits.items() if n.startswith("pawn")},
+        "winner": winner,
+        "reason": reason,
+        "plies": plies,
+        "forfeit_events": forfeit_events,
+        "white_team": coord[chess.WHITE].report(),
+        "contract": coord[chess.BLACK].report(),
+    }
+
+
 def short_refusal(detail):
     m = re.search(r"authorized signatures (\d+)/(\d+)", detail or "")
     return f"signed by {m.group(1)}, the contract needs {m.group(2)}" if m else detail
@@ -475,7 +240,7 @@ def short_refusal(detail):
 
 def narrate_ply(r):
     stray = [a for a in r["attempts"] if a["kind"] != "plan"]
-    if not stray:
+    if not stray and not r["events"]:
         return
     side = r["side"].capitalize()
     print(f"{move_number(r)} {side} plan: {r['plan']['agent']} {r['plan']['san']}")
@@ -484,6 +249,9 @@ def narrate_ply(r):
         print(f"    {a['agent']} ({a['kind']}) sent {a['san']}: {a['outcome']}{note}")
     if r["played"]["uci"] != r["plan"]["uci"]:
         print(f"    played {r['played']['san']} instead, {describe_cost(r)}")
+    for e in r["events"]:
+        detail = f" ({short_refusal(e['detail'])})" if e.get("detail") else ""
+        print(f"    * {e['text']}{detail}")
 
 
 def summarize(game):
@@ -492,36 +260,46 @@ def summarize(game):
         plies = [p for p in game["plies"] if p["side"] == side]
         stray = [a for p in plies for a in p["attempts"] if a["kind"] != "plan"]
         off = [p for p in plies if p["played"]["uci"] != p["plan"]["uci"]]
+        events = [e for p in plies for e in p["events"]]
+        if game.get("forfeit_events") and game["reason"].startswith(side):
+            events += game["forfeit_events"]
+        rules = [e for e in events if e["type"] == "rule"]
         out[side] = {
             "moves": len(plies),
             "off_plan_attempts": len(stray),
             "off_plan_played": len(off),
+            "held_back": sum(a["outcome"] == "held back" for a in stray),
             "centipawns_lost": sum(lost(p) for p in off),
+            "replans": sum(p["first_plan"] != p["plan"]["uci"] for p in plies),
+            "replan_centipawns": sum(max(0, min(p["replan_cost"], 1000)) for p in plies),
+            "rules_proposed": len(rules),
+            "rules_kept": sum(e["outcome"] in ("written", "accepted") for e in rules),
+            "wipes": sum(e["type"] == "wipe" for e in events),
+            "stalls": sum(e["type"] == "stall" for e in events),
+            "hijacked": any(e["type"] == "hijack" and e["outcome"] == "accepted" for e in events),
         }
     return out
 
 
 # ---------------------------------------------------------------------------
-# Replay page
+# Replay, PGN and audit
 
 
-def write_replay(game, path, sweep=None):
+def write_replay(game, path, extra=None):
     template = (HERE / "replay.html").read_text()
-    data = json.dumps({"game": game, "summary": summarize(game), "sweep": sweep}).replace("</", "<\\/")
+    data = json.dumps({"game": game, "summary": summarize(game), "sweep": extra}).replace("</", "<\\/")
     path.write_text(template.replace("/*GAME_DATA*/null", data))
 
 
 def write_pgn(game, path):
-    board = chess.Board()
     sans = []
     for p in game["plies"]:
         sans.append((f"{move_number(p)} " if p["side"] == "white" else "") + p["played"]["san"])
-        board.push_uci(p["played"]["uci"])
     result = {"white": "1-0", "black": "0-1", None: "1/2-1/2"}[game["winner"]]
     headers = [
         ("Event", "multi-agent chess"),
-        ("White", "16 agents over chat"),
-        ("Black", "16 agents under a Modality contract"),
+        ("White", f"16 agents, {game['labels']['white']}"),
+        ("Black", f"16 agents, {game['labels']['black']}"),
         ("Result", result),
         ("Seed", str(game["seed"])),
     ]
@@ -529,22 +307,18 @@ def write_pgn(game, path):
     path.write_text(text)
 
 
-# ---------------------------------------------------------------------------
-# Audit: anyone holding Black's contract can check the referee
-
-
 def audit(game):
     """Check every Black move against the contract's own log."""
     root = pathlib.Path(game["contract"]["dir"])
-    ok, out = modal("contract", "log", "--output", "json", cwd=root)
-    if not ok:
-        raise Refused(out)
+    proc = subprocess.run([MODAL, "contract", "log", "--output", "json"], cwd=root, capture_output=True, text=True)
+    if proc.returncode != 0:
+        raise Refused(proc.stderr)
     moves = {}
-    for c in json.loads(out)["commits"]:
+    for c in json.loads(proc.stdout)["commits"]:
         commit = json.loads((root / ".contract" / "commits" / f"{c['id']}.json").read_text())
-        body = {a["path"]: a.get("value") for a in commit["body"]}
-        if "/turn/move.text" in body:
-            moves[body["/turn/ply.num"]] = (body["/turn/move.text"], c["signature_count"])
+        body = {a["path"]: a.get("value") for a in commit["body"] if a.get("path")}
+        if "/turn/move.text" in body and body.get("/turn/ply.num") is not None:
+            moves.setdefault(body["/turn/ply.num"], (body["/turn/move.text"], c["signature_count"]))
     black = [p for p in game["plies"] if p["side"] == "black"]
     bad = [p["ply"] for p in black if moves.get(p["ply"], (None,))[0] != p["played"]["uci"]]
     least = min((moves[p["ply"]][1] for p in black if p["ply"] in moves), default=0)
@@ -555,31 +329,28 @@ def audit(game):
 # Commands
 
 
-def faults_from(args, rate=None):
-    f = args.fault if rate is None else rate
-    return Faults(
-        panic=args.panic if args.panic is not None else f,
-        greed=args.greed if args.greed is not None else f,
-        amnesia=args.amnesia if args.amnesia is not None else f,
-        rogue=args.rogue,
-    )
+def setup_from(args):
+    return Setup(white=args.white, black=args.black, pawns=args.pawns, fault=args.fault,
+                 compliance=args.compliance, rogue=args.rogue)
 
 
 def cmd_play(args):
     out = pathlib.Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
-    faults = faults_from(args)
-    print(f"seed {args.seed}: panic {faults.panic}, greed {faults.greed}, amnesia {faults.amnesia}"
-          + (", one rogue per side" if faults.rogue else ""))
-    print("White: chat.  Black: Modality contract (4 of 16 signatures).\n")
-    shutil.rmtree(out / f"black-{args.seed}", ignore_errors=True)  # a previous run of this seed
-    game = play_game(args.seed, faults, out, depth=args.depth, max_plies=args.max_plies, narrate=True)
+    setup = setup_from(args)
+    llm = LLM(args.cache, MODAL)
+    print(f"seed {args.seed}: faults {setup.fault}, pawns {setup.pawns}"
+          + (", one rogue per side" if setup.rogue else ""))
+    for d in (f"black-{args.seed}", f"white-{args.seed}"):  # a previous run of this seed
+        shutil.rmtree(out / d, ignore_errors=True)
+    game = play_game(setup, args.seed, out, llm, depth=args.depth, max_plies=args.max_plies, narrate=True)
+    print(f"White: {game['labels']['white']}.  Black: {game['labels']['black']}.")
     s = summarize(game)
     print(f"\nResult: {game['winner'] or 'draw'} ({game['reason']}) after {len(game['plies'])} plies")
     for side in ("white", "black"):
         v = s[side]
-        print(f"  {side:5}  off-plan attempts {v['off_plan_attempts']:3}   "
-              f"off-plan moves played {v['off_plan_played']:3}   centipawns lost {v['centipawns_lost']}")
+        print(f"  {side:5}  off-plan sent {v['off_plan_attempts']:3}   played {v['off_plan_played']:3}"
+              f"   centipawns lost {v['centipawns_lost']}   rules kept {v['rules_kept']}/{v['rules_proposed']}")
     c = game["contract"]
     print(f"  black contract: {c['accepted']} commits accepted, {c['refused']} refused ({c['dir']})")
     a = game["audit"] = audit(game)
@@ -590,94 +361,116 @@ def cmd_play(args):
               f"each signed by at least {a['fewest_signatures']} Black agents")
     (out / f"game-{args.seed}.json").write_text(json.dumps(game, indent=1))
     write_pgn(game, out / f"game-{args.seed}.pgn")
-    sweep = json.loads(pathlib.Path(args.sweep).read_text())["rows"] if args.sweep else None
-    write_replay(game, out / f"game-{args.seed}.html", sweep)
+    extra = json.loads(pathlib.Path(args.results).read_text())["rows"] if args.results else None
+    write_replay(game, out / f"game-{args.seed}.html", extra)
     print(f"\nWrote {out}/game-{args.seed}.json, .pgn and .html (replay)")
 
 
 def run_one(task):
-    seed, faults, workdir, depth, max_plies = task
-    game = play_game(seed, faults, workdir, depth=depth, max_plies=max_plies)
+    setup, seed, workdir, cache, depth, max_plies = task
+    llm = LLM(cache, MODAL)
+    game = play_game(setup, seed, workdir, llm, depth=depth, max_plies=max_plies)
+    game["audit"] = audit(game)
+    (pathlib.Path(workdir) / f"game-{seed}.json").write_text(json.dumps(game, indent=1))
     shutil.rmtree(game["contract"]["dir"], ignore_errors=True)
-    return {"seed": seed, "faults": game["faults"], "winner": game["winner"],
-            "reason": game["reason"], "plies": len(game["plies"]),
-            "summary": summarize(game), "contract": game["contract"]}
+    shutil.rmtree(pathlib.Path(workdir) / f"white-{seed}", ignore_errors=True)
+    return {"seed": seed, "winner": game["winner"], "reason": game["reason"], "plies": len(game["plies"]),
+            "summary": summarize(game), "audit": game["audit"], "llm_calls": llm.calls,
+            "contract": {k: game["contract"][k] for k in ("accepted", "refused")}}
 
 
-def cmd_sweep(args):
-    rates = [float(r) for r in args.rates.split(",")]
-    scenarios = [(f"faults {r:g}", faults_from(args, r)) for r in rates]
-    if args.rogue_row:
-        scenarios.append(("rogue only", Faults(rogue=True)))
-    workdir = pathlib.Path(tempfile.mkdtemp(prefix="multi-agent-chess-"))
-    tasks = [(label, (seed, faults, workdir / f"scenario-{i}", args.depth, args.max_plies))
-             for i, (label, faults) in enumerate(scenarios)
-             for seed in range(args.seed, args.seed + args.games)]
-    results = {label: [] for label, _ in scenarios}
+def row_for(setup, games):
+    n = len(games)
+    w = sum(g["winner"] == "white" for g in games)
+    b = sum(g["winner"] == "black" for g in games)
+    d = n - w - b
+    row = {"experiment": setup.name, "note": setup.note, "setup": dataclasses.asdict(setup), "games": n,
+           "white_wins": w, "draws": d, "black_wins": b, "black_score": (b + d / 2) / n if n else 0,
+           "forfeits": {s: sum(g["reason"].startswith(s) for g in games) for s in ("white", "black")},
+           "audit_failures": sum(bool(g["audit"]["mismatched"]) for g in games)}
+    for side in ("white", "black"):
+        for key in ("off_plan_attempts", "off_plan_played", "held_back", "centipawns_lost", "replans", "replan_centipawns",
+                    "rules_proposed", "rules_kept", "wipes", "stalls"):
+            row[f"{side}_{key}"] = sum(g["summary"][side][key] for g in games) / n if n else 0
+        row[f"{side}_hijacked"] = sum(g["summary"][side]["hijacked"] for g in games)
+    return row
+
+
+def cmd_experiments(args):
+    out = pathlib.Path(args.out)
+    out.mkdir(parents=True, exist_ok=True)
+    chosen = [e for e in EXPERIMENTS if not args.only or e.name in args.only.split(",")]
+    tasks = []
+    for e in chosen:
+        d = out / e.name
+        d.mkdir(exist_ok=True)
+        for seed in range(args.seed, args.seed + args.games):
+            if (d / f"game-{seed}.json").exists() and not args.fresh:
+                continue  # already played; results are read back below
+            for stale in (f"black-{seed}", f"white-{seed}"):
+                shutil.rmtree(d / stale, ignore_errors=True)
+            tasks.append((e, seed, d, args.cache or out / "llm-cache", args.depth, args.max_plies))
+    print(f"{len(tasks)} games to play", file=sys.stderr)
     with concurrent.futures.ProcessPoolExecutor(max_workers=args.jobs) as pool:
-        futures = {pool.submit(run_one, t): label for label, t in tasks}
+        futures = {pool.submit(run_one, t): t for t in tasks}
         for i, fut in enumerate(concurrent.futures.as_completed(futures), 1):
-            results[futures[fut]].append(fut.result())
-            print(f"\r{i}/{len(tasks)} games", end="", file=sys.stderr, flush=True)
-    print(file=sys.stderr)
-    shutil.rmtree(workdir, ignore_errors=True)
+            e, seed = futures[fut][0], futures[fut][1]
+            try:
+                r = fut.result()
+                print(f"[{i}/{len(tasks)}] {e.name} seed {seed}: {r['winner'] or 'draw'} ({r['reason']})",
+                      file=sys.stderr, flush=True)
+            except Exception as exc:  # keep going; the game is missing from its row
+                print(f"[{i}/{len(tasks)}] {e.name} seed {seed}: FAILED {exc}", file=sys.stderr, flush=True)
 
-    print("Per game: off-plan moves each side's agents sent, and how many the referee played.\n")
-    print(f"{'scenario':12} {'games':>5} {'W wins':>6} {'draws':>5} {'B wins':>6} {'B score':>7}"
-          f"  {'W sent':>6} {'W played':>8}  {'B sent':>6} {'B played':>8}")
     rows = []
-    for label, _ in scenarios:
-        games = results[label]
-        n = len(games)
-        w = sum(g["winner"] == "white" for g in games)
-        b = sum(g["winner"] == "black" for g in games)
-        d = n - w - b
-        row = {
-            "scenario": label,
-            "games": n,
-            "white_wins": w,
-            "draws": d,
-            "black_wins": b,
-            "black_score": (b + d / 2) / n,
-        }
-        for side in ("white", "black"):
-            for key in ("off_plan_attempts", "off_plan_played", "centipawns_lost"):
-                row[f"{side}_{key}"] = sum(g["summary"][side][key] for g in games) / n
-        row["black_refused"] = sum(g["contract"]["refused"] for g in games) / n
-        rows.append(row)
-        print(f"{label:12} {n:5} {w:6} {d:5} {b:6} {row['black_score']:7.2f}"
-              f"  {row['white_off_plan_attempts']:6.1f} {row['white_off_plan_played']:8.1f}"
-              f"  {row['black_off_plan_attempts']:6.1f} {row['black_off_plan_played']:8.1f}")
-    if args.json:
-        pathlib.Path(args.json).write_text(json.dumps({"rows": rows, "games": results}, indent=1))
-        print(f"\nWrote {args.json}")
+    for e in chosen:
+        games = []
+        for seed in range(args.seed, args.seed + args.games):
+            path = out / e.name / f"game-{seed}.json"
+            if path.exists():
+                g = json.loads(path.read_text())
+                games.append({"seed": seed, "winner": g["winner"], "reason": g["reason"],
+                              "summary": summarize(g), "audit": g["audit"]})
+        rows.append(row_for(e, games))
+    (out / "results.json").write_text(json.dumps({"rows": rows}, indent=1))
+    print(f"{'experiment':24} {'games':>5} {'W':>3} {'D':>3} {'B':>3} {'B score':>7}"
+          f"  {'W off-plan played':>17} {'B off-plan played':>17}  {'W rules':>7} {'B rules':>7}")
+    for r in rows:
+        print(f"{r['experiment']:24} {r['games']:5} {r['white_wins']:3} {r['draws']:3} {r['black_wins']:3}"
+              f" {r['black_score']:7.2f}  {r['white_off_plan_played']:17.1f} {r['black_off_plan_played']:17.1f}"
+              f"  {r['white_rules_kept']:7.1f} {r['black_rules_kept']:7.1f}")
+    print(f"\nWrote {out}/results.json and one game-<seed>.json per game")
 
 
 def main():
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = p.add_subparsers(dest="cmd", required=True)
-    for name in ("play", "sweep"):
+    for name in ("play", "experiments"):
         s = sub.add_parser(name)
-        s.add_argument("--fault", type=float, default=0.1, help="rate for panic, greed and amnesia")
-        s.add_argument("--panic", type=float)
-        s.add_argument("--greed", type=float)
-        s.add_argument("--amnesia", type=float)
-        s.add_argument("--rogue", action="store_true", help="one compromised agent per side from ply 10")
         s.add_argument("--depth", type=int, default=2, help="engine depth in plies, before captures")
         s.add_argument("--max-plies", type=int, default=160)
         s.add_argument("--seed", type=int, default=1)
+        s.add_argument("--cache", help="where language-model answers are cached")
     play = sub.choices["play"]
+    play.add_argument("--white", choices=("chat", "rules-md"), default="chat")
+    play.add_argument("--black", choices=("contract", "self-ruled"), default="contract")
+    play.add_argument("--pawns", choices=("uniform", "personalities"), default="uniform")
+    play.add_argument("--fault", type=float, default=0.1, help="rate for panic, greed and amnesia")
+    play.add_argument("--compliance", type=float, default=0.5, help="how often RULES.md holds an agent back")
+    play.add_argument("--rogue", action="store_true", help="one compromised agent per side from ply 10")
     play.add_argument("--out", default="out")
-    play.add_argument("--sweep", help="a sweep's --json file, to show its table above the replay")
+    play.add_argument("--results", help="an experiments results.json, to show its table above the replay")
     play.set_defaults(func=cmd_play)
-    sweep = sub.choices["sweep"]
-    sweep.add_argument("--games", type=int, default=12, help="games per scenario")
-    sweep.add_argument("--rates", default="0,0.02,0.05,0.1,0.2")
-    sweep.add_argument("--rogue-row", action="store_true", help="add a scenario with only a rogue agent")
-    sweep.add_argument("--jobs", type=int, default=os.cpu_count())
-    sweep.add_argument("--json", help="write rows and per-game results here")
-    sweep.set_defaults(func=cmd_sweep)
+    exp = sub.choices["experiments"]
+    exp.add_argument("--games", type=int, default=16, help="games per experiment")
+    exp.add_argument("--only", help="comma-separated experiment names")
+    exp.add_argument("--jobs", type=int, default=8)
+    exp.add_argument("--out", default="out/experiments")
+    exp.add_argument("--fresh", action="store_true", help="replay games that already have results")
+    exp.set_defaults(func=cmd_experiments)
     args = p.parse_args()
+    if args.cmd == "play" and not args.cache:
+        args.cache = str(pathlib.Path(args.out) / "llm-cache")
     args.func(args)
 
 

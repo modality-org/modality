@@ -1,0 +1,5 @@
+{
+ "kind": "suggest-rule",
+ "input": "Every commit that writes /turn/move.text or /turn/ply.num must be signed by at least nine distinct keys from /team/pieces.",
+ "response": "always(([+modifies(/turn/move.text) -threshold(\"9\", /team/pieces)] false) & ([+modifies(/turn/ply.num) -threshold(\"9\", /team/pieces)] false))"
+}

@@ -1,0 +1,5 @@
+{
+ "kind": "suggest-rule",
+ "input": "Every commit that writes /turn/move.text and /turn/ply.num must be signed by at least twelve of the sixteen Black agents whose keys are at /team/pieces.",
+ "response": "always([+modifies(/turn/move.text) +modifies(/turn/ply.num) -threshold(\"12\", /team/pieces)] false)"
+}

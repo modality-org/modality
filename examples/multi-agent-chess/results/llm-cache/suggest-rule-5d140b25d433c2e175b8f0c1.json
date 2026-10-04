@@ -1,0 +1,5 @@
+{
+ "kind": "suggest-rule",
+ "input": "Every commit that posts a move to /turn/move.text must be signed by at least twelve distinct keys from /team/pieces/, not by knight_g8 alone.",
+ "response": "always([+modifies(/turn/move.text) -threshold(\"12\", /team/pieces)] false)"
+}

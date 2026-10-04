@@ -1,0 +1,5 @@
+{
+ "kind": "suggest-rule",
+ "input": "A commit may write /turn/move.text and /turn/ply.num only if it is signed by at least twelve of the sixteen keys under /team/pieces/.",
+ "response": "always(([+modifies(/turn/move.text) -threshold(\"12\", /team/pieces)] false) & ([+modifies(/turn/ply.num) -threshold(\"12\", /team/pieces)] false))"
+}

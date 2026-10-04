@@ -11,40 +11,69 @@ agents go their own way, at the same rates on both sides:
 | amnesia | The piece the team chose forgets the plan and moves somewhere else |
 | rogue | One compromised agent plays its worst move every turn (`--rogue`) |
 
-The sides differ only in how a move reaches the referee.
+The sides differ in how a move reaches the referee.
 
-- **White** coordinates over chat. Any White agent can send a move, and the
-  referee plays the first one it gets.
-- **Black** coordinates through a Modality contract. A Black move is the
-  `/turn/move.text` of an accepted commit, and the referee reads it from the
-  contract head and nothing else. Every move an agent sends is a real commit
-  that `modal` checks.
+| Side | Option | How it coordinates |
+|------|--------|--------------------|
+| White | `--white chat` | Any White agent can send a move; the referee plays the first one it gets |
+| White | `--white rules-md` | The same, plus a `RULES.md` any White agent can edit and nothing checks |
+| Black | `--black contract` | A Modality contract with preset rules: four of sixteen signatures, roster locked |
+| Black | `--black self-ruled` | A Modality contract with no rules; the agents write their own |
 
-## The contract
+`--pawns personalities` gives each pawn its own fault rates and its own
+compliance with `RULES.md`; the other pieces stay uniform.
 
-| File | What |
-|------|------|
-| `contract/rules.txt` | The rules, `name: formula`, added in the bootstrap commit |
-| `contract/model/default.modality` | The witness model |
+The ten experiments, and their results, are on the
+[Multi-Agent Chess](../../docs/multi-agent-chess.md) docs page.
 
-The bootstrap commit posts the sixteen Black agents' keys under
-`/team/pieces`, the model and the rules. After it:
+## Black's contract
+
+A Black move is the `/turn/move.text` of an accepted commit. The referee
+plays the first Black commit the contract accepts for the ply and reads
+nothing else. Every move a Black agent sends is a real commit that `modal`
+checks. An agent that goes off plan signs its own commit alone; the plan is
+signed by every agent that agrees with it.
+
+The preset contract (`contract/`) starts with two rules:
 
 - `team_moves`: `always([-threshold("4", /team/pieces)] false)`. A commit
   needs signatures from four of the sixteen Black agents.
 - `roster_locked`: `always([+modifies(/team)] false)`. Nobody adds or removes
   an agent, so a stray cannot sign with a key it made up.
 
-A stray agent signs only its own move, and `modal` refuses it:
+A self-ruled contract starts with the roster and no rules, so any commit is
+accepted. After an off-plan move is played, the team holds a retro: one agent
+writes a rule in plain language, `modal contract ai suggest-rule` turns it
+into a formula, and the team commits it with a witness model. A rule commit
+must meet the rules already there, and no rule comes off. A rogue tries to
+get in first with a rule that only it can sign.
 
-```
-missing +threshold(4, /team/pieces) (authorized signatures 1/4 required from 16 accepted members under /team/pieces)
-```
+The witness model for a self-ruled contract (`coordination.epoch_model`) has
+one epoch per rule. The model must replay the history from before the rule,
+so epoch 0 accepts anything; the commit that adds rule *k* moves to epoch
+*k*, whose edges carry the labels of rules 1 to *k* from
+`modal model synthesize`.
 
-The agents who agreed to the plan sign it, and that commit is accepted.
-Captured pieces' agents stay on the team and still sign. After each game,
-`play` reads the contract's log back and checks that every Black move the
-referee played is an accepted commit with at least four Black signatures.
+After each game, the contract's log is read back and checked against the
+moves the referee played.
+
+## White's RULES.md
+
+After an off-plan move is played, one White agent adds a rule to `RULES.md`
+and says which off-plan moves it covers. An agent about to go off plan is
+held back by a covering rule with probability `--compliance` (0.5 by
+default). A rogue empties the file whenever it finds rules in it.
+
+## Retros and the language model
+
+Both sides' retros go to the same model, through the `agent` CLI (Cursor's;
+set `AGENT_CLI` to change it), and Black's formulas come from
+`modal contract ai suggest-rule`, as configured by `modal ai`. Both prompts
+describe what happened in the same words; only the part about how the team
+coordinates differs (`retro.py`). Every answer is cached by its prompt under
+`--cache`, so a rerun asks nothing new and plays the same games.
+`results/llm-cache` holds the answers behind the docs page, and
+`results/results.json` its numbers.
 
 ## Run it
 
@@ -52,52 +81,30 @@ referee played is an accepted commit with at least four Black signatures.
 pip install -r requirements.txt     # python-chess
 # a current modal on PATH, or MODAL=/path/to/modal
 
-python3 multi_agent_chess.py play --seed 7 --fault 0.1     # one narrated game
-python3 multi_agent_chess.py sweep --games 16 --rates 0,0.05,0.1,0.2 --rogue-row
+python3 multi_agent_chess.py play --seed 7                    # one narrated game
+python3 multi_agent_chess.py play --white rules-md --black self-ruled --rogue --seed 3
+python3 multi_agent_chess.py experiments --games 16 --jobs 8 --cache results/llm-cache
+python3 report.py out/experiments                             # rewrites the docs page
 ```
 
-`play` writes `out/game-<seed>.json`, a `.pgn`, an `.html` replay that steps
-through each turn's plan, the moves agents sent, and what the referee or the
-contract did with them, and Black's contract directory. `--fault` sets the
-panic, greed and amnesia rates together; `--panic`, `--greed` and `--amnesia`
-set one each. `--sweep <file>` puts a sweep's table (from `sweep --json`) at
-the top of the replay. Games are deterministic for a seed.
+`play` writes `out/game-<seed>.json`, a `.pgn`, and an `.html` replay that
+steps through each turn's plan, the moves agents sent, what the referee or
+the contract did with them, and every rule written. `--results` puts an
+experiments table above the replay.
 
-`sweep` runs games in parallel, one contract each. One game takes 10 to 30
-seconds, most of it in `modal`.
+`experiments` plays every setup in `EXPERIMENTS` in parallel, one contract
+per game, and writes `out/experiments/results.json` with one
+`game-<seed>.json` per game. A game that already has results is not played
+again, unless `--fresh`. A game takes 20 seconds to a few minutes, most of it
+in `modal` and the language model.
 
-## What a sweep shows
-
-Sixteen games per row, seeds 1 to 16, engine depth 2. Score is Black's: a
-win is 1, a draw is ½. "Sent" is the off-plan moves a side's agents sent per
-game; "played" is how many of them the referee played.
-
-| Scenario | White wins | Draws | Black wins | Black score | White sent | White played | Black sent | Black played |
-|----------|-----------:|------:|-----------:|------------:|-----------:|-------------:|-----------:|-------------:|
-| faults 0 | 8 | 2 | 6 | 0.44 | 0.0 | 0.0 | 0.0 | 0.0 |
-| faults 0.05 | 1 | 2 | 13 | 0.88 | 6.1 | 4.4 | 8.6 | 0.0 |
-| faults 0.1 | 0 | 0 | 16 | 1.00 | 9.1 | 6.8 | 12.8 | 0.0 |
-| faults 0.2 | 0 | 1 | 15 | 0.97 | 11.6 | 8.4 | 20.3 | 0.0 |
-| rogue only | 6 | 1 | 9 | 0.59 | 3.6 | 1.9 | 23.4 | 0.0 |
-
-With no faults the contract changes nothing, and White keeps the first move.
-With faults, Black plays every turn on plan. White plays most of its strays,
-and loses.
-
-Black's agents send more strays than White's. The rates are the same: White
-loses pieces sooner, which leaves it fewer agents to stray and gives Black
-more captures to be greedy about. White's rogue usually throws itself away in
-a few moves, while Black's is refused every turn and lives.
-
-## What it does not show
-
-- The agents are simulated: a shared shallow engine plus fault rates, not
-  language models. The contract does not make a plan better, only binding.
-  Black still loses games on the board.
-- The threshold is four. Four strays that agree on the same move get it
-  accepted.
-- White's baseline is an honour system. A trusted captain who alone may send
-  White's moves would also stop the strays, until the captain is the agent
-  that strays.
-- The cost of signing is not modelled: the plan always gathers its
-  signatures in time.
+| File | What |
+|------|------|
+| `multi_agent_chess.py` | Games, experiments, replay and audit |
+| `engine.py` | The engine every agent shares |
+| `agents.py` | Agents, faults and pawn personalities |
+| `coordination.py` | Chat, RULES.md, the contracts and their witness models |
+| `retro.py` | Retro prompts and the language-model cache |
+| `report.py` | Writes the docs page from an experiments run |
+| `replay.html` | The replay page template |
+| `contract/` | The preset contract's rules and witness model |
