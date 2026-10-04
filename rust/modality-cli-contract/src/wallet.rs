@@ -13,9 +13,9 @@ use clap::{Parser, Subcommand};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::HashSet;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
-use modality_common::contract_store::ContractStore;
+use modality_common::contract_store::{CommitFile, ContractStore};
 use modality_common::keypair::Keypair;
 
 const REMOTE: &str = "origin";
@@ -40,6 +40,9 @@ pub enum Commands {
 
     #[command(about = "Send an asset the wallet holds to another contract")]
     Send(SendOpts),
+
+    #[command(about = "Claim the network faucet's drip into the wallet (once per key)")]
+    Faucet(FaucetOpts),
 }
 
 #[derive(Debug, Parser)]
@@ -108,6 +111,20 @@ pub struct SendOpts {
     wallet: WalletOpts,
 }
 
+#[derive(Debug, Parser)]
+pub struct FaucetOpts {
+    /// The faucet contract (default: the testnet's)
+    #[clap(long, value_parser = modality_common::peer_id::contract_id_arg)]
+    faucet: Option<String>,
+
+    /// Seconds to wait for each step to be sequenced
+    #[clap(long, default_value = "300")]
+    wait: u64,
+
+    #[clap(flatten)]
+    wallet: WalletOpts,
+}
+
 /// `.contract/wallet.json`: which key signs for the wallet.
 #[derive(Debug, Serialize, Deserialize)]
 struct WalletFile {
@@ -122,6 +139,7 @@ pub async fn run(command: &Commands) -> Result<()> {
         Commands::Incoming(opts) => incoming(opts).await,
         Commands::Recv(opts) => recv(opts).await,
         Commands::Send(opts) => send(opts).await,
+        Commands::Faucet(opts) => faucet(opts).await,
     }
 }
 
@@ -176,28 +194,18 @@ impl Wallet {
     }
 
     async fn account(&self) -> Result<Account> {
-        let response = crate::push::p2p_request(
-            None,
-            &self.remote,
-            "/contract/account",
-            &json!({ "contract_id": self.id }),
-        )
-        .await?;
-        if !response.ok {
-            bail!(
-                "{} cannot show the account: {:?}",
-                self.remote,
-                response.errors
-            );
-        }
-        Ok(serde_json::from_value(response.data.ok_or_else(|| {
-            anyhow!("{} sent no account", self.remote)
-        })?)?)
+        account_of(&self.remote, &self.id).await
     }
 
     /// Make a commit with `args` (after `commit`), signed by the wallet's key.
     async fn commit(&self, args: &[&str]) -> Result<String> {
-        let dir = self.dir.to_string_lossy().to_string();
+        self.commit_in(&self.dir, args).await
+    }
+
+    /// Make a commit in the contract at `dir`, signed by the wallet's key,
+    /// which pays for it.
+    async fn commit_in(&self, dir: &std::path::Path, args: &[&str]) -> Result<String> {
+        let dir = dir.to_string_lossy().to_string();
         let key = self.key.to_string_lossy().to_string();
         let mut argv = vec!["commit", "--dir", &dir, "--sign", &key, "--payer", &self.id];
         argv.extend_from_slice(args);
@@ -209,29 +217,7 @@ impl Wallet {
 
     /// Push every commit the remote has not taken. Returns their ids.
     async fn push(&self) -> Result<Vec<String>> {
-        let unpushed = self.store.get_unpushed_commits(REMOTE)?;
-        if unpushed.is_empty() {
-            return Ok(unpushed);
-        }
-        let mut commits = Vec::new();
-        for commit_id in &unpushed {
-            let commit = self.store.load_commit(commit_id)?;
-            commits.push(json!({"commit_id": commit_id, "body": commit.body, "head": commit.head}));
-        }
-        let response = crate::push::p2p_request(
-            None,
-            &self.remote,
-            "/contract/push",
-            &json!({"contract_id": self.id, "commits": commits}),
-        )
-        .await?;
-        if !response.ok {
-            bail!("{} refused the push: {:?}", self.remote, response.errors);
-        }
-        if let Some(last) = unpushed.last() {
-            self.store.set_remote_head(REMOTE, last)?;
-        }
-        Ok(unpushed)
+        push_to(&self.remote, &self.store).await
     }
 
     /// The sends this copy already receives, pushed or not.
@@ -254,6 +240,113 @@ impl Wallet {
         }
         Ok(received)
     }
+}
+
+async fn account_of(remote: &str, contract_id: &str) -> Result<Account> {
+    let response = crate::push::p2p_request(
+        None,
+        remote,
+        "/contract/account",
+        &json!({ "contract_id": contract_id }),
+    )
+    .await?;
+    if !response.ok {
+        bail!("{remote} cannot show the account: {:?}", response.errors);
+    }
+    Ok(serde_json::from_value(
+        response
+            .data
+            .ok_or_else(|| anyhow!("{remote} sent no account"))?,
+    )?)
+}
+
+/// Push every commit of `store` that `remote` has not taken. Returns their ids.
+async fn push_to(remote: &str, store: &ContractStore) -> Result<Vec<String>> {
+    let unpushed = store.get_unpushed_commits(REMOTE)?;
+    if unpushed.is_empty() {
+        return Ok(unpushed);
+    }
+    let mut commits = Vec::new();
+    for commit_id in &unpushed {
+        let commit = store.load_commit(commit_id)?;
+        commits.push(json!({"commit_id": commit_id, "body": commit.body, "head": commit.head}));
+    }
+    let contract_id = store.load_config()?.contract_id;
+    let response = crate::push::p2p_request(
+        None,
+        remote,
+        "/contract/push",
+        &json!({"contract_id": contract_id, "commits": commits}),
+    )
+    .await?;
+    if !response.ok {
+        bail!("{remote} refused the push: {:?}", response.errors);
+    }
+    if let Some(last) = unpushed.last() {
+        store.set_remote_head(REMOTE, last)?;
+    }
+    Ok(unpushed)
+}
+
+/// The commits `remote` has sequenced for `contract_id` after `since` (all
+/// of them with `None`), in log order.
+async fn sequenced_after(
+    remote: &str,
+    contract_id: &str,
+    since: Option<&str>,
+) -> Result<Vec<(String, CommitFile)>> {
+    let response = crate::push::p2p_request(
+        None,
+        remote,
+        "/contract/pull",
+        &json!({"contract_id": contract_id, "since_commit_id": since}),
+    )
+    .await?;
+    if !response.ok {
+        bail!("{remote} refused the pull: {:?}", response.errors);
+    }
+    let data = response
+        .data
+        .ok_or_else(|| anyhow!("{remote} sent no commits"))?;
+    let mut commits = Vec::new();
+    for commit in data
+        .get("commits")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+    {
+        let id = commit
+            .get("commit_id")
+            .and_then(Value::as_str)
+            .ok_or_else(|| anyhow!("{remote} sent a commit without an id"))?;
+        let file = CommitFile::verified(id, commit.get("body"), commit.get("head"))?;
+        commits.push((id.to_string(), file));
+    }
+    Ok(commits)
+}
+
+/// A fresh copy, in `dir`, of the commits `remote` has sequenced for
+/// `contract_id`, checked out.
+async fn fresh_copy(remote: &str, contract_id: &str, dir: &Path) -> Result<ContractStore> {
+    if dir.exists() {
+        std::fs::remove_dir_all(dir)?;
+    }
+    let commits = sequenced_after(remote, contract_id, None).await?;
+    if commits.is_empty() {
+        bail!("{remote} has no contract {contract_id}");
+    }
+    let store = ContractStore::init(dir, contract_id.to_string())?;
+    let mut config = store.load_config()?;
+    config.add_remote(REMOTE.to_string(), remote.to_string());
+    store.save_config(&config)?;
+    for (id, commit) in &commits {
+        store.save_commit(id, commit)?;
+    }
+    let head = &commits[commits.len() - 1].0;
+    store.set_head(head)?;
+    store.set_remote_head(REMOTE, head)?;
+    crate::checkout::checkout(&store)?;
+    Ok(store)
 }
 
 #[derive(Debug, Deserialize)]
@@ -470,6 +563,44 @@ async fn incoming(opts: &WalletOpts) -> Result<()> {
 
 async fn recv(opts: &WalletOpts) -> Result<()> {
     let wallet = Wallet::open(opts)?;
+    let (received, pushed) = receive(&wallet).await?;
+    if opts.output == "json" {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&json!({
+                "received": received,
+                "pushed": pushed,
+            }))?
+        );
+        return Ok(());
+    }
+    if received.is_empty() {
+        println!("Nothing new to receive.");
+    }
+    print_received(&wallet, &received, &pushed);
+    Ok(())
+}
+
+fn print_received(wallet: &Wallet, received: &[Value], pushed: &[String]) {
+    for r in received {
+        println!(
+            "✅ Received {} {}",
+            r["shown"].as_str().unwrap_or_default(),
+            r["asset"].as_str().unwrap_or_default()
+        );
+    }
+    if !pushed.is_empty() {
+        println!(
+            "   Pushed {} commit(s) to {}; they count once sequenced.",
+            pushed.len(),
+            wallet.remote
+        );
+    }
+}
+
+/// Receive every waiting send and push. Returns what was received and the
+/// ids of the commits pushed.
+async fn receive(wallet: &Wallet) -> Result<(Vec<Value>, Vec<String>)> {
     let account = wallet.account().await?;
     let already = wallet.received_here()?;
     let mut received = Vec::new();
@@ -511,34 +642,7 @@ async fn recv(opts: &WalletOpts) -> Result<()> {
         }));
     }
     let pushed = wallet.push().await?;
-    if opts.output == "json" {
-        println!(
-            "{}",
-            serde_json::to_string_pretty(&json!({
-                "received": received,
-                "pushed": pushed,
-            }))?
-        );
-        return Ok(());
-    }
-    if received.is_empty() {
-        println!("Nothing new to receive.");
-    }
-    for r in &received {
-        println!(
-            "✅ Received {} {}",
-            r["shown"].as_str().unwrap_or_default(),
-            r["asset"].as_str().unwrap_or_default()
-        );
-    }
-    if !pushed.is_empty() {
-        println!(
-            "   Pushed {} commit(s) to {}; they count once sequenced.",
-            pushed.len(),
-            wallet.remote
-        );
-    }
-    Ok(())
+    Ok((received, pushed))
 }
 
 async fn send(opts: &SendOpts) -> Result<()> {
@@ -626,4 +730,204 @@ async fn send(opts: &SendOpts) -> Result<()> {
         println!("   SEND commit {commit_id}; the receiver takes it with a RECV.");
     }
     Ok(())
+}
+
+/// How many times a claim starts over after another claim took its place.
+const FAUCET_TRIES: usize = 5;
+
+/// Claim a faucet's drip: register the wallet's key in the faucet, send the
+/// drip from the faucet to the wallet (both signed by the key, as the
+/// faucet's rules require), then receive it. A claim another claim got ahead
+/// of starts over from the faucet's new head.
+async fn faucet(opts: &FaucetOpts) -> Result<()> {
+    let wallet = Wallet::open(&opts.wallet)?;
+    let text = opts.wallet.output != "json";
+    let faucet_id = match &opts.faucet {
+        Some(id) => id.clone(),
+        None => modality_networks::networks::testnet()
+            .faucet_contract
+            .ok_or_else(|| anyhow!("the testnet names no faucet; pass --faucet"))?,
+    };
+    let work = wallet.store.contract_dir().join("faucet");
+    let slot = format!("/claimants/{}", wallet.id);
+    let wait = std::time::Duration::from_secs(opts.wait);
+    let mut drip = None;
+    for _ in 0..FAUCET_TRIES {
+        let copy = fresh_copy(&wallet.remote, &faucet_id, &work).await?;
+        let config = |path: &str| {
+            copy.read_state(path)?
+                .ok_or_else(|| anyhow!("{faucet_id} is not a faucet: it posts no {path}"))
+        };
+        let size = config("/config/drip.num")?
+            .as_u64()
+            .ok_or_else(|| anyhow!("the faucet's /config/drip.num is not a whole number"))?;
+        let asset = config("/config/asset.text")?
+            .as_str()
+            .map(str::to_string)
+            .ok_or_else(|| anyhow!("the faucet's /config/asset.text is not text"))?;
+        let (asset_contract, asset_id) = asset
+            .rsplit_once(':')
+            .ok_or_else(|| anyhow!("the faucet's asset {asset} is not <creator>:<asset>"))?;
+        if copy.read_state(&format!("{slot}/claimed.bool"))? == Some(Value::Bool(true)) {
+            break;
+        }
+        let held = account_of(&wallet.remote, &faucet_id)
+            .await?
+            .holdings
+            .iter()
+            .find(|h| {
+                key_form(&h.asset_contract) == key_form(asset_contract) && h.asset_id == asset_id
+            })
+            .map_or(0, |h| h.balance);
+        if held < size {
+            bail!("the faucet holds {held} {asset_id}, less than its drip of {size}; it needs funding");
+        }
+
+        let base = copy.get_head()?;
+        let mut mine = Vec::new();
+        if copy.read_state(&format!("{slot}.id"))?.is_none() {
+            copy.write_state(&format!("{slot}.id"), &json!(wallet.id))?;
+            mine.push(
+                wallet
+                    .commit_in(&work, &["--all", "-m", "Register with the faucet"])
+                    .await?,
+            );
+        }
+        copy.write_state(&format!("{slot}/claimed.bool"), &json!(true))?;
+        let amount = size.to_string();
+        let send = wallet
+            .commit_in(
+                &work,
+                &[
+                    "--all",
+                    "-m",
+                    "Drip",
+                    "--method",
+                    "send",
+                    "--asset-contract",
+                    asset_contract,
+                    "--asset-id",
+                    asset_id,
+                    "--to-contract",
+                    &wallet.id,
+                    "--amount",
+                    &amount,
+                ],
+            )
+            .await?;
+        mine.push(send.clone());
+        push_to(&wallet.remote, &copy).await?;
+        if text {
+            eprintln!("Claim pushed to faucet {faucet_id}; waiting for it to be sequenced...");
+        }
+        if await_sequenced(&wallet.remote, &faucet_id, base.as_deref(), &mine, wait).await? {
+            drip = Some((send, size, asset.clone()));
+            break;
+        }
+        if text {
+            eprintln!("Another claim was sequenced first; claiming again from the new head...");
+        }
+    }
+    let _ = std::fs::remove_dir_all(&work);
+
+    let Some((drip_id, size, asset)) = drip else {
+        let account = wallet.account().await?;
+        if !account
+            .incoming
+            .iter()
+            .any(|send| key_form(&send.from_contract) == key_form(&faucet_id))
+        {
+            bail!("this wallet's key has had its drip from faucet {faucet_id} (or other claims kept getting in first; try again)");
+        }
+        return finish_faucet(&wallet, opts, &faucet_id, None, None).await;
+    };
+    if text {
+        eprintln!("Drip sequenced; receiving it...");
+    }
+    let deadline = std::time::Instant::now() + wait;
+    while !wallet
+        .account()
+        .await?
+        .incoming
+        .iter()
+        .any(|send| send.send_commit_id == drip_id)
+    {
+        if std::time::Instant::now() >= deadline {
+            bail!("the drip {drip_id} is sequenced but not yet listed for the wallet; run `modal wallet recv` later");
+        }
+        tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+    }
+    finish_faucet(
+        &wallet,
+        opts,
+        &faucet_id,
+        Some(&drip_id),
+        Some((size, &asset)),
+    )
+    .await
+}
+
+fn key_form(id: &str) -> String {
+    modality_common::peer_id::key_form(id)
+}
+
+async fn finish_faucet(
+    wallet: &Wallet,
+    opts: &FaucetOpts,
+    faucet_id: &str,
+    drip_id: Option<&str>,
+    drip: Option<(u64, &str)>,
+) -> Result<()> {
+    let (received, pushed) = receive(wallet).await?;
+    if opts.wallet.output == "json" {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&json!({
+                "faucet": faucet_id,
+                "drip_commit_id": drip_id,
+                "drip": drip.map(|(amount, asset)| json!({"amount": amount, "asset": asset})),
+                "received": received,
+                "pushed": pushed,
+            }))?
+        );
+        return Ok(());
+    }
+    match drip_id {
+        Some(id) => println!("✅ Faucet {faucet_id} sent the drip (SEND {id})"),
+        None => println!("The wallet's key already claimed from faucet {faucet_id}"),
+    }
+    print_received(wallet, &received, &pushed);
+    Ok(())
+}
+
+/// Wait until `remote` sequences `mine`, in order, right after `base`. False
+/// when another commit was sequenced in their place.
+async fn await_sequenced(
+    remote: &str,
+    contract_id: &str,
+    base: Option<&str>,
+    mine: &[String],
+    wait: std::time::Duration,
+) -> Result<bool> {
+    let deadline = std::time::Instant::now() + wait;
+    loop {
+        let after: Vec<String> = sequenced_after(remote, contract_id, base)
+            .await?
+            .into_iter()
+            .map(|(id, _)| id)
+            .collect();
+        if after.iter().zip(mine).any(|(theirs, ours)| theirs != ours) {
+            return Ok(false);
+        }
+        if after.len() >= mine.len() {
+            return Ok(true);
+        }
+        if std::time::Instant::now() >= deadline {
+            bail!(
+                "{remote} has not sequenced the claim after {}s; run `modal wallet faucet` again later",
+                wait.as_secs()
+            );
+        }
+        tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+    }
 }

@@ -153,6 +153,11 @@ pub struct NetworkInfo {
     /// network that has one does not also name `emission`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub mod_contract: Option<serde_json::Value>,
+
+    /// A faucet contract that drips the network's MOD to new wallets
+    /// (`modal wallet faucet`). Only clients read it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub faucet_contract: Option<String>,
 }
 
 const DEFAULT_QC_NUMERATOR: u64 = 2;
@@ -459,6 +464,7 @@ mod tests {
             gas_schedule: None,
             hash_lane: None,
             mod_contract: None,
+            faucet_contract: None,
         };
         assert_eq!(network.get_checkpoint_mode(), CheckpointMode::None);
         assert!(!network.checkpoints_enabled());
@@ -487,6 +493,7 @@ mod tests {
             gas_schedule: None,
             hash_lane: None,
             mod_contract: None,
+            faucet_contract: None,
         };
         assert_eq!(network.get_checkpoint_mode(), CheckpointMode::Consensus);
         assert!(network.checkpoints_enabled());
@@ -514,6 +521,7 @@ mod tests {
             gas_schedule: None,
             hash_lane: None,
             mod_contract: None,
+            faucet_contract: None,
             checkpoints: Some(vec![
                 ManualCheckpoint {
                     block_index: 100,
