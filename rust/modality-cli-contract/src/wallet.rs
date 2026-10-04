@@ -780,7 +780,9 @@ async fn faucet(opts: &FaucetOpts) -> Result<()> {
             })
             .map_or(0, |h| h.balance);
         if held < size {
-            bail!("the faucet holds {held} {asset_id}, less than its drip of {size}; it needs funding");
+            bail!(
+                "the faucet holds {held} units of {asset_id}, less than one drip ({size}); it needs funding"
+            );
         }
 
         let base = copy.get_head()?;

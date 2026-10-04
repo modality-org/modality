@@ -1,0 +1,91 @@
+{
+  "contract_id": "3xq2dfpwnqbonimlglg6jhlnrfcggnmntncoktgda2fo62xy7ehacjeaiajaazfab",
+  "commits": [
+    {
+      "commit_id": "384ed9db1f7b47730cbe305398f5d5adf881121ad50f20cbfa457eda9804bbdc",
+      "body": [
+        {
+          "method": "genesis",
+          "path": null,
+          "value": {
+            "genesis": {
+              "contract_id": "3xq2dfpwnqbonimlglg6jhlnrfcggnmntncoktgda2fo62xy7ehacjeaiajaazfab",
+              "created_at": 1791086056,
+              "public_key": "12D3KooWBk6tVfqLnRN6cPmpPzEH4Fg9cGMjWVSnjqs4tgvgfyZU"
+            }
+          }
+        }
+      ],
+      "head": {}
+    },
+    {
+      "commit_id": "4e7f568b53df6de13c29995bfc4b749a131ca7571e41fc73f661cdb6091dfcd8",
+      "body": [
+        {
+          "method": "post",
+          "path": "/config/asset.text",
+          "value": "wv562ivc2thp5jr3n32soqyxborhzdpcew6xfgwpkvah735hfaeacjeaiajaazfab:MOD"
+        },
+        {
+          "method": "post",
+          "path": "/config/drip.num",
+          "value": 1000000000
+        },
+        {
+          "method": "rule",
+          "path": "/rules/drip_marks.modality",
+          "value": "export default rule {\n  starting_at $PARENT\n  formula {\n    always([+SEND +signed_by(/claimants/$k.id) -post_to(/claimants/$k/claimed.bool, \"true\")] false)\n  }\n}\n"
+        },
+        {
+          "method": "rule",
+          "path": "/rules/rules_fixed.modality",
+          "value": "export default rule {\n  starting_at $PARENT\n  formula {\n    always([+modifies(/rules)] false)\n  }\n}\n"
+        },
+        {
+          "method": "rule",
+          "path": "/rules/model_fixed.modality",
+          "value": "export default rule {\n  starting_at $PARENT\n  formula {\n    always([+modifies(/model)] false)\n  }\n}\n"
+        },
+        {
+          "method": "rule",
+          "path": "/rules/config_fixed.modality",
+          "value": "export default rule {\n  starting_at $PARENT\n  formula {\n    always([+modifies(/config)] false)\n  }\n}\n"
+        },
+        {
+          "method": "rule",
+          "path": "/rules/drips_once.modality",
+          "value": "export default rule {\n  starting_at $PARENT\n  formula {\n    always([+SEND +signed_by(/claimants/$k.id) +bool_true(/claimants/$k/claimed.bool)] false)\n  }\n}\n"
+        },
+        {
+          "method": "rule",
+          "path": "/rules/own_keys.modality",
+          "value": "export default rule {\n  starting_at $PARENT\n  formula {\n    always([+post_to_path(/claimants/$k.id) -posts_own_key(/claimants/$k.id)] false)\n  }\n}\n"
+        },
+        {
+          "method": "rule",
+          "path": "/rules/drip_size.modality",
+          "value": "export default rule {\n  starting_at $PARENT\n  formula {\n    always([+SEND -sent_eq(\"wv562ivc2thp5jr3n32soqyxborhzdpcew6xfgwpkvah735hfaeacjeaiajaazfab:MOD\", /config/drip.num)] false)\n  }\n}\n"
+        },
+        {
+          "method": "rule",
+          "path": "/rules/drips_signed.modality",
+          "value": "export default rule {\n  starting_at $PARENT\n  formula {\n    always([+SEND -any_signed(/claimants)] false)\n  }\n}\n"
+        },
+        {
+          "method": "rule",
+          "path": "/rules/no_create.modality",
+          "value": "export default rule {\n  starting_at $PARENT\n  formula {\n    always([+CREATE] false)\n  }\n}\n"
+        },
+        {
+          "method": "model",
+          "path": "/model/default.modality",
+          "value": "model Faucet {\n  initial q0\n  q0 --> q1: +POST\n  q1 --> q1: +RECV -POST -SEND -CREATE -modifies(/config) -modifies(/model) -modifies(/rules)\n  q1 --> q1: +POST -SEND -RECV -CREATE -modifies(/config) -modifies(/model) -modifies(/rules) -state_exists(/claimants/$k.id) +post_to_path(/claimants/$k.id) +posts_own_key(/claimants/$k.id) -modifies(/claimants/$k) -modifies(/claimants/!$k)\n  q1 --> q1: +SEND +POST -RECV -CREATE -modifies(/config) -modifies(/model) -modifies(/rules) +signed_by(/claimants/$k.id) -signed_by(/claimants/!$k.id) -bool_true(/claimants/$k/claimed.bool) +post_to(/claimants/$k/claimed.bool, \"true\") -modifies(/claimants/$k.id) -modifies(/claimants/!$k) +sent_eq(\"wv562ivc2thp5jr3n32soqyxborhzdpcew6xfgwpkvah735hfaeacjeaiajaazfab:MOD\", /config/drip.num)\n}\n"
+        }
+      ],
+      "head": {
+        "message": "Faucet",
+        "parent": "384ed9db1f7b47730cbe305398f5d5adf881121ad50f20cbfa457eda9804bbdc"
+      }
+    }
+  ]
+}

@@ -103,6 +103,13 @@ modal wallet recv --dir ./my-node-wallet
 modal wallet balance --dir ./my-node-wallet
 ```
 
+To start without mining, take 10 MOD from the faucet, once per key:
+
+```bash
+modal wallet create
+modal wallet faucet
+```
+
 See [Wallet Commands](wallet-commands.md).
 
 See [Node Commands](node-commands.md) for `create`, `run-miner`, `run-hybrid`,

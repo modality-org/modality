@@ -21,6 +21,7 @@
     "floor_bits": 16,
     "algorithm": "sha256"
   },
+  "faucet_contract": "3xq2dfpwnqbonimlglg6jhlnrfcggnmntncoktgda2fo62xy7ehacjeaiajaazfab",
   "blocks_per_epoch": 40,
   "initial_difficulty": 1,
   "target_block_time_secs": 60,

@@ -86,9 +86,32 @@ modal wallet send --to <CONTRACT_ID> --amount 2.5 --asset tok --asset-contract <
 asset's decimals, and one that is not a multiple of its divisibility. The
 receiver takes the payment with a `RECV` (`modal wallet recv`).
 
+## Faucet
+
+```bash
+modal wallet faucet [--faucet <CONTRACT_ID>]
+```
+
+Claims 10 testnet MOD from the testnet faucet, once per key, without
+mining. The faucet is a contract nobody owns. Its rules let a key register
+itself (only with that key's signature), then send itself exactly the posted
+drip, once. `faucet` registers your wallet's key, sends the drip to your
+wallet, waits for the network to sequence both, then receives it as
+`recv` does. If another claim is sequenced first, it starts over from the
+faucet's new head.
+
+| Option | Description |
+|--------|-------------|
+| `--faucet <CONTRACT_ID>` | Another faucet. Default: the testnet's (`faucet_contract` in its network config) |
+| `--wait <SECONDS>` | How long to wait for each step to be sequenced (default 300) |
+
+A key that has claimed gets nothing more. An empty faucet refuses the claim
+until someone funds it. Anyone can fund it: send it MOD, then commit the
+`RECV` in a copy of the faucet. A funding commit may only receive.
+
 ## Common options
 
-`address`, `balance`, `incoming`, `recv` and `send` take `--dir`,
+`address`, `balance`, `incoming`, `recv`, `send` and `faucet` take `--dir`,
 `--remote` (use another node this once) and `--output json`.
 
 See [The MOD Contract](../concepts/mod-contract.md) for how MOD reaches a

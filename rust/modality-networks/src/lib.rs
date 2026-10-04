@@ -400,6 +400,7 @@ mod tests {
         // MOD is the MOD contract's asset; the testnet names no native emission.
         assert!(testnet.emission.is_none());
         assert!(testnet.mod_contract.is_some());
+        assert!(testnet.faucet_contract.is_some());
         // The named validators are the three bootstrappers.
         let validators = testnet.validators.as_ref().unwrap();
         assert_eq!(validators.len(), 3);
