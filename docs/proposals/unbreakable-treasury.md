@@ -87,7 +87,7 @@ model treasury {
   initial locked
 
   // Chat commits: agent can log conversations freely
-  locked -> locked [+any_signed(/) +modifies(/chat) -modifies(/balance) -modifies(/transfer)]
+  locked -> locked [+any_signed("/") +modifies(/chat) -modifies(/balance) -modifies(/transfer)]
 
   // Transfer: ONLY the owner can authorize
   locked -> released [+signed_by(/owner.id) +modifies(/transfer)]

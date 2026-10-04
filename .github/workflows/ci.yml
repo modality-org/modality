@@ -4,12 +4,14 @@ on:
   push:
     branches: [main]
     paths:
+      - 'docs/**'
       - 'rust/**'
       - 'scripts/ci/**'
       - '.github/workflows/ci.yml'
   pull_request:
     branches: [main]
     paths:
+      - 'docs/**'
       - 'rust/**'
       - 'scripts/ci/**'
       - '.github/workflows/ci.yml'
