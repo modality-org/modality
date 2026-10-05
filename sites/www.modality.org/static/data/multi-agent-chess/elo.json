@@ -1,0 +1,47 @@
+{
+ "anchor": "chat",
+ "base": 1500,
+ "white_edge": {
+  "mean": 16.86768669958416,
+  "lo": -120.53901351386097,
+  "hi": 160.27230646177372
+ },
+ "matches": {
+  "chat-vs-chat": 16,
+  "rules-md-vs-chat": 16,
+  "self-ruled-start": 16,
+  "rules-md-vs-self-ruled-start": 16
+ },
+ "players": [
+  {
+   "key": "self-ruled-start",
+   "label": "Self-ruled Modality contract",
+   "games": 32,
+   "rating": {
+    "mean": 1834.9927126886348,
+    "lo": 1682.8122013628815,
+    "hi": 2036.9503152753996
+   }
+  },
+  {
+   "key": "rules-md",
+   "label": "Chat + RULES.md",
+   "games": 32,
+   "rating": {
+    "mean": 1606.6422762444095,
+    "lo": 1425.3314035317467,
+    "hi": 1771.2233736061655
+   }
+  },
+  {
+   "key": "chat",
+   "label": "Plain chat",
+   "games": 48,
+   "rating": {
+    "mean": 1500.0,
+    "lo": 1500.0,
+    "hi": 1500.0
+   }
+  }
+ ]
+}

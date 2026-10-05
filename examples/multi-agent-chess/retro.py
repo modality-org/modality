@@ -82,22 +82,29 @@ def parse_json(text):
 
 
 def situation(color, agent, incident, earlier):
+    """incident None: the team meets before the first move."""
     earlier_text = "\n".join(f"- {e}" for e in earlier[-6:]) or "- none"
-    return f"""You are {agent}, one of sixteen agents playing {color} in a game of chess. Every piece is an agent, named for its piece and home square.
-
-Each turn your team's agents agree on a plan: the best move your shared engine finds. Some agents go off plan anyway. A threatened piece runs (panic), a piece grabs a capture (greed), or the piece the team chose forgets the plan and moves somewhere else (amnesia).
-
-What just happened: {incident}
+    if incident is None:
+        happened = "The game is about to start. Nothing has happened yet.\n"
+    else:
+        happened = f"""What just happened: {incident}
 
 Earlier off-plan moves this game:
 {earlier_text}
 """
+    return f"""You are {agent}, one of sixteen agents playing {color} in a game of chess. Every piece is an agent, named for its piece and home square.
+
+A piece can only move itself. Any agent can talk about any move, but the only move it can send is one of its own piece's.
+
+Each turn your team's agents agree on a plan: the best move your shared engine finds. Some agents go off plan anyway. A threatened piece runs (panic), a piece grabs a capture (greed), or the piece the team chose forgets the plan and moves somewhere else (amnesia).
+
+{happened}"""
 
 
 def white_prompt(agent, incident, earlier, rules):
     current = "\n".join(f"- {r}" for r in rules) or "(empty)"
     return situation("White", agent, incident, earlier) + f"""
-How your team coordinates: over a chat channel. Any White agent can send a move to the referee, and the referee plays the first White move it receives.
+How your team coordinates: over a chat channel. Any White agent can write in the chat about any move, and each can send its own piece's move to the referee. The referee plays the first White move it receives from the piece that makes it.
 
 Your team keeps a shared file, RULES.md. Any White agent can read it and write to it. Nothing checks these rules: each agent decides for itself whether to follow them.
 
@@ -110,19 +117,24 @@ Reply with only a JSON object:
 {{"rule": "<the rule, one sentence>", "covers": [<the off-plan moves an agent who follows the rule would not send: any of "panic", "greed", "amnesia">]}}"""
 
 
-def black_prompt(agent, incident, earlier, rules):
+RICH = """
+A rule can cover the whole team or a single agent. For example, a rule can ask for more signatures on one agent's path, /moves/<agent>.text, if that agent keeps going off plan.
+"""
+
+
+def black_prompt(agent, incident, earlier, rules, rich=False):
     current = "\n".join(f"- {r}" for r in rules) or "(none)"
     return situation("Black", agent, incident, earlier) + f"""
-How your team coordinates: through a Modality contract. A Black move counts only when a commit that posts it to /turn/move.text (and the ply to /turn/ply.num) is accepted. The referee plays the first accepted commit for each ply and reads nothing else.
+How your team coordinates: through a Modality contract. A Black move counts only when a commit that posts it to /moves/<agent>.text, the path of the piece that moves (and the ply to /turn/ply.num), is accepted. The referee plays the first accepted commit for each ply and reads nothing else.
 
-The keys of all sixteen Black agents are at /team/pieces/<agent>.id. When the team agrees on a plan, every agent that agrees signs its commit, usually twelve to sixteen of you. An agent that goes off plan signs its own commit alone.
+The keys of all sixteen Black agents are at /team/pieces/<agent>.id. The contract already has the rule always([+modifies(/moves/$k.text) -signed_by(/team/pieces/$k.id)] false), where $k stands for every agent: only a piece can propose its own move. You don't need to write that rule again. When the team agrees on a plan, the piece that moves signs its commit and every agent that agrees co-signs, usually twelve to sixteen of you. An agent that goes off plan signs its own commit alone.
 
 The contract accepts a commit only if it meets every rule in the contract. Any commit that meets the rules can add a rule, and a rule can never be removed.
 
 Contract rules now:
 {current}
-
-The team holds a short retro. Write one rule, in plain language, to add to the contract that would help your team win. It will be turned into a Modality formula, so it must be about signatures, paths, or values in the contract.
+{RICH if rich else ""}
+{"Before the first move, the team" if incident is None else "The team"} holds a short retro. Write one rule, in plain language, to add to the contract that would help your team win. It will be turned into a Modality formula, so it must be about signatures, paths, or values in the contract.
 
 Reply with only a JSON object:
 {{"rule": "<the rule, one sentence>"}}"""
@@ -137,8 +149,8 @@ def write_white_rule(llm, agent, incident, earlier, rules):
     return {"rule": rule, "covers": covers, "prompt": prompt, "response": response}
 
 
-def write_black_rule(llm, agent, incident, earlier, rules):
-    prompt = black_prompt(agent, incident, earlier, rules)
+def write_black_rule(llm, agent, incident, earlier, rules, rich=False):
+    prompt = black_prompt(agent, incident, earlier, rules, rich)
     response = llm.ask(prompt)
     data = parse_json(response) or {}
     return {"rule": str(data.get("rule", "")).strip(), "prompt": prompt, "response": response}

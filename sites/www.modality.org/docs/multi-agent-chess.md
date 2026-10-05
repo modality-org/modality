@@ -10,7 +10,6 @@ move agree on a plan, the best move their shared engine finds. Some agents go
 their own way. The question is what keeps a team on its plan, and whether a
 Modality contract does it better than agents writing rules for themselves.
 
-To watch games step by step, see the [demo page](https://www.modality.org/demos/multi-agent-chess).
 The code is [`examples/multi-agent-chess`](https://github.com/modality-org/modality/tree/main/examples/multi-agent-chess).
 These results come from 160 games played at the example as committed with this page. Every
 Black move in every game is a commit that `modal` checked, and in all

@@ -235,6 +235,7 @@ and `invoke` are [commit methods](/docs/reference/commit-methods).
 ## Get Started
 
 - **[Getting Started Guide](/docs/getting-started)** — Install and create your first contract
+- **[After Your First Contract](/docs/tutorials)** — The tutorial series: one idea and one refusal per page
 - **[Join the public testnet](/docs/cli/join-testnet)** — The testnet runs predicate theory v3
 - **[Constant-product pool](/docs/tutorials/constant-product-pool)** — A program bounded by rules
 - **[Commit methods](/docs/reference/commit-methods)** — `POST`, `SEND`, `RECV`, `invoke`

@@ -1,0 +1,206 @@
+{
+ "rules-md": {
+  "pair": [
+   "chat-vs-chat",
+   "rules-md-vs-chat"
+  ],
+  "games": {
+   "chat-vs-chat": 16,
+   "rules-md-vs-chat": 16
+  },
+  "metrics": [
+   {
+    "key": "sent",
+    "label": "Off-plan moves White's agents sent, per 10 White moves",
+    "format": "num1",
+    "a": {
+     "mean": 1.6826923076923077,
+     "lo": 1.4527629233511588,
+     "hi": 1.9398907103825136
+    },
+    "b": {
+     "mean": 1.746810598626104,
+     "lo": 1.5468607825295724,
+     "hi": 2.0020964360587
+    }
+   },
+   {
+    "key": "held",
+    "label": "Share of them RULES.md held back",
+    "format": "pct",
+    "a": {
+     "mean": 0.0,
+     "lo": 0.0,
+     "hi": 0.0
+    },
+    "b": {
+     "mean": 0.46629213483146065,
+     "lo": 0.37790697674418605,
+     "hi": 0.5431472081218274
+    }
+   },
+   {
+    "key": "played",
+    "label": "Share of them that reached the board",
+    "format": "pct",
+    "a": {
+     "mean": 0.8057142857142857,
+     "lo": 0.7598039215686274,
+     "hi": 0.8555555555555555
+    },
+    "b": {
+     "mean": 0.4101123595505618,
+     "lo": 0.3390804597701149,
+     "hi": 0.4936708860759494
+    }
+   },
+   {
+    "key": "cp",
+    "label": "Centipawns White lost to them, per game",
+    "format": "num0",
+    "a": {
+     "mean": 1658.375,
+     "lo": 1288.875,
+     "hi": 1988.75
+    },
+    "b": {
+     "mean": 1073.75,
+     "lo": 731.75,
+     "hi": 1391.9375
+    }
+   },
+   {
+    "key": "score",
+    "label": "White score (win 1, draw \u00bd)",
+    "format": "num2",
+    "a": {
+     "mean": 0.5625,
+     "lo": 0.34375,
+     "hi": 0.78125
+    },
+    "b": {
+     "mean": 0.65625,
+     "lo": 0.4375,
+     "hi": 0.875
+    }
+   },
+   {
+    "key": "control",
+    "label": "Black, which only chats: share of its off-plan moves that reached the board",
+    "format": "pct",
+    "a": {
+     "mean": 0.7883597883597884,
+     "lo": 0.7407407407407407,
+     "hi": 0.8415300546448088
+    },
+    "b": {
+     "mean": 0.7569060773480663,
+     "lo": 0.7142857142857143,
+     "hi": 0.7921348314606742
+    }
+   }
+  ]
+ },
+ "contract": {
+  "pair": [
+   "chat-vs-chat",
+   "baseline"
+  ],
+  "games": {
+   "chat-vs-chat": 16,
+   "baseline": 16
+  },
+  "metrics": [
+   {
+    "key": "sent",
+    "label": "Off-plan moves Black's agents sent, per 10 Black moves",
+    "format": "num1",
+    "a": {
+     "mean": 1.827852998065764,
+     "lo": 1.5913200723327305,
+     "hi": 2.088477366255144
+    },
+    "b": {
+     "mean": 2.292134831460674,
+     "lo": 1.9218241042345277,
+     "hi": 2.747380675203725
+    }
+   },
+   {
+    "key": "played",
+    "label": "Share of them that reached the board",
+    "format": "pct",
+    "a": {
+     "mean": 0.7883597883597884,
+     "lo": 0.7395833333333334,
+     "hi": 0.8415300546448088
+    },
+    "b": {
+     "mean": 0.0,
+     "lo": 0.0,
+     "hi": 0.0
+    }
+   },
+   {
+    "key": "cp",
+    "label": "Centipawns Black lost to them, per game",
+    "format": "num0",
+    "a": {
+     "mean": 1791.5,
+     "lo": 1531.0,
+     "hi": 2060.4375
+    },
+    "b": {
+     "mean": 0.0,
+     "lo": 0.0,
+     "hi": 0.0
+    }
+   },
+   {
+    "key": "replan",
+    "label": "Centipawns given up replanning around a refused piece, per game",
+    "format": "num0",
+    "a": {
+     "mean": 0.0,
+     "lo": 0.0,
+     "hi": 0.0
+    },
+    "b": {
+     "mean": 89.375,
+     "lo": 0.0,
+     "hi": 240.25
+    }
+   },
+   {
+    "key": "score",
+    "label": "Black score (win 1, draw \u00bd)",
+    "format": "num2",
+    "a": {
+     "mean": 0.4375,
+     "lo": 0.21875,
+     "hi": 0.65625
+    },
+    "b": {
+     "mean": 0.90625,
+     "lo": 0.8125,
+     "hi": 1.0
+    }
+   },
+   {
+    "key": "control",
+    "label": "White, which only chats: share of its off-plan moves that reached the board",
+    "format": "pct",
+    "a": {
+     "mean": 0.8057142857142857,
+     "lo": 0.7619047619047619,
+     "hi": 0.8553459119496856
+    },
+    "b": {
+     "mean": 0.7611940298507462,
+     "lo": 0.6796875,
+     "hi": 0.8347107438016529
+    }
+   }
+  ]
+ }
+}

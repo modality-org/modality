@@ -24,7 +24,8 @@ The sides differ in how a move reaches the referee.
 compliance with `RULES.md`; the other pieces stay uniform.
 
 The ten experiments, and their results, are on the
-[Multi-Agent Chess](../../docs/multi-agent-chess.md) docs page.
+[Multi-Agent Chess](../../docs/multi-agent-chess.md) docs page. Three of the games can be stepped through on the
+[demo page](https://www.modality.org/demos/multi-agent-chess).
 
 ## Black's contract
 
@@ -85,6 +86,7 @@ python3 multi_agent_chess.py play --seed 7                    # one narrated gam
 python3 multi_agent_chess.py play --white rules-md --black self-ruled --rogue --seed 3
 python3 multi_agent_chess.py experiments --games 16 --jobs 8 --cache results/llm-cache
 python3 report.py out/experiments                             # rewrites the docs page
+python3 site.py                                               # rewrites the demo page's data
 ```
 
 `play` writes `out/game-<seed>.json`, a `.pgn`, and an `.html` replay that
@@ -106,5 +108,6 @@ in `modal` and the language model.
 | `coordination.py` | Chat, RULES.md, the contracts and their witness models |
 | `retro.py` | Retro prompts and the language-model cache |
 | `report.py` | Writes the docs page from an experiments run |
+| `site.py` | Writes the games and results behind [the demo page](https://www.modality.org/demos/multi-agent-chess) |
 | `replay.html` | The replay page template |
 | `contract/` | The preset contract's rules and witness model |

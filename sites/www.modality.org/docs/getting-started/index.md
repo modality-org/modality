@@ -66,5 +66,5 @@ You do not need to rewrite your stack. Pick the surface that fits: CLI for explo
 
 1. [Install `modal`](./installation.md)
 2. [Write your first contract](./first-contract.md)
-3. [Join the public testnet](../cli/join-testnet)
-4. [Read the constant-product pool](../tutorials/constant-product-pool)
+3. [Continue the tutorial series](../tutorials)
+4. [Join the public testnet](../cli/join-testnet)

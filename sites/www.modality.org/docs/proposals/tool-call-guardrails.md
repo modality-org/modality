@@ -70,10 +70,10 @@ agent-sandbox/
 Matches on the tool/action name in a commit's metadata.
 
 ```
-+calls(gmail.read)       # commit invokes gmail.read
--calls(gmail.delete)     # commit must NOT invoke gmail.delete
-+calls(gmail.*)          # any gmail tool
--calls(*.delete)         # no delete on any service
++calls("gmail.read")       # commit invokes gmail.read
+-calls("gmail.delete")     # commit must NOT invoke gmail.delete
++calls("gmail.*")          # any gmail tool
+-calls("*.delete")         # no delete on any service
 ```
 
 Implementation: The commit body includes a `tool` field. The `calls` predicate matches against it using exact match or glob patterns.
@@ -112,25 +112,25 @@ model gmail_guard {
   initial active
 
   // Read is always allowed (with signature)
-  active -> active [+any_signed(/) +calls(gmail.read)]
-  active -> active [+any_signed(/) +calls(gmail.search)]
+  active -> active [+any_signed("/") +calls("gmail.read") +modifies(/audit)]
+  active -> active [+any_signed("/") +calls("gmail.search") +modifies(/audit)]
 
   // Send requires steward co-signature
-  active -> active [+all_signed(/steward) +calls(gmail.send)]
+  active -> active [+all_signed(/steward) +calls("gmail.send") +modifies(/audit)]
 
   // Draft is allowed freely
-  active -> active [+any_signed(/) +calls(gmail.draft)]
+  active -> active [+any_signed("/") +calls("gmail.draft") +modifies(/audit)]
 
   // Delete is NEVER allowed (no transition exists)
   // gmail.delete simply has no matching transition → rejected
 
   // Label/archive allowed
-  active -> active [+any_signed(/) +calls(gmail.label)]
-  active -> active [+any_signed(/) +calls(gmail.archive)]
+  active -> active [+any_signed("/") +calls("gmail.label") +modifies(/audit)]
+  active -> active [+any_signed("/") +calls("gmail.archive") +modifies(/audit)]
 }
 
 rule audit_required {
-  formula { always (+modifies(/audit)) }
+  formula { always([-modifies(/audit)] false) }
 }
 ```
 
@@ -148,11 +148,11 @@ model fs_guard {
   initial active
 
   // Read anywhere
-  active -> active [+any_signed(/) +calls(fs.read)]
-  active -> active [+any_signed(/) +calls(fs.list)]
+  active -> active [+any_signed("/") +calls("fs.read")]
+  active -> active [+any_signed("/") +calls("fs.list")]
 
   // Write only in workspace
-  active -> active [+any_signed(/) +calls(fs.write) +modifies(/workspace)]
+  active -> active [+any_signed("/") +calls("fs.write") +modifies(/workspace)]
 
   // No writes outside workspace (no transition for fs.write without +modifies(/workspace))
   // No rm -rf (no fs.delete transition at all)
@@ -166,18 +166,18 @@ model agent_guard {
   initial active
 
   // Tier 1: Free actions (read-only)
-  active -> active [+any_signed(/) +calls(*.read)]
-  active -> active [+any_signed(/) +calls(*.search)]
-  active -> active [+any_signed(/) +calls(*.list)]
+  active -> active [+any_signed("/") +calls("*.read")]
+  active -> active [+any_signed("/") +calls("*.search")]
+  active -> active [+any_signed("/") +calls("*.list")]
 
   // Tier 2: Scoped writes (agent key sufficient)
-  active -> active [+any_signed(/) +calls(*.create) -calls(*.delete)]
-  active -> active [+any_signed(/) +calls(*.update) +modifies(/workspace)]
+  active -> active [+any_signed("/") +calls("*.create") -calls("*.delete")]
+  active -> active [+any_signed("/") +calls("*.update") +modifies(/workspace)]
 
   // Tier 3: Destructive/external (requires steward)
-  active -> active [+all_signed(/steward) +calls(*.delete)]
-  active -> active [+all_signed(/steward) +calls(*.send)]
-  active -> active [+all_signed(/steward) +calls(*.publish)]
+  active -> active [+all_signed(/steward) +calls("*.delete")]
+  active -> active [+all_signed(/steward) +calls("*.send")]
+  active -> active [+all_signed(/steward) +calls("*.publish")]
 }
 ```
 
@@ -266,8 +266,8 @@ const guardedSandbox = guard.wrapSandbox(sandbox, {
 ```modality
 // Only send to approved recipients
 active -> active [
-  +any_signed(/)
-  +calls(gmail.send)
+  +any_signed("/")
+  +calls("gmail.send")
   +param_in(to, /approved_recipients)
 ]
 ```

@@ -45,7 +45,7 @@ import sys
 import chess
 
 from agents import attempts_for_turn, choose_rogue, follow_move, initial_agents, make_traits, pick_plan
-from coordination import Chat, ContractTeam, Refused
+from coordination import Chat, ContractTeam, Refused, earlier_attempts
 from engine import MATE, material, score_moves
 from retro import LLM
 
@@ -57,7 +57,7 @@ MODAL = os.environ.get("MODAL", "modal")
 class Setup:
     name: str = "custom"
     white: str = "chat"  # chat | rules-md
-    black: str = "contract"  # contract | self-ruled
+    black: str = "contract"  # chat | contract | self-ruled | self-ruled-start | self-ruled-plus
     pawns: str = "uniform"  # uniform | personalities
     fault: float = 0.1
     compliance: float = 0.5  # how often a RULES.md rule holds an agent back
@@ -68,11 +68,27 @@ class Setup:
 
 
 EXPERIMENTS = [
+    Setup("chat-vs-chat", black="chat", note="Both sides over chat: no contract, no rules"),
+    Setup("rules-md-vs-chat", white="rules-md", black="chat", note="White writes RULES.md; Black only chats"),
     Setup("control", fault=0.0, note="No faults: the contract should change nothing"),
     Setup("baseline", note="Chat against the preset contract"),
     Setup("rules-md", white="rules-md", note="White writes RULES.md; agents follow it half the time"),
     Setup("rules-md-obeyed", white="rules-md", compliance=1.0, note="White writes RULES.md; agents always follow it"),
+    Setup("rules-md-obeyed-vs-chat", white="rules-md", black="chat", compliance=1.0,
+          note="White writes RULES.md and always follows it; Black only chats"),
+    Setup("rules-md-95", white="rules-md", compliance=0.95,
+          note="White writes RULES.md; agents follow it 95% of the time"),
+    Setup("rules-md-95-vs-chat", white="rules-md", black="chat", compliance=0.95,
+          note="White writes RULES.md and follows it 95% of the time; Black only chats"),
     Setup("self-ruled", black="self-ruled", note="Black starts with no rules and writes its own"),
+    Setup("self-ruled-start", black="self-ruled-start",
+          note="Black writes its own rules, starting with one before the first move"),
+    Setup("rules-md-vs-self-ruled-start", white="rules-md", black="self-ruled-start",
+          note="White writes RULES.md; Black writes its own rules from the start"),
+    Setup("self-ruled-plus", black="self-ruled-plus",
+          note="Black writes its own rules from the start, with more retros and rules aimed at one agent"),
+    Setup("rules-md-vs-self-ruled-plus", white="rules-md", black="self-ruled-plus",
+          note="White writes RULES.md; Black writes richer rules from the start"),
     Setup("rules-md-vs-self-ruled", white="rules-md", black="self-ruled",
           note="Both sides write their own rules: a file against a contract"),
     Setup("rogue-baseline", rogue=True, note="A rogue agent on each side, against the preset contract"),
@@ -131,8 +147,12 @@ def play_game(setup, seed, workdir, llm=None, depth=2, margin=20, max_plies=160,
     rogue = {c: (choose_rogue(seed, roster[c]) if setup.rogue else None) for c in roster}
     coord = {
         chess.WHITE: Chat(workdir / f"white-{seed}", setup.white == "rules-md", llm, setup.max_retros),
-        chess.BLACK: ContractTeam(workdir / f"black-{seed}", roster[chess.BLACK], MODAL,
-                                  preset=setup.black == "contract", llm=llm, max_retros=setup.max_retros),
+        chess.BLACK: Chat(workdir / f"black-{seed}", False, llm, setup.max_retros) if setup.black == "chat"
+        else ContractTeam(workdir / f"black-{seed}", roster[chess.BLACK], MODAL,
+                          preset=setup.black == "contract", llm=llm,
+                          max_retros=6 if setup.black == "self-ruled-plus" else setup.max_retros,
+                          pregame=setup.black in ("self-ruled-start", "self-ruled-plus"),
+                          rich=setup.black == "self-ruled-plus"),
     }
 
     plies, forfeit, forfeit_events = [], None, []
@@ -149,6 +169,11 @@ def play_game(setup, seed, workdir, llm=None, depth=2, margin=20, max_plies=160,
         events, played, plan_refused, passed_over, misses = [], None, 0, set(), {}
         for _ in range(20):
             attempts = attempts_for_turn(board, scores, plan, at, traits, rng[side], active_rogue)
+            if isinstance(coord[side], Chat):
+                # A piece can only move itself: the referee ignores a move in the
+                # chat from any agent but the piece that makes it. A contract
+                # holds the same rule itself, one rule per piece.
+                attempts = [a for a in attempts if at[a.move.from_square] == a.agent]
             played, outcomes, ev = coord[side].resolve(ply, attempts, plan, rng[side], traits,
                                                        active_rogue, roster[side])
             events += ev
@@ -182,6 +207,9 @@ def play_game(setup, seed, workdir, llm=None, depth=2, margin=20, max_plies=160,
             break
         if played not in scores:
             raise Refused(f"ply {ply}: {played} is not a legal move")
+        sender = next(a.agent for a, o, _ in outcomes if o == "played")
+        if sender != at[played.from_square]:
+            raise Refused(f"ply {ply}: {sender} sent {played}, a move of {at[played.from_square]}")
 
         record = {
             "ply": ply,
@@ -198,7 +226,8 @@ def play_game(setup, seed, workdir, llm=None, depth=2, margin=20, max_plies=160,
             ],
         }
         incident = describe_incident(record) if played != plan else None
-        events += coord[side].after_ply(record, incident, roster[side], active_rogue)
+        record["events"] = events  # what happened this ply, for a retro that reads it
+        events = events + coord[side].after_ply(record, incident, roster[side], active_rogue)
         record["events"] = events
         captured = follow_move(board, played, at)
         board.push(played)
@@ -258,11 +287,14 @@ def summarize(game):
     out = {}
     for side in ("white", "black"):
         plies = [p for p in game["plies"] if p["side"] == side]
-        stray = [a for p in plies for a in p["attempts"] if a["kind"] != "plan"]
         off = [p for p in plies if p["played"]["uci"] != p["plan"]["uci"]]
         events = [e for p in plies for e in p["events"]]
         if game.get("forfeit_events") and game["reason"].startswith(side):
             events += game["forfeit_events"]
+        if side == "black":
+            events = list(game.get("contract", {}).get("pregame_events", [])) + events
+        stray = [a for p in plies for a in p["attempts"] if a["kind"] != "plan"]
+        stray += [a for a in earlier_attempts(events) if a["kind"] != "plan"]
         rules = [e for e in events if e["type"] == "rule"]
         out[side] = {
             "moves": len(plies),
@@ -308,7 +340,10 @@ def write_pgn(game, path):
 
 
 def audit(game):
-    """Check every Black move against the contract's own log."""
+    """Check every Black move against the contract's own log: the move, and the piece that made it."""
+    black = [p for p in game["plies"] if p["side"] == "black"]
+    if game["setup"]["black"] == "chat":
+        return {"black_moves": len(black), "logged": None, "mismatched": [], "fewest_signatures": None}
     root = pathlib.Path(game["contract"]["dir"])
     proc = subprocess.run([MODAL, "contract", "log", "--output", "json"], cwd=root, capture_output=True, text=True)
     if proc.returncode != 0:
@@ -317,11 +352,12 @@ def audit(game):
     for c in json.loads(proc.stdout)["commits"]:
         commit = json.loads((root / ".contract" / "commits" / f"{c['id']}.json").read_text())
         body = {a["path"]: a.get("value") for a in commit["body"] if a.get("path")}
-        if "/turn/move.text" in body and body.get("/turn/ply.num") is not None:
-            moves.setdefault(body["/turn/ply.num"], (body["/turn/move.text"], c["signature_count"]))
-    black = [p for p in game["plies"] if p["side"] == "black"]
-    bad = [p["ply"] for p in black if moves.get(p["ply"], (None,))[0] != p["played"]["uci"]]
-    least = min((moves[p["ply"]][1] for p in black if p["ply"] in moves), default=0)
+        moved = [(path[len("/moves/"):-len(".text")], v) for path, v in body.items() if path.startswith("/moves/")]
+        if len(moved) == 1 and body.get("/turn/ply.num") is not None:
+            moves.setdefault(body["/turn/ply.num"], (*moved[0], c["signature_count"]))
+    bad = [p["ply"] for p in black
+           if moves.get(p["ply"], (None, None))[:2] != (p["played"]["agent"], p["played"]["uci"])]
+    least = min((moves[p["ply"]][2] for p in black if p["ply"] in moves), default=0)
     return {"black_moves": len(black), "logged": len(moves), "mismatched": bad, "fewest_signatures": least}
 
 
@@ -352,11 +388,14 @@ def cmd_play(args):
         print(f"  {side:5}  off-plan sent {v['off_plan_attempts']:3}   played {v['off_plan_played']:3}"
               f"   centipawns lost {v['centipawns_lost']}   rules kept {v['rules_kept']}/{v['rules_proposed']}")
     c = game["contract"]
-    print(f"  black contract: {c['accepted']} commits accepted, {c['refused']} refused ({c['dir']})")
     a = game["audit"] = audit(game)
-    if a["mismatched"] or a["logged"] != a["black_moves"]:
+    if a["logged"] is None:
+        pass  # Black played over chat: there is no log to check
+    elif a["mismatched"] or a["logged"] != a["black_moves"]:
+        print(f"  black contract: {c['accepted']} commits accepted, {c['refused']} refused ({c['dir']})")
         print(f"  audit FAILED: plies {a['mismatched']} do not match the contract log")
     else:
+        print(f"  black contract: {c['accepted']} commits accepted, {c['refused']} refused ({c['dir']})")
         print(f"  audit: all {a['black_moves']} Black moves are accepted commits in the contract log, "
               f"each signed by at least {a['fewest_signatures']} Black agents")
     (out / f"game-{args.seed}.json").write_text(json.dumps(game, indent=1))
@@ -372,11 +411,12 @@ def run_one(task):
     game = play_game(setup, seed, workdir, llm, depth=depth, max_plies=max_plies)
     game["audit"] = audit(game)
     (pathlib.Path(workdir) / f"game-{seed}.json").write_text(json.dumps(game, indent=1))
-    shutil.rmtree(game["contract"]["dir"], ignore_errors=True)
+    if "dir" in game["contract"]:
+        shutil.rmtree(game["contract"]["dir"], ignore_errors=True)
     shutil.rmtree(pathlib.Path(workdir) / f"white-{seed}", ignore_errors=True)
     return {"seed": seed, "winner": game["winner"], "reason": game["reason"], "plies": len(game["plies"]),
             "summary": summarize(game), "audit": game["audit"], "llm_calls": llm.calls,
-            "contract": {k: game["contract"][k] for k in ("accepted", "refused")}}
+            "contract": {k: game["contract"].get(k) for k in ("accepted", "refused")}}
 
 
 def row_for(setup, games):
@@ -453,7 +493,8 @@ def main():
         s.add_argument("--cache", help="where language-model answers are cached")
     play = sub.choices["play"]
     play.add_argument("--white", choices=("chat", "rules-md"), default="chat")
-    play.add_argument("--black", choices=("contract", "self-ruled"), default="contract")
+    play.add_argument("--black", choices=("chat", "contract", "self-ruled", "self-ruled-start", "self-ruled-plus"),
+                      default="contract")
     play.add_argument("--pawns", choices=("uniform", "personalities"), default="uniform")
     play.add_argument("--fault", type=float, default=0.1, help="rate for panic, greed and amnesia")
     play.add_argument("--compliance", type=float, default=0.5, help="how often RULES.md holds an agent back")

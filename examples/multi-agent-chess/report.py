@@ -20,11 +20,20 @@ HERE = pathlib.Path(__file__).resolve().parent
 DOCS = HERE.parent.parent / "docs" / "multi-agent-chess.md"
 
 LABELS = {
+    "chat-vs-chat": "Both sides over chat",
+    "rules-md-vs-chat": "White keeps a RULES.md, Black only chats",
     "control": "Control: no faults",
     "baseline": "Baseline: chat against the preset contract",
     "rules-md": "White keeps a RULES.md",
     "rules-md-obeyed": "White keeps a RULES.md that every agent obeys",
+    "rules-md-obeyed-vs-chat": "RULES.md always obeyed, Black only chats",
+    "rules-md-95": "White keeps a RULES.md that agents follow 95% of the time",
+    "rules-md-95-vs-chat": "RULES.md followed 95% of the time, Black only chats",
     "self-ruled": "Black writes its own contract rules",
+    "self-ruled-start": "Black writes its own contract rules, starting before the first move",
+    "rules-md-vs-self-ruled-start": "RULES.md against rules written from the start",
+    "self-ruled-plus": "Black writes richer rules from the start",
+    "rules-md-vs-self-ruled-plus": "RULES.md against richer rules written from the start",
     "rules-md-vs-self-ruled": "Both sides write their own rules",
     "rogue-baseline": "A rogue agent, against the preset contract",
     "rogue-self-ruled": "A rogue agent, when both sides write their own rules",
@@ -57,7 +66,11 @@ def summary_table(rows):
         white = "chat + RULES.md" if s["white"] == "rules-md" else "chat"
         if s["white"] == "rules-md" and s["compliance"] == 1.0:
             white += " (always obeyed)"
-        black = "self-ruled contract" if s["black"] == "self-ruled" else "preset contract"
+        elif s["white"] == "rules-md" and s["compliance"] != 0.5:
+            white += f" (obeyed {s['compliance']:.0%})"
+        black = {"chat": "chat", "self-ruled": "self-ruled contract",
+                 "self-ruled-start": "self-ruled contract, rules from the start",
+                 "self-ruled-plus": "self-ruled contract, from the start, richer rules"}.get(s["black"], "preset contract")
         extras = []
         if s["fault"] == 0:
             extras.append("no faults")
@@ -163,7 +176,7 @@ def black_rule_stats(games):
                         f = e.get("formula") or ""
                         m = re.findall(r'threshold\("(\d+)"', f)
                         thresholds[int(m[0]) if m else None] += 1
-                        if "[-modifies(/turn/move.text)] false" in f:
+                        if re.search(r"\[-modifies\(/(turn|moves)/[^)]*\)\] false", f):
                             locking.add((g["seed"], f))
     return thresholds, sorted(locking)
 
@@ -222,6 +235,15 @@ def findings(rows, games):
                 first_rule += 1
                 break
     out = ["## What the experiments show", ""]
+    if "chat-vs-chat" in R:
+        cc = R["chat-vs-chat"]
+        out.append(
+            f"**Over chat, both teams drift alike.** With both sides on chat, White's agents sent "
+            f"{cc['white_off_plan_attempts']:.1f} off-plan moves a game and the referee played "
+            f"{cc['white_off_plan_played']:.1f}; Black's sent {cc['black_off_plan_attempts']:.1f} and "
+            f"{cc['black_off_plan_played']:.1f} were played. Black scored {pct(cc['black_score'])}, against "
+            f"{pct(c['black_score'])} when no agent goes off plan.")
+        out.append("")
     out.append(
         f"**A contract holds a team to its plan; chat does not.** In the baseline, White's agents sent "
         f"{b['white_off_plan_attempts']:.1f} off-plan moves a game and the referee played {b['white_off_plan_played']:.1f} "
@@ -335,8 +357,10 @@ def page(rows, games, commit):
     total = sum(r["games"] for r in rows)
     llm_games = [g for name, gs in games.items() for g in gs
                  if g["setup"]["white"] == "rules-md" or g["setup"]["black"] == "self-ruled"]
-    audits = sum(not g["audit"]["mismatched"] for gs in games.values() for g in gs)
-    parts = [INTRO.format(total=total, commit=commit, audits=audits, llm_games=len(llm_games)),
+    contract_games = [g for gs in games.values() for g in gs if g["setup"]["black"] != "chat"]
+    audits = sum(not g["audit"]["mismatched"] for g in contract_games)
+    parts = [INTRO.format(total=total, commit=commit, audits=audits, contract_games=len(contract_games),
+                          llm_games=len(llm_games)),
              "## Results", "", summary_table(rows), "",
              "Black score counts a win as 1 and a draw as ½. Off-plan moves are per game.", "",
              findings(rows, games), "", "## Each experiment", ""]
@@ -348,7 +372,7 @@ def page(rows, games, commit):
 
 INTRO = """---
 title: Multi-Agent Chess
-description: Thirty-two agents play chess. One side coordinates over chat, the other through a Modality contract. Ten experiments, with results.
+description: Thirty-two agents play chess. One side coordinates over chat, the other through a Modality contract. Eleven experiments, with results.
 ---
 
 # Multi-agent chess
@@ -358,11 +382,13 @@ move agree on a plan, the best move their shared engine finds. Some agents go
 their own way. The question is what keeps a team on its plan, and whether a
 Modality contract does it better than agents writing rules for themselves.
 
+To watch games step by step, see the [demo page](https://www.modality.org/demos/multi-agent-chess).
 The code is [`examples/multi-agent-chess`](https://github.com/modality-org/modality/tree/main/examples/multi-agent-chess).
-These results come from {total} games played at {commit}. Every
-Black move in every game is a commit that `modal` checked, and in all
-{audits} games the contract's own log agrees with the moves the referee
-played. In {llm_games} games, agents wrote rules with a language model.
+These results come from {total} games played at {commit}. In the
+{contract_games} games where Black plays through a contract, every Black move
+is a commit that `modal` checked, and in {audits} of them the contract's own
+log agrees with the moves the referee played and the pieces that made them.
+In {llm_games} games, agents wrote rules with a language model.
 
 ## The setup
 
@@ -376,8 +402,13 @@ the default rate of 0.1:
 | Amnesia | The piece the team chose forgets the plan and moves somewhere else |
 | Rogue | One compromised agent plays its worst move every turn, from ply 10 |
 
-**White** coordinates over chat. Any White agent can send a move to the
-referee, and the referee plays the first one it receives.
+**A piece can only move itself.** An agent can talk about any move, but the
+only move it can send is one of its own piece's. Each side holds this rule in
+its own way.
+
+**White** coordinates over chat. Each White agent can send its own move to
+the referee, and the referee plays the first move it receives from the piece
+that makes it.
 
 - *With RULES.md*, White also keeps a shared file that any White agent can
   edit. Nothing checks it. When an off-plan move is played, the team holds a
@@ -385,16 +416,23 @@ referee, and the referee plays the first one it receives.
   rule that covers what it is about to do half the time (or always, in one
   experiment). A rogue empties the file whenever it finds rules in it.
 
-**Black** coordinates through a Modality contract. The referee plays the
-first Black move the contract accepts and reads nothing else. An agent that
-goes off plan signs its own commit alone; the team's plan is signed by every
-agent that agrees with it.
+**Black** coordinates through a Modality contract. A move is the
+`/moves/<agent>.text` of an accepted commit, and the referee plays the first
+Black move the contract accepts and reads nothing else. The rule
+`always([+modifies(/moves/$k.text) -signed_by(/team/pieces/$k.id)] false)`,
+where `$k` stands for every agent, says only a piece can write its own move,
+so a piece can only formally propose its own movement. An agent that goes off plan signs its own commit alone; the
+team's plan is signed by the piece that moves and every agent that agrees
+with it.
 
-- *With the preset contract*, two rules hold from the first commit: a commit
-  needs four of the sixteen Black agents' signatures, and the roster of
-  agents can never change.
-- *Self-ruled*, the contract starts with the roster and no rules. Any commit
-  is accepted, so Black plays like White until its agents write rules. When
+- *Over chat*, in one experiment, Black coordinates the way White does, so
+  neither side has a contract or shared rules.
+- *With the preset contract*, two more rules hold from the first commit: a
+  commit needs four of the sixteen Black agents' signatures, and the roster
+  of agents can never change.
+- *Self-ruled*, the contract starts with the roster and the per-piece rule
+  only. Any piece can still move itself alone, so Black plays like White
+  until its agents write rules. When
   an off-plan move is played, one agent writes a rule in plain language,
   `modal contract ai suggest-rule` turns it into a formula, and the team
   commits it with a witness model. `modal` refuses a rule commit that breaks
