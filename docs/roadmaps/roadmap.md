@@ -32,8 +32,10 @@ For live access, start with [Join the public testnet](../cli/join-testnet.md).
   `run-validator` performs the separate prefix-certificate role.
 - [x] The [CI workflow](../../.github/workflows/ci.yml) runs workspace
   `cargo check --all`, `cargo check --all --tests --examples`, `cargo test --all`,
-  and workspace Clippy. These cover network crates as workspace members; the
-  numbered shell network scenarios are not run by that workflow.
+  and workspace Clippy. These cover network crates as workspace members. CI also
+  builds `modal` and runs the numbered `01-ping-node` scenario, which boots one
+  local node and pings it from a second node; the other numbered scenarios are
+  not yet CI gates.
 - [x] A small [hybrid consensus experiment](../../experiments/hybrid-consensus/README.md)
   contains TLA+ and Lean artifacts. It is not a proof of the entire deployed
   protocol.

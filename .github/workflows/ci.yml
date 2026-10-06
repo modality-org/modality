@@ -7,6 +7,8 @@ on:
       - 'docs/**'
       - 'rust/**'
       - 'scripts/ci/**'
+      - 'tests/network/01-ping-node/**'
+      - 'tests/network/test-lib.sh'
       - '.github/workflows/ci.yml'
   pull_request:
     branches: [main]
@@ -14,6 +16,8 @@ on:
       - 'docs/**'
       - 'rust/**'
       - 'scripts/ci/**'
+      - 'tests/network/01-ping-node/**'
+      - 'tests/network/test-lib.sh'
       - '.github/workflows/ci.yml'
   # The release workflow runs the whole of CI on the commit it builds.
   workflow_call:
@@ -124,12 +128,23 @@ jobs:
           sudo sed -i 's|http://azure.archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' /etc/apt/sources.list /etc/apt/sources.list.d/*.list /etc/apt/sources.list.d/*.sources 2>/dev/null || true
           grep -ril 'packages.microsoft.com' /etc/apt/sources.list /etc/apt/sources.list.d 2>/dev/null | xargs -r sudo sed -i 's/^\([^#].*\)$/# disabled for CI: \1/'
           sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=20 -o Acquire::https::Timeout=20 update
-          sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=20 -o Acquire::https::Timeout=20 install -y cmake clang libssl-dev pkg-config
+          sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=20 -o Acquire::https::Timeout=20 install -y cmake clang libssl-dev pkg-config lsof
           
       - name: Run tests
         working-directory: rust
         # Miner chain tests use fast SHA-256 fixtures; explicit RandomX coverage remains.
         run: cargo test --all
+
+      - name: Build modal for network smoke test
+        working-directory: rust
+        run: cargo build -p modal
+
+      - name: Boot and ping two local nodes
+        working-directory: tests/network/01-ping-node
+        timeout-minutes: 5
+        run: |
+          export PATH="$GITHUB_WORKSPACE/rust/target/debug:$PATH"
+          bash ./test.sh
 
   clippy:
     name: Clippy
