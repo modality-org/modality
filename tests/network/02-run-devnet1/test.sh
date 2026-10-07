@@ -79,7 +79,10 @@ else
 fi
 
 echo ""
-echo "Test 8: Creating a local contract..."
+echo "Test 8: Waiting for a certified Shoal round..."
+assert_success "test_wait_for_log './tmp/test-logs/02-run-devnet1_node1.log' 'Block certified and finalized: round 1' 30" "Sequencer should certify and finalize round 1"
+
+echo "Test 9: Creating a local contract..."
 rm -rf ./tmp/test-contract
 mkdir -p ./tmp/test-contract
 CONTRACT_OUTPUT=$(cd ./tmp/test-contract && modal contract create --output json 2>&1)
@@ -97,7 +100,7 @@ else
     CONTRACT_ID=""
 fi
 
-echo "Test 9: Creating a local commit..."
+echo "Test 10: Creating a local commit..."
 if [ -n "$CONTRACT_ID" ]; then
     echo "DEBUG: CONTRACT_ID=$CONTRACT_ID" >> "$CURRENT_LOG"
     
@@ -119,7 +122,7 @@ else
     echo -e "  ${YELLOW}⊘${NC} Skipping (no contract ID)"
 fi
 
-echo "Test 10: Checking contract status..."
+echo "Test 11: Checking contract status..."
 if [ -n "$CONTRACT_ID" ]; then
     STATUS_OUTPUT=$(cd ./tmp/test-contract && modal contract status 2>&1)
     if [ $? -eq 0 ] && echo "$STATUS_OUTPUT" | grep -q "Contract ID"; then
