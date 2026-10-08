@@ -24,6 +24,9 @@ For live access, start with [Join the public testnet](../cli/join-testnet.md).
 
 ## Mining, ordering, and verification
 
+- [x] The [mining operator guide](../cli/mining-testnet.md) documents
+  RandomX miner blocks, joining and pinging, and how a miner nominates a
+  sequencer. It does not establish that an independent miner has joined.
 - [x] The Rust workspace contains the
   [miner](../../rust/modality-miner/),
   [node](../../rust/modality-node/),

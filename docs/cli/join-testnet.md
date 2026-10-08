@@ -112,5 +112,6 @@ modal wallet faucet
 
 See [Wallet Commands](wallet-commands.md).
 
-See [Node Commands](node-commands.md) for `create`, `run-miner`, `run-hybrid`,
-and `ping`.
+See [Mine on the public testnet](mining-testnet.md) for RandomX mining,
+operator checks, and sequencer nomination. See [Node Commands](node-commands.md)
+for `create`, `run-miner`, `run-hybrid`, and `ping`.

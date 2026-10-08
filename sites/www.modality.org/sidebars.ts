@@ -51,6 +51,7 @@ const sidebars: SidebarsConfig = {
         'cli/identity-commands',
         'cli/node-commands',
         'cli/join-testnet',
+        'cli/mining-testnet',
         'cli/hub-commands',
         'cli/predicate-commands',
         'cli/network-commands',
