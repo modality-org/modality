@@ -9,6 +9,7 @@ on:
       - 'scripts/ci/**'
       - 'tests/network/01-ping-node/**'
       - 'tests/network/02-run-devnet1/**'
+      - 'tests/network/05-mining/**'
       - 'tests/network/test-lib.sh'
       - '.github/workflows/ci.yml'
   pull_request:
@@ -19,6 +20,7 @@ on:
       - 'scripts/ci/**'
       - 'tests/network/01-ping-node/**'
       - 'tests/network/02-run-devnet1/**'
+      - 'tests/network/05-mining/**'
       - 'tests/network/test-lib.sh'
       - '.github/workflows/ci.yml'
   # The release workflow runs the whole of CI on the commit it builds.
@@ -151,6 +153,13 @@ jobs:
       - name: Boot and certify a local sequencer round
         working-directory: tests/network/02-run-devnet1
         timeout-minutes: 5
+        run: |
+          export PATH="$GITHUB_WORKSPACE/rust/target/debug:$PATH"
+          bash ./test.sh
+
+      - name: Mine and persist a local block
+        working-directory: tests/network/05-mining
+        timeout-minutes: 6
         run: |
           export PATH="$GITHUB_WORKSPACE/rust/target/debug:$PATH"
           bash ./test.sh

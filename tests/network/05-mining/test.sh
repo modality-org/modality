@@ -31,13 +31,24 @@ modal node create \
     --dir ./tmp/miner \
     --network devnet1 >> "$CURRENT_LOG" 2>&1
 
-# Configure node for mining
+# Run this fixture as a solo miner. A fresh devnet1 joiner otherwise waits
+# indefinitely for its configured bootstrapper before mining its first block.
 CONFIG_FILE="./tmp/miner/config.json"
-TMP_FILE="./tmp/miner/config.json.tmp"
-if command -v jq &> /dev/null; then
-    jq '. + {run_miner: true, status_port: 8080, initial_difficulty: 1, listeners: ["/ip4/0.0.0.0/tcp/10301/ws"]}' "$CONFIG_FILE" > "$TMP_FILE"
-    mv "$TMP_FILE" "$CONFIG_FILE"
-fi
+python3 - "$CONFIG_FILE" <<'PYCONFIG'
+import json
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+config = json.loads(path.read_text())
+config.update(
+    bootstrappers=[],
+    status_port=8080,
+    initial_difficulty=1,
+    listeners=["/ip4/0.0.0.0/tcp/10301/ws"],
+)
+path.write_text(json.dumps(config, indent=2) + "\n")
+PYCONFIG
 
 assert_file_exists "./tmp/miner/config.json" "Node config should be created"
 assert_file_exists "./tmp/miner/node.modal_passfile" "Node passfile should be created"
