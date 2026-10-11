@@ -1298,9 +1298,10 @@ roster_locked: always([+modifies(/team)] false)`}
           <EloChart />
           <p className={styles.small}>
             From {Object.values(elo.matches).reduce((a, b) => a + b, 0)} games with the
-            default faults: each of the three plays the other two, and plain chat also plays
-            itself. RULES.md is
-            followed half the time, as everywhere on this page. The self-ruled contract writes
+            default faults, {Math.max(...Object.values(elo.matches))} per matchup: each of the
+            three plays the other two, and plain chat also plays itself. Every rule in these
+            games was written by Claude Sonnet 5.5. RULES.md is followed half the time, as
+            everywhere on this page. The self-ruled contract writes
             a rule before the first move and more after incidents. The other experiments,
             including the preset contract, are in the table below. White's first-move edge
             came out at {Math.round(elo.white_edge.mean)} points (
