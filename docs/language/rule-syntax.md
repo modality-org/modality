@@ -121,11 +121,18 @@ always(φ)           // φ holds forever (invariant)
 eventually(φ)       // φ holds now, or some path of moves reaches φ
                     // = lfp(X, φ | <>X)
 
-until(p, q)         // some path keeps p true until it reaches q
+p until q           // some path keeps p true until it reaches q
                     // = lfp(X, q | (p & <>X))
+                    // also written until(p, q) or eventually(p) until q
+
+always(p) until q   // every path keeps p true until q holds; q need never come
+                    // = gfp(X, q | (p & []X))
 ```
 
-`eventually` and `until` promise that φ can be reached, not that it will
+`(always(p)) until q`, with the extra parentheses, is the plain `until` with
+`always(p)` as its left side.
+
+`eventually` and `p until q` promise that φ can be reached, not that it will
 be. No rule can make a commit happen: runs may stop, or loop, before
 reaching φ. To promise that φ stays reachable wherever the contract
 goes, write `always(eventually(φ))`.
