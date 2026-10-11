@@ -921,7 +921,10 @@ mod tests {
         assert_eq!(repair.part.as_deref(), Some("flow"));
         assert_eq!(
             std::fs::read_to_string(dir.join("model/default.modality"))?,
-            format!("{}    q1 --> q1: +signed_by(/parties/bob.id)\n  }}\n}}\n", witness.trim_end_matches("  }\n}\n")),
+            format!(
+                "{}    q1 --> q1: +signed_by(/parties/bob.id)\n  }}\n}}\n",
+                witness.trim_end_matches("  }\n}\n")
+            ),
         );
 
         // Bob needs no repair now, and nothing lets an unsigned commit in.
@@ -947,25 +950,26 @@ mod tests {
             "create", "--dir", &d, "--output", "json",
         ]))
         .await?;
-        let model = "model M {\n  part p {\n    a -> b [+GO]\n  }\n}\n";
+        let model = "model M {\n  part p {\n    a -> b\n    b -> b [+GO]\n  }\n}\n";
         std::fs::write(dir.join("model/default.modality"), model)?;
         let argv = |args: &[&str]| {
             let mut v = vec!["commit", "--dir", d.as_str(), "--output", "json"];
             v.extend_from_slice(args);
             Opts::parse_from(v)
         };
-        make(&argv(&["--all", "--action", r#"{"method":"GO"}"#]))
-            .await?
-            .expect("model and GO");
-        let edited = "model M {\n  part p {\n    a -> b [+GO]\n    b -> b [+NOTE]\n  }\n}\n";
+        make(&argv(&["--all"])).await?.expect("the model");
+        let edited =
+            "model M {\n  part p {\n    a -> b\n    b -> b [+GO]\n    b -> b [+NOTE]\n  }\n}\n";
         std::fs::write(dir.join("model/default.modality"), edited)?;
-        let err = match make(&argv(&["--action", r#"{"method":"STOP"}"#, "--synthesize-model"])).await
-        {
+        let err = match make(&argv(&["--post", "/notes/x.text=hi", "--synthesize-model"])).await {
             Ok(_) => panic!("must not overwrite the edited model"),
             Err(err) => err.to_string(),
         };
         assert!(err.contains("edits this commit does not carry"), "{err}");
-        assert_eq!(std::fs::read_to_string(dir.join("model/default.modality"))?, edited);
+        assert_eq!(
+            std::fs::read_to_string(dir.join("model/default.modality"))?,
+            edited
+        );
         Ok(())
     }
 
@@ -1304,12 +1308,13 @@ fn synthesize_admitting_model(
     );
     labels.sort_by_key(|p| p.sign == PropertySign::Minus);
 
-    let outcome = find_admitting_model(&base, &current, &labels, RepairLimits::default(), |text| {
-        let c = with_model(text)?;
-        c.validate()?;
-        store.validate_commit_against_rules(&c)?;
-        validate_commit_against_model(dir, store, &c, theory).map(|_| ())
-    })?;
+    let outcome =
+        find_admitting_model(&base, &current, &labels, RepairLimits::default(), |text| {
+            let c = with_model(text)?;
+            c.validate()?;
+            store.validate_commit_against_rules(&c)?;
+            validate_commit_against_model(dir, store, &c, theory).map(|_| ())
+        })?;
     match outcome {
         RepairOutcome::Found(repair) => Ok((
             with_model(&repair.model_text)?,

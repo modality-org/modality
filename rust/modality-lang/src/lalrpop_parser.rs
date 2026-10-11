@@ -878,6 +878,46 @@ formula infix {
     }
 
     #[test]
+    fn test_parse_always_and_eventually_until() {
+        let content = r#"
+formula every {
+    always(<+P> true) until <+Q> true
+}
+formula some {
+    eventually(<+P> true) until <+Q> true
+}
+formula plain {
+    <+P> true until <+Q> true
+}
+formula grouped {
+    (always(<+P> true)) until <+Q> true
+}
+formula taken {
+    always(W) until <+Q> true
+}
+"#;
+        let f = parse_all_formulas_content_lalrpop(content).unwrap();
+        let p = || FormulaExpr::Diamond(
+            vec![crate::ast::Property::new(crate::ast::PropertySign::Plus, "P".to_string())],
+            Box::new(FormulaExpr::True),
+        );
+        let q = || FormulaExpr::Diamond(
+            vec![crate::ast::Property::new(crate::ast::PropertySign::Plus, "Q".to_string())],
+            Box::new(FormulaExpr::True),
+        );
+        // always(p) until q: every path, as gfp(W, q | (p & []W)).
+        assert_eq!(f[0].expression, FormulaExpr::always_until(p(), q()));
+        assert!(matches!(&f[0].expression, FormulaExpr::Gfp(v, _) if v == "W"));
+        // eventually(p) until q says the same as p until q.
+        assert_eq!(f[1].expression, f[2].expression);
+        assert!(matches!(f[2].expression, FormulaExpr::Until(_, _)));
+        // Parentheses keep the plain reading.
+        assert!(matches!(f[3].expression, FormulaExpr::Until(_, _)));
+        // The bound variable avoids a name the formula already uses.
+        assert!(matches!(&f[4].expression, FormulaExpr::Gfp(v, _) if v == "W1"));
+    }
+
+    #[test]
     fn test_parse_gfp() {
         // gfp(X, φ) - greatest fixed point
         let content = r#"

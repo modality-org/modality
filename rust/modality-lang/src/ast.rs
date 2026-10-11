@@ -282,6 +282,54 @@ impl FormulaExpr {
         }
     }
 
+    /// `always(p) until q`: on every path, `p` holds until `q` does, and `q`
+    /// need never come (weak until). Built as `gfp(V, q | (p & []V))` with a
+    /// variable `V` that occurs in neither `p` nor `q`, so it captures nothing.
+    pub fn always_until(p: FormulaExpr, q: FormulaExpr) -> FormulaExpr {
+        fn names(e: &FormulaExpr, out: &mut Vec<String>) {
+            match e {
+                FormulaExpr::Prop(n) | FormulaExpr::Var(n) => out.push(n.clone()),
+                FormulaExpr::Lfp(v, b) | FormulaExpr::Gfp(v, b) => {
+                    out.push(v.clone());
+                    names(b, out);
+                }
+                FormulaExpr::And(a, b)
+                | FormulaExpr::Or(a, b)
+                | FormulaExpr::Implies(a, b)
+                | FormulaExpr::Until(a, b) => {
+                    names(a, out);
+                    names(b, out);
+                }
+                FormulaExpr::Not(a)
+                | FormulaExpr::Paren(a)
+                | FormulaExpr::Diamond(_, a)
+                | FormulaExpr::Box(_, a)
+                | FormulaExpr::DiamondBox(_, a)
+                | FormulaExpr::Eventually(a)
+                | FormulaExpr::Always(a)
+                | FormulaExpr::Next(a) => names(a, out),
+                FormulaExpr::True | FormulaExpr::False => {}
+            }
+        }
+        let mut used = Vec::new();
+        names(&p, &mut used);
+        names(&q, &mut used);
+        let var = std::iter::once("W".to_string())
+            .chain((1..).map(|i| format!("W{i}")))
+            .find(|v| !used.contains(v))
+            .expect("an unused name exists");
+        FormulaExpr::Gfp(
+            var.clone(),
+            Box::new(FormulaExpr::Or(
+                Box::new(q),
+                Box::new(FormulaExpr::And(
+                    Box::new(p),
+                    Box::new(FormulaExpr::Box(vec![], Box::new(FormulaExpr::Var(var)))),
+                )),
+            )),
+        )
+    }
+
     /// Desugar temporal operators to their fixed point equivalents
     /// always(f) ≡ gfp(X, []X & f)
     /// eventually(f) ≡ lfp(X, <>X | f)

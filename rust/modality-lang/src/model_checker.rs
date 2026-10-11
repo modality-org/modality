@@ -1467,6 +1467,30 @@ mod tests {
     }
 
     #[test]
+    fn always_until_needs_every_path_but_not_q() {
+        let check = |model: &str, formula: &str| {
+            let content = format!("{model}\n\nformula f {{\n  {formula}\n}}\n");
+            let model = crate::lalrpop_parser::parse_content_lalrpop(&content).unwrap();
+            let f = crate::parse_all_formulas_content_lalrpop(&content).unwrap();
+            ModelChecker::new(model).check_formula_at_state(&f[0], "n0").is_satisfied
+        };
+        let every = "always(<+P> true) until <+Q> true";
+        let some = "<+P> true until <+Q> true";
+        // Labels constrain a step, so an edge rules P or Q out only when it says so.
+        // One path reaches Q; the other gets stuck where neither P nor Q is possible.
+        let split = "model m {\n  initial n0\n  n0 --> n1: +P -Q\n  n0 --> n2: +P -Q\n  n1 --> n1: +Q\n  n2 --> n2: +R -P -Q\n}";
+        assert!(check(split, some));
+        assert!(!check(split, every));
+        // Every path reaches Q.
+        let both = "model m {\n  initial n0\n  n0 --> n1: +P -Q\n  n1 --> n1: +Q\n}";
+        assert!(check(both, every));
+        // P holds forever and Q never comes: the weak until still holds.
+        let forever = "model m {\n  initial n0\n  n0 --> n0: +P -Q\n}";
+        assert!(check(forever, every));
+        assert!(!check(forever, some));
+    }
+
+    #[test]
     fn test_evaluate_true() {
         let model = create_test_model();
         let checker = ModelChecker::new(model);

@@ -70,13 +70,24 @@ model that has the edges the rule asks for (see
 | After this commit, a step Bob signs always stays reachable | `always(eventually(<+signed_by(/parties/bob.id)> true))` |
 | Either Alice or Bob must sign every later step, and a step Bob signs can still be reached | `always([-signed_by(/parties/alice.id) -signed_by(/parties/bob.id)] false) & eventually(<+signed_by(/parties/bob.id)> true)` |
 
-`until(p, q)` says some path keeps `p` true until it reaches `q`. Write it as
-`lfp(X, q | (p & <>X))`; the parser does not accept `until(p, q)` itself yet.
-From this commit, Alice can keep signing until a step Bob signs is possible:
+## Until
 
-```
-lfp(X, (<+signed_by(/parties/bob.id)> true) | ((<+signed_by(/parties/alice.id)> true) & <>X))
-```
+`until` has two readings. Write the one the requirement means.
+
+- `p until q`, or `eventually(p) until q`: **some** path keeps `p` true until
+  it reaches `q`. A possibility, like `eventually`.
+- `always(p) until q`: on **every** path, `p` holds until `q` does. `q` need
+  never come: a run where `p` holds forever meets it. This is the safety form.
+
+`until(p, q)` is another way to write `p until q`.
+
+| Requirement | Formula |
+|-------------|---------|
+| From this commit, Alice can keep signing until a step Bob signs is possible | `<+signed_by(/parties/alice.id)> true until <+signed_by(/parties/bob.id)> true` |
+| From this commit, no step writes `/payout` until a payout every party signs is possible | `always([+modifies(/payout)] false) until <+modifies(/payout) +all_signed(/parties)> true` |
+
+`p until q` holds from the state the rule starts at. To make `always(p) until q`
+hold again after `q` has come, wrap it: `always(always(p) until q)`.
 
 Two things decide whether a model meets these rules:
 
@@ -89,6 +100,45 @@ Two things decide whether a model meets these rules:
   `+signed_by(/parties/alice.id)` also allows a step Bob co-signs, so
   `<+signed_by(/parties/bob.id)> true` holds there. To rule Bob out, the edge
   must say `-signed_by(/parties/bob.id)`.
+
+## Fixed points
+
+Every temporal form above is a fixed point. `gfp(X, φ)` is the largest set of
+states where `φ` holds when `X` stands for that set: what holds forever.
+`lfp(X, φ)` is the smallest: what can be reached in finitely many steps. Inside
+a fixed point, `X` is a variable it binds, never a model node.
+
+```
+always(φ)          = gfp(X, φ & []X)
+eventually(φ)      = lfp(X, φ | <>X)
+p until q          = lfp(X, q | (p & <>X))
+always(p) until q  = gfp(X, q | (p & []X))
+```
+
+The recipes above, written out:
+
+| Requirement | Formula |
+|-------------|---------|
+| After this commit either Alice or Bob must sign | `gfp(X, [-signed_by(/parties/alice.id) -signed_by(/parties/bob.id)] false & []X)` |
+| From this commit, a step Bob signs can still be reached | `lfp(X, <+signed_by(/parties/bob.id)> true or <>X)` |
+
+The payout rule from [Until](#until), written out:
+
+```
+gfp(X, <+modifies(/payout) +all_signed(/parties)> true or (([+modifies(/payout)] false) & []X))
+```
+
+In every state from here: a payout every party signs is possible, or no step
+writes `/payout` and the same holds after every step.
+
+Nest fixed points to say what the temporal forms cannot. Some run keeps coming
+back to a step Bob signs, forever:
+
+```
+gfp(X, lfp(Y, <+signed_by(/parties/bob.id)> X or <>Y))
+```
+
+`or` and `|` are the same.
 
 ## Anti-patterns
 

@@ -234,9 +234,15 @@ pub fn label_text(p: &Property) -> String {
     let args = values
         .iter()
         .map(|v| {
-            let s = v.as_str().map(str::to_string).unwrap_or_else(|| v.to_string());
+            let s = v
+                .as_str()
+                .map(str::to_string)
+                .unwrap_or_else(|| v.to_string());
             let bare = s.starts_with('/') && !s.contains([' ', ',', ')'])
-                || (s.chars().next().is_some_and(|c| c.is_ascii_alphabetic() || c == '_')
+                || (s
+                    .chars()
+                    .next()
+                    .is_some_and(|c| c.is_ascii_alphabetic() || c == '_')
                     && s.chars().all(|c| c.is_ascii_alphanumeric() || c == '_'));
             if bare {
                 s
@@ -392,7 +398,8 @@ fn find_word_pair(code: &str, first: &str, second: &str) -> Option<usize> {
         let name = rest.trim_start();
         let name_at = code.len() - name.len();
         if name.starts_with(second)
-            && b.get(name_at + second.len()).is_none_or(|&c| !is_word_byte(c))
+            && b.get(name_at + second.len())
+                .is_none_or(|&c| !is_word_byte(c))
         {
             return Some(at);
         }
@@ -448,9 +455,17 @@ mod tests {
             "+CREATE",
         ] {
             let p = parse(label);
-            assert_eq!(parse(&label_text(&p)), p, "{label} printed as {}", label_text(&p));
+            assert_eq!(
+                parse(&label_text(&p)),
+                p,
+                "{label} printed as {}",
+                label_text(&p)
+            );
         }
-        assert_eq!(label_text(&parse("+threshold(\"2\", /signers)")), "+threshold(\"2\", /signers)");
+        assert_eq!(
+            label_text(&parse("+threshold(\"2\", /signers)")),
+            "+threshold(\"2\", /signers)"
+        );
     }
 
     #[test]

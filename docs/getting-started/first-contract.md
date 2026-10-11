@@ -478,6 +478,7 @@ Error: No valid transition for local commit from current states {"q1"}
 Closest candidate transition: candidate from current state q1: q1 --> q1 [+signed_by(/parties/alice.id)]; failed predicates: missing +signed_by(/parties/alice.id)
 Candidate transitions ranked by predicate distance:
 candidate from current state q1: q1 --> q1 [+signed_by(/parties/alice.id)]; failed predicates: missing +signed_by(/parties/alice.id)
+Rerun with --synthesize-model to search for a model that admits this commit.
 ```
 
 The closest candidate is Alice's arrow. The rule itself does let him. It
@@ -488,11 +489,38 @@ always([-signed_by(/parties/alice.id) -signed_by(/parties/bob.id)] false)
 ```
 
 It does not mention `POST` or `MODEL`, and it does not lock the witness to
-Alice. The matching witness keeps the unlabeled bootstrap, then one signed
-Alice transition and an alternative signed Bob transition:
+Alice. So take the hint. With `--synthesize-model`, the commit keeps what Bob
+asked for and looks for the smallest change to the witness that lets it land:
+one new arrow out of `q1`, with the fewest labels Bob's commit satisfies. Each
+candidate is checked the way the commit is checked (the history replayed on
+it, the rule checked from the commit that added it), so the witness it finds
+is one the network accepts:
 
 ```bash
-cat > model/default.modality <<'EOF'
+modal commit --sign example/bob -m "Bob tries to commit" --synthesize-model
+```
+
+```output
+🔧 The governing model refused this commit, so it now carries a model that admits it:
+   added to part flow: q1 --> q1: +signed_by(/parties/bob.id)
+   It replays the contract's history and keeps every rule (4 candidate models checked).
+   model/default.modality now matches it.
+
+✅ Commit created successfully!
+   Contract ID: imqi74td…
+   Commit ID: a91e4c22…
+   Parent: c3e91d04…
+```
+
+The four candidates were an unlabeled arrow from `q1` back to `q1`, to `q0`
+and to a new node, each refused because it would let an unsigned commit
+through, and then Bob's signed arrow:
+
+```bash
+cat model/default.modality
+```
+
+```output
 model Contract {
   part flow {
     q0 --> q1
@@ -500,7 +528,6 @@ model Contract {
     q1 --> q1: +signed_by(/parties/bob.id)
   }
 }
-EOF
 ```
 
 ```bash
@@ -530,17 +557,6 @@ stateDiagram-v2
 ```
 
 ```bash
-modal commit --all --sign example/bob -m "Let Bob replace the witness"
-```
-
-```output
-✅ Commit created successfully!
-   Contract ID: imqi74td…
-   Commit ID: a91e4c22…
-   Parent: c3e91d04…
-```
-
-```bash
 modal status
 ```
 
@@ -554,16 +570,35 @@ modal log
 ```
 
 ```output
-Message: Let Bob replace the witness
+Message: Bob tries to commit
 Signatures: 1
 Actions:
   model /model/default.modality
 ```
 
-That replacement landed because the candidate model can replay the accepted
-history, still satisfies the rule, and now has a signed Alice transition or a
-signed Bob transition from `q1`. The old witness was a proof that the rule is
-possible, not a lock on Alice. The rule stayed put. Bob replaced the witness.
+Bob's commit landed and carried the new witness with it. It replays the
+accepted history, still satisfies the rule, and now has a signed Alice
+transition or a signed Bob transition from `q1`. The old witness was a proof
+that the rule is possible, not a lock on Alice. The rule stayed put.
+Bob replaced the witness.
+
+`--synthesize-model` changes the witness, never the rule. A commit the rule
+forbids finds no model:
+
+```bash
+modal commit -m "Nobody signs" --synthesize-model
+```
+
+```output
+Error: No valid transition for local commit from current states {"q1"}
+...
+--synthesize-model found no model that admits this commit (12 candidate models checked from q1). A rule may forbid the commit itself; no model can let it in.
+```
+
+You can also write the arrow yourself: add the Bob line to
+`model/default.modality` and commit it with
+`modal commit --all --sign example/bob -m "Let Bob replace the witness"`.
+The commit is checked the same way.
 
 ## What's Next?
 

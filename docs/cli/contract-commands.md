@@ -68,6 +68,7 @@ or an inline domain action.
 | `--amount <AMOUNT>` | Amount for `SEND` commits; on a `RECV`, the amount it states it receives. Apply refuses a `RECV` whose statement differs from its `SEND` |
 | `--send-commit-id <SEND_COMMIT_ID>` | Source `SEND` commit ID for `RECV` commits |
 | `--send-index <N>` | Which `SEND` of that commit a `RECV` takes, from 0 (default); emitted `SEND`s count in `invoke` order |
+| `--synthesize-model` | If the governing model refuses the commit, search for a model that admits it: the current model plus one edge, out of the node the contract is at, with the fewest labels the commit satisfies. Every candidate goes through the same local verify as the commit, so the model found replays the history and keeps every rule. The commit then carries that model, and `model/default.modality` is rewritten to it. Refuses to rewrite a `model/default.modality` with edits the commit does not carry. See [Let the commit synthesize the model](#let-the-commit-synthesize-the-model) |
 | `--theory <v0\|v2\|v3>` | Predicate theory local verify runs (default `v3`, what the testnet runs). Use `v0` for a network whose `network.json` leaves `predicate_theory_version` unset, such as the bundled devnets, and `v2` for a network that sets `v2`. `v3` is `v2` with numbers compared exactly. `v2` and `v3` refuse dead model edges that `v0` accepts, and accept rules that `v0` refuses, such as `always([+SEND -any_signed(/claimants)] false)`. See [Predicate theory](../reference/predicate-theory.md) |
 
 **Examples:**
@@ -95,7 +96,38 @@ modal c commit --post /run/sha.text=4f2a9c --post /run/passed.bool=true --sign c
 
 # Commit a domain action
 modal c commit --action '{"type":"DEPOSIT","amount":100}' --sign alice
+
+# Bob signs; if the model has no edge for him, add the least one the rules allow
+modal c commit --sign bob -m "Bob's first commit" --synthesize-model
 ```
+
+### Let the commit synthesize the model
+
+A model can be stricter than its rules. `modal model synthesize` returns the
+smallest witness a rule allows, so a rule that lets Alice or Bob sign can come
+back as a model with an edge for Alice only. Bob's commit is then refused, and
+the refusal ends with `Rerun with --synthesize-model ...`.
+
+With `--synthesize-model`, `modal c commit` looks for the smallest change that
+admits the commit: one new edge out of the node the contract is at, back to that
+node first, then to another node, then to a new one, with the fewest labels the
+commit satisfies. The labels come from the rules, from a `+signed_by` for each
+`.id` in state, and from the model's own edges. Each candidate is checked the way
+the commit is checked: history replayed on it, every rule checked from the commit
+that added it, and the commit taking one of its edges. The first that passes goes
+into the commit:
+
+```output
+🔧 The governing model refused this commit, so it now carries a model that admits it:
+   added to part flow: q1 --> q1: +signed_by(/parties/bob.id)
+   It replays the contract's history and keeps every rule (4 candidate models checked).
+   model/default.modality now matches it.
+```
+
+It does not loosen a rule. When a rule forbids the commit itself, such as an
+unsigned commit under a rule that every commit be signed, no model admits it,
+and the command says so with the refusal of the closest candidate. With
+`--output json`, the edge is under `model_repair`.
 
 Under the default `--theory v3`, `modal c commit` refuses a model edge whose
 labels can never hold together, such as `+num_lt(/escrow/paid.num,"100")` beside

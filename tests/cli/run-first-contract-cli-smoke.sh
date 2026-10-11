@@ -334,6 +334,7 @@ fi
 grep -q 'current states {"q1"}' "$TMP_DIR/bob-empty-commit.err"
 grep -Eq "Closest candidate transition: (part flow )?candidate from current state q1: q1 -+> q1 \[\\+signed_by\\(/parties/alice.id\\)\]; failed predicates: missing \\+signed_by\\(/parties/alice.id\\)" "$TMP_DIR/bob-empty-commit.err"
 grep -q "Candidate transitions ranked by predicate distance:" "$TMP_DIR/bob-empty-commit.err"
+grep -q "Rerun with --synthesize-model" "$TMP_DIR/bob-empty-commit.err"
 grep -q "missing +signed_by(/parties/alice.id)" "$TMP_DIR/bob-empty-commit.err"
 grep -q "+signed_by(/parties/alice.id)" "$TMP_DIR/bob-empty-commit.err"
 if grep -q "+POST" "$TMP_DIR/bob-empty-commit.err"; then
@@ -455,15 +456,34 @@ if [[ "$unrelated_current_diagnostic_order" != *'current states {"q1"}'*'Closest
   exit 1
 fi
 
-cat >"$CONTRACT_DIR/model/default.modality" <<'EOF'
-model Contract {
-  part flow {
-    q0 --> q1
-    q1 --> q1: +signed_by(/parties/alice.id)
-    q1 --> q1: +signed_by(/parties/bob.id)
-  }
-}
-EOF
+# --synthesize-model changes the witness, never the rule: no model admits
+# an unsigned commit.
+if "$MODAL_BIN" commit \
+  --dir "$CONTRACT_DIR" \
+  --synthesize-model \
+  --output json \
+  --message "Nobody signs" \
+  >"$TMP_DIR/unsigned-synthesize.json" 2>"$TMP_DIR/unsigned-synthesize.err"; then
+  echo "expected --synthesize-model to find no model for an unsigned commit" >&2
+  cat "$TMP_DIR/unsigned-synthesize.json" >&2
+  exit 1
+fi
+grep -q "found no model that admits this commit" "$TMP_DIR/unsigned-synthesize.err"
+if grep -q '/parties/bob.id' "$CONTRACT_DIR/model/default.modality"; then
+  echo "a refused --synthesize-model still rewrote model/default.modality" >&2
+  exit 1
+fi
+
+# Bob's signed commit lands carrying the witness that admits it.
+"$MODAL_BIN" commit \
+  --dir "$CONTRACT_DIR" \
+  --sign "$BOB_PASSFILE" \
+  --synthesize-model \
+  --output json \
+  --message "Let Bob replace the witness" >"$TMP_DIR/bob-model-replacement.json"
+
+grep -q '"status": "committed"' "$TMP_DIR/bob-model-replacement.json"
+grep -q '"edge": "q1 --> q1: +signed_by(/parties/bob.id)"' "$TMP_DIR/bob-model-replacement.json"
 
 grep -q "q0 --> q1" \
   "$CONTRACT_DIR/model/default.modality"
@@ -486,15 +506,6 @@ fi
   --verbose >"$TMP_DIR/replaced-model-validate.out" 2>&1
 grep -q "Contract is valid!" "$TMP_DIR/replaced-model-validate.out"
 grep -q "Transitions: 3" "$TMP_DIR/replaced-model-validate.out"
-
-"$MODAL_BIN" commit \
-  --all \
-  --dir "$CONTRACT_DIR" \
-  --sign "$BOB_PASSFILE" \
-  --output json \
-  --message "Let Bob replace the witness" >"$TMP_DIR/bob-model-replacement.json"
-
-grep -q '"status": "committed"' "$TMP_DIR/bob-model-replacement.json"
 
 "$MODAL_BIN" status --dir "$CONTRACT_DIR" --output json >"$TMP_DIR/bob-status.json"
 "$MODAL_BIN" status --dir "$CONTRACT_DIR" >"$TMP_DIR/bob-status.txt"

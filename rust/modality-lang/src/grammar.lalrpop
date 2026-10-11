@@ -263,8 +263,13 @@ FormulaAndExpr: FormulaExpr = {
 
 FormulaUntilExpr: FormulaExpr = {
     <expr:FormulaAtom> => expr,
-    <expr:FormulaAtom> "until" <expr2:FormulaUntilExpr> => {
-        FormulaExpr::Until(Box::new(expr), Box::new(expr2))
+    // p until q: some path keeps p until q. `eventually(p) until q` says the same.
+    // `always(p) until q`: every path keeps p until q, and q need never come.
+    // `(always(p)) until q` keeps the plain reading.
+    <expr:FormulaAtom> "until" <expr2:FormulaUntilExpr> => match expr {
+        FormulaExpr::Always(p) => FormulaExpr::always_until(*p, expr2),
+        FormulaExpr::Eventually(p) => FormulaExpr::Until(p, Box::new(expr2)),
+        other => FormulaExpr::Until(Box::new(other), Box::new(expr2)),
     }
 };
 
