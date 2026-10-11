@@ -18,7 +18,10 @@ import re
 import subprocess
 import tempfile
 
-AGENT_CLI = os.environ.get("AGENT_CLI", "agent")
+# Every answer comes from one pinned model through the Claude Code CLI, and the
+# model is part of each cache key, so answers from another model are never reused.
+CLAUDE_CLI = os.environ.get("CLAUDE_CLI", "claude")
+LLM_MODEL = os.environ.get("LLM_MODEL", "claude-sonnet-5-5")
 KINDS = ("panic", "greed", "amnesia")
 
 
@@ -30,14 +33,15 @@ class LLM:
         self.calls = 0
 
     def _cached(self, kind, key_text, run):
-        key = hashlib.sha256(f"{kind}\n{key_text}".encode()).hexdigest()[:24]
+        key = hashlib.sha256(f"{kind}\n{LLM_MODEL}\n{key_text}".encode()).hexdigest()[:24]
         path = self.cache / f"{kind}-{key}.json"
         if path.exists():
             return json.loads(path.read_text())["response"]
         response = run()
         self.calls += 1
         tmp = path.with_suffix(".tmp")
-        tmp.write_text(json.dumps({"kind": kind, "input": key_text, "response": response}, indent=1))
+        tmp.write_text(json.dumps({"kind": kind, "model": LLM_MODEL, "input": key_text, "response": response},
+                                  indent=1))
         tmp.rename(path)
         return response
 
@@ -46,12 +50,14 @@ class LLM:
             with tempfile.TemporaryDirectory(prefix="mac-agent-") as empty:
                 for _ in range(3):
                     proc = subprocess.run(
-                        [AGENT_CLI, "-p", "--trust", "--mode", "ask", "--output-format", "text", prompt],
+                        [CLAUDE_CLI, "-p", "--output-format", "text", "--model", LLM_MODEL, "--tools", "",
+                         "--strict-mcp-config", "--setting-sources", "", "--no-session-persistence",
+                         "--", prompt],
                         cwd=empty, capture_output=True, text=True, timeout=300,
                     )
                     if proc.returncode == 0 and proc.stdout.strip():
                         return proc.stdout.strip()
-            raise RuntimeError(f"{AGENT_CLI} failed: {proc.stderr.strip()[:500]}")
+            raise RuntimeError(f"{CLAUDE_CLI} failed: {proc.stderr.strip()[:500]}")
         return self._cached("ask", prompt, run)
 
     def formula(self, rule, contract_dir):

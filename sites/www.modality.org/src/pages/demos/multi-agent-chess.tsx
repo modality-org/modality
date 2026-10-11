@@ -1363,7 +1363,9 @@ roster_locked: always([+modifies(/team)] false)`}
           <ul className={styles.caveats}>
             <li>
               The chess is simulated: a shallow engine every agent shares, and fixed rates
-              of panic, greed and amnesia. Only the rules are written by a language model.
+              of panic, greed and amnesia. Only the rules are written by a language model:
+              Claude Sonnet 5.5, the same model for both sides. Another model may write other
+              rules.
             </li>
             <li>
               How often an agent follows RULES.md is a setting, not a measurement. The

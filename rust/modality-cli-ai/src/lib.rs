@@ -1,5 +1,6 @@
 //! AI provider configuration and rule suggestion for Modal CLI.
 
+pub mod claude_cli;
 pub mod complete;
 pub mod config;
 pub mod cursor_agent;

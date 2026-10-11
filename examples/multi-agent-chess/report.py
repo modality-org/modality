@@ -441,8 +441,9 @@ with it.
 **Retros.** Each side holds at most three retros a game. Both sides' agents
 are asked by the same language model with the same description of what
 happened; only the part about how their team coordinates differs. The
-model is reached through the `agent` CLI, as `modal ai` is configured, and
-every answer is cached, so a rerun of these games asks nothing new.
+model is Claude Sonnet 5.5, pinned, reached through the Claude Code CLI and,
+for formulas, `modal ai`'s `claude-cli` provider. Every answer is cached with
+its model, so a rerun of these games asks nothing new.
 
 **Pawns with personalities.** Each pawn draws its own panic, greed and
 amnesia rates (0 to 2 times the base rate) and its own compliance with
@@ -472,9 +473,8 @@ LIMITS = """## What these experiments do not show
   close ones.
 - A preset contract needs four signatures. Four agents that go off plan
   together get their move accepted.
-- Every rule came from one language model, the one the `agent` CLI picks by
-  default. Another model may write other rules; the answers used here are
-  in `results/llm-cache`.
+- Every rule came from one language model, Claude Sonnet 5.5. Another model
+  may write other rules; the answers used here are in `results/llm-cache`.
 """
 
 REPRODUCE = """## Reproduce
@@ -489,8 +489,8 @@ python3 multi_agent_chess.py play --white rules-md --black self-ruled --rogue --
 
 `results/llm-cache` holds every language-model answer these games used, so
 the run above plays the same games without asking a model. Without it,
-RULES.md and self-ruled games need one: `agent` (Cursor's CLI) signed in, and
-`modal ai` configured. `play` narrates one game and writes a replay page.
+RULES.md and self-ruled games need one: the Claude Code CLI (`claude`) signed
+in, and `modal ai set --provider claude-cli --model claude-sonnet-5-5`. `play` narrates one game and writes a replay page.
 """
 
 

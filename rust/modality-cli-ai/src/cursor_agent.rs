@@ -159,7 +159,7 @@ pub fn build_prompt(
     out
 }
 
-fn extra_workspace_dirs(contract_dir: Option<&Path>) -> Vec<PathBuf> {
+pub(crate) fn extra_workspace_dirs(contract_dir: Option<&Path>) -> Vec<PathBuf> {
     let Some(cookbook) = resolve_cookbook(contract_dir) else {
         return Vec::new();
     };
@@ -252,7 +252,7 @@ fn wants_print(mode: SuggestPrintMode) -> bool {
     mode == SuggestPrintMode::Print
 }
 
-fn find_in_path(name: &str) -> Option<PathBuf> {
+pub(crate) fn find_in_path(name: &str) -> Option<PathBuf> {
     let path_var = std::env::var_os("PATH")?;
     for dir in std::env::split_paths(&path_var) {
         let candidate = dir.join(name);
@@ -280,7 +280,12 @@ fn is_executable(path: &Path) -> bool {
     }
 }
 
-fn run_command(bin: &Path, args: &[String], cwd: &Path, capture: bool) -> Result<String> {
+pub(crate) fn run_command(
+    bin: &Path,
+    args: &[String],
+    cwd: &Path,
+    capture: bool,
+) -> Result<String> {
     let mut cmd = Command::new(bin);
     cmd.args(args).current_dir(cwd);
     if capture {
@@ -296,7 +301,8 @@ fn run_command(bin: &Path, args: &[String], cwd: &Path, capture: bool) -> Result
                 stderr
             };
             bail!(
-                "cursor-agent exited with {}: {detail}",
+                "{} exited with {}: {detail}",
+                bin.display(),
                 output.status.code().unwrap_or(-1)
             );
         }
@@ -309,7 +315,11 @@ fn run_command(bin: &Path, args: &[String], cwd: &Path, capture: bool) -> Result
             .status()
             .with_context(|| format!("Failed to run {}", bin.display()))?;
         if !status.success() {
-            bail!("cursor-agent exited with {}", status.code().unwrap_or(-1));
+            bail!(
+                "{} exited with {}",
+                bin.display(),
+                status.code().unwrap_or(-1)
+            );
         }
         Ok(String::new())
     }

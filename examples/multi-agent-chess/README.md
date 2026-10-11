@@ -67,12 +67,15 @@ default). A rogue empties the file whenever it finds rules in it.
 
 ## Retros and the language model
 
-Both sides' retros go to the same model, through the `agent` CLI (Cursor's;
-set `AGENT_CLI` to change it), and Black's formulas come from
-`modal contract ai suggest-rule`, as configured by `modal ai`. Both prompts
+Both sides' retros go to one pinned model, Claude Sonnet 5.5
+(`claude-sonnet-5-5`), through the Claude Code CLI (`claude`; set
+`CLAUDE_CLI` to point at it and `LLM_MODEL` to change the model). Black's
+formulas come from `modal contract ai suggest-rule` with the same model:
+`modal ai set --provider claude-cli --model claude-sonnet-5-5`. Both prompts
 describe what happened in the same words; only the part about how the team
-coordinates differs (`retro.py`). Every answer is cached by its prompt under
-`--cache`, so a rerun asks nothing new and plays the same games.
+coordinates differs (`retro.py`). Every answer is cached by its model and
+prompt under `--cache`, so a rerun asks nothing new and plays the same games,
+and an answer from another model is never reused.
 `results/llm-cache` holds the answers behind the docs page, and
 `results/results.json` its numbers.
 

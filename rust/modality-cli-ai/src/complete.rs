@@ -1,6 +1,7 @@
 use anyhow::Result;
 use std::path::Path;
 
+use crate::claude_cli;
 use crate::config::{self, AiConfig};
 use crate::cursor_agent::{self, SuggestPrintMode};
 use crate::providers::{self, JsonPoster, ReqwestPoster};
@@ -24,6 +25,10 @@ pub async fn suggest_rule_mode(
         let ids = contract_dir.map(collect_id_paths).unwrap_or_default();
         return cursor_agent::suggest(&config, prompt, api_key, contract_dir, &ids, print_mode)
             .await;
+    }
+    if config.provider()? == crate::config::Provider::ClaudeCli {
+        let ids = contract_dir.map(collect_id_paths).unwrap_or_default();
+        return claude_cli::suggest(&config, prompt, contract_dir, &ids, print_mode).await;
     }
     let poster = ReqwestPoster::new()?;
     suggest_rule_with(&config, prompt, api_key, contract_dir, &poster).await

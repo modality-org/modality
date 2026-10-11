@@ -32,6 +32,9 @@ pub fn format_show(config: &AiConfig) -> Result<String> {
             Provider::CursorAgent => {
                 out.push_str("API key: (not required; `agent login` or CURSOR_API_KEY)\n");
             }
+            Provider::ClaudeCli => {
+                out.push_str("API key: (not required; `claude` signs in)\n");
+            }
             _ => out.push_str("API key: (not required)\n"),
         },
         None => out.push_str("API key: (not set; use env or --api-key)\n"),

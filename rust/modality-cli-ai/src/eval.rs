@@ -14,6 +14,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
+use crate::claude_cli;
 use crate::config::{self, AiConfig, Provider};
 use crate::cursor_agent;
 use crate::providers::{self, ReqwestPoster};
@@ -338,7 +339,14 @@ async fn ask(suite: &Suite, opts: &Opts) -> Result<(Vec<Run>, String)> {
                 }
                 calls += 1;
                 let user = format!("{}\nRequest:\n{wording}\n", render_contract(fixture));
-                let reply = if provider == Provider::CursorAgent {
+                let reply = if provider == Provider::ClaudeCli {
+                    claude_cli::run_prompt(
+                        &config,
+                        &format!("{system}\n\n---\n\n{user}"),
+                        &workspace,
+                    )
+                    .await
+                } else if provider == Provider::CursorAgent {
                     cursor_agent::run_prompt(
                         &config,
                         &format!("{system}\n\n---\n\n{user}"),

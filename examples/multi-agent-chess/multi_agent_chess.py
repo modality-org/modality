@@ -26,8 +26,9 @@ the other pieces do not.
 
 Needs python-chess (requirements.txt) and a current `modal` on PATH, or set
 MODAL to its path. RULES.md and self-ruled setups ask a language model for
-rules through the `agent` CLI (cursor-agent; set AGENT_CLI) and through
-`modal contract ai suggest-rule`; answers are cached under --cache.
+rules through the Claude Code CLI (`claude`; set CLAUDE_CLI, and LLM_MODEL for
+the model) and through `modal contract ai suggest-rule` with
+`modal ai set --provider claude-cli`; answers are cached under --cache.
 """
 
 import argparse

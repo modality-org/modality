@@ -138,8 +138,9 @@ pub async fn complete_with_system(
         }
         Provider::Ollama => complete_ollama(config, &model, &system, user_prompt, poster).await,
         Provider::Bedrock => complete_bedrock(config, &model, &system, user_prompt, poster).await,
-        Provider::CursorAgent => bail!(
-            "cursor-agent is launched as a local CLI, not an HTTP completion. Use `modal ai suggest-rule`."
+        Provider::CursorAgent | Provider::ClaudeCli => bail!(
+            "{} is launched as a local CLI, not an HTTP completion. Use `modal ai suggest-rule`.",
+            provider.as_str()
         ),
     }
 }

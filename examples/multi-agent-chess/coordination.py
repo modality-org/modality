@@ -302,7 +302,7 @@ def conjuncts(formula):
 def implied_by_owns(conjunct):
     """True for [L] false when L holds both of OWNS's labels: OWNS already forbids
     every commit such a box forbids, whatever else L adds."""
-    c = " ".join(conjunct.split())
+    c = re.sub(r"\$\w+", "$k", " ".join(conjunct.split()))  # any variable name
     if not (c.startswith("[") and c.endswith("] false")):
         return False
     labels = set(split_labels(c[1:c.rindex("]")]))

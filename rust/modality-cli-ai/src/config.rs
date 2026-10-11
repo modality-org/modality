@@ -15,6 +15,9 @@ pub enum Provider {
     #[serde(rename = "cursor-agent")]
     #[value(name = "cursor-agent")]
     CursorAgent,
+    #[serde(rename = "claude-cli")]
+    #[value(name = "claude-cli")]
+    ClaudeCli,
 }
 
 impl Provider {
@@ -26,6 +29,7 @@ impl Provider {
             Provider::Bedrock => "bedrock",
             Provider::Ollama => "ollama",
             Provider::CursorAgent => "cursor-agent",
+            Provider::ClaudeCli => "claude-cli",
         }
     }
 
@@ -37,6 +41,7 @@ impl Provider {
             Provider::Bedrock => "anthropic.claude-sonnet-4-20250514-v1:0",
             Provider::Ollama => "llama3.2",
             Provider::CursorAgent => "auto",
+            Provider::ClaudeCli => "claude-sonnet-5-5",
         }
     }
 
@@ -47,7 +52,7 @@ impl Provider {
             Provider::Grok => Some("https://api.x.ai"),
             Provider::Bedrock => None,
             Provider::Ollama => Some("http://127.0.0.1:11434"),
-            Provider::CursorAgent => None,
+            Provider::CursorAgent | Provider::ClaudeCli => None,
         }
     }
 
@@ -57,19 +62,20 @@ impl Provider {
             Provider::Anthropic => Some("ANTHROPIC_API_KEY"),
             Provider::Grok => Some("XAI_API_KEY"),
             Provider::CursorAgent => Some("CURSOR_API_KEY"),
-            Provider::Bedrock | Provider::Ollama => None,
+            Provider::Bedrock | Provider::Ollama | Provider::ClaudeCli => None,
         }
     }
 
     pub fn requires_api_key(self) -> bool {
         !matches!(
             self,
-            Provider::Bedrock | Provider::Ollama | Provider::CursorAgent
+            Provider::Bedrock | Provider::Ollama | Provider::CursorAgent | Provider::ClaudeCli
         )
     }
 }
 
-pub const PROVIDER_CHOICE_HINT: &str = "openai|anthropic|grok|bedrock|ollama|cursor-agent";
+pub const PROVIDER_CHOICE_HINT: &str =
+    "openai|anthropic|grok|bedrock|ollama|cursor-agent|claude-cli";
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct AiConfig {
