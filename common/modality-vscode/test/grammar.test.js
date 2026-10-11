@@ -115,6 +115,21 @@ const EXPECT = [
     ['signed_by_n', 'signed_by_n', 'entity.name.function.predicate'],
     ['signed_by_n', '2', 'constant.numeric'],
     ['signed_by_n', '/a.id', 'string.unquoted.path'],
+    ['always([-signed_by(/users/alice.id)] false)', 'always', 'keyword.control.temporal'],
+    ['always([-signed_by(/users/alice.id)] false)', 'signed_by', 'entity.name.function.predicate'],
+    ['always([-signed_by(/users/alice.id)] false)', '/users/alice.id', 'string.unquoted.path'],
+    ['<+PAY> true', 'PAY', 'constant.other.action'],
+    ['<+PAY> true', 'true', 'constant.language.boolean'],
+    ['+threshold("2"', 'threshold', 'entity.name.function.predicate'],
+    ['+threshold("2"', '/signers', 'string.unquoted.path'],
+    ['q0 -> q1 [+ACTION_NAME]', 'q0', 'entity.name.tag.state'],
+    ['q0 -> q1 [+ACTION_NAME]', 'ACTION_NAME', 'constant.other.action'],
+    ['initial start', 'initial', 'keyword.other.initial'],
+    ['initial start', 'start', 'entity.name.tag.state'],
+    ['bool_true(/status', 'bool_true', 'entity.name.function.predicate'],
+    ['bool_true(/status', '/status/delivered.bool', 'string.unquoted.path'],
+    ['!+modifies(/members)', 'modifies', 'entity.name.function.predicate'],
+    ['!+modifies(/members)', 'all_signed', 'entity.name.function.predicate'],
 ];
 
 function checkFixture(grammar) {

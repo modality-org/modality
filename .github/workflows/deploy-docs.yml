@@ -7,6 +7,8 @@ on:
     paths:
       - 'sites/www.modality.org/**'
       - 'docs/**'
+      # The site highlights `modality` code with the editor extension's grammar.
+      - 'common/modality-vscode/syntaxes/**'
       - '.github/workflows/deploy-docs.yml'
   workflow_dispatch:
 

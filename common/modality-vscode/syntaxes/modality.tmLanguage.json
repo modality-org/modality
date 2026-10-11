@@ -29,6 +29,9 @@
       "include": "#contract"
     },
     {
+      "include": "#fragments"
+    },
+    {
       "include": "#strings"
     },
     {
@@ -271,6 +274,28 @@
         {
           "match": "\\b(true|false)\\b",
           "name": "constant.language.boolean.modality"
+        },
+        {
+          "begin": "\\b(?!(?:always|eventually|next|until|lfp|gfp|and|or|not|implies|true|false)\\b)([A-Za-z_][A-Za-z0-9_]*)\\s*(\\()",
+          "end": "\\)|(?=[^\\s,A-Za-z0-9_\"/.$!])",
+          "beginCaptures": {
+            "1": {
+              "name": "entity.name.function.predicate.modality"
+            },
+            "2": {
+              "name": "punctuation.section.arguments.begin.modality"
+            }
+          },
+          "endCaptures": {
+            "0": {
+              "name": "punctuation.section.arguments.end.modality"
+            }
+          },
+          "patterns": [
+            {
+              "include": "#predicate-args"
+            }
+          ]
         },
         {
           "match": "\\(",
@@ -845,6 +870,55 @@
               "include": "#predicate-args"
             }
           ]
+        }
+      ]
+    },
+    "fragments": {
+      "comment": "Pieces shown outside a declaration, as documentation snippets do: starting_at, initial, a transition line, a label, a formula.",
+      "patterns": [
+        {
+          "include": "#starting-at"
+        },
+        {
+          "match": "\\b(initial)\\s+([A-Za-z_][A-Za-z0-9_]*)\\s*$",
+          "captures": {
+            "1": {
+              "name": "keyword.other.initial.modality"
+            },
+            "2": {
+              "name": "entity.name.tag.state.modality"
+            }
+          }
+        },
+        {
+          "comment": "A transition on its own line: from -> to followed by a label, a comment, or nothing.",
+          "begin": "^\\s*([A-Za-z_][A-Za-z0-9_]*)\\s*(-->|->)\\s*([A-Za-z_][A-Za-z0-9_]*)\\b(?=\\s*(?:\\[|:|//|$))",
+          "end": "$",
+          "beginCaptures": {
+            "1": {
+              "name": "entity.name.tag.state.modality"
+            },
+            "2": {
+              "name": "keyword.operator.arrow.modality"
+            },
+            "3": {
+              "name": "entity.name.tag.state.modality"
+            }
+          },
+          "patterns": [
+            {
+              "include": "#comments"
+            },
+            {
+              "include": "#transition"
+            }
+          ]
+        },
+        {
+          "include": "#label"
+        },
+        {
+          "include": "#formula-expr"
         }
       ]
     }

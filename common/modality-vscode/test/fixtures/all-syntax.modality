@@ -68,3 +68,12 @@ contract deal {
 rule_for_this_commit {
   signed_by_n(2, [/a.id, /b.id]) | signed_by(/c.id)
 }
+
+// Fragments, as documentation snippets show them outside a declaration.
+always([-signed_by(/users/alice.id)] false)
+<+PAY> true
++threshold("2", /signers)
+q0 -> q1 [+ACTION_NAME]
+initial start
+bool_true(/status/delivered.bool)
+!+modifies(/members) | +all_signed(/members)
