@@ -1,0 +1,6 @@
+{
+ "kind": "suggest-rule",
+ "model": "claude-sonnet-5-5",
+ "input": "Any commit that modifies /moves/rook_a8.text must be signed by rook_a8 and co-signed by at least twelve of the sixteen Black agents, and any commit that modifies /turn/ply.num must also be co-signed by at least twelve of the sixteen Black agents, so that no single agent can post an off-plan move or advance the ply alone.",
+ "response": "always(([+modifies(/moves/rook_a8.text) -signed_by(/team/pieces/rook_a8.id)] false) & ([+modifies(/moves/rook_a8.text) -threshold(\"12\", /team/pieces)] false) & ([+modifies(/turn/ply.num) -threshold(\"12\", /team/pieces)] false))"
+}

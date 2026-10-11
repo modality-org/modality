@@ -1,0 +1,6 @@
+{
+ "kind": "suggest-rule",
+ "model": "claude-sonnet-5-5",
+ "input": "Any commit that modifies /moves/<agent>.text must be signed by at least twelve of the sixteen agents' keys (/team/pieces/<agent>.id) in addition to the moving piece, so a rogue piece signing alone can never get a move accepted.",
+ "response": "always(([+modifies(/moves/$k.text) -signed_by(/team/pieces/$k.id)] false) & ([+modifies(/moves/$k.text) -threshold(\"13\", /team/pieces)] false))"
+}

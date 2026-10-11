@@ -224,6 +224,10 @@ def findings(rows, games):
     ob_before, ob_after = around_first_rule(games["rules-md-obeyed"], "white")
     self_ruled = [g for n in ("self-ruled", "rules-md-vs-self-ruled", "pawns-self-ruled") for g in games[n]]
     sr_before, sr_after = around_first_rule(self_ruled, "black")
+    retros = [[e["outcome"] for p in g["plies"] for e in p.get("events", [])
+               if e["type"] == "rule" and e.get("side") == "black"] for g in self_ruled]
+    with_retro = sum(bool(r) for r in retros)
+    first_try = sum(bool(r) and r[0] == "accepted" for r in retros)
     wipes, rewrites = rewrites_after_wipes(games["rogue-self-ruled"])
     rogue_games = games["rogue-self-ruled"]
     first_rule = 0
@@ -255,18 +259,21 @@ def findings(rows, games):
         f"\"send only the agreed move\". Followed half the time, they cut the off-plan moves White played from "
         f"{b['white_off_plan_played']:.1f} to {md_['white_off_plan_played']:.1f} a game, and Black's score fell from "
         f"{pct(b['black_score'])} to {pct(md_['black_score'])}. Followed always, White played "
-        f"{ob['white_off_plan_played']:.1f} a game: {ob_before} off-plan moves before its first rule and {ob_after} after, "
-        f"where the rules did not cover what the agent did. Black scored {pct(ob['black_score'])}, "
-        f"about what it scores with no faults. A RULES.md that every agent always obeys does what the contract "
-        f"does. The contract does not need anyone to obey it.")
+        f"{ob['white_off_plan_played']:.1f} a game: {ob_before} off-plan moves before its first rule and {ob_after} after"
+        + (", where the rules did not cover what the agent did" if ob_after else "") +
+        f". Black scored {pct(ob['black_score'])}, against {pct(c['black_score'])} with no faults. A RULES.md that "
+        f"every agent always obeys nearly does what the contract does. The contract does not need anyone to obey it.")
     out.append("")
     out.append(
-        f"**Left to write their own contract, Black's agents wrote the preset contract's kind of rule.** All {total} rules `modal` "
-        f"accepted from Black's agents require a number of the sixteen agents' signatures: {spread}"
-        + (f", and {other} other" if other else "") +
-        f". Outside the rogue experiment, every Black team wrote its rule at its first retro, after one costly "
-        f"move, and in {len(self_ruled)} games it played {sr_after} off-plan moves after that rule. Self-ruled, Black scored {pct(sr['black_score'])}, against {pct(b['black_score'])} with the rule "
-        f"preset; it played {sr['black_off_plan_played']:.1f} off-plan moves a game, the ones before its rule.")
+        f"**Left to write their own contract, Black's agents wrote the preset contract's kind of rule.** Of the {total} "
+        f"rules `modal` accepted from Black's agents, {total - other} require a number of the sixteen agents' "
+        f"signatures: {spread}"
+        + (f"; {other} say something else" if other else "") +
+        f". Outside the rogue experiment, Black's first rule went in at its first retro in {first_try} of the "
+        f"{with_retro} games that held one, after one costly move, and in {len(self_ruled)} games Black played "
+        f"{sr_after} off-plan moves after its first rule. Self-ruled, Black scored {pct(sr['black_score'])}, against "
+        f"{pct(b['black_score'])} with the rule preset; it played {sr['black_off_plan_played']:.1f} off-plan moves a "
+        f"game, the ones before its rule.")
     out.append("")
     out.append(
         f"**Rules on both sides.** With White keeping a RULES.md and Black writing its contract, Black scored "
@@ -468,7 +475,7 @@ LIMITS = """## What these experiments do not show
 - The agents' play is simulated: a shallow shared engine and fault rates.
   Only the rules are written by a language model.
 - How often an agent follows RULES.md is a parameter, not something the
-  experiments measure. The experiments bracket it with 0.5 and 1.
+  experiments measure. The experiments try 0.5, 0.95 and 1.
 - Sixteen games per experiment separate large effects from small ones, not
   close ones.
 - A preset contract needs four signatures. Four agents that go off plan

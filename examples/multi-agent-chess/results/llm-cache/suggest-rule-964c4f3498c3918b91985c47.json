@@ -1,0 +1,6 @@
+{
+ "kind": "suggest-rule",
+ "model": "claude-sonnet-5-5",
+ "input": "Any commit that modifies /moves/queen_d8.text must be signed by at least fourteen of the sixteen agents' keys in /team/pieces/, including queen_d8 itself, because queen_d8 has repeatedly gone off plan through greed, and every commit that modifies any /moves/<agent>.text path must also modify /turn/ply.num so a move only counts for the ply it was planned for.",
+ "response": "always([+modifies(/moves/queen_d8.text) -threshold(\"14\", /team/pieces)] false) & always([+modifies(/moves/queen_d8.text) -signed_by(/team/pieces/queen_d8.id)] false) & always([+modifies(/moves/$k.text) -modifies(/turn/ply.num)] false)"
+}

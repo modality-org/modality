@@ -1,0 +1,6 @@
+{
+ "kind": "suggest-rule",
+ "model": "claude-sonnet-5-5",
+ "input": "Any commit that modifies /turn/ply.num or any path under /moves/ must be co-signed by at least twelve of the sixteen Black agents, and a commit that modifies /moves/queen_d8.text must be signed by queen_d8 and co-signed by at least fourteen of the sixteen Black agents, since queen_d8 has also gone off plan with amnesia.",
+ "response": "always(([+modifies(/turn/ply.num) -threshold(\"12\", /team/pieces)] false) & ([+modifies(/moves) -threshold(\"12\", /team/pieces)] false) & ([+modifies(/moves/queen_d8.text) -signed_by(/team/pieces/queen_d8.id)] false) & ([+modifies(/moves/queen_d8.text) -threshold(\"14\", /team/pieces)] false))"
+}

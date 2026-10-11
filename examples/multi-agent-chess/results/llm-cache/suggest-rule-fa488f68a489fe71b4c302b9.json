@@ -1,0 +1,6 @@
+{
+ "kind": "suggest-rule",
+ "model": "claude-sonnet-5-5",
+ "input": "Any commit that modifies /moves/pawn_d7.text must be signed by pawn_d7 and co-signed by at least twelve other Black agents, so that pawn_d7's lone off-plan moves (amnesia) are rejected and only team-agreed moves are accepted.",
+ "response": "always(([+modifies(/moves/pawn_d7.text) -signed_by(/team/pieces/pawn_d7.id)] false) & ([+modifies(/moves/pawn_d7.text) -threshold(\"13\", /team/pieces)] false))"
+}

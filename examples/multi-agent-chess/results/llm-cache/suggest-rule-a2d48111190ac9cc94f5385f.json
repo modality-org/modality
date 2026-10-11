@@ -1,0 +1,6 @@
+{
+ "kind": "suggest-rule",
+ "model": "claude-sonnet-5-5",
+ "input": "Any commit that modifies /moves/rook_a8.text must be signed by rook_a8 and also co-signed by at least twelve other Black agents' keys from /team/pieces, so rook_a8 cannot send an off-plan move alone.",
+ "response": "always([+modifies(/moves/rook_a8.text) -signed_by(/team/pieces/rook_a8.id)] false) & always([+modifies(/moves/rook_a8.text) -threshold(\"13\", /team/pieces)] false)"
+}

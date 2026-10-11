@@ -1,0 +1,6 @@
+{
+ "kind": "suggest-rule",
+ "model": "claude-sonnet-5-5",
+ "input": "Any commit that modifies /moves/pawn_b7.text, /moves/rook_a8.text, or /moves/rook_h8.text, the agents that went off plan through greed or amnesia, must be signed by that agent's own key, co-signed by at least fourteen of the sixteen Black agents' keys in /team/pieces/, and also write a /turn/ply.num value exactly one greater than its current value.",
+ "response": "always(([+modifies(/moves/pawn_b7.text) -signed_by(/team/pieces/pawn_b7.id)] false) & ([+modifies(/moves/pawn_b7.text) -threshold(\"14\", /team/pieces)] false) & ([+modifies(/moves/pawn_b7.text) -modifies(/turn/ply.num)] false) & ([+modifies(/moves/rook_a8.text) -signed_by(/team/pieces/rook_a8.id)] false) & ([+modifies(/moves/rook_a8.text) -threshold(\"14\", /team/pieces)] false) & ([+modifies(/moves/rook_a8.text) -modifies(/turn/ply.num)] false) & ([+modifies(/moves/rook_h8.text) -signed_by(/team/pieces/rook_h8.id)] false) & ([+modifies(/moves/rook_h8.text) -threshold(\"14\", /team/pieces)] false) & ([+modifies(/moves/rook_h8.text) -modifies(/turn/ply.num)] false))"
+}

@@ -1,0 +1,6 @@
+{
+ "kind": "suggest-rule",
+ "model": "claude-sonnet-5-5",
+ "input": "A commit that modifies any /moves/<agent>.text path is accepted only if, besides the moving piece's own signature, it is co-signed by at least twelve of the sixteen Black agents' keys listed in /team/pieces/<agent>.id, so a lone off-plan move (panic, greed or amnesia) cannot be played.",
+ "response": "always(([+modifies(/moves/$k) -signed_by(/team/pieces/$k.id)] false) & ([+modifies(/moves) -threshold(\"12\", /team/pieces)] false))"
+}

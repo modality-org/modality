@@ -1,0 +1,6 @@
+{
+ "kind": "suggest-rule",
+ "model": "claude-sonnet-5-5",
+ "input": "Any commit that modifies a /moves/<agent>.text path must also be signed by at least twelve of the sixteen Black agents' keys in /team/pieces/, so a lone off-plan move cannot be accepted without team agreement.",
+ "response": "always([+modifies(/moves/$k.text) -threshold(\"12\", /team/pieces)] false)"
+}

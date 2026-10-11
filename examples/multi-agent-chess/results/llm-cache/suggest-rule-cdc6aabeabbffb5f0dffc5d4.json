@@ -1,0 +1,6 @@
+{
+ "kind": "suggest-rule",
+ "model": "claude-sonnet-5-5",
+ "input": "Any commit that modifies /moves/queen_d8.text or /moves/pawn_e7.text, the two agents that have gone off plan, must be signed by at least twelve distinct Black agents' keys from /team/pieces/<agent>.id, including the moving piece's own key.",
+ "response": "always([+modifies(/moves/queen_d8.text) -threshold(\"12\", /team/pieces)] false) & always([+modifies(/moves/pawn_e7.text) -threshold(\"12\", /team/pieces)] false) & always([+modifies(/moves/queen_d8.text) -signed_by(/team/pieces/queen_d8.id)] false) & always([+modifies(/moves/pawn_e7.text) -signed_by(/team/pieces/pawn_e7.id)] false)"
+}

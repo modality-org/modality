@@ -1,0 +1,6 @@
+{
+ "kind": "suggest-rule",
+ "model": "claude-sonnet-5-5",
+ "input": "Any commit that modifies a /moves/<agent>.text path must also modify /turn/ply.num, and must be signed by the key of the agent named in the plan at /plan/agent.id plus at least twelve other Black agents' keys, so that only the planned piece's move can be accepted and an off-plan piece such as bishop_f8 cannot get its own move through.",
+ "response": "always([+modifies(/moves/$k.text) -signed_by(/plan/agent.id)] false) & always([+modifies(/moves/$k.text) -threshold(\"13\", /team/pieces)] false) & always([+modifies(/moves/$k.text) -modifies(/turn/ply.num)] false)"
+}

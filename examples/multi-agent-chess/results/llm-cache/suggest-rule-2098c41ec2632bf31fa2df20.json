@@ -1,0 +1,6 @@
+{
+ "kind": "suggest-rule",
+ "model": "claude-sonnet-5-5",
+ "input": "Any commit that modifies /moves/queen_d8.text must be co-signed by all sixteen Black agents' keys (not just twelve), since queen_d8 has gone off plan with greed, while every other piece's path keeps the twelve-signature requirement.",
+ "response": "always([+modifies(/moves/$k.text) -threshold(\"12\", /team/pieces)] false) & always([+modifies(/moves/queen_d8.text) -threshold(\"16\", /team/pieces)] false)"
+}

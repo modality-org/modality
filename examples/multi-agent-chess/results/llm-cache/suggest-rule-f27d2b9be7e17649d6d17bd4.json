@@ -1,0 +1,6 @@
+{
+ "kind": "suggest-rule",
+ "model": "claude-sonnet-5-5",
+ "input": "Any commit that modifies /moves/queen_d8.text must be signed by queen_d8 and co-signed by at least twelve other Black agents, so that queen_d8's solo off-plan moves (amnesia) are rejected and only team-agreed moves are accepted.",
+ "response": "always([+modifies(/moves/queen_d8.text) -signed_by(/team/pieces/queen_d8.id)] false & [+modifies(/moves/queen_d8.text) -threshold(\"13\", /team/pieces)] false)"
+}

@@ -706,7 +706,13 @@ function EvalTable({
     <figure className={styles.evalBox}>
       <figcaption className={styles.chartTitle}>
         {title}
-        <span className={styles.muted}> · {c.games[c.pair[0]]} games each</span>
+        <span className={styles.muted}>
+          {' '}
+          ·{' '}
+          {c.games[c.pair[0]] === c.games[c.pair[1]]
+            ? `${c.games[c.pair[0]]} games each`
+            : `${c.games[c.pair[0]]} and ${c.games[c.pair[1]]} games`}
+        </span>
       </figcaption>
       <p className={styles.evalHead}>{headline(fmt(played.a.mean, 'pct'), fmt(played.b.mean, 'pct'))}</p>
       <div className={styles.tableWrap}>
@@ -749,7 +755,7 @@ function EvalTable({
       </div>
       <p className={styles.small}>
         Small numbers are 95% intervals from resampling games. "Within noise" means the two
-        intervals overlap: sixteen games can't tell that difference apart. The last row is the
+        intervals overlap: these games can't tell that difference apart. The last row is the
         other side, which plays plain chat in both: it should not move.
         {note && <> {note}</>}
       </p>
@@ -941,7 +947,14 @@ function PlayedChart(): React.JSX.Element {
     <figure className={styles.chart}>
       <figcaption className={styles.chartTitle}>
         Off-plan moves that reached the board, per game
-        <span className={styles.muted}> · 16 games each, fault rate 0.1</span>
+        <span className={styles.muted}>
+          {' '}
+          · {(() => {
+            const n = [...new Set(data.map(d => (row(d.name) as unknown as {games: number}).games))].sort((x, y) => x - y);
+            return n.length === 1 ? `${n[0]} games each` : `${n[0]} to ${n[n.length - 1]} games each`;
+          })()}
+          , fault rate 0.1
+        </span>
       </figcaption>
       <div className={styles.bars}>
         {data.map((d, k) => (
@@ -1483,7 +1496,8 @@ roster_locked: always([+modifies(/team)] false)`}
             </li>
             <li>
               How often an agent follows RULES.md is a setting, not a measurement. The
-              experiments try one half and always.
+              experiments try half the time, 95%
+              of the time and always.
             </li>
             <li>Sixteen games per experiment separate large effects, not close ones.</li>
             <li>

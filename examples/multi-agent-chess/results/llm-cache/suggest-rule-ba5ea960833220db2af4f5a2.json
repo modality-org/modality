@@ -1,0 +1,6 @@
+{
+ "kind": "suggest-rule",
+ "model": "claude-sonnet-5-5",
+ "input": "Any commit that modifies a path /moves/$k.text must be co-signed by at least twelve distinct agents' keys from /team/pieces/ other than the moving piece $k itself, so the plan needs broad agreement beyond the mover and an agent that goes off plan (from greed, panic or amnesia) cannot get its own move accepted even with a few allies.",
+ "response": "always(([+modifies(/moves/$k.text) -signed_by(/team/pieces/$k.id)] false) & ([+modifies(/moves/$k.text) -threshold(\"13\", /team/pieces)] false))"
+}

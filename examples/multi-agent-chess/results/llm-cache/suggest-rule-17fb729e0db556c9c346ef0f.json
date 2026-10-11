@@ -1,0 +1,6 @@
+{
+ "kind": "suggest-rule",
+ "model": "claude-sonnet-5-5",
+ "input": "Any commit that modifies a /moves/<agent>.text path must also be signed by bishop_f8's key and by at least one of the other fifteen agents' keys that did not sign any earlier rejected commit for the same ply, and a commit that modifies /moves/<agent>.text for a ply where /turn/ply.num is unchanged from an already-accepted move must be rejected.",
+ "response": "always([+modifies(/moves/$k.text) -signed_by(/team/pieces/bishop_f8.id)] false) & always([+modifies(/moves/$k.text) -threshold(\"2\", /team/pieces)] false) & always([+modifies(/moves/$k.text) -modifies(/turn/ply.num)] false)"
+}

@@ -1,0 +1,6 @@
+{
+ "kind": "suggest-rule",
+ "model": "claude-sonnet-5-5",
+ "input": "A commit that modifies any /moves/<agent>.text path is accepted only if it is co-signed by at least twelve distinct agents' keys from /team/pieces/*.id, so a piece going off plan alone (panic, greed or amnesia) cannot get its move played.",
+ "response": "always([+modifies(/moves/$k.text) -threshold(\"12\", /team/pieces)] false)"
+}

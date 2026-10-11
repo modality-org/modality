@@ -1,0 +1,6 @@
+{
+ "kind": "suggest-rule",
+ "model": "claude-sonnet-5-5",
+ "input": "A commit that modifies any /moves/<agent>.text path must also be co-signed by at least twelve distinct Black agents' keys from /team/pieces/, so a lone off-plan move signed by only its own piece is rejected.",
+ "response": "always([+modifies(/moves) -threshold(\"12\", /team/pieces)] false)"
+}

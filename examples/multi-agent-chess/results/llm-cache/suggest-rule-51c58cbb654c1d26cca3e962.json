@@ -1,0 +1,6 @@
+{
+ "kind": "suggest-rule",
+ "model": "claude-sonnet-5-5",
+ "input": "Any commit that modifies /moves/$k.text for any Black agent $k must also modify /turn/ply.num, and must be co-signed by the key of the agent that the team plan names as the moving piece, so a commit for a piece other than the planned one cannot be accepted.",
+ "response": "always([+modifies(/moves/$k.text) -modifies(/turn/ply.num)] false) & always([+modifies(/moves/$k.text) -signed_by(/team/pieces/$k.id)] false)"
+}

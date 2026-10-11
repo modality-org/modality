@@ -1,0 +1,6 @@
+{
+ "kind": "suggest-rule",
+ "model": "claude-sonnet-5-5",
+ "input": "Any commit that modifies /moves/pawn_g7.text must be signed by at least fifteen of the sixteen Black agents' keys, including pawn_g7's own key, because pawn_g7 has gone off plan through amnesia and its path needs stricter agreement than the twelve-signature team rule.",
+ "response": "always([+modifies(/moves/pawn_g7.text) -signed_by(/team/pieces/pawn_g7.id)] false) & always([+modifies(/moves/pawn_g7.text) -threshold(\"15\", /team/pieces)] false)"
+}

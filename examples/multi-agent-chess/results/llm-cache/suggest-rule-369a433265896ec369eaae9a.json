@@ -1,0 +1,6 @@
+{
+ "kind": "suggest-rule",
+ "model": "claude-sonnet-5-5",
+ "input": "Any commit that modifies /moves/<agent>.text must also modify /turn/ply.num and be co-signed by at least fourteen of the sixteen Black agents, and the move path of any piece that has gone off plan more than once (queen_d8) must additionally be signed by the moving piece plus king_e8 and every other agent, so a repeat off-plan agent cannot get a move accepted without unanimous team agreement.",
+ "response": "always(([+modifies(/moves/$k.text) -signed_by(/team/pieces/$k.id)] false) & ([+modifies(/moves/$k.text) -modifies(/turn/ply.num)] false) & ([+modifies(/moves/$k.text) -threshold(\"14\", /team/pieces)] false) & ([+modifies(/moves/queen_d8.text) -signed_by(/team/pieces/queen_d8.id)] false) & ([+modifies(/moves/queen_d8.text) -signed_by(/team/pieces/king_e8.id)] false) & ([+modifies(/moves/queen_d8.text) -threshold(\"16\", /team/pieces)] false))"
+}

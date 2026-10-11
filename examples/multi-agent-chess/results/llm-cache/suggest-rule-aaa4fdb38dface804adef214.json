@@ -1,0 +1,6 @@
+{
+ "kind": "suggest-rule",
+ "model": "claude-sonnet-5-5",
+ "input": "Any commit that modifies /moves/rook_a8.text must be co-signed by at least fourteen of the sixteen Black agents' keys in addition to rook_a8's own key, and the same rule applies to /moves/knight_g8.text and /moves/queen_d8.text, because those agents have repeatedly gone off plan with greed.",
+ "response": "always(([+modifies(/moves/rook_a8.text) -signed_by(/team/pieces/rook_a8.id)] false) & ([+modifies(/moves/rook_a8.text) -threshold(\"14\", /team/pieces)] false) & ([+modifies(/moves/knight_g8.text) -signed_by(/team/pieces/knight_g8.id)] false) & ([+modifies(/moves/knight_g8.text) -threshold(\"14\", /team/pieces)] false) & ([+modifies(/moves/queen_d8.text) -signed_by(/team/pieces/queen_d8.id)] false) & ([+modifies(/moves/queen_d8.text) -threshold(\"14\", /team/pieces)] false))"
+}

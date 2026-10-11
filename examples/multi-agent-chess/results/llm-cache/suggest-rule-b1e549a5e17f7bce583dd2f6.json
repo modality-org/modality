@@ -1,0 +1,6 @@
+{
+ "kind": "suggest-rule",
+ "model": "claude-sonnet-5-5",
+ "input": "Any commit that modifies /moves/queen_d8.text or /moves/knight_g8.text must also be signed by at least thirteen of the sixteen Black agents' keys, so that queen_d8 and knight_g8, which keep going off plan through greed and amnesia, cannot move without near-unanimous team agreement.",
+ "response": "always([+modifies(/moves/queen_d8.text) -threshold(\"13\", /team/pieces)] false & [+modifies(/moves/knight_g8.text) -threshold(\"13\", /team/pieces)] false)"
+}

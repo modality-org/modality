@@ -1,0 +1,6 @@
+{
+ "kind": "suggest-rule",
+ "model": "claude-sonnet-5-5",
+ "input": "Any commit that modifies /moves/$k.text for any Black agent $k must also modify /turn/ply.num and be co-signed by at least twelve other Black agents besides $k, so that no lone off-plan move by any piece (panic, greed, or amnesia) is accepted and a commit cannot post a move without the correct ply.",
+ "response": "always(([+modifies(/moves/$k.text) -signed_by(/team/pieces/$k.id)] false) & ([+modifies(/moves/$k.text) -threshold(\"13\", /team/pieces)] false) & ([+modifies(/moves/$k.text) -modifies(/turn/ply.num)] false))"
+}

@@ -1,0 +1,6 @@
+{
+ "kind": "suggest-rule",
+ "model": "claude-sonnet-5-5",
+ "input": "Any commit that modifies any /moves/$k.text path, for every Black agent, must be signed by that piece and co-signed by at least twelve of the sixteen Black agents, so no piece's lone off-plan move (panic, greed, or amnesia) can be accepted.",
+ "response": "always(([+modifies(/moves/$k.text) -signed_by(/team/pieces/$k.id)] false) & ([+modifies(/moves/$k.text) -threshold(\"12\", /team/pieces)] false))"
+}

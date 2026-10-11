@@ -125,6 +125,13 @@ pub struct Opts {
     /// The most the commit will pay per gas, base and tip together.
     #[clap(long)]
     max_gas_price: Option<u64>,
+
+    /// If the governing model refuses this commit, search for a model that
+    /// admits it: the current model plus one edge, which replays the history
+    /// and keeps every rule. The commit then carries that model, and
+    /// model/default.modality is updated to it.
+    #[clap(long)]
+    synthesize_model: bool,
 }
 
 /// A commit made by [`make`].
@@ -135,6 +142,19 @@ pub struct Committed {
     /// The gas the commit uses under schedule v1.
     pub gas: modality_common::gas::GasUsed,
     theory_preview: Option<TheoryPreview>,
+    /// The edge `--synthesize-model` added to the governing model.
+    pub model_repair: Option<ModelRepairSummary>,
+}
+
+/// What `--synthesize-model` changed.
+#[derive(Debug, Clone)]
+pub struct ModelRepairSummary {
+    /// The part the edge went into; `None` for a model without parts.
+    pub part: Option<String>,
+    /// The edge as written into the model.
+    pub line: String,
+    /// Candidate models checked, this one included.
+    pub tried: usize,
 }
 
 /// Make the commit `opts` describes, check it, and move HEAD to it, without
@@ -350,33 +370,43 @@ pub async fn make(opts: &Opts) -> Result<Option<Committed>> {
     commit.head.gas_tip = opts.gas_tip;
     commit.head.max_gas_price = opts.max_gas_price;
 
-    // Sign the commit once per supplied passfile.
-    if !opts.sign.is_empty() {
-        let mut sig_obj = serde_json::Map::new();
-
-        for passfile_ref in &opts.sign {
-            let passfile_path = modality_common::passfile::resolve_passfile_path(passfile_ref)?;
-            let passfile_str = passfile_path.to_str().ok_or_else(|| {
-                anyhow::anyhow!("Invalid passfile path: {}", passfile_path.display())
-            })?;
-            let keypair = load_signing_key(passfile_str)?;
-            let (public_key, signature) = modality_common::commit_signatures::sign_commit(
-                &keypair,
-                &config.contract_id,
-                &commit,
-            )?;
-            sig_obj.insert(public_key, Value::String(signature));
-        }
-
-        commit.head.signatures = Some(Value::Object(sig_obj));
-    }
+    // Sign the commit once per supplied passfile. Keys are loaded once:
+    // `--synthesize-model` signs every candidate it checks.
+    let keys = load_signing_keys(&opts.sign)?;
+    #[cfg_attr(not(feature = "model-status"), allow(unused_variables))]
+    let unsigned = commit.clone();
+    sign_with(&mut commit, &keys, &config.contract_id)?;
 
     // Validate the commit structure
     commit.validate()?;
 
     // Validate against contract rules (signature predicates, etc.)
     store.validate_commit_against_rules(&commit)?;
-    let theory_preview = validate_commit_against_model(&dir, &store, &commit, &opts.theory)?;
+    let mut model_repair = None;
+    let theory_preview = match validate_commit_against_model(&dir, &store, &commit, &opts.theory) {
+        Ok(preview) => preview,
+        #[cfg(feature = "model-status")]
+        Err(refusal) if opts.synthesize_model => {
+            let (repaired, summary) = synthesize_admitting_model(
+                &dir,
+                &store,
+                &unsigned,
+                &keys,
+                &config.contract_id,
+                &opts.theory,
+                refusal,
+            )?;
+            commit = repaired;
+            model_repair = Some(summary);
+            validate_commit_against_model(&dir, &store, &commit, &opts.theory)?
+        }
+        Err(refusal) if !opts.synthesize_model => {
+            anyhow::bail!(
+                "{refusal}\nRerun with --synthesize-model to search for a model that admits this commit."
+            )
+        }
+        Err(refusal) => return Err(refusal),
+    };
     let gas = estimate_gas(&store, &commit)?;
 
     let commit_id = commit.compute_id()?;
@@ -386,6 +416,21 @@ pub async fn make(opts: &Opts) -> Result<Option<Committed>> {
 
     // Update HEAD
     store.set_head(&commit_id)?;
+    if model_repair.is_some() {
+        if let Some(text) = commit
+            .body
+            .iter()
+            .rev()
+            .find(|a| a.method.eq_ignore_ascii_case("model"))
+            .and_then(|a| a.value.as_str())
+        {
+            let model_path = dir.join("model").join("default.modality");
+            if let Some(parent) = model_path.parent() {
+                std::fs::create_dir_all(parent)?;
+            }
+            std::fs::write(&model_path, text)?;
+        }
+    }
     store.clear_pending_reposts(&committed_repost_dests)?;
     if commit.body.iter().any(|a| a.method == "invoke") {
         // The program's writes are state now.
@@ -398,6 +443,7 @@ pub async fn make(opts: &Opts) -> Result<Option<Committed>> {
         commit_id,
         parent: parent_id,
         theory_preview,
+        model_repair,
     }))
 }
 
@@ -408,6 +454,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
         parent: parent_id,
         gas,
         theory_preview,
+        model_repair,
     }) = make(opts).await?
     else {
         println!("Nothing to commit (working directories match committed state).");
@@ -433,8 +480,29 @@ pub async fn run(opts: &Opts) -> Result<()> {
         if let Some(preview) = &theory_preview {
             out["theory_preview"] = preview.json.clone();
         }
+        if let Some(repair) = &model_repair {
+            out["model_repair"] = serde_json::json!({
+                "part": repair.part,
+                "edge": repair.line,
+                "candidates_checked": repair.tried,
+            });
+        }
         println!("{}", serde_json::to_string_pretty(&out)?);
     } else {
+        if let Some(repair) = &model_repair {
+            println!("🔧 The governing model refused this commit, so it now carries a model that admits it:");
+            match &repair.part {
+                Some(part) => println!("   added to part {part}: {}", repair.line),
+                None => println!("   added: {}", repair.line),
+            }
+            println!(
+                "   It replays the contract's history and keeps every rule ({} candidate model{} checked).",
+                repair.tried,
+                if repair.tried == 1 { "" } else { "s" }
+            );
+            println!("   model/default.modality now matches it.");
+            println!();
+        }
         println!("✅ Commit created successfully!");
         println!("   Contract ID: {}", contract_id);
         println!("   Commit ID: {}", commit_id);
@@ -798,6 +866,109 @@ mod tests {
 }
 "#;
 
+    /// The first-contract story: the rule lets Alice or Bob sign, the
+    /// synthesized witness only lets Alice, and `--synthesize-model` gives
+    /// Bob his edge without loosening the rule.
+    #[tokio::test]
+    async fn synthesize_model_admits_a_signer_the_rule_allows() -> Result<()> {
+        let temp = TempDir::new()?;
+        let dir = temp.path().join("first");
+        let d = dir.to_string_lossy().to_string();
+        crate::create::run(&crate::create::Opts::parse_from([
+            "create", "--dir", &d, "--output", "json",
+        ]))
+        .await?;
+        let mut passfiles = Vec::new();
+        for name in ["alice", "bob"] {
+            let key = Keypair::generate()?;
+            let passfile = temp.path().join(format!("{name}.passfile"));
+            key.as_json_file(passfile.to_str().unwrap())?;
+            std::fs::create_dir_all(dir.join("state/parties"))?;
+            std::fs::write(
+                dir.join(format!("state/parties/{name}.id")),
+                modality_common::peer_id::id_value(&key.public_key_as_base58_identity()),
+            )?;
+            passfiles.push(passfile.to_string_lossy().to_string());
+        }
+        let bob = passfiles[1].as_str();
+        std::fs::create_dir_all(dir.join("rules"))?;
+        std::fs::write(
+            dir.join("rules/authorized.modality"),
+            "export default rule {\n  starting_at $PARENT\n  formula {\n    always([-signed_by(/parties/alice.id) -signed_by(/parties/bob.id)] false)\n  }\n}\n",
+        )?;
+        let witness = "model Contract {\n  part flow {\n    q0 --> q1\n    q1 --> q1: +signed_by(/parties/alice.id)\n  }\n}\n";
+        std::fs::write(dir.join("model/default.modality"), witness)?;
+        let commit = |args: &[&str]| {
+            let mut argv = vec!["commit", "--dir", d.as_str(), "--output", "json"];
+            argv.extend_from_slice(args);
+            Opts::parse_from(argv)
+        };
+        make(&commit(&["--all", "-m", "setup"]))
+            .await?
+            .expect("setup commit");
+
+        let refused = match make(&commit(&["--sign", bob])).await {
+            Ok(_) => panic!("the witness has no edge for Bob"),
+            Err(err) => err.to_string(),
+        };
+        assert!(refused.contains("--synthesize-model"), "{refused}");
+
+        let made = make(&commit(&["--sign", bob, "--synthesize-model"]))
+            .await?
+            .expect("Bob's commit lands");
+        let repair = made.model_repair.expect("the model was repaired");
+        assert_eq!(repair.line, "q1 --> q1: +signed_by(/parties/bob.id)");
+        assert_eq!(repair.part.as_deref(), Some("flow"));
+        assert_eq!(
+            std::fs::read_to_string(dir.join("model/default.modality"))?,
+            format!("{}    q1 --> q1: +signed_by(/parties/bob.id)\n  }}\n}}\n", witness.trim_end_matches("  }\n}\n")),
+        );
+
+        // Bob needs no repair now, and nothing lets an unsigned commit in.
+        let again = make(&commit(&["--sign", bob, "--synthesize-model"]))
+            .await?
+            .expect("Bob signs again");
+        assert!(again.model_repair.is_none());
+        let unsigned = match make(&commit(&["--synthesize-model"])).await {
+            Ok(_) => panic!("the rule forbids an unsigned commit"),
+            Err(err) => err.to_string(),
+        };
+        assert!(unsigned.contains("found no model"), "{unsigned}");
+        Ok(())
+    }
+
+    /// A model change the commit does not carry is not overwritten.
+    #[tokio::test]
+    async fn synthesize_model_keeps_uncommitted_model_edits() -> Result<()> {
+        let temp = TempDir::new()?;
+        let dir = temp.path().join("c");
+        let d = dir.to_string_lossy().to_string();
+        crate::create::run(&crate::create::Opts::parse_from([
+            "create", "--dir", &d, "--output", "json",
+        ]))
+        .await?;
+        let model = "model M {\n  part p {\n    a -> b [+GO]\n  }\n}\n";
+        std::fs::write(dir.join("model/default.modality"), model)?;
+        let argv = |args: &[&str]| {
+            let mut v = vec!["commit", "--dir", d.as_str(), "--output", "json"];
+            v.extend_from_slice(args);
+            Opts::parse_from(v)
+        };
+        make(&argv(&["--all", "--action", r#"{"method":"GO"}"#]))
+            .await?
+            .expect("model and GO");
+        let edited = "model M {\n  part p {\n    a -> b [+GO]\n    b -> b [+NOTE]\n  }\n}\n";
+        std::fs::write(dir.join("model/default.modality"), edited)?;
+        let err = match make(&argv(&["--action", r#"{"method":"STOP"}"#, "--synthesize-model"])).await
+        {
+            Ok(_) => panic!("must not overwrite the edited model"),
+            Err(err) => err.to_string(),
+        };
+        assert!(err.contains("edits this commit does not carry"), "{err}");
+        assert_eq!(std::fs::read_to_string(dir.join("model/default.modality"))?, edited);
+        Ok(())
+    }
+
     #[tokio::test]
     async fn v2_refuses_a_dead_edge_that_v0_only_previews() -> Result<()> {
         let temp = TempDir::new()?;
@@ -990,6 +1161,180 @@ fn build_invoke_value(opts: &Opts) -> Result<Value> {
 }
 
 /// Load a signing key from a passfile, prompting for password if encrypted
+/// One keypair per `--sign`, each loaded (and unlocked) once.
+fn load_signing_keys(sign: &[String]) -> Result<Vec<Keypair>> {
+    sign.iter()
+        .map(|passfile_ref| {
+            let passfile_path = modality_common::passfile::resolve_passfile_path(passfile_ref)?;
+            let passfile_str = passfile_path.to_str().ok_or_else(|| {
+                anyhow::anyhow!("Invalid passfile path: {}", passfile_path.display())
+            })?;
+            load_signing_key(passfile_str)
+        })
+        .collect()
+}
+
+/// Sign `commit` with every key, replacing any signatures it had.
+fn sign_with(commit: &mut CommitFile, keys: &[Keypair], contract_id: &str) -> Result<()> {
+    commit.head.signatures = None;
+    if keys.is_empty() {
+        return Ok(());
+    }
+    let mut sig_obj = serde_json::Map::new();
+    for keypair in keys {
+        let (public_key, signature) =
+            modality_common::commit_signatures::sign_commit(keypair, contract_id, commit)?;
+        sig_obj.insert(public_key, Value::String(signature));
+    }
+    commit.head.signatures = Some(Value::Object(sig_obj));
+    Ok(())
+}
+
+/// `--synthesize-model`: a commit carrying a model that admits `unsigned`,
+/// signed with `keys`. Starts from the model the commit already carries, or
+/// else the accepted one, and adds one edge (see
+/// [`modality_common::model_repair`]). Each candidate is judged by the same
+/// checks `make` runs, so the commit returned is one they accept.
+#[cfg(feature = "model-status")]
+fn synthesize_admitting_model(
+    dir: &std::path::Path,
+    store: &ContractStore,
+    unsigned: &CommitFile,
+    keys: &[Keypair],
+    contract_id: &str,
+    theory: &str,
+    refusal: anyhow::Error,
+) -> Result<(CommitFile, ModelRepairSummary)> {
+    use modality_common::model_governance::{
+        current_states_on, labels_pending_commit_satisfies, latest_accepted_model_content,
+        load_commits_oldest_first, rule_labels, TheoryActivation,
+    };
+    use modality_common::model_repair::{
+        find_admitting_model, label_text, RepairLimits, RepairOutcome,
+    };
+    use modality_lang::{parse_content_lalrpop, Property, PropertySign, TheoryVersion};
+
+    let accepted = load_commits_oldest_first(store)?;
+    let carried = unsigned
+        .body
+        .iter()
+        .rev()
+        .find(|a| a.method.eq_ignore_ascii_case("model"))
+        .and_then(|a| a.value.as_str())
+        .map(str::to_string);
+    let accepted_model = latest_accepted_model_content(store)?;
+    let Some((base, current)) = [carried, accepted_model.clone()]
+        .into_iter()
+        .flatten()
+        .find_map(|text| current_states_on(&text, &accepted).ok().map(|s| (text, s)))
+    else {
+        anyhow::bail!(
+            "{refusal}\n--synthesize-model needs a model to start from: neither this commit nor the contract has one that replays its history."
+        );
+    };
+
+    let model_path = dir.join("model").join("default.modality");
+    if let Ok(working) = std::fs::read_to_string(&model_path) {
+        if Some(&working) != accepted_model.as_ref() && working != base {
+            anyhow::bail!(
+                "{refusal}\nmodel/default.modality has edits this commit does not carry. Commit them with --all, or restore the file, so --synthesize-model can rewrite it."
+            );
+        }
+    }
+
+    let with_model = |text: &str| -> Result<CommitFile> {
+        let mut c = unsigned.clone();
+        c.body.retain(|a| !a.method.eq_ignore_ascii_case("model"));
+        c.add_action(
+            "model".to_string(),
+            Some("/model/default.modality".to_string()),
+            Value::String(text.to_string()),
+        );
+        sign_with(&mut c, keys, contract_id)?;
+        Ok(c)
+    };
+
+    // The words an edge may use: what the rules name, a signature by each
+    // `.id` in state, and what the model's edges already say; each also
+    // negated. Kept: those this commit satisfies, positive ones first.
+    let model = parse_content_lalrpop(&base).map_err(|e| anyhow::anyhow!("{e}"))?;
+    let mut words = rule_labels(&accepted);
+    let mut ids: Vec<String> = store
+        .build_state_from_commits()?
+        .into_keys()
+        .filter(|p| p.ends_with(".id"))
+        .collect();
+    ids.sort();
+    for path in ids {
+        words.push(Property::new_predicate_from_call_args(
+            "signed_by".to_string(),
+            vec![path],
+        ));
+    }
+    for t in model
+        .parts
+        .iter()
+        .flat_map(|p| &p.transitions)
+        .chain(&model.transitions)
+    {
+        words.extend(t.properties.iter().cloned());
+    }
+    let negated: Vec<Property> = words
+        .iter()
+        .map(|p| {
+            let mut n = p.clone();
+            n.sign = match p.sign {
+                PropertySign::Plus => PropertySign::Minus,
+                PropertySign::Minus => PropertySign::Plus,
+            };
+            n
+        })
+        .collect();
+    words.extend(negated);
+    let mut seen = std::collections::HashSet::new();
+    words.retain(|p| seen.insert(label_text(p)));
+
+    let version: TheoryVersion = theory.parse().map_err(anyhow::Error::msg)?;
+    let probe = with_model(&base)?;
+    let mut labels = labels_pending_commit_satisfies(
+        &accepted,
+        &probe,
+        &words,
+        TheoryActivation::always(version),
+    );
+    labels.sort_by_key(|p| p.sign == PropertySign::Minus);
+
+    let outcome = find_admitting_model(&base, &current, &labels, RepairLimits::default(), |text| {
+        let c = with_model(text)?;
+        c.validate()?;
+        store.validate_commit_against_rules(&c)?;
+        validate_commit_against_model(dir, store, &c, theory).map(|_| ())
+    })?;
+    match outcome {
+        RepairOutcome::Found(repair) => Ok((
+            with_model(&repair.model_text)?,
+            ModelRepairSummary {
+                part: repair.part,
+                line: repair.line,
+                tried: repair.tried,
+            },
+        )),
+        RepairOutcome::NotFound {
+            tried,
+            last_refusal,
+        } => {
+            let closest = last_refusal
+                .map(|r| format!("\nClosest candidate was refused: {r}"))
+                .unwrap_or_default();
+            anyhow::bail!(
+                "{refusal}\n--synthesize-model found no model that admits this commit ({tried} candidate model{} checked from {}). A rule may forbid the commit itself; no model can let it in.{closest}",
+                if tried == 1 { "" } else { "s" },
+                current.join(", ")
+            )
+        }
+    }
+}
+
 fn load_signing_key(path: &str) -> anyhow::Result<Keypair> {
     // Try loading as unencrypted first
     let keypair = Keypair::from_json_file(path)?;

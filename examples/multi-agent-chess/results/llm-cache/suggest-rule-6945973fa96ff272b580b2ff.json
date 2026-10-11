@@ -1,0 +1,6 @@
+{
+ "kind": "suggest-rule",
+ "model": "claude-sonnet-5-5",
+ "input": "Any commit that modifies a /moves/<agent>.text path must be co-signed by at least fourteen of the sixteen Black agents' keys other than the moving piece, and must also be signed by queen_d8, pawn_f7, pawn_g7 and knight_b8 unless one of those is the moving piece, so that the agents who have repeatedly gone off plan must endorse every move.",
+ "response": "always("
+}

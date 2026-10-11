@@ -1,0 +1,6 @@
+{
+ "kind": "suggest-rule",
+ "model": "claude-sonnet-5-5",
+ "input": "Any commit that modifies a /moves/<agent>.text path must also modify /turn/ply.num to the current ply, and must be co-signed by the moving piece's own key and by at least twelve other Black agents' keys, so that a rogue piece's solo commit for any square can never be accepted.",
+ "response": "always(([+modifies(/moves/$k.text) -modifies(/turn/ply.num)] false) & ([+modifies(/moves/$k.text) -signed_by(/team/pieces/$k.id)] false) & ([+modifies(/moves/$k.text) -threshold(\"13\", /team/pieces)] false))"
+}

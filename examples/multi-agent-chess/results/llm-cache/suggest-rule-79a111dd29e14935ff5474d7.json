@@ -1,0 +1,6 @@
+{
+ "kind": "suggest-rule",
+ "model": "claude-sonnet-5-5",
+ "input": "Any commit that modifies /moves/bishop_c8.text must also be co-signed by all fifteen other Black agents' keys in addition to bishop_c8's own key, and must set /turn/ply.num to the current ply, so bishop_c8's repeated greed and amnesia moves can never be accepted without near-unanimous team agreement.",
+ "response": "always([+modifies(/moves/bishop_c8.text) -all_signed(/team/pieces)] false) & always([+modifies(/moves/bishop_c8.text) -modifies(/turn/ply.num)] false)"
+}

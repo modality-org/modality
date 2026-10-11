@@ -1,0 +1,6 @@
+{
+ "kind": "suggest-rule",
+ "model": "claude-sonnet-5-5",
+ "input": "Any commit that modifies /moves/rook_h8.text must also be co-signed by at least fourteen of the sixteen Black agents' keys excluding rook_h8's own key, and must set /turn/ply.num to the current ply, so that rook_h8, which has now gone off plan with amnesia, needs near-unanimous team agreement like knight_b8 and pawn_c7.",
+ "response": "always([+modifies(/moves/rook_h8.text) -modifies(/turn/ply.num)] false) & always([+modifies(/moves/rook_h8.text) -signed_by(/team/pieces/rook_h8.id)] false) & always([+modifies(/moves/rook_h8.text) -threshold(\"15\", /team/pieces)] false)"
+}

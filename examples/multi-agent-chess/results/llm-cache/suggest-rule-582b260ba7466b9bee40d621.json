@@ -1,0 +1,6 @@
+{
+ "kind": "suggest-rule",
+ "model": "claude-sonnet-5-5",
+ "input": "Any commit that modifies /moves/<agent>.text must also set /turn/ply.num to the current ply and must be co-signed by at least twelve other Black agents, and no commit may modify more than one /moves/<agent>.text path, so a lone off-plan move can never be accepted.",
+ "response": "always([+modifies(/moves/$k.text) -modifies(/turn/ply.num)] false) & always([+modifies(/moves/$k.text) -threshold(\"13\", /team/pieces)] false) & always([+modifies(/moves/$k.text) +modifies(/moves/!$k.text)] false)"
+}

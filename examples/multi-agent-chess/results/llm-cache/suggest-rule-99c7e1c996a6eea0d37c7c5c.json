@@ -1,0 +1,6 @@
+{
+ "kind": "suggest-rule",
+ "model": "claude-sonnet-5-5",
+ "input": "Any commit that modifies a /moves/<agent>.text path must also modify /turn/ply.num and be co-signed by at least twelve Black agents' keys other than the moving piece, so a move cannot be accepted without the ply being posted and broad team agreement.",
+ "response": "always([+modifies(/moves/$k.text) -modifies(/turn/ply.num)] false) & always([+modifies(/moves/$k.text) -signed_by(/team/pieces/$k.id)] false) & always([+modifies(/moves/$k.text) -threshold(\"13\", /team/pieces)] false)"
+}

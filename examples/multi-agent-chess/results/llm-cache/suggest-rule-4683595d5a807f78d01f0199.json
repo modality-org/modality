@@ -1,0 +1,6 @@
+{
+ "kind": "suggest-rule",
+ "model": "claude-sonnet-5-5",
+ "input": "Any commit that modifies /moves/$k.text for any agent $k must also modify /turn/ply.num and must be signed by the key of the plan-chosen piece, so that an off-plan commit from any other agent (such as bishop_f8 or bishop_c8 being greedy) cannot be accepted without the plan-chosen piece's signature, and a commit that modifies /moves/$k.text without a matching ply number is rejected.",
+ "response": "always(([+modifies(/moves/$k.text) -signed_by(/team/pieces/$k.id)] false) & ([+modifies(/moves/$k.text) -modifies(/turn/ply.num)] false))"
+}

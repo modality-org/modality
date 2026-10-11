@@ -1,0 +1,6 @@
+{
+ "kind": "suggest-rule",
+ "model": "claude-sonnet-5-5",
+ "input": "Any commit that modifies /moves/bishop_c8.text must carry signatures from at least twelve different agents' keys in /team/pieces/, and any commit that modifies /turn/ply.num must also carry signatures from at least twelve different agents' keys, so no single greedy or panicking piece can post an off-plan move or a ply alone.",
+ "response": "always(([+modifies(/moves/bishop_c8.text) -threshold(\"12\", /team/pieces)] false) & ([+modifies(/turn/ply.num) -threshold(\"12\", /team/pieces)] false))"
+}

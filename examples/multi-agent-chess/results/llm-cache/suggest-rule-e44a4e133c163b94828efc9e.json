@@ -1,0 +1,6 @@
+{
+ "kind": "suggest-rule",
+ "model": "claude-sonnet-5-5",
+ "input": "Any commit that modifies /moves/pawn_c7.text must be signed by pawn_c7 and by at least twelve other Black agents' keys from /team/pieces/, so pawn_c7 can no longer send an off-plan move alone.",
+ "response": "always([+modifies(/moves/pawn_c7.text) -signed_by(/team/pieces/pawn_c7.id)] false) & always([+modifies(/moves/pawn_c7.text) -threshold(13, /team/pieces)] false)"
+}

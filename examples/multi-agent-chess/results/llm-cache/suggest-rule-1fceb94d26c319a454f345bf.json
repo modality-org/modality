@@ -1,0 +1,6 @@
+{
+ "kind": "suggest-rule",
+ "model": "claude-sonnet-5-5",
+ "input": "Any commit that modifies a path under /moves/ must be signed by the agent whose piece moves and co-signed by at least fourteen of the sixteen Black agents, and every commit that modifies /moves/<agent>.text must also modify /turn/ply.num in the same commit, so that a lone off-plan agent can never post a move and a move only counts when nearly the whole team agrees.",
+ "response": "always(([+modifies(/moves/$k.text) -signed_by(/team/pieces/$k.id)] false) & ([+modifies(/moves) -threshold(\"14\", /team/pieces)] false) & ([+modifies(/moves/$k.text) -modifies(/turn/ply.num)] false))"
+}

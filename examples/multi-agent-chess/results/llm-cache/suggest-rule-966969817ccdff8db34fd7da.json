@@ -1,0 +1,6 @@
+{
+ "kind": "suggest-rule",
+ "model": "claude-sonnet-5-5",
+ "input": "Any commit that modifies a path /moves/$k.text must carry signatures from at least twelve of the sixteen agents in /team/pieces/, including the signature of the piece $k itself, so a lone off-plan move signed by one agent is never accepted.",
+ "response": "always([+modifies(/moves/$k.text) -threshold(\"12\", /team/pieces)] false) & always([+modifies(/moves/$k.text) -signed_by(/team/pieces/$k.id)] false)"
+}

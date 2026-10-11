@@ -1,0 +1,6 @@
+{
+ "kind": "suggest-rule",
+ "model": "claude-sonnet-5-5",
+ "input": "Any commit that modifies /moves/$k.text must be signed by the key of the plan-chosen piece and by at least twelve distinct agents' keys from /team/pieces/, and the value it writes to /moves/$k.text must be the move the team planned for the current ply (the value stored at /turn/plan.text), so a commit proposing any other move is rejected even if the moving piece itself signs it.",
+ "response": "always(([+modifies(/moves/$k.text) -signed_by(/team/pieces/$k.id)] false) & ([+modifies(/moves/$k.text) -threshold(\"12\", /team/pieces)] false) & ([+modifies(/moves/$k.text) -text_eq(/moves/$k.text, /turn/plan.text)] false))"
+}

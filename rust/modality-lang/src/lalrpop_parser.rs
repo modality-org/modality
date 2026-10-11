@@ -857,6 +857,27 @@ formula reachable {
     }
 
     #[test]
+    fn test_parse_until_call_matches_infix() {
+        // until(p, q) is the documented form; it is the same formula as `p until q`.
+        let content = r#"
+formula call {
+    until(<+signed_by(/parties/alice.id)> true, <+signed_by(/parties/bob.id)> true)
+}
+formula infix {
+    <+signed_by(/parties/alice.id)> true until <+signed_by(/parties/bob.id)> true
+}
+"#;
+
+        let formulas = parse_all_formulas_content_lalrpop(content).unwrap();
+        assert_eq!(formulas.len(), 2);
+        assert!(matches!(formulas[0].expression, FormulaExpr::Until(_, _)));
+        assert_eq!(
+            formulas[0].expression.desugar_temporal(),
+            formulas[1].expression.desugar_temporal()
+        );
+    }
+
+    #[test]
     fn test_parse_gfp() {
         // gfp(X, φ) - greatest fixed point
         let content = r#"

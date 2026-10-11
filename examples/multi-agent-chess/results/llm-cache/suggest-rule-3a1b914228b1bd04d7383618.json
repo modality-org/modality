@@ -1,0 +1,6 @@
+{
+ "kind": "suggest-rule",
+ "model": "claude-sonnet-5-5",
+ "input": "Any commit that modifies /moves/king_e8.text must be signed by king_e8's own key and co-signed by at least fourteen of the sixteen Black agents' keys, so that king_e8's amnesia-driven off-plan moves are rejected unless the team is near-unanimous.",
+ "response": "always([+modifies(/moves/king_e8.text) -signed_by(/team/pieces/king_e8.id)] false) & always([+modifies(/moves/king_e8.text) -threshold(\"14\", /team/pieces)] false)"
+}

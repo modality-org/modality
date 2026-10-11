@@ -1,0 +1,6 @@
+{
+ "kind": "suggest-rule",
+ "model": "claude-sonnet-5-5",
+ "input": "A commit that modifies any /moves/<agent>.text path or /turn/ply.num is accepted only if it is signed by the moving piece's own key and by at least twelve distinct agents' keys from /team/pieces/<agent>.id, so no single agent, including queen_d8, can push a move through alone.",
+ "response": "always(([+modifies(/moves/$k.text) -signed_by(/team/pieces/$k.id)] false) & ([+modifies(/moves/$k.text) -threshold(\"12\", /team/pieces)] false) & ([+modifies(/turn/ply.num) -threshold(\"12\", /team/pieces)] false))"
+}

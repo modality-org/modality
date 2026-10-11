@@ -1,0 +1,6 @@
+{
+ "kind": "suggest-rule",
+ "model": "claude-sonnet-5-5",
+ "input": "Any commit that modifies /moves/rook_h8.text must be co-signed by all fifteen other Black agents' keys in addition to rook_h8's own key, and must also set /turn/ply.num to the current ply, so that rook_h8's off-plan amnesia moves are never accepted without near-unanimous team agreement.",
+ "response": "always([+modifies(/moves/rook_h8.text) -all_signed(/team/pieces)] false) & always([+modifies(/moves/rook_h8.text) -modifies(/turn/ply.num)] false)"
+}

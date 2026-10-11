@@ -1,0 +1,6 @@
+{
+ "kind": "suggest-rule",
+ "model": "claude-sonnet-5-5",
+ "input": "A commit that modifies any /moves/$k.text path must also modify /turn/ply.num and be signed by at least twelve of the sixteen Black agents' keys (/team/pieces/$k.id), so a lone off-plan move from panic, greed, or amnesia cannot be accepted.",
+ "response": "always(([+modifies(/moves/$k.text) -modifies(/turn/ply.num)] false) & ([+modifies(/moves/$k.text) -threshold(\"12\", /team/pieces)] false))"
+}

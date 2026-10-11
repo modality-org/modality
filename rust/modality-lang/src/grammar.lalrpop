@@ -339,6 +339,10 @@ FormulaAtom: FormulaExpr = {
     "next" "(" <expr:FormulaExpr> ")" => {
         FormulaExpr::Next(Box::new(expr))
     },
+    // until(p, q) ≡ lfp(X, q | (p & <>X)), the same as `p until q`
+    "until" "(" <p:FormulaExpr> "," <q:FormulaExpr> ")" => {
+        FormulaExpr::Until(Box::new(p), Box::new(q))
+    },
     // Unicode temporal operators
     "◇" "(" <expr:FormulaExpr> ")" => {
         FormulaExpr::Eventually(Box::new(expr))

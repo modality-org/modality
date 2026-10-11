@@ -1,0 +1,6 @@
+{
+ "kind": "suggest-rule",
+ "model": "claude-sonnet-5-5",
+ "input": "Any commit that modifies /moves/knight_b8.text must be signed by knight_b8 and co-signed by at least twelve of the sixteen Black agents, so a lone off-plan move from knight_b8 cannot be accepted.",
+ "response": "always(([+modifies(/moves/knight_b8.text) -signed_by(/team/pieces/knight_b8.id)] false) & ([+modifies(/moves/knight_b8.text) -threshold(\"12\", /team/pieces)] false))"
+}

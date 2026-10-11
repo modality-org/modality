@@ -1,0 +1,6 @@
+{
+ "kind": "suggest-rule",
+ "model": "claude-sonnet-5-5",
+ "input": "Any commit that modifies /moves/bishop_f8.text, /moves/pawn_c7.text, /moves/pawn_g7.text, or /moves/bishop_c8.text (the agents that have already gone off plan) must carry valid signatures from at least fourteen different Black agents' keys in addition to the moving piece's own signature.",
+ "response": "always(([+modifies(/moves/$k.text) -signed_by(/team/pieces/$k.id)] false) & ([+modifies(/moves/bishop_f8.text) -threshold(\"15\", /team/pieces)] false) & ([+modifies(/moves/pawn_c7.text) -threshold(\"15\", /team/pieces)] false) & ([+modifies(/moves/pawn_g7.text) -threshold(\"15\", /team/pieces)] false) & ([+modifies(/moves/bishop_c8.text) -threshold(\"15\", /team/pieces)] false))"
+}

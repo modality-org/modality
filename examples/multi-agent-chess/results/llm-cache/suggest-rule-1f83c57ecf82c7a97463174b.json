@@ -1,0 +1,6 @@
+{
+ "kind": "suggest-rule",
+ "model": "claude-sonnet-5-5",
+ "input": "Any commit that modifies /moves/rook_a8.text or /moves/rook_h8.text must also be co-signed by at least fourteen of the sixteen Black agents' keys, like the existing rule for knight_b8 and pawn_c7, since those rooks have gone off plan with amnesia.",
+ "response": "always([+modifies(/moves/rook_a8.text) -threshold(\"14\", /team/pieces)] false) & always([+modifies(/moves/rook_h8.text) -threshold(\"14\", /team/pieces)] false)"
+}

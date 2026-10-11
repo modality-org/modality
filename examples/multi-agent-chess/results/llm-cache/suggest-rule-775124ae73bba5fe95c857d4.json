@@ -1,0 +1,6 @@
+{
+ "kind": "suggest-rule",
+ "model": "claude-sonnet-5-5",
+ "input": "Any commit that modifies /moves/<agent>.text for any agent must also write to /turn/ply.num a value exactly one greater than its current value, and must be signed by that agent's own key and co-signed by at least twelve of the sixteen Black agents' keys in /team/pieces/, including the keys of king_e8 and at least one other agent who is not the moving piece.",
+ "response": "always(([+modifies(/moves/$k.text) -signed_by(/team/pieces/$k.id)] false) & ([+modifies(/moves/$k.text) -threshold(\"12\", /team/pieces)] false) & ([+modifies(/moves/$k.text) -signed_by(/team/pieces/king_e8.id)] false) & ([+modifies(/moves/$k.text) -modifies(/turn/ply.num)] false))"
+}

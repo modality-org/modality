@@ -1,0 +1,6 @@
+{
+ "kind": "suggest-rule",
+ "model": "claude-sonnet-5-5",
+ "input": "Any commit that modifies /moves/rook_a8.text must be signed by at least fourteen of the sixteen agent keys in /team/pieces/, including the key of rook_a8, since rook_a8 went off plan from amnesia on move 30.",
+ "response": "always(([+modifies(/moves/rook_a8.text) -signed_by(/team/pieces/rook_a8.id)] false) & ([+modifies(/moves/rook_a8.text) -threshold(14, /team/pieces)] false))"
+}

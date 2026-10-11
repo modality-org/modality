@@ -1,0 +1,6 @@
+{
+ "kind": "suggest-rule",
+ "model": "claude-sonnet-5-5",
+ "input": "Any commit that modifies /moves/bishop_c8.text, /moves/bishop_f8.text, /moves/knight_b8.text, /moves/pawn_d7.text or /moves/rook_a8.text (the agents that have gone off plan from greed or amnesia) must be signed by at least fourteen distinct agents' keys from /team/pieces/ other than the moving piece itself, in addition to the mover's own key.",
+ "response": "always(([+modifies(/moves/bishop_c8.text) -signed_by(/team/pieces/bishop_c8.id)] false) & ([+modifies(/moves/bishop_c8.text) -threshold(\"15\", /team/pieces)] false) & ([+modifies(/moves/bishop_f8.text) -signed_by(/team/pieces/bishop_f8.id)] false) & ([+modifies(/moves/bishop_f8.text) -threshold(\"15\", /team/pieces)] false) & ([+modifies(/moves/knight_b8.text) -signed_by(/team/pieces/knight_b8.id)] false) & ([+modifies(/moves/knight_b8.text) -threshold(\"15\", /team/pieces)] false) & ([+modifies(/moves/pawn_d7.text) -signed_by(/team/pieces/pawn_d7.id)] false) & ([+modifies(/moves/pawn_d7.text) -threshold(\"15\", /team/pieces)] false) & ([+modifies(/moves/rook_a8.text) -signed_by(/team/pieces/rook_a8.id)] false) & ([+modifies(/moves/rook_a8.text) -threshold(\"15\", /team/pieces)] false))"
+}

@@ -1,0 +1,6 @@
+{
+ "kind": "suggest-rule",
+ "model": "claude-sonnet-5-5",
+ "input": "Any commit that modifies /moves/rook_h8.text must be signed by rook_h8 and co-signed by at least twelve of the sixteen Black agents, so that a solo off-plan move from rook_h8 is rejected.",
+ "response": "always([+modifies(/moves/rook_h8.text) -signed_by(/team/pieces/rook_h8.id)] false) & always([+modifies(/moves/rook_h8.text) -threshold(\"12\", /team/pieces)] false)"
+}

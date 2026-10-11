@@ -1,0 +1,6 @@
+{
+ "kind": "suggest-rule",
+ "model": "claude-sonnet-5-5",
+ "input": "Any commit that modifies /moves/king_e8.text or /moves/pawn_e7.text, the paths of agents that went off plan again on move 18, must be signed by at least fifteen of the sixteen agents' keys in /team/pieces/, including the moving piece itself.",
+ "response": "always(([+modifies(/moves/king_e8.text) -threshold(\"15\", /team/pieces)] false) & ([+modifies(/moves/king_e8.text) -signed_by(/team/pieces/king_e8.id)] false) & ([+modifies(/moves/pawn_e7.text) -threshold(\"15\", /team/pieces)] false) & ([+modifies(/moves/pawn_e7.text) -signed_by(/team/pieces/pawn_e7.id)] false))"
+}

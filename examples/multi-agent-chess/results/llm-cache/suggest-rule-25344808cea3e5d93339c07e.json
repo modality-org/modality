@@ -1,0 +1,6 @@
+{
+ "kind": "suggest-rule",
+ "model": "claude-sonnet-5-5",
+ "input": "Any commit that modifies /moves/bishop_f8.text must be signed by bishop_f8 and co-signed by at least fourteen of the sixteen Black agents, and must also modify /turn/ply.num in the same commit, so a lone off-plan move from bishop_f8 cannot be accepted.",
+ "response": "always(([+modifies(/moves/bishop_f8.text) -signed_by(/team/pieces/bishop_f8.id)] false) & ([+modifies(/moves/bishop_f8.text) -threshold(\"14\", /team/pieces)] false) & ([+modifies(/moves/bishop_f8.text) -modifies(/turn/ply.num)] false))"
+}

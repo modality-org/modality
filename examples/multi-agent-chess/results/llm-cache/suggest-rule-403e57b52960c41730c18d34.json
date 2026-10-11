@@ -1,0 +1,6 @@
+{
+ "kind": "suggest-rule",
+ "model": "claude-sonnet-5-5",
+ "input": "Any commit that modifies /moves/$k.text must also be signed by the key of the agent whose piece the team chose for the current plan (the plan-chosen piece), so a commit proposing a different piece's move is rejected unless at least sixteen distinct agents' keys from /team/pieces/ sign it.",
+ "response": "always([+modifies(/moves/$k.text) -signed_by(/team/pieces/$k.id) -threshold(\"16\", /team/pieces)] false)"
+}

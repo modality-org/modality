@@ -637,6 +637,17 @@ pub fn current_model_state_labels(
     Ok(states)
 }
 
+/// The nodes `accepted` leaves the contract at, replayed on `model_content`
+/// rather than on the accepted model. Fails when that model cannot replay it.
+pub fn current_states_on(model_content: &str, accepted: &[CommitFile]) -> Result<Vec<String>> {
+    let model = parse_content_lalrpop(model_content)
+        .map_err(|err| anyhow::anyhow!("Invalid model syntax: {}", err))?;
+    let (current_states, _state, _rules) = replay_commits_to_current_state(&model, accepted)?;
+    let mut states = current_states.into_iter().collect::<Vec<_>>();
+    states.sort();
+    Ok(states)
+}
+
 /// Of `candidates`, the labels `pending` satisfies by itself: each `+p` that
 /// holds for it and each `-p` that does not, judged as an edge's labels are
 /// judged against it, on the state `accepted` leaves.

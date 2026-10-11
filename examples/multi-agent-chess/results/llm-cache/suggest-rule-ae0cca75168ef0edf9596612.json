@@ -1,0 +1,6 @@
+{
+ "kind": "suggest-rule",
+ "model": "claude-sonnet-5-5",
+ "input": "A commit that modifies /moves/$k.text for the current ply is accepted only if it is co-signed by at least twelve of the sixteen agents' keys in /team/pieces/*.id, so a piece acting alone off plan cannot have its move played.",
+ "response": "always([+modifies(/moves/$k.text) -threshold(\"12\", /team/pieces)] false)"
+}

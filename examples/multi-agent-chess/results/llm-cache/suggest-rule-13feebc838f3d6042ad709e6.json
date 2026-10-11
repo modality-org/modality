@@ -1,0 +1,6 @@
+{
+ "kind": "suggest-rule",
+ "model": "claude-sonnet-5-5",
+ "input": "Any commit that modifies a /moves/<agent>.text path must be signed by at least twelve of the sixteen agents' keys in /team/pieces/, including the moving piece itself, so a lone off-plan move (panic, greed, or amnesia) cannot be accepted.",
+ "response": "always(([+modifies(/moves/$k.text) -threshold(\"12\", /team/pieces)] false) & ([+modifies(/moves/$k.text) -signed_by(/team/pieces/$k.id)] false))"
+}

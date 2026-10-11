@@ -1,0 +1,6 @@
+{
+ "kind": "suggest-rule",
+ "model": "claude-sonnet-5-5",
+ "input": "Any commit that modifies /moves/queen_d8.text or /moves/pawn_a7.text must be signed by at least twelve of the sixteen Black agents' keys (/team/pieces/<agent>.id), so a lone off-plan move from these repeat offenders cannot be accepted.",
+ "response": "always(([+modifies(/moves/queen_d8.text) -threshold(12, /team/pieces)] false) & ([+modifies(/moves/pawn_a7.text) -threshold(12, /team/pieces)] false))"
+}

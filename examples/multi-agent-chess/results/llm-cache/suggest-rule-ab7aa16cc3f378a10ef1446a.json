@@ -1,0 +1,6 @@
+{
+ "kind": "suggest-rule",
+ "model": "claude-sonnet-5-5",
+ "input": "Any commit that modifies /moves/queen_d8.text, /moves/bishop_c8.text, or /moves/rook_a8.text, the paths of agents that have gone off plan again and again, must be signed by at least fifteen of the sixteen agents' keys in /team/pieces/, including the moving piece itself.",
+ "response": "always(([+modifies(/moves/queen_d8.text) -threshold(\"15\", /team/pieces)] false) & ([+modifies(/moves/queen_d8.text) -signed_by(/team/pieces/queen_d8.id)] false) & ([+modifies(/moves/bishop_c8.text) -threshold(\"15\", /team/pieces)] false) & ([+modifies(/moves/bishop_c8.text) -signed_by(/team/pieces/bishop_c8.id)] false) & ([+modifies(/moves/rook_a8.text) -threshold(\"15\", /team/pieces)] false) & ([+modifies(/moves/rook_a8.text) -signed_by(/team/pieces/rook_a8.id)] false))"
+}

@@ -1,0 +1,6 @@
+{
+ "kind": "suggest-rule",
+ "model": "claude-sonnet-5-5",
+ "input": "Any commit that modifies /moves/bishop_f8.text must be co-signed by at least fourteen of the sixteen Black agents' keys in addition to bishop_f8's own key, so that bishop_f8's greed cannot push through an unplanned capture.",
+ "response": "always([+modifies(/moves/bishop_f8.text) -signed_by(/team/pieces/bishop_f8.id)] false) & always([+modifies(/moves/bishop_f8.text) -threshold(\"14\", /team/pieces)] false)"
+}

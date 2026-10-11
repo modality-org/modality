@@ -1,0 +1,6 @@
+{
+ "kind": "suggest-rule",
+ "model": "claude-sonnet-5-5",
+ "input": "Any commit that modifies /moves/knight_g8.text must also be signed by pawn_g7 and by at least thirteen of the sixteen Black agents' keys, so that knight_g8, which has gone off plan through amnesia, cannot move without near-unanimous team agreement.",
+ "response": "always([+modifies(/moves/knight_g8.text) -signed_by(/team/pieces/pawn_g7.id)] false) & always([+modifies(/moves/knight_g8.text) -threshold(\"13\", /team/pieces)] false)"
+}

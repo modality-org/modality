@@ -1,0 +1,6 @@
+{
+ "kind": "suggest-rule",
+ "model": "claude-sonnet-5-5",
+ "input": "Any commit that modifies /moves/pawn_a7.text must be signed by pawn_a7 and co-signed by at least twelve other Black agents, so that a lone off-plan move from that piece cannot be accepted.",
+ "response": "always(([+modifies(/moves/pawn_a7.text) -signed_by(/team/pieces/pawn_a7.id)] false) & ([+modifies(/moves/pawn_a7.text) -threshold(\"13\", /team/pieces)] false))"
+}

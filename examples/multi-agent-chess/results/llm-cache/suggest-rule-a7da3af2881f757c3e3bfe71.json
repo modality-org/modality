@@ -1,0 +1,6 @@
+{
+ "kind": "suggest-rule",
+ "model": "claude-sonnet-5-5",
+ "input": "Any commit that modifies /moves/$k.text for any Black agent $k must also modify /turn/ply.num and be signed by pawn_e7 and at least twelve other Black agents' keys from /team/pieces, so a move only counts if it carries the team's plan co-signatures for the current ply.",
+ "response": "always([+modifies(/moves/$k.text) -modifies(/turn/ply.num)] false) & always([+modifies(/moves/$k.text) -signed_by(/team/pieces/pawn_e7.id)] false) & always([+modifies(/moves/$k.text) -threshold(\"13\", /team/pieces)] false)"
+}

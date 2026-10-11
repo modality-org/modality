@@ -1,0 +1,6 @@
+{
+ "kind": "suggest-rule",
+ "model": "claude-sonnet-5-5",
+ "input": "Any commit that modifies any /moves/<agent>.text path must also modify /turn/ply.num in the same commit, and must be co-signed by at least twelve of the sixteen Black agents' keys in addition to the moving piece's own key, with at least fourteen co-signatures required when the moved piece is knight_b8, queen_d8, or pawn_g7, so that any move proposed by a lone off-plan agent is rejected.",
+ "response": "always([+modifies(/moves/$k.text) -signed_by(/team/pieces/$k.id)] false) & always([+modifies(/moves/$k.text) -modifies(/turn/ply.num)] false) & always([+modifies(/moves/$k.text) -threshold(\"13\", /team/pieces)] false) & always([+modifies(/moves/knight_b8.text) -threshold(\"15\", /team/pieces)] false) & always([+modifies(/moves/queen_d8.text) -threshold(\"15\", /team/pieces)] false) & always([+modifies(/moves/pawn_g7.text) -threshold(\"15\", /team/pieces)] false)"
+}

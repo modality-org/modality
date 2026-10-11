@@ -1,0 +1,6 @@
+{
+ "kind": "suggest-rule",
+ "model": "claude-sonnet-5-5",
+ "input": "Any commit that modifies /moves/bishop_c8.text, /moves/bishop_f8.text, or /moves/pawn_c7.text (the recent greed and amnesia offenders) must be signed by that piece's own key and co-signed by at least fourteen of the sixteen Black agents' keys, in addition to modifying /turn/ply.num.",
+ "response": "always([+modifies(/moves/bishop_c8.text) -signed_by(/team/pieces/bishop_c8.id)] false) & always([+modifies(/moves/bishop_f8.text) -signed_by(/team/pieces/bishop_f8.id)] false) & always([+modifies(/moves/pawn_c7.text) -signed_by(/team/pieces/pawn_c7.id)] false) & always([+modifies(/moves/bishop_c8.text) -threshold(\"14\", /team/pieces)] false) & always([+modifies(/moves/bishop_f8.text) -threshold(\"14\", /team/pieces)] false) & always([+modifies(/moves/pawn_c7.text) -threshold(\"14\", /team/pieces)] false) & always([+modifies(/moves/bishop_c8.text) -modifies(/turn/ply.num)] false) & always([+modifies(/moves/bishop_f8.text) -modifies(/turn/ply.num)] false) & always([+modifies(/moves/pawn_c7.text) -modifies(/turn/ply.num)] false)"
+}

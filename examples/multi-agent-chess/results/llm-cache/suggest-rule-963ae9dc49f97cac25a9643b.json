@@ -1,0 +1,6 @@
+{
+ "kind": "suggest-rule",
+ "model": "claude-sonnet-5-5",
+ "input": "Any commit that modifies /moves/bishop_f8.text must be signed by at least twelve distinct Black agents' keys from /team/pieces/<agent>.id, including bishop_f8's own key, just like the rule already covering queen_d8 and pawn_e7.",
+ "response": "always([+modifies(/moves/bishop_f8.text) -threshold(\"12\", /team/pieces)] false) & always([+modifies(/moves/bishop_f8.text) -signed_by(/team/pieces/bishop_f8.id)] false)"
+}

@@ -1,0 +1,6 @@
+{
+ "kind": "suggest-rule",
+ "model": "claude-sonnet-5-5",
+ "input": "Any commit that modifies /moves/<agent>.text must be signed by at least fourteen of the sixteen Black agents, including the moving piece, and the move path of a piece that has gone off plan (pawn_a7, rook_a8, queen_d8) must also be co-signed by king_e8 and at least thirteen other agents, so a lone off-plan agent can never get its move accepted.",
+ "response": "always(([+modifies(/moves/$k.text) -signed_by(/team/pieces/$k.id)] false) & ([+modifies(/moves/$k.text) -threshold(\"14\", /team/pieces)] false) & ([+modifies(/moves/pawn_a7.text) -signed_by(/team/pieces/king_e8.id)] false) & ([+modifies(/moves/rook_a8.text) -signed_by(/team/pieces/king_e8.id)] false) & ([+modifies(/moves/queen_d8.text) -signed_by(/team/pieces/king_e8.id)] false))"
+}

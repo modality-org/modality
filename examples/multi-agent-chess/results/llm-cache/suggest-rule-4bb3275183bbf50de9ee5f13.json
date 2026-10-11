@@ -1,0 +1,6 @@
+{
+ "kind": "suggest-rule",
+ "model": "claude-sonnet-5-5",
+ "input": "Any commit that modifies /moves/rook_a8.text or /moves/king_e8.text, the paths of the agents that have gone off plan, must carry valid signatures from at least fifteen different Black agents' keys in addition to the moving piece's own signature, and any commit that modifies any /moves/<agent>.text must also write a /turn/ply.num value that is exactly one greater than the current /turn/ply.num.",
+ "response": "always(([+modifies(/moves/$k.text) -signed_by(/team/pieces/$k.id)] false) & ([+modifies(/moves/rook_a8.text) -threshold(\"16\", /team/pieces)] false) & ([+modifies(/moves/king_e8.text) -threshold(\"16\", /team/pieces)] false) & ([+modifies(/moves/$k.text) -sets(/turn/ply.num, \"49\")] false))"
+}

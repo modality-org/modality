@@ -1,0 +1,6 @@
+{
+ "kind": "suggest-rule",
+ "model": "claude-sonnet-5-5",
+ "input": "Any commit that modifies /moves/bishop_f8.text must be signed by at least fifteen of the sixteen agent keys in /team/pieces/, including the key of bishop_f8, since bishop_f8 has now gone off plan from amnesia.",
+ "response": "always(([+modifies(/moves/bishop_f8.text) -threshold(\"15\", /team/pieces)] false) & ([+modifies(/moves/bishop_f8.text) -signed_by(/team/pieces/bishop_f8.id)] false))"
+}

@@ -1,0 +1,6 @@
+{
+ "kind": "suggest-rule",
+ "model": "claude-sonnet-5-5",
+ "input": "Any commit that modifies /moves/knight_g8.text must be signed by at least fifteen of the sixteen Black agents' keys, including knight_g8's own key, because knight_g8 has now gone off plan through greed and, like the other greedy pieces, needs stricter agreement than the twelve-signature team rule.",
+ "response": "always([+modifies(/moves/knight_g8.text) -signed_by(/team/pieces/knight_g8.id)] false) & always([+modifies(/moves/knight_g8.text) -threshold(\"15\", /team/pieces)] false)"
+}

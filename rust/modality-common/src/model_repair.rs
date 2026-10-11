@@ -434,18 +434,23 @@ mod tests {
 
     #[test]
     fn labels_round_trip_through_the_parser() {
+        let parse = |label: &str| {
+            let text = format!("model M {{\n  part p {{\n    a -> a [{label}]\n  }}\n}}\n");
+            let model = parse_content_lalrpop(&text).unwrap_or_else(|e| panic!("{label}: {e}"));
+            model.parts[0].transitions[0].properties[0].clone()
+        };
         for label in [
             "+signed_by(/parties/bob.id)",
             "-modifies(/members)",
             "+threshold(\"2\", /signers)",
             "+emitted_by(/__programs__/pool.wasm, \"bc63f0cb\")",
+            "+pays_senders(\"12D3KooW:tokA\")",
             "+CREATE",
         ] {
-            let text = format!("model M {{\n  part p {{\n    a -> a [{label}]\n  }}\n}}\n");
-            let model = parse_content_lalrpop(&text).unwrap();
-            let p = &model.parts[0].transitions[0].properties[0];
-            assert_eq!(label_text(p), label, "{label}");
+            let p = parse(label);
+            assert_eq!(parse(&label_text(&p)), p, "{label} printed as {}", label_text(&p));
         }
+        assert_eq!(label_text(&parse("+threshold(\"2\", /signers)")), "+threshold(\"2\", /signers)");
     }
 
     #[test]

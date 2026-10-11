@@ -1,0 +1,6 @@
+{
+ "kind": "suggest-rule",
+ "model": "claude-sonnet-5-5",
+ "input": "Any commit that modifies /moves/king_e8.text must carry signatures from at least twelve different agents' keys in /team/pieces/, so king_e8 cannot send an off-plan move alone.",
+ "response": "always([+modifies(/moves/king_e8.text) -threshold(\"12\", /team/pieces)] false)"
+}

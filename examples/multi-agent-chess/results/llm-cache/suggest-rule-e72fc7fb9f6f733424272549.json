@@ -1,0 +1,6 @@
+{
+ "kind": "suggest-rule",
+ "model": "claude-sonnet-5-5",
+ "input": "A commit that modifies any /moves/<agent>.text path must also be signed by at least twelve distinct keys from /team/pieces/*.id, so a single agent acting alone out of panic, greed or amnesia cannot get a move accepted.",
+ "response": "always([+modifies(/moves/$k.text) -threshold(\"12\", /team/pieces)] false)"
+}

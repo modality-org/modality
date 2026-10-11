@@ -1,0 +1,6 @@
+{
+ "kind": "suggest-rule",
+ "model": "claude-sonnet-5-5",
+ "input": "Any commit that modifies /moves/rook_a8.text must be co-signed by all sixteen Black agents' keys, since rook_a8 has now gone off plan twice (amnesia and greed), while every other piece's path keeps its existing signature requirement.",
+ "response": "always([+modifies(/moves/$k.text) -signed_by(/team/pieces/$k.id)] false) & always([+modifies(/moves/rook_a8.text) -threshold(\"16\", /team/pieces)] false)"
+}

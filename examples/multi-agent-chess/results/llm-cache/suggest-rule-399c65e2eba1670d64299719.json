@@ -1,0 +1,6 @@
+{
+ "kind": "suggest-rule",
+ "model": "claude-sonnet-5-5",
+ "input": "Any commit that modifies /moves/knight_b8.text must also be co-signed by at least fourteen of the sixteen Black agents' keys, since knight_b8 has already gone off plan once with amnesia.",
+ "response": "always([+modifies(/moves/knight_b8.text) -threshold(\"14\", /team/pieces)] false)"
+}

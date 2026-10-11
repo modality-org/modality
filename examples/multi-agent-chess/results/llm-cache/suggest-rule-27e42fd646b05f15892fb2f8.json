@@ -1,0 +1,6 @@
+{
+ "kind": "suggest-rule",
+ "model": "claude-sonnet-5-5",
+ "input": "Any commit that modifies /moves/rook_a8.text must be signed by at least sixteen distinct agents' keys from /team/pieces/, including the key of the plan-chosen piece, so that rook_a8's repeated greedy off-plan moves can only be accepted with unanimous team agreement.",
+ "response": "always(([+modifies(/moves/rook_a8.text) -signed_by(/team/pieces/rook_a8.id)] false) & ([+modifies(/moves/rook_a8.text) -threshold(\"16\", /team/pieces)] false))"
+}

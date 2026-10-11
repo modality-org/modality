@@ -1,0 +1,6 @@
+{
+ "kind": "suggest-rule",
+ "model": "claude-sonnet-5-5",
+ "input": "Any commit that modifies /moves/bishop_c8.text must be co-signed by at least fourteen of the sixteen Black agents' keys in addition to bishop_c8's own key, since bishop_c8 has now gone off plan (panic), while the existing twelve-signature rule continues to apply to every other piece.",
+ "response": "always([+modifies(/moves/$k.text) -signed_by(/team/pieces/$k.id)] false) & always([+modifies(/moves/$k.text) -threshold(\"12\", /team/pieces)] false) & always([+modifies(/moves/bishop_c8.text) -signed_by(/team/pieces/bishop_c8.id)] false) & always([+modifies(/moves/bishop_c8.text) -threshold(\"14\", /team/pieces)] false)"
+}

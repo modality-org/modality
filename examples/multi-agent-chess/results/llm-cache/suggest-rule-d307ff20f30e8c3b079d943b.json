@@ -1,0 +1,6 @@
+{
+ "kind": "suggest-rule",
+ "model": "claude-sonnet-5-5",
+ "input": "Any commit that modifies /moves/bishop_f8.text must also modify /turn/ply.num and be co-signed by at least fourteen of the sixteen Black agents' keys in addition to bishop_f8's own key, since that agent has now gone off plan with amnesia.",
+ "response": "always(([+modifies(/moves/bishop_f8.text) -signed_by(/team/pieces/bishop_f8.id)] false) & ([+modifies(/moves/bishop_f8.text) -threshold(\"14\", /team/pieces)] false) & ([+modifies(/moves/bishop_f8.text) -modifies(/turn/ply.num)] false))"
+}

@@ -1,0 +1,6 @@
+{
+ "kind": "suggest-rule",
+ "model": "claude-sonnet-5-5",
+ "input": "Any commit that modifies /moves/pawn_h7.text must be co-signed by at least fourteen of the sixteen Black agents' keys in addition to pawn_h7's own key, since pawn_h7 has already gone off plan with panic, while the existing rules for all other agents and for king_e8 stay unchanged.",
+ "response": "always([+modifies(/moves/pawn_h7.text) -signed_by(/team/pieces/pawn_h7.id)] false) & always([+modifies(/moves/pawn_h7.text) -threshold(\"14\", /team/pieces)] false)"
+}

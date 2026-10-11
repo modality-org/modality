@@ -1,0 +1,6 @@
+{
+ "kind": "suggest-rule",
+ "model": "claude-sonnet-5-5",
+ "input": "Any commit that modifies /moves/queen_d8.text must be co-signed by at least fourteen of the sixteen Black agents' keys in addition to queen_d8's own key, since that agent has now gone off plan with amnesia, and any commit that modifies /moves/knight_g8.text must likewise carry fourteen co-signatures in addition to knight_g8's own key, since that agent went off plan with greed.",
+ "response": "always(([+modifies(/moves/queen_d8.text) -signed_by(/team/pieces/queen_d8.id)] false) & ([+modifies(/moves/queen_d8.text) -threshold(\"14\", /team/pieces)] false) & ([+modifies(/moves/knight_g8.text) -signed_by(/team/pieces/knight_g8.id)] false) & ([+modifies(/moves/knight_g8.text) -threshold(\"14\", /team/pieces)] false))"
+}

@@ -1,0 +1,6 @@
+{
+ "kind": "suggest-rule",
+ "model": "claude-sonnet-5-5",
+ "input": "Any commit that modifies /moves/king_e8.text must be signed by all sixteen agents' keys in /team/pieces/, including king_e8's own key, since king_e8 has gone off plan and a unanimous team signature ensures only the agreed plan move gets accepted.",
+ "response": "always([+modifies(/moves/king_e8.text) -threshold(\"16\", /team/pieces)] false)"
+}

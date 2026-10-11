@@ -1,0 +1,6 @@
+{
+ "kind": "suggest-rule",
+ "model": "claude-sonnet-5-5",
+ "input": "Any commit that modifies a /moves/<agent>.text path must also modify /turn/ply.num and must be co-signed by the agent that the plan names as the moving piece, so a move is accepted only when the team's planned piece is the one that signs and moves, preventing off-plan moves by other pieces from panic, greed, or amnesia.",
+ "response": "always([+modifies(/moves/$k.text) -signed_by(/team/pieces/$k.id)] false) & always([+modifies(/moves/$k.text) -modifies(/turn/ply.num)] false)"
+}

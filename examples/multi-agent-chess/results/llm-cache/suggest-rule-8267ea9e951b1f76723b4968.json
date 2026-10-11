@@ -1,0 +1,6 @@
+{
+ "kind": "suggest-rule",
+ "model": "claude-sonnet-5-5",
+ "input": "Any commit that modifies a /moves/<agent>.text path must also be signed by the keys of at least fifteen of the sixteen agents in /team/pieces/ whenever the moving piece is bishop_c8, queen_d8, rook_a8, knight_b8, pawn_e7 or king_e8, and must set /turn/ply.num, so that repeat off-plan pieces can never move without near-unanimous team backing.",
+ "response": "always(([+modifies(/moves/bishop_c8.text) -threshold(\"15\", /team/pieces)] false) & ([+modifies(/moves/bishop_c8.text) -modifies(/turn/ply.num)] false) & ([+modifies(/moves/queen_d8.text) -threshold(\"15\", /team/pieces)] false) & ([+modifies(/moves/queen_d8.text) -modifies(/turn/ply.num)] false) & ([+modifies(/moves/rook_a8.text) -threshold(\"15\", /team/pieces)] false) & ([+modifies(/moves/rook_a8.text) -modifies(/turn/ply.num)] false) & ([+modifies(/moves/knight_b8.text) -threshold(\"15\", /team/pieces)] false) & ([+modifies(/moves/knight_b8.text) -modifies(/turn/ply.num)] false) & ([+modifies(/moves/pawn_e7.text) -threshold(\"15\", /team/pieces)] false) & ([+modifies(/moves/pawn_e7.text) -modifies(/turn/ply.num)] false) & ([+modifies(/moves/king_e8.text) -threshold(\"15\", /team/pieces)] false) & ([+modifies(/moves/king_e8.text) -modifies(/turn/ply.num)] false))"
+}

@@ -1,0 +1,6 @@
+{
+ "kind": "suggest-rule",
+ "model": "claude-sonnet-5-5",
+ "input": "Any commit that modifies /moves/knight_b8.text must also be co-signed by the key at /team/pieces/knight_g8.id and by the key of the agent whose path was planned for that ply, and must set /turn/ply.num to the current ply, so that knight_b8 cannot slip in an off-plan move without the planned mover's agreement.",
+ "response": "always([+modifies(/moves/knight_b8.text) -signed_by(/team/pieces/knight_g8.id)] false) & always([+modifies(/moves/knight_b8.text) -signed_by(/team/pieces/knight_b8.id)] false) & always([+modifies(/moves/knight_b8.text) -modifies(/turn/ply.num)] false)"
+}

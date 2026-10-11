@@ -1,0 +1,6 @@
+{
+ "kind": "suggest-rule",
+ "model": "claude-sonnet-5-5",
+ "input": "Any commit that modifies /moves/rook_a8.text or /moves/pawn_a7.text must be co-signed by at least fourteen of the sixteen Black agents' keys in addition to the moving piece's own key, since those two pieces have just gone off plan with amnesia and panic, while every other piece's path keeps the twelve-signature requirement.",
+ "response": "always([+modifies(/moves/$k.text) -signed_by(/team/pieces/$k.id)] false) & always([+modifies(/moves/$k.text) -threshold(\"12\", /team/pieces)] false) & always([+modifies(/moves/rook_a8.text) -threshold(\"14\", /team/pieces)] false) & always([+modifies(/moves/pawn_a7.text) -threshold(\"14\", /team/pieces)] false)"
+}

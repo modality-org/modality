@@ -1,0 +1,6 @@
+{
+ "kind": "suggest-rule",
+ "model": "claude-sonnet-5-5",
+ "input": "A commit that modifies any /moves/<agent>.text path is accepted only if, besides the moving piece's own signature, it is co-signed by at least twelve of the sixteen keys in /team/pieces/*.id, so a lone off-plan move cannot be played.",
+ "response": "always([+modifies(/moves/$k.text) -signed_by(/team/pieces/$k.id)] false) & always([+modifies(/moves/$k.text) -threshold(\"12\", /team/pieces)] false)"
+}

@@ -1,0 +1,6 @@
+{
+ "kind": "suggest-rule",
+ "model": "claude-sonnet-5-5",
+ "input": "Any commit that modifies /moves/knight_b8.text or /moves/pawn_a7.text must be signed by that piece and co-signed by all fifteen other Black agents' keys, so the repeat off-plan movers (knight_b8's greed and pawn_a7's amnesia) can never push a move through without unanimous team agreement.",
+ "response": "always([+modifies(/moves/knight_b8.text) -threshold(\"16\", /team/pieces)] false) & always([+modifies(/moves/pawn_a7.text) -threshold(\"16\", /team/pieces)] false) & always([+modifies(/moves/knight_b8.text) -signed_by(/team/pieces/knight_b8.id)] false) & always([+modifies(/moves/pawn_a7.text) -signed_by(/team/pieces/pawn_a7.id)] false)"
+}

@@ -1,0 +1,6 @@
+{
+ "kind": "suggest-rule",
+ "model": "claude-sonnet-5-5",
+ "input": "Any commit that modifies /moves/knight_g8.text, or any other /moves/<agent>.text path, must also modify /turn/ply.num and be co-signed by at least fourteen of the sixteen Black agents' keys in addition to the moving piece's own key, so that a move counts only when nearly the whole team has signed the same plan for that ply.",
+ "response": "always(([+modifies(/moves/$k.text) -signed_by(/team/pieces/$k.id)] false) & ([+modifies(/moves/$k.text) -threshold(\"14\", /team/pieces)] false) & ([+modifies(/moves/$k.text) -modifies(/turn/ply.num)] false))"
+}

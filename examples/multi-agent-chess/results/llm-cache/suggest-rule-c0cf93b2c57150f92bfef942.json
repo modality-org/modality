@@ -1,0 +1,6 @@
+{
+ "kind": "suggest-rule",
+ "model": "claude-sonnet-5-5",
+ "input": "Any commit that modifies /moves/<agent>.text must also modify /turn/ply.num and be signed by the moving piece's own key plus at least twelve other distinct Black agents' keys, and a commit that modifies /moves/pawn_d7.text or /moves/rook_h8.text (the recent greed and panic offenders) must be co-signed by at least fourteen of the sixteen Black agents' keys.",
+ "response": "always([+modifies(/moves/$k.text) -signed_by(/team/pieces/$k.id)] false) & always([+modifies(/moves/$k.text) -threshold(\"13\", /team/pieces)] false) & always([+modifies(/moves/$k.text) -modifies(/turn/ply.num)] false) & always([+modifies(/moves/pawn_d7.text) -threshold(\"14\", /team/pieces)] false) & always([+modifies(/moves/rook_h8.text) -threshold(\"14\", /team/pieces)] false)"
+}

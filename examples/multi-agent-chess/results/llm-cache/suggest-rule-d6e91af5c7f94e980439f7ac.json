@@ -1,0 +1,6 @@
+{
+ "kind": "suggest-rule",
+ "model": "claude-sonnet-5-5",
+ "input": "Any commit that modifies /moves/pawn_e7.text or /moves/knight_g8.text, the two agents that went off plan from greed on move 11, must be signed by at least fourteen of the sixteen agent keys in /team/pieces/, including the key of the piece that moves.",
+ "response": "always(([+modifies(/moves/pawn_e7.text) -threshold(\"14\", /team/pieces)] false) & ([+modifies(/moves/pawn_e7.text) -signed_by(/team/pieces/pawn_e7.id)] false) & ([+modifies(/moves/knight_g8.text) -threshold(\"14\", /team/pieces)] false) & ([+modifies(/moves/knight_g8.text) -signed_by(/team/pieces/knight_g8.id)] false))"
+}

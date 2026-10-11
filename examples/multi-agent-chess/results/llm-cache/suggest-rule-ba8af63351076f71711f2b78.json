@@ -1,0 +1,6 @@
+{
+ "kind": "suggest-rule",
+ "model": "claude-sonnet-5-5",
+ "input": "Any commit that modifies a path under /moves/ must also modify /turn/ply.num in the same commit, and must be signed by at least fourteen of the sixteen agents' keys in /team/pieces/ including the moving piece's own key, so that an off-plan move proposed alone or by a few agents can never be accepted for the ply.",
+ "response": "always(([+modifies(/moves) -modifies(/turn/ply.num)] false) & ([+modifies(/moves) -threshold(\"14\", /team/pieces)] false) & ([+modifies(/moves/$k) -signed_by(/team/pieces/$k.id)] false))"
+}

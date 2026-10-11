@@ -50,6 +50,46 @@ Use the named-action row **only** when the user named an action. The
 alternating-turns row still requires a signer on every later step, then forbids
 the same party twice in a row.
 
+## Possibility and liveness
+
+The recipes above are boxes: `[L] false` forbids every step with labels `L`.
+A diamond says a step is possible: `<L> φ` holds when some step with labels `L`
+leads to a state where `φ` holds. `eventually` and `until` are built from
+diamonds.
+
+These rules are about the witness model you post. They promise a step **can**
+still happen, not that anyone takes it: no rule makes a commit happen. Post a
+model that has the edges the rule asks for (see
+[model-cookbook.md](model-cookbook.md)).
+
+| Requirement | Formula |
+|-------------|---------|
+| From this commit, the next step can be one Bob signs | `<+signed_by(/parties/bob.id)> true` |
+| From this commit, a step Bob signs can still be reached | `eventually(<+signed_by(/parties/bob.id)> true)` |
+| After this commit, Bob can always sign the next step | `always(<+signed_by(/parties/bob.id)> true)` |
+| After this commit, a step Bob signs always stays reachable | `always(eventually(<+signed_by(/parties/bob.id)> true))` |
+| Either Alice or Bob must sign every later step, and a step Bob signs can still be reached | `always([-signed_by(/parties/alice.id) -signed_by(/parties/bob.id)] false) & eventually(<+signed_by(/parties/bob.id)> true)` |
+
+`until(p, q)` says some path keeps `p` true until it reaches `q`. Write it as
+`lfp(X, q | (p & <>X))`; the parser does not accept `until(p, q)` itself yet.
+From this commit, Alice can keep signing until a step Bob signs is possible:
+
+```
+lfp(X, (<+signed_by(/parties/bob.id)> true) | ((<+signed_by(/parties/alice.id)> true) & <>X))
+```
+
+Two things decide whether a model meets these rules:
+
+- A promise that something stays possible needs the model to protect what it
+  depends on. Bob can sign later only while his key is still at
+  `/parties/bob.id`. A model whose edges let a commit change `/parties` cannot
+  promise that, so `always(<+signed_by(/parties/bob.id)> true)` is refused
+  until every edge says `-modifies(/parties)`.
+- Labels constrain a step; they do not list everything it may do. An edge
+  `+signed_by(/parties/alice.id)` also allows a step Bob co-signs, so
+  `<+signed_by(/parties/bob.id)> true` holds there. To rule Bob out, the edge
+  must say `-signed_by(/parties/bob.id)`.
+
 ## Anti-patterns
 
 ```
