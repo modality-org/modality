@@ -6,6 +6,7 @@ import CodeBlock from '@theme/CodeBlock';
 import results from '@site/static/data/multi-agent-chess/results.json';
 import evalStats from '@site/static/data/multi-agent-chess/eval.json';
 import elo from '@site/static/data/multi-agent-chess/elo.json';
+import ruleData from '@site/static/data/multi-agent-chess/rules.json';
 import styles from './multi-agent-chess.module.css';
 
 // Data comes from examples/multi-agent-chess/site.py; numbers in the prose
@@ -756,6 +757,103 @@ function EvalTable({
   );
 }
 
+type WrittenRule = {
+  agent: string;
+  when: string;
+  seed: number;
+  words: string;
+  formula?: string | null;
+  display?: string;
+  tokens?: unknown;
+  outcome?: string | null;
+  detail?: string | null;
+  note?: string;
+  games?: number;
+};
+
+const GROUP_NOTES: Record<string, React.ReactNode> = {
+  start: (
+    <>
+      The team's first rule, written from the briefing before anything had gone wrong.
+      The briefing is the same every game, so this one answer was reused in every game.
+      No off-plan move got past it, so these teams never wrote another.
+    </>
+  ),
+  after: <>Written in a retro, right after an off-plan move reached the board.</>,
+  aimed: (
+    <>With more retros, teams start naming the agents that strayed and asking more of them.</>
+  ),
+  rogue: (
+    <>
+      A rogue's rule that only it can sign got in before the team had a rule. Every rule the
+      team wrote after it needed the rogue's signature too.
+    </>
+  ),
+};
+
+function RuleCard({r}: {r: WrittenRule}): React.JSX.Element {
+  const refused = r.outcome === 'refused';
+  return (
+    <div className={styles.ruleCard}>
+      <p className={styles.ruleMeta}>
+        <b>{r.agent}</b> · {r.when}
+        {r.games ? ` · every one of ${r.games} games` : ''}
+        {r.outcome && (
+          <span className={refused ? styles.badgeBad : styles.badgeOk}>{r.outcome}</span>
+        )}
+      </p>
+      <p className={styles.sub}>In plain English</p>
+      <blockquote className={styles.ruleWords}>{r.words}</blockquote>
+      {r.formula && (
+        <>
+          <p className={styles.sub}>In Modality</p>
+          <CodeBlock
+            language="modality"
+            {...({'data-shiki': JSON.stringify(r.tokens)} as object)}>
+            {r.display ?? r.formula}
+          </CodeBlock>
+        </>
+      )}
+      {refused && (r.note || r.detail) && (
+        <p className={styles.ruleWhy}>{r.note ? `${cap(r.note)}.` : r.detail}</p>
+      )}
+    </div>
+  );
+}
+
+function RuleExamples(): React.JSX.Element {
+  return (
+    <>
+      {ruleData.groups.map(g =>
+        g.rules.length ? (
+          <div key={g.key} className={styles.ruleGroup}>
+            <h3 className={styles.ruleGroupTitle}>{g.title}</h3>
+            <p className={styles.ruleGroupNote}>{GROUP_NOTES[g.key]}</p>
+            {(g.rules as WrittenRule[]).map((r, i) => (
+              <RuleCard key={i} r={r} />
+            ))}
+          </div>
+        ) : null,
+      )}
+      {ruleData.rules_md.length > 0 && (
+        <div className={styles.ruleGroup}>
+          <h3 className={styles.ruleGroupTitle}>For comparison: RULES.md</h3>
+          <p className={styles.ruleGroupNote}>
+            White's agents write rules too, in a file. They stay in plain English: nothing turns
+            them into anything the referee checks.
+          </p>
+          {(ruleData.rules_md as WrittenRule[]).map((r, i) => (
+            <RuleCard key={i} r={r} />
+          ))}
+        </div>
+      )}
+    </>
+  );
+}
+
+// The chart reads as a progression: plain chat, then RULES.md, then the contract.
+const ELO_ORDER = ['chat', 'rules-md', 'self-ruled-start'];
+
 function EloChart(): React.JSX.Element {
   const [hover, setHover] = useState<string | null>(null);
   const lo = Math.floor(Math.min(...elo.players.map(p => p.rating.lo)) / 100) * 100;
@@ -770,7 +868,9 @@ function EloChart(): React.JSX.Element {
         <span className={styles.muted}> · plain chat fixed at {elo.base} · 95% intervals</span>
       </figcaption>
       <div className={styles.elo}>
-        {elo.players.map(p => (
+        {[...elo.players]
+          .sort((a, b) => ELO_ORDER.indexOf(a.key) - ELO_ORDER.indexOf(b.key))
+          .map(p => (
           <div
             key={p.key}
             className={styles.eloRow}
@@ -1017,7 +1117,16 @@ export default function MultiAgentChess(): React.JSX.Element {
               own agent, with its own name and its own signing key. It sees the board and
               can send a move for itself. Nothing stops a knight from moving on its own.
             </p>
+            <p>
+              We gave teams of these agents three ways to coordinate and played{' '}
+              {Object.values(elo.matches).reduce((a, b) => a + b, 0)} games. Rated like chess
+              players:
+            </p>
           </div>
+          <EloChart />
+          <p className={styles.small}>
+            <a href="#ratings">How the ratings are computed</a>
+          </p>
           {SHOW_TURN_DETAIL && (
             <>
               <div className={styles.prose}>
@@ -1276,26 +1385,30 @@ roster_locked: always([+modifies(/team)] false)`}
         </section>
 
         <section className={styles.block}>
-          <h2>Left alone, agents write the same kind of rule</h2>
+          <h2>Rules the pieces wrote</h2>
           <p>
-            When Black's agents wrote their own contract, every rule the team got
-            accepted required a number of the sixteen signatures: in 16 games against plain
-            chat, 13 rules at twelve and 3 at nine. Each team wrote its rule in plain
-            language, and <code>modal contract ai suggest-rule</code> turned it into a
-            formula. In 14 of the 16 games the rule went in at the team's first retro. Once
-            a rule was in, no off-plan Black move reached the board.
+            A self-ruled team writes its contract itself. One agent states a rule in plain
+            English, <code>modal contract ai suggest-rule</code> turns it into Modality, and the
+            team commits it. <code>modal</code> refuses the rule if it doesn't parse or if it
+            conflicts with the rules already there. These are rules from the games, as written.
           </p>
+          <RuleExamples />
         </section>
 
-        <section className={styles.block}>
+        <section className={styles.block} id="ratings">
           <h2>Ratings</h2>
           <p>
-            Each experiment is a match between White's way of coordinating and Black's. Fit
-            them all at once and each way gets an Elo rating, with a term for White moving
-            first. A 200-point gap means the stronger team scores about 0.76 against the
-            weaker.
+            The ratings at the top of the page come from treating each experiment as a match
+            between White's way of coordinating and Black's. Fit them all at once and each way
+            gets an Elo rating, with a term for White moving first. A 200-point gap means the
+            stronger team scores about 0.76 against the weaker; the self-ruled contract's
+            lead over RULES.md means it scores about{' '}
+            {(() => {
+              const r = (k: string) => elo.players.find(p => p.key === k)!.rating.mean;
+              return (1 / (1 + 10 ** (-(r('self-ruled-start') - r('rules-md')) / 400))).toFixed(2);
+            })()}{' '}
+            against it.
           </p>
-          <EloChart />
           <p className={styles.small}>
             From {Object.values(elo.matches).reduce((a, b) => a + b, 0)} games with the
             default faults, {Math.max(...Object.values(elo.matches))} per matchup: each of the

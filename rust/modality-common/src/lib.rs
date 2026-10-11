@@ -21,6 +21,8 @@ pub mod mnemonic;
 pub mod model_diagnostics;
 #[cfg(feature = "model-governance")]
 pub mod model_governance;
+#[cfg(feature = "model-governance")]
+pub mod model_repair;
 pub mod multiaddr_list;
 pub mod passfile;
 pub mod peer_id;

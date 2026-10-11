@@ -3,7 +3,9 @@
 
   python3 site.py                       plays the page's games from results/llm-cache
   python3 site.py --out /some/dir       writes there instead of the site's static dir
-  python3 site.py --run out/experiments also writes eval.json and elo.json from that run's games
+  python3 site.py --run out/experiments also writes eval.json, elo.json and rules.json from
+                                        that run's games; then, in sites/www.modality.org,
+                                        node scripts/highlight-modality.mjs static/data/multi-agent-chess/rules.json
 
 Plays the three games the page replays, from the cached language-model
 answers, and writes each one trimmed to what the page shows, together with
@@ -264,6 +266,86 @@ def results_rows(run, games_per=16):
     return rows
 
 
+# Rules the agents wrote, for the page: their words and the formula `modal`
+# made of them. Formulas get their highlighting from
+# sites/www.modality.org/scripts/highlight-modality.mjs.
+def black_rules(g):
+    """Each Black rule event of a game, with the ply it came at (0: before the game)."""
+    out = [(0, e) for e in g["contract"].get("pregame_events", [])]
+    for p in g["plies"]:
+        out += [(p["ply"], e) for e in p["events"] if e.get("side") == "black" and e["type"] in ("rule", "hijack")]
+    out += [(len(g["plies"]) + 1, e) for e in g["forfeit_events"] if e["type"] == "hijack"]
+    return out
+
+
+def when(ply):
+    return "before the first move" if ply == 0 else f"after move {(ply + 1) // 2}"
+
+
+def example(g, ply, e, **extra):
+    words = e.get("rule") or e.get("text")
+    if e["type"] == "hijack":
+        words = f"Every commit must be signed by {e['agent']}."
+    return {"agent": e["agent"], "when": when(ply), "seed": g["seed"], "words": words,
+            "formula": e.get("formula"), "outcome": e.get("outcome"), "detail": e.get("detail"), **extra}
+
+
+def rule_examples(run):
+    def games(name):
+        return [json.loads(f.read_text()) for f in sorted((run / name).glob("game-*.json"),
+                                                         key=lambda f: int(f.stem.split("-")[1]))]
+    groups = []
+
+    start = games("self-ruled-start") + games("rules-md-vs-self-ruled-start")
+    pre = {}
+    for g in start:
+        for ply, e in black_rules(g):
+            if ply == 0 and e["type"] == "rule" and e["outcome"] == "accepted":
+                pre.setdefault(e["formula"], (g, ply, e, 0))
+                g0, p0, e0, n = pre[e["formula"]]
+                pre[e["formula"]] = (g0, p0, e0, n + 1)
+    groups.append({"key": "start", "title": "Before the first move",
+                   "rules": [example(g, ply, e, games=n) for g, ply, e, n in
+                             sorted(pre.values(), key=lambda t: -t[3])[:2]]})
+
+    seen, after = set(), []
+    for g in games("self-ruled"):
+        for ply, e in black_rules(g):
+            if e["type"] == "rule" and ply > 0 and e["outcome"] == "accepted" and e["formula"] not in seen:
+                seen.add(e["formula"])
+                after.append(example(g, ply, e))
+    groups.append({"key": "after", "title": "After an off-plan move", "rules": after[:2]})
+
+    aimed = []
+    for g in games("self-ruled-plus"):
+        for ply, e in black_rules(g):
+            f = e.get("formula") or ""
+            if e["type"] == "rule" and ply > 0 and e["outcome"] == "accepted" and "/moves/$" not in f \
+                    and "/moves/" in f and f not in seen:
+                seen.add(f)
+                aimed.append(example(g, ply, e))
+    groups.append({"key": "aimed", "title": "Aimed at one agent", "rules": aimed[:2]})
+
+    takeover = refused = None
+    for g in games("rogue-self-ruled"):
+        events = black_rules(g)
+        hijack = next(((ply, e) for ply, e in events if e["type"] == "hijack" and e["outcome"] == "accepted"), None)
+        if hijack and not takeover:
+            takeover = example(g, *hijack)
+        after_hijack = [(ply, e) for ply, e in events if hijack and e["type"] == "rule"
+                        and e["outcome"] == "refused" and ply >= hijack[0] and e["agent"] != hijack[1]["agent"]]
+        if after_hijack and not refused:
+            refused = example(g, *after_hijack[0], note=f"refused: {hijack[1]['agent']}'s takeover rule came first")
+    groups.append({"key": "rogue", "title": "A takeover, and what it blocked",
+                   "rules": [r for r in (takeover, refused) if r]})
+
+    white = []
+    for g in games("rules-md-vs-chat")[:1]:
+        white = [{"agent": r["author"], "when": when(r["ply"]), "seed": g["seed"], "words": r["rule"]}
+                 for r in g["white_team"]["rules"][:2]]
+    return {"groups": groups, "rules_md": white}
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--cache", default=str(HERE / "results" / "llm-cache"))
@@ -276,6 +358,7 @@ def main():
     if args.run:
         (out / "eval.json").write_text(json.dumps(eval_stats(pathlib.Path(args.run)), indent=1))
         (out / "elo.json").write_text(json.dumps(elo(pathlib.Path(args.run)), indent=1))
+        (out / "rules.json").write_text(json.dumps(rule_examples(pathlib.Path(args.run)), indent=1))
         print(f"Wrote {out / 'eval.json'} and {out / 'elo.json'}")
     for name, setup, seed in GAMES:
         if args.only and name not in args.only.split(","):

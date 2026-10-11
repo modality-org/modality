@@ -637,6 +637,76 @@ pub fn current_model_state_labels(
     Ok(states)
 }
 
+/// Of `candidates`, the labels `pending` satisfies by itself: each `+p` that
+/// holds for it and each `-p` that does not, judged as an edge's labels are
+/// judged against it, on the state `accepted` leaves.
+pub fn labels_pending_commit_satisfies(
+    accepted: &[CommitFile],
+    pending: &CommitFile,
+    candidates: &[Property],
+    activation: TheoryActivation,
+) -> Vec<Property> {
+    let mut state = HashMap::new();
+    for commit in accepted {
+        apply_commit_to_state(commit, &mut state);
+    }
+    let facts = CommitFacts::from_pending_commit_at(pending, &state, None, None, None)
+        .under(activation.at(accepted.len()));
+    candidates
+        .iter()
+        .filter(|p| transition_failures(std::slice::from_ref(*p), &facts).is_empty())
+        .cloned()
+        .collect()
+}
+
+/// Every label the accepted rules name, first appearance first: the words a
+/// model's edges are written in. A rule that does not parse names none.
+pub fn rule_labels(accepted: &[CommitFile]) -> Vec<Property> {
+    fn walk(expr: &FormulaExpr, out: &mut Vec<Property>) {
+        match expr {
+            FormulaExpr::Diamond(props, inner)
+            | FormulaExpr::Box(props, inner)
+            | FormulaExpr::DiamondBox(props, inner) => {
+                out.extend(props.iter().cloned());
+                walk(inner, out);
+            }
+            FormulaExpr::And(a, b)
+            | FormulaExpr::Or(a, b)
+            | FormulaExpr::Implies(a, b)
+            | FormulaExpr::Until(a, b) => {
+                walk(a, out);
+                walk(b, out);
+            }
+            FormulaExpr::Not(a)
+            | FormulaExpr::Paren(a)
+            | FormulaExpr::Lfp(_, a)
+            | FormulaExpr::Gfp(_, a)
+            | FormulaExpr::Eventually(a)
+            | FormulaExpr::Always(a)
+            | FormulaExpr::Next(a) => walk(a, out),
+            FormulaExpr::True | FormulaExpr::False | FormulaExpr::Prop(_) | FormulaExpr::Var(_) => {}
+        }
+    }
+
+    let mut labels = Vec::new();
+    for action in accepted.iter().flat_map(|c| &c.body) {
+        if !action.method.eq_ignore_ascii_case("rule") {
+            continue;
+        }
+        let Some(blocks) = action.value.as_str().and_then(|t| parse_rule_file(t).ok()) else {
+            continue;
+        };
+        for f in blocks.iter().flat_map(|b| &b.formulas) {
+            if let Ok((formula, _)) = parse_rule_formula("rule", &f.body) {
+                walk(&formula.expression, &mut labels);
+            }
+        }
+    }
+    let mut seen = HashSet::new();
+    labels.retain(|p| seen.insert(format_property(p)));
+    labels
+}
+
 fn governing_model_content(
     fallback_model_content: &str,
     accepted: &[CommitFile],

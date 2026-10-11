@@ -276,13 +276,10 @@ def with_ownership(model):
     return "\n".join(lines) + "\n"
 
 
-def conjuncts(formula):
-    """always(A & B & ...) as [A, B, ...]; any other formula as itself."""
-    f = formula.strip()
-    if not (f.startswith("always(") and f.endswith(")")):
-        return [f]
-    body, parts, depth, cur = f[len("always("):-1].strip(), [], 0, ""
-    for i, ch in enumerate(body):
+def split_and(text):
+    """Top-level `&` terms of text, each without wrapping parentheses."""
+    parts, depth, cur = [], 0, ""
+    for ch in text:
         depth += ch in "(["
         depth -= ch in ")]"
         if ch == "&" and depth == 0:
@@ -299,14 +296,33 @@ def conjuncts(formula):
     return out
 
 
+def conjuncts(formula):
+    """The parts of a rule that hold on their own: always(A & B) and
+    always(A) & always(B) both give [A, B], since always distributes over &.
+    Any other formula is one part."""
+    out = []
+    for term in split_and(formula.strip()):
+        body = term[len("always("):-1] if term.startswith("always(") and term.endswith(")") else None
+        if body is None or not balanced(body):
+            return [formula.strip()]
+        out += split_and(body)
+    return out
+
+
 def implied_by_owns(conjunct):
-    """True for [L] false when L holds both of OWNS's labels: OWNS already forbids
-    every commit such a box forbids, whatever else L adds."""
+    """True for [L] false when L ties a write under /moves/$k to k's own key.
+
+    Every self-ruled model carries the ownership edges (with_ownership): a commit
+    writes under /moves only inside its signer's slot. Those edges satisfy any
+    such box, so the part needs no synthesized witness. `modal` still checks the
+    model against the whole rule when the rule is committed, and refuses it if
+    the model does not satisfy it."""
     c = re.sub(r"\$\w+", "$k", " ".join(conjunct.split()))  # any variable name
     if not (c.startswith("[") and c.endswith("] false")):
         return False
     labels = set(split_labels(c[1:c.rindex("]")]))
-    return {"+modifies(/moves/$k.text)", "-signed_by(/team/pieces/$k.id)"} <= labels
+    writes_own_slot = any(re.fullmatch(r"\+modifies\(/moves/\$k(\.text)?\)", l) for l in labels)
+    return writes_own_slot and "-signed_by(/team/pieces/$k.id)" in labels
 
 
 def balanced(text):
@@ -493,7 +509,10 @@ class ContractTeam:
                 )
                 path = self.root / ".synth.modality"
                 if proc.returncode != 0 or not path.exists():
-                    return None, why_refused((proc.stderr or "") + (proc.stdout or ""))
+                    output = (proc.stderr or "") + (proc.stdout or "")
+                    if "parse failed" in output:
+                        return None, f"the formula does not parse: {c}"
+                    return None, why_refused(output)
                 synthesized = parse_parts(path.read_text())
                 path.unlink()
                 if not synthesized:
