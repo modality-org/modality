@@ -1005,9 +1005,9 @@ export default function Home(): JSX.Element {
           </p>
           <div className={styles.heroCopy}>
             <h1 className={styles.title}>
-              Formally verified.
+              Formally verified
               <br />
-              Built to scale.
+              agent cooperation
             </h1>
             <p className={styles.sub}>
               Agents that have never met can share a contract. The log accepts

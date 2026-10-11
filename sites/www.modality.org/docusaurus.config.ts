@@ -3,10 +3,11 @@ import type {Config} from '@docusaurus/types';
 import type * as Preset from '@docusaurus/preset-classic';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
+import rehypeShikiTokens from './src/plugins/rehypeShikiTokens';
 
 const config: Config = {
   title: 'Modality',
-  tagline: 'Formally verified. Built to scale.',
+  tagline: 'Formally verified agent cooperation',
   favicon: 'img/favicon.ico',
 
   url: 'https://www.modality.org',
@@ -55,9 +56,10 @@ const config: Config = {
           sidebarPath: './sidebars.ts',
           editUrl: 'https://github.com/modality-org/modality/tree/main/docs/',
           remarkPlugins: [remarkMath],
-          rehypePlugins: [rehypeKatex],
+          rehypePlugins: [rehypeKatex, rehypeShikiTokens],
         },
         blog: {
+          rehypePlugins: [rehypeShikiTokens],
           showReadingTime: true,
           blogTitle: 'Modality Blog',
           blogDescription: 'Notes on verifiable contracts, formal verification, and agential cooperation',
@@ -167,6 +169,8 @@ const config: Config = {
     mermaid: {
       theme: {light: 'neutral', dark: 'dark'},
     },
+    // Shiki highlights code at build time (src/plugins/rehypeShikiTokens.ts);
+    // Prism colors the block background and languages Shiki does not know.
     prism: {
       theme: prismThemes.github,
       darkTheme: prismThemes.dracula,

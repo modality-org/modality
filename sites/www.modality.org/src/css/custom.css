@@ -293,3 +293,18 @@ html:has(.homepage):not([data-theme='dark']) .footer {
     padding-right: 2.75rem;
   }
 }
+
+/* Shiki tokens (src/plugins/rehypeShikiTokens.ts): one color per color mode. */
+.shiki-token {
+  color: var(--shiki-light);
+  font-style: var(--shiki-light-font-style, normal);
+  font-weight: var(--shiki-light-font-weight, inherit);
+  text-decoration: var(--shiki-light-text-decoration, none);
+}
+
+[data-theme='dark'] .shiki-token {
+  color: var(--shiki-dark);
+  font-style: var(--shiki-dark-font-style, normal);
+  font-weight: var(--shiki-dark-font-weight, inherit);
+  text-decoration: var(--shiki-dark-text-decoration, none);
+}
