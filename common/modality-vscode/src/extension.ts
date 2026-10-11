@@ -1,3 +1,4 @@
+import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import {
@@ -9,6 +10,35 @@ import {
 
 let client: LanguageClient | undefined;
 
+// The configured path if it is absolute, else the first match on PATH, else
+// a build in the repo this extension was linked from.
+function findServer(configured: string, extensionPath: string): string | undefined {
+    const isFile = (p: string) => {
+        try {
+            return fs.statSync(p).isFile();
+        } catch {
+            return false;
+        }
+    };
+    if (path.isAbsolute(configured)) {
+        return isFile(configured) ? configured : undefined;
+    }
+    const exe = process.platform === 'win32' ? `${configured}.exe` : configured;
+    const pathDirs = (process.env.PATH ?? '').split(path.delimiter).filter(Boolean);
+    let repo: string | undefined;
+    try {
+        repo = path.join(fs.realpathSync(extensionPath), '..', '..', 'rust', 'target');
+    } catch {
+        repo = undefined;
+    }
+    const candidates = [
+        ...pathDirs.map((d) => path.join(d, exe)),
+        path.join(extensionPath, 'bin', exe),
+        ...(repo ? [path.join(repo, 'release', exe), path.join(repo, 'debug', exe)] : []),
+    ];
+    return candidates.find(isFile);
+}
+
 export async function activate(context: vscode.ExtensionContext) {
     const config = vscode.workspace.getConfiguration('modality');
     const lspEnabled = config.get<boolean>('lsp.enabled', true);
@@ -19,20 +49,12 @@ export async function activate(context: vscode.ExtensionContext) {
     }
     
     // Get the path to the LSP binary
-    let serverPath = config.get<string>('lsp.path', 'modality-lsp');
-    
-    // If it's a relative path, try to find it
-    if (!path.isAbsolute(serverPath)) {
-        // Check common locations
-        const possiblePaths = [
-            serverPath, // PATH lookup
-            path.join(context.extensionPath, 'bin', serverPath),
-            path.join(context.extensionPath, '..', '..', 'rust', 'target', 'release', serverPath),
-            path.join(context.extensionPath, '..', '..', 'rust', 'target', 'debug', serverPath),
-        ];
-        
-        // Just use the configured path and let it fail if not found
-        serverPath = possiblePaths[0];
+    const configured = config.get<string>('lsp.path', 'modality-lsp');
+    const serverPath = findServer(configured, context.extensionPath);
+    if (!serverPath) {
+        // Highlighting comes from the grammar and works without the server.
+        console.log(`Modality LSP not found (${configured}); running without it`);
+        return;
     }
     
     // Server options - run the LSP binary

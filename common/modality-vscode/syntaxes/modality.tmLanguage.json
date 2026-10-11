@@ -1,370 +1,852 @@
 {
   "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
   "name": "Modality",
+  "scopeName": "source.modality",
+  "comment": "Follows rust/modality-lang/src/grammar.lalrpop (models, formulas, actions, tests, contracts) and rust/modality-lang/src/rule_file.rs (rule files). Blocks end after their closing brace, so a brace on the next line still opens the block; anything else after a block header ends it, so a half-typed or old-syntax declaration does not swallow the rest of the file.",
   "patterns": [
-    { "include": "#comment" },
-    { "include": "#model" },
-    { "include": "#formula" },
-    { "include": "#rule" },
-    { "include": "#action" },
-    { "include": "#test" },
-    { "include": "#contract" }
+    {
+      "include": "#comments"
+    },
+    {
+      "include": "#rule"
+    },
+    {
+      "include": "#rule-for-this-commit"
+    },
+    {
+      "include": "#model"
+    },
+    {
+      "include": "#formula"
+    },
+    {
+      "include": "#action"
+    },
+    {
+      "include": "#test"
+    },
+    {
+      "include": "#contract"
+    },
+    {
+      "include": "#strings"
+    },
+    {
+      "include": "#numbers"
+    },
+    {
+      "include": "#braces"
+    }
   ],
   "repository": {
-    "comment": {
+    "comments": {
       "patterns": [
         {
           "name": "comment.line.double-slash.modality",
-          "match": "//.*$"
+          "begin": "//",
+          "end": "$",
+          "beginCaptures": {
+            "0": {
+              "name": "punctuation.definition.comment.modality"
+            }
+          }
         },
         {
           "name": "comment.block.modality",
           "begin": "/\\*",
-          "end": "\\*/"
-        }
-      ]
-    },
-    "model": {
-      "patterns": [
-        {
-          "begin": "\\b(export\\s+default\\s+)?(model)\\s+([a-zA-Z_][a-zA-Z0-9_]*)\\s*\\{",
-          "end": "\\}",
-          "beginCaptures": {
-            "1": { "name": "keyword.control.export.modality" },
-            "2": { "name": "keyword.declaration.model.modality" },
-            "3": { "name": "entity.name.type.model.modality" }
-          },
-          "patterns": [
-            { "include": "#comment" },
-            { "include": "#initial" },
-            { "include": "#part" },
-            { "include": "#transition" }
-          ]
-        },
-        {
-          "begin": "\\b(export\\s+default\\s+)?(model)\\s*\\{",
-          "end": "\\}",
-          "beginCaptures": {
-            "1": { "name": "keyword.control.export.modality" },
-            "2": { "name": "keyword.declaration.model.modality" }
-          },
-          "patterns": [
-            { "include": "#comment" },
-            { "include": "#initial" },
-            { "include": "#part" },
-            { "include": "#transition" }
-          ]
-        }
-      ]
-    },
-    "initial": {
-      "match": "\\b(initial)\\s+([a-zA-Z_][a-zA-Z0-9_]*)",
-      "captures": {
-        "1": { "name": "keyword.control.initial.modality" },
-        "2": { "name": "entity.name.tag.state.modality" }
-      }
-    },
-    "part": {
-      "begin": "\\b(part)\\s+([a-zA-Z_][a-zA-Z0-9_]*)\\s*\\{",
-      "end": "\\}",
-      "beginCaptures": {
-        "1": { "name": "keyword.declaration.part.modality" },
-        "2": { "name": "entity.name.type.part.modality" }
-      },
-      "patterns": [
-        { "include": "#comment" },
-        { "include": "#transition" }
-      ]
-    },
-    "transition": {
-      "patterns": [
-        {
-          "match": "([a-zA-Z_][a-zA-Z0-9_]*)\\s*(->|-->)\\s*([a-zA-Z_][a-zA-Z0-9_]*)\\s*(?:\\[([^\\]]*)\\])?",
+          "end": "\\*/",
           "captures": {
-            "1": { "name": "entity.name.tag.state.from.modality" },
-            "2": { "name": "keyword.operator.arrow.modality" },
-            "3": { "name": "entity.name.tag.state.to.modality" },
-            "4": { "patterns": [{ "include": "#properties" }] }
-          }
-        },
-        {
-          "match": "([a-zA-Z_][a-zA-Z0-9_]*)\\s*(->|-->)\\s*([a-zA-Z_][a-zA-Z0-9_]*)\\s*:\\s*(.*)$",
-          "captures": {
-            "1": { "name": "entity.name.tag.state.from.modality" },
-            "2": { "name": "keyword.operator.arrow.modality" },
-            "3": { "name": "entity.name.tag.state.to.modality" },
-            "4": { "patterns": [{ "include": "#properties" }] }
+            "0": {
+              "name": "punctuation.definition.comment.modality"
+            }
           }
         }
-      ]
-    },
-    "properties": {
-      "patterns": [
-        {
-          "match": "(\\+|-)([a-zA-Z_][a-zA-Z0-9_]*)\\s*\\(([^)]+)\\)",
-          "captures": {
-            "1": { "name": "keyword.operator.sign.modality" },
-            "2": { "name": "entity.name.function.predicate.modality" },
-            "3": { "name": "variable.parameter.modality" }
-          }
-        },
-        {
-          "match": "(\\+|-)([a-zA-Z_][a-zA-Z0-9_]*)",
-          "captures": {
-            "1": { "name": "keyword.operator.sign.modality" },
-            "2": { "name": "constant.other.property.modality" }
-          }
-        }
-      ]
-    },
-    "formula": {
-      "patterns": [
-        {
-          "begin": "\\b(formula)\\s+([a-zA-Z_][a-zA-Z0-9_]*)\\s*\\{",
-          "end": "\\}",
-          "beginCaptures": {
-            "1": { "name": "keyword.declaration.formula.modality" },
-            "2": { "name": "entity.name.function.formula.modality" }
-          },
-          "patterns": [
-            { "include": "#comment" },
-            { "include": "#formula_expr" }
-          ]
-        }
-      ]
-    },
-    "rule": {
-      "patterns": [
-        {
-          "begin": "\\b(export\\s+default\\s+)?(rule)\\s*\\{",
-          "end": "\\}",
-          "beginCaptures": {
-            "1": { "name": "keyword.control.export.modality" },
-            "2": { "name": "keyword.declaration.rule.modality" }
-          },
-          "patterns": [
-            { "include": "#comment" },
-            { "include": "#starting_at" },
-            { "include": "#formula_block" }
-          ]
-        }
-      ]
-    },
-    "starting_at": {
-      "match": "\\b(starting_at|starting_since)\\s+(\\$[A-Z_]+|[a-zA-Z0-9_]+)",
-      "captures": {
-        "1": { "name": "keyword.control.starting.modality" },
-        "2": { "name": "variable.other.constant.modality" }
-      }
-    },
-    "formula_block": {
-      "begin": "\\b(formula)\\s*\\{",
-      "end": "\\}",
-      "beginCaptures": {
-        "1": { "name": "keyword.declaration.formula.modality" }
-      },
-      "patterns": [
-        { "include": "#comment" },
-        { "include": "#formula_expr" }
-      ]
-    },
-    "formula_expr": {
-      "patterns": [
-        { "include": "#comment" },
-        { "include": "#temporal_operators" },
-        { "include": "#fixed_point_operators" },
-        { "include": "#modal_operators" },
-        { "include": "#boolean_operators" },
-        { "include": "#predicates" },
-        { "include": "#literals" },
-        { "include": "#variables" }
-      ]
-    },
-    "temporal_operators": {
-      "patterns": [
-        {
-          "match": "\\b(always|eventually|next)\\b",
-          "name": "keyword.operator.temporal.modality"
-        },
-        {
-          "match": "\\b(until)\\b",
-          "name": "keyword.operator.temporal.until.modality"
-        },
-        {
-          "match": "[□◇]",
-          "name": "keyword.operator.temporal.unicode.modality"
-        }
-      ]
-    },
-    "fixed_point_operators": {
-      "patterns": [
-        {
-          "match": "\\b(lfp|gfp)\\s*\\(\\s*([A-Z][a-zA-Z0-9_]*)\\s*,",
-          "captures": {
-            "1": { "name": "keyword.operator.fixedpoint.modality" },
-            "2": { "name": "variable.other.fixedpoint.modality" }
-          }
-        },
-        {
-          "match": "[μν]\\s*([A-Z][a-zA-Z0-9_]*)\\s*\\.",
-          "captures": {
-            "0": { "name": "keyword.operator.fixedpoint.unicode.modality" },
-            "1": { "name": "variable.other.fixedpoint.modality" }
-          }
-        }
-      ]
-    },
-    "modal_operators": {
-      "patterns": [
-        {
-          "match": "\\[\\s*<([^>]*)>\\s*\\]",
-          "captures": {
-            "0": { "name": "keyword.operator.modal.diamondbox.modality" },
-            "1": { "patterns": [{ "include": "#properties" }] }
-          }
-        },
-        {
-          "match": "<([^>]*)>",
-          "captures": {
-            "0": { "name": "keyword.operator.modal.diamond.modality" },
-            "1": { "patterns": [{ "include": "#properties" }] }
-          }
-        },
-        {
-          "match": "\\[([^\\]]*)\\]",
-          "captures": {
-            "0": { "name": "keyword.operator.modal.box.modality" },
-            "1": { "patterns": [{ "include": "#properties" }] }
-          }
-        }
-      ]
-    },
-    "boolean_operators": {
-      "patterns": [
-        {
-          "match": "\\b(and|or|not|implies)\\b",
-          "name": "keyword.operator.logical.modality"
-        },
-        {
-          "match": "(&|\\||!|->)",
-          "name": "keyword.operator.logical.symbol.modality"
-        }
-      ]
-    },
-    "predicates": {
-      "patterns": [
-        {
-          "match": "\\b(signed_by|exists|post_to|include_sig)\\s*\\(",
-          "captures": {
-            "1": { "name": "entity.name.function.predicate.modality" }
-          }
-        }
-      ]
-    },
-    "literals": {
-      "patterns": [
-        {
-          "match": "\\b(true|false)\\b",
-          "name": "constant.language.boolean.modality"
-        }
-      ]
-    },
-    "variables": {
-      "patterns": [
-        {
-          "match": "\\b([A-Z][a-zA-Z0-9_]*)\\b",
-          "name": "variable.other.modality"
-        },
-        {
-          "match": "/[a-zA-Z0-9_/\\.]+",
-          "name": "string.other.path.modality"
-        }
-      ]
-    },
-    "action": {
-      "begin": "\\b(action)\\s+([a-zA-Z_][a-zA-Z0-9_]*)\\s*\\{",
-      "end": "\\}",
-      "beginCaptures": {
-        "1": { "name": "keyword.declaration.action.modality" },
-        "2": { "name": "entity.name.function.action.modality" }
-      },
-      "patterns": [
-        { "include": "#comment" },
-        { "include": "#properties" }
-      ]
-    },
-    "test": {
-      "begin": "\\b(test)\\s*([a-zA-Z_][a-zA-Z0-9_]*)?\\s*\\{",
-      "end": "\\}",
-      "beginCaptures": {
-        "1": { "name": "keyword.declaration.test.modality" },
-        "2": { "name": "entity.name.function.test.modality" }
-      },
-      "patterns": [
-        { "include": "#comment" },
-        { "include": "#test_statements" }
-      ]
-    },
-    "test_statements": {
-      "patterns": [
-        {
-          "match": "\\b(assert|clone|commit)\\b",
-          "name": "keyword.control.test.modality"
-        }
-      ]
-    },
-    "contract": {
-      "begin": "\\b(contract)\\s+([a-zA-Z_][a-zA-Z0-9_]*)\\s*\\{",
-      "end": "\\}",
-      "beginCaptures": {
-        "1": { "name": "keyword.declaration.contract.modality" },
-        "2": { "name": "entity.name.type.contract.modality" }
-      },
-      "patterns": [
-        { "include": "#comment" },
-        { "include": "#commit" }
-      ]
-    },
-    "commit": {
-      "begin": "\\b(commit)\\s*\\{",
-      "end": "\\}",
-      "beginCaptures": {
-        "1": { "name": "keyword.declaration.commit.modality" }
-      },
-      "patterns": [
-        { "include": "#comment" },
-        { "include": "#commit_statements" }
-      ]
-    },
-    "commit_statements": {
-      "patterns": [
-        {
-          "match": "\\b(signed_by)\\s+([a-zA-Z_][a-zA-Z0-9_]*)\\s+(\"[^\"]*\")",
-          "captures": {
-            "1": { "name": "keyword.other.signed_by.modality" },
-            "2": { "name": "entity.name.tag.party.modality" },
-            "3": { "name": "string.quoted.double.signature.modality" }
-          }
-        },
-        {
-          "match": "\\b(add_rule|do)\\b",
-          "name": "keyword.control.commit.modality"
-        },
-        { "include": "#properties" },
-        { "include": "#formula_expr" }
       ]
     },
     "strings": {
       "name": "string.quoted.double.modality",
       "begin": "\"",
       "end": "\"",
+      "beginCaptures": {
+        "0": {
+          "name": "punctuation.definition.string.begin.modality"
+        }
+      },
+      "endCaptures": {
+        "0": {
+          "name": "punctuation.definition.string.end.modality"
+        }
+      }
+    },
+    "numbers": {
+      "name": "constant.numeric.integer.modality",
+      "match": "\\b[0-9]+\\b"
+    },
+    "paths": {
+      "comment": "Path literals like /users/alice.id; $k and !$k are variables and holes.",
+      "match": "/(?![/*])[A-Za-z0-9_./$!]+",
+      "name": "string.unquoted.path.modality"
+    },
+    "braces": {
+      "comment": "Fallback so an unexpected brace never closes the enclosing block early.",
+      "begin": "\\{",
+      "end": "\\}",
+      "beginCaptures": {
+        "0": {
+          "name": "punctuation.section.block.begin.modality"
+        }
+      },
+      "endCaptures": {
+        "0": {
+          "name": "punctuation.section.block.end.modality"
+        }
+      },
       "patterns": [
         {
-          "name": "constant.character.escape.modality",
-          "match": "\\\\."
+          "include": "$self"
+        }
+      ]
+    },
+    "rule": {
+      "begin": "\\b(?:(export)\\s+(default)\\s+)?(rule)\\b(?:\\s+([A-Za-z_][A-Za-z0-9_]*))?",
+      "end": "(?<=\\})|(?=[^\\s{/])",
+      "beginCaptures": {
+        "1": {
+          "name": "keyword.control.export.modality"
+        },
+        "2": {
+          "name": "keyword.control.default.modality"
+        },
+        "3": {
+          "name": "storage.type.rule.modality"
+        },
+        "4": {
+          "name": "entity.name.function.rule.modality"
+        }
+      },
+      "patterns": [
+        {
+          "include": "#comments"
+        },
+        {
+          "begin": "\\{",
+          "end": "\\}",
+          "beginCaptures": {
+            "0": {
+              "name": "punctuation.section.block.begin.modality"
+            }
+          },
+          "endCaptures": {
+            "0": {
+              "name": "punctuation.section.block.end.modality"
+            }
+          },
+          "patterns": [
+            {
+              "include": "#comments"
+            },
+            {
+              "include": "#starting-at"
+            },
+            {
+              "include": "#formula"
+            },
+            {
+              "include": "#braces"
+            }
+          ]
+        }
+      ]
+    },
+    "starting-at": {
+      "match": "\\b(starting_at)\\b\\s*(\\$[A-Za-z_][A-Za-z0-9_]*)?",
+      "captures": {
+        "1": {
+          "name": "keyword.other.starting-at.modality"
+        },
+        "2": {
+          "name": "variable.language.anchor.modality"
+        }
+      }
+    },
+    "formula": {
+      "comment": "formula NAME { ... } at top level, formula NAME? { ... } inside a rule.",
+      "begin": "\\b(formula)\\b(?:\\s+([A-Za-z_][A-Za-z0-9_]*))?",
+      "end": "(?<=\\})|(?=[^\\s{/])",
+      "beginCaptures": {
+        "1": {
+          "name": "storage.type.formula.modality"
+        },
+        "2": {
+          "name": "entity.name.function.formula.modality"
+        }
+      },
+      "patterns": [
+        {
+          "include": "#comments"
+        },
+        {
+          "begin": "\\{",
+          "end": "\\}",
+          "beginCaptures": {
+            "0": {
+              "name": "punctuation.section.block.begin.modality"
+            }
+          },
+          "endCaptures": {
+            "0": {
+              "name": "punctuation.section.block.end.modality"
+            }
+          },
+          "patterns": [
+            {
+              "include": "#formula-expr"
+            }
+          ]
+        }
+      ]
+    },
+    "formula-expr": {
+      "patterns": [
+        {
+          "include": "#comments"
+        },
+        {
+          "include": "#modal-diamond-box"
+        },
+        {
+          "include": "#modal-box"
+        },
+        {
+          "include": "#modal-diamond"
+        },
+        {
+          "match": "\\b(always|eventually|next)\\b",
+          "name": "keyword.control.temporal.modality"
+        },
+        {
+          "match": "\\b(until)\\b",
+          "name": "keyword.control.temporal.until.modality"
+        },
+        {
+          "match": "[□◇]",
+          "name": "keyword.control.temporal.modality"
+        },
+        {
+          "match": "\\b(lfp|gfp)\\s*(\\()\\s*([A-Za-z_][A-Za-z0-9_]*)",
+          "captures": {
+            "1": {
+              "name": "keyword.control.fixedpoint.modality"
+            },
+            "2": {
+              "name": "punctuation.section.parens.begin.modality"
+            },
+            "3": {
+              "name": "variable.parameter.fixedpoint.modality"
+            }
+          }
+        },
+        {
+          "match": "([μν])\\s*([A-Za-z_][A-Za-z0-9_]*)\\s*(\\.)",
+          "captures": {
+            "1": {
+              "name": "keyword.control.fixedpoint.modality"
+            },
+            "2": {
+              "name": "variable.parameter.fixedpoint.modality"
+            },
+            "3": {
+              "name": "punctuation.separator.fixedpoint.modality"
+            }
+          }
+        },
+        {
+          "match": "\\b(and|or|not|implies)\\b",
+          "name": "keyword.operator.logical.wordlike.modality"
+        },
+        {
+          "match": "->|&|\\||!",
+          "name": "keyword.operator.logical.modality"
+        },
+        {
+          "match": "\\b(true|false)\\b",
+          "name": "constant.language.boolean.modality"
+        },
+        {
+          "match": "\\(",
+          "name": "punctuation.section.parens.begin.modality"
+        },
+        {
+          "match": "\\)",
+          "name": "punctuation.section.parens.end.modality"
+        },
+        {
+          "match": ",",
+          "name": "punctuation.separator.comma.modality"
+        },
+        {
+          "match": "\\b[A-Za-z_][A-Za-z0-9_]*\\b",
+          "name": "variable.other.proposition.modality"
+        }
+      ]
+    },
+    "modal-diamond-box": {
+      "comment": "[<+A>] φ: committed (can do and cannot refuse).",
+      "begin": "\\[\\s*<(?=[^\\]>]*>\\s*\\])",
+      "end": ">\\s*\\]|(?=[^\\s+\\-A-Za-z0-9_/])",
+      "beginCaptures": {
+        "0": {
+          "name": "keyword.operator.modal.diamond-box.begin.modality"
+        }
+      },
+      "endCaptures": {
+        "0": {
+          "name": "keyword.operator.modal.diamond-box.end.modality"
+        }
+      },
+      "patterns": [
+        {
+          "include": "#label"
+        }
+      ]
+    },
+    "modal-box": {
+      "begin": "\\[",
+      "end": "\\]|(?=[^\\s+\\-A-Za-z0-9_/])",
+      "beginCaptures": {
+        "0": {
+          "name": "keyword.operator.modal.box.begin.modality"
+        }
+      },
+      "endCaptures": {
+        "0": {
+          "name": "keyword.operator.modal.box.end.modality"
+        }
+      },
+      "patterns": [
+        {
+          "include": "#label"
+        }
+      ]
+    },
+    "modal-diamond": {
+      "begin": "<",
+      "end": ">|(?=[^\\s+\\-A-Za-z0-9_/])",
+      "beginCaptures": {
+        "0": {
+          "name": "keyword.operator.modal.diamond.begin.modality"
+        }
+      },
+      "endCaptures": {
+        "0": {
+          "name": "keyword.operator.modal.diamond.end.modality"
+        }
+      },
+      "patterns": [
+        {
+          "include": "#label"
+        }
+      ]
+    },
+    "label": {
+      "comment": "Signed properties: +ACTION, -prop, +predicate(args). Label regions close at any character a label cannot hold, so a half-typed label does not run on.",
+      "patterns": [
+        {
+          "include": "#comments"
+        },
+        {
+          "begin": "([+-])\\s*([A-Za-z_][A-Za-z0-9_]*)\\s*(\\()",
+          "end": "\\)|(?=[^\\s,A-Za-z0-9_\"/.$!])",
+          "beginCaptures": {
+            "1": {
+              "name": "keyword.operator.sign.modality"
+            },
+            "2": {
+              "name": "entity.name.function.predicate.modality"
+            },
+            "3": {
+              "name": "punctuation.section.arguments.begin.modality"
+            }
+          },
+          "endCaptures": {
+            "0": {
+              "name": "punctuation.section.arguments.end.modality"
+            }
+          },
+          "patterns": [
+            {
+              "include": "#predicate-args"
+            }
+          ]
+        },
+        {
+          "match": "([+-])\\s*([A-Z][A-Z0-9_]*)\\b",
+          "captures": {
+            "1": {
+              "name": "keyword.operator.sign.modality"
+            },
+            "2": {
+              "name": "constant.other.action.modality"
+            }
+          }
+        },
+        {
+          "match": "([+-])\\s*([A-Za-z_][A-Za-z0-9_]*)",
+          "captures": {
+            "1": {
+              "name": "keyword.operator.sign.modality"
+            },
+            "2": {
+              "name": "constant.other.property.modality"
+            }
+          }
+        }
+      ]
+    },
+    "predicate-args": {
+      "patterns": [
+        {
+          "include": "#strings"
+        },
+        {
+          "include": "#paths"
+        },
+        {
+          "include": "#numbers"
+        },
+        {
+          "match": ",",
+          "name": "punctuation.separator.comma.modality"
+        },
+        {
+          "match": "\\b[A-Za-z_][A-Za-z0-9_]*\\b",
+          "name": "variable.parameter.modality"
+        }
+      ]
+    },
+    "model": {
+      "comment": "model NAME { ... }, export default model { ... }, or an inline model { ... } in a commit.",
+      "begin": "\\b(?:(export)\\s+(default)\\s+)?(model)\\b(?:\\s+([A-Za-z_][A-Za-z0-9_]*))?",
+      "end": "(?<=\\})|(?=[^\\s{/])",
+      "beginCaptures": {
+        "1": {
+          "name": "keyword.control.export.modality"
+        },
+        "2": {
+          "name": "keyword.control.default.modality"
+        },
+        "3": {
+          "name": "storage.type.model.modality"
+        },
+        "4": {
+          "name": "entity.name.type.model.modality"
+        }
+      },
+      "patterns": [
+        {
+          "include": "#comments"
+        },
+        {
+          "begin": "\\{",
+          "end": "\\}",
+          "beginCaptures": {
+            "0": {
+              "name": "punctuation.section.block.begin.modality"
+            }
+          },
+          "endCaptures": {
+            "0": {
+              "name": "punctuation.section.block.end.modality"
+            }
+          },
+          "patterns": [
+            {
+              "include": "#comments"
+            },
+            {
+              "match": "\\b(initial)\\b\\s*([A-Za-z_][A-Za-z0-9_]*)?",
+              "captures": {
+                "1": {
+                  "name": "keyword.other.initial.modality"
+                },
+                "2": {
+                  "name": "entity.name.tag.state.modality"
+                }
+              }
+            },
+            {
+              "include": "#part"
+            },
+            {
+              "include": "#transition"
+            },
+            {
+              "include": "#braces"
+            }
+          ]
+        }
+      ]
+    },
+    "part": {
+      "begin": "\\b(part)\\b(?:\\s+([A-Za-z_][A-Za-z0-9_]*))?",
+      "end": "(?<=\\})|(?=[^\\s{/])",
+      "beginCaptures": {
+        "1": {
+          "name": "storage.type.part.modality"
+        },
+        "2": {
+          "name": "entity.name.type.part.modality"
+        }
+      },
+      "patterns": [
+        {
+          "include": "#comments"
+        },
+        {
+          "begin": "\\{",
+          "end": "\\}",
+          "beginCaptures": {
+            "0": {
+              "name": "punctuation.section.block.begin.modality"
+            }
+          },
+          "endCaptures": {
+            "0": {
+              "name": "punctuation.section.block.end.modality"
+            }
+          },
+          "patterns": [
+            {
+              "include": "#comments"
+            },
+            {
+              "include": "#transition"
+            },
+            {
+              "include": "#braces"
+            }
+          ]
+        }
+      ]
+    },
+    "transition": {
+      "comment": "from -> to [+label] (current) or from --> to: +label (legacy).",
+      "patterns": [
+        {
+          "match": "\\b([A-Za-z_][A-Za-z0-9_]*)\\s*(-->|->)\\s*([A-Za-z_][A-Za-z0-9_]*)\\b",
+          "captures": {
+            "1": {
+              "name": "entity.name.tag.state.modality"
+            },
+            "2": {
+              "name": "keyword.operator.arrow.modality"
+            },
+            "3": {
+              "name": "entity.name.tag.state.modality"
+            }
+          }
+        },
+        {
+          "begin": "\\[",
+          "end": "\\]|(?=[^\\s+\\-A-Za-z0-9_/])",
+          "beginCaptures": {
+            "0": {
+              "name": "punctuation.section.label.begin.modality"
+            }
+          },
+          "endCaptures": {
+            "0": {
+              "name": "punctuation.section.label.end.modality"
+            }
+          },
+          "patterns": [
+            {
+              "include": "#label"
+            }
+          ]
+        },
+        {
+          "match": ":",
+          "name": "punctuation.separator.label.modality"
+        },
+        {
+          "include": "#label"
+        }
+      ]
+    },
+    "action": {
+      "begin": "\\b(action)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+      "end": "(?<=\\})|(?=[^\\s{/])",
+      "beginCaptures": {
+        "1": {
+          "name": "storage.type.action.modality"
+        },
+        "2": {
+          "name": "entity.name.function.action.modality"
+        }
+      },
+      "patterns": [
+        {
+          "include": "#comments"
+        },
+        {
+          "begin": "\\{",
+          "end": "\\}",
+          "beginCaptures": {
+            "0": {
+              "name": "punctuation.section.block.begin.modality"
+            }
+          },
+          "endCaptures": {
+            "0": {
+              "name": "punctuation.section.block.end.modality"
+            }
+          },
+          "patterns": [
+            {
+              "include": "#label"
+            }
+          ]
+        }
+      ]
+    },
+    "test": {
+      "begin": "\\b(test)\\b(?:\\s+([A-Za-z_][A-Za-z0-9_]*))?",
+      "end": "(?<=\\})|(?=[^\\s{/])",
+      "beginCaptures": {
+        "1": {
+          "name": "storage.type.test.modality"
+        },
+        "2": {
+          "name": "entity.name.function.test.modality"
+        }
+      },
+      "patterns": [
+        {
+          "include": "#comments"
+        },
+        {
+          "begin": "\\{",
+          "end": "\\}",
+          "beginCaptures": {
+            "0": {
+              "name": "punctuation.section.block.begin.modality"
+            }
+          },
+          "endCaptures": {
+            "0": {
+              "name": "punctuation.section.block.end.modality"
+            }
+          },
+          "patterns": [
+            {
+              "include": "#comments"
+            },
+            {
+              "match": "\\b(assert)\\b",
+              "name": "keyword.control.assert.modality"
+            },
+            {
+              "match": "\\b(clone|commit|satisfies|action)\\b(?=\\s*\\()",
+              "name": "support.function.test.modality"
+            },
+            {
+              "include": "#strings"
+            },
+            {
+              "match": "=",
+              "name": "keyword.operator.assignment.modality"
+            },
+            {
+              "match": "\\.",
+              "name": "punctuation.accessor.modality"
+            },
+            {
+              "match": "\\b[A-Za-z_][A-Za-z0-9_]*\\b",
+              "name": "variable.other.modality"
+            }
+          ]
+        }
+      ]
+    },
+    "contract": {
+      "begin": "\\b(contract)\\b(?:\\s+([A-Za-z_][A-Za-z0-9_]*))?",
+      "end": "(?<=\\})|(?=[^\\s{/])",
+      "beginCaptures": {
+        "1": {
+          "name": "storage.type.contract.modality"
+        },
+        "2": {
+          "name": "entity.name.type.contract.modality"
+        }
+      },
+      "patterns": [
+        {
+          "include": "#comments"
+        },
+        {
+          "begin": "\\{",
+          "end": "\\}",
+          "beginCaptures": {
+            "0": {
+              "name": "punctuation.section.block.begin.modality"
+            }
+          },
+          "endCaptures": {
+            "0": {
+              "name": "punctuation.section.block.end.modality"
+            }
+          },
+          "patterns": [
+            {
+              "include": "#comments"
+            },
+            {
+              "include": "#commit"
+            },
+            {
+              "include": "#braces"
+            }
+          ]
+        }
+      ]
+    },
+    "commit": {
+      "begin": "\\b(commit)\\b",
+      "end": "(?<=\\})|(?=[^\\s{/])",
+      "beginCaptures": {
+        "1": {
+          "name": "storage.type.commit.modality"
+        }
+      },
+      "patterns": [
+        {
+          "include": "#comments"
+        },
+        {
+          "begin": "\\{",
+          "end": "\\}",
+          "beginCaptures": {
+            "0": {
+              "name": "punctuation.section.block.begin.modality"
+            }
+          },
+          "endCaptures": {
+            "0": {
+              "name": "punctuation.section.block.end.modality"
+            }
+          },
+          "patterns": [
+            {
+              "include": "#comments"
+            },
+            {
+              "match": "\\b(signed_by)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+              "captures": {
+                "1": {
+                  "name": "keyword.other.signed-by.modality"
+                },
+                "2": {
+                  "name": "variable.other.party.modality"
+                }
+              }
+            },
+            {
+              "include": "#strings"
+            },
+            {
+              "include": "#model"
+            },
+            {
+              "begin": "\\b(add_rule)\\b",
+              "end": "(?<=\\})|(?=[^\\s{/])",
+              "beginCaptures": {
+                "1": {
+                  "name": "keyword.other.add-rule.modality"
+                }
+              },
+              "patterns": [
+                {
+                  "include": "#comments"
+                },
+                {
+                  "begin": "\\{",
+                  "end": "\\}",
+                  "beginCaptures": {
+                    "0": {
+                      "name": "punctuation.section.block.begin.modality"
+                    }
+                  },
+                  "endCaptures": {
+                    "0": {
+                      "name": "punctuation.section.block.end.modality"
+                    }
+                  },
+                  "patterns": [
+                    {
+                      "include": "#formula-expr"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "match": "\\b(do)\\b",
+              "name": "keyword.other.do.modality"
+            },
+            {
+              "include": "#label"
+            },
+            {
+              "include": "#braces"
+            }
+          ]
+        }
+      ]
+    },
+    "rule-for-this-commit": {
+      "begin": "\\b(rule_for_this_commit)\\b",
+      "end": "(?<=\\})|(?=[^\\s{/])",
+      "beginCaptures": {
+        "1": {
+          "name": "storage.type.rule.modality"
+        }
+      },
+      "patterns": [
+        {
+          "include": "#comments"
+        },
+        {
+          "begin": "\\{",
+          "end": "\\}",
+          "beginCaptures": {
+            "0": {
+              "name": "punctuation.section.block.begin.modality"
+            }
+          },
+          "endCaptures": {
+            "0": {
+              "name": "punctuation.section.block.end.modality"
+            }
+          },
+          "patterns": [
+            {
+              "include": "#comments"
+            },
+            {
+              "match": "\\b(signed_by_n|signed_by)\\b(?=\\s*\\()",
+              "name": "entity.name.function.predicate.modality"
+            },
+            {
+              "match": "&|\\|",
+              "name": "keyword.operator.logical.modality"
+            },
+            {
+              "include": "#predicate-args"
+            }
+          ]
         }
       ]
     }
-  },
-  "scopeName": "source.modality"
+  }
 }

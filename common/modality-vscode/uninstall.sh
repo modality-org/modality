@@ -1,47 +1,40 @@
 #!/bin/bash
-# Uninstall Modality VSCode extension
-
-EXT_NAME="modality-vscode"
+# Uninstall the Modality extension from VS Code, Cursor and VSCodium.
 
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m'
 
-uninstall_extension() {
-    local editor_name=$1
-    local ext_dir=$2
-    local target="$ext_dir/$EXT_NAME"
-    
-    if [ -L "$target" ] || [ -d "$target" ]; then
-        rm -rf "$target"
-        echo -e "${GREEN}✓ Removed from $editor_name${NC}"
-        return 0
-    fi
-    return 1
-}
-
-echo "Uninstalling Modality extension..."
-echo
-
 REMOVED=0
 
-# Check all possible locations
+for cli in code cursor codium; do
+    if command -v "$cli" >/dev/null 2>&1 && "$cli" --list-extensions | grep -qx 'modality-org.modality-vscode'; then
+        "$cli" --uninstall-extension modality-org.modality-vscode && ((REMOVED++))
+    fi
+done
+
+# Copies and symlinks left by the old install script.
 for dir in \
     "$HOME/.vscode/extensions" \
     "$HOME/.vscode-server/extensions" \
     "$HOME/.cursor/extensions" \
-    "$HOME/.vscode-oss/extensions" \
-    "$HOME/Library/Application Support/Code/User/extensions" \
-    "$HOME/Library/Application Support/Cursor/User/extensions"
+    "$HOME/.vscode-oss/extensions"
 do
-    if [ -d "$dir" ]; then
-        uninstall_extension "${dir##*/}" "$dir" && ((REMOVED++))
+    target="$dir/modality-vscode"
+    if [ -L "$target" ]; then
+        rm "$target"
+        echo -e "${GREEN}✓ Removed link $target${NC}"
+        ((REMOVED++))
+    elif [ -d "$target" ]; then
+        rm -rf "$target"
+        echo -e "${GREEN}✓ Removed $target${NC}"
+        ((REMOVED++))
     fi
 done
 
 echo
 if [ $REMOVED -gt 0 ]; then
-    echo -e "${GREEN}Done! Restart your editor.${NC}"
+    echo -e "${GREEN}Done! Reload your editor.${NC}"
 else
     echo -e "${YELLOW}No installations found.${NC}"
 fi

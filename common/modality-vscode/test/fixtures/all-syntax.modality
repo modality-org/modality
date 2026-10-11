@@ -1,0 +1,70 @@
+// Every construct the grammar knows. test/grammar.test.js checks the scopes.
+/* block
+   comment */
+
+model Escrow {
+  initial idle
+  idle -> funded [+DEPOSIT +signed_by(/parties/buyer.id)]
+  funded --> done: +RELEASE -signed_by(/parties/arbiter.id) +hello
+  part flow {
+    a -> b [-bool_true(/task/closed.bool) +pays_senders("lp", 3)]
+  }
+}
+
+export default model {
+  initial q0
+  q0 -> q0
+}
+
+formula Committed {
+  [<+signed_by(/users/alice.id)>] true | <> goal -> [] safe
+}
+
+formula Fixed {
+  lfp(X, <>X | goal) and gfp(Y, []Y & safe) or not μZ.(<+A>Z) implies νW.([-B]W)
+}
+
+formula Temporal {
+  always([+modifies(/keys) -all_signed(/maintainers)] false) & eventually(done) & next(p) & (p until q) & □(p) & ◇(q)
+}
+
+export default rule {
+  starting_at $PARENT
+  formula {
+    always([+CREATE] false)
+  }
+}
+
+rule named {
+  formula inner {
+    true
+  }
+}
+
+action Pay {
+  +PAY -signed_by(/x.id)
+}
+
+test check {
+  m = clone(Escrow)
+  m.commit(Pay)
+  m.commit(action("+hello"))
+  assert m.satisfies(Committed)
+}
+
+contract deal {
+  commit {
+    signed_by alice "sig"
+    model {
+      part p {
+        a -> b [+GO]
+      }
+    }
+    add_rule { always([+STOP] false) }
+    do +GO
+  }
+}
+
+rule_for_this_commit {
+  signed_by_n(2, [/a.id, /b.id]) | signed_by(/c.id)
+}

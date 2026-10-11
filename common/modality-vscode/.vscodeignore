@@ -5,5 +5,5 @@ src/**
 .gitattributes
 tsconfig.json
 **/*.map
-node_modules/**
-!node_modules/vscode-languageclient/**
+test/**
+*.vsix

@@ -63,13 +63,20 @@
         "command": "modality.restartServer",
         "title": "Modality: Restart Language Server"
       }
-    ]
+    ],
+    "configurationDefaults": {
+      "[modality]": {
+        "editor.semanticHighlighting.enabled": false
+      }
+    }
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
-    "package": "vsce package"
+    "test:grammar": "node test/grammar.test.js",
+    "package": "vsce package",
+    "install:local": "npm run test:grammar && vsce package --skip-license -o modality-vscode.vsix && code --install-extension modality-vscode.vsix --force"
   },
   "dependencies": {
     "vscode-languageclient": "^9.0.1"
@@ -78,6 +85,8 @@
     "@types/node": "^20.0.0",
     "@types/vscode": "^1.75.0",
     "typescript": "^5.0.0",
-    "@vscode/vsce": "^2.22.0"
+    "@vscode/vsce": "^2.22.0",
+    "vscode-oniguruma": "^2.0.1",
+    "vscode-textmate": "^9.3.2"
   }
 }

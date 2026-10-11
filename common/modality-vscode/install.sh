@@ -1,60 +1,40 @@
 #!/bin/bash
-# Install Modality VSCode Extension
+# Install the Modality extension into VS Code, Cursor and VSCodium.
+#
+# Builds a .vsix and installs it with each editor's CLI. The .vsix carries
+# the extension's runtime dependencies; a plain file copy does not.
 
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
-# Find VS Code extensions directory
-if [[ "$OSTYPE" == "darwin"* ]]; then
-    VSCODE_DIR="$HOME/.vscode/extensions"
-    CURSOR_DIR="$HOME/.cursor/extensions"
-    VSCODIUM_DIR="$HOME/.vscode-oss/extensions"
-elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
-    VSCODE_DIR="$HOME/.vscode/extensions"
-    CURSOR_DIR="$HOME/.cursor/extensions"
-    VSCODIUM_DIR="$HOME/.vscode-oss/extensions"
-else
-    VSCODE_DIR="$APPDATA/Code/User/extensions"
-    CURSOR_DIR="$APPDATA/Cursor/User/extensions"
-    VSCODIUM_DIR="$APPDATA/VSCodium/User/extensions"
-fi
-
-EXT_NAME="modality-vscode"
-
-# Install npm dependencies
 echo "Installing dependencies..."
 npm install
 
-# Compile TypeScript
-echo "Compiling extension..."
-npm run compile
+echo "Checking the grammar..."
+npm run test:grammar
 
-# Install to all found editors
-install_to() {
-    local dir="$1"
-    local name="$2"
-    
-    if [ -d "$dir" ] || [ -d "$(dirname "$dir")" ]; then
-        echo "Installing to $name..."
-        mkdir -p "$dir/$EXT_NAME"
-        cp -r package.json language-configuration.json syntaxes out "$dir/$EXT_NAME/"
-        if [ -d "examples" ]; then
-            cp -r examples "$dir/$EXT_NAME/"
-        fi
-        echo "✓ Installed to $name"
+echo "Packaging..."
+npx vsce package --skip-license -o modality-vscode.vsix
+
+INSTALLED=0
+for cli in code cursor codium; do
+    if command -v "$cli" >/dev/null 2>&1; then
+        echo "Installing with $cli..."
+        "$cli" --install-extension modality-vscode.vsix --force
+        INSTALLED=1
     fi
-}
+done
 
-install_to "$VSCODE_DIR" "VS Code"
-install_to "$CURSOR_DIR" "Cursor"
-install_to "$VSCODIUM_DIR" "VSCodium"
+if [ $INSTALLED -eq 0 ]; then
+    echo "No editor CLI found (code, cursor, codium)."
+    echo "Install $SCRIPT_DIR/modality-vscode.vsix from the Extensions view: ... > Install from VSIX."
+    exit 1
+fi
 
 echo ""
-echo "Installation complete!"
+echo "Installed. Run 'Developer: Reload Window' in your editor."
 echo ""
-echo "Make sure modality-lsp is installed:"
+echo "Optional: the modality-lsp language server (diagnostics, hover, outline):"
 echo "  cd rust && cargo install --path modality-lsp"
-echo ""
-echo "Restart your editor to activate the extension."

@@ -11,13 +11,14 @@ Language support for Modality - modal contracts and verification.
 - **Go to Definition**: Navigate to state and action definitions
 - **Find References**: Find all usages of symbols
 - **Document Symbols**: Outline view (Ctrl+Shift+O)
-- **Semantic Tokens**: Enhanced highlighting
 - **Formatting**: Format document (Shift+Alt+F)
 - **Code Actions**: Quick fixes and refactorings
 
 ## Requirements
 
-The extension requires the `modality-lsp` language server. Install it:
+Highlighting needs nothing else. The other features come from the
+`modality-lsp` language server; without it on your `PATH` (or set in
+`modality.lsp.path`) the extension runs without them. Install it:
 
 ```bash
 # From the modality repo
@@ -30,26 +31,16 @@ cargo install modality-lsp
 
 ## Installation
 
-### From VSIX
-
-1. Download the `.vsix` file from releases
-2. In VSCode: Extensions → ... → Install from VSIX
-
-### From Source
+From the repo:
 
 ```bash
 cd common/modality-vscode
-npm install
-npm run compile
-npm run package
-code --install-extension modality-vscode-*.vsix
+./install.sh            # or: npm install && npm run install:local
 ```
 
-### Manual Install (Development)
-
-```bash
-./install.sh
-```
+This checks the grammar, builds `modality-vscode.vsix`, and installs it with
+whichever of `code`, `cursor`, `codium` is on your `PATH`. Then run
+**Developer: Reload Window**. `./uninstall.sh` removes it.
 
 ## Configuration
 
@@ -58,6 +49,10 @@ code --install-extension modality-vscode-*.vsix
 | `modality.lsp.enabled` | `true` | Enable the language server |
 | `modality.lsp.path` | `modality-lsp` | Path to LSP binary |
 | `modality.lsp.trace.server` | `off` | Trace LSP communication |
+
+The extension sets `editor.semanticHighlighting.enabled` to `false` for
+Modality files, so the grammar does all highlighting. Turn it back on under
+`[modality]` in your settings to see the server's semantic tokens.
 
 ## Commands
 
@@ -68,34 +63,43 @@ code --install-extension modality-vscode-*.vsix
 ## Example
 
 ```modality
-model escrow {
-  states { idle, funded, complete }
-  initial { idle }
-  transitions {
-    idle -[DEPOSIT]-> funded
-    funded -[RELEASE]-> complete
-  }
+model Escrow {
+  initial idle
+  idle -> funded [+DEPOSIT +signed_by(/parties/buyer.id)]
+  funded -> done [+RELEASE +signed_by(/parties/seller.id)]
 }
 
 export default rule {
   starting_at $PARENT
   formula {
-    always (
-      [<+RELEASE>] signed_by(/parties/seller.id)
-    )
+    always([+RELEASE -signed_by(/parties/seller.id)] false)
   }
 }
 ```
 
 ## Development
 
-```bash
-# Watch mode
-npm run watch
+The grammar is `syntaxes/modality.tmLanguage.json`. It follows
+`rust/modality-lang/src/grammar.lalrpop` (models, formulas, actions, tests,
+contracts) and `rust/modality-lang/src/rule_file.rs` (rule files); change it
+when they change.
 
-# Package
-npm run package
+```bash
+npm run test:grammar    # scope checks + every .modality file in the repo
+npm run watch           # rebuild src/ on change
 ```
+
+`npm run test:grammar` tokenizes `test/fixtures/all-syntax.modality` with the
+same engine VS Code uses and checks each construct's scope. It also checks
+that half-typed declarations don't swallow the rest of the file, and that
+every `.modality` file in the repo closes all its blocks by the end.
+Add a line to the fixture and to `EXPECT` in `test/grammar.test.js` for
+any syntax you add.
+
+To try changes live, open this folder in VS Code and press F5 (Extension
+Development Host), then run **Developer: Reload Window** in that window after
+each grammar edit. **Developer: Inspect Editor Tokens and Scopes** shows the
+scope under the cursor.
 
 ## Links
 
