@@ -248,7 +248,8 @@ def resolve (args : List String) : SExpr → Option Arg
 def numTermIn (fractions : Bool) (args : List String) (e : SExpr) : Option Term :=
   match resolve args e with
   | some (.path p) => if ext p == some "num" then some (.path p) else none
-  | some (.lit l) => (parseNumLit fractions l).map .const
+  -- in lowest terms, as Rust stores them, so `1/2` and `0.5` are one constant
+  | some (.lit l) => (parseNumLit fractions l).map (.const ·.reduce)
   | none => none
 
 def numTerm : List String → SExpr → Option Term := numTermIn false

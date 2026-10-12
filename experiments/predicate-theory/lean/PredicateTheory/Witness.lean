@@ -91,7 +91,9 @@ def minGap (cs : List Q) : Q :=
 above the greatest constant below it (`lo`), by `ε·k` with `ε·k` under the
 least gap between constants, so it stays below every constant above `lo`.
 `ε` is the gap over a power of ten, so the value is a decimal a commit can
-carry.
+carry. Where `lo` or the gap is not a decimal (a fraction bound, theory
+`v4`), `lo` is first rounded up onto a decimal grid under half the gap,
+and the value stays in the same window `(lo, lo + gap)`.
 `k` counts the terms below `p`, with the class's first path as
 tie-break: every `≤` and `<` holds (the value grows with `lo` and `k`),
 classes with the same `lo` differ in `k`, and classes with different `lo`
@@ -113,9 +115,19 @@ def numValue (ls : List Lit) (es : List (Edge Term)) (p : Path) : Q :=
     let ps := numPaths ls
     let rep := (ps.findIdx? fun q => r (.path q) x && r x (.path q)).getD 0
     let k := (below + belowC) * m + rep + 1
-    -- a power of ten above `m² + 1 > k`: constants are decimals, so values are too
+    -- a power of ten above `m² + 1 > k`
     let scale := 10 ^ (Nat.toDigits 10 (m * m + 1)).length
-    Q.add lo (Q.mul (minGap cs) (Q.frac k scale))
+    let gap := minGap cs
+    if lo.isDecimal && gap.isDecimal then
+      -- `lo` and the gap are decimals, so the value is too
+      Q.add lo (Q.mul gap (Q.frac k scale))
+    else
+      -- a fraction bound (`1/3`, theory `v4`): `lo` rounded up to a grid of
+      -- `10^-e ≤ gap/2`, then up by `10^-e·k/scale`; both under half the gap
+      let grid : Nat := 10 ^ (Nat.toDigits 10 (2 * (gap.reduce.den + 1))).length
+      let t := lo.num * (grid : Int)
+      let up := -((-t) / lo.d)
+      Q.frac (up * scale + k) (grid * scale)
 
 /-! ## Text -/
 
@@ -265,8 +277,16 @@ key classes merged (`-card(q) ≥ n` wants few distinct keys). -/
 def witness (ls : List Lit) : World :=
   if check (build ls) ls then build ls else buildWith true ls
 
-/-- A world was built and every literal holds on it. -/
-def live (ls : List Lit) : Bool := check (witness ls) ls
+/-- Every number the world posts is one a commit can carry. -/
+def carriedNums (w : World) : Bool :=
+  w.state.all fun (_, v) => match v with
+    | .num q => q.carried
+    | _ => true
+
+/-- A world was built, every literal holds on it, and a commit can carry
+every number in it (Rust: `build_with` refuses a value that does not read
+back from its decimal). -/
+def live (ls : List Lit) : Bool := check (witness ls) ls && carriedNums (witness ls)
 
 /-- The three verdicts. -/
 inductive Verdict

@@ -110,6 +110,49 @@ theorem not_lt {a b : Q} (h : ¬ a < b) : b ≤ a := by
 theorem not_le {a b : Q} (h : ¬ a ≤ b) : b < a := by
   rw [le_def] at h; rw [lt_def]; omega
 
+/-! ## Decimals a commit can carry -/
+
+/-- Divide `n` by `f` while it divides; the rest and how many times.
+`fuel` bounds the steps; `n` is enough for `f ≥ 2`. -/
+def stripFactor (f : Nat) : Nat → Nat → Nat × Nat
+  | 0, n => (n, 0)
+  | fuel + 1, n =>
+    if n ≠ 0 ∧ n % f = 0 then
+      let r := stripFactor f fuel (n / f)
+      (r.1, r.2 + 1)
+    else (n, 0)
+
+/-- Lowest terms, as Rust stores a rational. -/
+def reduce (a : Q) : Q :=
+  let g := Nat.gcd a.num.natAbs (a.den + 1)
+  ⟨a.num / g, (a.den + 1) / g - 1⟩
+
+/-- The denominator in lowest terms without its factors 2 and 5, and how
+many of each it had. -/
+def decimalParts (a : Q) : Nat × Nat × Nat :=
+  let d := a.reduce.den + 1
+  let (r2, twos) := stripFactor 2 d d
+  let (r5, fives) := stripFactor 5 r2 r2
+  (r5, twos, fives)
+
+/-- A finite decimal expansion (Rust: `Rational::is_decimal`). -/
+def isDecimal (a : Q) : Bool := a.decimalParts.1 == 1
+
+/-- Significant digits of `n`: its decimal digits without trailing zeros. -/
+def sigDigits (n : Nat) : Nat :=
+  ((Nat.toDigits 10 n).reverse.dropWhile (· == '0')).length
+
+/-- A number a commit can carry: written as its decimal, it reads back
+(Rust: `Rational::parse(&q.to_decimal()?)`). So a finite decimal of at most
+15 significant digits whose scaled numerator and power of ten fit `i128`. -/
+def carried (a : Q) : Bool :=
+  let n0 := a.reduce.num
+  let d := a.reduce.den + 1
+  let (r, twos, fives) := a.decimalParts
+  let p := max twos fives
+  r == 1 && decide (10 ^ p < 2 ^ 127) && decide (n0.natAbs * 10 ^ p < 2 ^ 127) &&
+    decide (sigDigits (n0.natAbs * 10 ^ p / d) ≤ 15)
+
 end Q
 
 end PredicateTheory

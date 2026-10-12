@@ -6,6 +6,10 @@ every turn, pact partners promise to support each other's attacks. When
 breaking a promise pays — a supply centre to take, or a better use for a
 promised supporter — a power breaks it with probability `--temptation`.
 
+One game in all three worlds, with the results, is at
+[www.modality.org/experiments/multi-agent-diplomacy](https://www.modality.org/experiments/multi-agent-diplomacy)
+(data from `site.py`).
+
 Nothing here plays with a language model: the powers are greedy for supply
 centres, and the promises and betrayals are scripted. What changes between
 the setups is what a promise is.
@@ -64,3 +68,4 @@ in `modal`.
 | `treaties.py` | Pacts, supports, and the temptation to break them |
 | `contract.py` | The table's Modality contract |
 | `check_contract.py` | What the contract refuses and accepts, by hand |
+| `site.py` | The data behind the experiment page |

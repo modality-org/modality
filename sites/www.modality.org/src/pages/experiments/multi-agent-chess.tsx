@@ -1119,7 +1119,7 @@ export default function MultiAgentChess(): React.JSX.Element {
       description="Thirty-two agents play chess. One side coordinates over chat, the other through a Modality contract. Watch the games and the results of 160.">
       <main className={styles.page}>
         <header className={styles.hero}>
-          <p className={styles.eyebrow}>Demo</p>
+          <p className={styles.eyebrow}>Experiment</p>
           <h1>Multi-agent chess</h1>
           <p className={styles.lede}>
             Imagine a game of chess where each piece moves itself. 2 teams of 16 players.

@@ -997,12 +997,21 @@ built lets a commit take it, whatever the opaque predicates mean (there
 are none on a live edge). -/
 theorem live_sound (h : live ls = true) : Sat I ls := by
   refine ⟨witness ls, fun l hl => ?_⟩
-  simp only [live, check, List.all_eq_true, Bool.and_eq_true, Bool.not_eq_true'] at h
+  have h : check (witness ls) ls = true := by
+    simp only [live, Bool.and_eq_true] at h; exact h.1
+  simp only [check, List.all_eq_true, Bool.and_eq_true, Bool.not_eq_true'] at h
   obtain ⟨ho, hs⟩ := h l hl
   obtain ⟨lp, la⟩ := l
   simp only [Lit.sem] at hs ⊢
   rw [sem_indep ho I₀]
   exact hs
+
+/-- **Live numbers are postable.** Every number in a live witness reads
+back from its decimal, so a commit can carry it: `num_eq(/x.num, 1/3)` is
+never live. -/
+theorem live_carried (h : live ls = true) : carriedNums (witness ls) = true := by
+  simp only [live, Bool.and_eq_true] at h
+  exact h.2
 
 /-- A live edge is not dead: the two verdicts never both fire. -/
 theorem live_not_dead (h : live ls = true) : dead ls = false := by

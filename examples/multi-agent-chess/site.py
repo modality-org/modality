@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Write the data behind www.modality.org/demos/multi-agent-chess.
+"""Write the data behind www.modality.org/experiments/multi-agent-chess.
 
   python3 site.py                       plays the page's games from results/llm-cache
   python3 site.py --out /some/dir       writes there instead of the site's static dir

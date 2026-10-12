@@ -157,6 +157,19 @@ impl Rational {
 
     /// Finite decimal spelling (`-12.5`), when the denominator divides a
     /// power of ten.
+    /// Has a finite decimal expansion: the denominator has no prime
+    /// factor but 2 and 5. Lean: `Q.isDecimal`.
+    pub fn is_decimal(&self) -> bool {
+        let mut den = self.den;
+        while den % 2 == 0 {
+            den /= 2;
+        }
+        while den % 5 == 0 {
+            den /= 5;
+        }
+        den == 1
+    }
+
     pub fn to_decimal(&self) -> Option<String> {
         let mut den = self.den;
         let (mut twos, mut fives) = (0u32, 0u32);
@@ -265,7 +278,10 @@ mod tests {
     fn literals_read_fractions_exactly() {
         let third = Rational::parse_literal("1/3").unwrap();
         assert_eq!(third, Rational::new(1, 3).unwrap());
-        assert_eq!(Rational::parse_literal("-2/6").unwrap(), Rational::new(-1, 3).unwrap());
+        assert_eq!(
+            Rational::parse_literal("-2/6").unwrap(),
+            Rational::new(-1, 3).unwrap()
+        );
         assert_eq!(Rational::parse_literal("0.25"), Rational::parse("0.25"));
         assert_eq!(
             third.try_cmp(&Rational::parse("0.333333333333333").unwrap()),

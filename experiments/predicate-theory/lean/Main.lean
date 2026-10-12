@@ -10,7 +10,8 @@ One JSON object per line on stdin, one per line on stdout.
 ```
 {"lits": [LIT...], "state": [[PATH, VALUE]...]?, "witness": WORLD?}
   → {"verdict": "dead" | "live" | "unknown", "witness": true | false | null}
-{"labels": [LABEL...], "decls": [[MODULE, NEC | null, SUF | null]...], "lits": [LIT...]}
+{"labels": [LABEL...], "decls": [[MODULE, NEC | null, SUF | null]...], "lits": [LIT...],
+ "fractions": BOOL?}
   → {"verdict": ..., "exact": BOOL, "same": BOOL}
 {"edge": [LIT...], "world": WORLD}
   → {"takes": BOOL}
@@ -20,8 +21,10 @@ One JSON object per line on stdin, one per line on stdout.
 ```
 
 `verdict` is Lean's on the literals (with `state`, the runtime view).
-`witness` is whether the given world satisfies every literal. With
-`labels`, Lean elaborates them itself; `same` says its literals are the
+`witness` is whether the given world satisfies every literal and posts
+only numbers a commit can carry. With
+`labels`, Lean elaborates them itself (number literals may be fractions
+when `fractions`, theory `v4`); `same` says its literals are the
 given ones (as sets), and `verdict` is on its own. With `edge`, paths may
 hold variables (`c/$k.id`) and holes (`c/$!k`), and `takes` is `takesB`:
 whether the commit takes the edge for some names. With `flow`, `closed`
@@ -149,11 +152,6 @@ def verdictWord : Verdict → String
   | .live => "live"
   | .unknown => "unknown"
 
-/-- Lowest terms, so constants compare as Rust stores them. -/
-def PredicateTheory.Q.reduce (q : Q) : Q :=
-  let g := Nat.gcd q.num.natAbs (q.den + 1)
-  ⟨q.num / g, (q.den + 1) / g - 1⟩
-
 def PredicateTheory.Term.reduce : PredicateTheory.Term → PredicateTheory.Term
   | .const c => .const c.reduce
   | t => t
@@ -209,10 +207,12 @@ def answer (line : String) : Except String Json := do
       | .ok d => do (← d.getArr?).toList.mapM getDecl
       | .error _ => pure []
     let given ← (← (← j.getObjVal? "lits").getArr?).toList.mapM getLit
+    -- theory `v4`: number literals can be fractions
+    let fractions := (j.getObjValAs? Bool "fractions").toOption.getD false
     let reg := registryWith decls
-    let e := expandAll reg labels
+    let e := expandAllIn fractions reg labels
     pure <| Json.mkObj [
-      ("verdict", Json.str (verdictWord (consistent reg labels))),
+      ("verdict", Json.str (verdictWord (consistentIn fractions reg labels))),
       ("exact", Json.bool e.exact),
       ("same", Json.bool (sameSet e.lits given))]
   | .error _ => do
@@ -224,7 +224,9 @@ def answer (line : String) : Except String Json := do
       | .error _ => pure (verdict ls)
     let w ← match j.getObjVal? "witness" with
       | .ok (.null) => pure Json.null
-      | .ok wj => do pure (Json.bool (check (← getWorld wj) ls))
+      | .ok wj => do
+        let w ← getWorld wj
+        pure (Json.bool (check w ls && carriedNums w))
       | .error _ => pure Json.null
     pure <| Json.mkObj [("verdict", Json.str (verdictWord v)), ("witness", w)]
 

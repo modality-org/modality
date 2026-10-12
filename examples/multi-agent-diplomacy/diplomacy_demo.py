@@ -99,7 +99,8 @@ def year(phase):
     return int(phase[1:5])
 
 
-def play_game(setup, seed, workdir, narrate=False):
+def play_game(setup, seed, workdir, narrate=False, on_phase=None):
+    """on_phase(game, record, tokens): called before each movement phase is adjudicated."""
     game = Game()
     powers = sorted(game.powers)
     rng = lambda *key: random.Random("-".join(map(str, (seed,) + key)))
@@ -177,6 +178,8 @@ def play_game(setup, seed, workdir, narrate=False):
                 orders = other_orders(game, power, rng(phase, power, "other"))
                 if orders:
                     game.set_orders(power, orders)
+        if on_phase and phase.endswith("M"):
+            on_phase(game, record, tokens)
         game.process()
         phases.append(record)
         if narrate and (record["promises"] or record["broken"] or record["refused"]):

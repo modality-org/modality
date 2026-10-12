@@ -358,8 +358,10 @@ impl Order {
     /// constant below it (`lo`) by `ε·k`, with `ε·k` under the least gap
     /// between constants. `k` counts the terms below `p`, with the class's
     /// first path as tie-break, so every `≤`/`<` holds and no two classes
-    /// (or a class and a constant) coincide unless forced. Lean:
-    /// `numValue`.
+    /// (or a class and a constant) coincide unless forced. Where `lo` or
+    /// the gap is not a decimal, `lo` is first rounded up onto a decimal grid
+    /// under half the gap, so the value is still one a commit can post.
+    /// Lean: `numValue`.
     fn value(&self, num_paths: &[String], p: &str) -> Option<Rational> {
         let x = Term::Path(p.to_string());
         let cs = &self.consts;
@@ -392,12 +394,28 @@ impl Order {
             })
             .unwrap_or(0);
         let k = (below + below_c) * m + rep + 1;
-        // A power of ten above `m² + 1 > k`: constants are decimals, so the
-        // value is too.
+        // A power of ten above `m² + 1 > k`.
         let digits = m.checked_mul(m)?.checked_add(1)?.to_string().len();
         let scale = 10i128.checked_pow(u32::try_from(digits).ok()?)?;
-        let f = Rational::new(i128::try_from(k).ok()?, scale)?;
-        lo.checked_add(&self.min_gap()?.checked_mul(&f)?)
+        let gap = self.min_gap()?;
+        let k = i128::try_from(k).ok()?;
+        if lo.is_decimal() && gap.is_decimal() {
+            // `lo` and the gap are decimals, so the value is too.
+            let f = Rational::new(k, scale)?;
+            return lo.checked_add(&gap.checked_mul(&f)?);
+        }
+        // A fraction bound (`1/3`, theory `V4`): step from `lo` rounded up
+        // to a grid of `10^-e ≤ gap/2`, by `10^-e·k/scale`. Both parts are
+        // under half the gap, so the value is a decimal in the same window
+        // `(lo, lo + gap)` as above.
+        let e = gap.den().checked_mul(2)?.to_string().len();
+        let grid = 10i128.checked_pow(u32::try_from(e).ok()?)?;
+        let t = lo.num().checked_mul(grid)?;
+        let up = t.div_euclid(lo.den()) + i128::from(t.rem_euclid(lo.den()) != 0);
+        Rational::new(
+            up.checked_mul(scale)?.checked_add(k)?,
+            grid.checked_mul(scale)?,
+        )
     }
 }
 

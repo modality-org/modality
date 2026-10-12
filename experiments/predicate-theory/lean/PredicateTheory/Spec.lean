@@ -332,6 +332,25 @@ example : entailsVIn true standard [⟨true, "num_gt", ["/x.num", "1/2"], false�
     ⟨true, "num_gt", ["/x.num", "1/3"], false⟩ = .yes := by
   decide
 
+/-! Witnesses between fraction bounds are decimals a commit can post; a
+number forced to equal `1/3` has none. -/
+
+example : consistentIn true standard
+    [⟨true, "num_gt", ["/x.num", "1/3"], false⟩, ⟨true, "num_lt", ["/x.num", "1"], false⟩] =
+    .live := by
+  decide
+example : consistentIn true standard
+    [⟨true, "num_gt", ["/x.num", "1/3"], false⟩, ⟨true, "num_lt", ["/x.num", "0.3334"], false⟩] =
+    .live := by
+  decide
+example : consistentIn true standard
+    [⟨true, "num_gte", ["/x.num", "1/3"], false⟩, ⟨true, "num_lt", ["/x.num", "/y.num"], false⟩,
+     ⟨true, "num_lt", ["/y.num", "1/2"], false⟩, ⟨false, "num_eq", ["/x.num", "1/3"], false⟩] =
+    .live := by
+  decide
+example : consistentIn true standard [⟨true, "num_eq", ["/x.num", "1/3"], false⟩] = .unknown := by
+  decide
+
 example : consistent validator [postL, ⟨true, "after", ["/deadlines/end.datetime"], false⟩] = .dead := by
   decide
 example : consistent validator [postL, ⟨false, "after", ["/deadlines/end.datetime"], false⟩] = .live := by

@@ -116,24 +116,80 @@ fn a10_fraction_literals_are_numbers_from_v4() {
     let v4 = Theory::new(TheoryVersion::V4, standard(), &NoState);
     // x <= 1/3 and x > 0.5: empty from v4. Before, `1/3` is not a number,
     // so `num_gt(/x.num, 1/3)` never holds and its negation always does.
-    let lits = [n("num_gt", &["/x.num", "1/3"]), p("num_gt", &["/x.num", "0.5"])];
+    let lits = [
+        n("num_gt", &["/x.num", "1/3"]),
+        p("num_gt", &["/x.num", "0.5"]),
+    ];
     no(&v4.consistent(&lits));
     assert_ne!(v3.consistent(&lits).tri, Tri::False);
     // x > 1/3 and x < 0.3: empty either way, but only v4 says why in numbers.
-    no(&v4.consistent(&[p("num_gt", &["/x.num", "1/3"]), p("num_lt", &["/x.num", "0.3"])]));
-    // 1/3 < x < 1 holds at 0.5, but the witness builds its values from the
-    // constants and finds no decimal from 1/3: unknown, never a wrong yes.
-    unknown(&v4.consistent(&[p("num_gt", &["/x.num", "1/3"]), p("num_lt", &["/x.num", "1"])]));
-    yes(&v4.consistent(&[p("num_gt", &["/x.num", "1/4"]), p("num_lt", &["/x.num", "1"])]));
+    no(&v4.consistent(&[
+        p("num_gt", &["/x.num", "1/3"]),
+        p("num_lt", &["/x.num", "0.3"]),
+    ]));
+    // Witnesses are decimals a commit can post, also between fractions.
+    yes(&v4.consistent(&[
+        p("num_gt", &["/x.num", "1/3"]),
+        p("num_lt", &["/x.num", "1"]),
+    ]));
+    yes(&v4.consistent(&[
+        p("num_gt", &["/x.num", "1/4"]),
+        p("num_lt", &["/x.num", "1"]),
+    ]));
+    yes(&v4.consistent(&[
+        p("num_gt", &["/x.num", "1/3"]),
+        p("num_lt", &["/x.num", "0.3334"]),
+    ]));
+    yes(&v4.consistent(&[
+        p("num_gt", &["/x.num", "-2/3"]),
+        p("num_lt", &["/x.num", "-1/7"]),
+    ]));
+    yes(&v4.consistent(&[
+        p("num_gte", &["/x.num", "1/3"]),
+        p("num_lt", &["/x.num", "/y.num"]),
+        p("num_lt", &["/y.num", "1/2"]),
+        n("num_eq", &["/x.num", "1/3"]),
+    ]));
+    yes(&v4.consistent(&[p("num_gt", &["/x.num", "1/3"])]));
+    yes(&v4.consistent(&[p("num_lt", &["/x.num", "1/3"])]));
+    // No commit posts exactly 1/3, so no witness says it does.
+    unknown(&v4.consistent(&[p("num_eq", &["/x.num", "1/3"])]));
     no(&v3.consistent(&[p("num_gt", &["/x.num", "1/3"])]));
 
     let half = [p("num_gt", &["/x.num", "1/2"])];
-    assert_eq!(v4.entails(&half, &p("num_gt", &["/x.num", "1/3"])), Tri::True);
-    assert_eq!(v4.entails(&half, &p("num_gt", &["/x.num", "2/3"])), Tri::False);
-    assert_ne!(v3.entails(&half, &p("num_gt", &["/x.num", "1/3"])), Tri::True);
+    assert_eq!(
+        v4.entails(&half, &p("num_gt", &["/x.num", "1/3"])),
+        Tri::True
+    );
+    assert_eq!(
+        v4.entails(&half, &p("num_gt", &["/x.num", "2/3"])),
+        Tri::False
+    );
+    assert_ne!(
+        v3.entails(&half, &p("num_gt", &["/x.num", "1/3"])),
+        Tri::True
+    );
 
     // A zero denominator is not a number under any version.
     no(&v4.consistent(&[p("num_gt", &["/x.num", "1/0"])]));
+}
+
+#[test]
+fn a11_a_diamond_over_a_fraction_bound_is_proven_from_v4() {
+    let m = "model M {\n  initial q0\n  part p {\n    q0 --> q1: +num_gt(/x.num, 1/3) +num_lt(/x.num, 1/2)\n  }\n}";
+    let rule = "<+num_gt(/x.num, 1/3)> true";
+    let accepted = |version, x: &str| {
+        let state = MapState::new().with("/x.num", x);
+        ModelChecker::with_theory(model(m), version, None, Some(Box::new(state)))
+            .check_formula_at_state(&formula(rule), "q0")
+            .is_satisfied
+    };
+    assert!(accepted(TheoryVersion::V4, "0.4"));
+    assert!(!accepted(TheoryVersion::V4, "0.3"), "0.3 is not above 1/3");
+    assert!(
+        !accepted(TheoryVersion::V3, "0.4"),
+        "1/3 is not a number before v4"
+    );
 }
 
 #[test]
@@ -2075,6 +2131,147 @@ fn ask_lean<'a>(bin: &str, lines: impl Iterator<Item = &'a String>) -> Vec<serde
         .collect();
     assert_eq!(answers.len(), sent, "pt-check answered every line");
     answers
+}
+
+/// Theory `V4`: random order label sets with fraction bounds, decided by
+/// Rust and by the Lean checker with `fractions`. Lean must elaborate the
+/// same literals, reach the same verdict, and accept every Rust witness,
+/// whose numbers a commit must be able to carry.
+#[test]
+#[ignore = "needs the Lean checker; set PT_CHECK"]
+fn rust_and_lean_agree_on_fractions() {
+    const NUMS: [&str; 2] = ["/x.num", "/y.num"];
+    const CONSTS: [&str; 10] = [
+        "1/3", "-2/3", "1/7", "2/7", "5/3", "0.5", "1", "-1", "1/2", "0.3334",
+    ];
+    const ORDER: [&str; 5] = ["num_gt", "num_gte", "num_lt", "num_lte", "num_eq"];
+    let (bin, rounds, mut next) = harness(10_000);
+    let v4 = Theory::new(TheoryVersion::V4, standard(), &NoState);
+    let mut requests = Vec::new();
+    let mut counts = [0usize; 3];
+    // Exact, opaque-free, and still unknown.
+    let mut gaps: Vec<String> = Vec::new();
+    for _ in 0..rounds {
+        let mut pick = |n: usize| (next() % n as u64) as usize;
+        let props: Vec<Property> = (0..1 + pick(4))
+            .map(|_| {
+                let (name, args) = if pick(6) == 0 {
+                    (
+                        "amount_in_range",
+                        vec![NUMS[pick(2)], CONSTS[pick(10)], CONSTS[pick(10)]],
+                    )
+                } else {
+                    let second = if pick(4) == 0 {
+                        NUMS[pick(2)]
+                    } else {
+                        CONSTS[pick(10)]
+                    };
+                    (ORDER[pick(5)], vec![NUMS[pick(2)], second])
+                };
+                if pick(3) == 0 {
+                    n(name, &args)
+                } else {
+                    p(name, &args)
+                }
+            })
+            .collect();
+        let (lits, exact) = v4.expand_all(&props);
+        let lits_json: Vec<_> = lits.iter().map(lit_json).collect();
+        let v = v4.consistent(&props);
+        counts[match v.tri {
+            Tri::False => 0,
+            Tri::True => 1,
+            Tri::Unknown => 2,
+        }] += 1;
+        if v.tri == Tri::Unknown && exact && !lits.iter().any(Lit::is_opaque) {
+            // The only gap allowed: a number pinned to a value no commit
+            // can post (`x = 1/7`), where no witness is right.
+            let terms = || {
+                lits.iter().flat_map(|l| match &l.c {
+                    Constraint::Order { lhs, rhs, .. } => vec![lhs.clone(), rhs.clone()],
+                    _ => vec![],
+                })
+            };
+            let pinned = terms().any(|x| {
+                matches!(x, Term::Path(_))
+                    && terms().any(|c| {
+                        let Term::Const(q) = c else { return false };
+                        let mut not_c = lits.clone();
+                        not_c.push(Lit::neg(Constraint::Order {
+                            lhs: x.clone(),
+                            op: Op::Eq,
+                            rhs: Term::Const(q),
+                        }));
+                        !q.is_decimal() && v4.consistent_lits(&not_c, true).tri == Tri::False
+                    })
+            });
+            let shown = lits
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>()
+                .join(" ");
+            assert!(
+                pinned,
+                "unknown, and no number is pinned to a fraction: {shown}"
+            );
+            gaps.push(shown);
+        }
+        requests.push((
+            serde_json::json!({
+                "labels": props.iter().map(label_json).collect::<Vec<_>>(),
+                "decls": [],
+                "lits": lits_json,
+                "fractions": true,
+            })
+            .to_string(),
+            Some((v.tri, exact)),
+        ));
+        if let Some(w) = &v.witness {
+            requests.push((
+                serde_json::json!({ "lits": lits_json, "witness": world_json(w, &[]) }).to_string(),
+                None,
+            ));
+        }
+    }
+    let answers = ask_lean(&bin, requests.iter().map(|(line, _)| line));
+    let mut disagreements = Vec::new();
+    for ((line, expect), got) in requests.iter().zip(&answers) {
+        assert!(
+            got.get("error").is_none(),
+            "pt-check could not read: {line}: {got}"
+        );
+        let problem = match expect {
+            Some((want, exact)) => {
+                if got["same"] != true {
+                    Some("elaboration differs".to_string())
+                } else if got["exact"] != *exact {
+                    Some(format!("exact: rust {exact}"))
+                } else if got["verdict"].as_str() != Some(verdict_word(*want)) {
+                    Some(format!("verdict: rust {}", verdict_word(*want)))
+                } else {
+                    None
+                }
+            }
+            None => (got["witness"] != true).then(|| "Lean rejects the witness".into()),
+        };
+        if let Some(problem) = problem {
+            disagreements.push(format!("{problem}: {line} -> {got}"));
+        }
+    }
+    eprintln!(
+        "{rounds} fraction label sets ({} dead, {} live, {} unknown, {} of them pinned to a fraction), {} disagreements",
+        counts[0],
+        counts[1],
+        counts[2],
+        gaps.len(),
+        disagreements.len()
+    );
+    assert!(counts[1] > 0, "some fraction label sets are live");
+    assert!(
+        disagreements.is_empty(),
+        "{}",
+        disagreements[..disagreements.len().min(10)].join("\n")
+    );
 }
 
 /// Random label sets decided by the Rust theory and by the Lean checker
