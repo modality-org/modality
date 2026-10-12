@@ -10,6 +10,7 @@ on:
       - 'tests/network/01-ping-node/**'
       - 'tests/network/02-run-devnet1/**'
       - 'tests/network/05-mining/**'
+      - 'tests/network/observer-catchup/**'
       - 'tests/network/test-lib.sh'
       - '.github/workflows/ci.yml'
   pull_request:
@@ -21,6 +22,7 @@ on:
       - 'tests/network/01-ping-node/**'
       - 'tests/network/02-run-devnet1/**'
       - 'tests/network/05-mining/**'
+      - 'tests/network/observer-catchup/**'
       - 'tests/network/test-lib.sh'
       - '.github/workflows/ci.yml'
   # The release workflow runs the whole of CI on the commit it builds.
@@ -159,6 +161,13 @@ jobs:
 
       - name: Mine and persist a local block
         working-directory: tests/network/05-mining
+        timeout-minutes: 6
+        run: |
+          export PATH="$GITHUB_WORKSPACE/rust/target/debug:$PATH"
+          bash ./test.sh
+
+      - name: Catch up an observer and verify explorer balances
+        working-directory: tests/network/observer-catchup
         timeout-minutes: 6
         run: |
           export PATH="$GITHUB_WORKSPACE/rust/target/debug:$PATH"
