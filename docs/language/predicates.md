@@ -97,6 +97,15 @@ The local validator also derives `num_eq`, `num_gt`, `num_gte`, `num_lt`, and
 literal number or another accepted-state number path; a number written by the
 same pending commit is not evidence for that commit.
 
+A number argument needs no quotes: `+num_gte(/x.num, 100)` is the same
+predicate as `+num_gte(/x.num, "100")`, and `-3` and `0.25` work too.
+
+A fraction such as `1/4` or `2/6` is a number argument too. One with an exact
+decimal is written as that decimal, so `1/4` is the same predicate as `0.25`
+and works under any predicate theory. Any other fraction is reduced (`2/6` is
+`1/3`) and is a number from predicate theory `v4`; before `v4` a predicate
+given one never holds. `1/0` is a parse error.
+
 The local validator derives `text_eq`, `text_contains`, `text_starts_with`, and
 `text_ends_with` from accepted-state strings only. `text_eq` can compare two
 accepted-state string paths or one path to a literal; the other text predicates

@@ -103,7 +103,7 @@ pub struct Opts {
     /// Predicate theory local verify runs: v3, the testnet's. Use v0 for a
     /// network whose network.json leaves predicate_theory_version unset, and
     /// v2 for one that sets it to v2 (numbers compared as 64-bit floats)
-    #[clap(long, default_value = "v3", value_parser = ["v0", "v2", "v3"])]
+    #[clap(long, default_value = "v3", value_parser = ["v0", "v2", "v3", "v4"])]
     theory: String,
 
     /// The most gas this commit may use (signed into its head). Without it,

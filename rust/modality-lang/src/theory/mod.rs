@@ -59,6 +59,10 @@ pub enum TheoryVersion {
     /// `V2`, and the evaluator compares numbers exactly (`num_*`,
     /// `amount_in_range`) instead of as `f64`. The theory is `V2`'s.
     V3,
+    /// `V3`, and a number literal can be a fraction (`1/3`), read as that
+    /// exact rational by the theory and the evaluator. Before `V4` a
+    /// fraction is not a number: a predicate given one never holds.
+    V4,
 }
 
 impl TheoryVersion {
@@ -69,7 +73,13 @@ impl TheoryVersion {
             TheoryVersion::V1 => "v1",
             TheoryVersion::V2 => "v2",
             TheoryVersion::V3 => "v3",
+            TheoryVersion::V4 => "v4",
         }
+    }
+
+    /// Number literals may be fractions (`1/3`).
+    pub fn reads_fractions(self) -> bool {
+        self >= TheoryVersion::V4
     }
 }
 
@@ -88,8 +98,9 @@ impl std::str::FromStr for TheoryVersion {
             "v1" => Ok(TheoryVersion::V1),
             "v2" => Ok(TheoryVersion::V2),
             "v3" => Ok(TheoryVersion::V3),
+            "v4" => Ok(TheoryVersion::V4),
             other => Err(format!(
-                "unknown predicate theory version `{other}` (this build knows v0, v1, v2, and v3)"
+                "unknown predicate theory version `{other}` (this build knows v0, v1, v2, v3, and v4)"
             )),
         }
     }
@@ -192,7 +203,7 @@ impl<'a> Theory<'a> {
     }
 
     pub fn expand(&self, p: &Property) -> Expansion {
-        expand(self.registry, p)
+        decl::expand_in(self.registry, p, self.version)
     }
 
     /// Elaborate a label set. `exact` is true when a `True` verdict over
@@ -444,7 +455,9 @@ impl<'a> Theory<'a> {
         let decl = if goal.is_static() {
             None
         } else {
-            self.registry.declaration(&key).filter(|d| d.accepts(&args))
+            self.registry
+                .declaration(&key)
+                .filter(|d| d.accepts_in(&args, self.version))
         };
         let Some(decl) = decl else {
             return Tri::Unknown;
@@ -457,7 +470,10 @@ impl<'a> Theory<'a> {
         } else {
             &decl.necessary
         };
-        let Some(cs) = template.as_ref().and_then(|t| t.instantiate(&args)) else {
+        let Some(cs) = template
+            .as_ref()
+            .and_then(|t| t.instantiate_in(&args, self.version))
+        else {
             return Tri::Unknown;
         };
         let queries: Vec<Vec<Lit>> = if positive_goal {

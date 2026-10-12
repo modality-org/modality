@@ -69,7 +69,7 @@ or an inline domain action.
 | `--send-commit-id <SEND_COMMIT_ID>` | Source `SEND` commit ID for `RECV` commits |
 | `--send-index <N>` | Which `SEND` of that commit a `RECV` takes, from 0 (default); emitted `SEND`s count in `invoke` order |
 | `--synthesize-model` | If the governing model refuses the commit, search for a model that admits it: the current model plus one edge, out of the node the contract is at, with the fewest labels the commit satisfies. Every candidate goes through the same local verify as the commit, so the model found replays the history and keeps every rule. The commit then carries that model, and `model/default.modality` is rewritten to it. Refuses to rewrite a `model/default.modality` with edits the commit does not carry. See [Let the commit synthesize the model](#let-the-commit-synthesize-the-model) |
-| `--theory <v0\|v2\|v3>` | Predicate theory local verify runs (default `v3`, what the testnet runs). Use `v0` for a network whose `network.json` leaves `predicate_theory_version` unset, such as the bundled devnets, and `v2` for a network that sets `v2`. `v3` is `v2` with numbers compared exactly. `v2` and `v3` refuse dead model edges that `v0` accepts, and accept rules that `v0` refuses, such as `always([+SEND -any_signed(/claimants)] false)`. See [Predicate theory](../reference/predicate-theory.md) |
+| `--theory <v0\|v2\|v3\|v4>` | Predicate theory local verify runs (default `v3`, what the testnet runs). Use `v0` for a network whose `network.json` leaves `predicate_theory_version` unset, such as the bundled devnets, and `v2` for a network that sets `v2`. `v3` is `v2` with numbers compared exactly; `v4` is `v3` with fraction literals such as `1/3`. `v2` and `v3` refuse dead model edges that `v0` accepts, and accept rules that `v0` refuses, such as `always([+SEND -any_signed(/claimants)] false)`. See [Predicate theory](../reference/predicate-theory.md) |
 
 **Examples:**
 ```bash
@@ -486,7 +486,7 @@ modal c replay --artifact prefix.json
 | `--dir <DIR>` | Local contract directory (used when not fetching) |
 | `--node-dir <DIR>` | Node directory for identity/config on P2P remotes |
 | `--output <FORMAT>` | Output format: `text` or `json` |
-| `--theory <v0\|v2\|v3>` | Predicate theory to replay a local `--dir` under (default `v3`, as `modal c commit` verifies). A fetched or saved artifact names its own theory |
+| `--theory <v0\|v2\|v3\|v4>` | Predicate theory to replay a local `--dir` under (default `v3`, as `modal c commit` verifies). A fetched or saved artifact names its own theory |
 
 ## Theory
 
@@ -515,7 +515,7 @@ one. The view is read-only. Sequencers and validators enforce the network's
 | Option | Description |
 |--------|-------------|
 | `--dir <DIR>` | Contract directory (defaults to current directory) |
-| `--theory <VERSION>` | Theory version to preview: `v3` (default), `v2`, `v1`, or `v0`. Networks refuse `v1`. v3's entailment is v2's |
+| `--theory <VERSION>` | Theory version to preview: `v3` (default), `v4`, `v2`, `v1`, or `v0`. Networks refuse `v1`. v3's entailment is v2's |
 | `--output <FORMAT>` | Output format: `text` or `json` |
 
 ## Pack / Unpack

@@ -12,6 +12,7 @@
 use super::fragment::Template;
 use super::rational::Rational;
 use super::sort::{ext, norm_path, Constraint, Lit};
+use super::TheoryVersion;
 use crate::ast::{Property, PropertySource};
 use serde_json::Value;
 use std::collections::BTreeMap;
@@ -63,6 +64,12 @@ impl Param {
     }
 
     pub fn fits(self, arg: &str) -> bool {
+        self.fits_in(arg, TheoryVersion::V3)
+    }
+
+    /// [`Param::fits`] under `version`: from `V4` a `num` can be a
+    /// fraction literal (`1/3`).
+    pub fn fits_in(self, arg: &str, version: TheoryVersion) -> bool {
         let path_ext = |allowed: &[&str]| {
             arg.starts_with('/') && ext(&norm_path(arg)).is_some_and(|e| allowed.contains(&e))
         };
@@ -72,7 +79,11 @@ impl Param {
             Param::TextPath => path_ext(&["text", "id"]),
             Param::BoolPath => path_ext(&["bool"]),
             Param::IdPath => path_ext(&["id"]),
-            Param::Num => path_ext(&["num"]) || (!arg.starts_with('/') && is_decimal(arg)),
+            Param::Num => {
+                path_ext(&["num"])
+                    || (!arg.starts_with('/')
+                        && (is_decimal(arg) || (version.reads_fractions() && is_fraction(arg))))
+            }
             Param::Text => path_ext(&["text", "id"]) || !arg.starts_with('/'),
             Param::Needle => true,
             Param::Nat => arg.parse::<u32>().is_ok(),
@@ -93,6 +104,20 @@ fn is_decimal(arg: &str) -> bool {
     !(int_part.is_empty() && frac_part.is_empty())
         && int_part.chars().all(|c| c.is_ascii_digit())
         && frac_part.chars().all(|c| c.is_ascii_digit())
+}
+
+/// Fraction syntax, `[-]digits/digits` with a nonzero denominator, at any
+/// length. The evaluator reads `1/0` as no number, so it does not fit; a
+/// fraction outside the exact domain fits and stays opaque, as a long
+/// decimal does. Lean: `isFraction`.
+fn is_fraction(arg: &str) -> bool {
+    let body = arg.strip_prefix('-').unwrap_or(arg);
+    body.split_once('/').is_some_and(|(n, d)| {
+        !n.is_empty()
+            && n.chars().all(|c| c.is_ascii_digit())
+            && d.chars().all(|c| c.is_ascii_digit())
+            && d.chars().any(|c| c != '0')
+    })
 }
 
 /// `0 < 0`: no world satisfies it. A declared predicate used with an
@@ -163,12 +188,17 @@ impl Declaration {
 
     /// Does the declaration describe the evaluator on these arguments?
     pub fn accepts(&self, args: &[String]) -> bool {
+        self.accepts_in(args, TheoryVersion::V3)
+    }
+
+    /// [`Declaration::accepts`] under `version`.
+    pub fn accepts_in(&self, args: &[String], version: TheoryVersion) -> bool {
         match &self.params {
             None => true,
             Some(params) => params
                 .iter()
                 .enumerate()
-                .all(|(i, p)| args.get(i).is_some_and(|a| p.fits(a))),
+                .all(|(i, p)| args.get(i).is_some_and(|a| p.fits_in(a, version))),
         }
     }
 }
@@ -251,6 +281,12 @@ pub struct Expansion {
 /// literal over `0 < 0`.
 /// No usable declaration: one `Opaque` literal carrying the name and args.
 pub fn expand(reg: &dyn Registry, p: &Property) -> Expansion {
+    expand_in(reg, p, TheoryVersion::V3)
+}
+
+/// [`expand`] under `version`: from `V4` a number literal can be a
+/// fraction (`1/3`).
+pub fn expand_in(reg: &dyn Registry, p: &Property, version: TheoryVersion) -> Expansion {
     let (key, args) = registry_key_and_args(p);
     let positive = p.sign == crate::ast::PropertySign::Plus;
     let opaque = || Expansion {
@@ -288,7 +324,7 @@ pub fn expand(reg: &dyn Registry, p: &Property) -> Expansion {
     };
     // The evaluator reads a wrong-kind argument as false, so the predicate
     // never holds: `+p` kills its edge and `-p` holds on every commit.
-    if !decl.accepts(&args) {
+    if !decl.accepts_in(&args, version) {
         return Expansion {
             lits: vec![Lit {
                 c: never_constraint(),
@@ -302,7 +338,7 @@ pub fn expand(reg: &dyn Registry, p: &Property) -> Expansion {
         let Some(t) = &decl.necessary else {
             return opaque();
         };
-        let Some(cs) = t.instantiate(&args) else {
+        let Some(cs) = t.instantiate_in(&args, version) else {
             return opaque();
         };
         let lits: Vec<Lit> = cs.into_iter().map(Lit::pos).collect();
@@ -315,7 +351,7 @@ pub fn expand(reg: &dyn Registry, p: &Property) -> Expansion {
         if t.len() != 1 {
             return opaque();
         }
-        let Some(cs) = t.instantiate(&args) else {
+        let Some(cs) = t.instantiate_in(&args, version) else {
             return opaque();
         };
         let lits: Vec<Lit> = cs.into_iter().map(Lit::neg).collect();

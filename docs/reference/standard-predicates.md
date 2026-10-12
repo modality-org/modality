@@ -74,7 +74,8 @@ evaluates `wasm`.
 
 Under predicate theory `v1` and later, a predicate whose arguments are the
 wrong kind also never holds. The numeric predicates read a `.num` path and
-a decimal number (`"5"`, `"-0.25"`, or another `.num` path), so
+a number (`5`, `-0.25`, from `v4` a fraction such as `1/3`, or another
+`.num` path), so
 `num_gt(/x.num, "five")`, `num_gt(/x.num, "1e2")` and `num_gt(/x.text, "5")`
 never hold. `text_eq` and the other text predicates read a `.text` or `.id`
 path, `bool_true` and `bool_false` a `.bool` path, `signed_by` an `.id` path,
@@ -703,7 +704,8 @@ previously committed number. The second argument can be a numeric literal or a
 path to another previously committed number. Numeric comparisons do not see
 numbers written by the same pending commit.
 
-Under predicate theory `v3` the comparison is exact over decimals. Under `v0`
+Under predicate theory `v3` the comparison is exact over decimals, and under
+`v4` over fractions too (`1/3`). Under `v0`
 and `v2` it is a 64-bit float comparison: numbers past 2⁵³, or with more than
 15 significant digits, can compare wrongly (`num_gt` of 9007199254740993
 against "9007199254740992" is false there). `amount_in_range` compares the

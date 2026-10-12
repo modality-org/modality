@@ -67,7 +67,7 @@ pub struct Opts {
     /// Predicate theory to replay a local --dir under, as `modal c commit
     /// --theory` verifies with (default v3). A fetched or saved artifact
     /// names its own theory.
-    #[clap(long, value_parser = ["v0", "v2", "v3"])]
+    #[clap(long, value_parser = ["v0", "v2", "v3", "v4"])]
     theory: Option<String>,
 }
 

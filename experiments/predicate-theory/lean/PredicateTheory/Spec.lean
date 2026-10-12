@@ -13,6 +13,9 @@ The V1 verdicts on labels, as the model checker asks them.
   `no` (a countermodel was built), or `unknown`.
 - `runtime reg S labels`: `consistent` with accepted state `S` known.
 
+Each has an `…In fractions` form: from theory `v4` (`fractions`), a number
+literal can be a fraction (`1/3`). The theorems hold for both.
+
 Only `dead` and entailment `yes` change what a network accepts. `live`
 and `no` are for people: the preview, the necessity view, lints.
 
@@ -37,13 +40,18 @@ def stateOf (pairs : List (String × String)) : List (Path × Value) :=
       | some "text" | some "id" => .text raw
       | _ => .structured)
 
-def consistent (reg : Registry) (labels : List Label) : Verdict :=
-  let e := expandAll reg labels
+def consistentIn (fractions : Bool) (reg : Registry) (labels : List Label) : Verdict :=
+  let e := expandAllIn fractions reg labels
   if dead e.lits then .dead else if e.exact && live e.lits then .live else .unknown
 
-def runtime (reg : Registry) (S : List (Path × Value)) (labels : List Label) : Verdict :=
-  let e := expandAll reg labels
+def consistent : Registry → List Label → Verdict := consistentIn false
+
+def runtimeIn (fractions : Bool) (reg : Registry) (S : List (Path × Value))
+    (labels : List Label) : Verdict :=
+  let e := expandAllIn fractions reg labels
   if deadIn S e.lits then .dead else if e.exact && liveIn S e.lits then .live else .unknown
+
+def runtime : Registry → List (Path × Value) → List Label → Verdict := runtimeIn false
 
 inductive Answer
   | yes
@@ -52,47 +60,58 @@ inductive Answer
   deriving DecidableEq, Repr
 
 /-- The goal's usable declaration, and whether it is exact. -/
-def goalDecl (reg : Registry) (g : Label) : Option Declaration :=
+def goalDeclIn (fractions : Bool) (reg : Registry) (g : Label) : Option Declaration :=
   if g.static then none else
   let (key, args) := g.key
-  (reg key).bind fun d => if d.accepts args then some d else none
+  (reg key).bind fun d => if d.acceptsIn fractions args then some d else none
+
+def goalDecl : Registry → Label → Option Declaration := goalDeclIn false
 
 /-- What the checker adds to the premises to test the goal: for `+P`, one
 query per `sufficient` atom (its negation); for `-P`, one query with the
 `necessary` atoms. -/
-def goalQueries (reg : Registry) (g : Label) : Option (List (List Lit)) :=
-  (goalDecl reg g).bind fun d =>
+def goalQueriesIn (fractions : Bool) (reg : Registry) (g : Label) :
+    Option (List (List Lit)) :=
+  (goalDeclIn fractions reg g).bind fun d =>
     let args := g.key.2
     if g.pos then
-      (d.sufficient.bind (·.instantiate args)).map fun atoms => atoms.map fun a => [neg a]
+      (d.sufficient.bind (·.instantiateIn fractions args)).map fun atoms =>
+        atoms.map fun a => [neg a]
     else
-      (d.necessary.bind (·.instantiate args)).map fun atoms => [atoms.map pos]
+      (d.necessary.bind (·.instantiateIn fractions args)).map fun atoms => [atoms.map pos]
 
-def entailsV (reg : Registry) (premises : List Label) (g : Label) : Answer :=
+def goalQueries : Registry → Label → Option (List (List Lit)) := goalQueriesIn false
+
+def entailsVIn (fractions : Bool) (reg : Registry) (premises : List Label) (g : Label) :
+    Answer :=
   if premises.contains g then .yes else
-  let e := expandAll reg premises
-  match goalDecl reg g, goalQueries reg g with
+  let e := expandAllIn fractions reg premises
+  match goalDeclIn fractions reg g, goalQueriesIn fractions reg g with
   | some d, some qs =>
     if qs.all fun q => dead (e.lits ++ q) then .yes
     else if e.exact && d.sufficient == d.necessary && qs.any (fun q => live (e.lits ++ q)) then .no
     else .unknown
   | _, _ => .unknown
 
+def entailsV : Registry → List Label → Label → Answer := entailsVIn false
+
 /-! ## What the verdicts mean -/
 
-theorem consistent_dead {reg : Registry} {labels : List Label}
-    (h : consistent reg labels = .dead) : ∀ I, ¬ Sat I (expandAll reg labels).lits := by
+theorem consistentIn_dead {fractions : Bool} {reg : Registry} {labels : List Label}
+    (h : consistentIn fractions reg labels = .dead) :
+    ∀ I, ¬ Sat I (expandAllIn fractions reg labels).lits := by
   intro I
-  unfold consistent at h
+  unfold consistentIn at h
   dsimp only at h
   split at h
   · exact dead_sound (by assumption)
   · split at h <;> simp at h
 
-theorem consistent_live {reg : Registry} {labels : List Label}
-    (h : consistent reg labels = .live) :
-    (expandAll reg labels).exact = true ∧ ∀ I, Sat I (expandAll reg labels).lits := by
-  unfold consistent at h
+theorem consistentIn_live {fractions : Bool} {reg : Registry} {labels : List Label}
+    (h : consistentIn fractions reg labels = .live) :
+    (expandAllIn fractions reg labels).exact = true ∧
+      ∀ I, Sat I (expandAllIn fractions reg labels).lits := by
+  unfold consistentIn at h
   dsimp only at h
   split at h
   · simp at h
@@ -102,18 +121,20 @@ theorem consistent_live {reg : Registry} {labels : List Label}
       exact ⟨hl.1, fun I => live_sound hl.2⟩
     · simp at h
 
-theorem runtime_dead {reg : Registry} {S : List (Path × Value)} {labels : List Label}
-    (h : runtime reg S labels = .dead) : ∀ I, ¬ SatIn I S (expandAll reg labels).lits := by
+theorem runtimeIn_dead {fractions : Bool} {reg : Registry} {S : List (Path × Value)}
+    {labels : List Label} (h : runtimeIn fractions reg S labels = .dead) :
+    ∀ I, ¬ SatIn I S (expandAllIn fractions reg labels).lits := by
   intro I
-  unfold runtime at h
+  unfold runtimeIn at h
   dsimp only at h
   split at h
   · exact deadIn_sound (by assumption)
   · split at h <;> simp at h
 
-theorem runtime_live {reg : Registry} {S : List (Path × Value)} {labels : List Label}
-    (h : runtime reg S labels = .live) : ∀ I, SatIn I S (expandAll reg labels).lits := by
-  unfold runtime at h
+theorem runtimeIn_live {fractions : Bool} {reg : Registry} {S : List (Path × Value)}
+    {labels : List Label} (h : runtimeIn fractions reg S labels = .live) :
+    ∀ I, SatIn I S (expandAllIn fractions reg labels).lits := by
+  unfold runtimeIn at h
   dsimp only at h
   split at h
   · simp at h
@@ -123,18 +144,39 @@ theorem runtime_live {reg : Registry} {S : List (Path × Value)} {labels : List 
       exact fun I => liveIn_sound hl.2
     · simp at h
 
+theorem consistent_dead {reg : Registry} {labels : List Label}
+    (h : consistent reg labels = .dead) : ∀ I, ¬ Sat I (expandAll reg labels).lits :=
+  consistentIn_dead h
+
+theorem consistent_live {reg : Registry} {labels : List Label}
+    (h : consistent reg labels = .live) :
+    (expandAll reg labels).exact = true ∧ ∀ I, Sat I (expandAll reg labels).lits :=
+  consistentIn_live h
+
+theorem runtime_dead {reg : Registry} {S : List (Path × Value)} {labels : List Label}
+    (h : runtime reg S labels = .dead) : ∀ I, ¬ SatIn I S (expandAll reg labels).lits :=
+  runtimeIn_dead h
+
+theorem runtime_live {reg : Registry} {S : List (Path × Value)} {labels : List Label}
+    (h : runtime reg S labels = .live) : ∀ I, SatIn I S (expandAll reg labels).lits :=
+  runtimeIn_live h
+
 /-- The premises entail the goal, in the theory: the goal is a premise, or
 every world satisfying the premises' literals passes every goal query. -/
-def LabelEntails (I : Interp) (reg : Registry) (premises : List Label) (g : Label) : Prop :=
+def LabelEntailsIn (fractions : Bool) (I : Interp) (reg : Registry) (premises : List Label)
+    (g : Label) : Prop :=
   premises.contains g = true ∨
-    ∃ qs, goalQueries reg g = some qs ∧
-      ∀ q ∈ qs, ∀ w : World, (∀ l ∈ (expandAll reg premises).lits, l.sem I w = true) →
+    ∃ qs, goalQueriesIn fractions reg g = some qs ∧
+      ∀ q ∈ qs, ∀ w : World, (∀ l ∈ (expandAllIn fractions reg premises).lits, l.sem I w = true) →
         ¬ ∀ l ∈ q, l.sem I w = true
 
-theorem entails_yes {reg : Registry} {premises : List Label} {g : Label}
-    (h : entailsV reg premises g = .yes) : ∀ I, LabelEntails I reg premises g := by
+def LabelEntails : Interp → Registry → List Label → Label → Prop := LabelEntailsIn false
+
+theorem entailsIn_yes {fractions : Bool} {reg : Registry} {premises : List Label} {g : Label}
+    (h : entailsVIn fractions reg premises g = .yes) :
+    ∀ I, LabelEntailsIn fractions I reg premises g := by
   intro I
-  unfold entailsV at h
+  unfold entailsVIn at h
   dsimp only at h
   split at h
   · exact Or.inl (by assumption)
@@ -152,12 +194,12 @@ theorem entails_yes {reg : Registry} {premises : List Label} {g : Label}
 
 /-- **Countermodels are real.** A `no` is a world where the premises hold
 and some goal query passes; with exact declarations, the goal fails there. -/
-theorem entails_no {reg : Registry} {premises : List Label} {g : Label}
-    (h : entailsV reg premises g = .no) :
-    ∀ I, ∃ qs, goalQueries reg g = some qs ∧
-      ∃ q ∈ qs, Sat I ((expandAll reg premises).lits ++ q) := by
+theorem entailsIn_no {fractions : Bool} {reg : Registry} {premises : List Label} {g : Label}
+    (h : entailsVIn fractions reg premises g = .no) :
+    ∀ I, ∃ qs, goalQueriesIn fractions reg g = some qs ∧
+      ∃ q ∈ qs, Sat I ((expandAllIn fractions reg premises).lits ++ q) := by
   intro I
-  unfold entailsV at h
+  unfold entailsVIn at h
   dsimp only at h
   split at h
   · simp at h
@@ -172,6 +214,16 @@ theorem entails_no {reg : Registry} {premises : List Label} {g : Label}
           exact ⟨qs, hq, q, hqm, live_sound hl⟩
         · simp at h
     · simp at h
+
+theorem entails_yes {reg : Registry} {premises : List Label} {g : Label}
+    (h : entailsV reg premises g = .yes) : ∀ I, LabelEntails I reg premises g :=
+  entailsIn_yes h
+
+theorem entails_no {reg : Registry} {premises : List Label} {g : Label}
+    (h : entailsV reg premises g = .no) :
+    ∀ I, ∃ qs, goalQueries reg g = some qs ∧
+      ∃ q ∈ qs, Sat I ((expandAll reg premises).lits ++ q) :=
+  entailsIn_no h
 
 /-! ## Predicates the validator never evaluates
 
@@ -188,17 +240,18 @@ private def neverT : SExpr := .list [.atom "<", .atom "0", .atom "0"]
 
 private theorem neverDecl_eq : neverDecl = ⟨some [neverT], some [neverT], none⟩ := rfl
 
-private theorem elab_never (args : List String) : elabAtom args neverT = some neverAtom := rfl
+private theorem elab_never (fractions : Bool) (args : List String) :
+    elabAtomIn fractions args neverT = some neverAtom := rfl
 
 private theorem neverT_beq : ([neverT] == [neverT]) = true := rfl
 
 theorem expand_unevaluated (l : Label) (hs : l.static = false)
     (he : evaluated.contains l.key.1 = false) :
     expand validator l = ⟨[⟨l.pos, neverAtom⟩], true⟩ := by
-  unfold expand
+  unfold expand expandIn
   simp only [hs, validator, he, neverDecl_eq]
   cases hp : l.pos <;>
-    simp [Declaration.accepts, Template.instantiate, elab_never, neg, pos, neverT_beq]
+    simp [Declaration.acceptsIn, Template.instantiateIn, elab_never, neg, pos, neverT_beq]
 
 private theorem mem_fold (reg : Registry) (x : Lit) :
     ∀ (ls : List Label) (acc : Expansion),
@@ -233,12 +286,18 @@ forbids it lives, and a committed `wasm` declaration does not make a
 /-- **Wrong kind of argument.** A declared predicate whose arguments do
 not fit its signature expands to one exact literal over `0 < 0`: `+P`
 kills its edge and `-P` holds on every commit, as in the evaluator. -/
+theorem expandIn_wrong_kind (fractions : Bool) (reg : Registry) (l : Label) (d : Declaration)
+    (hs : l.static = false) (hd : reg l.key.1 = some d)
+    (ha : d.acceptsIn fractions l.key.2 = false) :
+    expandIn fractions reg l = ⟨[⟨l.pos, neverAtom⟩], true⟩ := by
+  unfold expandIn
+  simp [hs, hd, ha]
+
 theorem expand_wrong_kind (reg : Registry) (l : Label) (d : Declaration)
     (hs : l.static = false) (hd : reg l.key.1 = some d)
     (ha : d.accepts l.key.2 = false) :
-    expand reg l = ⟨[⟨l.pos, neverAtom⟩], true⟩ := by
-  unfold expand
-  simp [hs, hd, ha]
+    expand reg l = ⟨[⟨l.pos, neverAtom⟩], true⟩ :=
+  expandIn_wrong_kind false reg l d hs hd ha
 
 def postL : Label := ⟨true, "POST", [], true⟩
 
@@ -252,6 +311,25 @@ example : consistent validator [postL, ⟨false, "text_eq", ["/x.num", "5"], fal
 example : consistent validator [⟨true, "signed_by", ["/parties/alice"], false⟩] = .dead := by
   decide
 example : consistent validator [⟨true, "num_gt", ["/x.num", "1e2"], false⟩] = .dead := by
+  decide
+
+/-! Fractions: before `v4`, `1/3` is the wrong kind; from `v4` it is the
+number `1/3`, so `x ≤ 1/3` and `x > 1/2` is dead only by arithmetic. -/
+
+example : consistent validator [⟨true, "num_gt", ["/x.num", "1/3"], false⟩] = .dead := by
+  decide
+example : consistentIn true validator
+    [⟨false, "num_gt", ["/x.num", "1/3"], false⟩, ⟨true, "num_gt", ["/x.num", "0.5"], false⟩] =
+    .dead := by
+  decide
+example : consistent validator
+    [⟨false, "num_gt", ["/x.num", "1/3"], false⟩, ⟨true, "num_gt", ["/x.num", "0.5"], false⟩] ≠
+    .dead := by
+  decide
+example : consistentIn true validator [⟨true, "num_gt", ["/x.num", "1/0"], false⟩] = .dead := by
+  decide
+example : entailsVIn true standard [⟨true, "num_gt", ["/x.num", "1/2"], false⟩]
+    ⟨true, "num_gt", ["/x.num", "1/3"], false⟩ = .yes := by
   decide
 
 example : consistent validator [postL, ⟨true, "after", ["/deadlines/end.datetime"], false⟩] = .dead := by

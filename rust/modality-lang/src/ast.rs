@@ -607,6 +607,65 @@ pub fn canonical_predicate_name(name: String) -> String {
     }
 }
 
+/// The predicate arg for a fraction literal like `1/4` or `2/6`: its exact
+/// decimal where it has one (`1/4` is `"0.25"`, the same arg as `0.25`), and
+/// otherwise the reduced fraction (`2/6` is `"1/3"`, a number from predicate
+/// theory `v4`). `None` where the denominator is zero or a part overflows.
+pub fn fraction_literal(text: &str) -> Option<String> {
+    let (neg, body) = match text.strip_prefix('-') {
+        Some(rest) => (true, rest),
+        None => (false, text),
+    };
+    let (num, den) = body.split_once('/')?;
+    let (num, den) = (num.parse::<u128>().ok()?, den.parse::<u128>().ok()?);
+    if den == 0 {
+        return None;
+    }
+    let g = gcd(num, den);
+    let (num, den) = (num / g, den / g);
+    let sign = if neg && num != 0 { "-" } else { "" };
+    let reduced = || Some(format!("{sign}{num}/{den}"));
+    let (mut rest, mut twos, mut fives) = (den, 0u32, 0u32);
+    while rest % 2 == 0 {
+        rest /= 2;
+        twos += 1;
+    }
+    while rest % 5 == 0 {
+        rest /= 5;
+        fives += 1;
+    }
+    if rest != 1 {
+        return reduced();
+    }
+    // num / (2^twos 5^fives) = num 2^(k-twos) 5^(k-fives) / 10^k
+    let k = twos.max(fives);
+    let Some(scaled) = 2u128
+        .checked_pow(k - twos)
+        .zip(5u128.checked_pow(k - fives))
+        .and_then(|(a, b)| num.checked_mul(a)?.checked_mul(b))
+    else {
+        return reduced();
+    };
+    let digits = scaled.to_string();
+    let k = k as usize;
+    let mut out = if k == 0 {
+        digits
+    } else {
+        let padded = format!("{:0>width$}", digits, width = k + 1);
+        let (int_part, frac_part) = padded.split_at(padded.len() - k);
+        format!("{int_part}.{frac_part}")
+    };
+    out.insert_str(0, sign);
+    Some(out)
+}
+
+fn gcd(mut a: u128, mut b: u128) -> u128 {
+    while b != 0 {
+        (a, b) = (b, a % b);
+    }
+    a
+}
+
 /// Preferred surface spelling when printing predicates.
 pub fn predicate_display_name(name: &str) -> &str {
     match name {
@@ -791,5 +850,35 @@ impl ContractCommit {
 
     pub fn add_statement(&mut self, stmt: CommitStatement) {
         self.statements.push(stmt);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::fraction_literal;
+
+    #[test]
+    fn fractions_become_exact_decimals_or_reduce() {
+        let cases = [
+            ("1/4", "0.25"),
+            ("3/8", "0.375"),
+            ("-1/4", "-0.25"),
+            ("6/3", "2"),
+            ("10/4", "2.5"),
+            ("1/1000", "0.001"),
+            ("0/7", "0"),
+            ("-0/5", "0"),
+            ("7/20", "0.35"),
+            ("1/3", "1/3"),
+            ("2/6", "1/3"),
+            ("-4/6", "-2/3"),
+            ("10/15", "2/3"),
+        ];
+        for (fraction, arg) in cases {
+            assert_eq!(fraction_literal(fraction).as_deref(), Some(arg));
+        }
+        for refused in ["1/0", "1", "1.5/2"] {
+            assert_eq!(fraction_literal(refused), None, "{refused}");
+        }
     }
 }

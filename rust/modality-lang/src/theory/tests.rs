@@ -111,6 +111,32 @@ fn a5_a6_a7_a8_dead_edges() {
 }
 
 #[test]
+fn a10_fraction_literals_are_numbers_from_v4() {
+    let v3 = Theory::new(TheoryVersion::V3, standard(), &NoState);
+    let v4 = Theory::new(TheoryVersion::V4, standard(), &NoState);
+    // x <= 1/3 and x > 0.5: empty from v4. Before, `1/3` is not a number,
+    // so `num_gt(/x.num, 1/3)` never holds and its negation always does.
+    let lits = [n("num_gt", &["/x.num", "1/3"]), p("num_gt", &["/x.num", "0.5"])];
+    no(&v4.consistent(&lits));
+    assert_ne!(v3.consistent(&lits).tri, Tri::False);
+    // x > 1/3 and x < 0.3: empty either way, but only v4 says why in numbers.
+    no(&v4.consistent(&[p("num_gt", &["/x.num", "1/3"]), p("num_lt", &["/x.num", "0.3"])]));
+    // 1/3 < x < 1 holds at 0.5, but the witness builds its values from the
+    // constants and finds no decimal from 1/3: unknown, never a wrong yes.
+    unknown(&v4.consistent(&[p("num_gt", &["/x.num", "1/3"]), p("num_lt", &["/x.num", "1"])]));
+    yes(&v4.consistent(&[p("num_gt", &["/x.num", "1/4"]), p("num_lt", &["/x.num", "1"])]));
+    no(&v3.consistent(&[p("num_gt", &["/x.num", "1/3"])]));
+
+    let half = [p("num_gt", &["/x.num", "1/2"])];
+    assert_eq!(v4.entails(&half, &p("num_gt", &["/x.num", "1/3"])), Tri::True);
+    assert_eq!(v4.entails(&half, &p("num_gt", &["/x.num", "2/3"])), Tri::False);
+    assert_ne!(v3.entails(&half, &p("num_gt", &["/x.num", "1/3"])), Tri::True);
+
+    // A zero denominator is not a number under any version.
+    no(&v4.consistent(&[p("num_gt", &["/x.num", "1/0"])]));
+}
+
+#[test]
 fn a9_interval_inclusion_is_entailment() {
     let th = v1();
     let lits = [p("num_gt", &["/x.num", "5"])];

@@ -14,6 +14,7 @@ use serde_json::json;
 const V0: TheoryVersion = TheoryVersion::V0;
 const V2: TheoryVersion = TheoryVersion::V2;
 const V3: TheoryVersion = TheoryVersion::V3;
+const V4: TheoryVersion = TheoryVersion::V4;
 
 fn holds(commit: &CommitFile, state: &[(&str, Value)], name: &str, args: &[&str]) -> bool {
     let state: HashMap<String, Value> = state
@@ -101,6 +102,22 @@ fn v3_compares_numbers_exactly_where_f64_rounds() {
     assert!(!range(V3, two53, two53));
     assert!(range(V3, two53, "9007199254740994"));
     assert!(!under(V3, "num_gt", &["/big.num", "many"]), "not a number");
+}
+
+#[test]
+fn v4_reads_fraction_literals_exactly() {
+    let state = [("/x.num", json!(0.3333333333333333)), ("/half.num", json!(0.5))];
+    let under = |theory, name, args: &[&str]| holds_under(theory, &state, name, args);
+    assert!(under(V4, "num_lt", &["/x.num", "1/3"]));
+    assert!(under(V4, "num_gt", &["/half.num", "1/3"]));
+    assert!(under(V4, "num_eq", &["/half.num", "1/2"]));
+    assert!(!under(V4, "num_eq", &["/half.num", "-1/-2"]), "a sign only in front");
+    assert!(under(V4, "amount_in_range", &["/half.num", "1/3", "2/3"]));
+    assert!(!under(V4, "num_gt", &["/half.num", "1/0"]), "not a number");
+    // Before v4 a fraction is not a number: neither side of it holds.
+    for name in ["num_lt", "num_gte"] {
+        assert!(!under(V3, name, &["/half.num", "1/3"]), "{name}");
+    }
 }
 
 fn sends(items: &[(&str, &str, Value)]) -> CommitFile {

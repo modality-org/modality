@@ -98,6 +98,27 @@ def parseDecimal (s : String) : Option Q :=
     | none => none
   | _, _ => none
 
+/-- `Rational::parse_literal` on a fraction: `[-]digits/digits`, a nonzero
+denominator, numerator and denominator each below `2^127` (theory `v4`). -/
+def parseFraction (s : String) : Option Q :=
+  let (neg, body) := match s.toList with
+    | '-' :: rest => (true, rest)
+    | cs => (false, cs)
+  match splitOnChar '/' body with
+  | [ns, ds] =>
+    if ns.isEmpty || ds.isEmpty then none else
+    match digits ns, digits ds with
+    | some n, some d =>
+      if d = 0 || n ≥ i128Bound || d ≥ i128Bound then none
+      else some ⟨if neg then -(n : Int) else n, d - 1⟩
+    | _, _ => none
+  | _ => none
+
+/-- A number literal: a decimal, and from theory `v4` (`fractions`) a
+fraction too (Rust: `num_term`). -/
+def parseNumLit (fractions : Bool) (s : String) : Option Q :=
+  if s.toList.contains '/' && fractions then parseFraction s else parseDecimal s
+
 /-! ## S-expressions -/
 
 inductive SExpr
@@ -224,11 +245,13 @@ def resolve (args : List String) : SExpr → Option Arg
     | _ => some (if startsWithSlash a then .path (normPath a) else .lit a)
   | .list _ => none
 
-def numTerm (args : List String) (e : SExpr) : Option Term :=
+def numTermIn (fractions : Bool) (args : List String) (e : SExpr) : Option Term :=
   match resolve args e with
   | some (.path p) => if ext p == some "num" then some (.path p) else none
-  | some (.lit l) => (parseDecimal l).map .const
+  | some (.lit l) => (parseNumLit fractions l).map .const
   | none => none
+
+def numTerm : List String → SExpr → Option Term := numTermIn false
 
 def typedPath (args : List String) (allowed : List String) (e : SExpr) : Option Path :=
   match resolve args e with
@@ -255,22 +278,22 @@ def textOp? : String → Option TextOp
   | _ => none
 
 /-- One atom of a template, instantiated and typed by extension. -/
-def elabAtom (args : List String) : SExpr → Option Atom
+def elabAtomIn (fractions : Bool) (args : List String) : SExpr → Option Atom
   | e@(.atom _) => (typedPath args ["bool"] e).map (.isBool · true)
   | .str _ => none
   | .list (.atom head :: rest) =>
     match head, rest with
-    | "<", [a, b] => do pure (.order (← numTerm args a) .lt (← numTerm args b))
-    | "<=", [a, b] => do pure (.order (← numTerm args a) .le (← numTerm args b))
-    | ">", [a, b] => do pure (.order (← numTerm args b) .lt (← numTerm args a))
+    | "<", [a, b] => do pure (.order (← numTermIn fractions args a) .lt (← numTermIn fractions args b))
+    | "<=", [a, b] => do pure (.order (← numTermIn fractions args a) .le (← numTermIn fractions args b))
+    | ">", [a, b] => do pure (.order (← numTermIn fractions args b) .lt (← numTermIn fractions args a))
     | ">=", [.list [.atom "card", q], n] => do
       let pre ← anyPath args q
       let k ← (litArg args n).bind parseU32
       pure (.card pre k)
     | ">=", [.list _, _] => none
-    | ">=", [a, b] => do pure (.order (← numTerm args b) .le (← numTerm args a))
+    | ">=", [a, b] => do pure (.order (← numTermIn fractions args b) .le (← numTermIn fractions args a))
     | "=", [a, b] =>
-      match numTerm args a, numTerm args b with
+      match numTermIn fractions args a, numTermIn fractions args b with
       | some l, some r => some (.order l .eq r)
       | _, _ => do
         let p ← typedPath args ["text", "id"] a
@@ -293,8 +316,14 @@ def elabAtom (args : List String) : SExpr → Option Atom
     | _, _ => none
   | .list _ => none
 
+def elabAtom : List String → SExpr → Option Atom := elabAtomIn false
+
+def Template.instantiateIn (fractions : Bool) (t : Template) (args : List String) :
+    Option (List Atom) :=
+  t.mapM (elabAtomIn fractions args)
+
 def Template.instantiate (t : Template) (args : List String) : Option (List Atom) :=
-  t.mapM (elabAtom args)
+  t.instantiateIn false args
 
 /-! ## Declarations and the standard registry -/
 
@@ -329,7 +358,17 @@ def isDecimal (s : String) : Bool :=
     | (i, []) => (i, [])
   !(i.isEmpty && f.isEmpty) && i.all Char.isDigit && f.all Char.isDigit
 
-def Param.fits (p : Param) (arg : String) : Bool :=
+/-- Fraction syntax, `[-]digits/digits` with a nonzero denominator, at any
+length (Rust: `is_fraction`). -/
+def isFraction (s : String) : Bool :=
+  let body := match s.toList with
+    | '-' :: r => r
+    | r => r
+  match splitOnChar '/' body with
+  | [n, d] => !n.isEmpty && n.all Char.isDigit && d.all Char.isDigit && d.any (· != '0')
+  | _ => false
+
+def Param.fitsIn (fractions : Bool) (p : Param) (arg : String) : Bool :=
   let pathExt := fun (allowed : List String) =>
     startsWithSlash arg && match ext (normPath arg) with
       | some e => allowed.contains e
@@ -340,24 +379,29 @@ def Param.fits (p : Param) (arg : String) : Bool :=
   | .textPath => pathExt ["text", "id"]
   | .boolPath => pathExt ["bool"]
   | .idPath => pathExt ["id"]
-  | .num => pathExt ["num"] || (!startsWithSlash arg && isDecimal arg)
+  | .num => pathExt ["num"] ||
+      (!startsWithSlash arg && (isDecimal arg || (fractions && isFraction arg)))
   | .text => pathExt ["text", "id"] || !startsWithSlash arg
   | .needle => true
   | .nat => (parseU32 arg).isSome
   | .any => true
+
+def Param.fits : Param → String → Bool := Param.fitsIn false
 
 structure Declaration where
   necessary : Option Template
   sufficient : Option Template
   params : Option (List Param)
 
-def Declaration.accepts (d : Declaration) (args : List String) : Bool :=
+def Declaration.acceptsIn (fractions : Bool) (d : Declaration) (args : List String) : Bool :=
   match d.params with
   | none => true
   | some ps => ps.enum.all fun (i, p) =>
       match args.get? i with
-      | some a => p.fits a
+      | some a => p.fitsIn fractions a
       | none => false
+
+def Declaration.accepts : Declaration → List String → Bool := Declaration.acceptsIn false
 
 /-- Both directions from text; a direction that fails to parse is dropped. -/
 def Declaration.ofText (necessary sufficient : Option String) : Declaration :=
@@ -475,28 +519,34 @@ def neverAtom : Atom := .order (.const (Q.ofInt 0)) .lt (.const (Q.ofInt 0))
 
 /-- A declared predicate used with an argument of the wrong kind never
 holds: the evaluator reads it as false (Rust: `predicate_holds`). -/
-def expand (reg : Registry) (l : Label) : Expansion :=
+def expandIn (fractions : Bool) (reg : Registry) (l : Label) : Expansion :=
   let (key, args) := l.key
   let opq : Expansion := ⟨[⟨l.pos, .opaque key args⟩], false⟩
   if l.static then ⟨[⟨l.pos, .label l.name⟩], true⟩ else
   match reg key with
   | none => opq
   | some d =>
-    if !d.accepts args then ⟨[⟨l.pos, neverAtom⟩], true⟩ else
+    if !d.acceptsIn fractions args then ⟨[⟨l.pos, neverAtom⟩], true⟩ else
     let exact := d.sufficient == d.necessary
     if l.pos then
-      match d.necessary.bind (·.instantiate args) with
+      match d.necessary.bind (·.instantiateIn fractions args) with
       | some atoms => ⟨atoms.map pos, exact⟩
       | none => opq
     else
       match d.sufficient with
       | some [t] =>
-        match elabAtom args t with
+        match elabAtomIn fractions args t with
         | some a => ⟨[neg a], exact⟩
         | none => opq
       | _ => opq
 
-def expandAll (reg : Registry) (ls : List Label) : Expansion :=
-  ls.foldl (fun acc l => let e := expand reg l; ⟨acc.lits ++ e.lits, acc.exact && e.exact⟩) ⟨[], true⟩
+def expand : Registry → Label → Expansion := expandIn false
+
+/-- From theory `v4` (`fractions`), a number literal can be a fraction. -/
+def expandAllIn (fractions : Bool) (reg : Registry) (ls : List Label) : Expansion :=
+  ls.foldl (fun acc l => let e := expandIn fractions reg l; ⟨acc.lits ++ e.lits, acc.exact && e.exact⟩)
+    ⟨[], true⟩
+
+def expandAll : Registry → List Label → Expansion := expandAllIn false
 
 end PredicateTheory

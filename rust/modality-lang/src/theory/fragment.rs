@@ -18,6 +18,7 @@
 //! spec; change the Lean first.
 
 use super::rational::Rational;
+use super::TheoryVersion;
 use super::sort::{ext, norm_path, Constraint, Op, Term, TextOp};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -115,11 +116,23 @@ impl Template {
     }
 
     /// Instantiate with the predicate's arguments (`$1` is `args[0]`).
-    /// `None` if any atom fails to elaborate or to type.
+    /// `None` if any atom fails to elaborate or to type. Number literals
+    /// are decimals, as before theory `V4`.
     pub fn instantiate(&self, args: &[String]) -> Option<Vec<Constraint>> {
+        self.instantiate_in(args, TheoryVersion::V3)
+    }
+
+    /// [`Template::instantiate`] under `version`: from `V4`, a number
+    /// literal can also be a fraction (`1/3`).
+    pub fn instantiate_in(
+        &self,
+        args: &[String],
+        version: TheoryVersion,
+    ) -> Option<Vec<Constraint>> {
+        let fractions = version.reads_fractions();
         self.atoms
             .iter()
-            .map(|a| elab_atom(a, args))
+            .map(|a| elab_atom(a, args, fractions))
             .collect::<Option<Vec<_>>>()
     }
 }
@@ -153,9 +166,10 @@ fn resolve(e: &SExpr, args: &[String]) -> Option<Arg> {
     }
 }
 
-fn num_term(e: &SExpr, args: &[String]) -> Option<Term> {
+fn num_term(e: &SExpr, args: &[String], fractions: bool) -> Option<Term> {
     match resolve(e, args)? {
         Arg::Path(p) => (ext(&p) == Some("num")).then_some(Term::Path(p)),
+        Arg::Lit(l) if fractions => Rational::parse_literal(&l).map(Term::Const),
         Arg::Lit(l) => Rational::parse(&l).map(Term::Const),
     }
 }
@@ -223,7 +237,7 @@ fn in_grammar(e: &SExpr) -> bool {
     }
 }
 
-fn elab_atom(e: &SExpr, args: &[String]) -> Option<Constraint> {
+fn elab_atom(e: &SExpr, args: &[String], fractions: bool) -> Option<Constraint> {
     match e {
         // bare .bool path
         SExpr::Atom(_) => {
@@ -242,19 +256,19 @@ fn elab_atom(e: &SExpr, args: &[String]) -> Option<Constraint> {
             let rest = &items[1..];
             match (head, rest.len()) {
                 ("<", 2) => Some(order(
-                    num_term(&rest[0], args)?,
+                    num_term(&rest[0], args, fractions)?,
                     Op::Lt,
-                    num_term(&rest[1], args)?,
+                    num_term(&rest[1], args, fractions)?,
                 )),
                 ("<=", 2) => Some(order(
-                    num_term(&rest[0], args)?,
+                    num_term(&rest[0], args, fractions)?,
                     Op::Le,
-                    num_term(&rest[1], args)?,
+                    num_term(&rest[1], args, fractions)?,
                 )),
                 (">", 2) => Some(order(
-                    num_term(&rest[1], args)?,
+                    num_term(&rest[1], args, fractions)?,
                     Op::Lt,
-                    num_term(&rest[0], args)?,
+                    num_term(&rest[0], args, fractions)?,
                 )),
                 (">=", 2) => {
                     // (>= (card prefix) n)
@@ -270,14 +284,14 @@ fn elab_atom(e: &SExpr, args: &[String]) -> Option<Constraint> {
                         return None;
                     }
                     Some(order(
-                        num_term(&rest[1], args)?,
+                        num_term(&rest[1], args, fractions)?,
                         Op::Le,
-                        num_term(&rest[0], args)?,
+                        num_term(&rest[0], args, fractions)?,
                     ))
                 }
                 ("=", 2) => {
                     // numeric equality if both sides type as .num / decimal
-                    if let (Some(l), Some(r)) = (num_term(&rest[0], args), num_term(&rest[1], args))
+                    if let (Some(l), Some(r)) = (num_term(&rest[0], args, fractions), num_term(&rest[1], args, fractions))
                     {
                         return Some(order(l, Op::Eq, r));
                     }

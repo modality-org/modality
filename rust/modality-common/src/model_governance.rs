@@ -2111,7 +2111,7 @@ impl CommitFacts {
         if self.theory != TheoryVersion::V0
             && modality_lang::theory::standard()
                 .declaration(&property.name)
-                .is_some_and(|d| !d.accepts(&args))
+                .is_some_and(|d| !d.accepts_in(&args, self.theory))
         {
             return false;
         }
@@ -2890,13 +2890,22 @@ impl CommitFacts {
         Some((before, after))
     }
 
-    /// A decimal literal, or a `.num` path holding a number in accepted state.
+    /// A number literal, or a `.num` path holding a number in accepted state.
     fn exact_arg(&self, arg: &str) -> Option<Exact> {
         if arg.starts_with('/') {
             if !arg.ends_with(".num") {
                 return None;
             }
             Exact::from_json(self.state.get(&normalize_path(arg))?)
+        } else {
+            self.exact_literal(arg)
+        }
+    }
+
+    /// A decimal; from `V4` also a fraction (`1/3`).
+    fn exact_literal(&self, arg: &str) -> Option<Exact> {
+        if self.theory.reads_fractions() {
+            Exact::parse_literal(arg)
         } else {
             Exact::parse(arg)
         }
@@ -3036,7 +3045,7 @@ impl CommitFacts {
         if arg.starts_with('/') {
             self.state_exact(arg)
         } else {
-            Exact::parse(arg)
+            self.exact_literal(arg)
         }
     }
 

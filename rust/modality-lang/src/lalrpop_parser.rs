@@ -1114,4 +1114,69 @@ rule_for_this_commit {
             model.parts[0].transitions[0].properties[0]
         );
     }
+
+    #[test]
+    fn bare_number_predicate_args_match_quoted() {
+        let bare = parse_content_lalrpop(
+            r#"model T { initial q0 part p {
+              q0 --> q1: +num_gte(/x.num, 100) -num_lt(/y.num,-3) +num_eq(/z.num, 0.25)
+              q1 --> q2: +threshold(2, /treasury/signers)
+            } }"#,
+        )
+        .unwrap();
+        let quoted = parse_content_lalrpop(
+            r#"model T { initial q0 part p {
+              q0 --> q1: +num_gte(/x.num, "100") -num_lt(/y.num,"-3") +num_eq(/z.num, "0.25")
+              q1 --> q2: +threshold("2", /treasury/signers)
+            } }"#,
+        )
+        .unwrap();
+        assert_eq!(bare, quoted);
+
+        let props = &bare.parts[0].transitions[0].properties;
+        let (_, args) = props[1].get_predicate().expect("predicate source");
+        assert_eq!(args, &serde_json::json!({ "args": ["/y.num", "-3"] }));
+
+        let formulas = parse_all_formulas_content_lalrpop(
+            "formula F {\n  always([+num_gt(/x.num, 5) -signed_by(/a.id)] false)\n}\n",
+        )
+        .unwrap();
+        let quoted = parse_all_formulas_content_lalrpop(
+            "formula F {\n  always([+num_gt(/x.num, \"5\") -signed_by(/a.id)] false)\n}\n",
+        )
+        .unwrap();
+        assert_eq!(formulas[0].expression, quoted[0].expression);
+    }
+
+    #[test]
+    fn bare_fraction_predicate_args_are_decimals_or_reduced() {
+        let fraction = parse_content_lalrpop(
+            r#"model T { initial q0 part p {
+              q0 --> q1: +num_gte(/x.num, 1/4) -num_lt(/y.num, -3/8) +num_eq(/z.num, 6/3)
+            } }"#,
+        )
+        .unwrap();
+        let decimal = parse_content_lalrpop(
+            r#"model T { initial q0 part p {
+              q0 --> q1: +num_gte(/x.num, 0.25) -num_lt(/y.num, -0.375) +num_eq(/z.num, 2)
+            } }"#,
+        )
+        .unwrap();
+        assert_eq!(fraction, decimal);
+
+        let third = parse_content_lalrpop(
+            "model T { initial q0 part p {\n  q0 --> q1: +num_gt(/x.num, 2/6)\n} }",
+        )
+        .unwrap();
+        let (_, args) = third.parts[0].transitions[0].properties[0]
+            .get_predicate()
+            .expect("predicate source");
+        assert_eq!(args, &serde_json::json!({ "args": ["/x.num", "1/3"] }));
+
+        let err = parse_content_lalrpop(
+            "model T { initial q0 part p {\n  q0 --> q1: +num_gt(/x.num, 1/0)\n} }",
+        )
+        .unwrap_err();
+        assert!(err.contains("zero denominator"), "{err}");
+    }
 }

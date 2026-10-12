@@ -67,6 +67,32 @@ impl Exact {
         })
     }
 
+    /// A number literal from predicate theory `v4`: a decimal as
+    /// [`Exact::parse`] reads it, or a fraction `[-]digits/digits` with a
+    /// nonzero denominator (`1/3`). Anything else is `None`.
+    pub fn parse_literal(text: &str) -> Option<Self> {
+        let Some((n, d)) = text.split_once('/') else {
+            return Self::parse(text);
+        };
+        let (neg, n) = match n.strip_prefix('-') {
+            Some(rest) => (true, rest),
+            None => (false, n),
+        };
+        let digits = |s: &str| !s.is_empty() && s.bytes().all(|b| b.is_ascii_digit());
+        if !digits(n) || !digits(d) {
+            return None;
+        }
+        let mut num = BigInt::parse_bytes(n.as_bytes(), 10)?;
+        let den = BigInt::parse_bytes(d.as_bytes(), 10)?;
+        if den.sign() == Sign::NoSign {
+            return None;
+        }
+        if neg {
+            num = -num;
+        }
+        Some(Self { num, den })
+    }
+
     /// A JSON number; any other value is `None`.
     pub fn from_json(value: &Value) -> Option<Self> {
         match value {
@@ -161,6 +187,19 @@ mod tests {
         for bad in ["", "-", ".", "1.2.3", "0x10", "five", "1e", "1e99999", " 1"] {
             assert!(Exact::parse(bad).is_none(), "{bad}");
         }
+    }
+
+    #[test]
+    fn literals_read_fractions_exactly() {
+        let third = Exact::parse_literal("1/3").unwrap();
+        assert_eq!(third.mul(&x("3")), x("1"));
+        assert_eq!(Exact::parse_literal("-2/6").unwrap(), third.mul(&x("-1")));
+        assert!(third > x("0.3333333333333333333333"));
+        assert_eq!(Exact::parse_literal("0.25"), Some(x("0.25")));
+        for bad in ["1/0", "1/", "/3", "1/-3", "1.5/2", "1/3/4", "1e3/2"] {
+            assert!(Exact::parse_literal(bad).is_none(), "{bad}");
+        }
+        assert!(Exact::parse("1/3").is_none());
     }
 
     #[test]

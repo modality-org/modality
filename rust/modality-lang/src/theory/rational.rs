@@ -103,6 +103,26 @@ impl Rational {
         Self::new(num, den)
     }
 
+    /// A number literal from theory `V4`: a decimal as [`Rational::parse`]
+    /// reads it, or a fraction `[-]digits/digits` with a nonzero
+    /// denominator whose numerator and denominator each fit `i128`.
+    /// Anything else is `None`. Lean: `parseNumLit`.
+    pub fn parse_literal(text: &str) -> Option<Self> {
+        let Some((n, d)) = text.split_once('/') else {
+            return Self::parse(text);
+        };
+        let (neg, n) = match n.strip_prefix('-') {
+            Some(rest) => (true, rest),
+            None => (false, n),
+        };
+        let digits = |s: &str| !s.is_empty() && s.bytes().all(|b| b.is_ascii_digit());
+        if !digits(n) || !digits(d) {
+            return None;
+        }
+        let (n, d) = (n.parse::<i128>().ok()?, d.parse::<i128>().ok()?);
+        Self::new(if neg { -n } else { n }, d)
+    }
+
     pub fn num(&self) -> i128 {
         self.num
     }
@@ -239,6 +259,22 @@ mod tests {
             Rational::parse("-3.50").unwrap(),
             Rational::new(-7, 2).unwrap()
         );
+    }
+
+    #[test]
+    fn literals_read_fractions_exactly() {
+        let third = Rational::parse_literal("1/3").unwrap();
+        assert_eq!(third, Rational::new(1, 3).unwrap());
+        assert_eq!(Rational::parse_literal("-2/6").unwrap(), Rational::new(-1, 3).unwrap());
+        assert_eq!(Rational::parse_literal("0.25"), Rational::parse("0.25"));
+        assert_eq!(
+            third.try_cmp(&Rational::parse("0.333333333333333").unwrap()),
+            Some(Ordering::Greater)
+        );
+        for bad in ["1/0", "1/", "/3", "1/-3", "1.5/2", "a/b", "1/3/4"] {
+            assert_eq!(Rational::parse_literal(bad), None, "{bad}");
+        }
+        assert_eq!(Rational::parse("1/3"), None);
     }
 
     #[test]
