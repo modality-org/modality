@@ -196,21 +196,17 @@ fn is_process_running(_pid: u32) -> bool {
 
 #[cfg(target_family = "unix")]
 fn get_node_info_from_pid(pid: u32) -> Option<NodeInfo> {
-    let cwd_link = format!("/proc/{}/cwd", pid);
+    let cwd = fs::read_link(format!("/proc/{}/cwd", pid))
+        .ok()
+        .or_else(|| macos_cwd(pid));
 
-    if let Ok(cwd) = fs::read_link(&cwd_link) {
-        if let Some(info) = get_node_info_from_dir(&cwd, pid) {
+    if let Some(ref cwd) = cwd {
+        if let Some(info) = get_node_info_from_dir(cwd, pid) {
             return Some(info);
         }
     }
 
-    if let Some(cwd) = macos_cwd(pid) {
-        if let Some(info) = get_node_info_from_dir(&cwd, pid) {
-            return Some(info);
-        }
-    }
-
-    if let Some(dir) = dir_from_ps_args(pid) {
+    if let Some(dir) = dir_from_ps_args(pid, cwd.as_deref()) {
         if let Some(info) = get_node_info_from_dir(&dir, pid) {
             return Some(info);
         }
@@ -280,7 +276,7 @@ fn macos_cwd(pid: u32) -> Option<PathBuf> {
 }
 
 #[cfg(target_family = "unix")]
-fn dir_from_ps_args(pid: u32) -> Option<PathBuf> {
+fn dir_from_ps_args(pid: u32, cwd: Option<&std::path::Path>) -> Option<PathBuf> {
     let output = std::process::Command::new("ps")
         .args(["-p", &pid.to_string(), "-ww", "-o", "args="])
         .output()
@@ -289,18 +285,50 @@ fn dir_from_ps_args(pid: u32) -> Option<PathBuf> {
         return None;
     }
     let args = String::from_utf8_lossy(&output.stdout);
+    dir_from_args(&args, cwd)
+}
+
+#[cfg(target_family = "unix")]
+fn dir_from_args(args: &str, cwd: Option<&std::path::Path>) -> Option<PathBuf> {
     let parts: Vec<&str> = args.split_whitespace().collect();
     for (i, part) in parts.iter().enumerate() {
-        if *part == "--dir" {
-            if let Some(dir) = parts.get(i + 1) {
-                return Some(PathBuf::from(dir));
-            }
-        }
-        if let Some(dir) = part.strip_prefix("--dir=") {
-            return Some(PathBuf::from(dir));
+        let dir = if *part == "--dir" {
+            parts.get(i + 1).copied()
+        } else {
+            part.strip_prefix("--dir=")
+        };
+        if let Some(dir) = dir {
+            let path = PathBuf::from(dir);
+            // ps reports the target's arguments, not paths relative to this CLI's cwd.
+            return if path.is_absolute() {
+                Some(path)
+            } else {
+                cwd.map(|cwd| cwd.join(path))
+            };
         }
     }
     None
+}
+
+#[cfg(test)]
+#[cfg(target_family = "unix")]
+mod tests {
+    use super::dir_from_args;
+    use std::path::Path;
+
+    #[test]
+    fn relative_node_dir_uses_target_process_cwd() {
+        let cwd = Path::new("/tmp/other-launch-directory");
+        assert_eq!(
+            dir_from_args("modal node run --dir ./node1", Some(cwd)),
+            Some(cwd.join("./node1"))
+        );
+        assert_eq!(
+            dir_from_args("modal node run --dir=/tmp/node2", Some(cwd)),
+            Some(Path::new("/tmp/node2").to_path_buf())
+        );
+        assert_eq!(dir_from_args("modal node run --dir node1", None), None);
+    }
 }
 
 fn collect_node_dirs(dir: &std::path::Path, depth: usize, out: &mut Vec<PathBuf>) {
