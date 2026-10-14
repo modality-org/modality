@@ -39,8 +39,10 @@ For live access, start with [Join the public testnet](../cli/join-testnet.md).
   builds `modal` and runs the numbered `01-ping-node` and
   `02-run-devnet1` scenarios: the first boots and pings from a second node,
   the second certifies a local static-sequencer round, and `05-mining` mines,
-  inspects, persists, and resumes a solo devnet block. The remaining numbered
-  scenarios are not yet CI gates.
+  inspects, persists, and resumes a solo devnet block. `10-hybrid-devnet1`
+  uses short local epochs to check that mining nominations activate a Shoal
+  sequencer. It is a single-node fixture, not a multi-node finality proof. The
+  other numbered scenarios are not yet CI gates.
 - [x] A small [hybrid consensus experiment](../../experiments/hybrid-consensus/README.md)
   contains TLA+ and Lean artifacts. It is not a proof of the entire deployed
   protocol.

@@ -1,36 +1,33 @@
 #!/usr/bin/env bash
-cd $(dirname -- "$0")
-SCRIPT_DIR=$(pwd)
-set -x
+set -euo pipefail
+cd "$(dirname "$0")"
 
-# Create hybrid node if it doesn't exist
-if [ ! -f "./tmp/node1/config.json" ]; then
-    echo "Creating hybrid node for devnet1-hybrid..."
-    
-    # Create basic node without template (we'll configure it manually)
-    modal node create --dir "${SCRIPT_DIR}/tmp/node1"
-    
-    # Update config to use devnet1-hybrid network and enable hybrid consensus
-    cat > "${SCRIPT_DIR}/tmp/node1/config.json" << 'EOF'
-{
-  "config_version": 2,
-  "passfile_path": "./node.modal_passfile",
-  "data_dir": "./data",
-  "listeners": ["/ip4/0.0.0.0/tcp/10111/ws"],
-  "network_config_path": "modality-networks://devnet1-hybrid",
-  "run_miner": true,
-  "hybrid_consensus": true,
-  "run_sequencer": true,
-  "initial_difficulty": 1,
-  "status_port": 3111
+modal node create --dir ./tmp/node1
+python3 - <<'PYCONFIG'
+import json
+from pathlib import Path
+
+node = Path("tmp/node1")
+network = {
+    "config_version": 2,
+    "name": "devnet1-hybrid-smoke",
+    "bootstrappers": [],
+    "blocks_per_epoch": 2,
+    "initial_difficulty": 1,
+    "target_block_time_secs": 1,
 }
-EOF
-fi
+(node / "network.json").write_text(json.dumps(network, indent=2) + "\n")
+config_path = node / "config.json"
+config = json.loads(config_path.read_text())
+config.update(
+    network_config_path="./network.json",
+    bootstrappers=[],
+    listeners=["/ip4/127.0.0.1/tcp/10111/ws"],
+    status_port=3111,
+    initial_difficulty=1,
+    miner_hash_func="sha256",
+)
+config_path.write_text(json.dumps(config, indent=2) + "\n")
+PYCONFIG
 
-# Clear storage for clean test
-modal node clear-storage --dir ./tmp/node1 --yes
-
-# Run the hybrid node (both miner and sequencer)
-echo "Starting hybrid node - will mine blocks and validate from epoch 2..."
-modal node run-miner --dir ./tmp/node1
-
+exec modal node run-hybrid --dir ./tmp/node1

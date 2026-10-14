@@ -1,60 +1,10 @@
-# Hybrid Devnet1 - Single Miner/Sequencer Hybrid Consensus
+# Hybrid devnet1 smoke test
 
-This example demonstrates hybrid consensus where:
-- **1 miner** mines blocks and nominates a sequencer (itself)
-- **Sequencers are selected from epoch N-2 mining nominations**
-- **Validation starts at epoch >= 2**
+`./test.sh` starts one isolated `run-hybrid` node with a local two-block epoch,
+SHA-256 mining, and no bootstrap peers. It waits for mined blocks, the epoch-2
+transition, selection from epoch-0 nominations, and the Shoal loop. The test
+has bounded waits and runs in Rust CI. It does **not** prove multi-node
+propagation or public-testnet finality.
 
-## Overview
-
-In hybrid consensus:
-1. Miners produce blocks that nominate sequencers (no network events in blocks)
-2. Sequencers run Shoal consensus to order network events (contract commits)
-3. The sequencer set for mining epoch N is determined from nominations in epoch N-2
-
-This provides a 2-epoch lookback to ensure sequencer sets are stable before activation.
-
-## Test Scenario
-
-This test runs a single node that:
-1. Mines blocks (epochs 0, 1) while nominating itself
-2. At epoch 2, automatically becomes a sequencer based on epoch 0 nominations
-3. Continues mining while also validating network events
-
-## Usage
-
-### Run Manually
-
-```bash
-cd examples/network/10-hybrid-devnet1
-./01-run-hybrid-node.sh
-```
-
-### Run as Test
-
-```bash
-cd examples/network/10-hybrid-devnet1
-./test.sh
-```
-
-## What to Expect
-
-1. **Epoch 0-1**: Node mines blocks, nominates itself, logs "waiting for epoch >= 2"
-2. **Epoch 2**: Node detects it's in the sequencer set from epoch 0 nominations
-3. **Epoch 2+**: Node runs both mining and Shoal consensus simultaneously
-
-## Configuration
-
-- **Network**: `devnet1-hybrid`
-- **Miner nominees**: Node's own peer ID
-- **Sequencer selection**: Epoch N-2 lookback
-- **Blocks per epoch**: 40
-
-## Key Logs to Watch
-
-- `🎯 EPOCH X STARTED` - Epoch transitions
-- `📡 Broadcasted epoch X transition` - Epoch coordination signal
-- `🔔 Epoch transition detected` - Sequencer listening for transitions
-- `🏛️ This node IS a sequencer for epoch X` - Sequencer activation
-- `🚀 Starting Shoal consensus loop` - Consensus started
-
+`./01-run-hybrid-node.sh` runs the same short-epoch fixture manually. It creates
+`tmp/node1` from scratch; do not point it at an existing node directory.
