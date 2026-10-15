@@ -12,6 +12,7 @@ use anyhow::{anyhow, bail, Context, Result};
 use clap::{Parser, Subcommand};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
+use sha2::{Digest, Sha256};
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
@@ -260,9 +261,24 @@ async fn account_of(remote: &str, contract_id: &str) -> Result<Account> {
     )?)
 }
 
+/// Keep an alternate node's push cursor separate from the configured origin.
+/// `--remote` is a one-command override, not a change to the wallet's origin.
+fn push_ref(remote: &str, store: &ContractStore) -> Result<String> {
+    let config = store.load_config()?;
+    if config.get_remote(REMOTE).is_some_and(|r| r.url == remote) {
+        Ok(REMOTE.to_string())
+    } else {
+        Ok(format!(
+            "wallet-node-{}",
+            hex::encode(Sha256::digest(remote.as_bytes()))
+        ))
+    }
+}
+
 /// Push every commit of `store` that `remote` has not taken. Returns their ids.
 async fn push_to(remote: &str, store: &ContractStore) -> Result<Vec<String>> {
-    let unpushed = store.get_unpushed_commits(REMOTE)?;
+    let remote_ref = push_ref(remote, store)?;
+    let unpushed = store.get_unpushed_commits(&remote_ref)?;
     if unpushed.is_empty() {
         return Ok(unpushed);
     }
@@ -283,7 +299,7 @@ async fn push_to(remote: &str, store: &ContractStore) -> Result<Vec<String>> {
         bail!("{remote} refused the push: {:?}", response.errors);
     }
     if let Some(last) = unpushed.last() {
-        store.set_remote_head(REMOTE, last)?;
+        store.set_remote_head(&remote_ref, last)?;
     }
     Ok(unpushed)
 }
@@ -931,5 +947,37 @@ async fn await_sequenced(
             );
         }
         tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn override_remote_does_not_advance_origin_push_cursor() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = ContractStore::init(dir.path(), "wallet".to_string()).unwrap();
+        let mut config = store.load_config().unwrap();
+        config.add_remote(REMOTE.to_string(), "node-a".to_string());
+        store.save_config(&config).unwrap();
+
+        let genesis = CommitFile::new();
+        let genesis_id = genesis.compute_id().unwrap();
+        store.save_commit(&genesis_id, &genesis).unwrap();
+        store.set_head(&genesis_id).unwrap();
+
+        let override_ref = push_ref("node-b", &store).unwrap();
+        assert_ne!(override_ref, REMOTE);
+        store.set_remote_head(&override_ref, &genesis_id).unwrap();
+        assert!(store
+            .get_unpushed_commits(&override_ref)
+            .unwrap()
+            .is_empty());
+        assert_eq!(
+            store.get_unpushed_commits(REMOTE).unwrap(),
+            vec![genesis_id]
+        );
+        assert_eq!(push_ref("node-a", &store).unwrap(), REMOTE);
     }
 }
