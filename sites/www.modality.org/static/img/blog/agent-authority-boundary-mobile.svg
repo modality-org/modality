@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 765" role="img" aria-labelledby="title desc">
+  <title id="title">The boundary between an agent's choice and its authority</title>
+  <desc id="desc">An agent proposes an action. A verifiable agreement checks signatures, state, and rules. A valid commit is recorded; an invalid one leaves the contract state unchanged.</desc>
+  <defs><marker id="arrow" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M1 1 L7 4.5 L1 8" fill="none" stroke="#a8b7d8" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></marker></defs>
+  <rect x="1" y="1" width="398" height="763" rx="18" fill="#111827" stroke="#31405b" stroke-width="2"/>
+  <text x="25" y="38" fill="#8eabff" font-family="Inter,system-ui,sans-serif" font-size="13" font-weight="700" letter-spacing="1">01 / ENFORCEMENT BOUNDARY</text>
+  <text x="25" y="72" fill="#f6f8ff" font-family="Inter,system-ui,sans-serif" font-size="23" font-weight="750">Intelligence chooses.</text>
+  <text x="25" y="100" fill="#f6f8ff" font-family="Inter,system-ui,sans-serif" font-size="23" font-weight="750">Rules authorize.</text>
+  <path d="M200 197 V227" fill="none" stroke="#a8b7d8" stroke-width="2.5" marker-end="url(#arrow)"/>
+  <path d="M200 361 V378 H13 V443 H25" fill="none" stroke="#a8b7d8" stroke-width="2.5" marker-end="url(#arrow)"/>
+  <path d="M200 378 H387 V573 H375" fill="none" stroke="#a8b7d8" stroke-width="2.5" marker-end="url(#arrow)"/>
+  <rect x="25" y="126" width="350" height="71" rx="12" fill="#24365e" stroke="#6d90ef" stroke-width="2"/>
+  <text x="45" y="155" fill="#f6f8ff" font-family="Inter,system-ui,sans-serif" font-size="19" font-weight="700">Agent proposes an action</text>
+  <text x="45" y="179" fill="#c7d6fc" font-family="Inter,system-ui,sans-serif" font-size="14">A choice, not yet authorized</text>
+  <rect x="25" y="232" width="350" height="129" rx="12" fill="#1c2946" stroke="#98aaff" stroke-width="2"/>
+  <text x="45" y="264" fill="#f6f8ff" font-family="Inter,system-ui,sans-serif" font-size="20" font-weight="700">Verifiable agreement</text>
+  <text x="45" y="292" fill="#c7d6fc" font-family="Inter,system-ui,sans-serif" font-size="16">Checks signatures, state,</text>
+  <text x="45" y="317" fill="#c7d6fc" font-family="Inter,system-ui,sans-serif" font-size="16">and accumulated rules at</text>
+  <text x="45" y="342" fill="#c7d6fc" font-family="Inter,system-ui,sans-serif" font-size="16">the enforcement point</text>
+  <rect x="25" y="395" width="350" height="96" rx="12" fill="#183c3c" stroke="#5bd0ac" stroke-width="2"/>
+  <text x="45" y="429" fill="#94f3cc" font-family="Inter,system-ui,sans-serif" font-size="21" font-weight="750">ACCEPT</text>
+  <text x="45" y="461" fill="#e3fff3" font-family="Inter,system-ui,sans-serif" font-size="17">Record the valid commit</text>
+  <rect x="25" y="525" width="350" height="96" rx="12" fill="#452734" stroke="#ee91a9" stroke-width="2"/>
+  <text x="45" y="559" fill="#ffc0ce" font-family="Inter,system-ui,sans-serif" font-size="21" font-weight="750">REJECT</text>
+  <text x="45" y="591" fill="#ffe3e9" font-family="Inter,system-ui,sans-serif" font-size="17">No contract state change</text>
+  <text x="200" y="674" text-anchor="middle" fill="#aebbd3" font-family="Inter,system-ui,sans-serif" font-size="16">Only actions routed through</text>
+  <text x="200" y="697" text-anchor="middle" fill="#aebbd3" font-family="Inter,system-ui,sans-serif" font-size="16">this boundary are governed.</text>
+</svg>
