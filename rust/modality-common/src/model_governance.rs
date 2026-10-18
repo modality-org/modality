@@ -3070,9 +3070,41 @@ impl CommitFacts {
     }
 }
 
+/// Verdicts of `mined_header_holds`, by header, index and hash function.
+///
+/// Checking a mint replays the MOD contract's whole log, and each replayed
+/// mint grinds every one of its headers through RandomX again. At epoch 385
+/// that was about 15,000 RandomX hashes per mint, under the datastore lock,
+/// and the node answered nothing for minutes. The check is a pure function
+/// of its inputs, so each header is ground once per process.
+static MINED_HEADER_VERDICTS: std::sync::OnceLock<std::sync::Mutex<HashMap<String, bool>>> =
+    std::sync::OnceLock::new();
+
+/// Verdicts kept before the memo starts over.
+const MINED_HEADER_VERDICTS_MAX: usize = 1 << 20;
+
 /// A posted miner header's own proof: the fields `mined_headers` reads, its
 /// data hash, and its nonce ground against its mining data.
 fn mined_header_holds(header: &Value, index: u64, hash_func: &str) -> bool {
+    let key = format!("{index}|{hash_func}|{header}");
+    let memo = MINED_HEADER_VERDICTS.get_or_init(Default::default);
+    if let Some(verdict) = memo
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .get(&key)
+    {
+        return *verdict;
+    }
+    let verdict = mined_header_check(header, index, hash_func);
+    let mut verdicts = memo.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+    if verdicts.len() >= MINED_HEADER_VERDICTS_MAX {
+        verdicts.clear();
+    }
+    verdicts.insert(key, verdict);
+    verdict
+}
+
+fn mined_header_check(header: &Value, index: u64, hash_func: &str) -> bool {
     let text = |name: &str| header.get(name).and_then(Value::as_str);
     let big = |name: &str| match header.get(name) {
         Some(Value::String(s)) => s.parse::<u128>().ok(),
