@@ -602,7 +602,9 @@ impl Node {
                     return Ok(());
                 };
 
-                log::info!("{:?}", event);
+                // Every swarm event, pings and Identify included. At info this
+                // wrote tens of gigabytes a fortnight and filled a host's disk.
+                log::debug!("{:?}", event);
                 match event {
                     SwarmEvent::NewListenAddr { address, .. } => {
                         let address_with_p2p = address.clone().with(Protocol::P2p(peerid));
@@ -623,7 +625,7 @@ impl Node {
                         request_response::Message::Request {
                             request, channel, ..
                         } => {
-                            log::info!("reqres request");
+                            log::debug!("reqres request");
                             let admitted = match push_admission.lock() {
                                 Ok(mut gate) => gate.admit(
                                     &peer.to_string(),
@@ -716,7 +718,7 @@ impl Node {
                             message,
                         },
                     )) => {
-                        log::info!("Gossip received {:?}", message.topic.to_string());
+                        log::debug!("Gossip received {:?}", message.topic.to_string());
                         if message.topic.as_str() == gossip::miner::block::TOPIC
                             && !gossip::limits::admit_miner_block(propagation_source)
                         {
@@ -800,10 +802,10 @@ impl Node {
                         }
                     }
                     SwarmEvent::Behaviour(event) => {
-                        log::info!("SwarmEvent::Behaviour event {:?}", event);
+                        log::debug!("SwarmEvent::Behaviour event {:?}", event);
                     }
                     event => {
-                        log::info!("Other Node Event {:?}", event)
+                        log::debug!("Other Node Event {:?}", event)
                     }
                 }
             }
