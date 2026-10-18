@@ -64,8 +64,7 @@ const config: Config = {
           blogTitle: 'Modality Blog',
           blogDescription: 'Notes on verifiable contracts, formal verification, and agential cooperation',
           postsPerPage: 10,
-          blogSidebarTitle: 'Recent posts',
-          blogSidebarCount: 5,
+          blogSidebarCount: 0,
         },
         theme: {
           customCss: './src/css/custom.css',

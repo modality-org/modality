@@ -128,6 +128,188 @@ html:has(.homepage):not([data-theme='dark']) .footer {
   --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.3);
 }
 
+/* Blog: let the writing lead, with a quiet in-article table of contents. */
+html.blog-wrapper {
+  --blog-ink: #202438;
+  --blog-muted: #657088;
+  --blog-rule: #e4e8f2;
+  --blog-panel: #fff;
+  --ifm-background-color: #f8f9fd;
+}
+
+html.blog-wrapper[data-theme='dark'] {
+  --blog-ink: #f2f4ff;
+  --blog-muted: #a6aec3;
+  --blog-rule: #30364a;
+  --blog-panel: #151925;
+  --ifm-background-color: #0d101a;
+}
+
+html.blog-wrapper .main-wrapper > .container {
+  max-width: 1200px;
+  padding-top: clamp(2.25rem, 5vw, 4.75rem);
+  padding-bottom: 5rem;
+}
+
+html.blog-wrapper .main-wrapper .row > main {
+  min-width: 0;
+}
+
+html.blog-list-page .main-wrapper .row > main {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 0 1.5rem;
+  flex: 0 0 100%;
+}
+
+html.blog-post-page .main-wrapper .row > main {
+  max-width: 850px;
+  margin-left: auto;
+  padding: 0 2rem;
+}
+
+html.blog-wrapper article {
+  color: var(--blog-ink);
+}
+
+html.blog-wrapper article header h1,
+html.blog-wrapper article header h2 {
+  max-width: 18ch;
+  margin-bottom: 1.3rem;
+  font-size: clamp(2.35rem, 4.5vw, 4.25rem);
+  line-height: 1.08;
+  letter-spacing: -0.055em;
+  font-weight: 800;
+}
+
+html.blog-wrapper article header h1 a,
+html.blog-wrapper article header h2 a {
+  color: inherit;
+  text-decoration: none;
+}
+
+html.blog-wrapper article header h1 a:hover,
+html.blog-wrapper article header h2 a:hover {
+  color: var(--ifm-color-primary);
+}
+
+html.blog-wrapper article header time,
+html.blog-wrapper article header .margin-vert--md {
+  color: var(--blog-muted);
+  font-size: 0.85rem;
+  font-weight: 600;
+  letter-spacing: 0.015em;
+}
+
+html.blog-wrapper article .markdown {
+  font-size: 1.1rem;
+  line-height: 1.82;
+}
+
+html.blog-wrapper article .markdown p,
+html.blog-wrapper article .markdown ul,
+html.blog-wrapper article .markdown ol {
+  margin-bottom: 1.45em;
+}
+
+html.blog-wrapper article .markdown h2 {
+  margin-top: 2.65em;
+  padding-top: 0.55em;
+  border-top: 1px solid var(--blog-rule);
+  font-size: clamp(1.55rem, 2.4vw, 2rem);
+  letter-spacing: -0.035em;
+}
+
+html.blog-wrapper article .markdown h3 {
+  margin-top: 2em;
+  font-size: 1.32rem;
+  letter-spacing: -0.025em;
+}
+
+html.blog-wrapper article .markdown blockquote {
+  border-left: 3px solid var(--ifm-color-primary);
+  padding: 0.4rem 0 0.4rem 1.5rem;
+  color: var(--blog-muted);
+  font-size: 1.15em;
+}
+
+html.blog-wrapper article footer {
+  margin-top: 2.5rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--blog-rule);
+  font-size: 0.9rem;
+}
+
+html.blog-list-page article {
+  margin-bottom: 1.5rem;
+  padding: clamp(1.6rem, 3vw, 2.6rem);
+  border: 1px solid var(--blog-rule);
+  border-radius: 16px;
+  background: var(--blog-panel);
+  box-shadow: 0 10px 32px rgba(32, 42, 80, 0.035);
+}
+
+html.blog-list-page article header h2 {
+  max-width: 22ch;
+  font-size: clamp(1.8rem, 3.3vw, 2.7rem);
+}
+
+html.blog-list-page article .markdown {
+  color: var(--blog-muted);
+  font-size: 1rem;
+  line-height: 1.7;
+}
+
+html.blog-post-page article header {
+  margin-bottom: 2.4rem;
+  padding-bottom: 2rem;
+  border-bottom: 1px solid var(--blog-rule);
+}
+
+html.blog-post-page .table-of-contents {
+  position: sticky;
+  top: calc(var(--ifm-navbar-height) + 2rem);
+  padding-left: 1.25rem;
+  border-left: 1px solid var(--blog-rule);
+  font-size: 0.82rem;
+  line-height: 1.55;
+}
+
+html.blog-post-page .table-of-contents a {
+  color: var(--blog-muted);
+}
+
+html.blog-post-page .table-of-contents a:hover,
+html.blog-post-page .table-of-contents a.table-of-contents__link--active {
+  color: var(--ifm-color-primary);
+}
+
+@media (max-width: 996px) {
+  html.blog-post-page .main-wrapper .row > main {
+    margin: 0 auto;
+  }
+}
+
+@media (max-width: 600px) {
+  html.blog-wrapper .main-wrapper > .container {
+    padding-top: 1.7rem;
+  }
+
+  html.blog-list-page .main-wrapper .row > main,
+  html.blog-post-page .main-wrapper .row > main {
+    padding: 0 1.25rem;
+  }
+
+  html.blog-wrapper article .markdown {
+    font-size: 1rem;
+    line-height: 1.75;
+  }
+
+  html.blog-list-page article {
+    padding: 1.5rem;
+  }
+}
+
 /* Terminal output fences (`output`): keep copy on command (`bash`) blocks only. */
 .theme-code-block.language-output button[aria-label="Copy code to clipboard"],
 .theme-code-block.language-output button[aria-label="Copied"],
