@@ -2,8 +2,7 @@
 slug: why-modality
 title: "Why Modality: A World of AI Agents Needs Verifiable Agreements"
 description: "AI gives agents the ability to act. Modality gives them a way to cooperate under verifiable agreements."
-authors:
-  - name: Denim
+authors: [modality-team]
 tags: [agents, contracts, modality, formal-verification]
 ---
 

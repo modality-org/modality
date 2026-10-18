@@ -3,8 +3,8 @@
   <desc id="desc">The Modality site's Coptic mu logo and wordmark on its dark navy field, with blue branching paths representing possible moves under a verifiable agreement.</desc>
   <rect width="1200" height="630" fill="#0a0a0f"/>
   <path d="M0 589 H1200" stroke="#292c3e" stroke-width="2"/>
-  <rect x="70" y="67" width="104" height="104" rx="22" fill="#171b2d" stroke="#4a6aef" stroke-width="2"/>
-  <image x="76" y="73" width="92" height="92" xlink:href="logo-dark.svg"/>
+  <rect x="70" y="67" width="104" height="104" rx="22" fill="#e4e4ea" stroke="#8aa3ff" stroke-width="2"/>
+  <image x="76" y="73" width="92" height="92" xlink:href="logo.svg"/>
   <text x="199" y="145" fill="#ffffff" font-family="Inter,Arial,sans-serif" font-size="60" font-weight="700" letter-spacing="-3">Modality</text>
   <text x="73" y="305" fill="#ffffff" font-family="Inter,Arial,sans-serif" font-size="66" font-weight="750" letter-spacing="-3">Formally verified.</text>
   <text x="73" y="388" fill="#8aa3ff" font-family="Inter,Arial,sans-serif" font-size="66" font-weight="750" letter-spacing="-3">Built to scale.</text>
