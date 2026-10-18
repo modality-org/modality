@@ -25,6 +25,14 @@ Today, we manage these risks through a combination of prompts, permissions, poli
 
 This challenge goes beyond cooperation. It touches on one of the fundamental problems of AI: alignment. How do we ensure that increasingly autonomous systems act within the intentions and boundaries established by humans? While we may not be able to predict every decision an AI agent makes, we can define and verify the rules governing what it is authorized to do. By separating an agent’s intelligence from its authority, we can make autonomous behavior more controllable without needing to make the underlying intelligence infallible.
 
+<figure className="blog-figure">
+  <picture>
+    <source media="(max-width: 600px)" srcSet="/img/blog/agent-authority-boundary-mobile.svg" />
+    <img src="/img/blog/agent-authority-boundary.svg" alt="An agent proposes an action. A verifiable agreement checks signatures, state, and rules; valid commits are recorded, while invalid ones leave contract state unchanged." loading="lazy" width="760" height="620" />
+  </picture>
+  <figcaption>An agent may choose an action, but only the agreement can authorize a change. This protection applies only where actions actually pass through the verifier.</figcaption>
+</figure>
+
 The [July 2026 Hugging Face security incident](https://openai.com/index/hugging-face-incident-and-the-road-ahead/) demonstrated what can happen when autonomous AI agents operate beyond their intended boundaries. During OpenAI’s internal testing, agents circumvented restrictions, exploited vulnerabilities, and accessed systems they were not authorized to reach. Modality could help address this class of risk by making permitted actions explicit and independently verifiable, with enforcement at critical execution points. While formal verification cannot eliminate every vulnerability or solve AI alignment entirely, it could provide an important safeguard: even when agents behave unpredictably, their authority remains constrained by verifiable rules at those enforcement points. This is a proposed application, not evidence that Modality would have prevented that incident; actions outside the enforcement path remain outside its guarantees.
 
 Consider two companies whose AI agents negotiate a purchase. One agent agrees to a price and delivery schedule, while the other confirms payment conditions. Both organizations may operate different systems, apply different policies, and interpret parts of the agreement differently. Who ensures that subsequent actions follow the agreed terms? What happens when one agent changes its behavior, a workflow is updated, or an unexpected situation arises? Today, answering these questions often requires intermediaries, manual reconciliation, or trusting another organization’s infrastructure.
@@ -54,6 +62,14 @@ This illustrates a fundamental principle: AI agents can remain autonomous withou
 With Modality, participants can express the agreement as explicit, checkable rules. When the agent proposes an action, the system evaluates whether it is permitted under the agreement. If the action complies, it can be accepted and recorded; if it violates the rules, the enforcing system rejects it. The agent may request an amendment, but it cannot unilaterally change the terms of the agreement.
 
 The same principle applies when multiple agents or organizations interact. Modality is designed to maintain a shared, verifiable history of accepted actions through signed commits, allowing participants to independently inspect what happened. Its rules are expressed in a language that different parties can evaluate themselves, rather than relying on a central authority to interpret them. Invalid actions are rejected within the agreement’s enforcement process, while previously established rules remain binding. An authorized amendment must satisfy the accumulated rules; it cannot simply erase an earlier commitment.
+
+<figure className="blog-figure">
+  <picture>
+    <source media="(max-width: 600px)" srcSet="/img/blog/independent-verification-mobile.svg" />
+    <img src="/img/blog/independent-verification.svg" alt="Two participants each replay the same signed contract history and independently check its model, accumulated rules, and accepted state." loading="lazy" width="760" height="610" />
+  </picture>
+  <figcaption>Each participant can check the same signed history for itself, given the same contract and validation rules. The diagram does not claim to verify facts outside that history.</figcaption>
+</figure>
 
 Together, these capabilities create a foundation for cooperation that is more transparent, predictable, and independently verifiable, even when the participants do not fully trust one another.
 

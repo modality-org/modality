@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 765" role="img" aria-labelledby="title desc">
+  <title id="title">Two participants independently verify the same agreement</title>
+  <desc id="desc">Each participant receives the same model, rules, and signed commit history, replays it independently, and checks the accepted contract state.</desc>
+  <defs><marker id="arrow" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M1 1 L7 4.5 L1 8" fill="none" stroke="#a8b7d8" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></marker></defs>
+  <rect x="1" y="1" width="398" height="763" rx="18" fill="#111827" stroke="#31405b" stroke-width="2"/>
+  <text x="25" y="38" fill="#8eabff" font-family="Inter,system-ui,sans-serif" font-size="13" font-weight="700" letter-spacing="1">02 / INDEPENDENT CHECKS</text>
+  <text x="25" y="72" fill="#f6f8ff" font-family="Inter,system-ui,sans-serif" font-size="23" font-weight="750">One agreement.</text>
+  <text x="25" y="100" fill="#f6f8ff" font-family="Inter,system-ui,sans-serif" font-size="23" font-weight="750">Two verifiers.</text>
+  <path d="M80 228 V247 H13 V336 H25" fill="none" stroke="#a8b7d8" stroke-width="2.5" marker-end="url(#arrow)"/>
+  <path d="M320 228 V247 H387 V515 H375" fill="none" stroke="#a8b7d8" stroke-width="2.5" marker-end="url(#arrow)"/>
+  <rect x="25" y="126" width="350" height="102" rx="12" fill="#24365e" stroke="#6d90ef" stroke-width="2"/>
+  <text x="45" y="159" fill="#f6f8ff" font-family="Inter,system-ui,sans-serif" font-size="19" font-weight="700">Shared contract and history</text>
+  <text x="45" y="188" fill="#c7d6fc" font-family="Inter,system-ui,sans-serif" font-size="15">Model · accumulated rules</text>
+  <text x="45" y="211" fill="#c7d6fc" font-family="Inter,system-ui,sans-serif" font-size="15">· signed commits</text>
+  <rect x="25" y="264" width="350" height="145" rx="12" fill="#1b3547" stroke="#64c4e4" stroke-width="2"/>
+  <text x="45" y="299" fill="#a3e9ff" font-family="Inter,system-ui,sans-serif" font-size="20" font-weight="750">PARTICIPANT A</text>
+  <text x="45" y="330" fill="#effbff" font-family="Inter,system-ui,sans-serif" font-size="16">Replays commits locally</text>
+  <text x="45" y="358" fill="#effbff" font-family="Inter,system-ui,sans-serif" font-size="16">Checks rules and signatures</text>
+  <text x="45" y="387" fill="#a3e9ff" font-family="Inter,system-ui,sans-serif" font-size="16" font-weight="700">Computes accepted state</text>
+  <rect x="25" y="443" width="350" height="145" rx="12" fill="#322d4b" stroke="#b9a1f8" stroke-width="2"/>
+  <text x="45" y="478" fill="#d8caff" font-family="Inter,system-ui,sans-serif" font-size="20" font-weight="750">PARTICIPANT B</text>
+  <text x="45" y="509" fill="#f7f2ff" font-family="Inter,system-ui,sans-serif" font-size="16">Replays commits locally</text>
+  <text x="45" y="537" fill="#f7f2ff" font-family="Inter,system-ui,sans-serif" font-size="16">Checks rules and signatures</text>
+  <text x="45" y="566" fill="#d8caff" font-family="Inter,system-ui,sans-serif" font-size="16" font-weight="700">Computes accepted state</text>
+  <text x="200" y="646" text-anchor="middle" fill="#e8eeff" font-family="Inter,system-ui,sans-serif" font-size="16" font-weight="700">No trust in the other's runtime.</text>
+  <text x="200" y="679" text-anchor="middle" fill="#aebbd3" font-family="Inter,system-ui,sans-serif" font-size="14">Same inputs and validation rules</text>
+  <text x="200" y="701" text-anchor="middle" fill="#aebbd3" font-family="Inter,system-ui,sans-serif" font-size="14">are required for the same result.</text>
+</svg>

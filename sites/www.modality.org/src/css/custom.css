@@ -266,6 +266,24 @@ html.blog-post-page article header {
   border-bottom: 1px solid var(--blog-rule);
 }
 
+html.blog-post-page .blog-figure {
+  margin: 2.75rem 0 3.25rem;
+}
+
+html.blog-post-page .blog-figure img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 18px;
+}
+
+html.blog-post-page .blog-figure figcaption {
+  margin-top: 0.8rem;
+  color: var(--blog-muted);
+  font-size: 0.88rem;
+  line-height: 1.55;
+}
+
 html.blog-post-page .table-of-contents {
   position: sticky;
   top: calc(var(--ifm-navbar-height) + 2rem);

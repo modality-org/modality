@@ -1,27 +1,27 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width="1200" height="630">
-  <!-- Background -->
-  <rect width="1200" height="630" fill="#000000"/>
-  
-  <!-- Coptic Mu -->
-  <text x="600" y="300" 
-        font-family="serif" 
-        font-size="200" 
-        font-weight="bold"
-        fill="#ffffff" 
-        text-anchor="middle">ⲙ</text>
-  
-  <!-- Title -->
-  <text x="600" y="420" 
-        font-family="system-ui, sans-serif" 
-        font-size="72" 
-        font-weight="bold"
-        fill="white" 
-        text-anchor="middle">Modality</text>
-  
-  <!-- Tagline -->
-  <text x="600" y="490" 
-        font-family="system-ui, sans-serif" 
-        font-size="32" 
-        fill="#888888" 
-        text-anchor="middle">A verification language for AI agent cooperation</text>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 1200 630" width="1200" height="630" role="img" aria-labelledby="title desc">
+  <title id="title">Modality — Formally verified. Built to scale.</title>
+  <desc id="desc">The Modality site's Coptic mu logo and wordmark on its dark navy field, with blue branching paths representing possible moves under a verifiable agreement.</desc>
+  <rect width="1200" height="630" fill="#0a0a0f"/>
+  <path d="M0 589 H1200" stroke="#292c3e" stroke-width="2"/>
+  <rect x="70" y="67" width="104" height="104" rx="22" fill="#171b2d" stroke="#4a6aef" stroke-width="2"/>
+  <image x="76" y="73" width="92" height="92" xlink:href="logo-dark.svg"/>
+  <text x="199" y="145" fill="#ffffff" font-family="Inter,Arial,sans-serif" font-size="60" font-weight="700" letter-spacing="-3">Modality</text>
+  <text x="73" y="305" fill="#ffffff" font-family="Inter,Arial,sans-serif" font-size="66" font-weight="750" letter-spacing="-3">Formally verified.</text>
+  <text x="73" y="388" fill="#8aa3ff" font-family="Inter,Arial,sans-serif" font-size="66" font-weight="750" letter-spacing="-3">Built to scale.</text>
+  <text x="76" y="465" fill="#d5d9e8" font-family="Inter,Arial,sans-serif" font-size="26">A language for verifiable cooperation.</text>
+  <text x="75" y="553" fill="#9ba5bd" font-family="Inter,Arial,sans-serif" font-size="22" font-weight="600" letter-spacing="1">MODALITY.ORG</text>
+  <g fill="none" stroke="#4a6aef" stroke-width="3" opacity="0.85">
+    <path d="M800 287 H875 L918 232 H1033"/>
+    <path d="M875 287 L932 337 H1082"/>
+    <path d="M918 232 L978 169 H1100"/>
+    <path d="M932 337 L992 417 H1100"/>
+  </g>
+  <g fill="#0a0a0f" stroke="#8aa3ff" stroke-width="4">
+    <circle cx="800" cy="287" r="12"/>
+    <circle cx="918" cy="232" r="12"/>
+    <circle cx="932" cy="337" r="12"/>
+    <circle cx="1100" cy="169" r="12"/>
+    <circle cx="1100" cy="417" r="12"/>
+  </g>
+  <circle cx="1082" cy="337" r="13" fill="#8aa3ff"/>
 </svg>
