@@ -65,9 +65,69 @@ pub fn start_promotion_task(datastore: Arc<Mutex<DatastoreManager>>, shutdown: A
                     log::warn!("Block purge task failed: {}", e);
                 }
             }
+
+            // Drop blocks under the sequenced prefix that can never be canonical
+            {
+                let mgr_lock = datastore.lock().await;
+                if let Err(e) = prune_under_sequenced_prefix(&mgr_lock).await {
+                    log::warn!("Pruning under the sequenced prefix failed: {}", e);
+                }
+            }
         }
         log::info!("🗃️  Block promotion/purge background task stopped");
     });
+}
+
+/// Epochs kept under the checkpoint floor before blocks there are pruned.
+const PRUNE_MARGIN_EPOCHS: u64 = 2;
+
+/// Delete stored blocks that are not canonical and sit at least
+/// `PRUNE_MARGIN_EPOCHS` under the latest sequencer checkpoint.
+///
+/// Fork choice refuses any chain that leaves the canonical chain at or
+/// under that checkpoint, so such a block can never become canonical. Kept,
+/// it stays in the store and in every pass over it; parked and orphaned
+/// blocks were never deleted, so the store grew with every fork any peer
+/// sent. Nothing is pruned unless the canonical chain links to genesis with
+/// every target met, which is when the checkpoint guard applies.
+pub async fn prune_under_sequenced_prefix(mgr: &DatastoreManager) -> anyhow::Result<usize> {
+    use modality_datastore::models::miner::MinerCheckpoint;
+    let Some(floor) = MinerCheckpoint::find_latest_multi(mgr)
+        .await?
+        .map(|checkpoint| checkpoint.last_block_index)
+    else {
+        return Ok(0);
+    };
+    let margin = PRUNE_MARGIN_EPOCHS.saturating_mul(mgr.epoch_config().blocks_per_epoch);
+    let Some(below) = floor.checked_sub(margin) else {
+        return Ok(0);
+    };
+    let params = crate::chain::tree_choice::retarget_params(mgr);
+    let anchored = crate::chain::tree_choice::with_synced_tree(mgr, params, |tree| {
+        tree.canonical_best().is_some_and(|(_, work)| work.proofs_ok)
+    })?;
+    if !anchored {
+        return Ok(0);
+    }
+    let dead: Vec<MinerBlock> = mgr.with_miner_cache(|cache| {
+        cache
+            .effective_all()
+            .filter(|block| block.index <= below && (block.is_orphaned || !block.is_canonical))
+            .map(|block| (**block).clone())
+            .collect()
+    })?;
+    let orphaned = MinerBlock::prune_orphaned_before_checkpoint_multi(mgr, below).await?;
+    let mut parked = 0usize;
+    for block in dead.iter().filter(|block| !block.is_orphaned) {
+        block.delete_from_active(mgr).await?;
+        parked += 1;
+    }
+    if parked > 0 {
+        log::info!(
+            "🗑️  Pruned {parked} non-canonical blocks at or under index {below} (checkpoint {floor})"
+        );
+    }
+    Ok(orphaned + parked)
 }
 
 /// Validate and cleanup local chain.
@@ -98,10 +158,16 @@ pub async fn validate_and_cleanup_chain(
             log::warn!("⚠️  Missing genesis block during chain validation");
             chain_is_valid = false;
         } else {
-            // Validate chain continuity
+            // Validate chain continuity. The first block listed at each index
+            // is the one checked, as a search of the list would find it.
+            let mut by_index: std::collections::HashMap<u64, &MinerBlock> =
+                std::collections::HashMap::with_capacity(all_blocks.len());
+            for block in &all_blocks {
+                by_index.entry(block.index).or_insert(block);
+            }
             for i in 1..=max_index {
-                if let Some(block) = all_blocks.iter().find(|b| b.index == i) {
-                    if let Some(prev_block) = all_blocks.iter().find(|b| b.index == i - 1) {
+                if let Some(block) = by_index.get(&i) {
+                    if let Some(prev_block) = by_index.get(&(i - 1)) {
                         if block.previous_hash != prev_block.hash {
                             chain_is_valid = false;
                             break;
@@ -268,6 +334,63 @@ pub async fn sync_missing_blocks(
             Err(e) => {
                 log::warn!("Failed to sync blocks: {:?}", e);
             }
+        }
+    }
+}
+
+#[cfg(test)]
+mod prune_tests {
+    use super::*;
+    use modality_datastore::models::miner::MinerCheckpoint;
+
+    fn block(hash: &str, index: u64, previous: &str, canonical: bool) -> MinerBlock {
+        let mut block = MinerBlock::new_canonical(
+            hash.to_string(),
+            index,
+            index / 4,
+            1_700_000_000 + index as i64,
+            previous.to_string(),
+            "data".to_string(),
+            1,
+            1000,
+            "peer".to_string(),
+            1,
+        );
+        block.actualized_difficulty = "2000".to_string();
+        block.is_canonical = canonical;
+        block
+    }
+
+    #[tokio::test]
+    async fn only_dead_blocks_under_the_margin_are_pruned() {
+        let mut mgr = DatastoreManager::create_in_memory().unwrap();
+        mgr.set_blocks_per_epoch(4);
+        let mut previous = "".to_string();
+        for index in 0..30u64 {
+            let hash = format!("c{index:02}");
+            block(&hash, index, &previous, true).save_to_active(&mgr).await.unwrap();
+            previous = hash;
+        }
+        // A competing block and an orphan deep under the floor, and a
+        // competing block inside the margin.
+        block("deep_fork", 3, "c02", false).save_to_active(&mgr).await.unwrap();
+        let mut orphan = block("deep_orphan", 5, "c04", false);
+        orphan.mark_as_orphaned("test".to_string(), None);
+        orphan.save_to_active(&mgr).await.unwrap();
+        block("near_fork", 18, "c17", false).save_to_active(&mgr).await.unwrap();
+        MinerCheckpoint::new_manual(5, 20, "c20".to_string(), String::new(), 21, None)
+            .save_to_canon(&mgr)
+            .await
+            .unwrap();
+
+        let pruned = prune_under_sequenced_prefix(&mgr).await.unwrap();
+        assert_eq!(pruned, 2);
+        for (hash, kept) in [("deep_fork", false), ("deep_orphan", false), ("near_fork", true), ("c03", true)] {
+            assert_eq!(
+                MinerBlock::find_by_hash_multi(&mgr, hash).await.unwrap().is_some(),
+                kept,
+                "{hash}"
+            );
         }
     }
 }

@@ -9,6 +9,7 @@
 pub mod fork_choice;
 pub mod metrics;
 pub mod reorg;
+pub mod tree_choice;
 
 // Re-export commonly used items
 pub use fork_choice::{choose_chain, compare_chains, ChainComparison, ForkChoiceResult};

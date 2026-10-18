@@ -157,33 +157,8 @@ pub async fn handler(
 
                 drop(mgr);
 
-                // Send sync request via channel if available
-                if let Some(ref tx) = sync_request_tx {
-                    if let Some(peer_id) = source_peer {
-                        let peer_addr = bootstrappers.iter()
-                            .find(|addr| {
-                                addr.iter().any(|proto| matches!(proto, libp2p::multiaddr::Protocol::P2p(id) if id == peer_id))
-                            })
-                            .map(|addr| addr.to_string());
-
-                        if let Some(addr) = peer_addr {
-                            let delay_ms = 100 + (rand::random::<u64>() % 400);
-                            tokio::time::sleep(tokio::time::Duration::from_millis(delay_ms)).await;
-
-                            log::info!("📡 Orphan detected from peer {} - requesting chain sync (after {}ms delay)", peer_id, delay_ms);
-                            if let Err(e) = tx.send((peer_id, addr)) {
-                                log::warn!("Failed to send sync request: {}", e);
-                            }
-                        } else {
-                            log::warn!(
-                                "Could not find address for peer {} in bootstrappers",
-                                peer_id
-                            );
-                        }
-                    }
-                } else {
-                    log::debug!("Sync request channel not initialized yet");
-                }
+                evict_past_parked_caps(&datastore_manager, source_peer, &miner_block.hash).await;
+                request_parents(sync_request_tx.as_ref(), source_peer, &bootstrappers).await;
 
                 return Ok(());
             }
@@ -207,15 +182,13 @@ pub async fn handler(
                     return Ok(());
                 }
 
-                let stored = MinerBlock::find_all_blocks_multi(&mgr).await?;
-                let params = crate::chain::fork_choice::RetargetParams {
-                    blocks_per_epoch: mgr.epoch_config().blocks_per_epoch,
-                    target_block_time_secs: mgr.network_u64("target_block_time_secs").unwrap_or(60),
-                    initial_difficulty: mgr
-                        .network_u64("initial_difficulty")
-                        .map(|value| value as u128),
-                };
-                if crate::chain::fork_choice::check_expected_target(&miner_block, &stored, params)
+                let params = crate::chain::tree_choice::retarget_params(&mgr);
+                if crate::chain::tree_choice::check_target_against_store(
+                    &mgr,
+                    &miner_block,
+                    params,
+                    crate::chain::tree_choice::Ancestors::Stored,
+                )?
                     == crate::chain::fork_choice::TargetCheck::Reject
                 {
                     log::warn!(
@@ -273,17 +246,34 @@ pub async fn handler(
         competing.is_canonical = false;
         competing.is_orphaned = false;
         competing.save_to_active(&mgr).await?;
-        log::info!(
-            "Stored block {} at index {} and scoring stored forks",
-            &miner_block.hash[..16.min(miner_block.hash.len())],
-            miner_block.index
-        );
-        crate::chain::reorg::select_best_stored_chain(&mgr).await?;
-        crate::chain::reorg::adopt_connected_extensions(&mgr).await?;
-        MinerBlock::verified_spine(&MinerBlock::find_all_canonical_multi(&mgr).await?)
-            .into_iter()
-            .last()
-            .map(|block| block.index)
+        let params = crate::chain::tree_choice::retarget_params(&mgr);
+        let off_linked_walk = crate::chain::tree_choice::with_synced_tree(&mgr, params, |tree| {
+            tree.best().is_some() && tree.linked(&miner_block.hash).is_none()
+        })?;
+        let short_hash = &miner_block.hash[..16.min(miner_block.hash.len())];
+        if off_linked_walk {
+            // A block whose walk does not reach index 0 changes no spine and
+            // no branch tip, so there is nothing to score until its parents
+            // arrive (fork-choice "score only after the walk connects"). A
+            // node with no linked walk at all still scores: its spine is the
+            // longest linked run.
+            log::info!(
+                "Stored block {short_hash} at index {} off any linked walk; not scoring",
+                miner_block.index
+            );
+            drop(mgr);
+            evict_past_parked_caps(&datastore_manager, source_peer, &miner_block.hash).await;
+            request_parents(sync_request_tx.as_ref(), source_peer, &bootstrappers).await;
+            None
+        } else {
+            log::info!(
+                "Stored block {short_hash} at index {} and scoring stored forks",
+                miner_block.index
+            );
+            crate::chain::reorg::select_best_stored_chain(&mgr).await?;
+            crate::chain::reorg::adopt_connected_extensions(&mgr).await?;
+            crate::chain::reorg::canonical_tip_index(&mgr).await?
+        }
     };
 
     if let Some(tip) = current_tip {
@@ -297,6 +287,81 @@ pub async fn handler(
     }
 
     Ok(())
+}
+
+/// Ask the block's author for the parents this node is missing.
+///
+/// A bootstrapper is reached by its configured address; any other author
+/// by its peer id, since it just published to this node's mesh. Asking only
+/// bootstrappers left a non-bootstrap miner's chain parked for good
+/// (fork-choice "parent-hash sync", step 2).
+async fn request_parents(
+    sync_request_tx: Option<&tokio::sync::mpsc::UnboundedSender<(libp2p::PeerId, String)>>,
+    source_peer: Option<libp2p::PeerId>,
+    bootstrappers: &[libp2p::Multiaddr],
+) {
+    let (Some(tx), Some(peer_id)) = (sync_request_tx, source_peer) else {
+        log::debug!("No sync channel or no block author; not requesting parents");
+        return;
+    };
+    let peer_addr = bootstrappers
+        .iter()
+        .find(|addr| {
+            addr.iter()
+                .any(|proto| matches!(proto, libp2p::multiaddr::Protocol::P2p(id) if id == peer_id))
+        })
+        .map(|addr| addr.to_string())
+        .unwrap_or_else(|| format!("/p2p/{peer_id}"));
+    let delay_ms = 100 + (rand::random::<u64>() % 400);
+    tokio::time::sleep(tokio::time::Duration::from_millis(delay_ms)).await;
+    log::info!(
+        "📡 Unlinked block from peer {peer_id} - requesting chain sync (after {delay_ms}ms delay)"
+    );
+    if let Err(e) = tx.send((peer_id, peer_addr)) {
+        log::warn!("Failed to send sync request: {}", e);
+    }
+}
+
+/// Record a parked block against its author, and drop the oldest parked
+/// blocks past the per-author and total caps if they are still off every
+/// linked walk.
+async fn evict_past_parked_caps(
+    datastore_manager: &Arc<Mutex<DatastoreManager>>,
+    source_peer: Option<libp2p::PeerId>,
+    hash: &str,
+) {
+    let author = source_peer
+        .map(|peer| peer.to_string())
+        .unwrap_or_else(|| "unknown".to_string());
+    let evict = crate::gossip::limits::parked_ledger().record(&author, hash);
+    if evict.is_empty() {
+        return;
+    }
+    let mgr = datastore_manager.lock().await;
+    let params = crate::chain::tree_choice::retarget_params(&mgr);
+    let Ok(still_parked) = crate::chain::tree_choice::with_synced_tree(&mgr, params, |tree| {
+        evict
+            .iter()
+            .filter(|hash| {
+                tree.linked(hash).is_none()
+                    && tree.node(hash).is_some_and(|block| !block.is_canonical)
+            })
+            .filter_map(|hash| tree.node(hash).map(|block| (**block).clone()))
+            .collect::<Vec<_>>()
+    }) else {
+        return;
+    };
+    for block in &still_parked {
+        if let Err(e) = block.delete_from_active(&mgr).await {
+            log::warn!("Failed to drop parked block {}: {e}", block.hash);
+        }
+    }
+    if !still_parked.is_empty() {
+        log::info!(
+            "Dropped {} parked block(s) from {author} past the parked-block caps",
+            still_parked.len()
+        );
+    }
 }
 
 #[cfg(test)]

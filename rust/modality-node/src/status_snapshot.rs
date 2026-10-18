@@ -97,6 +97,10 @@ pub struct NodeStatus {
     /// The base price, in parts per thousand of the network's gas price, this
     /// node's next block would state; `None` where gas is not priced.
     pub gas_base_permille: Option<u64>,
+    /// Seconds since this snapshot was taken. Status is served without
+    /// waiting on the node, so a large age means the node is not
+    /// releasing its datastore.
+    pub snapshot_age_secs: u64,
 }
 
 /// The MOD this node's id holds, and the mint sends to it not yet received.
@@ -315,30 +319,98 @@ pub fn derive_active_roles(
 }
 
 /// A snapshot scans the whole miner chain under the datastore lock, which the
-/// Shoal loop needs for every draft. Viewers polling status share one snapshot.
-const STATUS_SNAPSHOT_TTL: Duration = Duration::from_secs(10);
+/// Shoal loop needs for every draft. Viewers polling status share one
+/// snapshot, retaken this often in the background.
+const STATUS_REFRESH_INTERVAL: Duration = Duration::from_secs(5);
 
-type StatusCache = Mutex<HashMap<String, (Instant, NodeStatus)>>;
+/// How long a request waits for the first snapshot a node has ever taken.
+/// After that, a request never waits on the datastore: it gets the last
+/// snapshot and its age.
+const STATUS_FIRST_SNAPSHOT_WAIT: Duration = Duration::from_secs(5);
+
+#[derive(Default)]
+struct StatusSlot {
+    latest: Option<(Instant, NodeStatus)>,
+    refresher_running: bool,
+}
+
+type StatusCache = std::sync::Mutex<HashMap<String, StatusSlot>>;
 type CommitteeCache = std::sync::Mutex<HashMap<(String, u64), Vec<String>>>;
 
 static STATUS_CACHE: OnceLock<StatusCache> = OnceLock::new();
+static STATUS_REFRESHED: OnceLock<tokio::sync::Notify> = OnceLock::new();
 static COMMITTEE_CACHE: OnceLock<CommitteeCache> = OnceLock::new();
 
-/// Collect a status snapshot, reusing one taken in the last few seconds.
+fn status_cache() -> std::sync::MutexGuard<'static, HashMap<String, StatusSlot>> {
+    STATUS_CACHE
+        .get_or_init(|| std::sync::Mutex::new(HashMap::new()))
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+}
+
+fn status_refreshed() -> &'static tokio::sync::Notify {
+    STATUS_REFRESHED.get_or_init(tokio::sync::Notify::new)
+}
+
+/// The last snapshot for `key`, aged to now, and whether the background
+/// refresher still has to be started.
+fn cached_status(key: &str) -> (Option<NodeStatus>, bool) {
+    let mut cache = status_cache();
+    let slot = cache.entry(key.to_string()).or_default();
+    let start_refresh = !slot.refresher_running;
+    slot.refresher_running = true;
+    let status = slot.latest.as_ref().map(|(taken, status)| {
+        let mut status = status.clone();
+        status.snapshot_age_secs = taken.elapsed().as_secs();
+        status
+    });
+    (status, start_refresh)
+}
+
+/// Retake the snapshot for `key` every `STATUS_REFRESH_INTERVAL`, for the
+/// life of the process. One refresher runs per node.
+fn spawn_status_refresh(source: &NodeStatusSource, key: String) {
+    let source = source.clone();
+    tokio::spawn(async move {
+        loop {
+            match collect_node_status_uncached(&source).await {
+                Ok(status) => {
+                    status_cache().entry(key.clone()).or_default().latest =
+                        Some((Instant::now(), status));
+                }
+                Err(e) => log::warn!("Status snapshot failed: {e}"),
+            }
+            status_refreshed().notify_waiters();
+            tokio::time::sleep(STATUS_REFRESH_INTERVAL).await;
+        }
+    });
+}
+
+/// Collect a status snapshot without waiting on the node.
+///
+/// The first request starts a background refresher that retakes the
+/// snapshot every few seconds; every request gets the latest one with its
+/// age in `snapshot_age_secs`. A node whose datastore is held for minutes
+/// keeps answering, and the growing age is what shows it is wedged. Only
+/// the first snapshot is waited for, and only for a few seconds.
 pub async fn collect_node_status(source: &NodeStatusSource) -> anyhow::Result<NodeStatus> {
     let key = source.peerid.to_string();
-    let mut cache = STATUS_CACHE
-        .get_or_init(|| Mutex::new(HashMap::new()))
-        .lock()
-        .await;
-    if let Some((taken, status)) = cache.get(&key) {
-        if taken.elapsed() < STATUS_SNAPSHOT_TTL {
-            return Ok(status.clone());
+    let deadline = tokio::time::Instant::now() + STATUS_FIRST_SNAPSHOT_WAIT;
+    loop {
+        let refreshed = status_refreshed().notified();
+        tokio::pin!(refreshed);
+        refreshed.as_mut().enable();
+        let (status, start_refresh) = cached_status(&key);
+        if start_refresh {
+            spawn_status_refresh(source, key.clone());
+        }
+        if let Some(status) = status {
+            return Ok(status);
+        }
+        if tokio::time::timeout_at(deadline, refreshed).await.is_err() {
+            anyhow::bail!("no status snapshot yet; the node has not released its datastore");
         }
     }
-    let status = collect_node_status_uncached(source).await?;
-    cache.insert(key, (Instant::now(), status.clone()));
-    Ok(status)
 }
 
 /// The N−2 committee for `epoch`. It is fixed once the epoch opens.
@@ -545,6 +617,7 @@ async fn collect_node_status_uncached(source: &NodeStatusSource) -> anyhow::Resu
         last_cert_round_by_author,
         mod_holdings,
         gas_base_permille,
+        snapshot_age_secs: 0,
     })
 }
 
@@ -825,6 +898,7 @@ pub(crate) fn sample_status() -> NodeStatus {
         last_cert_round_by_author: vec![],
         mod_holdings: ModHoldings::default(),
         gas_base_permille: None,
+        snapshot_age_secs: 0,
     }
 }
 
