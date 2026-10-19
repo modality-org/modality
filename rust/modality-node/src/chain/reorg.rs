@@ -527,13 +527,70 @@ pub async fn store_peer_batch(mgr: &DatastoreManager, peer_blocks: &[MinerBlock]
     Ok(adopted + usize::from(switched))
 }
 
-/// A refused parked run that forks this many epochs under the local tip
-/// is archived instead of being scored on every pass.
-const STALE_FORK_EPOCHS: u64 = 2;
+use crate::chain::tree_choice::STALE_FORK_EPOCHS;
+
+/// Rounds of adoption one call makes before it stops. Each adoption changes
+/// the canonical chain, so the branch tips are decided again after it.
+const ADOPTION_ROUNDS: usize = 64;
+
+/// Index of the canonical spine's tip, as `verified_spine` of the canonical
+/// set reports it.
+pub async fn canonical_tip_index(mgr: &DatastoreManager) -> Result<Option<u64>> {
+    use crate::chain::tree_choice::{retarget_params, with_synced_tree};
+    let params = retarget_params(mgr);
+    let tip = with_synced_tree(mgr, params, |tree| {
+        tree.canonical_best().map(|(block, _)| block.index)
+    })?;
+    if tip.is_some() {
+        return Ok(tip);
+    }
+    Ok(
+        MinerBlock::verified_spine(&MinerBlock::find_all_canonical_multi(mgr).await?)
+            .last()
+            .map(|block| block.index),
+    )
+}
+
+/// The last miner index the sequencers have committed.
+async fn checkpoint_floor(mgr: &DatastoreManager) -> Option<u64> {
+    use modality_datastore::models::miner::MinerCheckpoint;
+    MinerCheckpoint::find_latest_multi(mgr)
+        .await
+        .ok()
+        .flatten()
+        .map(|checkpoint| checkpoint.last_block_index)
+}
 
 /// Promote parked runs whose parent walk now reaches the canonical chain
 /// and whose verified work above that ancestor wins.
+///
+/// Decided on the miner tree; a case the tree cannot decide runs the full
+/// scan.
 pub async fn adopt_connected_extensions(mgr: &DatastoreManager) -> Result<usize> {
+    use crate::chain::tree_choice::{plan_adopt, retarget_params, with_synced_tree, Plan};
+    let params = retarget_params(mgr);
+    let floor = checkpoint_floor(mgr).await;
+    let mut adopted = 0usize;
+    for _ in 0..ADOPTION_ROUNDS {
+        let plan = with_synced_tree(mgr, params, |tree| {
+            plan_adopt(tree, floor, params.blocks_per_epoch)
+        })?;
+        match plan {
+            Plan::Scan => return Ok(adopted + adopt_connected_extensions_scan(mgr).await?),
+            Plan::Apply { writes, changed } => {
+                writes.apply(mgr).await?;
+                if changed == 0 {
+                    break;
+                }
+                adopted += changed;
+            }
+        }
+    }
+    Ok(adopted)
+}
+
+/// `adopt_connected_extensions` over a full scan of the store.
+pub(crate) async fn adopt_connected_extensions_scan(mgr: &DatastoreManager) -> Result<usize> {
     use crate::chain::fork_choice::{decide_adoption, Adoption};
     use modality_datastore::models::miner::MinerCheckpoint;
 
@@ -681,7 +738,27 @@ pub fn validate_block_chain(blocks: &[MinerBlock]) -> Result<()> {
 /// win without another peer sending the whole suffix. A switch that would
 /// drop a sequencer checkpoint, or a nomination epoch the current chain
 /// already has, is refused.
+///
+/// Decided on the miner tree; a case the tree cannot decide runs the full
+/// scan.
 pub async fn select_best_stored_chain(mgr: &DatastoreManager) -> Result<bool> {
+    use crate::chain::tree_choice::{plan_select, retarget_params, with_synced_tree, Plan};
+    let params = retarget_params(mgr);
+    let floor = checkpoint_floor(mgr).await;
+    let plan = with_synced_tree(mgr, params, |tree| {
+        plan_select(tree, floor, params.blocks_per_epoch)
+    })?;
+    match plan {
+        Plan::Scan => select_best_stored_chain_scan(mgr).await,
+        Plan::Apply { writes, changed } => {
+            writes.apply(mgr).await?;
+            Ok(changed > 0)
+        }
+    }
+}
+
+/// `select_best_stored_chain` over a full scan of the store.
+pub(crate) async fn select_best_stored_chain_scan(mgr: &DatastoreManager) -> Result<bool> {
     use crate::chain::fork_choice::{
         check_expected_target_indexed, choose_verified, index_by_hash, nomination_epoch_complete,
         score_canonical_chain, ChainWork, ForkChoiceResult, RetargetParams, TargetCheck,

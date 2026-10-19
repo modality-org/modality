@@ -711,12 +711,20 @@ impl Node {
                     },
                     SwarmEvent::Behaviour(swarm::NodeBehaviourEvent::Gossipsub(
                         gossipsub::Event::Message {
-                            propagation_source: _peer_id,
+                            propagation_source,
                             message_id: _message_id,
                             message,
                         },
                     )) => {
                         log::info!("Gossip received {:?}", message.topic.to_string());
+                        if message.topic.as_str() == gossip::miner::block::TOPIC
+                            && !gossip::limits::admit_miner_block(propagation_source)
+                        {
+                            log::warn!(
+                                "Dropped a miner block from {propagation_source}: over its gossip rate"
+                            );
+                            continue;
+                        }
                         // Handle off the networking task. A block handler scores
                         // the store under the datastore lock, and while it ran
                         // inline the swarm sent and received nothing.
@@ -778,11 +786,17 @@ impl Node {
                                 role,
                             );
 
-                            // Store in NodeState
-                            let mgr = datastore_manager.lock().await;
-                            if let Err(e) = peer_info.save_to(mgr.node_state()).await {
-                                log::warn!("Failed to store peer info: {}", e);
-                            }
+                            // Store off the networking task. Identify arrives
+                            // from every peer each minute, and waiting here for
+                            // the datastore stopped the swarm for as long as a
+                            // scoring pass held it.
+                            let datastore_manager = datastore_manager.clone();
+                            tokio::spawn(async move {
+                                let mgr = datastore_manager.lock().await;
+                                if let Err(e) = peer_info.save_to(mgr.node_state()).await {
+                                    log::warn!("Failed to store peer info: {}", e);
+                                }
+                            });
                         }
                     }
                     SwarmEvent::Behaviour(event) => {

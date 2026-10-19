@@ -41,7 +41,9 @@ pub fn start_sync_request_handler(
     mining_update_tx: tokio::sync::mpsc::UnboundedSender<u64>,
 ) {
     tokio::spawn(async move {
-        while let Some((peer_id, _peer_addr)) = sync_request_rx.recv().await {
+        let mut last_peer_sync: std::collections::HashMap<libp2p::PeerId, std::time::Instant> =
+            std::collections::HashMap::new();
+        while let Some((peer_id, peer_addr)) = sync_request_rx.recv().await {
             // Check if we're already syncing with this peer
             {
                 let mut peers = syncing_peers.lock().await;
@@ -59,6 +61,41 @@ pub fn start_sync_request_handler(
                 "🔄 Orphan detected - checking ALL peers for heavier chains (triggered by peer {})",
                 peer_id
             );
+
+            // A block from a peer that is not a bootstrapper names parents
+            // only that peer may have. Ask it, at most once per cooldown.
+            let is_bootstrapper = bootstrappers.iter().any(|addr| {
+                addr.iter()
+                    .any(|proto| matches!(proto, libp2p::multiaddr::Protocol::P2p(id) if id == peer_id))
+            });
+            let cooled_down = last_peer_sync.get(&peer_id).is_none_or(|at| {
+                at.elapsed() >= crate::gossip::limits::SYNC_COOLDOWN
+            });
+            if !is_bootstrapper && cooled_down {
+                last_peer_sync.insert(peer_id, std::time::Instant::now());
+                last_peer_sync.retain(|_, at| at.elapsed() < crate::gossip::limits::SYNC_COOLDOWN);
+                match request_chain_info_impl(
+                    peer_id,
+                    peer_addr.clone(),
+                    swarm.clone(),
+                    datastore.clone(),
+                    ignored_peers.clone(),
+                    reqres_response_txs.clone(),
+                )
+                .await
+                {
+                    Ok(()) => {
+                        let new_tip = get_chain_tip_index(&datastore).await;
+                        log::info!(
+                            "📡 Chain sync with block author {} completed, chain tip is now {}",
+                            peer_id,
+                            new_tip
+                        );
+                        let _ = mining_update_tx.send(new_tip);
+                    }
+                    Err(e) => log::warn!("Chain sync failed for block author {}: {}", peer_id, e),
+                }
+            }
 
             // Check all bootstrappers for heavier chains
             for bootstrapper in &bootstrappers {

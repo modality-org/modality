@@ -306,6 +306,19 @@ pub fn check_expected_target_indexed(
     by_hash: &BlocksByHash<'_>,
     params: RetargetParams,
 ) -> TargetCheck {
+    check_expected_target_with(block, |hash| by_hash.get(hash).copied(), params)
+}
+
+/// `check_expected_target` with stored blocks looked up by hash.
+///
+/// The check reads the parent, the blocks of the block's own epoch, and the
+/// previous epoch's span, so the walk stops at the start of the previous
+/// epoch instead of at genesis.
+pub fn check_expected_target_with<'a>(
+    block: &MinerBlock,
+    lookup: impl Fn(&str) -> Option<&'a MinerBlock>,
+    params: RetargetParams,
+) -> TargetCheck {
     let Ok(target) = block.target_difficulty.parse::<u128>() else {
         return TargetCheck::Reject;
     };
@@ -326,7 +339,7 @@ pub fn check_expected_target_indexed(
             None => TargetCheck::Unresolved,
         };
     }
-    let ancestors = ancestors_of(block, by_hash);
+    let ancestors = ancestors_of(block, &lookup, manager.get_epoch_start_index(epoch - 1));
     // `ancestors_of` reverses the walk, so the immediate parent is last.
     // The check guards against a block naming an easier target than its
     // chain established. A harder target only costs the miner more work,
@@ -400,12 +413,17 @@ pub fn check_expected_target_indexed(
     }
 }
 
-fn ancestors_of<'a>(block: &MinerBlock, by_hash: &BlocksByHash<'a>) -> Vec<&'a MinerBlock> {
+/// Parent-linked ancestors down to `stop_index`, lowest first.
+fn ancestors_of<'a>(
+    block: &MinerBlock,
+    lookup: &impl Fn(&str) -> Option<&'a MinerBlock>,
+    stop_index: u64,
+) -> Vec<&'a MinerBlock> {
     let mut chain = Vec::new();
     let mut previous = block.previous_hash.as_str();
     let mut index = block.index;
-    while index > 0 {
-        let Some(parent) = by_hash.get(previous).copied() else {
+    while index > 0 && index > stop_index {
+        let Some(parent) = lookup(previous) else {
             break;
         };
         if parent.index + 1 != index {

@@ -180,9 +180,15 @@ async fn contract_page(
 async fn status_json_handler(
     source: NodeStatusSource,
 ) -> Result<impl warp::Reply, warp::Rejection> {
-    let status = collect_node_status(&source)
-        .await
-        .map_err(|_| warp::reject::not_found())?;
+    let status = match collect_node_status(&source).await {
+        Ok(status) => status,
+        Err(e) => {
+            return Ok(cors_json_status(
+                StatusCode::SERVICE_UNAVAILABLE,
+                serde_json::json!({ "error": e.to_string() }),
+            ));
+        }
+    };
     let genesis_hash = status
         .genesis
         .as_ref()
@@ -219,6 +225,7 @@ async fn status_json_handler(
         "dest_apply_requires_cert": status.dest_apply_requires_cert,
         "predicate_theory_version": status.predicate_theory_version,
         "gas_base_permille": status.gas_base_permille,
+        "status_age_secs": status.snapshot_age_secs,
         "mod": {
             "address": status.mod_holdings.address,
             "held": status.mod_holdings.held,
@@ -242,7 +249,7 @@ async fn status_json_handler(
             })
             .collect::<Vec<_>>(),
     });
-    Ok(cors_json_reply(warp::reply::json(&body)))
+    Ok(cors_json_status(StatusCode::OK, body))
 }
 
 async fn chain_json_handler(source: NodeStatusSource) -> Result<impl warp::Reply, warp::Rejection> {

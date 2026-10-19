@@ -10,6 +10,7 @@ use modality_sequencer_consensus::communication::Message as ConsensusMessage;
 use crate::node::Node;
 
 pub mod consensus;
+pub mod limits;
 pub mod miner;
 
 pub async fn add_sequencer_event_listeners(node: &mut Node) -> Result<()> {

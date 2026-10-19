@@ -55,6 +55,11 @@ pub struct DatastoreManager {
     sequencer_active: SequencerActiveStore,
     node_state: NodeStateStore,
     epoch_config: EpochConfig,
+    /// Mirror of the three miner stores; loaded on first use.
+    miner_cache: std::sync::Mutex<Option<crate::models::miner::MinerBlockCache>>,
+    miner_cache_loads: std::sync::atomic::AtomicU64,
+    /// Fork-choice tree derived from `miner_cache`.
+    miner_tree: std::sync::Mutex<crate::models::miner::MinerTree>,
 }
 
 impl std::fmt::Debug for DatastoreManager {
@@ -158,6 +163,9 @@ impl DatastoreManager {
             sequencer_active,
             node_state,
             epoch_config: EpochConfig::default(),
+            miner_cache: std::sync::Mutex::new(None),
+            miner_cache_loads: std::sync::atomic::AtomicU64::new(0),
+            miner_tree: std::sync::Mutex::new(Default::default()),
         })
     }
 
@@ -182,6 +190,9 @@ impl DatastoreManager {
             sequencer_active,
             node_state,
             epoch_config: EpochConfig::default(),
+            miner_cache: std::sync::Mutex::new(None),
+            miner_cache_loads: std::sync::atomic::AtomicU64::new(0),
+            miner_tree: std::sync::Mutex::new(Default::default()),
         })
     }
 
@@ -206,7 +217,88 @@ impl DatastoreManager {
             sequencer_active,
             node_state,
             epoch_config: EpochConfig::default(),
+            miner_cache: std::sync::Mutex::new(None),
+            miner_cache_loads: std::sync::atomic::AtomicU64::new(0),
+            miner_tree: std::sync::Mutex::new(Default::default()),
         })
+    }
+
+    /// Run `f` on the miner block cache, loading it from the stores first if
+    /// it is not loaded. Do not call back into a miner read or write from
+    /// `f`; the cache lock is held.
+    pub fn with_miner_cache<R>(
+        &self,
+        f: impl FnOnce(&mut crate::models::miner::MinerBlockCache) -> R,
+    ) -> Result<R> {
+        let mut slot = self
+            .miner_cache
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        if slot.is_none() {
+            *slot = Some(self.load_miner_cache()?);
+        }
+        Ok(f(slot.as_mut().expect("miner cache loaded")))
+    }
+
+    /// Apply a store write to the cache. A cache that is not loaded yet will
+    /// read the write from the store when it loads.
+    pub(crate) fn update_miner_cache(&self, f: impl FnOnce(&mut crate::models::miner::MinerBlockCache)) {
+        let mut slot = self
+            .miner_cache
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        if let Some(cache) = slot.as_mut() {
+            f(cache);
+        }
+    }
+
+    /// Drop the cache after writing a miner store without `multi_store`.
+    /// The next read reloads it, and derived state rebuilds.
+    pub fn invalidate_miner_cache(&self) {
+        let mut slot = self
+            .miner_cache
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        *slot = None;
+    }
+
+    fn load_miner_cache(&self) -> Result<crate::models::miner::MinerBlockCache> {
+        use crate::models::miner::MinerBlock;
+        use std::collections::BTreeMap;
+        use std::sync::Arc;
+        fn load<S: Store>(store: &S, name: &str) -> Result<BTreeMap<String, Arc<MinerBlock>>> {
+            let mut blocks = BTreeMap::new();
+            for item in store.iterator("/miner_blocks/hash") {
+                let (key, value) = item?;
+                match serde_json::from_slice::<MinerBlock>(&value) {
+                    Ok(block) => {
+                        blocks.insert(block.hash.clone(), Arc::new(block));
+                    }
+                    Err(e) => log::warn!(
+                        "Skipping undecodable miner block {} in {name}: {e}",
+                        String::from_utf8_lossy(&key)
+                    ),
+                }
+            }
+            Ok(blocks)
+        }
+        let generation = self
+            .miner_cache_loads
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+            + 1;
+        Ok(crate::models::miner::MinerBlockCache::new(
+            generation,
+            load(&self.miner_active, "MinerActive")?,
+            load(&self.miner_forks, "MinerForks")?,
+            load(&self.miner_canon, "MinerCanon")?,
+        ))
+    }
+
+    /// The fork-choice tree. Lock order: tree, then cache.
+    pub fn miner_tree(&self) -> std::sync::MutexGuard<'_, crate::models::miner::MinerTree> {
+        self.miner_tree
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
     }
 
     /// Get the data directory path

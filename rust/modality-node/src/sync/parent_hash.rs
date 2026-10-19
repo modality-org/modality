@@ -11,7 +11,7 @@ use std::sync::{Arc, Mutex as StdMutex, OnceLock};
 use std::time::{Duration, Instant};
 use tokio::sync::Mutex;
 
-use crate::chain::fork_choice::{check_expected_target, RetargetParams, TargetCheck};
+use crate::chain::fork_choice::TargetCheck;
 use crate::chain::reorg::{
     adopt_connected_extensions, missing_parent_hashes, select_best_stored_chain,
 };
@@ -369,24 +369,7 @@ async fn store_parent(
     score: bool,
 ) -> StoreParent {
     let ds = datastore.lock().await;
-    let stored = match MinerBlock::find_all_blocks_multi(&ds).await {
-        Ok(blocks) => blocks,
-        Err(e) => {
-            log::warn!("Could not load blocks to store parent {}: {e}", block.hash);
-            return StoreParent::Failed;
-        }
-    };
-    let live: Vec<MinerBlock> = stored
-        .into_iter()
-        .filter(|block| !block.is_orphaned)
-        .collect();
-    let params = RetargetParams {
-        blocks_per_epoch: ds.epoch_config().blocks_per_epoch,
-        target_block_time_secs: ds.network_u64("target_block_time_secs").unwrap_or(60),
-        initial_difficulty: ds
-            .network_u64("initial_difficulty")
-            .map(|value| value as u128),
-    };
+    let params = crate::chain::tree_choice::retarget_params(&ds);
     if MinerBlock::find_by_hash_multi(&ds, &block.hash)
         .await
         .ok()
@@ -395,7 +378,19 @@ async fn store_parent(
     {
         return StoreParent::AlreadyThere;
     }
-    if check_expected_target(block, &live, params) == TargetCheck::Reject {
+    let target = match crate::chain::tree_choice::check_target_against_store(
+        &ds,
+        block,
+        params,
+        crate::chain::tree_choice::Ancestors::Live,
+    ) {
+        Ok(target) => target,
+        Err(e) => {
+            log::warn!("Could not load blocks to store parent {}: {e}", block.hash);
+            return StoreParent::Failed;
+        }
+    };
+    if target == TargetCheck::Reject {
         log::warn!(
             "Parent {} at index {} rejected: target is not the difficulty this chain expects",
             &block.hash[..16.min(block.hash.len())],

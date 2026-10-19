@@ -235,6 +235,8 @@ async fn drop_promoted_copies_of_active_orphans(mgr: &DatastoreManager) -> Resul
         let _ = mgr.miner_canon().delete(&key);
         let _ = mgr.miner_canon().delete(&height_key);
     }
+    // Those deletes bypass `multi_store`, so the miner cache reloads.
+    mgr.invalidate_miner_cache();
     Ok(())
 }
 

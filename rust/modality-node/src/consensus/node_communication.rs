@@ -14,6 +14,12 @@ use modality_sequencer_consensus::communication::Message as ConsensusMessage;
 use crate::gossip::consensus::block::cert::TOPIC as BLOCK_CERT_TOPIC;
 use crate::gossip::consensus::block::draft::TOPIC as BLOCK_DRAFT_TOPIC;
 
+/// How long a Shoal broadcast waits for the swarm. A draft or certificate
+/// that misses this is dropped and logged; the loop rebroadcasts stale
+/// drafts, and peers fetch missing certificates. Waiting without a bound
+/// let one stalled swarm stretch a Shoal tick to tens of seconds.
+const SWARM_PUBLISH_WAIT: std::time::Duration = std::time::Duration::from_secs(2);
+
 pub struct NodeCommunication {
     pub swarm: Arc<Mutex<crate::swarm::NodeSwarm>>,
     pub consensus_tx: mpsc::Sender<ConsensusMessage>,
@@ -39,6 +45,20 @@ impl NodeCommunication {
             }
         }
     }
+
+    /// Publish on `topic` if the swarm frees up within `SWARM_PUBLISH_WAIT`.
+    async fn publish(&self, topic: &str, data: String) -> Result<()> {
+        let Ok(mut swarm) = tokio::time::timeout(SWARM_PUBLISH_WAIT, self.swarm.lock()).await
+        else {
+            log::warn!("swarm busy for {SWARM_PUBLISH_WAIT:?}; dropped a {topic} publish");
+            return Ok(());
+        };
+        swarm
+            .behaviour_mut()
+            .gossipsub
+            .publish(libp2p::gossipsub::IdentTopic::new(topic), data)?;
+        Ok(())
+    }
 }
 
 #[async_trait::async_trait]
@@ -54,14 +74,8 @@ impl Communication for NodeCommunication {
             block: block.clone(),
         };
         self.enqueue(msg)?;
-        {
-            let mut swarm = self.swarm.lock().await;
-            swarm.behaviour_mut().gossipsub.publish(
-                libp2p::gossipsub::IdentTopic::new(BLOCK_DRAFT_TOPIC),
-                serde_json::to_string(block)?,
-            )?;
-        }
-        Ok(())
+        self.publish(BLOCK_DRAFT_TOPIC, serde_json::to_string(block)?)
+            .await
     }
 
     async fn broadcast_certified_block(
@@ -70,14 +84,8 @@ impl Communication for NodeCommunication {
         block: &SequencerBlock,
     ) -> Result<()> {
         // The author already saved and applied its own certificate.
-        {
-            let mut swarm = self.swarm.lock().await;
-            swarm.behaviour_mut().gossipsub.publish(
-                libp2p::gossipsub::IdentTopic::new(BLOCK_CERT_TOPIC),
-                serde_json::to_string(block)?,
-            )?;
-        }
-        Ok(())
+        self.publish(BLOCK_CERT_TOPIC, serde_json::to_string(block)?)
+            .await
     }
 
     async fn send_block_ack(&mut self, from_peer: &str, to_peer: &str, ack: &Ack) -> Result<()> {
@@ -93,12 +101,15 @@ impl Communication for NodeCommunication {
                 ack: ack.clone(),
             };
             self.enqueue(msg)?;
-        } else {
-            let mut swarm = self.swarm.lock().await;
+        } else if let Ok(mut swarm) =
+            tokio::time::timeout(SWARM_PUBLISH_WAIT, self.swarm.lock()).await
+        {
             let _req_id = swarm
                 .behaviour_mut()
                 .reqres
                 .send_request(&target_peer, request);
+        } else {
+            log::warn!("swarm busy for {SWARM_PUBLISH_WAIT:?}; dropped an ack to {to_peer}");
         }
 
         Ok(())
