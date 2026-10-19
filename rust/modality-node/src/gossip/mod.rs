@@ -51,7 +51,7 @@ pub async fn handle_event(
     bootstrappers: Vec<libp2p::Multiaddr>,
     minimum_block_timestamp: Option<i64>,
 ) -> Result<()> {
-    log::info!("handling gossip: {:?}", message);
+    log::debug!("handling gossip: {:?}", message);
     let data = String::from_utf8_lossy(&message.data).to_string();
     let topic = message.topic.to_string();
     let source_peer = message.source;

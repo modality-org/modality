@@ -29,7 +29,7 @@ use std::sync::Arc;
 /// archived instead of being scored again.
 pub(crate) const STALE_FORK_EPOCHS: u64 = 2;
 
-pub(crate) fn retarget_params(mgr: &DatastoreManager) -> RetargetParams {
+pub fn retarget_params(mgr: &DatastoreManager) -> RetargetParams {
     RetargetParams {
         blocks_per_epoch: mgr.epoch_config().blocks_per_epoch,
         target_block_time_secs: mgr.network_u64("target_block_time_secs").unwrap_or(60),
@@ -41,7 +41,7 @@ pub(crate) fn retarget_params(mgr: &DatastoreManager) -> RetargetParams {
 
 /// Run `f` on the tree after syncing it with the store. The target check is
 /// the eligibility rule, as `select_best_stored_chain` filtered on it.
-pub(crate) fn with_synced_tree<R>(
+pub fn with_synced_tree<R>(
     mgr: &DatastoreManager,
     params: RetargetParams,
     f: impl FnOnce(&MinerTree) -> R,
