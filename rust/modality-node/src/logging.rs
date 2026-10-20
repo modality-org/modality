@@ -2,12 +2,14 @@ use anyhow::Result;
 use env_logger::WriteStyle;
 use log::{Level, LevelFilter, Record};
 use std::collections::VecDeque;
-use std::fs::OpenOptions;
+use std::fs::{File, OpenOptions};
 use std::io::{self, Write};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
 const LOG_RING_CAPACITY: usize = 256;
+const LOG_FILE_MAX_BYTES: u64 = 64 * 1024 * 1024;
+const LOG_FILE_BACKUPS: usize = 3;
 
 /// One log line for the node TUI, with type (level) and topic.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -252,13 +254,7 @@ fn init_logging_with_sink(
     let file = if save_logs {
         if let Some(logs_dir) = logs_path.clone() {
             std::fs::create_dir_all(&logs_dir)?;
-            let log_file_path = logs_dir.join("node.log");
-            Some(
-                OpenOptions::new()
-                    .create(true)
-                    .append(true)
-                    .open(&log_file_path)?,
-            )
+            Some(RotatingFile::open(logs_dir.join("node.log"))?)
         } else {
             None
         }
@@ -290,8 +286,67 @@ fn init_logging_with_sink(
     Ok(())
 }
 
+struct RotatingFile {
+    path: PathBuf,
+    file: File,
+    len: u64,
+    max_bytes: u64,
+}
+
+impl RotatingFile {
+    fn open(path: PathBuf) -> io::Result<Self> {
+        let file = OpenOptions::new().create(true).append(true).open(&path)?;
+        let len = file.metadata()?.len();
+        Ok(Self {
+            path,
+            file,
+            len,
+            max_bytes: LOG_FILE_MAX_BYTES,
+        })
+    }
+
+    fn rotate(&mut self) -> io::Result<()> {
+        self.file.flush()?;
+        for index in (1..=LOG_FILE_BACKUPS).rev() {
+            let old = if index == 1 {
+                self.path.clone()
+            } else {
+                self.path.with_extension(format!("log.{}", index - 1))
+            };
+            let new = self.path.with_extension(format!("log.{index}"));
+            if old.exists() {
+                if new.exists() {
+                    std::fs::remove_file(&new)?;
+                }
+                std::fs::rename(old, new)?;
+            }
+        }
+        self.file = OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&self.path)?;
+        self.len = 0;
+        Ok(())
+    }
+}
+
+impl Write for RotatingFile {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        if self.len > 0 && self.len.saturating_add(buf.len() as u64) > self.max_bytes {
+            self.rotate()?;
+        }
+        self.file.write_all(buf)?;
+        self.len = self.len.saturating_add(buf.len() as u64);
+        Ok(buf.len())
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        self.file.flush()
+    }
+}
+
 struct FanoutWriter {
-    file: Option<std::fs::File>,
+    file: Option<RotatingFile>,
     write_stdout: bool,
 }
 
@@ -352,5 +407,43 @@ mod tests {
         assert_eq!(e.level, Level::Info);
         assert_eq!(e.topic, "miner");
         assert_eq!(e.message, "Chain ready");
+    }
+}
+
+#[cfg(test)]
+mod rotation_tests {
+    use super::*;
+
+    #[test]
+    fn bounds_new_and_preexisting_log_files() -> io::Result<()> {
+        let dir = std::env::temp_dir().join(format!(
+            "modality-node-logs-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir(&dir)?;
+        let path = dir.join("node.log");
+        std::fs::write(&path, b"legacy oversized log")?;
+        let mut log = RotatingFile::open(path.clone())?;
+        log.max_bytes = 8;
+        log.write_all(b"first\n")?;
+        assert_eq!(std::fs::read(&path)?, b"first\n");
+        assert_eq!(
+            std::fs::read(dir.join("node.log.1"))?,
+            b"legacy oversized log"
+        );
+        for line in [b"second\n".as_slice(), b"third\n", b"fourth\n"] {
+            log.write_all(line)?;
+        }
+        assert_eq!(std::fs::read(&path)?, b"fourth\n");
+        assert_eq!(std::fs::read(dir.join("node.log.1"))?, b"third\n");
+        assert_eq!(std::fs::read(dir.join("node.log.2"))?, b"second\n");
+        assert_eq!(std::fs::read(dir.join("node.log.3"))?, b"first\n");
+        drop(log);
+        std::fs::remove_dir_all(dir)?;
+        Ok(())
     }
 }
