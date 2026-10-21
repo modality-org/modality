@@ -10,6 +10,7 @@ on:
       - 'tests/network/01-ping-node/**'
       - 'tests/network/02-run-devnet1/**'
       - 'tests/network/05-mining/**'
+      - 'tests/network/10-hybrid-devnet1/**'
       - 'tests/network/observer-catchup/**'
       - 'tests/network/test-lib.sh'
       - '.github/workflows/ci.yml'
@@ -22,6 +23,7 @@ on:
       - 'tests/network/01-ping-node/**'
       - 'tests/network/02-run-devnet1/**'
       - 'tests/network/05-mining/**'
+      - 'tests/network/10-hybrid-devnet1/**'
       - 'tests/network/observer-catchup/**'
       - 'tests/network/test-lib.sh'
       - '.github/workflows/ci.yml'
@@ -161,6 +163,13 @@ jobs:
 
       - name: Mine and persist a local block
         working-directory: tests/network/05-mining
+        timeout-minutes: 6
+        run: |
+          export PATH="$GITHUB_WORKSPACE/rust/target/debug:$PATH"
+          bash ./test.sh
+
+      - name: Activate a local hybrid sequencer from mining nominations
+        working-directory: tests/network/10-hybrid-devnet1
         timeout-minutes: 6
         run: |
           export PATH="$GITHUB_WORKSPACE/rust/target/debug:$PATH"
