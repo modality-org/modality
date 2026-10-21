@@ -33,7 +33,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
     let config = load_config_with_node_dir(opts.config.clone(), dir.clone())?;
 
     // Try to open datastore (safe for running nodes)
-    // If it doesn't exist yet (node never started), that's okay - we'll just show config info
+    // If it does not exist or is locked, still show config without claiming an empty chain.
     let data_dir = config
         .data_dir
         .as_ref()
@@ -44,32 +44,38 @@ pub async fn run(opts: &Opts) -> Result<()> {
         DatastoreManager::open_readonly(data_dir).or_else(|_| DatastoreManager::open(data_dir));
 
     // Get mining statistics from datastore (if available)
-    let (canonical_blocks, chain_tip, genesis_block, blocks_mined_by_node) =
-        if let Ok(datastore_manager) = datastore_result {
-            let canonical_blocks = MinerBlock::find_all_canonical_multi(&datastore_manager).await?;
-            let chain_tip = canonical_blocks.last().cloned();
-            let genesis_block = canonical_blocks.first().cloned();
+    let (canonical_blocks, chain_tip, genesis_block, blocks_mined_by_node, store_error) =
+        match datastore_result {
+            Ok(datastore_manager) => {
+                let canonical_blocks =
+                    MinerBlock::find_all_canonical_multi(&datastore_manager).await?;
+                let chain_tip = canonical_blocks.last().cloned();
+                let genesis_block = canonical_blocks.first().cloned();
 
-            // Count blocks mined by this node
-            let node_peer_id = config
-                .id
-                .as_ref()
-                .context("No peer ID in config")?
-                .to_string();
-            let blocks_mined_by_node = canonical_blocks
-                .iter()
-                .filter(|b| b.nominated_peer_id == node_peer_id)
-                .count();
+                // Count blocks mined by this node
+                let node_peer_id = config
+                    .id
+                    .as_ref()
+                    .context("No peer ID in config")?
+                    .to_string();
+                let blocks_mined_by_node = canonical_blocks
+                    .iter()
+                    .filter(|b| b.nominated_peer_id == node_peer_id)
+                    .count();
 
-            (
-                canonical_blocks,
-                chain_tip,
-                genesis_block,
-                blocks_mined_by_node,
-            )
-        } else {
-            // Datastore doesn't exist yet - node hasn't been started
-            (vec![], None, None, 0)
+                (
+                    canonical_blocks,
+                    chain_tip,
+                    genesis_block,
+                    blocks_mined_by_node,
+                    None,
+                )
+            }
+            Err(error) => {
+                // A locked or corrupt store is not an empty chain. Keep config information
+                // available, but do not publish made-up mining statistics.
+                (vec![], None, None, 0, Some(error))
+            }
         };
 
     // Print basic node information
@@ -135,7 +141,9 @@ pub async fn run(opts: &Opts) -> Result<()> {
 
     // Mining Statistics
     println!("⛏️   Mining Statistics");
-    if let Some(tip) = chain_tip {
+    if let Some(error) = &store_error {
+        println!("    Statistics unavailable: {}", error);
+    } else if let Some(tip) = chain_tip {
         println!("    Chain Height: {}", tip.index);
         println!("    Latest Block Hash: {}...", &tip.hash[..16]);
 
@@ -173,16 +181,18 @@ pub async fn run(opts: &Opts) -> Result<()> {
     }
 
     println!();
-    println!("    Total Canonical Blocks: {}", canonical_blocks.len());
-    println!(
-        "    Blocks Mined by This Node: {} ({:.1}%)",
-        blocks_mined_by_node,
-        if !canonical_blocks.is_empty() {
-            (blocks_mined_by_node as f64 / canonical_blocks.len() as f64) * 100.0
-        } else {
-            0.0
-        }
-    );
+    if store_error.is_none() {
+        println!("    Total Canonical Blocks: {}", canonical_blocks.len());
+        println!(
+            "    Blocks Mined by This Node: {} ({:.1}%)",
+            blocks_mined_by_node,
+            if !canonical_blocks.is_empty() {
+                (blocks_mined_by_node as f64 / canonical_blocks.len() as f64) * 100.0
+            } else {
+                0.0
+            }
+        );
+    }
     println!();
 
     // Logging
@@ -296,7 +306,11 @@ pub async fn run(opts: &Opts) -> Result<()> {
         println!();
     }
 
-    println!("✅  Node information loaded successfully");
+    if store_error.is_some() {
+        println!("⚠️  Node configuration loaded; mining statistics unavailable");
+    } else {
+        println!("✅  Node information loaded successfully");
+    }
 
     Ok(())
 }
