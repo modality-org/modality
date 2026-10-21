@@ -53,7 +53,10 @@ modal wallet incoming
 `decimals`, and how many sends wait to be received. `incoming` lists each
 waiting `SEND`: amount, asset, sender, and the `SEND` commit and index. Both
 read the remote node's `/contract/account`, so a send counts once it is
-sequenced there.
+sequenced there. With `incoming --output json`, `amount` remains in the
+asset's smallest units; `shown` is the decimal display amount and `asset`
+is the readable name (for example, `MOD`). The contract and asset IDs remain
+in the output for unambiguous processing.
 
 ## Receive
 

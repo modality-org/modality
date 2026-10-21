@@ -542,7 +542,25 @@ async fn incoming(opts: &WalletOpts) -> Result<()> {
     let wallet = Wallet::open(opts)?;
     let account = wallet.account().await?;
     if opts.output == "json" {
-        println!("{}", serde_json::to_string_pretty(&account.incoming)?);
+        let sends: Vec<Value> = account
+            .incoming
+            .iter()
+            .map(|send| {
+                json!({
+                    "send_commit_id": send.send_commit_id,
+                    "send_index": send.send_index,
+                    "from_contract": send.from_contract,
+                    "asset_contract": send.asset_contract,
+                    "asset_id": send.asset_id,
+                    "amount": send.amount,
+                    "memo": send.memo,
+                    "decimals": send.decimals,
+                    "asset": account.name(&send.asset_contract, &send.asset_id),
+                    "shown": format_amount(send.amount, send.decimals),
+                })
+            })
+            .collect();
+        println!("{}", serde_json::to_string_pretty(&sends)?);
         return Ok(());
     }
     if account.incoming.is_empty() {

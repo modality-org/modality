@@ -382,6 +382,7 @@ pub async fn make(opts: &Opts) -> Result<Option<Committed>> {
 
     // Validate against contract rules (signature predicates, etc.)
     store.validate_commit_against_rules(&commit)?;
+    #[cfg_attr(not(feature = "model-status"), allow(unused_mut))]
     let mut model_repair = None;
     let theory_preview = match validate_commit_against_model(&dir, &store, &commit, &opts.theory) {
         Ok(preview) => preview,
