@@ -401,7 +401,10 @@ async fn create(opts: &CreateOpts) -> Result<()> {
         }
         None => {
             let path = dir.join("owner.mod_passfile");
-            Keypair::generate()?.as_json_file(&path.to_string_lossy())?;
+            // A failed network lookup must not replace the key on retry.
+            if !path.exists() {
+                Keypair::generate()?.as_json_file(&path.to_string_lossy())?;
+            }
             std::fs::canonicalize(path)?
         }
     };
@@ -415,20 +418,15 @@ async fn create(opts: &CreateOpts) -> Result<()> {
 
     // A wallet for this key already on the network is the wallet: copy it.
     // A second genesis at the same id would be refused as a fork.
-    let existing = crate::push::p2p_request(
-        None,
-        &remote,
-        "/contract/pull",
-        &json!({"contract_id": id, "since_commit_id": null}),
-    )
-    .await
-    .ok()
-    .filter(|r| r.ok)
-    .and_then(|r| r.data)
-    .and_then(|d| d.get("commits").and_then(Value::as_array).cloned())
-    .filter(|commits| !commits.is_empty());
+    // An empty, successful pull means this key has no wallet yet. A failed
+    // lookup is not proof of absence: creating a second genesis would fork a
+    // wallet that already exists on the network.
+    let existing = !sequenced_after(&remote, &id, None)
+        .await
+        .with_context(|| format!("cannot check whether wallet {id} exists on {remote}"))?
+        .is_empty();
 
-    let how = if existing.is_some() {
+    let how = if existing {
         let dir_arg = dir.to_string_lossy().to_string();
         crate::pull::run(&crate::pull::Opts::parse_from([
             "pull",
@@ -931,5 +929,33 @@ async fn await_sequenced(
             );
         }
         tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn failed_lookup_does_not_create_wallet_or_replace_generated_key() {
+        let temp = tempfile::tempdir().unwrap();
+        let dir = temp.path().join("wallet");
+        // A valid multiaddress without a peer id fails before any network wait.
+        let opts = CreateOpts {
+            key: None,
+            dir: Some(dir.clone()),
+            remote: Some("/ip4/127.0.0.1/tcp/1/ws".to_string()),
+            output: "json".to_string(),
+        };
+        let first = create(&opts).await.unwrap_err().to_string();
+        assert!(first.contains("cannot check whether wallet"));
+        assert!(!dir.join(".contract").exists());
+        let key = dir.join("owner.mod_passfile");
+        let original = std::fs::read(&key).unwrap();
+
+        let second = create(&opts).await.unwrap_err().to_string();
+        assert!(second.contains("cannot check whether wallet"));
+        assert!(!dir.join(".contract").exists());
+        assert_eq!(std::fs::read(&key).unwrap(), original);
     }
 }
