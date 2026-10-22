@@ -188,10 +188,12 @@ assert_output_contains() {
     echo "  Expected pattern: $pattern" >> "$CURRENT_LOG"
     
     local output
-    output=$(eval "$cmd" 2>&1)
+    local command_status=0
+    output=$(eval "$cmd" 2>&1) || command_status=$?
+    echo "  Exit status: $command_status" >> "$CURRENT_LOG"
     echo "  Output: $output" >> "$CURRENT_LOG"
-    
-    if echo "$output" | grep -q "$pattern"; then
+
+    if [ "$command_status" -eq 0 ] && grep -q "$pattern" <<< "$output"; then
         TESTS_PASSED=$((TESTS_PASSED + 1))
         echo -e "  ${GREEN}✓${NC} $msg"
         echo "  Result: PASS" >> "$CURRENT_LOG"
@@ -199,7 +201,7 @@ assert_output_contains() {
     else
         TESTS_FAILED=$((TESTS_FAILED + 1))
         echo -e "  ${RED}✗${NC} $msg"
-        echo "  Result: FAIL (pattern not found)" >> "$CURRENT_LOG"
+        echo "  Result: FAIL (exit status $command_status or pattern not found)" >> "$CURRENT_LOG"
         return 1
     fi
 }
