@@ -21,17 +21,13 @@ pub struct Opts {
     #[clap(long)]
     pub level: Option<String>,
 
-    /// Command: general, mining, blocks, block, peers, or datastore-get <key>
+    /// Command: general, mining, blocks, block <index>, or datastore-get <key>
     #[clap(name = "COMMAND")]
     pub command: Option<String>,
 
-    /// Datastore key (required when command is datastore-get)
-    #[clap(name = "KEY")]
-    pub datastore_key: Option<String>,
-
-    /// Block index (required when command is block)
-    #[clap(name = "INDEX")]
-    pub block_index: Option<u64>,
+    /// Datastore key or block index, depending on COMMAND
+    #[clap(name = "KEY|INDEX")]
+    pub value: Option<String>,
 }
 
 pub async fn run(opts: &Opts) -> Result<()> {
@@ -58,30 +54,22 @@ pub async fn run(opts: &Opts) -> Result<()> {
         "general"
     };
 
+    let command = InspectCommand::parse(command, opts.value.as_deref())?;
+
     let data_dir = config
         .datastore_dir()
         .context("No data_dir or storage_path in config")?;
     let datastore_manager = open_inspect_store(data_dir, is_running)?;
 
-    // Handle datastore-get command separately
-    if command == "datastore-get" {
-        let key = opts
-            .datastore_key
-            .as_ref()
-            .context("datastore-get requires a KEY argument")?;
-
+    // Handle datastore-get command separately.
+    if let InspectCommand::DatastoreGet(key) = command {
         match datastore_manager.get_data_by_key(key).await {
             Ok(Some(value)) => {
-                let value_str = String::from_utf8_lossy(&value);
-                println!("{}", value_str);
+                println!("{}", String::from_utf8_lossy(&value));
                 return Ok(());
             }
-            Ok(None) => {
-                anyhow::bail!("Key not found: {}", key);
-            }
-            Err(e) => {
-                anyhow::bail!("Error querying datastore: {}", e);
-            }
+            Ok(None) => anyhow::bail!("Key not found: {}", key),
+            Err(e) => anyhow::bail!("Error querying datastore: {}", e),
         }
     }
 
@@ -96,27 +84,83 @@ pub async fn run(opts: &Opts) -> Result<()> {
     println!();
 
     match command {
-        "general" | "blocks" => {
+        InspectCommand::General | InspectCommand::Blocks => {
             inspect_blocks(&datastore_manager).await?;
         }
-        "mining" => {
+        InspectCommand::Mining => {
             inspect_mining(&datastore_manager, &config).await?;
         }
-        "block" => {
-            let index = opts
-                .block_index
-                .context("block command requires an INDEX argument")?;
+        InspectCommand::Block(index) => {
             inspect_block_by_index(&datastore_manager, index).await?;
         }
-        _ => {
-            println!("Unknown inspection command: {}", command);
-            println!(
-                "Available commands: general, mining, blocks, block <index>, datastore-get <key>"
-            );
-        }
+        InspectCommand::DatastoreGet(_) => unreachable!("handled above"),
     }
 
     Ok(())
+}
+
+#[derive(Debug, PartialEq, Eq)]
+enum InspectCommand<'a> {
+    General,
+    Mining,
+    Blocks,
+    Block(u64),
+    DatastoreGet(&'a str),
+}
+
+impl<'a> InspectCommand<'a> {
+    fn parse(command: &str, value: Option<&'a str>) -> Result<Self> {
+        match command {
+            "general" if value.is_none() => Ok(Self::General),
+            "mining" if value.is_none() => Ok(Self::Mining),
+            "blocks" if value.is_none() => Ok(Self::Blocks),
+            "block" => Ok(Self::Block(
+                value
+                    .context("block requires an INDEX argument")?
+                    .parse()
+                    .context("block INDEX must be a nonnegative integer")?,
+            )),
+            "datastore-get" => Ok(Self::DatastoreGet(
+                value.context("datastore-get requires a KEY argument")?,
+            )),
+            "general" | "mining" | "blocks" => {
+                anyhow::bail!("{} does not take a KEY or INDEX", command)
+            }
+            _ => anyhow::bail!(
+                "Unknown inspection command: {}. Available commands: general, mining, blocks, block <index>, datastore-get <key>",
+                command
+            ),
+        }
+    }
+}
+
+#[cfg(test)]
+mod inspect_command_tests {
+    use super::{InspectCommand, Opts};
+    use clap::Parser;
+
+    #[test]
+    fn block_index_uses_the_documented_second_positional() {
+        let opts = Opts::try_parse_from(["inspect", "block", "42"]).unwrap();
+        assert_eq!(opts.value.as_deref(), Some("42"));
+        assert_eq!(
+            InspectCommand::parse(opts.command.as_deref().unwrap(), opts.value.as_deref()).unwrap(),
+            InspectCommand::Block(42)
+        );
+    }
+
+    #[test]
+    fn invalid_commands_and_arguments_fail_before_opening_the_datastore() {
+        for (command, value) in [
+            ("peers", None),
+            ("block", None),
+            ("block", Some("not-an-index")),
+            ("datastore-get", None),
+            ("blocks", Some("extra")),
+        ] {
+            assert!(InspectCommand::parse(command, value).is_err());
+        }
+    }
 }
 
 fn open_inspect_store(data_dir: &std::path::Path, readonly: bool) -> Result<DatastoreManager> {
