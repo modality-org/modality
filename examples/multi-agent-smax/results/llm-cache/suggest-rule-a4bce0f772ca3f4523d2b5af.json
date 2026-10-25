@@ -1,0 +1,5 @@
+{
+ "model": "claude-sonnet-5-5",
+ "input": "A unit may commit an order of the form \"attack E<n>\" only when /world/allies_alive.num is at least /world/enemies_alive.num, so the squad engages only when it is not outnumbered and does not trickle into a losing fight. (Writing the formula: num_*, bool_* and text_* predicates read the contract's accepted state, from before the commit being checked, so they never see the value a commit writes. To test the order a commit writes, use +sets(/orders/<unit>.text, \"<order>\"). Paths: /world/step.num /world/allies_alive.num /world/enemies_alive.num /world/focus.text /world/<unit>/hp.num /world/<unit>/alive.bool /world/<A>/closest.text /world/<A>/in_range.num /orders/<A>.text)",
+ "response": "always([+sets(/orders/$k.text, \"attack E0\") +num_lt(/world/allies_alive.num, /world/enemies_alive.num)] false) & always([+sets(/orders/$k.text, \"attack E1\") +num_lt(/world/allies_alive.num, /world/enemies_alive.num)] false) & always([+sets(/orders/$k.text, \"attack E2\") +num_lt(/world/allies_alive.num, /world/enemies_alive.num)] false)"
+}

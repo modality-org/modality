@@ -1,0 +1,5 @@
+{
+ "model": "claude-sonnet-5-5",
+ "input": "A unit may commit an order of the form \"attack <E>\" only if <E> equals the value of /world/focus.text, the living enemy closest to our squad's centre, so that all three units shoot the same target and none walks out alone toward a different enemy.",
+ "response": "always([+modifies(/orders/$k.text) +text_contains(/orders/$k.text, \"attack E0\") -text_eq(/world/focus.text, \"E0\")] false) & always([+modifies(/orders/$k.text) +text_contains(/orders/$k.text, \"attack E1\") -text_eq(/world/focus.text, \"E1\")] false) & always([+modifies(/orders/$k.text) +text_contains(/orders/$k.text, \"attack E2\") -text_eq(/world/focus.text, \"E2\")] false)"
+}

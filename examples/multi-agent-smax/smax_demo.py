@@ -13,18 +13,24 @@ A campaign is one battle per seed, 0 to --battles - 1. In the `chat` world the
 battles are independent. In `rules-md`, after every battle the squad does not
 win, one agent reads the battle's log and adds a rule to the squad's RULES.md,
 which every unit sees in every later battle. Nothing checks the rules.
+In `contract`, every order is a commit to the squad's Modality contract, and
+the agent's rule goes into the contract as a formula (via `modal contract ai
+suggest-rule`), where `modal` checks every later order against it.
 """
 
 import argparse
 import concurrent.futures
 import json
 import math
+import os
 import pathlib
 import time
 
 from battle import Battle
 
 HERE = pathlib.Path(__file__).resolve().parent
+_BUILT = HERE.parent.parent / "rust" / "target" / "release" / "modal"
+MODAL = os.environ.get("MODAL", str(_BUILT) if _BUILT.exists() else "modal")
 
 
 def scripted(kind):
@@ -54,6 +60,11 @@ def play(scenario, seed, team, out_dir, narrate=True, rules=(), name=None):
         llm = LLM(HERE / "results" / "llm-cache")
         commander = ChatTeam(llm, rules)
         decide = commander.decide
+    elif team == "contract":
+        from agents import LLM, ContractTeam
+        llm = LLM(HERE / "results" / "llm-cache")
+        commander = ContractTeam(llm, out_dir / f"contract-{seed}", MODAL, rules)
+        decide = commander.decide
     else:
         llm, commander, decide = None, None, scripted(team)
     frames = []
@@ -64,7 +75,9 @@ def play(scenario, seed, team, out_dir, narrate=True, rules=(), name=None):
         frame["decisions"] = decisions
         frames.append(frame)
         if narrate:
-            line = "  ".join(f"{n}:{d['order']}" + ("" if d["valid"] else "(!)") for n, d in decisions.items())
+            line = "  ".join(f"{n}:{d['order']}" + ("" if d["valid"] else "(!)")
+                             + "".join(f" [refused {r['order']}]" for r in d.get("refused", []))
+                             for n, d in decisions.items())
             print(f"{battle.step_count * 0.5:5.1f}s {line}")
             for n, d in decisions.items():
                 if d["say"]:
@@ -79,7 +92,10 @@ def play(scenario, seed, team, out_dir, narrate=True, rules=(), name=None):
         "theirs_alive": sum(u["alive"] for u in final["units"][battle.allies:]),
         "rules": list(rules), "frames": frames, "chat": commander.messages if commander else [],
         "llm_calls": llm.calls if llm else 0, "wall_seconds": round(time.time() - t0, 1),
+        "refused": sum(len(d.get("refused", [])) for f in frames for d in f.get("decisions", {}).values()),
     }
+    if team == "contract" and commander.contract:
+        record["commits"] = commander.contract.commits
     out_dir.mkdir(parents=True, exist_ok=True)
     path = out_dir / (name or f"{scenario}-{team}-{seed}.json")
     path.write_text(json.dumps(record, indent=1))
@@ -90,10 +106,13 @@ def play(scenario, seed, team, out_dir, narrate=True, rules=(), name=None):
     return record
 
 
+ROW = ("seed", "outcome", "seconds", "ours_alive", "theirs_alive", "refused")
+
+
 def _play_quiet(args):
     scenario, seed, out_dir = args
     r = play(scenario, seed, "chat", out_dir, narrate=False, name=f"battle-{seed}.json")
-    return {k: r[k] for k in ("seed", "outcome", "seconds", "ours_alive", "theirs_alive")}
+    return {k: r[k] for k in ROW}
 
 
 def campaign(world, scenario, battles, out_dir, jobs):
@@ -105,13 +124,43 @@ def campaign(world, scenario, battles, out_dir, jobs):
                 rows.append(row)
                 print(f"battle {row['seed']}: {row['outcome']} ({row['ours_alive']} of ours left, "
                       f"{row['theirs_alive']} of theirs)", flush=True)
+    elif world == "contract":
+        from agents import LLM, to_formula, write_contract_rule
+        from contract import try_rule
+        llm = LLM(HERE / "results" / "llm-cache")
+        rules, proposed = [], []
+        for seed in range(battles):
+            r = play(scenario, seed, "contract", out_dir, narrate=False, rules=rules, name=f"battle-{seed}.json")
+            row = {k: r[k] for k in ROW}
+            row["rules_before"] = len(rules)
+            if r["outcome"] != "won":
+                rule = write_contract_rule(llm, r, rules)
+                if rule:
+                    formula, raw = to_formula(llm, rule, out_dir / f"contract-{seed}", MODAL)
+                    why = "no formula" if not formula else try_rule(
+                        formula, rules, [f"A{i}" for i in range(len(r["frames"][0]["orders"]))], MODAL,
+                        out_dir / "try")
+                    entry = {"rule": rule, "formula": formula, "author": "A0", "battle": seed,
+                             "outcome": "accepted" if why is None else "refused", "detail": why}
+                    proposed.append(entry)
+                    row["new_rule"] = entry
+                    if why is None:
+                        rules.append(entry)
+            rows.append(row)
+            print(f"battle {seed}: {row['outcome']} ({row['ours_alive']} of ours left, {row['theirs_alive']} "
+                  f"of theirs) with {row['rules_before']} rules, {row['refused']} orders refused"
+                  + (f"; new rule ({row['new_rule']['outcome']}): {row['new_rule']['rule']}\n    "
+                     f"{row['new_rule']['formula']}" + (f"\n    {row['new_rule']['detail']}"
+                                                         if row['new_rule']['detail'] else "")
+                     if "new_rule" in row else ""), flush=True)
+        (out_dir / "rules.json").write_text(json.dumps({"accepted": rules, "proposed": proposed}, indent=1))
     else:
         from agents import LLM, write_rule
         llm = LLM(HERE / "results" / "llm-cache")
         rules = []
         for seed in range(battles):
             r = play(scenario, seed, "chat", out_dir, narrate=False, rules=rules, name=f"battle-{seed}.json")
-            row = {k: r[k] for k in ("seed", "outcome", "seconds", "ours_alive", "theirs_alive")}
+            row = {k: r[k] for k in ROW}
             row["rules_before"] = len(rules)
             if r["outcome"] != "won":
                 rule = write_rule(llm, r, rules)
@@ -138,10 +187,10 @@ def main():
     pl = sub.add_parser("play")
     pl.add_argument("--scenario", default="3m")
     pl.add_argument("--seed", type=int, default=0)
-    pl.add_argument("--team", default="chat", choices=["chat", "closest", "focus", "hold"])
+    pl.add_argument("--team", default="chat", choices=["chat", "contract", "closest", "focus", "hold"])
     pl.add_argument("--out", default=str(HERE / "out"))
     ca = sub.add_parser("campaign")
-    ca.add_argument("--world", default="chat", choices=["chat", "rules-md"])
+    ca.add_argument("--world", default="chat", choices=["chat", "rules-md", "contract"])
     ca.add_argument("--scenario", default="3m")
     ca.add_argument("--battles", type=int, default=12)
     ca.add_argument("--jobs", type=int, default=4)

@@ -1,0 +1,5 @@
+{
+ "model": "claude-sonnet-5-5",
+ "input": "A unit may commit an order of the form \"attack <E>\" only if <E> equals the value of /world/focus.text, the living enemy closest to our squad's centre, so that all three units shoot the same target and none walks out alone toward a different enemy. (Writing the formula: num_*, bool_* and text_* predicates read the contract's accepted state, from before the commit being checked, so they never see the value a commit writes. To test the order a commit writes, use +sets(/orders/<unit>.text, \"<order>\"). Paths: /world/step.num /world/allies_alive.num /world/enemies_alive.num /world/focus.text /world/<unit>/hp.num /world/<unit>/alive.bool /world/<A>/closest.text /world/<A>/in_range.num /orders/<A>.text)",
+ "response": "always([+sets(/orders/$k.text, \"attack E0\") -text_eq(/world/focus.text, \"E0\")] false) & always([+sets(/orders/$k.text, \"attack E1\") -text_eq(/world/focus.text, \"E1\")] false) & always([+sets(/orders/$k.text, \"attack E2\") -text_eq(/world/focus.text, \"E2\")] false)"
+}

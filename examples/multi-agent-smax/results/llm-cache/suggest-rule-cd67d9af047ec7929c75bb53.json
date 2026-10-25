@@ -1,0 +1,5 @@
+{
+ "model": "claude-sonnet-5-5",
+ "input": "A unit may commit the order \"hold\", \"move\" or \"retreat\" only when its own /world/<A>/in_range.num is 0, so that any unit with an enemy in range must commit \"attack\" on /world/focus.text every half second instead of idling or splitting its fire. (Writing the formula: num_*, bool_* and text_* predicates read the contract's accepted state, from before the commit being checked, so they never see the value a commit writes. To test the order a commit writes, use +sets(/orders/<unit>.text, \"<order>\"). Paths: /world/step.num /world/allies_alive.num /world/enemies_alive.num /world/focus.text /world/<unit>/hp.num /world/<unit>/alive.bool /world/<A>/closest.text /world/<A>/in_range.num /orders/<A>.text)",
+ "response": "always([+sets(/orders/$k.text, \"hold\") -num_eq(/world/$k/in_range.num, \"0\")] false) & always([+sets(/orders/$k.text, \"move\") -num_eq(/world/$k/in_range.num, \"0\")] false) & always([+sets(/orders/$k.text, \"retreat\") -num_eq(/world/$k/in_range.num, \"0\")] false)"
+}
