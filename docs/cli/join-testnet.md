@@ -69,12 +69,19 @@ modal node run-miner --dir ./my-node --no-tui
 modal node run-hybrid --dir ./my-node --no-tui
 ```
 
-Ping a bootstrapper from a **second** node directory (same-dir ping opens the
-live datastore):
+Ping a bootstrapper from a **second** node directory. Create it first; `ping`
+requires `config.json` in that directory. Copy a complete bootstrapper multiaddr
+(including its peer ID) from `modal net info testnet`. Keep the target quoted in
+the shell:
 
 ```bash
-modal node ping --dir ./ping-node --target /dns4/node1.testnet.modality.network/tcp/4040/ws/p2p/<peer-id>
+modal node create --dir ./ping-node --testnet
+modal net info testnet
+modal node ping --dir ./ping-node --target '<bootstrapper-multiaddr>'
 ```
+
+The ping client uses temporary storage, but using a separate directory keeps
+it independent of the running miner.
 
 ## Post a contract
 

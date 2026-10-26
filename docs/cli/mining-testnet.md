@@ -28,9 +28,12 @@ this node should also run a sequencer. Do not use a Foundation node template as
 an independent operator identity.
 
 From a **second** node directory, ping a bootstrapper using its full address
-from `modal net info testnet` (including `/p2p/<peer-id>`):
+from `modal net info testnet` (including its `/p2p/` peer ID). Create the
+second directory first because `ping` needs its `config.json`:
 
 ```bash
+modal node create --dir ./ping-node --testnet
+modal net info testnet
 modal node ping --dir ./ping-node --target '<bootstrapper-multiaddr>'
 ```
 
