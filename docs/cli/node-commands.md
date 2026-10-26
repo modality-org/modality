@@ -287,7 +287,7 @@ Ping a remote Modality node.
 | Option | Description |
 |--------|-------------|
 | `--target <MULTIADDR>` | Peer multiaddr to ping |
-| `--times <COUNT>` | Number of ping attempts; defaults to `1` |
+| `--times <COUNT>` | Positive number of ping attempts; defaults to `1` |
 | `--config <CONFIG>` | Path to `config.json` |
 | `--dir <DIR>` | Node directory containing `config.json` |
 

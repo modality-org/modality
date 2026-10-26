@@ -1,5 +1,6 @@
 use anyhow::Result;
 use clap::Parser;
+use std::num::NonZeroU32;
 use std::path::PathBuf;
 
 use modality_node::actions;
@@ -24,7 +25,7 @@ pub struct Opts {
     target: String,
 
     #[clap(long, default_value = "1")]
-    times: u32,
+    times: NonZeroU32,
 }
 
 pub async fn run(opts: &Opts) -> Result<()> {
@@ -34,7 +35,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
     let mut client = ephemeral_client::open(opts.config.clone(), opts.dir.clone()).await?;
     log::info!("Pinging from node: {:?}", client.node.peerid);
     let target = opts.target.clone();
-    let times_to_ping = opts.times;
+    let times_to_ping = opts.times.get();
     let start = Instant::now();
     let random_hex = generate_random_hex_string();
 
@@ -78,4 +79,21 @@ fn generate_random_hex_string() -> String {
         .iter()
         .map(|b| format!("{:02x}", b))
         .collect::<String>()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn ping_count_must_be_positive() {
+        assert!(Opts::try_parse_from(["ping", "--target", "peer", "--times", "0"]).is_err());
+        assert_eq!(
+            Opts::try_parse_from(["ping", "--target", "peer", "--times", "1"])
+                .unwrap()
+                .times
+                .get(),
+            1
+        );
+    }
 }
