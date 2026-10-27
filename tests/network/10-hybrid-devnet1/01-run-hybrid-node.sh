@@ -27,6 +27,8 @@ if [ ! -f "./tmp/node1/config.json" ]; then
 EOF
 fi
 
+python3 ../check-node-passfile.py ./tmp/node1 || exit 1
+
 # Clear storage for clean test
 modal node clear-storage --dir ./tmp/node1 --yes
 

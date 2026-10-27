@@ -225,6 +225,14 @@ assert_file_exists() {
     fi
 }
 
+# Verify the generated config resolves to the generated node identity.
+# A file-existence check alone misses a stale passfile_path in config.json.
+assert_node_passfile_config() {
+    local node_dir="$1"
+    local msg="${2:-Node config should use its generated passfile}"
+    assert_success "python3 ../check-node-passfile.py '$node_dir'" "$msg"
+}
+
 # Assert numeric comparison
 assert_number() {
     local actual="$1"
