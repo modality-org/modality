@@ -52,6 +52,7 @@ PYCONFIG
 
 assert_file_exists "./tmp/miner/config.json" "Node config should be created"
 assert_file_exists "./tmp/miner/node.modal_passfile" "Node passfile should be created"
+assert_node_passfile_config "./tmp/miner" "miner config should resolve to its generated passfile"
 
 # Test 3: Start miner
 echo ""

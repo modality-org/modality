@@ -29,6 +29,7 @@ echo ""
 echo "Test 2: Verifying node1 structure..."
 assert_file_exists "./tmp/node1/config.json" "Node1 config.json should exist"
 assert_file_exists "./tmp/node1/node.modal_passfile" "Node1 passfile should exist"
+assert_node_passfile_config "./tmp/node1" "node1 config should resolve to its generated passfile"
 assert_file_exists "./tmp/node1/data" "Node1 data directory should exist"
 
 # Test 3: Verify node1 has the standard peer ID
