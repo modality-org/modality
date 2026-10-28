@@ -112,7 +112,9 @@ until someone funds it. Anyone can fund it: send it MOD, then commit the
 ## Common options
 
 `address`, `balance`, `incoming`, `recv`, `send` and `faucet` take `--dir`,
-`--remote` (use another node this once) and `--output json`.
+`--remote` (use another node this once) and `--output json`. Each node has its
+own push cursor: pushing with `--remote` does not mark commits as pushed to the
+wallet’s saved remote.
 
 See [The MOD Contract](../concepts/mod-contract.md) for how MOD reaches a
 miner's address.
