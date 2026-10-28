@@ -211,7 +211,11 @@ for example in "${NUMBERED_EXAMPLES[@]}"; do
     # Format name for display
     display_name=$(echo "$example" | sed 's/-/ - /' | sed 's/\(^[0-9]*\)/\1/')
     
-    run_test_suite "$example" "$display_name" "$category"
+    # A failed suite is recorded by run_test_suite; keep going when
+    # STOP_ON_FAILURE=false despite the runner's set -e.
+    if run_test_suite "$example" "$display_name" "$category"; then
+        :
+    fi
 done
 
 # Print summary and exit with appropriate code
