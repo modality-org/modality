@@ -35,11 +35,28 @@ modal node ping --dir ./ping-node --target '<bootstrapper-multiaddr>'
 ```
 
 A successful ping proves transport to that peer, not that your blocks became
-canonical. Check the miner logs for mined blocks, then compare the chain tip and
-recent blocks with a separately running observer. Keep a dated run log if
-you are publishing evidence of an external join. The
-[network checklist](../roadmaps/roadmap.md) keeps that evidence open until an
-external trace exists.
+canonical. After the miner logs a block, inspect the local canonical chain:
+
+```bash
+modal node inspect blocks --dir ./my-node
+```
+
+`Chain Tip` prints the height and a shortened hash. Run the same command
+against a **separately running** observer (replace the directory below with
+its actual node directory):
+
+```bash
+modal node inspect blocks --dir ./observer-node
+```
+
+Compare the height and hash when the tips are at the same height; a higher
+tip on one node is not, by itself, a matching block. `inspect` opens a
+running node's datastore read-only. Keep the
+miner log (including the full mined hash), both inspection outputs, and the
+release/version with a UTC timestamp if publishing evidence of an external
+join. A local inspection alone cannot prove propagation to independent peers.
+The [network checklist](../roadmaps/roadmap.md) keeps that evidence open until
+an external trace exists.
 
 ## Nominate a sequencer
 
