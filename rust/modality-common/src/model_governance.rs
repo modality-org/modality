@@ -9,7 +9,8 @@ use crate::theory_state::{contract_registry, AcceptedState};
 use anyhow::Result;
 use ed25519_dalek::{PublicKey, Signature, Verifier};
 use modality_lang::rule_file::parse_rule_file;
-use modality_lang::theory::{Lookup, StateView};
+use modality_lang::theory::sort::ext;
+use modality_lang::theory::{num_ext, Lookup, NumKind, StateView};
 use modality_lang::vars;
 use modality_lang::{
     parse_content_lalrpop, DeadEdge, Formula, FormulaExpr, Model, ModelChecker, Move, Part,
@@ -2630,11 +2631,31 @@ impl CommitFacts {
         })
     }
 
-    /// A whole amount: a literal such as `"10"`, or a `.num` path holding a
+    /// A number path under this theory: `.num`, and from `V5` `.rational`,
+    /// `.integer` and `.natural`.
+    fn number_path(&self, path: &str) -> bool {
+        num_ext(ext(&normalize_path(path)), self.theory)
+    }
+
+    /// From `V5`, `n` is a number `path` can hold: a whole number at an
+    /// `.integer` path, a whole number from 0 at a `.natural` one. A number
+    /// that does not fit reads as no number.
+    fn fits(&self, path: &str, n: &Exact) -> bool {
+        if !self.theory.reads_numeric_types() {
+            return true;
+        }
+        match NumKind::of(&normalize_path(path)) {
+            NumKind::Rational => true,
+            NumKind::Integer => n.is_integer(),
+            NumKind::Natural => n.is_integer() && !n.is_negative(),
+        }
+    }
+
+    /// A whole amount: a literal such as `"10"`, or a number path holding a
     /// whole number in accepted state.
     fn whole_amount(&self, arg: &str) -> Option<u128> {
         if arg.starts_with('/') {
-            if !arg.ends_with(".num") {
+            if !self.number_path(arg) {
                 return None;
             }
             self.state
@@ -2688,7 +2709,7 @@ impl CommitFacts {
     /// leaves it alone. With a fee `f` in `[0, 1)`, a number that grows counts
     /// only `1 - f` of its growth, so a swap must pay the fee on what it puts in.
     fn keeps_product(&self, a: &str, b: &str, fee: Option<&str>) -> bool {
-        if !a.ends_with(".num") || !b.ends_with(".num") || normalize_path(a) == normalize_path(b) {
+        if !self.number_path(a) || !self.number_path(b) || normalize_path(a) == normalize_path(b) {
             return false;
         }
         let fee = match fee {
@@ -2723,7 +2744,7 @@ impl CommitFacts {
     /// pays the fee even if it also writes the supply path.
     fn keeps_product_per_share(&self, a: &str, b: &str, supply: &str, fee: Option<&str>) -> bool {
         let paths = [a, b, supply];
-        if paths.iter().any(|p| !p.ends_with(".num"))
+        if paths.iter().any(|p| !self.number_path(p))
             || normalize_path(a) == normalize_path(b)
             || paths[..2]
                 .iter()
@@ -2845,7 +2866,7 @@ impl CommitFacts {
     /// With `"issued"`, by what it sends less what it takes in, as a supply
     /// that grows when shares go out.
     fn tracks(&self, path: &str, asset: &str, issued: bool) -> bool {
-        if !path.ends_with(".num") {
+        if !self.number_path(path) {
             return false;
         }
         let Some((before, after)) = self.before_after(path) else {
@@ -2879,24 +2900,24 @@ impl CommitFacts {
     /// pending commit. `None` when there is no accepted number, or when a
     /// pending `POST` there is not a number.
     fn before_after(&self, path: &str) -> Option<(Exact, Exact)> {
-        let path = normalize_path(path);
-        let before = Exact::from_json(self.state.get(&path)?)?;
+        let key = normalize_path(path);
+        let before = Exact::from_json(self.state.get(&key)?)?;
         let mut after = before.clone();
         for (posted, value) in &self.posts {
-            if *posted == path {
+            if *posted == key {
                 after = Exact::from_json(value)?;
             }
         }
-        Some((before, after))
+        (self.fits(path, &before) && self.fits(path, &after)).then_some((before, after))
     }
 
-    /// A number literal, or a `.num` path holding a number in accepted state.
+    /// A number literal, or a number path holding a number in accepted state.
     fn exact_arg(&self, arg: &str) -> Option<Exact> {
         if arg.starts_with('/') {
-            if !arg.ends_with(".num") {
+            if !self.number_path(arg) {
                 return None;
             }
-            Exact::from_json(self.state.get(&normalize_path(arg))?)
+            Exact::from_json(self.state.get(&normalize_path(arg))?).filter(|n| self.fits(arg, n))
         } else {
             self.exact_literal(arg)
         }
@@ -3037,8 +3058,9 @@ impl CommitFacts {
         left.partial_cmp(&right).is_some_and(holds)
     }
 
+    /// The number at `path`; from `V5`, only one the path can hold.
     fn state_exact(&self, path: &str) -> Option<Exact> {
-        Exact::from_json(self.state.get(&normalize_path(path))?)
+        Exact::from_json(self.state.get(&normalize_path(path))?).filter(|n| self.fits(path, n))
     }
 
     fn exact_number_arg(&self, arg: &str) -> Option<Exact> {

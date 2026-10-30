@@ -83,7 +83,9 @@ any `sorry` or `native_decide`, and runs the harness.
 at each path), the keys that signed the commit, and the commit's
 actions. Each constraint is a function of the world, written the way the
 evaluator reads it. A numeric comparison on a path that holds no number
-is false. `signed(p)` holds when `p` holds a key that signed. `card(q) ≥
+is false. A number read is typed by the path's extension too (theory
+`v5`): an `.integer` path holds whole numbers, a `.natural` path whole
+numbers from 0, so `-1` at a `.natural` path is no number. `signed(p)` holds when `p` holds a key that signed. `card(q) ≥
 n` counts distinct signed keys posted at `.id` paths under `q`.
 `writes(p)` and `posts(p)` read the actions, and a static label such as
 `+POST` holds when some action has that method. A predicate with no
@@ -91,7 +93,9 @@ declaration is opaque: it means whatever a parameter says, and no proof
 may assume anything about it.
 
 **Checker.** `dead` runs eight checks: a literal and its negation;
-presence; booleans; the order of numbers, closed under composition;
+presence; booleans; the order of numbers, closed under composition, then
+with every constant bound on a whole-number path rounded inward and a
+`.natural` path at least 0, and closed again;
 text classes, joined through shared literals, with substring tests
 checked against what the class must contain; a lower bound on the signed
 keys under each prefix; the path lattice of writes and posts; and one
@@ -101,7 +105,11 @@ procedure.
 **Witnesses.** `live` builds a world and evaluates every label on it
 with the same meaning function the soundness proof uses. Numbers are
 short decimals placed between the constants, so every order constraint
-holds and no two unrelated values meet. Strings are the class literal,
+holds and no two unrelated values meet. Whole-number paths come first,
+as integers: the least value the rounded bounds and the whole paths
+below allow, raised past `-num_eq`; then they are constants for the
+rest. Upper bounds are not searched, so a pigeonhole of whole numbers
+kept apart stays `unknown`. Strings are the class literal,
 or the required prefix, infixes, and suffix separated by a fresh
 character. Keys are posted and signed where a signer label needs them.
 When the construction fails, the verdict is `unknown`, never `live`.
@@ -146,7 +154,9 @@ formulas are not in the Lean spec.
 ## Checked claims
 
 - `dead_sound`: if `dead` says the labels cannot hold together, no world
-  satisfies them, whatever the opaque predicates mean
+  satisfies them, whatever the opaque predicates mean. For whole-number
+  paths it rests on `tighten_hold` (a rounded bound still holds of an
+  integer) and `natFloor_hold` (a `.natural` is at least 0)
 - `live_sound`: if `live` says they can, the world it built satisfies
   them; `live_not_dead`: the two verdicts never both fire
 - `external_live_sound`: an edge whose opaque literals are all external

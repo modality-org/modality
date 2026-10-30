@@ -131,6 +131,52 @@ pub fn no_keys(q: &str) -> bool {
     q.is_empty() || q.starts_with('/')
 }
 
+/// The numbers a path may hold, by extension (theory `V5`). Lean:
+/// `NumKind`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum NumKind {
+    Rational,
+    Integer,
+    Natural,
+}
+
+impl NumKind {
+    /// `.natural` and `.integer` paths hold whole numbers; every other
+    /// path, `.num` and `.rational` among them, any rational. Only number
+    /// extensions ever reach an order term ([`num_ext`]). Lean: `numKind`.
+    pub fn of(path: &str) -> Self {
+        match ext(path) {
+            Some("natural") => NumKind::Natural,
+            Some("integer") => NumKind::Integer,
+            _ => NumKind::Rational,
+        }
+    }
+
+    /// The kind holds only whole numbers. Lean: `NumKind.whole`.
+    pub fn whole(self) -> bool {
+        self != NumKind::Rational
+    }
+
+    /// A path of this kind can hold `q`. Lean: `NumKind.fits`.
+    pub fn fits(self, q: &Rational) -> bool {
+        match self {
+            NumKind::Rational => true,
+            NumKind::Integer => q.is_integer(),
+            NumKind::Natural => q.is_integer() && q.num() >= 0,
+        }
+    }
+}
+
+/// The extension of a number path under `version`: `num`, and from `V5`
+/// `rational`, `integer` and `natural`. Lean: `numExt`.
+pub fn num_ext(e: Option<&str>, version: super::TheoryVersion) -> bool {
+    match e {
+        Some("num") => true,
+        Some("rational" | "integer" | "natural") => version.reads_numeric_types(),
+        _ => false,
+    }
+}
+
 /// Extension of a normalised path (`num`, `bool`, `text`, `id`, …), if any.
 pub fn ext(path: &str) -> Option<&str> {
     let last = path.rsplit('/').next()?;

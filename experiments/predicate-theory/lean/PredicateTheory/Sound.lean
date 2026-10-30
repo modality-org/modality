@@ -42,8 +42,34 @@ theorem lookup_mem {p : Path} {v : Value} :
 theorem num?_get {p : Path} {x : Q} (h : w.num? p = some x) : w.get p = some (.num x) := by
   unfold World.num? at h
   split at h
-  · rename_i heq; simp only [Option.some.injEq] at h; subst h; exact heq
+  · rename_i heq
+    split at h
+    · simp only [Option.some.injEq] at h; subst h; exact heq
+    · simp at h
   · simp at h
+
+/-- A number read fits the path's kind. -/
+theorem num?_fits {p : Path} {x : Q} (h : w.num? p = some x) : (numKind p).fits x = true := by
+  unfold World.num? at h
+  split at h
+  · split at h
+    · rename_i hf; simp only [Option.some.injEq] at h; subst h; exact hf
+    · simp at h
+  · simp at h
+
+/-- A whole-number path holds whole numbers. -/
+theorem whole_isInt {p : Path} {x : Q} (hk : (numKind p).whole = true) (h : w.num? p = some x) :
+    x.isInt = true := by
+  have hf := num?_fits h
+  cases hn : numKind p <;> rw [hn] at hk hf <;> simp_all [NumKind.whole, NumKind.fits]
+
+/-- A `.natural` path holds numbers from `0`. -/
+theorem natural_nonneg {p : Path} {x : Q} (hk : numKind p = .natural) (h : w.num? p = some x) :
+    0 ≤ x.num := by
+  have hf := num?_fits h
+  rw [hk] at hf
+  simp only [NumKind.fits, Bool.and_eq_true, decide_eq_true_eq] at hf
+  exact hf.2
 
 theorem text?_get {p : Path} {s : String} (h : w.text? p = some s) :
     w.get p = some (.text s) := by
@@ -98,6 +124,15 @@ theorem mentions_eval {t : Term} {p : Path} {x : Q}
     simp only [Term.mentions, beq_iff_eq] at hm
     subst hm
     exact num?_get he
+  | const c => simp [Term.mentions] at hm
+
+theorem mentions_num {t : Term} {p : Path} {x : Q}
+    (hm : t.mentions p = true) (he : t.eval w = some x) : w.num? p = some x := by
+  cases t with
+  | path q =>
+    simp only [Term.mentions, beq_iff_eq] at hm
+    subst hm
+    exact he
   | const c => simp [Term.mentions] at hm
 
 theorem presentOn_isSome {a : Atom} {p : Path}
@@ -202,8 +237,8 @@ theorem forcedNum_number (hw : ∀ l ∈ ls, l.sem I w = true) {p : Path}
     obtain ⟨x, y, hx, hy, _⟩ := order_sem.mp (sem_pos hw hl)
     simp only [Atom.numericOn, Bool.or_eq_true] at hn
     rcases hn with hn | hn
-    · exact ⟨x, by simp [World.num?, mentions_eval hn hx]⟩
-    · exact ⟨y, by simp [World.num?, mentions_eval hn hy]⟩
+    · exact ⟨x, mentions_num hn hx⟩
+    · exact ⟨y, mentions_num hn hy⟩
   | _ => simp [Atom.numericOn] at hn
 
 theorem numeric_eval (hw : ∀ l ∈ ls, l.sem I w = true) {t : Term}
@@ -282,12 +317,88 @@ theorem ocompose_hold {e f g : Edge Term}
     · exact Q.lt_of_lt_of_le h₁ (Q.le_of_lt h₂)
   · simp at hc
 
+/-- Rounding a bound on a whole-number path keeps it true: the path holds
+an integer (theory `v5`). -/
+theorem tighten_hold {e : Edge Term} (he : OHolds w e) : OHolds w e.tighten := by
+  obtain ⟨a, s, b⟩ := e
+  obtain ⟨x, y, hx, hy, hr⟩ := he
+  cases a with
+  | path p =>
+    cases b with
+    | const c =>
+      simp only [Edge.tighten]
+      split
+      · rename_i hk
+        simp only [Term.eval, Option.some.injEq] at hx hy
+        subst hy
+        have hi := whole_isInt hk hx
+        refine ⟨x, _, hx, rfl, ?_⟩
+        cases s
+        · simpa [rel] using Q.le_floor hi (by simpa [rel] using hr)
+        · simpa [rel] using Q.le_ceil_sub_one hi (by simpa [rel] using hr)
+      · exact ⟨x, y, hx, hy, hr⟩
+    | path q => exact ⟨x, y, hx, hy, hr⟩
+  | const c =>
+    cases b with
+    | path p =>
+      simp only [Edge.tighten]
+      split
+      · rename_i hk
+        simp only [Term.eval, Option.some.injEq] at hx hy
+        subst hx
+        have hi := whole_isInt hk hy
+        refine ⟨_, y, rfl, hy, ?_⟩
+        cases s
+        · simpa [rel] using Q.ceil_le hi (by simpa [rel] using hr)
+        · simpa [rel] using Q.floor_add_one_le hi (by simpa [rel] using hr)
+      · exact ⟨x, y, hx, hy, hr⟩
+    | const d => exact ⟨x, y, hx, hy, hr⟩
+
+/-- A `.natural` path a positive order literal reads is at least `0`. -/
+theorem natFloor_hold (hw : ∀ l ∈ ls, l.sem I w = true) : ∀ e ∈ natFloor ls, OHolds w e := by
+  intro e he
+  simp only [natFloor, List.mem_flatMap] at he
+  obtain ⟨⟨lp, la⟩, hl, he⟩ := he
+  cases lp <;> cases la <;> simp only [List.not_mem_nil] at he
+  rename_i a op b
+  obtain ⟨x, y, hx, hy, _⟩ := order_sem.mp (sem_pos hw hl)
+  rw [List.mem_filterMap] at he
+  obtain ⟨t, ht, hte⟩ := he
+  have hev : ∃ v, t.eval w = some v := by
+    simp only [List.mem_cons, List.mem_singleton, List.not_mem_nil, or_false] at ht
+    rcases ht with rfl | rfl
+    · exact ⟨x, hx⟩
+    · exact ⟨y, hy⟩
+  obtain ⟨v, hv⟩ := hev
+  cases t with
+  | path p =>
+    simp only at hte
+    split at hte
+    · rename_i hk
+      simp only [Option.some.injEq] at hte
+      subst hte
+      simp only [beq_iff_eq] at hk
+      exact ⟨_, v, rfl, hv, by simpa [rel] using Q.zero_le_of_num (natural_nonneg hk hv)⟩
+    · simp at hte
+  | const _ => simp at hte
+
+theorem orderBase_hold (hw : ∀ l ∈ ls, l.sem I w = true) : ∀ e ∈ orderBase ls, OHolds w e := by
+  apply close_hold (OHolds w) ocompose_hold
+  intro e he
+  rcases List.mem_append.mp he with he | he
+  · simp only [List.mem_flatMap] at he
+    obtain ⟨l, hl, he⟩ := he
+    exact orderEdges_hold hw hl he
+  · exact natFloor_hold hw e he
+
 theorem orderOf_hold (hw : ∀ l ∈ ls, l.sem I w = true) : ∀ e ∈ orderOf ls, OHolds w e := by
   apply close_hold (OHolds w) ocompose_hold
   intro e he
-  simp only [List.mem_flatMap] at he
-  obtain ⟨l, hl, he⟩ := he
-  exact orderEdges_hold hw hl he
+  rcases mem_foldl_addNew he with he | he
+  · exact orderBase_hold hw e he
+  · simp only [List.mem_map] at he
+    obtain ⟨e', he', rfl⟩ := he
+    exact tighten_hold (orderBase_hold hw e' he')
 
 theorem contradicts_false {e : Edge Term} (hc : e.contradicts = true) (he : OHolds w e) :
     False := by

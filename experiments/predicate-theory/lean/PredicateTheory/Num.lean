@@ -110,6 +110,112 @@ theorem not_lt {a b : Q} (h : ¬ a < b) : b ≤ a := by
 theorem not_le {a b : Q} (h : ¬ a ≤ b) : b < a := by
   rw [le_def] at h; rw [lt_def]; omega
 
+/-! ## Whole numbers (theory `v5`) -/
+
+/-- A whole number: the denominator divides the numerator. -/
+def isInt (a : Q) : Bool := a.num % a.d == 0
+
+/-- The greatest integer at most `a` (`/` on `Int` rounds down for a
+positive divisor). -/
+def floor (a : Q) : Int := a.num / a.d
+
+/-- The least integer at least `a`. -/
+def ceil (a : Q) : Int := -((-a.num) / a.d)
+
+theorem isInt_mul {a : Q} (h : a.isInt = true) : ∃ k : Int, a.num = k * a.d := by
+  simp only [isInt, beq_iff_eq] at h
+  exact ⟨a.num / a.d, (Int.ediv_mul_cancel (Int.dvd_of_emod_eq_zero h)).symm⟩
+
+private theorem le_ofInt_iff {a : Q} {k m : Int} (hk : a.num = k * a.d) :
+    a ≤ ofInt m ↔ k ≤ m := by
+  rw [le_def, hk]
+  simp only [ofInt, d, Int.ofNat_zero, Int.zero_add, Int.mul_one]
+  constructor
+  · intro h; exact Int.le_of_mul_le_mul_right h (d_pos a)
+  · intro h; exact Int.mul_le_mul_of_nonneg_right h (Int.le_of_lt (d_pos a))
+
+private theorem ofInt_le_iff {a : Q} {k m : Int} (hk : a.num = k * a.d) :
+    ofInt m ≤ a ↔ m ≤ k := by
+  rw [le_def, hk]
+  simp only [ofInt, d, Int.ofNat_zero, Int.zero_add, Int.mul_one]
+  constructor
+  · intro h; exact Int.le_of_mul_le_mul_right h (d_pos a)
+  · intro h; exact Int.mul_le_mul_of_nonneg_right h (Int.le_of_lt (d_pos a))
+
+/-- Cancel `a`'s positive denominator from a comparison with `c`. -/
+private theorem lt_whole {a c : Q} {k : Int} (hk : a.num = k * a.d) :
+    a < c ↔ k * c.d < c.num := by
+  rw [lt_def, hk]
+  have e : k * a.d * c.d = (k * c.d) * a.d := by ac_rfl
+  rw [e]
+  constructor
+  · intro h; exact Int.lt_of_mul_lt_mul_right h (Int.le_of_lt (d_pos a))
+  · intro h; exact Int.mul_lt_mul_of_pos_right h (d_pos a)
+
+private theorem le_whole {a c : Q} {k : Int} (hk : a.num = k * a.d) :
+    a ≤ c ↔ k * c.d ≤ c.num := by
+  rw [le_def, hk]
+  have e : k * a.d * c.d = (k * c.d) * a.d := by ac_rfl
+  rw [e]
+  constructor
+  · intro h; exact Int.le_of_mul_le_mul_right h (d_pos a)
+  · intro h; exact Int.mul_le_mul_of_nonneg_right h (Int.le_of_lt (d_pos a))
+
+private theorem whole_lt {a c : Q} {k : Int} (hk : a.num = k * a.d) :
+    c < a ↔ c.num < k * c.d := by
+  rw [lt_def, hk]
+  have e : k * a.d * c.d = (k * c.d) * a.d := by ac_rfl
+  rw [e]
+  constructor
+  · intro h; exact Int.lt_of_mul_lt_mul_right h (Int.le_of_lt (d_pos a))
+  · intro h; exact Int.mul_lt_mul_of_pos_right h (d_pos a)
+
+private theorem whole_le {a c : Q} {k : Int} (hk : a.num = k * a.d) :
+    c ≤ a ↔ c.num ≤ k * c.d := by
+  rw [le_def, hk]
+  have e : k * a.d * c.d = (k * c.d) * a.d := by ac_rfl
+  rw [e]
+  constructor
+  · intro h; exact Int.le_of_mul_le_mul_right h (d_pos a)
+  · intro h; exact Int.mul_le_mul_of_nonneg_right h (Int.le_of_lt (d_pos a))
+
+/-- A whole number below `c` is at most `⌈c⌉ - 1`. -/
+theorem le_ceil_sub_one {a c : Q} (ha : a.isInt = true) (h : a < c) :
+    a ≤ ofInt (c.ceil - 1) := by
+  obtain ⟨k, hk⟩ := isInt_mul ha
+  rw [le_ofInt_iff hk]
+  have h := (lt_whole hk).mp h
+  have hq : (-c.num) / c.d < -k := (Int.ediv_lt_iff_lt_mul (d_pos c)).mpr (by
+    rw [Int.neg_mul]; omega)
+  simp only [ceil]; omega
+
+/-- A whole number at most `c` is at most `⌊c⌋`. -/
+theorem le_floor {a c : Q} (ha : a.isInt = true) (h : a ≤ c) : a ≤ ofInt c.floor := by
+  obtain ⟨k, hk⟩ := isInt_mul ha
+  rw [le_ofInt_iff hk]
+  exact (Int.le_ediv_iff_mul_le (d_pos c)).mpr ((le_whole hk).mp h)
+
+/-- A whole number above `c` is at least `⌊c⌋ + 1`. -/
+theorem floor_add_one_le {a c : Q} (ha : a.isInt = true) (h : c < a) :
+    ofInt (c.floor + 1) ≤ a := by
+  obtain ⟨k, hk⟩ := isInt_mul ha
+  rw [ofInt_le_iff hk]
+  have hq : c.num / c.d < k := (Int.ediv_lt_iff_lt_mul (d_pos c)).mpr ((whole_lt hk).mp h)
+  simp only [floor]; omega
+
+/-- A whole number at least `c` is at least `⌈c⌉`. -/
+theorem ceil_le {a c : Q} (ha : a.isInt = true) (h : c ≤ a) : ofInt c.ceil ≤ a := by
+  obtain ⟨k, hk⟩ := isInt_mul ha
+  rw [ofInt_le_iff hk]
+  have h := (whole_le hk).mp h
+  have hq : -k ≤ (-c.num) / c.d := (Int.le_ediv_iff_mul_le (d_pos c)).mpr (by
+    rw [Int.neg_mul]; omega)
+  simp only [ceil]; omega
+
+/-- A whole number with a non-negative numerator is at least `0`. -/
+theorem zero_le_of_num {a : Q} (h : 0 ≤ a.num) : ofInt 0 ≤ a := by
+  rw [le_def]; simp only [ofInt, d]; omega
+
 /-! ## Decimals a commit can carry -/
 
 /-- Divide `n` by `f` while it divides; the rest and how many times.

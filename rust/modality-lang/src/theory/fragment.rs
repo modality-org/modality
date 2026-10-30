@@ -19,7 +19,7 @@
 
 use super::rational::Rational;
 use super::TheoryVersion;
-use super::sort::{ext, norm_path, Constraint, Op, Term, TextOp};
+use super::sort::{ext, norm_path, num_ext, Constraint, Op, Term, TextOp};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum SExpr {
@@ -123,16 +123,16 @@ impl Template {
     }
 
     /// [`Template::instantiate`] under `version`: from `V4`, a number
-    /// literal can also be a fraction (`1/3`).
+    /// literal can also be a fraction (`1/3`); from `V5`, a `.rational`,
+    /// `.integer` or `.natural` path is a number path.
     pub fn instantiate_in(
         &self,
         args: &[String],
         version: TheoryVersion,
     ) -> Option<Vec<Constraint>> {
-        let fractions = version.reads_fractions();
         self.atoms
             .iter()
-            .map(|a| elab_atom(a, args, fractions))
+            .map(|a| elab_atom(a, args, version))
             .collect::<Option<Vec<_>>>()
     }
 }
@@ -166,10 +166,10 @@ fn resolve(e: &SExpr, args: &[String]) -> Option<Arg> {
     }
 }
 
-fn num_term(e: &SExpr, args: &[String], fractions: bool) -> Option<Term> {
+fn num_term(e: &SExpr, args: &[String], version: TheoryVersion) -> Option<Term> {
     match resolve(e, args)? {
-        Arg::Path(p) => (ext(&p) == Some("num")).then_some(Term::Path(p)),
-        Arg::Lit(l) if fractions => Rational::parse_literal(&l).map(Term::Const),
+        Arg::Path(p) => num_ext(ext(&p), version).then_some(Term::Path(p)),
+        Arg::Lit(l) if version.reads_fractions() => Rational::parse_literal(&l).map(Term::Const),
         Arg::Lit(l) => Rational::parse(&l).map(Term::Const),
     }
 }
@@ -237,7 +237,7 @@ fn in_grammar(e: &SExpr) -> bool {
     }
 }
 
-fn elab_atom(e: &SExpr, args: &[String], fractions: bool) -> Option<Constraint> {
+fn elab_atom(e: &SExpr, args: &[String], version: TheoryVersion) -> Option<Constraint> {
     match e {
         // bare .bool path
         SExpr::Atom(_) => {
@@ -256,19 +256,19 @@ fn elab_atom(e: &SExpr, args: &[String], fractions: bool) -> Option<Constraint> 
             let rest = &items[1..];
             match (head, rest.len()) {
                 ("<", 2) => Some(order(
-                    num_term(&rest[0], args, fractions)?,
+                    num_term(&rest[0], args, version)?,
                     Op::Lt,
-                    num_term(&rest[1], args, fractions)?,
+                    num_term(&rest[1], args, version)?,
                 )),
                 ("<=", 2) => Some(order(
-                    num_term(&rest[0], args, fractions)?,
+                    num_term(&rest[0], args, version)?,
                     Op::Le,
-                    num_term(&rest[1], args, fractions)?,
+                    num_term(&rest[1], args, version)?,
                 )),
                 (">", 2) => Some(order(
-                    num_term(&rest[1], args, fractions)?,
+                    num_term(&rest[1], args, version)?,
                     Op::Lt,
-                    num_term(&rest[0], args, fractions)?,
+                    num_term(&rest[0], args, version)?,
                 )),
                 (">=", 2) => {
                     // (>= (card prefix) n)
@@ -284,14 +284,14 @@ fn elab_atom(e: &SExpr, args: &[String], fractions: bool) -> Option<Constraint> 
                         return None;
                     }
                     Some(order(
-                        num_term(&rest[1], args, fractions)?,
+                        num_term(&rest[1], args, version)?,
                         Op::Le,
-                        num_term(&rest[0], args, fractions)?,
+                        num_term(&rest[0], args, version)?,
                     ))
                 }
                 ("=", 2) => {
                     // numeric equality if both sides type as .num / decimal
-                    if let (Some(l), Some(r)) = (num_term(&rest[0], args, fractions), num_term(&rest[1], args, fractions))
+                    if let (Some(l), Some(r)) = (num_term(&rest[0], args, version), num_term(&rest[1], args, version))
                     {
                         return Some(order(l, Op::Eq, r));
                     }

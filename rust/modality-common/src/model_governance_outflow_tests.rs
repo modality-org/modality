@@ -15,6 +15,7 @@ const V0: TheoryVersion = TheoryVersion::V0;
 const V2: TheoryVersion = TheoryVersion::V2;
 const V3: TheoryVersion = TheoryVersion::V3;
 const V4: TheoryVersion = TheoryVersion::V4;
+const V5: TheoryVersion = TheoryVersion::V5;
 
 fn holds(commit: &CommitFile, state: &[(&str, Value)], name: &str, args: &[&str]) -> bool {
     let state: HashMap<String, Value> = state
@@ -118,6 +119,68 @@ fn v4_reads_fraction_literals_exactly() {
     for name in ["num_lt", "num_gte"] {
         assert!(!under(V3, name, &["/half.num", "1/3"]), "{name}");
     }
+}
+
+#[test]
+fn v5_reads_numeric_path_types() {
+    let state = [
+        ("/n.natural", json!(3)),
+        ("/i.integer", json!(-2)),
+        ("/r.rational", json!(0.5)),
+        // numbers their paths cannot hold, as state from before V5 might
+        ("/bad.natural", json!(-1)),
+        ("/half.integer", json!(0.5)),
+        // a timestamp is a number, but `.datetime` is not a number path
+        ("/d.datetime", json!(1700000000)),
+    ];
+    let under = |theory, name, args: &[&str]| holds_under(theory, &state, name, args);
+    assert!(under(V5, "num_eq", &["/n.natural", "3"]));
+    assert!(under(V5, "num_lt", &["/i.integer", "0"]));
+    assert!(under(V5, "num_eq", &["/r.rational", "1/2"]));
+    assert!(under(V5, "num_gt", &["/n.natural", "/i.integer"]), "a path on the right");
+    assert!(under(V5, "amount_in_range", &["/n.natural", "0", "5"]));
+    // A number the path cannot hold reads as no number: both sides fail.
+    for (path, at) in [("/bad.natural", "-1"), ("/half.integer", "0.5")] {
+        assert!(!under(V5, "num_eq", &[path, at]), "{path}");
+        assert!(!under(V5, "num_lt", &[path, "100"]), "{path}");
+        assert!(!under(V5, "num_gte", &[path, "-100"]), "{path}");
+    }
+    // Only number paths compare (the standard declarations gate every
+    // version from V1), so a typed path is no number before V5.
+    assert!(!under(V5, "num_gt", &["/d.datetime", "0"]));
+    assert!(!under(V4, "num_gt", &["/d.datetime", "0"]));
+    assert!(!under(V4, "num_eq", &["/n.natural", "3"]), "not a number path before V5");
+}
+
+#[test]
+fn v5_types_the_writes_it_accepts() {
+    let post = |path: &str, value: Value| {
+        let mut c = CommitFile::new();
+        c.add_action("post".to_string(), Some(path.to_string()), value);
+        c
+    };
+    let v5 = |path: &str, value: Value| post(path, value).validate_at(true);
+    let v4 = |path: &str, value: Value| post(path, value).validate_at(false);
+    // Before V5 the extensions are unknown.
+    for path in ["/n.natural", "/i.integer", "/r.rational"] {
+        assert!(v4(path, json!(1)).is_err(), "{path}");
+        assert!(post(path, json!(1)).validate().is_err(), "{path}: validate() is pre-V5");
+    }
+    assert!(v5("/n.natural", json!(0)).is_ok());
+    assert!(v5("/n.natural", json!(18446744073709551615u64)).is_ok());
+    assert!(v5("/n.natural", json!(-1)).is_err(), "negative");
+    assert!(v5("/n.natural", json!(1.5)).is_err(), "a fraction");
+    assert!(v5("/n.natural", json!(2.0)).is_err(), "written as a decimal");
+    assert!(v5("/n.natural", json!("3")).is_err(), "a string");
+    assert!(v5("/i.integer", json!(-7)).is_ok());
+    assert!(v5("/i.integer", json!(0.5)).is_err());
+    assert!(
+        v5("/i.integer", json!(1e30)).is_err(),
+        "too large to hold exactly: refused, never rounded"
+    );
+    assert!(v5("/r.rational", json!(0.25)).is_ok());
+    assert!(v5("/r.rational", json!("1/4")).is_err());
+    assert!(v5("/x.num", json!(0.25)).is_ok(), "`.num` is unchanged");
 }
 
 fn sends(items: &[(&str, &str, Value)]) -> CommitFile {

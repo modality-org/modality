@@ -27,27 +27,11 @@ namespace PredicateTheory
 
 /-! ## Strings, paths, numbers -/
 
-def splitOnChar (c : Char) : List Char → List (List Char)
-  | [] => [[]]
-  | x :: xs =>
-    match splitOnChar c xs with
-    | [] => [[]]
-    | seg :: rest => if x == c then [] :: seg :: rest else (x :: seg) :: rest
-
 /-- `norm_path` then split: leading slashes stripped, nothing else. -/
 def normPath (s : String) : Path :=
   (splitOnChar '/' (s.toList.dropWhile (· == '/'))).map String.mk
 
 def startsWithSlash (s : String) : Bool := s.toList.head? == some '/'
-
-/-- Extension of the last segment: after its last `.`, if non-empty. -/
-def ext (p : Path) : Option String :=
-  match p.getLast? with
-  | none => none
-  | some seg =>
-    match (splitOnChar '.' seg.toList).reverse with
-    | e :: _ :: _ => if e.isEmpty then none else some (String.mk e)
-    | _ => none
 
 def digitVal (c : Char) : Option Nat :=
   if '0' ≤ c && c ≤ '9' then some (c.toNat - '0'.toNat) else none
@@ -114,10 +98,31 @@ def parseFraction (s : String) : Option Q :=
     | _, _ => none
   | _ => none
 
-/-- A number literal: a decimal, and from theory `v4` (`fractions`) a
+/-- What a theory version adds to elaboration (Rust: `TheoryVersion`). -/
+structure Feat where
+  /-- `v4`: a number literal can be a fraction (`1/3`). -/
+  fractions : Bool := false
+  /-- `v5`: `.rational`, `.integer` and `.natural` paths are numbers. -/
+  numTypes : Bool := false
+  deriving DecidableEq, Repr
+
+/-- Theory `v4`. -/
+def Feat.v4 : Feat := { fractions := true }
+
+/-- Theory `v5`. -/
+def Feat.v5 : Feat := { fractions := true, numTypes := true }
+
+/-- The extension of a number path: `.num`, and from theory `v5`
+(`f.numTypes`) `.rational`, `.integer` and `.natural`. -/
+def numExt (f : Feat) : Option String → Bool
+  | some "num" => true
+  | some "rational" | some "integer" | some "natural" => f.numTypes
+  | _ => false
+
+/-- A number literal: a decimal, and from theory `v4` (`f.fractions`) a
 fraction too (Rust: `num_term`). -/
-def parseNumLit (fractions : Bool) (s : String) : Option Q :=
-  if s.toList.contains '/' && fractions then parseFraction s else parseDecimal s
+def parseNumLit (f : Feat) (s : String) : Option Q :=
+  if s.toList.contains '/' && f.fractions then parseFraction s else parseDecimal s
 
 /-! ## S-expressions -/
 
@@ -245,14 +250,14 @@ def resolve (args : List String) : SExpr → Option Arg
     | _ => some (if startsWithSlash a then .path (normPath a) else .lit a)
   | .list _ => none
 
-def numTermIn (fractions : Bool) (args : List String) (e : SExpr) : Option Term :=
+def numTermIn (f : Feat) (args : List String) (e : SExpr) : Option Term :=
   match resolve args e with
-  | some (.path p) => if ext p == some "num" then some (.path p) else none
+  | some (.path p) => if numExt f (ext p) then some (.path p) else none
   -- in lowest terms, as Rust stores them, so `1/2` and `0.5` are one constant
-  | some (.lit l) => (parseNumLit fractions l).map (.const ·.reduce)
+  | some (.lit l) => (parseNumLit f l).map (.const ·.reduce)
   | none => none
 
-def numTerm : List String → SExpr → Option Term := numTermIn false
+def numTerm : List String → SExpr → Option Term := numTermIn {}
 
 def typedPath (args : List String) (allowed : List String) (e : SExpr) : Option Path :=
   match resolve args e with
@@ -279,22 +284,22 @@ def textOp? : String → Option TextOp
   | _ => none
 
 /-- One atom of a template, instantiated and typed by extension. -/
-def elabAtomIn (fractions : Bool) (args : List String) : SExpr → Option Atom
+def elabAtomIn (f : Feat) (args : List String) : SExpr → Option Atom
   | e@(.atom _) => (typedPath args ["bool"] e).map (.isBool · true)
   | .str _ => none
   | .list (.atom head :: rest) =>
     match head, rest with
-    | "<", [a, b] => do pure (.order (← numTermIn fractions args a) .lt (← numTermIn fractions args b))
-    | "<=", [a, b] => do pure (.order (← numTermIn fractions args a) .le (← numTermIn fractions args b))
-    | ">", [a, b] => do pure (.order (← numTermIn fractions args b) .lt (← numTermIn fractions args a))
+    | "<", [a, b] => do pure (.order (← numTermIn f args a) .lt (← numTermIn f args b))
+    | "<=", [a, b] => do pure (.order (← numTermIn f args a) .le (← numTermIn f args b))
+    | ">", [a, b] => do pure (.order (← numTermIn f args b) .lt (← numTermIn f args a))
     | ">=", [.list [.atom "card", q], n] => do
       let pre ← anyPath args q
       let k ← (litArg args n).bind parseU32
       pure (.card pre k)
     | ">=", [.list _, _] => none
-    | ">=", [a, b] => do pure (.order (← numTermIn fractions args b) .le (← numTermIn fractions args a))
+    | ">=", [a, b] => do pure (.order (← numTermIn f args b) .le (← numTermIn f args a))
     | "=", [a, b] =>
-      match numTermIn fractions args a, numTermIn fractions args b with
+      match numTermIn f args a, numTermIn f args b with
       | some l, some r => some (.order l .eq r)
       | _, _ => do
         let p ← typedPath args ["text", "id"] a
@@ -317,14 +322,14 @@ def elabAtomIn (fractions : Bool) (args : List String) : SExpr → Option Atom
     | _, _ => none
   | .list _ => none
 
-def elabAtom : List String → SExpr → Option Atom := elabAtomIn false
+def elabAtom : List String → SExpr → Option Atom := elabAtomIn {}
 
-def Template.instantiateIn (fractions : Bool) (t : Template) (args : List String) :
+def Template.instantiateIn (f : Feat) (t : Template) (args : List String) :
     Option (List Atom) :=
-  t.mapM (elabAtomIn fractions args)
+  t.mapM (elabAtomIn f args)
 
 def Template.instantiate (t : Template) (args : List String) : Option (List Atom) :=
-  t.instantiateIn false args
+  t.instantiateIn {} args
 
 /-! ## Declarations and the standard registry -/
 
@@ -369,40 +374,41 @@ def isFraction (s : String) : Bool :=
   | [n, d] => !n.isEmpty && n.all Char.isDigit && d.all Char.isDigit && d.any (· != '0')
   | _ => false
 
-def Param.fitsIn (fractions : Bool) (p : Param) (arg : String) : Bool :=
+def Param.fitsIn (f : Feat) (p : Param) (arg : String) : Bool :=
   let pathExt := fun (allowed : List String) =>
     startsWithSlash arg && match ext (normPath arg) with
       | some e => allowed.contains e
       | none => false
+  let numPath := startsWithSlash arg && numExt f (ext (normPath arg))
   match p with
   | .path => startsWithSlash arg
-  | .numPath => pathExt ["num"]
+  | .numPath => numPath
   | .textPath => pathExt ["text", "id"]
   | .boolPath => pathExt ["bool"]
   | .idPath => pathExt ["id"]
-  | .num => pathExt ["num"] ||
-      (!startsWithSlash arg && (isDecimal arg || (fractions && isFraction arg)))
+  | .num => numPath ||
+      (!startsWithSlash arg && (isDecimal arg || (f.fractions && isFraction arg)))
   | .text => pathExt ["text", "id"] || !startsWithSlash arg
   | .needle => true
   | .nat => (parseU32 arg).isSome
   | .any => true
 
-def Param.fits : Param → String → Bool := Param.fitsIn false
+def Param.fits : Param → String → Bool := Param.fitsIn {}
 
 structure Declaration where
   necessary : Option Template
   sufficient : Option Template
   params : Option (List Param)
 
-def Declaration.acceptsIn (fractions : Bool) (d : Declaration) (args : List String) : Bool :=
+def Declaration.acceptsIn (f : Feat) (d : Declaration) (args : List String) : Bool :=
   match d.params with
   | none => true
   | some ps => ps.enum.all fun (i, p) =>
       match args.get? i with
-      | some a => p.fitsIn fractions a
+      | some a => p.fitsIn f a
       | none => false
 
-def Declaration.accepts : Declaration → List String → Bool := Declaration.acceptsIn false
+def Declaration.accepts : Declaration → List String → Bool := Declaration.acceptsIn {}
 
 /-- Both directions from text; a direction that fails to parse is dropped. -/
 def Declaration.ofText (necessary sufficient : Option String) : Declaration :=
@@ -520,34 +526,34 @@ def neverAtom : Atom := .order (.const (Q.ofInt 0)) .lt (.const (Q.ofInt 0))
 
 /-- A declared predicate used with an argument of the wrong kind never
 holds: the evaluator reads it as false (Rust: `predicate_holds`). -/
-def expandIn (fractions : Bool) (reg : Registry) (l : Label) : Expansion :=
+def expandIn (f : Feat) (reg : Registry) (l : Label) : Expansion :=
   let (key, args) := l.key
   let opq : Expansion := ⟨[⟨l.pos, .opaque key args⟩], false⟩
   if l.static then ⟨[⟨l.pos, .label l.name⟩], true⟩ else
   match reg key with
   | none => opq
   | some d =>
-    if !d.acceptsIn fractions args then ⟨[⟨l.pos, neverAtom⟩], true⟩ else
+    if !d.acceptsIn f args then ⟨[⟨l.pos, neverAtom⟩], true⟩ else
     let exact := d.sufficient == d.necessary
     if l.pos then
-      match d.necessary.bind (·.instantiateIn fractions args) with
+      match d.necessary.bind (·.instantiateIn f args) with
       | some atoms => ⟨atoms.map pos, exact⟩
       | none => opq
     else
       match d.sufficient with
       | some [t] =>
-        match elabAtomIn fractions args t with
+        match elabAtomIn f args t with
         | some a => ⟨[neg a], exact⟩
         | none => opq
       | _ => opq
 
-def expand : Registry → Label → Expansion := expandIn false
+def expand : Registry → Label → Expansion := expandIn {}
 
-/-- From theory `v4` (`fractions`), a number literal can be a fraction. -/
-def expandAllIn (fractions : Bool) (reg : Registry) (ls : List Label) : Expansion :=
-  ls.foldl (fun acc l => let e := expandIn fractions reg l; ⟨acc.lits ++ e.lits, acc.exact && e.exact⟩)
+/-- From theory `v4` (`f.fractions`), a number literal can be a fraction. -/
+def expandAllIn (f : Feat) (reg : Registry) (ls : List Label) : Expansion :=
+  ls.foldl (fun acc l => let e := expandIn f reg l; ⟨acc.lits ++ e.lits, acc.exact && e.exact⟩)
     ⟨[], true⟩
 
-def expandAll : Registry → List Label → Expansion := expandAllIn false
+def expandAll : Registry → List Label → Expansion := expandAllIn {}
 
 end PredicateTheory

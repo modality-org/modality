@@ -1732,6 +1732,73 @@ fn witnesses_are_commits_the_evaluator_accepts() {
     assert!(in_state > 1_000, "in state {in_state}");
 }
 
+/// `V5`: the same over `.integer`, `.natural`, `.rational` and `.num`
+/// paths, with accepted states that hold numbers their paths cannot (as
+/// state written before `V5` might). The theory and the evaluator must read
+/// a whole-number path the same way.
+#[test]
+fn v5_witnesses_are_commits_the_evaluator_accepts() {
+    const V5: TheoryVersion = TheoryVersion::V5;
+    const PATHS: [&str; 4] = ["/x.integer", "/y.natural", "/z.rational", "/w.num"];
+    const CONSTS: [&str; 8] = ["0", "1", "2", "-1", "1/2", "5/2", "-3/2", "7"];
+    const ORDER: [&str; 5] = ["num_gt", "num_gte", "num_lt", "num_lte", "num_eq"];
+    let validator = contract_registry(&HashMap::new());
+    let mut rng = Rng(0x5EED_CAFE_F00D_0005);
+    let (mut built, mut in_state) = (0, 0);
+    for round in 0..20_000 {
+        let props: Vec<Property> = (0..1 + rng.below(4))
+            .map(|_| {
+                let second = if rng.chance(30) {
+                    *rng.pick(&PATHS)
+                } else {
+                    *rng.pick(&CONSTS)
+                };
+                let mut p = Property::new_predicate_from_call_args(
+                    rng.pick(&ORDER).to_string(),
+                    vec![rng.pick(&PATHS).to_string(), second.to_string()],
+                );
+                if rng.chance(33) {
+                    p.sign = PropertySign::Minus;
+                }
+                p
+            })
+            .collect();
+        let values = [json!(3), json!(-2), json!(0), json!(0.5), json!(7)];
+        let mut state: HashMap<String, Value> = HashMap::new();
+        for p in PATHS {
+            if rng.chance(50) {
+                state.insert(p.trim_start_matches('/').to_string(), rng.pick(&values).clone());
+            }
+        }
+        let accepted = AcceptedState::new(&state);
+        for (view, theory) in [
+            ("no state", Theory::new(V5, &validator, &NoState)),
+            ("accepted state", Theory::new(V5, &validator, &accepted)),
+        ] {
+            let Some(w) = theory.consistent(&props).witness else {
+                continue;
+            };
+            let (built_state, commit) = realize(&w);
+            let s = if view == "no state" {
+                built += 1;
+                &built_state
+            } else {
+                in_state += 1;
+                &state
+            };
+            let facts = CommitFacts::from_commit(&commit, s).under(V5);
+            for p in &props {
+                assert!(
+                    holds(&facts, p),
+                    "round {round} ({view}): {props:?} has witness {w:?} in {s:?}, but {p:?} fails"
+                );
+            }
+        }
+    }
+    assert!(built > 5_000, "built {built}");
+    assert!(in_state > 1_000, "in state {in_state}");
+}
+
 /// Case G6, after an unlabeled bootstrap: step one pins `/x` and `/y` and
 /// writes neither, so step two can never be taken. The model is accepted (contracts may end); the
 /// view and the pre-commit preview name the edge.

@@ -129,6 +129,105 @@ def numValue (ls : List Lit) (es : List (Edge Term)) (p : Path) : Q :=
       let up := -((-t) / lo.d)
       Q.frac (up * scale + k) (grid * scale)
 
+/-! ## Whole numbers (theory `v5`)
+
+Whole-number paths get their values first, as integers; then every
+whole path becomes that constant, and the rational paths are built as
+above on the result. The rounded bounds, the strict steps between whole
+paths, and `-(x = y)` decide a whole path's value; an upper bound does
+not, so a value above one fails `check` and the edge stays `unknown`.
+-/
+
+/-- Some derived edge from `a` to `b` is strict. -/
+def strictly (es : List (Edge Term)) (a b : Term) : Bool :=
+  es.any fun e => decide (e.lhs = a) && decide (e.rhs = b) && e.strict
+
+/-- The literals' own edges, closed: no rounding and no `0 ≤ p` (Rust:
+`Order::new`). -/
+def litOrder (ls : List Lit) : List (Edge Term) :=
+  close ls.length (ls.flatMap (Lit.orderEdges ls))
+
+def wholePaths (ls : List Lit) : List Path := (numPaths ls).filter fun p => (numKind p).whole
+
+/-- The `/`-joined spelling, the order Rust sorts paths in. -/
+def pathKey (p : Path) : String := "/".intercalate p
+
+/-- The two whole paths are forced equal. -/
+def sameWhole (es : List (Edge Term)) (p q : Path) : Bool :=
+  decide (p = q) || (reaches es (.path p) (.path q) && reaches es (.path q) (.path p))
+
+/-- The least value a constant bound allows `p`: `⌊c⌋ + 1` above a strict
+`c`, `⌈c⌉` above any other; at least `0` if `p` or a path forced equal to
+it is `.natural`; otherwise below every constant by more than the whole
+paths can climb. -/
+def wholeLow (ls : List Lit) (es : List (Edge Term)) (p : Path) : Int :=
+  let x := Term.path p
+  let bounds := (consts ls).filterMap fun c =>
+    if strictly es (.const c) x then some (c.floor + 1)
+    else if reaches es (.const c) x then some c.ceil else none
+  let natural := (wholePaths ls).any fun q => sameWhole es p q && numKind q == .natural
+  let bounds := if natural then 0 :: bounds else bounds
+  match bounds with
+  | [] => (qmin (consts ls) (Q.ofInt 0)).floor - (wholePaths ls).length - 1
+  | b :: bs => bs.foldl max b
+
+/-- `-(a = b)` sets these two terms apart. -/
+def apart (ls : List Lit) (a b : Term) : Bool :=
+  ls.any fun l =>
+    match l with
+    | ⟨false, .order x .eq y⟩ => (decide (x = a) && decide (y = b)) || (decide (x = b) && decide (y = a))
+    | _ => false
+
+/-- Raise `v` past every value `-(p = ·)` forbids. `fuel` bounds the steps;
+one more than the assigned paths and the constants is enough. -/
+def bump (ls : List Lit) (p : Path) (done : List (Path × Int)) : Nat → Int → Int
+  | 0, v => v
+  | fuel + 1, v =>
+    if done.any (fun (q, u) => u == v && apart ls (.path p) (.path q)) ||
+        (consts ls).any (fun c => apart ls (.path p) (.const c) && decide (c ≤ Q.ofInt v) &&
+          decide (Q.ofInt v ≤ c))
+    then bump ls p done fuel (v + 1) else v
+
+/-- Insertion sort: structural, so `decide` can run it. -/
+def insertBy {α : Type} (lt : α → α → Bool) (x : α) : List α → List α
+  | [] => [x]
+  | y :: ys => if lt y x then y :: insertBy lt x ys else x :: y :: ys
+
+def sortBy {α : Type} (lt : α → α → Bool) : List α → List α
+  | [] => []
+  | x :: xs => insertBy lt x (sortBy lt xs)
+
+/-- Whole paths, fewest whole paths below first, then by spelling. -/
+def wholeOrder (ls : List Lit) (es : List (Edge Term)) : List Path :=
+  let below := fun p => ((wholePaths ls).filter fun q =>
+    !sameWhole es p q && reaches es (.path q) (.path p)).length
+  sortBy (fun p q => below p < below q || (below p == below q && decide (pathKey p < pathKey q)))
+    (wholePaths ls)
+
+/-- A value for each whole path: a forced-equal one already placed, or the
+least the bounds and the whole paths below allow, raised past `-(x = y)`. -/
+def wholeValues (ls : List Lit) : List (Path × Int) :=
+  let es := litOrder ls
+  (wholeOrder ls es).foldl (fun done p =>
+    match done.find? (fun (q, _) => sameWhole es p q) with
+    | some (_, u) => done ++ [(p, u)]
+    | none =>
+      let v := done.foldl (fun m (q, u) =>
+        if reaches es (.path q) (.path p) then max m (u + if strictly es (.path q) (.path p) then 1 else 0)
+        else m) (wholeLow ls es p)
+      done ++ [(p, bump ls p done (done.length + (consts ls).length + 1) v)]) []
+
+def Term.subst (vals : List (Path × Int)) : Term → Term
+  | .path p => match vals.lookup p with
+    | some v => .const (Q.ofInt v)
+    | none => .path p
+  | t => t
+
+/-- Whole paths replaced by their values. -/
+def Lit.subst (vals : List (Path × Int)) : Lit → Lit
+  | ⟨b, .order x op y⟩ => ⟨b, .order (x.subst vals) op (y.subst vals)⟩
+  | l => l
+
 /-! ## Text -/
 
 def classLit (ts : List (Edge TNode)) (p : Path) : Option String :=
@@ -192,11 +291,16 @@ def allPaths (ls : List Lit) : List Path :=
 
 /-- The accepted state: a value for every path something forces. -/
 def baseState (merge : Bool) (ls : List Lit) : List (Path × Value) :=
-  let es := orderOf ls
   let ts := textOf ls
   let tps := textPaths ts
+  let whole := wholeValues ls
+  let rest := ls.map (Lit.subst whole)
+  let es := orderOf rest
   (allPaths ls).filterMap fun p =>
-    if (numPaths ls).contains p then some (p, .num (numValue ls es p))
+    if (numPaths ls).contains p then
+      match whole.lookup p with
+      | some v => some (p, .num (Q.ofInt v))
+      | none => some (p, .num (numValue rest es p))
     else if tps.contains p then some (p, .text (textValue merge ls ts p))
     else match boolAt ls p with
       | some b => some (p, .bool b)

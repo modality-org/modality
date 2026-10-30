@@ -195,10 +195,18 @@ impl CommitFile {
         Ok(())
     }
 
-    /// Validate all actions in this commit
+    /// Validate all actions in this commit, as before predicate theory
+    /// `v5`: `.rational`, `.integer` and `.natural` paths are unknown.
     pub fn validate(&self) -> Result<()> {
+        self.validate_at(false)
+    }
+
+    /// Validate all actions. With `numeric_types` (theory `v5` and later,
+    /// `TheoryVersion::reads_numeric_types`) a `.rational`, `.integer` or
+    /// `.natural` path is known, and a value posted to one must fit it.
+    pub fn validate_at(&self, numeric_types: bool) -> Result<()> {
         for action in &self.body {
-            action.validate()?;
+            action.validate_at(numeric_types)?;
         }
         Ok(())
     }
@@ -218,46 +226,61 @@ const KNOWN_EXTENSIONS: &[&str] = &[
     ".modality", // Modality rules/formulas
 ];
 
+/// Number extensions known from theory `V5`: `.rational` holds what `.num`
+/// holds, `.integer` a whole number, `.natural` a whole number from 0.
+const NUMBER_EXTENSIONS_V5: &[&str] = &[".rational", ".integer", ".natural"];
+
+fn known_extensions(numeric_types: bool) -> Vec<&'static str> {
+    let mut known = KNOWN_EXTENSIONS.to_vec();
+    if numeric_types {
+        known.extend_from_slice(NUMBER_EXTENSIONS_V5);
+    }
+    known
+}
+
 impl CommitAction {
-    /// Validate the action based on its method
+    /// Validate the action based on its method, as before theory `v5`.
     pub fn validate(&self) -> Result<()> {
+        self.validate_at(false)
+    }
+
+    /// Validate the action; `numeric_types` as in [`CommitFile::validate_at`].
+    pub fn validate_at(&self, numeric_types: bool) -> Result<()> {
         match self.method.as_str() {
             "create" => self.validate_create(),
             "send" => self.validate_send(),
             "recv" => self.validate_recv(),
             "invoke" => self.validate_invoke(),
-            "post" => self.validate_post(),
+            "post" => self.validate_post(numeric_types),
             "rule" => self.validate_rule(),
             "model" => self.validate_model(),
-            "repost" => self.validate_repost(),
+            "repost" => self.validate_repost(numeric_types),
             "genesis" => Ok(()), // genesis is special, no path validation
             _ => Err(anyhow::anyhow!("Unknown method: {}", self.method)),
         }
     }
 
     /// Validate path has a known extension
-    fn validate_path_extension(&self) -> Result<()> {
+    fn validate_path_extension(&self, numeric_types: bool) -> Result<()> {
         if let Some(path) = &self.path {
-            // Check if path ends with a known extension
-            let has_known_ext = KNOWN_EXTENSIONS.iter().any(|ext| path.ends_with(ext));
-            if !has_known_ext {
+            if !has_known_extension(path, numeric_types) {
                 anyhow::bail!(
                     "Path '{}' must end with a known extension: {}",
                     path,
-                    KNOWN_EXTENSIONS.join(", ")
+                    known_extensions(numeric_types).join(", ")
                 );
             }
         }
         Ok(())
     }
 
-    fn validate_post(&self) -> Result<()> {
-        self.validate_path_extension()?;
-        self.validate_value_for_type()
+    fn validate_post(&self, numeric_types: bool) -> Result<()> {
+        self.validate_path_extension(numeric_types)?;
+        self.validate_value_for_type(numeric_types)
     }
 
     /// Validate value matches the type indicated by path extension
-    fn validate_value_for_type(&self) -> Result<()> {
+    fn validate_value_for_type(&self, numeric_types: bool) -> Result<()> {
         let path = match &self.path {
             Some(p) => p,
             None => return Ok(()),
@@ -283,9 +306,31 @@ impl CommitAction {
                     }
                 );
             }
-        } else if path.ends_with(".num") {
+        } else if path.ends_with(".num")
+            || (numeric_types && path.ends_with(".rational"))
+        {
             if !self.value.is_number() {
-                anyhow::bail!("Value for .num path must be a number, got: {}", self.value);
+                anyhow::bail!(
+                    "Value for {} path must be a number, got: {}",
+                    if path.ends_with(".num") { ".num" } else { ".rational" },
+                    self.value
+                );
+            }
+        } else if numeric_types && path.ends_with(".integer") {
+            // A whole number, written as an integer. One too large to hold
+            // exactly is refused, never rounded.
+            if !(self.value.is_i64() || self.value.is_u64()) {
+                anyhow::bail!(
+                    "Value for .integer path must be a whole number, got: {}",
+                    self.value
+                );
+            }
+        } else if numeric_types && path.ends_with(".natural") {
+            if !self.value.is_u64() {
+                anyhow::bail!(
+                    "Value for .natural path must be a whole number from 0, got: {}",
+                    self.value
+                );
             }
         } else if path.ends_with(".date") {
             // Must be a string in YYYY-MM-DD format
@@ -366,23 +411,23 @@ impl CommitAction {
         Ok(())
     }
 
-    fn validate_repost(&self) -> Result<()> {
+    fn validate_repost(&self, numeric_types: bool) -> Result<()> {
         let spec = parse_repost_action(self)?;
-        if !has_known_extension(&spec.dest_path) {
+        if !has_known_extension(&spec.dest_path, numeric_types) {
             anyhow::bail!(
                 "REPOST dest path '{}' must end with a known extension: {}",
                 spec.dest_path,
-                KNOWN_EXTENSIONS.join(", ")
+                known_extensions(numeric_types).join(", ")
             );
         }
-        if !has_known_extension(&spec.source_path) {
+        if !has_known_extension(&spec.source_path, numeric_types) {
             anyhow::bail!(
                 "REPOST source path '{}' must end with a known extension: {}",
                 spec.source_path,
-                KNOWN_EXTENSIONS.join(", ")
+                known_extensions(numeric_types).join(", ")
             );
         }
-        self.validate_value_for_type()
+        self.validate_value_for_type(numeric_types)
     }
 
     fn validate_create(&self) -> Result<()> {
@@ -540,8 +585,8 @@ impl Default for CommitFile {
     }
 }
 
-pub(crate) fn has_known_extension(path: &str) -> bool {
-    KNOWN_EXTENSIONS.iter().any(|ext| path.ends_with(ext))
+pub(crate) fn has_known_extension(path: &str, numeric_types: bool) -> bool {
+    known_extensions(numeric_types).iter().any(|ext| path.ends_with(ext))
 }
 
 /// Snapshot REPOST: dest path in this contract plus provenance of the source.

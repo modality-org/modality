@@ -412,7 +412,7 @@ pub fn expand_and_validate_prefix(
     for (index, pending) in expanded.iter().enumerate() {
         if theory.at(index) != modality_lang::TheoryVersion::V0 {
             pending
-                .validate()
+                .validate_at(theory.at(index).reads_numeric_types())
                 .map_err(|err| anyhow::anyhow!("commit {}: {err}", prefix[index].0))?;
         }
         crate::model_governance::validate_sequenced_commit_with_theory(

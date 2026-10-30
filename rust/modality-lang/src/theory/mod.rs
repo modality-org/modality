@@ -36,7 +36,7 @@ pub mod witness;
 pub use decl::{expand, ContractRegistry, Declaration, Expansion, Registry};
 pub use fragment::Template;
 pub use rational::Rational;
-pub use sort::{Constraint, Lit, Op, Term, TextOp};
+pub use sort::{num_ext, Constraint, Lit, NumKind, Op, Term, TextOp};
 pub use standard::{standard, StandardRegistry};
 pub use state::{Lookup, MapState, NoState, StateValue, StateView};
 pub use witness::World;
@@ -63,6 +63,13 @@ pub enum TheoryVersion {
     /// exact rational by the theory and the evaluator. Before `V4` a
     /// fraction is not a number: a predicate given one never holds.
     V4,
+    /// `V4`, and `.rational`, `.integer` and `.natural` paths are numbers:
+    /// `.rational` is `.num`, an `.integer` holds whole numbers, a
+    /// `.natural` whole numbers from 0. A write must fit its path, and a
+    /// read that does not fit is no number. Before `V5` those extensions
+    /// are unknown: a commit cannot post one, and a numeric predicate on
+    /// one never holds.
+    V5,
 }
 
 impl TheoryVersion {
@@ -74,12 +81,18 @@ impl TheoryVersion {
             TheoryVersion::V2 => "v2",
             TheoryVersion::V3 => "v3",
             TheoryVersion::V4 => "v4",
+            TheoryVersion::V5 => "v5",
         }
     }
 
     /// Number literals may be fractions (`1/3`).
     pub fn reads_fractions(self) -> bool {
         self >= TheoryVersion::V4
+    }
+
+    /// `.rational`, `.integer` and `.natural` paths are numbers.
+    pub fn reads_numeric_types(self) -> bool {
+        self >= TheoryVersion::V5
     }
 }
 
@@ -99,8 +112,9 @@ impl std::str::FromStr for TheoryVersion {
             "v2" => Ok(TheoryVersion::V2),
             "v3" => Ok(TheoryVersion::V3),
             "v4" => Ok(TheoryVersion::V4),
+            "v5" => Ok(TheoryVersion::V5),
             other => Err(format!(
-                "unknown predicate theory version `{other}` (this build knows v0, v1, v2, v3, and v4)"
+                "unknown predicate theory version `{other}` (this build knows v0, v1, v2, v3, v4, and v5)"
             )),
         }
     }

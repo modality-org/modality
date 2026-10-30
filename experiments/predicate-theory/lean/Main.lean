@@ -11,7 +11,7 @@ One JSON object per line on stdin, one per line on stdout.
 {"lits": [LIT...], "state": [[PATH, VALUE]...]?, "witness": WORLD?}
   → {"verdict": "dead" | "live" | "unknown", "witness": true | false | null}
 {"labels": [LABEL...], "decls": [[MODULE, NEC | null, SUF | null]...], "lits": [LIT...],
- "fractions": BOOL?}
+ "fractions": BOOL?, "num_types": BOOL?}
   → {"verdict": ..., "exact": BOOL, "same": BOOL}
 {"edge": [LIT...], "world": WORLD}
   → {"takes": BOOL}
@@ -24,7 +24,8 @@ One JSON object per line on stdin, one per line on stdout.
 `witness` is whether the given world satisfies every literal and posts
 only numbers a commit can carry. With
 `labels`, Lean elaborates them itself (number literals may be fractions
-when `fractions`, theory `v4`); `same` says its literals are the
+when `fractions`, theory `v4`; number paths may be `.rational`, `.integer`
+or `.natural` when `num_types`, theory `v5`); `same` says its literals are the
 given ones (as sets), and `verdict` is on its own. With `edge`, paths may
 hold variables (`c/$k.id`) and holes (`c/$!k`), and `takes` is `takesB`:
 whether the commit takes the edge for some names. With `flow`, `closed`
@@ -208,11 +209,14 @@ def answer (line : String) : Except String Json := do
       | .error _ => pure []
     let given ← (← (← j.getObjVal? "lits").getArr?).toList.mapM getLit
     -- theory `v4`: number literals can be fractions
-    let fractions := (j.getObjValAs? Bool "fractions").toOption.getD false
+    let f : Feat := {
+      fractions := (j.getObjValAs? Bool "fractions").toOption.getD false
+      -- theory `v5`: `.rational`, `.integer` and `.natural` paths are numbers
+      numTypes := (j.getObjValAs? Bool "num_types").toOption.getD false }
     let reg := registryWith decls
-    let e := expandAllIn fractions reg labels
+    let e := expandAllIn f reg labels
     pure <| Json.mkObj [
-      ("verdict", Json.str (verdictWord (consistentIn fractions reg labels))),
+      ("verdict", Json.str (verdictWord (consistentIn f reg labels))),
       ("exact", Json.bool e.exact),
       ("same", Json.bool (sameSet e.lits given))]
   | .error _ => do

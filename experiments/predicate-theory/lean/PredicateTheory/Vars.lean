@@ -277,7 +277,18 @@ theorem get_inst {p : Path} (h : AgreeOn w (varsP p) τ τ') :
 
 theorem num?_inst {p : Path} (h : AgreeOn w (varsP p) τ τ') :
     w.num? (instP τ p) = w.num? (instP τ' p) := by
-  simp only [World.num?, get_inst h]
+  unfold World.num?
+  rw [get_inst h]
+  cases hg : w.get (instP τ' p) with
+  | none => rfl
+  | some v =>
+    cases v with
+    | num q =>
+      -- a present path is a key of the world, so both instances are it
+      have hmem : (instP τ' p, Value.num q) ∈ w.state := lookup_mem (by simpa [World.get] using hg)
+      have heq := (instP_eq_iff (e := instP τ' p) h (state_segs hmem)).mpr rfl
+      simp only [heq]
+    | _ => rfl
 
 theorem text?_inst {p : Path} (h : AgreeOn w (varsP p) τ τ') :
     w.text? (instP τ p) = w.text? (instP τ' p) := by
