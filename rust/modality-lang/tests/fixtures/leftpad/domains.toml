@@ -1,0 +1,13 @@
+depth = 12
+
+[domain]
+"/in/fill.text"    = ["0", "é", "ab"]
+"/in/width.integer" = [-1, 0, 1, 3, 5]
+"/in/string.text"  = { alphabet = ["a", "b"], max_len = 3 }
+# loop state, used by --inductive
+"/out/result.text"   = { alphabet = ["0", "é", "a", "b"], max_len = 4 }
+"/out/added.natural" = [0, 1, 2, 3]
+"/out/pad.natural"   = [0, 1, 2, 3]
+
+[havoc]                 # values a move may write where it promised nothing
+"/out/done.bool" = [true, false]

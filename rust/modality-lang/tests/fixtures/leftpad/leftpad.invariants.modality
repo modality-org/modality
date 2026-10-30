@@ -1,0 +1,23 @@
+invariant padded_so_far {
+  on q2 -> *
+  formula pad_is_set {
+    always([-num_eq(/out/pad.natural, max(minus(/in/width.integer, len(/in/string.text)), 0))] false)
+  }
+  formula length_so_far {
+    always([-num_eq(len(/out/result.text), plus(len(/in/string.text), /out/added.natural))] false)
+  }
+  formula one_char_fill {
+    always([-num_eq(len(/in/fill.text), 1)] false)
+  }
+  formula ends_with_string {
+    always([-text_ends_with(/out/result.text, value(/in/string.text))] false)
+  }
+  formula padded_with_fill {
+    always([-text_prefix_repeats(/out/result.text, /out/added.natural, /in/fill.text)] false)
+  }
+  formula added_le_pad {
+    always([-num_lte(/out/added.natural, /out/pad.natural)] false)
+  }
+}
+
+decreases q2 -> q2 by minus(/out/pad.natural, /out/added.natural)

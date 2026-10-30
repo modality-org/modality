@@ -1,0 +1,15 @@
+rule leftpad_spec {
+  formula length {
+    always([+sets(/out/done.bool, true)
+            -num_eq(len(/out/result.text), max(/in/width.integer, len(/in/string.text)))] false)
+  }
+  formula padding {
+    always([+sets(/out/done.bool, true)
+            -text_prefix_repeats(/out/result.text,
+               minus(len(/out/result.text), len(/in/string.text)), /in/fill.text)] false)
+  }
+  formula suffix {
+    always([+sets(/out/done.bool, true)
+            -text_ends_with(/out/result.text, value(/in/string.text))] false)
+  }
+}

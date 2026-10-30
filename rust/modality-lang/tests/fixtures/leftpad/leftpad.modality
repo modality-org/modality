@@ -1,0 +1,19 @@
+model leftpad {
+  initial q0
+
+  // post the inputs: any fill, width and string
+  q0 -> q1 [-modifies(/out)]
+  // start: result := string, added := 0, pad := max(width - len(string), 0)
+  q1 -> q2 [+num_eq(len(/in/fill.text), 1)
+            +sets_from(/out/result.text, /in/string.text) +sets(/out/added.natural, 0)
+            +sets(/out/pad.natural, max(minus(/in/width.integer, len(/in/string.text)), 0))
+            -modifies(/in) -modifies(/out/done.bool)]
+  // step: while added < pad, put fill in front of result
+  q2 -> q2 [+num_lt(/out/added.natural, /out/pad.natural)
+            +sets(/out/result.text, concat(/in/fill.text, /out/result.text))
+            +sets(/out/added.natural, plus(/out/added.natural, 1))
+            -modifies(/in) -modifies(/out/pad.natural) -modifies(/out/done.bool)]
+  // finish
+  q2 -> q3 [+num_gte(/out/added.natural, /out/pad.natural) +sets(/out/done.bool, true)
+            -modifies(/in) -modifies(/out/result.text)]
+}

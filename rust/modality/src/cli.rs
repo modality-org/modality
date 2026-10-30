@@ -43,6 +43,25 @@ enum Commands {
         command: PassfileCommands,
     },
 
+    #[command(about = "Check a model against its rules: by labels, or on data (--bounded)")]
+    Check(crate::cmds::offline::check::Opts),
+
+    #[cfg(not(feature = "full"))]
+    #[command(about = "Run a model on data: modal run model.modality --set PATH=VALUE")]
+    Run(crate::cmds::offline::run::Opts),
+
+    #[command(about = "Prove a model meets its rules for every input")]
+    Prove(crate::cmds::offline::prove::Opts),
+
+    #[command(about = "Run the runs, checks, proofs and mutations in *.test.toml")]
+    Test(crate::cmds::offline::test::Opts),
+
+    #[command(about = "Step through a run of a model by hand")]
+    Repl(crate::cmds::offline::repl::Opts),
+
+    #[command(about = "Explain a diagnostic code (check/box-violated)")]
+    Explain(crate::cmds::offline::explain::Opts),
+
     #[command(about = "Model related commands")]
     Model {
         #[command(subcommand)]
@@ -123,10 +142,13 @@ enum Commands {
     },
 
     #[cfg(feature = "full")]
-    #[command(about = "Run node shortcuts")]
+    #[command(about = "Run a model on data (modal run model.modality --set PATH=VALUE), or a node")]
+    #[command(args_conflicts_with_subcommands = true)]
     Run {
+        #[command(flatten)]
+        opts: crate::cmds::offline::run::Opts,
         #[command(subcommand)]
-        command: RunCommands,
+        command: Option<RunCommands>,
     },
 
     #[cfg(feature = "full")]
@@ -594,6 +616,13 @@ pub async fn run() -> Result<()> {
             PassfileCommands::Decrypt(opts) => crate::cmds::passfile::decrypt::run(opts).await?,
             PassfileCommands::Encrypt(opts) => crate::cmds::passfile::encrypt::run(opts).await?,
         },
+        Commands::Check(opts) => crate::cmds::offline::check::run(opts).await?,
+        Commands::Prove(opts) => crate::cmds::offline::prove::run(opts).await?,
+        Commands::Test(opts) => crate::cmds::offline::test::run(opts).await?,
+        Commands::Repl(opts) => crate::cmds::offline::repl::run(opts).await?,
+        Commands::Explain(opts) => crate::cmds::offline::explain::run(opts).await?,
+        #[cfg(not(feature = "full"))]
+        Commands::Run(opts) => crate::cmds::offline::run::run(opts).await?,
         Commands::Model { command } => match command {
             ModelCommands::Mermaid(opts) => crate::cmds::mermaid::run(opts).await?,
             ModelCommands::View(opts) => crate::cmds::view::run(opts).await?,
@@ -705,12 +734,17 @@ pub async fn run() -> Result<()> {
             HubCommands::Start(opts) => modality_cli_hub::start::run(opts).await?,
         },
         #[cfg(feature = "full")]
-        Commands::Run { command } => match command {
-            RunCommands::Miner(opts) => modality_cli_node::run_miner::run(opts).await?,
-            RunCommands::Hybrid(opts) => modality_cli_node::run_hybrid::run(opts).await?,
-            RunCommands::Sequencer(opts) => modality_cli_node::run_sequencer::run(opts).await?,
-            RunCommands::Validator(opts) => modality_cli_node::run_validator::run(opts).await?,
-            RunCommands::Observer(opts) => modality_cli_node::run_observer::run(opts).await?,
+        Commands::Run { opts, command } => match command {
+            None => crate::cmds::offline::run::run(opts).await?,
+            Some(RunCommands::Miner(opts)) => modality_cli_node::run_miner::run(opts).await?,
+            Some(RunCommands::Hybrid(opts)) => modality_cli_node::run_hybrid::run(opts).await?,
+            Some(RunCommands::Sequencer(opts)) => {
+                modality_cli_node::run_sequencer::run(opts).await?
+            }
+            Some(RunCommands::Validator(opts)) => {
+                modality_cli_node::run_validator::run(opts).await?
+            }
+            Some(RunCommands::Observer(opts)) => modality_cli_node::run_observer::run(opts).await?,
         },
         #[cfg(feature = "full")]
         Commands::Predicate { command } => match command {

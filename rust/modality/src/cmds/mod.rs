@@ -8,6 +8,7 @@ pub mod inspect;
 pub mod lint;
 pub mod mermaid;
 pub mod model_create;
+pub mod offline;
 #[cfg(feature = "passfile")]
 pub mod passfile;
 pub mod synthesize;

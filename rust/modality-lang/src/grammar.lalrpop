@@ -110,12 +110,12 @@ Property: Property = {
     "+" <name:Ident> => Property::new(PropertySign::Plus, name),
     "-" <name:Ident> => Property::new(PropertySign::Minus, name),
     // Predicate function call: +name("arg") or +name(arg1, arg2, ...)
-    "+" <name:Ident> "(" <args:PredicateArgs> ")" => {
-        Property::new_predicate_from_call_args(name, args)
+    "+" <name:Ident> "(" <args:CallArgs> ")" => {
+        Property::new_predicate_with_terms(PropertySign::Plus, name, args)
     },
     // Negated predicate: -name("arg") or -name(arg1, arg2, ...)
-    "-" <name:Ident> "(" <args:PredicateArgs> ")" => {
-        Property::new_predicate_from_call_args_negated(name, args)
+    "-" <name:Ident> "(" <args:CallArgs> ")" => {
+        Property::new_predicate_with_terms(PropertySign::Minus, name, args)
     },
     // Special case: +signed_by(X) - keyword used as predicate name
     "+" "signed_by" "(" <args:PredicateArgs> ")" => {
@@ -134,6 +134,51 @@ PredicateArgs: Vec<String> = {
         args.push(arg);
         args
     }
+};
+
+// A predicate argument on an edge or in a formula: a plain argument, or a
+// term such as `len(/in/s.text)` (`true` marks a term). Terms are read only
+// by the offline checker and prover; `vars::check_model` refuses them on a
+// network.
+CallArgs: Vec<(String, bool)> = {
+    <arg:CallArg> => vec![arg],
+    <args:CallArgs> "," <arg:CallArg> => {
+        let mut args = args;
+        args.push(arg);
+        args
+    }
+};
+
+CallArg: (String, bool) = {
+    <a:PredicateArg> => (a, false),
+    <t:TermCall> => (t, true),
+    // A bare boolean is offline syntax too: on a network, quote it ("true").
+    "true" => ("true".to_string(), true),
+    "false" => ("false".to_string(), true)
+};
+
+// A term's canonical text: `name(arg, arg)`, string literals quoted.
+TermCall: String = {
+    <f:Ident> "(" <args:TermArgs> ")" => format!("{f}({})", args.join(", "))
+};
+
+TermArgs: Vec<String> = {
+    <arg:TermArg> => vec![arg],
+    <args:TermArgs> "," <arg:TermArg> => {
+        let mut args = args;
+        args.push(arg);
+        args
+    }
+};
+
+TermArg: String = {
+    <s:StringLiteral> => format!("\"{s}\""),
+    <i:Ident> => i,
+    <n:NumberLiteral> => n,
+    <p:PathLiteral> => p,
+    <t:TermCall> => t,
+    "true" => "true".to_string(),
+    "false" => "false".to_string()
 };
 
 // Predicate arguments can be strings, identifiers, numbers, or paths

@@ -1,0 +1,64 @@
+[[run]]
+name = "pads foo to five"
+set = { "/in/fill.text" = "0", "/in/width.integer" = 5, "/in/string.text" = "foo" }
+expect = { "/out/result.text" = "00foo", "/out/done.bool" = true }
+
+[[run]]
+name = "never truncates"
+set = { "/in/fill.text" = "0", "/in/width.integer" = 1, "/in/string.text" = "foo" }
+expect = { "/out/result.text" = "foo" }
+
+[[check]]
+name = "no counterexample on small inputs"
+bounded = "domains.toml"
+inductive = true
+expect = { all = "no-counterexample" }
+
+[[mutation]]
+name = "the step must leave done alone"
+edge = "q2 -> q2"
+remove = "-modifies(/out/done.bool)"
+bounded = "domains.toml"
+expect = { "leftpad_spec.length" = "violated" }
+
+[[mutation]]
+name = "width must be whole"
+retype = { "/in/width.integer" = "/in/width.num" }
+expect = { "write /out/pad.natural" = "undecided" }
+
+[[mutation]]
+name = "fill must be one character"
+edge = "q1 -> q2"
+remove = "+num_eq(len(/in/fill.text), 1)"
+bounded = "domains.toml"
+expect = { "leftpad_spec.padding" = "violated" }
+
+[[prove]]
+name = "leftpad meets its spec for every input"
+expect = { all = "proven" }
+
+[[mutation]]
+name = "the invariant must say fill is one character"
+invariant = "padded_so_far"
+remove = "one_char_fill"
+prove = true
+expect = { "consec q2 -> q2" = "refuted" }
+
+[[mutation]]
+name = "the step must leave the inputs alone"
+edge = "q2 -> q2"
+remove = "-modifies(/in)"
+prove = true
+expect = { "consec q2 -> q2" = "refuted" }
+
+[[mutation]]
+name = "the loop needs a measure"
+remove = "decreases q2 -> q2"
+prove = true
+expect = { "term q2 -> q2" = "unknown" }
+
+[[mutation]]
+name = "width must be whole, for the prover too"
+retype = { "/in/width.integer" = "/in/width.num" }
+prove = true
+expect = { "type q1 -> q2" = "refuted" }
