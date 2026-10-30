@@ -90,6 +90,14 @@ const sidebars: SidebarsConfig = {
             'tutorials/agent-git-landing-results',
           ],
         },
+        {
+          type: 'category',
+          label: 'Without a network',
+          items: [
+            'tutorials/model-checking',
+            'tutorials/leftpad-proved',
+          ],
+        },
       ],
     },
     'multi-agent-chess',

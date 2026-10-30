@@ -40,3 +40,10 @@ with it before the commit that follows. Formulas come from the
 [Contract Hub](/docs/tutorials/contract-hub), [hub assets](/docs/tutorials/hub-and-assets), and the
 [JavaScript SDK](/docs/tutorials/js-sdk-hub) are how you do the testnet and repost lessons
 with another person or from code.
+
+Two tutorials need no key, contract or network.
+[Model checking with Modality](/docs/tutorials/model-checking) checks a
+model against its rules on your machine, then writes leftpad as a model
+and searches every small input for a bug.
+[Leftpad, proved](/docs/tutorials/leftpad-proved) proves the same model
+right for every input and checks the proof again in Lean.
