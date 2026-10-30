@@ -11,7 +11,7 @@
 
 use super::fragment::Template;
 use super::rational::Rational;
-use super::sort::{ext, norm_path, Constraint, Lit};
+use super::sort::{ext, norm_path, num_ext, Constraint, Lit};
 use super::TheoryVersion;
 use crate::ast::{Property, PropertySource};
 use serde_json::Value;
@@ -68,19 +68,21 @@ impl Param {
     }
 
     /// [`Param::fits`] under `version`: from `V4` a `num` can be a
-    /// fraction literal (`1/3`).
+    /// fraction literal (`1/3`); from `V5` a number path can be
+    /// `.rational`, `.integer` or `.natural`.
     pub fn fits_in(self, arg: &str, version: TheoryVersion) -> bool {
         let path_ext = |allowed: &[&str]| {
             arg.starts_with('/') && ext(&norm_path(arg)).is_some_and(|e| allowed.contains(&e))
         };
+        let num_path = arg.starts_with('/') && num_ext(ext(&norm_path(arg)), version);
         match self {
             Param::Path => arg.starts_with('/'),
-            Param::NumPath => path_ext(&["num"]),
+            Param::NumPath => num_path,
             Param::TextPath => path_ext(&["text", "id"]),
             Param::BoolPath => path_ext(&["bool"]),
             Param::IdPath => path_ext(&["id"]),
             Param::Num => {
-                path_ext(&["num"])
+                num_path
                     || (!arg.starts_with('/')
                         && (is_decimal(arg) || (version.reads_fractions() && is_fraction(arg))))
             }

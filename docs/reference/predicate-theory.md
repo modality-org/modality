@@ -35,6 +35,7 @@ verdict.
 | `v2` | Everything below. Numbers are compared as 64-bit floats. |
 | `v3` | `v2`, and the validator compares numbers exactly: `num_*` and `amount_in_range` over decimals, as the theory already reasons about them. Under `v0` and `v2` the validator compares them as 64-bit floats, which round past 2⁵³ and past 15 significant digits. What the testnet runs. |
 | `v4` | `v3`, and a number literal can be a fraction: `num_gt(/x.num, 1/3)` compares against exactly one third, in the theory and in the validator. Before `v4` a fraction is not a number, so a predicate given one never holds. No network runs it yet. |
+| `v5` | `v4`, and `.rational`, `.integer` and `.natural` paths are numbers ([Path types](../language/path-types.md#numbers)). A commit may post to one only a number it can hold, and a number one cannot hold reads as no number. The theory reasons in whole numbers on `.integer` and `.natural` paths: `num_gt(/x.integer, 1)` with `num_lt(/x.integer, 2)` is a dead edge, and a `.natural` is never below 0. It does not search: several whole-number paths kept apart by `-num_eq` can leave an edge undecided, never wrongly live. Before `v5` those extensions are unknown, so a commit cannot post to one and a numeric predicate on one never holds. No network runs it yet. |
 
 `modal c commit` verifies under `v3` by default. For a `v2` network, pass
 `--theory v2`. For a `v0` network, pass `--theory v0`: the commit is verified under `v0`, and the output previews

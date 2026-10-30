@@ -52,6 +52,21 @@ impl Rational {
         Self { num: n, den: 1 }
     }
 
+    /// A whole number. Lean: `Q.isInt`.
+    pub fn is_integer(&self) -> bool {
+        self.den == 1
+    }
+
+    /// The greatest integer at most `self`. Lean: `Q.floor`.
+    pub fn floor(&self) -> i128 {
+        self.num.div_euclid(self.den)
+    }
+
+    /// The least integer at least `self`. Lean: `Q.ceil`.
+    pub fn ceil(&self) -> Option<i128> {
+        self.num.checked_neg()?.div_euclid(self.den).checked_neg()
+    }
+
     /// Parse a decimal literal: optional sign, digits, optional fraction.
     /// Anything else (whitespace, exponents, hex, words) is `None`.
     ///

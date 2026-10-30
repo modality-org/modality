@@ -16,6 +16,11 @@ check is the twin of a Rust procedure in `modality-lang/src/theory/`:
    or `-(a = b)` where `a ≤ b ≤ a` (`order.rs`). A negated order literal
    flips (`-(x < 100)` gives `100 ≤ x`) only when both sides are forced
    to hold numbers; otherwise the path may hold none, and both are false.
+   From theory `v5`, a path that holds whole numbers rounds a constant
+   bound inward (`x < 5/2` gives `x ≤ 2`, `x > 1` gives `x ≥ 2`), and a
+   `.natural` path is at least `0`. The edges are closed, rounded, and
+   closed again, so `1 < y < x < z < 2` is dead for a whole `x` even
+   though no literal bounds `x` by a constant (`order.rs`).
 5. **text**: edges `a ~ b` ("hold the same string") between paths and
    literals, closed under composition, so two paths equal to the same
    literal are equal. Two literals in one class; `-(p = "s")` or
@@ -103,8 +108,39 @@ def Lit.orderEdges (ls : List Lit) : Lit → List (Edge Term)
   | ⟨false, .order a .le b⟩ => if a.numeric ls && b.numeric ls then [⟨b, true, a⟩] else []
   | _ => []
 
+/-- On a whole-number path, a bound by a constant rounds inward and
+stops being strict: `x < c` is `x ≤ ⌈c⌉ - 1`, `x ≤ c` is `x ≤ ⌊c⌋`,
+`c < x` is `⌊c⌋ + 1 ≤ x`, `c ≤ x` is `⌈c⌉ ≤ x`. -/
+def Edge.tighten : Edge Term → Edge Term
+  | ⟨.path p, s, .const c⟩ =>
+    if (numKind p).whole then ⟨.path p, false, .const (Q.ofInt (if s then c.ceil - 1 else c.floor))⟩
+    else ⟨.path p, s, .const c⟩
+  | ⟨.const c, s, .path p⟩ =>
+    if (numKind p).whole then ⟨.const (Q.ofInt (if s then c.floor + 1 else c.ceil)), false, .path p⟩
+    else ⟨.const c, s, .path p⟩
+  | e => e
+
+/-- `0 ≤ p` for each `.natural` path a positive order literal reads. -/
+def natFloor (ls : List Lit) : List (Edge Term) :=
+  ls.flatMap fun l =>
+    match l with
+    | ⟨true, .order a _ b⟩ =>
+      [a, b].filterMap fun t =>
+        match t with
+        | .path p => if numKind p == .natural then some ⟨.const (Q.ofInt 0), false, .path p⟩ else none
+        | .const _ => none
+    | _ => []
+
+/-- The literals' edges, closed. -/
+def orderBase (ls : List Lit) : List (Edge Term) :=
+  close ls.length (ls.flatMap (Lit.orderEdges ls) ++ natFloor ls)
+
+/-- Closed, each derived bound on a whole path rounded inward, closed
+again. The unrounded edges stay: they share constants with other edges
+that the rounded ones do not. -/
 def orderOf (ls : List Lit) : List (Edge Term) :=
-  close ls.length (ls.flatMap (Lit.orderEdges ls))
+  let es := orderBase ls
+  close ls.length ((es.map Edge.tighten).foldl addNew es)
 
 def rel : Bool → Q → Q → Bool
   | true, x, y => decide (x < y)

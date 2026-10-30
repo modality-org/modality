@@ -21,7 +21,8 @@
 
 use crate::model_governance::EVALUATED_PREDICATES;
 use modality_lang::theory::{
-    standard, ContractRegistry, Declaration, Lit, Lookup, Rational, Registry, StateValue, StateView,
+    standard, ContractRegistry, Declaration, Lit, Lookup, NumKind, Rational, Registry, StateValue,
+    StateView,
 };
 use serde_json::Value;
 use std::collections::{BTreeSet, HashMap};
@@ -49,18 +50,22 @@ fn path_or_descendant(path: &str, prefix: &str) -> bool {
 }
 
 /// A JSON number as the theory's exact rational, when its shortest decimal
-/// form is inside the exact domain (so `f64` comparison agrees).
-fn number(n: &serde_json::Number) -> StateValue {
-    Rational::parse(&n.to_string())
-        .map(StateValue::Num)
-        .unwrap_or(StateValue::Other)
+/// form is inside the exact domain (so `f64` comparison agrees). A number
+/// the path's kind cannot hold (`-1` at a `.natural` path) is present and
+/// reads as nothing, like a structured value.
+fn number(path: &str, n: &serde_json::Number) -> StateValue {
+    match Rational::parse(&n.to_string()) {
+        Some(q) if NumKind::of(key(path)).fits(&q) => StateValue::Num(q),
+        Some(_) => StateValue::Structured,
+        None => StateValue::Other,
+    }
 }
 
 impl StateView for AcceptedState<'_> {
     fn value_at(&self, path: &str) -> Lookup {
         match self.state.get(key(path)) {
             None => Lookup::Absent,
-            Some(Value::Number(n)) => Lookup::Present(number(n)),
+            Some(Value::Number(n)) => Lookup::Present(number(path, n)),
             Some(Value::String(s)) if path.ends_with(".id") => {
                 Lookup::Present(StateValue::Text(crate::peer_id::key_form(s)))
             }

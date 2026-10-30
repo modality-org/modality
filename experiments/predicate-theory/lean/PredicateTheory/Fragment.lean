@@ -18,6 +18,10 @@ constraint a standard predicate elaborates to.
 - A path holds a typed value or nothing. A missing number is not zero, and
   a present `.num` path need not hold a number: every typed read of the
   wrong type is empty, so every comparison on it is false.
+- A number read is typed by the path's extension too (theory `v5`): a
+  `.natural` path holds whole numbers from 0, an `.integer` path whole
+  numbers, and every other path any rational. A `.natural` path holding
+  `-1` or `1/2` holds no number, as a `.num` path holding a string does.
 - Signer sorts read the keys posted at `.id` paths under a prefix.
   `card q ≥ n` counts **distinct** signed keys, as `threshold` does.
 - Body sorts read the commit's actions. A method is compared as the
@@ -31,6 +35,50 @@ namespace PredicateTheory
 
 /-- `"/escrow/paid.num"` is `["escrow", "paid.num"]`. -/
 abbrev Path := List String
+
+def splitOnChar (c : Char) : List Char → List (List Char)
+  | [] => [[]]
+  | x :: xs =>
+    match splitOnChar c xs with
+    | [] => [[]]
+    | seg :: rest => if x == c then [] :: seg :: rest else (x :: seg) :: rest
+
+/-- Extension of the last segment: after its last `.`, if non-empty. -/
+def ext (p : Path) : Option String :=
+  match p.getLast? with
+  | none => none
+  | some seg =>
+    match (splitOnChar '.' seg.toList).reverse with
+    | e :: _ :: _ => if e.isEmpty then none else some (String.mk e)
+    | _ => none
+
+/-- The numbers a path may hold, by extension (theory `v5`). Rust:
+`NumKind`. -/
+inductive NumKind
+  | rational
+  | integer
+  | natural
+  deriving DecidableEq, Repr
+
+/-- `.natural` and `.integer` paths hold whole numbers; every other path,
+`.num` and `.rational` among them, any rational. Only number extensions
+ever reach an order term (`numExt` in `Elab`). -/
+def numKind (p : Path) : NumKind :=
+  match ext p with
+  | some "natural" => .natural
+  | some "integer" => .integer
+  | _ => .rational
+
+/-- The kind holds only whole numbers. -/
+def NumKind.whole : NumKind → Bool
+  | .rational => false
+  | _ => true
+
+/-- The number is one a path of this kind can hold. -/
+def NumKind.fits : NumKind → Q → Bool
+  | .rational, _ => true
+  | .integer, q => q.isInt
+  | .natural, q => q.isInt && decide (0 ≤ q.num)
 
 /-- `p` is `q` or lies under it. -/
 def under (p q : Path) : Bool := q.isPrefixOf p
@@ -131,9 +179,10 @@ namespace World
 
 def get (w : World) (p : Path) : Option Value := w.state.lookup p
 
+/-- The number at `p`, if it holds one its kind allows. -/
 def num? (w : World) (p : Path) : Option Q :=
   match w.get p with
-  | some (.num q) => some q
+  | some (.num q) => if (numKind p).fits q then some q else none
   | _ => none
 
 def text? (w : World) (p : Path) : Option String :=

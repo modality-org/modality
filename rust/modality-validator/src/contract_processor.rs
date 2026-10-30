@@ -662,7 +662,7 @@ impl ContractProcessor {
         self.set_last_gas(Some(used));
         gas::within_limit(&used, limit)?;
         if theory.at(accepted_raw.len()) != modality_lang::TheoryVersion::V0 {
-            pending_expanded.validate()?;
+            pending_expanded.validate_at(theory.at(accepted_raw.len()).reads_numeric_types())?;
         }
         crate::sequenced_rules::validate_against_local_rules_for_commit_at(
             &accepted_expanded,

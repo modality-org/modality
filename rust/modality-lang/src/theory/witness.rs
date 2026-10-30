@@ -15,7 +15,7 @@
 
 use super::literals::{forced_numeric, forced_paths};
 use super::rational::Rational;
-use super::sort::{is_id, normalized, under, Constraint, Lit, Op, Term, TextOp};
+use super::sort::{is_id, normalized, under, Constraint, Lit, NumKind, Op, Term, TextOp};
 use super::state::{Lookup, StateValue, StateView};
 use super::text::TextClasses;
 use std::cmp::Ordering;
@@ -111,8 +111,10 @@ fn text_test(op: TextOp, s: &str, n: &str) -> bool {
 fn holds(r: &dyn Reads, signed: &[String], body: &[Action], lit: &Lit) -> bool {
     let num = |t: &Term| match t {
         Term::Const(c) => Some(*c),
+        // typed by the path's kind too: a whole-number path holding `1/2`
+        // holds no number
         Term::Path(p) => match r.get(p) {
-            Some(Value::Num(q)) => Some(q),
+            Some(Value::Num(q)) if NumKind::of(p).fits(&q) => Some(q),
             _ => None,
         },
     };
@@ -259,6 +261,8 @@ struct Order {
     terms: Vec<Term>,
     /// `reach[i][j]`: some chain of `≤`/`<` edges leads from term i to j.
     reach: Vec<Vec<bool>>,
+    /// `strict[i][j]`: some such chain has a `<` in it.
+    strict: Vec<Vec<bool>>,
     /// Constants in order literals, with repeats.
     consts: Vec<Rational>,
     /// Order-literal terms, with repeats.
@@ -273,7 +277,8 @@ impl Order {
             Term::Const(_) => true,
         };
         let mut all = Vec::new();
-        let mut edges: Vec<(Term, Term)> = Vec::new();
+        // (from, to, strict)
+        let mut edges: Vec<(Term, Term, bool)> = Vec::new();
         for lit in lits {
             let Constraint::Order { lhs, op, rhs } = &lit.c else {
                 continue;
@@ -281,13 +286,18 @@ impl Order {
             all.push(lhs.clone());
             all.push(rhs.clone());
             match (lit.positive, op) {
-                (true, Op::Lt | Op::Le) => edges.push((lhs.clone(), rhs.clone())),
+                (true, Op::Lt) => edges.push((lhs.clone(), rhs.clone(), true)),
+                (true, Op::Le) => edges.push((lhs.clone(), rhs.clone(), false)),
                 (true, Op::Eq) => {
-                    edges.push((lhs.clone(), rhs.clone()));
-                    edges.push((rhs.clone(), lhs.clone()));
+                    edges.push((lhs.clone(), rhs.clone(), false));
+                    edges.push((rhs.clone(), lhs.clone(), false));
                 }
-                (false, Op::Lt | Op::Le) if is_num(lhs) && is_num(rhs) => {
-                    edges.push((rhs.clone(), lhs.clone()))
+                // ¬(a < b) is b ≤ a; ¬(a ≤ b) is b < a
+                (false, Op::Lt) if is_num(lhs) && is_num(rhs) => {
+                    edges.push((rhs.clone(), lhs.clone(), false))
+                }
+                (false, Op::Le) if is_num(lhs) && is_num(rhs) => {
+                    edges.push((rhs.clone(), lhs.clone(), true))
                 }
                 _ => {}
             }
@@ -301,14 +311,21 @@ impl Order {
         let ix = |t: &Term| terms.iter().position(|u| u == t).expect("term");
         let n = terms.len();
         let mut reach = vec![vec![false; n]; n];
-        for (a, b) in &edges {
+        let mut strict = vec![vec![false; n]; n];
+        for (a, b, s) in &edges {
             reach[ix(a)][ix(b)] = true;
+            strict[ix(a)][ix(b)] |= *s;
         }
         for k in 0..n {
-            let via = reach[k].clone();
-            for row in reach.iter_mut().filter(|row| row[k]) {
-                for (x, &y) in row.iter_mut().zip(&via) {
-                    *x |= y;
+            for i in 0..n {
+                if !reach[i][k] {
+                    continue;
+                }
+                for j in 0..n {
+                    if reach[k][j] {
+                        reach[i][j] = true;
+                        strict[i][j] |= strict[i][k] || strict[k][j];
+                    }
                 }
             }
         }
@@ -323,7 +340,19 @@ impl Order {
             count: all.len(),
             terms,
             reach,
+            strict,
             consts,
+        }
+    }
+
+    /// Some chain from `a` to `b` has a `<` in it. Lean: `strictly`.
+    fn s(&self, a: &Term, b: &Term) -> bool {
+        match (
+            self.terms.iter().position(|t| t == a),
+            self.terms.iter().position(|t| t == b),
+        ) {
+            (Some(i), Some(j)) => self.strict[i][j],
+            _ => false,
         }
     }
 
@@ -417,6 +446,143 @@ impl Order {
             grid.checked_mul(scale)?,
         )
     }
+}
+
+// --- whole numbers (theory `V5`) ---------------------------------------------
+//
+// Whole-number paths get their values first, as integers; then every whole
+// path becomes that constant, and the rational paths are built as above on
+// the result. The rounded bounds, the strict steps between whole paths, and
+// `-(x = y)` decide a whole path's value; an upper bound does not, so a
+// value above one fails `check` and the verdict stays `Unknown`.
+
+/// `-(a = b)` sets these two terms apart. Lean: `apart`.
+fn apart(lits: &[Lit], a: &Term, b: &Term) -> bool {
+    lits.iter().any(|l| match &l.c {
+        Constraint::Order {
+            lhs,
+            op: Op::Eq,
+            rhs,
+        } if !l.positive => (lhs == a && rhs == b) || (lhs == b && rhs == a),
+        _ => false,
+    })
+}
+
+/// A value for each whole path: a forced-equal one already placed, or the
+/// least the constant bounds and the whole paths below allow, raised past
+/// `-(x = y)`. `order` is over the literals' own edges. Lean: `wholeValues`.
+fn whole_values(lits: &[Lit], order: &Order, num_paths: &[String]) -> Option<Vec<(String, i128)>> {
+    let whole: Vec<&String> = num_paths.iter().filter(|p| NumKind::of(p).whole()).collect();
+    let t = |p: &str| Term::Path(p.to_string());
+    let same = |p: &str, q: &str| p == q || (order.r(&t(p), &t(q)) && order.r(&t(q), &t(p)));
+    let below = |p: &str| {
+        whole
+            .iter()
+            .filter(|q| !same(p, q) && order.r(&t(q), &t(p)))
+            .count()
+    };
+    let mut sorted = whole.clone();
+    sorted.sort_by(|a, b| below(a).cmp(&below(b)).then_with(|| a.cmp(b)));
+    let zero = Rational::from_int(0);
+    let lowest = order.consts.iter().copied().fold(zero, std::cmp::min).floor();
+    let mut done: Vec<(String, i128)> = Vec::new();
+    for p in sorted {
+        if let Some((_, u)) = done.iter().find(|(q, _)| same(p, q)) {
+            let u = *u;
+            done.push((p.clone(), u));
+            continue;
+        }
+        let x = t(p);
+        // `⌊c⌋ + 1` above a strict constant, `⌈c⌉` above any other
+        let mut bounds = Vec::new();
+        for c in &order.consts {
+            let c_t = Term::Const(*c);
+            if order.s(&c_t, &x) {
+                bounds.push(c.floor().checked_add(1)?);
+            } else if order.r(&c_t, &x) {
+                bounds.push(c.ceil()?);
+            }
+        }
+        // at least 0 if `p` or a path forced equal to it is `.natural`
+        if whole
+            .iter()
+            .any(|q| same(p, q) && NumKind::of(q) == NumKind::Natural)
+        {
+            bounds.push(0);
+        }
+        let low = match bounds.iter().max() {
+            Some(b) => *b,
+            // below every constant by more than the whole paths can climb
+            None => lowest
+                .checked_sub(i128::try_from(whole.len()).ok()?)?
+                .checked_sub(1)?,
+        };
+        let mut v = low;
+        for (q, u) in &done {
+            if order.r(&t(q), &x) {
+                let step = i128::from(order.s(&t(q), &x));
+                v = v.max(u.checked_add(step)?);
+            }
+        }
+        for _ in 0..done.len() + order.consts.len() + 1 {
+            let clash = done
+                .iter()
+                .any(|(q, u)| *u == v && apart(lits, &x, &t(q)))
+                || order
+                    .consts
+                    .iter()
+                    .any(|c| apart(lits, &x, &Term::Const(*c)) && *c == Rational::from_int(v));
+            if !clash {
+                break;
+            }
+            v = v.checked_add(1)?;
+        }
+        done.push((p.clone(), v));
+    }
+    Some(done)
+}
+
+/// Whole paths replaced by their values. Lean: `Lit.subst`.
+fn substitute(lits: &[Lit], vals: &[(String, i128)]) -> Vec<Lit> {
+    let sub = |t: &Term| match t {
+        Term::Path(p) => match vals.iter().find(|(q, _)| q == p) {
+            Some((_, v)) => Term::Const(Rational::from_int(*v)),
+            None => t.clone(),
+        },
+        Term::Const(_) => t.clone(),
+    };
+    lits.iter()
+        .map(|l| match &l.c {
+            Constraint::Order { lhs, op, rhs } => Lit {
+                positive: l.positive,
+                c: Constraint::Order {
+                    lhs: sub(lhs),
+                    op: *op,
+                    rhs: sub(rhs),
+                },
+            },
+            _ => l.clone(),
+        })
+        .collect()
+}
+
+/// Paths a positive order literal forces to hold a number, in order of
+/// first appearance.
+fn numeric_paths(lits: &[Lit]) -> Vec<String> {
+    let numeric = forced_numeric(lits);
+    dedup(
+        lits.iter()
+            .filter_map(|l| match &l.c {
+                Constraint::Order { lhs, rhs, .. } => Some([lhs, rhs]),
+                _ => None,
+            })
+            .flatten()
+            .filter_map(|t| match t {
+                Term::Path(p) if numeric.contains(p) => Some(p.clone()),
+                _ => None,
+            })
+            .collect(),
+    )
 }
 
 // --- assembling a world ----------------------------------------------------
@@ -648,29 +814,22 @@ pub fn build(lits: &[Lit]) -> Option<World> {
 
 fn build_with(merge: bool, lits: &[Lit]) -> Option<World> {
     let fresh = Fresh::new(lits);
-    let order = Order::new(lits);
     let classes = TextClasses::new(lits);
-    let numeric = forced_numeric(lits);
     let present = forced_paths(lits);
-    let num_paths: Vec<String> = dedup(
-        lits.iter()
-            .filter_map(|l| match &l.c {
-                Constraint::Order { lhs, rhs, .. } => Some([lhs, rhs]),
-                _ => None,
-            })
-            .flatten()
-            .filter_map(|t| match t {
-                Term::Path(p) if numeric.contains(p) => Some(p.clone()),
-                _ => None,
-            })
-            .collect(),
-    );
+    let num_paths = numeric_paths(lits);
+    let whole = whole_values(lits, &Order::new(lits), &num_paths)?;
+    let rest = substitute(lits, &whole);
+    let order = Order::new(&rest);
+    let rest_paths = numeric_paths(&rest);
     let mut state = Vec::new();
     for p in all_paths(lits) {
         let v = if num_paths.contains(&p) {
             // A commit carries a JSON number: only a short decimal reads back
             // as this value (`Rational::parse`, the exact domain).
-            let q = order.value(&num_paths, &p)?;
+            let q = match whole.iter().find(|(q, _)| *q == p) {
+                Some((_, v)) => Rational::from_int(*v),
+                None => order.value(&rest_paths, &p)?,
+            };
             Rational::parse(&q.to_decimal()?).filter(|r| *r == q)?;
             Value::Num(q)
         } else if classes.texted(&p) {

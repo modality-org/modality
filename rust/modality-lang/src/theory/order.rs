@@ -9,11 +9,18 @@
 //! hold a number (`-num_gt(x,5)` alone is "x ≤ 5, or x absent, or x not a
 //! number"; case A13).
 //!
+//! From theory `V5`, a path that holds whole numbers (`.integer`,
+//! `.natural`) rounds every constant bound inward (`x < 5/2` gives `x ≤ 2`,
+//! `x > 1` gives `x ≥ 2`), and a `.natural` path is at least `0`. The
+//! graph is closed with the `0` floors, the derived bounds are rounded,
+//! and it is closed again, so a bound that reaches a whole path through a
+//! rational one is rounded too.
+//!
 //! Returns the offending literals, or `None` if consistent. Lean twin:
 //! `orderDead` in `Decide.lean`.
 
 use super::rational::Rational;
-use super::sort::{Constraint, Lit, Op, Term};
+use super::sort::{Constraint, Lit, NumKind, Op, Term};
 use std::cmp::Ordering;
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -73,8 +80,102 @@ fn term_numeric(t: &Term, numeric: &BTreeSet<String>) -> bool {
 }
 
 /// `None` consistent; `Some(lits)` inconsistent.
-#[allow(clippy::needless_range_loop)]
 pub fn check(ctx: &Ctx) -> Option<Vec<Lit>> {
+    let floors = natural_floors(ctx);
+    let graph = match analyse(ctx, &floors) {
+        Ok(Some(graph)) => graph,
+        Ok(None) => return None,
+        Err(why) => return Some(why),
+    };
+    let rounded = graph.rounded_bounds();
+    if rounded.is_empty() {
+        return None;
+    }
+    let mut extra = floors;
+    extra.extend(rounded);
+    match analyse(ctx, &extra) {
+        Err(_) => Some(order_lits(ctx)),
+        Ok(_) => None,
+    }
+}
+
+/// An extra edge `from ≤ to` (`strict` = `<`) the literals imply.
+type Extra = (Term, Term, bool);
+
+/// `0 ≤ p` for each `.natural` path a positive order literal reads. Lean:
+/// `natFloor`.
+fn natural_floors(ctx: &Ctx) -> Vec<Extra> {
+    let mut out = Vec::new();
+    for lit in ctx.lits.iter().filter(|l| l.positive) {
+        if let Constraint::Order { lhs, rhs, .. } = &lit.c {
+            for t in [lhs, rhs] {
+                if matches!(t, Term::Path(p) if NumKind::of(p) == NumKind::Natural) {
+                    out.push((Term::Const(Rational::from_int(0)), t.clone(), false));
+                }
+            }
+        }
+    }
+    out
+}
+
+/// The closed graph of a consistent literal set.
+struct Graph {
+    terms: Vec<Term>,
+    uf: Uf,
+    reach: Vec<Vec<Option<bool>>>,
+}
+
+impl Graph {
+    /// Every derived bound by a constant on a whole-number path, rounded
+    /// inward: `c < x` is `⌊c⌋ + 1 ≤ x`, `c ≤ x` is `⌈c⌉ ≤ x`, `x < c` is
+    /// `x ≤ ⌈c⌉ - 1`, `x ≤ c` is `x ≤ ⌊c⌋`. Lean: `Edge.tighten`. A bound
+    /// whose rounding overflows is left out, which only weakens the check.
+    fn rounded_bounds(mut self) -> Vec<Extra> {
+        let n = self.terms.len();
+        let mut out = Vec::new();
+        for i in 0..n {
+            let Term::Const(c) = self.terms[i] else {
+                continue;
+            };
+            for j in 0..n {
+                let Term::Path(p) = &self.terms[j] else {
+                    continue;
+                };
+                if !NumKind::of(p).whole() {
+                    continue;
+                }
+                let (ci, pj) = (self.uf.find(i), self.uf.find(j));
+                let x = self.terms[j].clone();
+                if let Some(strict) = self.reach[ci][pj] {
+                    let low = if strict {
+                        c.floor().checked_add(1)
+                    } else {
+                        c.ceil()
+                    };
+                    if let Some(low) = low {
+                        out.push((Term::Const(Rational::from_int(low)), x.clone(), false));
+                    }
+                }
+                if let Some(strict) = self.reach[pj][ci] {
+                    let high = if strict {
+                        c.ceil().and_then(|h| h.checked_sub(1))
+                    } else {
+                        Some(c.floor())
+                    };
+                    if let Some(high) = high {
+                        out.push((x, Term::Const(Rational::from_int(high)), false));
+                    }
+                }
+            }
+        }
+        out
+    }
+}
+
+/// `Err(lits)` inconsistent; `Ok(None)` no order literal; `Ok(Some)` the
+/// closed graph of a consistent set.
+#[allow(clippy::needless_range_loop)]
+fn analyse(ctx: &Ctx, extra: &[Extra]) -> Result<Option<Graph>, Vec<Lit>> {
     // Collect terms.
     let mut terms: BTreeSet<Term> = BTreeSet::new();
     let mut used: Vec<(&Lit, &Term, Op, &Term, bool)> = Vec::new(); // (lit, lhs, op, rhs, negated)
@@ -90,7 +191,11 @@ pub fn check(ctx: &Ctx) -> Option<Vec<Lit>> {
         }
     }
     if used.is_empty() {
-        return None;
+        return Ok(None);
+    }
+    for (a, b, _) in extra {
+        terms.insert(a.clone());
+        terms.insert(b.clone());
     }
     let terms: Vec<Term> = terms.into_iter().collect();
     let index: BTreeMap<&Term, usize> = terms.iter().enumerate().map(|(i, t)| (t, i)).collect();
@@ -162,12 +267,20 @@ pub fn check(ctx: &Ctx) -> Option<Vec<Lit>> {
             (Op::Eq, true) => diseq.push((l, r, (*lit).clone())),
         }
     }
+    for (a, b, strict) in extra {
+        edges.push(Edge {
+            from: index[a],
+            to: index[b],
+            strict: *strict,
+            why: vec![],
+        });
+    }
 
     // Two different constants in one class.
     for (i, (ia, a)) in consts.iter().enumerate() {
         for (ib, b) in consts.iter().skip(i + 1) {
             if uf.find(*ia) == uf.find(*ib) && a != b {
-                return Some(eq_lits(ctx));
+                return Err(eq_lits(ctx));
             }
         }
     }
@@ -199,12 +312,12 @@ pub fn check(ctx: &Ctx) -> Option<Vec<Lit>> {
     for e in &edges {
         let (a, b) = (uf.find(e.from), uf.find(e.to));
         if e.strict && (a == b || reach[b][a].is_some()) {
-            return Some(cycle_lits(ctx, e, &edges, &mut uf, &reach));
+            return Err(cycle_lits(ctx, e, &edges, &mut uf, &reach));
         }
     }
     for i in 0..n {
         if reach[i][i] == Some(true) {
-            return Some(order_lits(ctx));
+            return Err(order_lits(ctx));
         }
     }
 
@@ -217,11 +330,11 @@ pub fn check(ctx: &Ctx) -> Option<Vec<Lit>> {
                 why.push(lit.clone());
             }
             why.sort();
-            return Some(why);
+            return Err(why);
         }
     }
 
-    None
+    Ok(Some(Graph { terms, uf, reach }))
 }
 
 fn order_lits(ctx: &Ctx) -> Vec<Lit> {

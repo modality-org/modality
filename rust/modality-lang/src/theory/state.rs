@@ -7,12 +7,14 @@
 //! value predicates on an absent path are false, as in `predicate_holds`.
 
 use super::rational::Rational;
-use super::sort::{ext, norm_path, under};
+use super::sort::{ext, norm_path, under, NumKind};
 use std::collections::BTreeMap;
 
 /// A present value, as the evaluator's typed reads see it. Typed reads are
 /// by value, not by path extension: a `.num` path holding a string is
-/// present, and every numeric predicate on it is false.
+/// present, and every numeric predicate on it is false. A number is also
+/// typed by the path's kind ([`NumKind`]): a view reports a number its
+/// path cannot hold (`-1` at a `.natural` path) as `Structured`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum StateValue {
     Num(Rational),
@@ -104,9 +106,11 @@ impl StateView for MapState {
             return Lookup::Absent;
         };
         let v = match ext(&p) {
-            Some("num") => Rational::parse(raw)
-                .map(StateValue::Num)
-                .unwrap_or(StateValue::Other),
+            Some("num" | "rational" | "integer" | "natural") => match Rational::parse(raw) {
+                Some(q) if NumKind::of(&p).fits(&q) => StateValue::Num(q),
+                Some(_) => StateValue::Structured,
+                None => StateValue::Other,
+            },
             Some("bool") => match raw.trim() {
                 "true" => StateValue::Bool(true),
                 "false" => StateValue::Bool(false),

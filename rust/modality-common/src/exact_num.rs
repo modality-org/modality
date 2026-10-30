@@ -105,6 +105,11 @@ impl Exact {
         self.num.sign() == Sign::Minus
     }
 
+    /// A whole number.
+    pub fn is_integer(&self) -> bool {
+        (&self.num % &self.den).sign() == Sign::NoSign
+    }
+
     pub fn mul(&self, other: &Self) -> Self {
         Self {
             num: &self.num * &other.num,

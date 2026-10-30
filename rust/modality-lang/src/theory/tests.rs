@@ -193,6 +193,102 @@ fn a11_a_diamond_over_a_fraction_bound_is_proven_from_v4() {
 }
 
 #[test]
+fn numeric_path_types_from_v5() {
+    let v4 = Theory::new(TheoryVersion::V4, standard(), &NoState);
+    let v5 = Theory::new(TheoryVersion::V5, standard(), &NoState);
+    // Before v5 an `.integer` path is not a number: a numeric predicate on
+    // it never holds.
+    no(&v4.consistent(&[p("num_gt", &["/x.integer", "1"])]));
+    yes(&v5.consistent(&[p("num_gt", &["/x.integer", "1"])]));
+    yes(&v5.consistent(&[p("num_gt", &["/x.rational", "1/2"])]));
+    // No integer lies strictly between 1 and 2; a rational does.
+    no(&v5.consistent(&[
+        p("num_gt", &["/x.integer", "1"]),
+        p("num_lt", &["/x.integer", "2"]),
+    ]));
+    yes(&v5.consistent(&[
+        p("num_gt", &["/x.num", "1"]),
+        p("num_lt", &["/x.num", "2"]),
+    ]));
+    let between = v5.consistent(&[
+        p("num_gt", &["/x.integer", "1"]),
+        p("num_lt", &["/x.integer", "3"]),
+    ]);
+    yes(&between);
+    assert_eq!(
+        between.witness.expect("witness").state,
+        vec![("x.integer".into(), witness::Value::Num(Rational::from_int(2)))]
+    );
+    no(&v5.consistent(&[p("num_eq", &["/x.integer", "1/2"])]));
+    // A natural is never negative; an integer can be.
+    no(&v5.consistent(&[p("num_lt", &["/n.natural", "0"])]));
+    yes(&v5.consistent(&[p("num_lt", &["/n.integer", "0"])]));
+    // A bound reaches a whole path through rational ones: 1 < y < x < z < 2.
+    no(&v5.consistent(&[
+        p("num_gt", &["/y.num", "1"]),
+        p("num_lt", &["/y.num", "/x.integer"]),
+        p("num_lt", &["/x.integer", "/z.num"]),
+        p("num_lt", &["/z.num", "2"]),
+    ]));
+    // A natural forced equal to an integer lifts the integer to 0.
+    yes(&v5.consistent(&[p("num_eq", &["/x.integer", "/y.natural"])]));
+    // Two naturals kept apart.
+    yes(&v5.consistent(&[
+        p("num_gte", &["/a.natural", "0"]),
+        p("num_gte", &["/b.natural", "0"]),
+        n("num_eq", &["/a.natural", "/b.natural"]),
+    ]));
+    // Three integers in {1, 2}, pairwise different: a pigeonhole the
+    // procedure does not search. Never live.
+    let pigeons = [
+        p("num_gte", &["/a.integer", "1"]),
+        p("num_lte", &["/a.integer", "2"]),
+        p("num_gte", &["/b.integer", "1"]),
+        p("num_lte", &["/b.integer", "2"]),
+        p("num_gte", &["/c.integer", "1"]),
+        p("num_lte", &["/c.integer", "2"]),
+        n("num_eq", &["/a.integer", "/b.integer"]),
+        n("num_eq", &["/b.integer", "/c.integer"]),
+        n("num_eq", &["/a.integer", "/c.integer"]),
+    ];
+    unknown(&v5.consistent(&pigeons));
+    // Entailment: an integer above 1 is at least 2.
+    assert_eq!(
+        v5.entails(
+            &[p("num_gt", &["/x.integer", "1"])],
+            &p("num_gte", &["/x.integer", "2"])
+        ),
+        Tri::True
+    );
+    assert_ne!(
+        v5.entails(
+            &[p("num_gt", &["/x.num", "1"])],
+            &p("num_gte", &["/x.num", "2"])
+        ),
+        Tri::True
+    );
+}
+
+#[test]
+fn a_number_its_path_cannot_hold_is_no_number() {
+    let v5 = |state: MapState| Theory::new(TheoryVersion::V5, standard(), &state).consistent(&[
+        p("num_gte", &["/n.natural", "0"]),
+    ]).tri;
+    // `-1` and `1/2` at a `.natural` path read as present, not as numbers.
+    assert_eq!(v5(MapState::new().with("/n.natural", "3")), Tri::True);
+    assert_eq!(v5(MapState::new().with("/n.natural", "-1")), Tri::False);
+    assert_eq!(v5(MapState::new().with("/n.natural", "0.5")), Tri::False);
+    assert_eq!(
+        MapState::new().with("/n.natural", "-1").value_at("/n.natural"),
+        Lookup::Present(StateValue::Structured)
+    );
+    assert_eq!(
+        MapState::new().with("/n.integer", "-1").value_at("/n.integer"),
+        Lookup::Present(StateValue::Num(Rational::from_int(-1)))
+    );
+}
+
+#[test]
 fn a9_interval_inclusion_is_entailment() {
     let th = v1();
     let lits = [p("num_gt", &["/x.num", "5"])];
@@ -2267,6 +2363,162 @@ fn rust_and_lean_agree_on_fractions() {
         disagreements.len()
     );
     assert!(counts[1] > 0, "some fraction label sets are live");
+    assert!(
+        disagreements.is_empty(),
+        "{}",
+        disagreements[..disagreements.len().min(10)].join("\n")
+    );
+}
+
+/// Theory `V5`: random order label sets over `.integer`, `.natural`,
+/// `.rational` and `.num` paths, decided by Rust and by the Lean checker
+/// with `num_types`. Lean must elaborate the same literals, reach the same
+/// verdict, and accept every Rust witness. An exact, opaque-free set may
+/// stay unknown only where the procedure is known not to search: a
+/// disequality on a whole-number path (three integers in `{1, 2}`, pairwise
+/// different, is a pigeonhole), or a rational path pinned to a fraction no
+/// commit can post.
+#[test]
+#[ignore = "needs the Lean checker; set PT_CHECK"]
+fn rust_and_lean_agree_on_numeric_types() {
+    const NUMS: [&str; 5] = [
+        "/x.integer",
+        "/y.natural",
+        "/z.num",
+        "/w.rational",
+        "/v.integer",
+    ];
+    const CONSTS: [&str; 10] = ["0", "1", "2", "-1", "3", "1/2", "5/2", "-3/2", "0.5", "7"];
+    const ORDER: [&str; 5] = ["num_gt", "num_gte", "num_lt", "num_lte", "num_eq"];
+    let (bin, rounds, mut next) = harness(10_000);
+    let v5 = Theory::new(TheoryVersion::V5, standard(), &NoState);
+    let mut requests = Vec::new();
+    let mut counts = [0usize; 3];
+    let mut gaps = 0usize;
+    for _ in 0..rounds {
+        let mut pick = |n: usize| (next() % n as u64) as usize;
+        let props: Vec<Property> = (0..1 + pick(5))
+            .map(|_| {
+                let (name, args) = if pick(8) == 0 {
+                    (
+                        "amount_in_range",
+                        vec![NUMS[pick(5)], CONSTS[pick(10)], CONSTS[pick(10)]],
+                    )
+                } else {
+                    let second = if pick(3) == 0 {
+                        NUMS[pick(5)]
+                    } else {
+                        CONSTS[pick(10)]
+                    };
+                    (ORDER[pick(5)], vec![NUMS[pick(5)], second])
+                };
+                if pick(3) == 0 {
+                    n(name, &args)
+                } else {
+                    p(name, &args)
+                }
+            })
+            .collect();
+        let (lits, exact) = v5.expand_all(&props);
+        let lits_json: Vec<_> = lits.iter().map(lit_json).collect();
+        let v = v5.consistent(&props);
+        counts[match v.tri {
+            Tri::False => 0,
+            Tri::True => 1,
+            Tri::Unknown => 2,
+        }] += 1;
+        if v.tri == Tri::Unknown && exact && !lits.iter().any(Lit::is_opaque) {
+            let whole_apart = lits.iter().any(|l| match &l.c {
+                Constraint::Order {
+                    lhs,
+                    op: Op::Eq,
+                    rhs,
+                } if !l.positive => [lhs, rhs]
+                    .iter()
+                    .any(|t| matches!(t, Term::Path(p) if NumKind::of(p).whole())),
+                _ => false,
+            });
+            let terms = || {
+                lits.iter().flat_map(|l| match &l.c {
+                    Constraint::Order { lhs, rhs, .. } => vec![lhs.clone(), rhs.clone()],
+                    _ => vec![],
+                })
+            };
+            let pinned = terms().any(|x| {
+                matches!(&x, Term::Path(p) if !NumKind::of(p).whole())
+                    && terms().any(|c| {
+                        let Term::Const(q) = c else { return false };
+                        let mut not_c = lits.clone();
+                        not_c.push(Lit::neg(Constraint::Order {
+                            lhs: x.clone(),
+                            op: Op::Eq,
+                            rhs: Term::Const(q),
+                        }));
+                        !q.is_decimal() && v5.consistent_lits(&not_c, true).tri == Tri::False
+                    })
+            });
+            let shown = lits
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>()
+                .join(" ");
+            assert!(
+                whole_apart || pinned,
+                "unknown, with no whole-number disequality and no fraction pin: {shown}"
+            );
+            gaps += 1;
+        }
+        requests.push((
+            serde_json::json!({
+                "labels": props.iter().map(label_json).collect::<Vec<_>>(),
+                "decls": [],
+                "lits": lits_json,
+                "fractions": true,
+                "num_types": true,
+            })
+            .to_string(),
+            Some((v.tri, exact)),
+        ));
+        if let Some(w) = &v.witness {
+            requests.push((
+                serde_json::json!({ "lits": lits_json, "witness": world_json(w, &[]) }).to_string(),
+                None,
+            ));
+        }
+    }
+    let answers = ask_lean(&bin, requests.iter().map(|(line, _)| line));
+    let mut disagreements = Vec::new();
+    for ((line, expect), got) in requests.iter().zip(&answers) {
+        assert!(
+            got.get("error").is_none(),
+            "pt-check could not read: {line}: {got}"
+        );
+        let problem = match expect {
+            Some((want, exact)) => {
+                if got["same"] != true {
+                    Some("elaboration differs".to_string())
+                } else if got["exact"] != *exact {
+                    Some(format!("exact: rust {exact}"))
+                } else if got["verdict"].as_str() != Some(verdict_word(*want)) {
+                    Some(format!("verdict: rust {}", verdict_word(*want)))
+                } else {
+                    None
+                }
+            }
+            None => (got["witness"] != true).then(|| "Lean rejects the witness".into()),
+        };
+        if let Some(problem) = problem {
+            disagreements.push(format!("{problem}: {line} -> {got}"));
+        }
+    }
+    eprintln!(
+        "{rounds} numeric-type label sets ({} dead, {} live, {} unknown, {gaps} of them allowed gaps), {} disagreements",
+        counts[0],
+        counts[1],
+        counts[2],
+        disagreements.len()
+    );
+    assert!(counts[0] > 0 && counts[1] > 0, "some sets are dead and some live");
     assert!(
         disagreements.is_empty(),
         "{}",

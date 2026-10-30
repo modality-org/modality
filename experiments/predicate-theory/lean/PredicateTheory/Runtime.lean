@@ -18,15 +18,20 @@ namespace PredicateTheory
 
 set_option linter.unusedSectionVars false
 
-/-- What `S` says about `p`, as literals true in every world with state `S`. -/
+/-- Present, and every typed read empty. -/
+def untypedAt (p : Path) : List Lit :=
+  [pos (.present p), neg (.isBool p true), neg (.isBool p false), neg (.textEq2 p p),
+    neg (.order (.path p) .le (.path p))]
+
+/-- What `S` says about `p`, as literals true in every world with state `S`.
+A number the path's kind does not allow (`-1` at a `.natural` path) is
+present and reads as nothing, like a structured value. -/
 def factsAt (S : List (Path × Value)) (p : Path) : List Lit :=
   match S.lookup p with
-  | some (.num q) => [pos (.order (.path p) .eq (.const q))]
+  | some (.num q) => if (numKind p).fits q then [pos (.order (.path p) .eq (.const q))] else untypedAt p
   | some (.text s) => [pos (.textEq p s)]
   | some (.bool b) => [pos (.isBool p b)]
-  | some .structured =>
-    [pos (.present p), neg (.isBool p true), neg (.isBool p false), neg (.textEq2 p p),
-      neg (.order (.path p) .le (.path p))]
+  | some .structured => untypedAt p
   | none => [neg (.present p)]
 
 def stateFacts (S : List (Path × Value)) (ls : List Lit) : List Lit :=
@@ -82,13 +87,19 @@ theorem factsAt_hold (h : w.state = S) (p : Path) : ∀ l ∈ factsAt S p, l.sem
   have hg := get_state (w := w) h p
   unfold factsAt at hl
   split at hl <;> rename_i heq <;> rw [← hg] at heq
-  · simp only [List.mem_singleton] at hl; subst hl
-    simp [Lit.sem, pos, Atom.sem, Term.eval, World.num?, heq, Op.test, Q.le_refl]
+  · split at hl
+    · rename_i hf
+      simp only [List.mem_singleton] at hl; subst hl
+      simp [Lit.sem, pos, Atom.sem, Term.eval, World.num?, heq, hf, Op.test, Q.le_refl]
+    · rename_i hf
+      simp only [untypedAt, List.mem_cons, List.mem_singleton, List.not_mem_nil, or_false] at hl
+      rcases hl with rfl | rfl | rfl | rfl | rfl <;>
+        simp [Lit.sem, pos, neg, Atom.sem, Term.eval, World.num?, World.text?, heq, hf]
   · simp only [List.mem_singleton] at hl; subst hl
     simp [Lit.sem, pos, Atom.sem, World.text?, heq]
   · simp only [List.mem_singleton] at hl; subst hl
     simp [Lit.sem, pos, Atom.sem, heq]
-  · simp only [List.mem_cons, List.mem_singleton, List.not_mem_nil, or_false] at hl
+  · simp only [untypedAt, List.mem_cons, List.mem_singleton, List.not_mem_nil, or_false] at hl
     rcases hl with rfl | rfl | rfl | rfl | rfl <;>
       simp [Lit.sem, pos, neg, Atom.sem, Term.eval, World.num?, World.text?, heq]
   · simp only [List.mem_singleton] at hl; subst hl

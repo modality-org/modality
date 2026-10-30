@@ -16,7 +16,10 @@ Paths reference data in the contract state:
 | Extension | Type | Example |
 |-----------|------|---------|
 | `.id` | ed25519 public key | `/parties/alice.id` |
-| `.num` | Numeric value | `/terms/price.num` |
+| `.num` | Exact rational number (the same as `.rational`) | `/terms/price.num` |
+| `.rational` | Exact rational number (from predicate theory `v5`) | `/pool/fee.rational` |
+| `.integer` | Whole number (from predicate theory `v5`) | `/ledger/delta.integer` |
+| `.natural` | Whole number from 0 (from predicate theory `v5`) | `/loop/count.natural` |
 | `.text` | Text string | `/metadata/description.text` |
 | `.bool` | Boolean | `/flags/approved.bool` |
 | `.datetime` | ISO 8601 timestamp | `/deadlines/expiry.datetime` |
@@ -25,6 +28,30 @@ Paths reference data in the contract state:
 | `.json` | JSON data | `/config/settings.json` |
 | `.wasm` | WASM module | `/predicates/custom.wasm` |
 | `.modality` | Model/rule file | `/model/default.modality` |
+
+## Numbers
+
+There are three kinds of number. `.rational` holds any exact rational number,
+`.integer` a whole number, and `.natural` a whole number from 0. `.num` is
+the same kind as `.rational`, under its older name. The two are different
+paths: `/x.num` and `/x.rational` are two places that hold the same kind of
+value.
+
+The three typed extensions arrive with predicate theory `v5`. Before `v5`
+they are unknown: a commit cannot post to one, and a numeric predicate on
+one never holds. From `v5`:
+
+- A commit may post to a path only a number it can hold. `-1` or `2.5` at a
+  `.natural` path is refused. A whole number is written as an integer: `2`,
+  not `2.0`. One too large to hold exactly is refused, never rounded.
+- The numeric predicates (`num_eq`, `num_gt`, `num_gte`, `num_lt`,
+  `num_lte`, `amount_in_range`) compare across the three kinds:
+  `+num_gt(/a.natural, /b.rational)` means what it says.
+- The predicate theory reasons in whole numbers on `.integer` and
+  `.natural` paths. An edge with `+num_gt(/x.integer, 1)` and
+  `+num_lt(/x.integer, 2)` can never be taken, because no whole number lies
+  between 1 and 2, and a `.natural` is never below 0. See
+  [Predicate theory](../reference/predicate-theory.md).
 
 ## Examples
 

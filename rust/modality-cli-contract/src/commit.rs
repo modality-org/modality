@@ -103,7 +103,7 @@ pub struct Opts {
     /// Predicate theory local verify runs: v3, the testnet's. Use v0 for a
     /// network whose network.json leaves predicate_theory_version unset, and
     /// v2 for one that sets it to v2 (numbers compared as 64-bit floats)
-    #[clap(long, default_value = "v3", value_parser = ["v0", "v2", "v3", "v4"])]
+    #[clap(long, default_value = "v3", value_parser = ["v0", "v2", "v3", "v4", "v5"])]
     theory: String,
 
     /// The most gas this commit may use (signed into its head). Without it,
@@ -378,7 +378,7 @@ pub async fn make(opts: &Opts) -> Result<Option<Committed>> {
     sign_with(&mut commit, &keys, &config.contract_id)?;
 
     // Validate the commit structure
-    commit.validate()?;
+    commit.validate_at(reads_numeric_types(&opts.theory))?;
 
     // Validate against contract rules (signature predicates, etc.)
     store.validate_commit_against_rules(&commit)?;
@@ -752,6 +752,16 @@ fn estimate_gas(
         within_limit(&used, limit)?;
     }
     Ok(used)
+}
+
+/// `--theory` names `v5` or later, where `.rational`, `.integer` and
+/// `.natural` paths are numbers (`TheoryVersion::reads_numeric_types`).
+/// The value parser keeps the names closed.
+fn reads_numeric_types(theory: &str) -> bool {
+    theory
+        .trim_start_matches('v')
+        .parse::<u32>()
+        .is_ok_and(|n| n >= 5)
 }
 
 #[cfg(feature = "model-status")]
@@ -1311,7 +1321,7 @@ fn synthesize_admitting_model(
     let outcome =
         find_admitting_model(&base, &current, &labels, RepairLimits::default(), |text| {
             let c = with_model(text)?;
-            c.validate()?;
+            c.validate_at(version.reads_numeric_types())?;
             store.validate_commit_against_rules(&c)?;
             validate_commit_against_model(dir, store, &c, theory).map(|_| ())
         })?;

@@ -106,6 +106,10 @@ and works under any predicate theory. Any other fraction is reduced (`2/6` is
 `1/3`) and is a number from predicate theory `v4`; before `v4` a predicate
 given one never holds. `1/0` is a parse error.
 
+From predicate theory `v5` a number path can also be `.rational`, `.integer`
+or `.natural` ([Path types](path-types.md#numbers)):
+`+num_lt(/out/i.natural, /out/pad.natural)` compares two whole numbers.
+
 The local validator derives `text_eq`, `text_contains`, `text_starts_with`, and
 `text_ends_with` from accepted-state strings only. `text_eq` can compare two
 accepted-state string paths or one path to a literal; the other text predicates
