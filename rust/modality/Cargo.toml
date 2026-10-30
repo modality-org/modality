@@ -22,6 +22,8 @@ anyhow = "1.0"
 clap = { version = "4.1.11", features = ["cargo", "derive", "env"] }
 tokio = { version = "1.42.0", features = ["macros", "rt-multi-thread", "io-util", "time"] }
 serde_json = "1.0.116"
+regex = "1.10"
+toml = "0.8"
 
 modality-common = { path = "../modality-common", version = "0.1.7", optional = true }
 modality-node = { path = "../modality-node", optional = true }

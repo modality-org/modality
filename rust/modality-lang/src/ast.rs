@@ -554,6 +554,47 @@ impl Property {
         }
     }
 
+    /// A predicate property whose arguments may include terms. Each argument
+    /// is its text and whether it is a term (`len(/in/s.text)`); the
+    /// positions of terms are recorded under `"terms"` in the args, so a
+    /// quoted string that looks like a call is never read as one.
+    pub fn new_predicate_with_terms(sign: PropertySign, name: String, args: Vec<(String, bool)>) -> Self {
+        let terms: Vec<usize> = args
+            .iter()
+            .enumerate()
+            .filter(|(_, (_, term))| *term)
+            .map(|(i, _)| i)
+            .collect();
+        let mut property = Self::new_predicate_from_call_args(
+            name,
+            args.into_iter().map(|(text, _)| text).collect(),
+        );
+        property.sign = sign;
+        if !terms.is_empty() {
+            if let Some(PropertySource::Predicate { args, .. }) = &mut property.source {
+                args["terms"] = serde_json::json!(terms);
+            }
+        }
+        property
+    }
+
+    /// Positions of the arguments that are terms (`len(/in/s.text)`), in order.
+    pub fn term_positions(&self) -> Vec<usize> {
+        match &self.source {
+            Some(PropertySource::Predicate { args, .. }) => args
+                .get("terms")
+                .and_then(|t| t.as_array())
+                .map(|a| a.iter().filter_map(|i| i.as_u64()).map(|i| i as usize).collect())
+                .unwrap_or_default(),
+            _ => Vec::new(),
+        }
+    }
+
+    /// Whether any argument is a term.
+    pub fn has_terms(&self) -> bool {
+        !self.term_positions().is_empty()
+    }
+
     /// Create a negated predicate property from a function call
     /// e.g., -signed_by("alice_pubkey") -> requires signature NOT present
     pub fn new_predicate_from_call_negated(name: String, arg: String) -> Self {

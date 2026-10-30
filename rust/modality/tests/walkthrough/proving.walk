@@ -1,0 +1,444 @@
+=== file leftpad.modality
+model leftpad {
+  initial q0
+
+  // post the inputs: any fill, width and string
+  q0 -> q1 [-modifies(/out)]
+  // start: result := string, added := 0, pad := max(width - len(string), 0)
+  q1 -> q2 [+num_eq(len(/in/fill.text), 1)
+            +sets_from(/out/result.text, /in/string.text) +sets(/out/added.natural, 0)
+            +sets(/out/pad.natural, max(minus(/in/width.integer, len(/in/string.text)), 0))
+            -modifies(/in) -modifies(/out/done.bool)]
+  // step: while added < pad, put fill in front of result
+  q2 -> q2 [+num_lt(/out/added.natural, /out/pad.natural)
+            +sets(/out/result.text, concat(/in/fill.text, /out/result.text))
+            +sets(/out/added.natural, plus(/out/added.natural, 1))
+            -modifies(/in) -modifies(/out/pad.natural) -modifies(/out/done.bool)]
+  // finish
+  q2 -> q3 [+num_gte(/out/added.natural, /out/pad.natural) +sets(/out/done.bool, true)
+            -modifies(/in) -modifies(/out/result.text)]
+}
+=== file leftpad.rules.modality
+rule leftpad_spec {
+  formula length {
+    always([+sets(/out/done.bool, true)
+            -num_eq(len(/out/result.text), max(/in/width.integer, len(/in/string.text)))] false)
+  }
+  formula padding {
+    always([+sets(/out/done.bool, true)
+            -text_prefix_repeats(/out/result.text,
+               minus(len(/out/result.text), len(/in/string.text)), /in/fill.text)] false)
+  }
+  formula suffix {
+    always([+sets(/out/done.bool, true)
+            -text_ends_with(/out/result.text, value(/in/string.text))] false)
+  }
+}
+=== file leftpad.invariants.modality
+invariant padded_so_far {
+  on q2 -> *
+  formula pad_is_set {
+    always([-num_eq(/out/pad.natural, max(minus(/in/width.integer, len(/in/string.text)), 0))] false)
+  }
+  formula length_so_far {
+    always([-num_eq(len(/out/result.text), plus(len(/in/string.text), /out/added.natural))] false)
+  }
+  formula one_char_fill {
+    always([-num_eq(len(/in/fill.text), 1)] false)
+  }
+  formula ends_with_string {
+    always([-text_ends_with(/out/result.text, value(/in/string.text))] false)
+  }
+  formula padded_with_fill {
+    always([-text_prefix_repeats(/out/result.text, /out/added.natural, /in/fill.text)] false)
+  }
+  formula added_le_pad {
+    always([-num_lte(/out/added.natural, /out/pad.natural)] false)
+  }
+}
+=== run prove leftpad.modality leftpad.rules.modality leftpad.invariants.modality
+leftpad.modality · leftpad.rules.modality (3 formulas) · leftpad.invariants.modality (6 formulas)
+semantics s1 · prover 0.1 · state: any
+✓ init      q1 -> q2   meets invariant padded_so_far
+✓ type      q1 -> q2   max(minus(width, len(string)), 0) fits /out/pad.natural
+✓ type      q2 -> q2   plus(added, 1) fits /out/added.natural
+✓ consec    q2 -> q2   keeps invariant padded_so_far
+✓ rule      leftpad_spec.length    at q2 -> q3; no other edge can set /out/done.bool
+✓ rule      leftpad_spec.padding   at q2 -> q3; no other edge can set /out/done.bool
+✓ rule      leftpad_spec.suffix    at q2 -> q3; no other edge can set /out/done.bool
+? term      q2 -> q2   unknown: no decreases measure, so the loop may never end
+✓ progress  q2         the guards of q2 -> q2 and q2 -> q3 cover every state
+
+8 of 9 proven, 1 unknown                                     exit 2
+  = help: add `decreases q2 -> q2 by <term>` to the invariant file
+not verified: 1 obligation is not proven
+exit 2
+=== run prove leftpad.modality leftpad.rules.modality leftpad.invariants.modality --list
+leftpad.modality · leftpad.rules.modality (3 formulas) · leftpad.invariants.modality (6 formulas)
+semantics s1 · prover 0.1 · state: any
+  init      q1 -> q2
+  type      q1 -> q2
+  type      q2 -> q2
+  consec    q2 -> q2
+  rule      leftpad_spec.length
+  rule      leftpad_spec.padding
+  rule      leftpad_spec.suffix
+  term      q2 -> q2
+  progress  q2
+exit 0
+=== file leftpad.invariants.modality
+invariant padded_so_far {
+  on q2 -> *
+  formula pad_is_set {
+    always([-num_eq(/out/pad.natural, max(minus(/in/width.integer, len(/in/string.text)), 0))] false)
+  }
+  formula length_so_far {
+    always([-num_eq(len(/out/result.text), plus(len(/in/string.text), /out/added.natural))] false)
+  }
+  formula ends_with_string {
+    always([-text_ends_with(/out/result.text, value(/in/string.text))] false)
+  }
+  formula padded_with_fill {
+    always([-text_prefix_repeats(/out/result.text, /out/added.natural, /in/fill.text)] false)
+  }
+  formula added_le_pad {
+    always([-num_lte(/out/added.natural, /out/pad.natural)] false)
+  }
+}
+=== run prove leftpad.modality leftpad.rules.modality leftpad.invariants.modality
+leftpad.modality · leftpad.rules.modality (3 formulas) · leftpad.invariants.modality (5 formulas)
+semantics s1 · prover 0.1 · state: any
+✓ init      q1 -> q2   meets invariant padded_so_far
+✓ type      q1 -> q2   max(minus(width, len(string)), 0) fits /out/pad.natural
+✓ type      q2 -> q2   plus(added, 1) fits /out/added.natural
+✗ consec    q2 -> q2   does not keep invariant padded_so_far       refuted
+    before: fill = "", string = "", width = 1, result = "", added = 0, pad = 1
+            padded_so_far holds; the guard added < pad holds
+    after:  added = 1, which breaks 2 formulas:
+      padded_so_far.length_so_far      len(result) = 0, but plus(len(string), added) = 1
+       --> leftpad.invariants.modality:6:3
+      padded_so_far.padded_with_fill   "" has fewer than 1 character
+       --> leftpad.invariants.modality:12:3
+    = help: q1 -> q2 checks len(fill) = 1, but padded_so_far does not say it
+    = replay: modal run leftpad.modality --replay .modal/cex/1.toml
+✓ rule      leftpad_spec.length    at q2 -> q3; no other edge can set /out/done.bool
+✓ rule      leftpad_spec.padding   at q2 -> q3; no other edge can set /out/done.bool
+✓ rule      leftpad_spec.suffix    at q2 -> q3; no other edge can set /out/done.bool
+? term      q2 -> q2   unknown: no decreases measure, so the loop may never end
+✓ progress  q2         the guards of q2 -> q2 and q2 -> q3 cover every state
+
+7 of 9 proven, 1 refuted, 1 unknown                          exit 1
+  = help: add `decreases q2 -> q2 by <term>` to the invariant file
+not verified: 2 obligations are not proven
+exit 1
+=== file leftpad.invariants.modality
+invariant padded_so_far {
+  on q2 -> *
+  formula pad_is_set {
+    always([-num_eq(/out/pad.natural, max(minus(/in/width.integer, len(/in/string.text)), 0))] false)
+  }
+  formula length_so_far {
+    always([-num_eq(len(/out/result.text), plus(len(/in/string.text), /out/added.natural))] false)
+  }
+  formula one_char_fill {
+    always([-num_eq(len(/in/fill.text), 1)] false)
+  }
+  formula ends_with_string {
+    always([-text_ends_with(/out/result.text, value(/in/string.text))] false)
+  }
+  formula padded_with_fill {
+    always([-text_prefix_repeats(/out/result.text, /out/added.natural, /in/fill.text)] false)
+  }
+  formula added_le_pad {
+    always([-num_lte(/out/added.natural, /out/pad.natural)] false)
+  }
+}
+=== file leftpad.modality
+model leftpad {
+  initial q0
+
+  // post the inputs: any fill, width and string
+  q0 -> q1 [-modifies(/out)]
+  // start: result := string, added := 0, pad := max(width - len(string), 0)
+  q1 -> q2 [+num_eq(len(/in/fill.text), 1)
+            +sets_from(/out/result.text, /in/string.text) +sets(/out/added.natural, 0)
+            +sets(/out/pad.natural, max(minus(/in/width.integer, len(/in/string.text)), 0))
+            -modifies(/in) -modifies(/out/done.bool)]
+  // step: while added < pad, put fill in front of result
+  q2 -> q2 [+num_lt(/out/added.natural, /out/pad.natural)
+            +sets(/out/result.text, concat(/in/fill.text, /out/result.text))
+            +sets(/out/added.natural, plus(/out/added.natural, 1))
+            -modifies(/out/pad.natural) -modifies(/out/done.bool)]
+  // finish
+  q2 -> q3 [+num_gte(/out/added.natural, /out/pad.natural) +sets(/out/done.bool, true)
+            -modifies(/in) -modifies(/out/result.text)]
+}
+=== run prove leftpad.modality leftpad.rules.modality leftpad.invariants.modality
+leftpad.modality · leftpad.rules.modality (3 formulas) · leftpad.invariants.modality (6 formulas)
+semantics s1 · prover 0.1 · state: any
+✓ init      q1 -> q2   meets invariant padded_so_far
+✓ type      q1 -> q2   max(minus(width, len(string)), 0) fits /out/pad.natural
+✓ type      q2 -> q2   plus(added, 1) fits /out/added.natural
+✗ consec    q2 -> q2   does not keep invariant padded_so_far       refuted
+    before: fill = "a", string = "", width = 1, result = "", added = 0, pad = 1
+            padded_so_far holds; the guard added < pad holds
+    after:  string = "a", added = 1, result = "a", which breaks 2 formulas:
+      padded_so_far.pad_is_set         pad = 1, but max(minus(width, len(string)), 0) = 0
+       --> leftpad.invariants.modality:3:3
+      padded_so_far.length_so_far      len(result) = 1, but plus(len(string), added) = 2
+       --> leftpad.invariants.modality:6:3
+     --> leftpad.modality:12:3   q2 -> q2 does not leave /in/string.text alone
+    = help: promise it on the edge: -modifies(/in/string.text), or a parent path
+    = replay: modal run leftpad.modality --replay .modal/cex/1.toml
+✓ rule      leftpad_spec.length    at q2 -> q3; no other edge can set /out/done.bool
+✓ rule      leftpad_spec.padding   at q2 -> q3; no other edge can set /out/done.bool
+✓ rule      leftpad_spec.suffix    at q2 -> q3; no other edge can set /out/done.bool
+? term      q2 -> q2   unknown: no decreases measure, so the loop may never end
+✓ progress  q2         the guards of q2 -> q2 and q2 -> q3 cover every state
+
+7 of 9 proven, 1 refuted, 1 unknown                          exit 1
+  = help: add `decreases q2 -> q2 by <term>` to the invariant file
+not verified: 2 obligations are not proven
+exit 1
+=== file leftpad.modality
+model leftpad {
+  initial q0
+
+  // post the inputs: any fill, width and string
+  q0 -> q1 [-modifies(/out)]
+  // start: result := string, added := 0, pad := max(width - len(string), 0)
+  q1 -> q2 [+num_eq(len(/in/fill.text), 1)
+            +sets_from(/out/result.text, /in/string.text) +sets(/out/added.natural, 0)
+            +sets(/out/pad.natural, max(minus(/in/width.integer, len(/in/string.text)), 0))
+            -modifies(/in) -modifies(/out/done.bool)]
+  // step: while added < pad, put fill in front of result
+  q2 -> q2 [+num_lt(/out/added.natural, /out/pad.natural)
+            +sets(/out/result.text, concat(/in/fill.text, /out/result.text))
+            +sets(/out/added.natural, plus(/out/added.natural, 1))
+            -modifies(/in) -modifies(/out/pad.natural) -modifies(/out/done.bool)]
+  // finish
+  q2 -> q3 [+num_gte(/out/added.natural, /out/pad.natural) +sets(/out/done.bool, true)
+            -modifies(/in) -modifies(/out/result.text)]
+}
+=== file leftpad.invariants.modality
+invariant padded_so_far {
+  on q2 -> *
+  formula pad_is_set {
+    always([-num_eq(/out/pad.natural, max(minus(/in/width.integer, len(/in/string.text)), 0))] false)
+  }
+  formula length_so_far {
+    always([-num_eq(len(/out/result.text), plus(len(/in/string.text), /out/added.natural))] false)
+  }
+  formula one_char_fill {
+    always([-num_eq(len(/in/fill.text), 1)] false)
+  }
+  formula ends_with_string {
+    always([-text_ends_with(/out/result.text, value(/in/string.text))] false)
+  }
+  formula padded_with_fill {
+    always([-text_prefix_repeats(/out/result.text, /out/added.natural, /in/fill.text)] false)
+  }
+  formula added_le_pad {
+    always([-num_lte(/out/added.natural, /out/pad.natural)] false)
+  }
+}
+
+decreases q2 -> q2 by minus(/out/pad.natural, /out/added.natural)
+=== run prove leftpad.modality leftpad.rules.modality leftpad.invariants.modality
+leftpad.modality · leftpad.rules.modality (3 formulas) · leftpad.invariants.modality (6 formulas)
+semantics s1 · prover 0.1 · state: any
+✓ init      q1 -> q2   meets invariant padded_so_far
+✓ type      q1 -> q2   max(minus(width, len(string)), 0) fits /out/pad.natural
+✓ type      q2 -> q2   plus(added, 1) fits /out/added.natural
+✓ consec    q2 -> q2   keeps invariant padded_so_far
+✓ rule      leftpad_spec.length    at q2 -> q3; no other edge can set /out/done.bool
+✓ rule      leftpad_spec.padding   at q2 -> q3; no other edge can set /out/done.bool
+✓ rule      leftpad_spec.suffix    at q2 -> q3; no other edge can set /out/done.bool
+✓ term      q2 -> q2   by minus(pad, added): at least 0 under the guard, drops by at least 1 each step
+✓ progress  q2         the guards of q2 -> q2 and q2 -> q3 cover every state
+
+9 of 9 proven                                                exit 0
+verified · leftpad meets leftpad_spec for every input · the loop at q2 always ends
+  semantics s1 · prover 0.1 · every certificate checked again on its own
+exit 0
+=== run prove leftpad.modality leftpad.rules.modality leftpad.invariants.modality --explain "rule leftpad_spec.length"
+rule leftpad_spec.length at q2 -> q3
+  have  padded_so_far.added_le_pad
+  have  padded_so_far.ends_with_string
+  have  padded_so_far.length_so_far
+  have  padded_so_far.pad_is_set
+  have  guard, leftpad.modality:17
+  split on max(minus(width, len(string)), 0):
+    case minus(width, len(string)) ≥ 0:
+      split on max(width, len(string)):
+        case width ≥ len(string):
+          split on not (len(result) = width):
+            case len(result) < width:
+              ∎ arithmetic: 1·(pad = minus(width, len(string))) + 1·(len(result) = plus(len(string), added)) + 1·(added ≥ pad) + 1·(len(result) < width)
+            case len(result) > width:
+              ∎ arithmetic: 1·(pad = minus(width, len(string))) + 1·(len(result) = plus(len(string), added)) + 1·(added ≤ pad) + 1·(len(result) > width)
+        case width < len(string):
+          split on not (len(result) = len(string)):
+            case len(result) < len(string):
+              ∎ arithmetic: 1·(minus(width, len(string)) ≥ 0) + 1·(width < len(string))
+            case len(result) > len(string):
+              ∎ arithmetic: 1·(minus(width, len(string)) ≥ 0) + 1·(width < len(string))
+    case minus(width, len(string)) < 0:
+      split on max(width, len(string)):
+        case width ≥ len(string):
+          split on not (len(result) = width):
+            case len(result) < width:
+              ∎ arithmetic: 1·(minus(width, len(string)) < 0) + 1·(width ≥ len(string))
+            case len(result) > width:
+              ∎ arithmetic: 1·(minus(width, len(string)) < 0) + 1·(width ≥ len(string))
+        case width < len(string):
+          split on not (len(result) = len(string)):
+            case len(result) < len(string):
+              ∎ arithmetic: 1·(result ends with string) + 1·(len(result) < len(string))
+            case len(result) > len(string):
+              ∎ arithmetic: 1·(pad = 0) + 1·(len(result) = plus(len(string), added)) + 1·(added ≤ pad) + 1·(len(result) > len(string))
+  ∎  8 cases
+  used 4 of 6 invariant formulas: added_le_pad, ends_with_string, length_so_far, pad_is_set
+exit 0
+=== run prove leftpad.modality leftpad.rules.modality leftpad.invariants.modality --explain
+invariant padded_so_far, formula by formula:
+  pad_is_set         used by  consec, rule.length, rule.padding
+  length_so_far      used by  consec, rule.length, rule.padding
+  one_char_fill      used by  consec
+  ends_with_string   used by  consec, rule.length, rule.padding, rule.suffix
+  padded_with_fill   used by  consec, rule.padding
+  added_le_pad       used by  rule.length, rule.padding, term
+every formula is used; none can be cut
+exit 0
+=== file domains.toml
+depth = 12
+
+[domain]
+"/in/fill.text"   = ["0", "é", "ab"]
+"/in/width.integer" = [-1, 0, 1, 3, 5]
+"/in/string.text" = { alphabet = ["a", "b"], max_len = 3 }
+# loop state, used by --inductive (section 8)
+"/out/result.text"   = { alphabet = ["0", "é", "a", "b"], max_len = 4 }
+"/out/added.natural" = [0, 1, 2, 3]
+"/out/pad.natural"   = [0, 1, 2, 3]
+
+[havoc]                 # values a move may write where it promised nothing
+"/out/done.bool" = [true, false]
+=== run prove leftpad.modality leftpad.rules.modality --houdini "q2 -> *" --seed domains.toml
+on q2 -> * · 13 candidates true at every q2 state in 225 bounded runs
+  round 1
+    dropped  width_le_5                         not established: q1 -> q2 allows otherwise
+    dropped  pad_le_5                           not established: q1 -> q2 allows otherwise
+    dropped  len_string_le_3                    not established: q1 -> q2 allows otherwise
+    dropped  len_result_le_5                    not established: q1 -> q2 allows otherwise
+  round 2
+    dropped  added_le_5                         not kept: the prover cannot show a step keeps it
+  kept 8, inductive together
+  ✓ strong enough for the rules; 6 of the 8 are needed:
+    pad_is_set
+    len_result_is_added_plus_len_string
+    added_le_pad
+    len_fill_is_1
+    result_starts_with_added_fill
+    result_ends_with_string
+  = write: add --write to save them as invariant suggested_q2
+exit 0
+=== run prove leftpad.modality leftpad.rules.modality leftpad.invariants.modality --emit-lean out
+leftpad.modality · leftpad.rules.modality (3 formulas) · leftpad.invariants.modality (6 formulas)
+semantics s1 · prover 0.1 · state: any
+✓ init      q1 -> q2   meets invariant padded_so_far
+✓ type      q1 -> q2   max(minus(width, len(string)), 0) fits /out/pad.natural
+✓ type      q2 -> q2   plus(added, 1) fits /out/added.natural
+✓ consec    q2 -> q2   keeps invariant padded_so_far
+✓ rule      leftpad_spec.length    at q2 -> q3; no other edge can set /out/done.bool
+✓ rule      leftpad_spec.padding   at q2 -> q3; no other edge can set /out/done.bool
+✓ rule      leftpad_spec.suffix    at q2 -> q3; no other edge can set /out/done.bool
+✓ term      q2 -> q2   by minus(pad, added): at least 0 under the guard, drops by at least 1 each step
+✓ progress  q2         the guards of q2 -> q2 and q2 -> q3 cover every state
+
+9 of 9 proven                                                exit 0
+verified · leftpad meets leftpad_spec for every input · the loop at q2 always ends
+  semantics s1 · prover 0.1 · every certificate checked again on its own
+wrote out: a Lake project (leanprover/lean4:v4.14.0, no mathlib) with 18 obligation theorems
+  check them: cd out && lake build
+exit 0
+=== file leftpad.test.toml
+[[run]]
+name = "pads foo to five"
+set = { "/in/fill.text" = "0", "/in/width.integer" = 5, "/in/string.text" = "foo" }
+expect = { "/out/result.text" = "00foo", "/out/done.bool" = true }
+
+[[run]]
+name = "never truncates"
+set = { "/in/fill.text" = "0", "/in/width.integer" = 1, "/in/string.text" = "foo" }
+expect = { "/out/result.text" = "foo" }
+
+[[check]]
+name = "no counterexample on small inputs"
+bounded = "domains.toml"
+inductive = true
+expect = { all = "no-counterexample" }
+
+[[mutation]]
+name = "the step must leave done alone"
+edge = "q2 -> q2"
+remove = "-modifies(/out/done.bool)"
+bounded = "domains.toml"
+expect = { "leftpad_spec.length" = "violated" }
+
+[[mutation]]
+name = "width must be whole"
+retype = { "/in/width.integer" = "/in/width.num" }
+expect = { "write /out/pad.natural" = "undecided" }
+
+[[mutation]]
+name = "fill must be one character"
+edge = "q1 -> q2"
+remove = "+num_eq(len(/in/fill.text), 1)"
+bounded = "domains.toml"
+expect = { "leftpad_spec.padding" = "violated" }
+
+[[prove]]
+name = "leftpad meets its spec for every input"
+expect = { all = "proven" }
+
+[[mutation]]
+name = "the invariant must say fill is one character"
+invariant = "padded_so_far"
+remove = "one_char_fill"
+prove = true
+expect = { "consec q2 -> q2" = "refuted" }
+
+[[mutation]]
+name = "the step must leave the inputs alone"
+edge = "q2 -> q2"
+remove = "-modifies(/in)"
+prove = true
+expect = { "consec q2 -> q2" = "refuted" }
+
+[[mutation]]
+name = "the loop needs a measure"
+remove = "decreases q2 -> q2"
+prove = true
+expect = { "term q2 -> q2" = "unknown" }
+
+[[mutation]]
+name = "width must be whole, for the prover too"
+retype = { "/in/width.integer" = "/in/width.num" }
+prove = true
+expect = { "type q1 -> q2" = "refuted" }
+=== run test
+leftpad.test.toml
+  ✓ pads foo to five
+  ✓ never truncates
+  ✓ no counterexample on small inputs                (225 runs)
+  ✓ the step must leave done alone                   (violated, as expected)
+  ✓ width must be whole                              (undecided, as expected)
+  ✓ fill must be one character                       (violated, as expected)
+  ✓ leftpad meets its spec for every input           (9 of 9 proven)
+  ✓ the invariant must say fill is one character     (refuted, as expected)
+  ✓ the step must leave the inputs alone             (refuted, as expected)
+  ✓ the loop needs a measure                         (unknown, as expected)
+  ✓ width must be whole, for the prover too          (refuted, as expected)
+11 passed                                                    exit 0
+exit 0

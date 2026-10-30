@@ -454,6 +454,21 @@ fn typed(name: &str) -> bool {
 }
 
 fn check_property(p: &Property, holes_allowed: bool) -> Result<(), String> {
+    if let Some(&i) = p.term_positions().first() {
+        let term = args(p).get(i).cloned().unwrap_or_default();
+        if term == "true" || term == "false" {
+            return Err(format!(
+                "{}: a bare `{term}` is offline syntax; on a network write \"{term}\"",
+                p.name
+            ));
+        }
+        return Err(format!(
+            "{}({term}): `{term}` is a term; terms are read only by the offline checker and \
+             prover (`modal check`, `modal run`, `modal prove`), and no network theory reads \
+             them yet",
+            p.name
+        ));
+    }
     for a in args(p) {
         let Some(segs) = segs_of(&a) else { continue };
         for s in segs {

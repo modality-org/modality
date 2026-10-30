@@ -1,0 +1,564 @@
+=== file approvals.modality
+model approvals {
+  initial q0
+
+  q0 -> q1 [+signed_by(/parties/alice.id)]
+  q1 -> q1 [+signed_by(/parties/alice.id) +signed_by(/parties/bob.id)]
+}
+
+formula alice_signs_every_move {
+  always([-signed_by(/parties/alice.id)] false)
+}
+=== run check approvals.modality
+approvals.modality · model approvals · theory v5 · state: any
+✓ alice_signs_every_move                                       holds
+
+1 formula holds                                              exit 0
+exit 0
+=== file approvals.modality
+model approvals {
+  initial q0
+
+  q0 -> q1 [+signed_by(/parties/alice.id)]
+  q1 -> q1 [+signed_by(/parties/alice.id) +signed_by(/parties/bob.id)]
+  q1 -> q2 [+signed_by(/parties/bob.id)]
+}
+
+formula alice_signs_every_move {
+  always([-signed_by(/parties/alice.id)] false)
+}
+=== run check approvals.modality
+approvals.modality · model approvals · theory v5 · state: any
+✗ alice_signs_every_move                                    violated
+
+error[check/box-violated]: a move the formula forbids is possible
+ --> approvals.modality:6:3
+  |
+6 |   q1 -> q2 [+signed_by(/parties/bob.id)]
+  |   ^^^^^^^^ this edge does not require signed_by(/parties/alice.id)
+  |
+  = path: q0 -> q1 -> q2
+  = breaks: always([-signed_by(/parties/alice.id)] false)
+  = help: add +signed_by(/parties/alice.id) to the edge, or remove it
+  = docs: modal explain check/box-violated
+
+1 formula violated                                           exit 1
+exit 1
+=== file approvals.modality
+model approvals {
+  initial q0
+
+  q0 -> q1 [+signed_by(/parties/alice.id)]
+  q1 -> q1 [+signed_by(/parties/alice.id) +signed_by(/parties/bob.id)]
+}
+
+formula alice_signs_every_move {
+  always([-signed_by(/parties/alice.id)] false)
+}
+
+formula bob_can_sign {
+  eventually(<+signed_by(/parties/bob.id)> true)
+}
+=== run check approvals.modality
+approvals.modality · model approvals · theory v5 · state: any
+✓ alice_signs_every_move                                       holds
+✓ bob_can_sign                                                 holds
+
+2 formulas hold                                              exit 0
+exit 0
+=== file approvals.modality
+model approvals {
+  initial q0
+
+  q0 -> q1 [+signed_by(/parties/alice.id)]
+}
+
+formula alice_signs_every_move {
+  always([-signed_by(/parties/alice.id)] false)
+}
+
+formula bob_can_sign {
+  eventually(<+signed_by(/parties/bob.id)> true)
+}
+=== run check approvals.modality
+approvals.modality · model approvals · theory v5 · state: any
+✓ alice_signs_every_move                                       holds
+✗ bob_can_sign                                              violated
+
+error[check/diamond-unreachable]: no reachable move carries signed_by(/parties/bob.id)
+ --> approvals.modality:12:3
+   |
+12 |   eventually(<+signed_by(/parties/bob.id)> true)
+   |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ wanted somewhere on a path
+   |
+  = reachable: q0, q1
+  = moves from them: q0 -> q1 [+signed_by(/parties/alice.id)]
+  = help: add an edge that carries the label, or drop the formula
+  = docs: modal explain check/diamond-unreachable
+
+1 formula violated                                           exit 1
+exit 1
+=== file model/approvals.modality
+model approvals {
+  initial q0
+
+  q0 -> q1 [+signed_by(/parties/alice.id)]
+  q1 -> q1 [+signed_by(/parties/alice.id) +signed_by(/parties/bob.id)]
+}
+=== file rules/signing.modality
+rule signing {
+  formula alice_signs_every_move {
+    always([-signed_by(/parties/alice.id)] false)
+  }
+  formula bob_can_sign {
+    eventually(<+signed_by(/parties/bob.id)> true)
+  }
+}
+=== run check model/approvals.modality rules/
+model/approvals.modality · rules/signing.modality (2 formulas) · theory v5 · state: any
+✓ signing.alice_signs_every_move                               holds
+✓ signing.bob_can_sign                                         holds
+
+2 formulas hold                                              exit 0
+exit 0
+=== file frozen.modality
+model frozen {
+  initial q0
+  q0 -> q1 [+signed_by(/parties/alice.id) -modifies(/parties)]
+  q1 -> q2 [+signed_by(/parties/bob.id) -modifies(/parties)]
+}
+
+formula alice_signs_every_move {
+  always([-signed_by(/parties/alice.id)] false)
+}
+=== file only-alice.toml
+"/parties/alice.id" = "alice-key"
+=== run check frozen.modality
+frozen.modality · model frozen · theory v5 · state: any
+✗ alice_signs_every_move                                    violated
+
+error[check/box-violated]: a move the formula forbids is possible
+ --> frozen.modality:4:3
+  |
+4 |   q1 -> q2 [+signed_by(/parties/bob.id) -modifies(/parties)]
+  |   ^^^^^^^^ this edge does not require signed_by(/parties/alice.id)
+  |
+  = path: q0 -> q1 -> q2
+  = breaks: always([-signed_by(/parties/alice.id)] false)
+  = help: add +signed_by(/parties/alice.id) to the edge, or remove it
+  = docs: modal explain check/box-violated
+
+1 formula violated                                           exit 1
+exit 1
+=== run check frozen.modality --state only-alice.toml
+frozen.modality · model frozen · theory v5 · state: only-alice.toml
+✓ alice_signs_every_move                                       holds
+  used: /parties/bob.id is not posted; q1 -> q2 can never be taken
+
+1 formula holds                                              exit 0
+exit 0
+=== file approvals.modality
+model approvals {
+  initial q0
+
+  q0 -> q1 [+signed_by(/parties/alice.id)]
+  q1 -> q1 [+signed_by(/parties/alice.id) +signed_by(/parties/bob.id)]
+}
+
+formula alice_signs_every_move {
+  always([-signed_by(/parties/alice.id)] false)
+}
+
+formula bob_signed {
+  always([+signed_by(/parties/bob.id)] true)
+}
+=== run check approvals.modality
+warning[lint/vacuous-box-guard]: this box holds everywhere
+ --> approvals.modality:13:10
+   |
+13 |   always([+signed_by(/parties/bob.id)] true)
+   |          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ a box of `true` is true even with no such move
+   |
+   = help: to say the move is possible, write <...> true instead of [...] true
+
+approvals.modality · model approvals · theory v5 · state: any
+✓ alice_signs_every_move                                       holds
+✓ bob_signed                                                   holds
+
+2 formulas hold                                              exit 0
+exit 0
+=== file leftpad.modality
+model leftpad {
+  initial q0
+
+  // post the inputs: any fill, width and string
+  q0 -> q1 [-modifies(/out)]
+  // start: result := string, added := 0, pad := max(width - len(string), 0)
+  q1 -> q2 [+sets_from(/out/result.text, /in/string.text) +sets(/out/added.natural, 0)
+            +sets(/out/pad.natural, max(minus(/in/width.num, len(/in/string.text)), 0))
+            -modifies(/in) -modifies(/out/done.bool)]
+  // step: while added < pad, put fill in front of result
+  q2 -> q2 [+num_lt(/out/added.natural, /out/pad.natural)
+            +sets(/out/result.text, concat(/in/fill.text, /out/result.text))
+            +sets(/out/added.natural, plus(/out/added.natural, 1))
+            -modifies(/in) -modifies(/out/pad.natural)]
+  // finish
+  q2 -> q3 [+num_gte(/out/added.natural, /out/pad.natural) +sets(/out/done.bool, true)
+            -modifies(/in) -modifies(/out/result.text)]
+}
+=== run run leftpad.modality --set /in/fill.text=0 --set /in/width.num=5 --set /in/string.text=foo
+q0 -> q1 -> q2 -> q2 -> q2 -> q3
+/out/result.text = "00foo"   /out/added.natural = 2   /out/pad.natural = 2   /out/done.bool = true
+exit 0
+=== run run leftpad.modality --set /in/fill.text=0 --set /in/width.num=1 --set /in/string.text=foo
+q0 -> q1 -> q2 -> q3
+/out/result.text = "foo"   /out/added.natural = 0   /out/pad.natural = 0   /out/done.bool = true
+exit 0
+=== run run leftpad.modality --set /in/fill.text=0 --set /in/width.num=1 --set /in/string.text=foo --trace
+q0 -> q1   /in/fill.text = "0"  /in/string.text = "foo"  /in/width.num = 1
+q1 -> q2   /out/result.text = "foo"  /out/added.natural = 0  /out/pad.natural = 0
+q2 -> q3   /out/done.bool = true
+q0 -> q1 -> q2 -> q3
+/out/result.text = "foo"   /out/added.natural = 0   /out/pad.natural = 0   /out/done.bool = true
+exit 0
+=== file leftpad.rules.modality
+rule leftpad_spec {
+  formula length {
+    always([+sets(/out/done.bool, true)
+            -num_eq(len(/out/result.text), max(/in/width.num, len(/in/string.text)))] false)
+  }
+  formula padding {
+    always([+sets(/out/done.bool, true)
+            -text_prefix_repeats(/out/result.text,
+               minus(len(/out/result.text), len(/in/string.text)), /in/fill.text)] false)
+  }
+  formula suffix {
+    always([+sets(/out/done.bool, true)
+            -text_ends_with(/out/result.text, value(/in/string.text))] false)
+  }
+}
+=== run check leftpad.modality leftpad.rules.modality
+leftpad.modality · leftpad.rules.modality (3 formulas) · theory v5 · state: any
+? leftpad_spec.length                                      undecided
+  2 edges may break it, depending on data the labels do not show:
+    leftpad.modality:11  q2 -> q2  may set /out/done.bool (not left alone); num_eq(len(result), …) is open
+    leftpad.modality:16  q2 -> q3  sets /out/done.bool; num_eq(len(result), …) is open
+? leftpad_spec.padding                                     undecided   (same 2 edges)
+? leftpad_spec.suffix                                      undecided   (same 2 edges)
+? write to /out/pad.natural                                undecided
+    leftpad.modality:7  q1 -> q2  max(minus(width, len(string)), 0) is a rational ≥ 0, and a .natural must also be whole
+
+3 formulas and 1 write undecided                             exit 2
+  = help: search small inputs with --bounded, or prove for all inputs with modal prove
+exit 2
+=== file domains.toml
+depth = 12
+
+[domain]
+"/in/fill.text"   = ["0", "é", "ab"]
+"/in/width.num"   = [-1, 0, 1, 3, 5, "1/2"]
+"/in/string.text" = { alphabet = ["a", "b"], max_len = 3 }
+# loop state, used by --inductive (section 8)
+"/out/result.text"   = { alphabet = ["0", "é", "a", "b"], max_len = 4 }
+"/out/added.natural" = [0, 1, 2, 3]
+"/out/pad.natural"   = [0, 1, 2, 3]
+
+[havoc]                 # values a move may write where it promised nothing
+"/out/done.bool" = [true, false]
+=== run check leftpad.modality leftpad.rules.modality --bounded domains.toml
+bounded search · 3 × 6 × 15 inputs · depth 12 · 2,136 runs
+✗ leftpad_spec.length                                       violated
+  fill = "0", width = 1, string = ""
+  q0 -> q1 -> q2 -> q2
+              ^^^^^^^^ this move also wrote /out/done.bool = true while added = 0 < pad = 1
+  len(result) = 0, but max(width, len(string)) = 1
+  --> leftpad.modality:11:3   q2 -> q2 does not leave /out/done.bool alone
+  = replay: modal run leftpad.modality --replay .modal/cex/1.toml
+
+✗ leftpad_spec.padding                                      violated
+  fill = "ab", width = 1, string = ""
+  q0 -> q1 -> q2 -> q2 -> q3
+                    ^^^^^^^^ this move breaks it
+  the first 2 characters of "ab" are not each "ab"
+  --> leftpad.modality:16:3   q2 -> q3
+  = replay: modal run leftpad.modality --replay .modal/cex/2.toml
+
+✗ write to /out/pad.natural                                 violated
+  fill = "0", width = 1/2, string = ""
+  q0 -> q1 -> q2
+        ^^^^^^^^ would write 1/2 to /out/pad.natural, so this move can never be made
+  --> leftpad.modality:7:3   the value comes from /in/width.num, a rational
+  = replay: modal run leftpad.modality --replay .modal/cex/3.toml
+
+✓ leftpad_spec.suffix                no counterexample in 2,136 runs
+
+2 formulas and 1 write violated (this is a search of the domain, not a proof)  exit 1
+exit 1
+=== run run leftpad.modality --replay .modal/cex/1.toml
+q0 -> q1   /in/fill.text = "0"  /in/string.text = ""  /in/width.num = 1
+q1 -> q2   /out/result.text = ""  /out/added.natural = 0  /out/pad.natural = 1
+q2 -> q2   /out/result.text = "0"  /out/added.natural = 1  /out/done.bool = true
+q0 -> q1 -> q2 -> q2
+exit 0
+=== file leftpad.modality
+model leftpad {
+  initial q0
+
+  // post the inputs: any fill, width and string
+  q0 -> q1 [-modifies(/out)]
+  // start: result := string, added := 0, pad := max(width - len(string), 0)
+  q1 -> q2 [+sets_from(/out/result.text, /in/string.text) +sets(/out/added.natural, 0)
+            +sets(/out/pad.natural, max(minus(/in/width.integer, len(/in/string.text)), 0))
+            -modifies(/in) -modifies(/out/done.bool)]
+  // step: while added < pad, put fill in front of result
+  q2 -> q2 [+num_lt(/out/added.natural, /out/pad.natural)
+            +sets(/out/result.text, concat(/in/fill.text, /out/result.text))
+            +sets(/out/added.natural, plus(/out/added.natural, 1))
+            -modifies(/in) -modifies(/out/pad.natural) -modifies(/out/done.bool)]
+  // finish
+  q2 -> q3 [+num_gte(/out/added.natural, /out/pad.natural) +sets(/out/done.bool, true)
+            -modifies(/in) -modifies(/out/result.text)]
+}
+=== file leftpad.rules.modality
+rule leftpad_spec {
+  formula length {
+    always([+sets(/out/done.bool, true)
+            -num_eq(len(/out/result.text), max(/in/width.integer, len(/in/string.text)))] false)
+  }
+  formula padding {
+    always([+sets(/out/done.bool, true)
+            -text_prefix_repeats(/out/result.text,
+               minus(len(/out/result.text), len(/in/string.text)), /in/fill.text)] false)
+  }
+  formula suffix {
+    always([+sets(/out/done.bool, true)
+            -text_ends_with(/out/result.text, value(/in/string.text))] false)
+  }
+}
+=== run check leftpad.modality leftpad.rules.modality
+leftpad.modality · leftpad.rules.modality (3 formulas) · theory v5 · state: any
+? leftpad_spec.length                                      undecided
+  1 edge may break it, depending on data the labels do not show:
+    leftpad.modality:16  q2 -> q3  sets /out/done.bool; num_eq(len(result), …) is open
+? leftpad_spec.padding                                     undecided   (same 1 edge)
+? leftpad_spec.suffix                                      undecided   (same 1 edge)
+
+3 formulas undecided                                         exit 2
+  = help: search small inputs with --bounded, or prove for all inputs with modal prove
+exit 2
+=== file domains.toml
+depth = 12
+
+[domain]
+"/in/fill.text"   = ["0", "é", "ab"]
+"/in/width.integer" = [-1, 0, 1, 3, 5, "1/2"]
+"/in/string.text" = { alphabet = ["a", "b"], max_len = 3 }
+# loop state, used by --inductive (section 8)
+"/out/result.text"   = { alphabet = ["0", "é", "a", "b"], max_len = 4 }
+"/out/added.natural" = [0, 1, 2, 3]
+"/out/pad.natural"   = [0, 1, 2, 3]
+
+[havoc]                 # values a move may write where it promised nothing
+"/out/done.bool" = [true, false]
+=== run check leftpad.modality leftpad.rules.modality --bounded domains.toml
+error[domain/type]: "1/2" is not an .integer
+ --> domains.toml:5:40
+  = help: the type already rules this input out; remove it
+exit 1
+=== file domains.toml
+depth = 12
+
+[domain]
+"/in/fill.text"   = ["0", "é", "ab"]
+"/in/width.integer" = [-1, 0, 1, 3, 5]
+"/in/string.text" = { alphabet = ["a", "b"], max_len = 3 }
+# loop state, used by --inductive (section 8)
+"/out/result.text"   = { alphabet = ["0", "é", "a", "b"], max_len = 4 }
+"/out/added.natural" = [0, 1, 2, 3]
+"/out/pad.natural"   = [0, 1, 2, 3]
+
+[havoc]                 # values a move may write where it promised nothing
+"/out/done.bool" = [true, false]
+=== run check leftpad.modality leftpad.rules.modality --bounded domains.toml
+bounded search · 3 × 5 × 15 inputs · depth 12 · 225 runs
+✗ leftpad_spec.length                                       violated
+  fill = "ab", width = 1, string = ""
+  q0 -> q1 -> q2 -> q2 -> q3
+                    ^^^^^^^^ this move breaks it
+  len(result) = 2, but max(width, len(string)) = 1
+  --> leftpad.modality:16:3   q2 -> q3
+  = replay: modal run leftpad.modality --replay .modal/cex/1.toml
+
+✗ leftpad_spec.padding                                      violated
+  fill = "ab", width = 1, string = ""
+  q0 -> q1 -> q2 -> q2 -> q3
+                    ^^^^^^^^ this move breaks it
+  the first 2 characters of "ab" are not each "ab"
+  --> leftpad.modality:16:3   q2 -> q3
+  = replay: modal run leftpad.modality --replay .modal/cex/2.toml
+
+✓ leftpad_spec.suffix                  no counterexample in 225 runs
+
+2 formulas violated (this is a search of the domain, not a proof)  exit 1
+exit 1
+=== file leftpad.modality
+model leftpad {
+  initial q0
+
+  // post the inputs: any fill, width and string
+  q0 -> q1 [-modifies(/out)]
+  // start: result := string, added := 0, pad := max(width - len(string), 0)
+  q1 -> q2 [+num_eq(len(/in/fill.text), 1)
+            +sets_from(/out/result.text, /in/string.text) +sets(/out/added.natural, 0)
+            +sets(/out/pad.natural, max(minus(/in/width.integer, len(/in/string.text)), 0))
+            -modifies(/in) -modifies(/out/done.bool)]
+  // step: while added < pad, put fill in front of result
+  q2 -> q2 [+num_lt(/out/added.natural, /out/pad.natural)
+            +sets(/out/result.text, concat(/in/fill.text, /out/result.text))
+            +sets(/out/added.natural, plus(/out/added.natural, 1))
+            -modifies(/in) -modifies(/out/pad.natural) -modifies(/out/done.bool)]
+  // finish
+  q2 -> q3 [+num_gte(/out/added.natural, /out/pad.natural) +sets(/out/done.bool, true)
+            -modifies(/in) -modifies(/out/result.text)]
+}
+=== run check leftpad.modality leftpad.rules.modality --bounded domains.toml
+bounded search · 3 × 5 × 15 inputs · depth 12 · 225 runs
+✓ leftpad_spec.length                  no counterexample in 225 runs
+✓ leftpad_spec.padding                 no counterexample in 225 runs
+✓ leftpad_spec.suffix                  no counterexample in 225 runs
+
+no counterexample (this is a search of the domain, not a proof)  exit 0
+exit 0
+=== file leftpad.invariants.modality
+invariant padded_so_far {
+  on q2 -> *
+  formula pad_is_set {
+    always([-num_eq(/out/pad.natural, max(minus(/in/width.integer, len(/in/string.text)), 0))] false)
+  }
+  formula length_so_far {
+    always([-num_eq(len(/out/result.text), plus(len(/in/string.text), /out/added.natural))] false)
+  }
+  formula one_char_fill {
+    always([-num_eq(len(/in/fill.text), 1)] false)
+  }
+  formula ends_with_string {
+    always([-text_ends_with(/out/result.text, value(/in/string.text))] false)
+  }
+  formula padded_with_fill {
+    always([-text_prefix_repeats(/out/result.text, /out/added.natural, /in/fill.text)] false)
+  }
+}
+=== run check leftpad.modality leftpad.rules.modality leftpad.invariants.modality --bounded domains.toml --inductive
+bounded search · 3 × 5 × 15 inputs · depth 12 · 225 runs
+✓ leftpad_spec.length                  no counterexample in 225 runs
+✓ leftpad_spec.padding                 no counterexample in 225 runs
+✓ leftpad_spec.suffix                  no counterexample in 225 runs
+
+invariant padded_so_far (on q2 -> *)
+  ✓ holds at every q2 state a run reaches (256 states)
+  ✓ every step keeps it
+  ✗ too weak for leftpad_spec.length at q2 -> q3
+    a state the invariant allows, where q2 -> q3 breaks the rule:
+      fill = "0", width = -1, string = "", result = "0", added = 1, pad = 0
+      padded_so_far holds and added ≥ pad; len(result) = 1, but max(width, len(string)) = 0
+    no run reaches this state. The invariant is missing a fact that rules it out.
+
+the invariant fails on this domain (this is a search of the domain, not a proof)  exit 1
+exit 1
+=== file leftpad.invariants.modality
+invariant padded_so_far {
+  on q2 -> *
+  formula pad_is_set {
+    always([-num_eq(/out/pad.natural, max(minus(/in/width.integer, len(/in/string.text)), 0))] false)
+  }
+  formula length_so_far {
+    always([-num_eq(len(/out/result.text), plus(len(/in/string.text), /out/added.natural))] false)
+  }
+  formula one_char_fill {
+    always([-num_eq(len(/in/fill.text), 1)] false)
+  }
+  formula ends_with_string {
+    always([-text_ends_with(/out/result.text, value(/in/string.text))] false)
+  }
+  formula padded_with_fill {
+    always([-text_prefix_repeats(/out/result.text, /out/added.natural, /in/fill.text)] false)
+  }
+  formula added_le_pad {
+    always([-num_lte(/out/added.natural, /out/pad.natural)] false)
+  }
+}
+=== run check leftpad.modality leftpad.rules.modality leftpad.invariants.modality --bounded domains.toml --inductive
+bounded search · 3 × 5 × 15 inputs · depth 12 · 225 runs
+✓ leftpad_spec.length                  no counterexample in 225 runs
+✓ leftpad_spec.padding                 no counterexample in 225 runs
+✓ leftpad_spec.suffix                  no counterexample in 225 runs
+
+invariant padded_so_far (on q2 -> *)
+  ✓ holds at every q2 state a run reaches (256 states)
+  ✓ every step keeps it
+  ✓ strong enough for leftpad_spec.length, .padding, .suffix at q2 -> q2, q2 -> q3
+on this domain. To show it for every input: modal prove
+
+no counterexample (this is a search of the domain, not a proof)  exit 0
+exit 0
+=== file leftpad.test.toml
+[[run]]
+name = "pads foo to five"
+set = { "/in/fill.text" = "0", "/in/width.integer" = 5, "/in/string.text" = "foo" }
+expect = { "/out/result.text" = "00foo", "/out/done.bool" = true }
+
+[[run]]
+name = "never truncates"
+set = { "/in/fill.text" = "0", "/in/width.integer" = 1, "/in/string.text" = "foo" }
+expect = { "/out/result.text" = "foo" }
+
+[[check]]
+name = "no counterexample on small inputs"
+bounded = "domains.toml"
+inductive = true
+expect = { all = "no-counterexample" }
+
+[[mutation]]
+name = "the step must leave done alone"
+edge = "q2 -> q2"
+remove = "-modifies(/out/done.bool)"
+bounded = "domains.toml"
+expect = { "leftpad_spec.length" = "violated" }
+
+[[mutation]]
+name = "width must be whole"
+retype = { "/in/width.integer" = "/in/width.num" }
+expect = { "write /out/pad.natural" = "undecided" }
+
+[[mutation]]
+name = "fill must be one character"
+edge = "q1 -> q2"
+remove = "+num_eq(len(/in/fill.text), 1)"
+bounded = "domains.toml"
+expect = { "leftpad_spec.padding" = "violated" }
+=== run test
+leftpad.test.toml
+  ✓ pads foo to five
+  ✓ never truncates
+  ✓ no counterexample on small inputs                (225 runs)
+  ✓ the step must leave done alone                   (violated, as expected)
+  ✓ width must be whole                              (undecided, as expected)
+  ✓ fill must be one character                       (violated, as expected)
+6 passed                                                     exit 0
+exit 0
+=== run explain check/box-violated
+check/box-violated
+
+A box `[L] φ` is a promise about every move that carries the labels L.
+`always([L] false)` says no such move may exist. The check found an edge
+that a reachable path can take, where some commit could carry L.
+
+Fix it on the edge, or in the rule:
+  - add the labels the box forbids the lack of (for `[-signed_by(/a.id)]
+    false`, add `+signed_by(/a.id)` to the edge), or
+  - promise to leave a path alone (`-modifies(/p)`), so the edge cannot
+    write it, or
+  - remove the edge.
+
+The path printed is the shortest from a start node to that edge.
+exit 0
