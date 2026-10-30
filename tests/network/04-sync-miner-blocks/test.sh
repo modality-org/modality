@@ -60,56 +60,39 @@ assert_output_contains \
     "Total Blocks" \
     "Node2 should have synced blocks"
 
-# Test 7: Test epoch sync
+# Test 7: Re-sync the complete chain without clearing node2. It must be a no-op.
 echo ""
-echo "Test 7: Testing epoch sync..."
+echo "Test 7: Testing sync idempotency..."
+assert_output_contains \
+    "./03-sync-all-blocks.sh" \
+    "Blocks persisted: 0" \
+    "Re-sync should not persist duplicate blocks"
+
+# Test 8: Test epoch sync
+echo ""
+echo "Test 8: Testing epoch sync..."
 rm -rf ./configs/tmp/storage/node2 2>/dev/null || true
 rm -rf ./tmp/storage/node2 2>/dev/null || true
 assert_success \
     "./04-sync-epoch.sh 0" \
     "Sync epoch 0 should succeed"
 
-# Test 8: Test range sync
+# Test 9: Test range sync
 echo ""
-echo "Test 8: Testing range sync..."
+echo "Test 9: Testing range sync..."
 rm -rf ./configs/tmp/storage/node2 2>/dev/null || true
 rm -rf ./tmp/storage/node2 2>/dev/null || true
 assert_success \
     "./05-sync-range.sh 0 10" \
     "Sync range 0-10 should succeed"
 
-# Test 9: Test JSON output
+# Test 10: Test JSON output
 echo ""
-echo "Test 9: Testing JSON output format..."
+echo "Test 10: Testing JSON output format..."
 assert_output_contains \
     "./06-view-blocks-json.sh" \
     "blocks" \
     "JSON output should contain blocks field"
-
-# Test 10: Test idempotency (re-sync should skip duplicates)
-echo ""
-echo "Test 10: Testing sync idempotency..."
-RESYNC_OUTPUT=$(./03-sync-all-blocks.sh 2>&1 || true)
-echo "Re-sync output: $RESYNC_OUTPUT" >> "$CURRENT_LOG"
-# Re-syncing should either show "Blocks persisted: 0" (all skipped) or show some skipped blocks
-# The format is "Blocks persisted: N" where N should be 0 for fully idempotent sync
-if echo "$RESYNC_OUTPUT" | grep -q "Blocks persisted: 0"; then
-    TESTS_RUN=$((TESTS_RUN + 1))
-    TESTS_PASSED=$((TESTS_PASSED + 1))
-    echo -e "  ${GREEN}✓${NC} Re-sync should skip duplicate blocks"
-else
-    # Check if some blocks were skipped (partial idempotency is acceptable for now)
-    PERSISTED=$(echo "$RESYNC_OUTPUT" | grep "Blocks persisted:" | sed -E 's/.*Blocks persisted: ([0-9]+).*/\1/' || echo "")
-    if [ ! -z "$PERSISTED" ] && [ "$PERSISTED" -lt 120 ]; then
-        TESTS_RUN=$((TESTS_RUN + 1))
-        TESTS_PASSED=$((TESTS_PASSED + 1))
-        echo -e "  ${GREEN}✓${NC} Re-sync partially skipped duplicate blocks ($PERSISTED/120 persisted)"
-    else
-        TESTS_RUN=$((TESTS_RUN + 1))
-        TESTS_FAILED=$((TESTS_FAILED + 1))
-        echo -e "  ${RED}✗${NC} Re-sync should skip duplicate blocks"
-    fi
-fi
 
 # Finalize test
 test_finalize
