@@ -38,7 +38,9 @@ For live access, start with [Join the public testnet](../cli/join-testnet.md).
   and workspace Clippy. These cover network crates as workspace members. CI also
   builds `modal` and runs the numbered `01-ping-node` and
   `02-run-devnet1` scenarios: the first boots and pings from a second node,
-  the second certifies a local static-sequencer round, and `05-mining` mines,
+  the second certifies a local static-sequencer round, `04-sync-miner-blocks`
+  syncs 120 fixture blocks between local nodes and checks duplicate syncs are
+  no-ops, and `05-mining` mines,
   inspects, persists, and resumes a solo devnet block. The remaining numbered
   scenarios are not yet CI gates.
 - [x] A small [hybrid consensus experiment](../../experiments/hybrid-consensus/README.md)
