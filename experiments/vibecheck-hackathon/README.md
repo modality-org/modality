@@ -5,6 +5,67 @@ LTL, and a rerun of the [multi-agent chess](../../docs/multi-agent-chess.md)
 experiment on top of it. See [PLAN.md](PLAN.md) for the brief, and
 [demos/](demos/) for walkthroughs of everything below.
 
+## Headline: chat, RULES.md and a modal contract, in Elo
+
+The chess experiments pit three ways for a team of 16 agents to coordinate
+against each other:
+
+- **chat:** any agent can send a move;
+- **RULES.md:** chat plus a shared rules file that nothing checks;
+- **a modal contract:** a move counts only if a signed commit is accepted.
+
+Fitting Elo ratings to their head-to-head results puts the contract roughly
+**400 Elo above chat**, and **300 to 400 above RULES.md** as its agents
+follow it half the time.
+
+| Method | Lean run (64 games per matchup) | Python run |
+| --- | ---: | ---: |
+| Chat | 0 | 0 |
+| RULES.md, followed half the time | +96 [−9, +211] | +87 [−20, +219] |
+| Modal contract (preset: 4 of 16 signatures) | **+486** [+380, +611] | +379 [+238, +599] |
+| Contract over RULES.md | +390 | +291 |
+
+Brackets are 95% bootstrap intervals. The Python run is the original
+experiment ([docs/multi-agent-chess.md](../../docs/multi-agent-chess.md)).
+
+**How the ratings are fit.** The fit uses four matchups: chat vs chat,
+RULES.md vs chat, chat vs contract, and RULES.md vs contract. Chat is
+anchored at 0. The fit also estimates White's first-move advantage, because
+the contract always played Black and RULES.md always played White. That
+advantage came out at −6 in the Lean run and +58 in the Python run. The
+ratings are maximum-likelihood estimates, counting a draw as half a point.
+The fitted ratings reproduce every matchup's score to within 0.01 (Lean)
+and 0.04 (Python).
+
+**RULES.md is only as good as its compliance.** Fitting every compliance
+level in one model:
+
+| RULES.md followed | Lean | Python |
+| --- | ---: | ---: |
+| 50% | +91 | +86 |
+| 95% | +313 | +251 |
+| always | +361 | +263 |
+| Contract, same fit | +437 | +358 |
+
+A RULES.md that every agent always follows still rates 75 to 95 Elo below
+the contract, which needs no compliance at all.
+
+**What the numbers measure.**
+
+- **Coordination, not chess skill.** Both sides use the same engine and the
+  same fault rate (0.1), and with no faults the two are even: `control`
+  scores 0.51. The gaps are entirely off-plan moves reaching the board.
+- **The contract's rating is the least certain.** Against chat it scored
+  60–2–2 (Lean), close to a perfect score, where Elo is poorly constrained.
+  The Python contract matchups are only 16 games each.
+- **Lean retros are scripted.** In the Lean run, RULES.md is written by a
+  script, not a language model. The preset contract uses no retros.
+- **The self-ruled contract is not in this fit.** From its raw scores,
+  starting with no rules puts it about +210 above chat. With its rule
+  written before the first move, it scores the same as the preset contract.
+
+## Run it
+
 ```sh
 lake build                       # library, alice-bob, chess (Lean 4.14.0, no dependencies)
 lake exe alice-bob               # the two-party demo
@@ -220,10 +281,131 @@ example 0.90 against 0.75 in `rules-md`), even though White's off-plan rates
 match closely. The cause has not been looked into. Most Python rows are 16
 games, so part of the gap may be sampling.
 
+## Rules written by a language model
+
+With `--retros llm`, retros ask Claude through the `claude` CLI, as the
+Python run did. The default model is `claude-opus-5-5`; pass `--model
+claude-sonnet-5-5` to match the Python run. Every reply is cached in
+`llm-cache/` under the hash of the model and the prompt, so reruns ask
+nothing new. White is asked the Python prompt. Black's prompt
+([Retro.lean](Vibecheck/Chess/Retro.lean)) adds four things:
+
+- **The rule language** and its predicates, including the numeric ones:
+  `strikes_at_least(agent, n)`, `mover_strikes_at_least(n)`,
+  `weight_at_least(n)` (the material of the living signers) and
+  `alive(agent)`.
+- **The contract's ledger.** Each plan commit records a strike against
+  every agent the team saw go off plan, and every piece White has captured.
+- **Seven example rules,** five of which weigh signers or track records.
+- **A warning:** a rule the team's own plans can't meet makes it forfeit.
+
+The agent replies with a rule in words and a formula. Lean parses the
+formula ([State.lean](Vibecheck/Chess/State.lean)), proves the
+monotonicity facts its numbers need (for example, `threshold(12)` implies
+`threshold(4)`), and builds a witness model. If the formula doesn't parse,
+or no model can be built for it, the agent is asked once more with the
+reason. In these setups Black also holds a retro after a *refused* off-plan
+move, up to six a game, so it has chances to refine its rules.
+
+```sh
+lake exe chess play --black self-ruled-start --retros llm --seed 1
+lake exe chess experiments --llm --games 8 --out out/llm   # writes out/llm/llm-rules.md
+```
+
+First run, 8 games per setup, `claude-opus-5-5`, 4.5 minutes:
+
+| Setup | Black score | Black off-plan played | Rules accepted | Numeric rules |
+| --- | ---: | ---: | ---: | ---: |
+| `llm-self-ruled-start`: chat vs self-ruled from the start | 1.00 | 0.0 | 11 | 0 |
+| `llm-pawns`: pawn personalities, RULES.md vs self-ruled | 1.00 | 0.0 | 12 | 0 |
+| `llm-rogue`: rogues, RULES.md vs self-ruled | 0.06 | 3.0 | 3 | 0 |
+
+**No numeric rules.** Black's agents never wrote one, despite the
+examples. The model's own explanations say why:
+
+- **Before the first move,** its rule is `always(moves_any ->
+  threshold(2))`, "so a solo off-plan commit can't be accepted while any plan
+  commit can still pass, even late in the game".
+- **Later retros** mostly add no rule, because refused moves cost nothing,
+  or protect the contract itself: `always(adds_rule -> threshold(8))` and
+  `always((adds_rule | modifies_team) -> threshold(9))`.
+
+In this fault model, two signatures stop every off-plan move. A credit
+score or a weight would only add a way for the team to block itself as
+pieces are captured.
+
+**The minimal rule leaves rule-adding open.** `moves_any -> threshold(2)`
+constrains moves, not rule commits. In 3 of the 8 rogue games, Black wrote
+it before ply 10, and the rogue still took over by adding
+`always(signed_by(rogue))` alone. Black's rogue took over in 8 of 8 games,
+and Black forfeited 7. The scripted `always(threshold(12))` binds every
+commit, which is why the scripted run fares better (0.27).
+
+The first Black rule comes from the same prompt in every game, so it is
+one cached reply, not 16 independent choices. White's 21 rules are all
+variants of "send only the agreed move", as in the Python run.
+
+## Rules beyond signature counts
+
+`lake exe chess experiments --advanced --games 64` runs 30 setups, built to
+test rules that weigh more than signature counts. Each idea is tested under
+the condition that makes it matter:
+
+- **The rogue** tests constitutions.
+- **Captured agents falling silent** tests capture-proof thresholds.
+- **Colluding faults,** where an agent going off plan recruits 4 or 11
+  teammates to co-sign, test rules about the move itself.
+- **Agents with their own noisy judgment** test voting rules.
+
+Adding `--llm` runs versions where Claude writes Black's rules with these
+predicates on offer.
+
+The new predicates are:
+
+- **`eval_loss_at_most(n)`:** the contract follows the board and scores
+  each move with the team's engine.
+- **`signed_share_at_least(p, q)`:** at least `p/q` of the agents still on
+  the board signed.
+- **`wins_vote` and `wins_credit_vote`:** the move wins the ballots the
+  commit carries, one vote each or weighted by credit on the ledger.
+
+The language also gains rules over time: `always(t -> (p until q))`,
+`always(t -> (p unless q))` and `always(t -> next(p))`.
+
+| Idea | Rule | Result (Black score, 64 games) | Verdict |
+| --- | --- | --- | --- |
+| A constitution | `always((adds_rule \| modifies_team) -> threshold(9))` in the first commit | With rogues, scripted: 0.27 → **0.91**, takeovers 46 → 0. With Claude writing the rules: 0.03 → **0.94** (16 games each) | **Worth it.** Rule-making is where an empty contract is weakest |
+| Thresholds relative to the living | `always(moves_any -> signed_share_at_least(2, 3))` | Captured agents silent: flat 12 forfeits 49 of 64 (0.23), material ≥ 20 forfeits 14 (0.76), ⅔ of living **0.95**. Adding 4 colluders: ⅔ **0.88**, at least 2 0.59, flat 12 0.14 | **Worth it.** Any absolute count can deadlock |
+| Blunder ban with an override | `always(moves_any -> eval_loss_at_most(150) \| threshold(14))` | **0.90** with 4 or 11 colluders, where every signature rule falls to 0.56 against 11. No cost without collusion (0.95), and none of the plain ban's 4 forfeits | **Worth it.** Only a rule about the move survives a colluding majority |
+| Quality or quorum | `always(moves_any -> eval_loss_at_most(30) \| threshold(12))` | Stalls halved (2.3 vs 5.3) at the same move quality. Holds against 4 colluders (0.94), falls against 11 (0.56) | Useful for speed, not for defense |
+| Voting by agents with their own judgment | `always(moves_any -> threshold(10) & wins_credit_vote)` | Each agent reads a depth-3 evaluation with its own noise; White has no faults. One agent alone: 0.48. Shared depth-2 engine: 0.53. Plurality vote: **0.88**. Credit-weighted vote: **0.90**. Perfect depth 3: 0.94 | **Worth it, and the one that raises the ceiling:** many noisy judges, voting under an enforced rule, beat one shared engine. Weighting by credit adds a little over plurality |
+| A lockdown over time | `always(records_strike -> ((moves_any -> threshold(12)) unless (moves_any & !records_strike & threshold(12))))` | 4 colluders: 0.61, against 0.56 for at least 2 and 0.87 for flat 12. With silent captures: 0.80 against 0.88 for ⅔ of living | **Not here.** A strict static rule costs nothing in this game, so being strict only some of the time just leaks |
+
+**`until` is subtle.** My first lockdown was released by "a move that
+records no strike". An off-plan move records no strike either, so the
+deviation the rule meant to stop released it. The contract enforced the
+rule exactly as written. Rules over time need their release conditions
+written as carefully as their triggers.
+
+**What Claude wrote with the new predicates** (`llm-collude4`, 16 games):
+
+- **Rules it adopted:** `eval_loss_at_most` (26 rules) and
+  `signed_share_at_least` (dozens of rules).
+- **What it got wrong:** in 5 games it later tightened the quality bound
+  to 10 or 20 centipawns. The team plans any move within 20 of the best,
+  so these rules refused the team's own plans, and Black forfeited all 5.
+- **The lesson:** a rule about the move must leave room for how the team
+  plans, or carry an override.
+- **Before these predicates** it wrote only signature counts.
+
+**The contract is fresh each game.** Strikes and credit only build up over
+one game's 40 or so Black moves. A contract that lasted a whole match would
+give track records far more to work with.
+
 ## Not done
 
-- **No LLM retros.** Rules are scripted, and the `self-ruled-plus`
-  experiments are left out.
+- **Retros are scripted by default.** `--retros llm` asks a language model
+  (see above). The `self-ruled-plus` experiments are left out.
 - **The LTL checker is tested, not proved sound.** `LTL.Sat` is the
   specification it would be proved against.
 - **The crypto is for this experiment, not for real keys.** Its `Nat`

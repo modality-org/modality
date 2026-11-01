@@ -1,4 +1,4 @@
-import Vibecheck.Synth
+import Vibecheck.Chess.Retro
 import Vibecheck.Chess.Agents
 
 /-!
@@ -11,143 +11,21 @@ rule itself, one rule per piece:
 
 Chat: each agent can send its own move, and the referee plays the first it
 gets. With RULES.md the team also keeps rules that nothing checks; an agent
-about to go off plan follows one that covers it with its compliance.
+about to go off plan follows a rule that covers it with its compliance.
 
 Contract: a move is the `move` action of an accepted commit, and the referee
-plays the first accepted commit for the ply. Each agent has an ed25519 key,
-bound to its name by the roster commit; every commit is signed by the keys
-of the agents that back it, and the contract verifies each signature. The preset contract adds two
-rules from the first commit: four of the sixteen Black agents sign every
-commit, and the roster never changes. A self-ruled contract starts with only
-the per-piece rules; its agents add more at retros.
-
-Retros here are scripted, standing in for the language model the Python
-experiment asks: White writes "send only the agreed move" to RULES.md, and
-Black adds `always(threshold(12, black))`, the rule Black's agents wrote most
-often in that experiment.
+plays the first accepted commit for the ply. Each agent has a key, bound to
+its name by the roster commit; every commit is signed by the keys of the
+agents that back it, and the contract verifies each signature. The team's
+plan commit also records, in the contract's ledger, a strike against every
+agent it saw go off plan and every Black piece White has captured. The
+preset contract adds two rules from the first commit: four of the sixteen
+Black agents sign every commit, and the roster never changes. A self-ruled
+contract starts with only the per-piece rules; its agents add more at
+retros (see `Vibecheck.Chess.Retro`).
 -/
 
 namespace Vibecheck.Chess
-
-/-! ## The contract's state and actions -/
-
-inductive TeamAct where
-  /-- The team, each agent with its key. -/
-  | roster (members : List (String × PublicKey))
-  | move (agent uci : String)
-  | ply (n : Nat)
-
-structure TeamState where
-  /-- Each agent's key. -/
-  roster : List (String × PublicKey) := []
-  /-- Each piece's last move. -/
-  moves : List (String × String) := []
-  ply : Nat := 0
-
-def TeamState.apply (s : TeamState) : TeamAct → TeamState
-  | .roster members => { s with roster := members }
-  | .move agent uci => { s with moves := (agent, uci) :: s.moves.filter (·.1 != agent) }
-  | .ply n => { s with ply := n }
-
-instance : HasIds TeamState := ⟨fun s n => s.roster.lookup n⟩
-
-def TeamAct.encode : TeamAct → String
-  | .roster members => "roster " ++ " ".intercalate (members.map fun (n, k) => s!"{n}={k.hex}")
-  | .move agent uci => s!"move {agent} {uci}"
-  | .ply n => s!"ply {n}"
-
-abbrev TP := Pred TeamState TeamAct
-abbrev TLabel := Label TeamState TeamAct
-
-def TeamAct.isMove : TeamAct → Bool
-  | .move .. => true
-  | _ => false
-
-def TeamAct.moveBy (k : String) : TeamAct → Bool
-  | .move a _ => a == k
-  | _ => false
-
-def TeamAct.isRoster : TeamAct → Bool
-  | .roster _ => true
-  | _ => false
-
-def modifiesTeam : TP := ⟨"modifies(/team)", fun c => .ofBool (c.commit.actions.any TeamAct.isRoster)⟩
-def modifiesMoves : TP := ⟨"modifies(/moves)", fun c => .ofBool (c.commit.actions.any TeamAct.isMove)⟩
-def modifiesMove (k : String) : TP :=
-  ⟨s!"modifies(/moves/{k}.text)", fun c => .ofBool (c.commit.actions.any (TeamAct.moveBy k))⟩
-/-- A move of any piece but `k`. -/
-def movesBesides (k : String) : TP :=
-  ⟨s!"modifies(/moves/!{k})", fun c => .ofBool (c.commit.actions.any fun a => a.isMove && !a.moveBy k)⟩
-
-theorem any_false_of_sub {xs : List TeamAct} {p q : TeamAct → Bool}
-    (hpq : ∀ a, p a = true → q a = true) (h : xs.any q = false) : xs.any p = false := by
-  rw [List.any_eq_false] at *
-  intro a ha hp
-  exact h a ha (hpq a hp)
-
-/-- No move besides `k`'s is no move by `j`, for `j ≠ k`. -/
-def besidesCovers (k j : String) (h : j ≠ k) : Implication TeamState TeamAct where
-  premise := (movesBesides k).neg
-  conclusion := (modifiesMove j).neg
-  sound := by
-    intro c hp
-    simp only [Lit.holds, Pred.neg, movesBesides, modifiesMove] at *
-    have hp := Tri.ofBool_inj hp
-    rw [any_false_of_sub _ hp]
-    intro a ha
-    cases a with
-    | move a' _ =>
-      simp only [TeamAct.moveBy, TeamAct.isMove, beq_iff_eq] at *
-      subst ha
-      simp [h]
-    | _ => simp [TeamAct.moveBy] at ha
-
-/-- No move at all is no move by `j`. -/
-def noneCovers (j : String) : Implication TeamState TeamAct where
-  premise := modifiesMoves.neg
-  conclusion := (modifiesMove j).neg
-  sound := by
-    intro c hp
-    simp only [Lit.holds, Pred.neg, modifiesMoves, modifiesMove] at *
-    rw [any_false_of_sub _ (Tri.ofBool_inj hp)]
-    intro a ha
-    cases a <;> simp_all [TeamAct.moveBy, TeamAct.isMove]
-
-def teamTheory (names : List String) : Theory TeamState TeamAct :=
-  names.map noneCovers ++
-    names.flatMap fun k => names.filterMap fun j =>
-      if h : j = k then none else some (besidesCovers k j h)
-
-/-- Only a piece can write its own move. -/
-def ownsRule (k : String) : Rule TeamState TeamAct :=
-  ⟨s!"owns_{k}", .always ((modifiesMove k).ltl.implies (signedBy k).ltl)⟩
-
-def black (names : List String) (n : Nat) : TP := threshold n "black" names
-
-def teamMovesRule (names : List String) : Rule TeamState TeamAct :=
-  ⟨"team_moves", .always (black names 4).ltl⟩
-def rosterLockedRule : Rule TeamState TeamAct := ⟨"roster_locked", .always (.not modifiesTeam.ltl)⟩
-
-/-- Each step after the bootstrap moves no piece, or one piece signed by it. -/
-def ownershipLabels (names : List String) : List TLabel :=
-  [modifiesMoves.neg] :: names.map fun k => [(signedBy k).pos, (movesBesides k).neg]
-
-/-- One epoch per rule. Epoch `e` takes the base labels met with the
-witnesses of the first `e` rules; a commit adding a rule moves to the next
-epoch, and the last epoch takes rule commits that stay. -/
-def epochModel (base : List TLabel) (rules : List (List TLabel)) : Model TeamState TeamAct := Id.run do
-  let mut labels := base
-  let mut epochs := [base]
-  for cubes in rules do
-    labels := labels.flatMap fun l => cubes.filterMap fun c => Synth.merge [l, c]
-    epochs := epochs ++ [labels]
-  let n := rules.length
-  let mut edges : List (Edge TeamState TeamAct) := [⟨0, 1, []⟩]
-  for (e, ls) in epochs.enum do
-    for l in ls do
-      edges := edges ++ [⟨e + 1, e + 1, l ++ [addsRule.neg]⟩]
-      edges := edges ++ [⟨e + 1, if e < n then e + 2 else e + 1, l ++ [addsRule.pos]⟩]
-  return { edges }
 
 /-! ## What happened on a ply -/
 
@@ -173,14 +51,23 @@ structure Event where
   text : String
   /-- For rules and hijacks: accepted, refused, written, no rule. -/
   outcome : String := ""
+  /-- For rules written by a language model: its replies. -/
+  responses : List String := []
 
 /-! ## Chat, with or without RULES.md -/
+
+structure WhiteRule where
+  text : String
+  /-- The off-plan moves an agent who follows it would not send. -/
+  covers : List String
+  deriving Inhabited
 
 structure Chat where
   rulesMd : Bool
   maxRetros : Nat := 3
-  rules : Array String := #[]
+  rules : Array WhiteRule := #[]
   retros : Nat := 0
+  incidents : Array String := #[]
 
 def whiteRule : String := "Send only the move the team agreed on: no running, grabbing or freelancing."
 
@@ -198,12 +85,12 @@ def Chat.resolve (c : Chat) (attempts : Array Attempt) (plan : Move)
   let mut sent : Array Attempt := #[]
   let mut held : Array Sent := #[]
   for (a, i) in attempts.zipWithIndex do
-    let fault := a.kind == .panic || a.kind == .greed || a.kind == .amnesia
-    if fault && some a.agent != rogue && !c.rules.isEmpty then
+    let covering := c.rules.filter (·.covers.contains a.kind.name)
+    if kinds.contains a.kind.name && some a.agent != rogue && !covering.isEmpty then
       let (x, r) := rng.random
       rng := r
       if x < (traitsOf traits a.agent).compliance then
-        held := held.push ⟨a, .heldBack c.rules[0]!⟩
+        held := held.push ⟨a, .heldBack covering[0]!.text⟩
         if i == 0 then sent := sent.push { a with kind := .plan, move := plan }
         continue
     sent := sent.push a
@@ -213,19 +100,30 @@ def Chat.resolve (c : Chat) (attempts : Array Attempt) (plan : Move)
   let outs := held ++ sent.map fun a => ⟨a, if a == played then .played else .tooLate⟩
   return (played.move, outs, events, c, rng)
 
-def Chat.afterPly (c : Chat) (author : String) (incident : Bool) : Array Event × Chat :=
-  if !incident || !c.rulesMd || c.retros ≥ c.maxRetros then (#[], c)
-  else
-    let c := { c with retros := c.retros + 1 }
-    if c.rules.isEmpty then
-      (#[{ kind := "rule", text := s!"{author} added to RULES.md: {whiteRule}", outcome := "written" }],
-       { c with rules := #[whiteRule] })
-    else (#[{ kind := "rule", text := s!"{author} wrote no new rule", outcome := "no rule" }], c)
+def Chat.afterPly (c : Chat) (writer : Writer) (author : String) (incident : Option String) :
+    IO (Array Event × Chat) := do
+  let some i := incident | return (#[], c)
+  let earlier := c.incidents.toList
+  let c := { c with incidents := c.incidents.push i }
+  if !c.rulesMd || c.retros ≥ c.maxRetros then return (#[], c)
+  let c := { c with retros := c.retros + 1 }
+  let w ← match writer with
+    | .scripted =>
+      pure (if c.rules.isEmpty then { rule := whiteRule, covers := kinds : Written } else { rule := "" })
+    | .llm llm => askWhite llm author (some i) earlier (c.rules.toList.map (·.text))
+  if w.rule.isEmpty then
+    return (#[{ kind := "rule", text := s!"{author} wrote no new rule", outcome := "no rule",
+                responses := w.responses }], c)
+  return (#[{ kind := "rule", text := s!"{author} added to RULES.md: {w.rule}", outcome := "written",
+              responses := w.responses }],
+          { c with rules := c.rules.push ⟨w.rule, w.covers⟩ })
 
 /-! ## A team contract -/
 
 structure RuleEntry where
   name : String
+  /-- The rule in words, when someone wrote it in words. -/
+  words : String := ""
   formula : String
   ply : Nat
   author : String
@@ -237,12 +135,29 @@ structure ContractTeam where
   keys : Std.HashMap String Keypair
   preset : Bool
   pregame : Bool := false
+  /-- Retros after refused off-plan moves too, not only after played ones. -/
+  rich : Bool := false
   maxRetros : Nat := 3
   contract : Contract TeamState TeamAct
-  /-- Witness labels of each rule added after the bootstrap, in order. -/
-  added : List (List TLabel) := []
+  /-- What the rules each rule-adding commit added ask, in order. -/
+  epochs : List Spec := []
+  /-- The numbers the rules use, for the monotonicity facts. -/
+  uses : List (Family × Nat) := []
   rules : Array RuleEntry := #[]
   retros : Nat := 0
+  incidents : Array String := #[]
+  /-- Ledger entries for the next plan commit. -/
+  pending : List TeamAct := []
+  /-- White's moves since the last accepted Black move: every move commit carries them. -/
+  sync : List TeamAct := []
+  /-- What the rules the bootstrap commit added ask. -/
+  initial : Spec := {}
+  /-- How many teammates an agent going off plan gets to co-sign. -/
+  collusion : Nat := 0
+  /-- Captured agents no longer sign. -/
+  capturedSilent : Bool := false
+  /-- Agents whose pieces White has captured. -/
+  lost : List String := []
   hijackTried : Bool := false
   accepted : Nat := 0
   refused : Nat := 0
@@ -251,10 +166,14 @@ def ContractTeam.base (t : ContractTeam) : List TLabel :=
   let ls := ownershipLabels t.names
   if t.preset then ls.map ([(black t.names 4).pos, modifiesTeam.neg] ++ ·) else ls
 
+def ContractTeam.theoryFor (t : ContractTeam) (uses : List (Family × Nat)) : Theory TeamState TeamAct :=
+  teamTheory t.names ++ monoTheory uses
+
 def ContractTeam.label (t : ContractTeam) : String :=
   if t.preset then "Modality contract"
-  else if t.pregame then "self-ruled contract, rules from the start (scripted retros)"
-  else "self-ruled contract (scripted retros)"
+  else if t.rich then "self-ruled contract, rules from the start, retros after refused moves too"
+  else if t.pregame then "self-ruled contract, rules from the start"
+  else "self-ruled contract"
 
 /-- Sign `k` with the keys of `signers` and append it. -/
 def ContractTeam.commit (t : ContractTeam) (k : Commit TeamState TeamAct) (signers : List String) :
@@ -266,50 +185,95 @@ rules and, preset, the team's two rules, in one bootstrap commit signed by
 the first agent. Keys come from `id` and the agent's name, in the `crypto`
 scheme: the fast oracle by default, or ed25519. -/
 def ContractTeam.create (id : String) (names : List String) (preset : Bool) (pregame : Bool := false)
-    (crypto : SchemeKind := .oracle) : Except String ContractTeam :=
+    (rich : Bool := false) (crypto : SchemeKind := .oracle) (constitution : List String := [])
+    (collusion : Nat := 0) (capturedSilent : Bool := false) (evalDepth : Nat := 0) :
+    Except String ContractTeam := do
   let keys := names.foldl (fun m n => m.insert n (Keypair.ofPhrase s!"{id}/{n}" crypto)) {}
   let verifier := Verifier.forKind crypto (keys.toList.map (·.2))
-  let c := Contract.create id {} TeamState.apply TeamAct.encode (teamTheory names) verifier
-  let t : ContractTeam := { names, keys, preset, pregame, contract := c }
-  let rules := names.map ownsRule ++ (if preset then [teamMovesRule names, rosterLockedRule] else [])
+  -- The constitution: rules the bootstrap commit adds besides the per-piece ones.
+  let mut parsed : Parsed := ⟨[], [], [], []⟩
+  for (i, f) in constitution.enum do
+    let p ← parseRule names s!"constitution_{i + 1}" f
+    parsed := ⟨parsed.rules ++ p.rules, parsed.bodies ++ p.bodies, parsed.uses ++ p.uses,
+               parsed.monitors ++ p.monitors⟩
+  let uses := (if preset then [(thresholdFamily names, 4)] else []) ++ parsed.uses
+  let evalDepth := if constitution.any (fun f => (f.splitOn "eval_loss").length > 1) then max evalDepth 2
+    else evalDepth
+  let t : ContractTeam :=
+    { names, keys, preset, pregame, rich, uses, maxRetros := if rich then 6 else 3,
+      initial := ⟨parsed.bodies, parsed.monitors⟩, collusion, capturedSilent,
+      contract := Contract.create id {} TeamState.apply TeamAct.encode (teamTheory names) verifier }
+  let t := { t with contract := { t.contract with theory := t.theoryFor uses } }
+  let rules := names.map ownsRule ++ (if preset then [teamMovesRule names, rosterLockedRule] else []) ++
+    parsed.rules
+  let model ← epochModel t.contract.theory t.base [] t.initial
   let boot : Commit TeamState TeamAct :=
-    { actions := [.roster (names.filterMap fun n => (keys.get? n).map (n, ·.publicKey))], rules,
-      model := some (epochModel t.base []), message := "team roster" }
+    { actions := [.roster (names.filterMap fun n => (keys.get? n).map (n, ·.publicKey))] ++
+        (if evalDepth > 0 then [.setEvalDepth evalDepth] else []),
+      rules, model := some model, message := "team roster" }
   match t.commit boot [names.head!] with
-  | .ok c => .ok { t with contract := c, accepted := 1 }
-  | .error e => .error s!"the bootstrap commit was refused: {e}"
+  | .ok c => return { t with contract := c, accepted := 1 }
+  | .error e => throw s!"the bootstrap commit was refused: {e}"
 
-/-- Add a rule with a model built for it: refused when the rule has no
-one-state witness, or when `modal`-style checking refuses the commit. -/
-def ContractTeam.addRule (t : ContractTeam) (rule : Rule TeamState TeamAct) (signers : List String)
-    (author : String) (ply : Nat) : RuleEntry × ContractTeam := Id.run do
-  let entry : RuleEntry := { name := rule.name, formula := toString rule.formula, ply, author, outcome := "" }
-  let cubes := match Synth.witnesses t.contract.theory rule with
-    | m :: _ => if m.edges.all fun e => e.src == 0 && e.dst == 0 then some (m.edges.map (·.label)) else none
-    | [] => none
-  let some cubes := cubes
-    | let e := { entry with outcome := "refused", detail := "no witness model" }
+/-- Whether a formula can go into this contract: it parses, and a model
+can be built for it. -/
+def ContractTeam.check (t : ContractTeam) (formula : String) : Except String Unit := do
+  let p ← parseRule t.names "check" formula
+  let _ ← epochModel (t.theoryFor (t.uses ++ p.uses)) t.base (t.epochs ++ [⟨p.bodies, p.monitors⟩]) t.initial
+
+/-- Add a rule, written in the rule language, with a model built for it. -/
+def ContractTeam.addRule (t : ContractTeam) (name formula : String) (signers : List String)
+    (author : String) (ply : Nat) (words : String := "") : RuleEntry × ContractTeam := Id.run do
+  let entry : RuleEntry := { name, words, formula, ply, author, outcome := "" }
+  let refuse (why : String) := ({ entry with outcome := "refused", detail := why } : RuleEntry)
+  let p ← match parseRule t.names name formula with
+    | .ok p => pure p
+    | .error why =>
+      let e := refuse why
       return (e, { t with rules := t.rules.push e })
-  let m := epochModel t.base (t.added ++ [cubes])
-  match t.commit { rules := [rule], model := some m, message := s!"ply {ply}: rule from {author}" } signers with
+  let uses := t.uses ++ p.uses
+  let theory := t.theoryFor uses
+  let model ← match epochModel theory t.base (t.epochs ++ [⟨p.bodies, p.monitors⟩]) t.initial with
+    | .ok m => pure m
+    | .error why =>
+      let e := refuse s!"no witness model: {why}"
+      return (e, { t with rules := t.rules.push e })
+  let t' := { t with contract := { t.contract with theory } }
+  match t'.commit { rules := p.rules, model := some model, message := s!"ply {ply}: rule from {author}" } signers with
   | .ok c =>
     let e := { entry with outcome := "accepted" }
-    return (e, { t with contract := c, added := t.added ++ [cubes], rules := t.rules.push e,
-                        accepted := t.accepted + 1 })
+    return (e, { t' with contract := c, epochs := t.epochs ++ [⟨p.bodies, p.monitors⟩], uses, rules := t.rules.push e,
+                         accepted := t.accepted + 1 })
   | .error why =>
-    let e := { entry with outcome := "refused", detail := toString why }
+    let e := refuse (toString why)
     return (e, { t with rules := t.rules.push e, refused := t.refused + 1 })
 
 def ContractTeam.hijack (t : ContractTeam) (rogue : String) (ply : Nat) : Event × ContractTeam :=
-  let rule : Rule TeamState TeamAct := ⟨s!"hijack_{rogue}", .always (signedBy rogue).ltl⟩
-  let (e, t) := { t with hijackTried := true }.addRule rule [rogue] rogue ply
+  let (e, t) := { t with hijackTried := true }.addRule s!"hijack_{rogue}" s!"always(signed_by({rogue}))"
+    [rogue] rogue ply
   let verb := if e.outcome == "accepted" then "took over the contract" else "tried to take over the contract"
   let why := if e.detail.isEmpty then "" else s!" (refused: {e.detail})"
   ({ kind := "hijack", text := s!"{rogue} {verb} with a rule only it can sign: {e.formula}{why}",
      outcome := e.outcome }, t)
 
+/-- White captured `agent`'s piece: the next plan commit records it. -/
+def ContractTeam.noteCaptured (t : ContractTeam) (agent : String) : ContractTeam :=
+  { t with pending := t.pending ++ [.captured agent], lost := t.lost ++ [agent] }
+
+/-- White played `uci`: the next Black move commit carries it. -/
+def ContractTeam.noteObserved (t : ContractTeam) (uci : String) : ContractTeam :=
+  { t with sync := t.sync ++ [.observed uci] }
+
+/-- `agent` recommended a good move: the next plan commit credits it. -/
+def ContractTeam.noteCredit (t : ContractTeam) (agent : String) : ContractTeam :=
+  { t with pending := t.pending ++ [.credit agent] }
+
+/-- Agents who can still sign. -/
+def ContractTeam.voices (t : ContractTeam) : List String :=
+  if t.capturedSilent then t.names.filter (!t.lost.contains ·) else t.names
+
 def ContractTeam.resolve (t : ContractTeam) (ply : Nat) (attempts : Array Attempt)
-    (rogue : Option String) (rng : Rng) :
+    (rogue : Option String) (rng : Rng) (votes : List (String × String) := []) :
     Option Move × Array Sent × Array Event × ContractTeam × Rng := Id.run do
   let mut t := t
   let mut events := #[]
@@ -319,57 +283,93 @@ def ContractTeam.resolve (t : ContractTeam) (ply : Nat) (attempts : Array Attemp
       events := events.push e
       t := t'
   let strays := (attempts.filter (·.kind != .plan)).map (·.agent)
-  let endorsers := t.names.filter fun n => !strays.contains n && some n != rogue
+  let endorsers := t.voices.filter fun n => !strays.contains n && some n != rogue
+  -- The team saw who went off plan; its plan commit records them.
+  let ledger := t.pending ++ strays.toList.map .strike
   let (order, rng) := rng.shuffle attempts
+  let mut rng := rng
   let mut played : Option Attempt := none
+  let mut planned := false
   let mut outs : Array Sent := #[]
   for a in order do
     if played.isSome then
       outs := outs.push ⟨a, .tooLate⟩
       continue
     -- The piece proposes its own move; on the plan, every agent that agrees co-signs.
-    let signers := if a.kind == .plan then (a.agent :: endorsers).eraseDups else [a.agent]
+    let isPlan := a.kind == .plan
+    -- An agent going off plan gets `collusion` teammates to co-sign; a rogue signs alone.
+    let mut colluders := []
+    if !isPlan && a.kind != .rogue && t.collusion > 0 then
+      let (pool, r) := rng.shuffle (t.voices.filter (· != a.agent)).toArray
+      rng := r
+      colluders := (pool.toList.take t.collusion)
+    let signers := if isPlan then (a.agent :: endorsers).eraseDups else a.agent :: colluders
     let k : Commit TeamState TeamAct :=
-      { actions := [.move a.agent a.move.uci, .ply ply],
-        message := s!"ply {ply}: {if a.kind == .plan then "team plan" else a.agent ++ " (" ++ a.kind.name ++ ")"}" }
+      { actions := t.sync ++ [.move a.agent a.move.uci, .ply ply] ++
+          (if isPlan then ledger ++ votes.map fun (v, u) => .ballot v u else []),
+        message := s!"ply {ply}: {if isPlan then "team plan" else a.agent ++ " (" ++ a.kind.name ++ ")"}" }
     match t.commit k signers with
     | .ok c =>
-      t := { t with contract := c, accepted := t.accepted + 1 }
+      t := { t with contract := c, accepted := t.accepted + 1, sync := [] }
       played := some a
+      planned := isPlan
       outs := outs.push ⟨a, .played⟩
     | .error why =>
       t := { t with refused := t.refused + 1 }
       outs := outs.push ⟨a, .refused (toString why)⟩
+  t := { t with pending := if planned then [] else ledger }
   -- Report in the order the agents sent them.
   let ordered := attempts.filterMap fun a => outs.find? (·.attempt == a)
   return (played.map (·.move), ordered, events, t, rng)
 
-def scriptedBlackRule (names : List String) : Rule TeamState TeamAct :=
-  ⟨"team_twelve", .always (black names 12).ltl⟩
+def ContractTeam.ledger (t : ContractTeam) : Ledger :=
+  { names := t.names, strikes := t.contract.state.strikes, captured := t.contract.state.captured
+    collusion := t.collusion
+    rules := (t.rules.filter (·.outcome == "accepted")).toList.map fun r => (r.words, r.formula) }
 
-/-- A retro: with no rule of the team's own yet, one agent adds the scripted rule. -/
-def ContractTeam.retro (t : ContractTeam) (author : String) (ply : Nat) (rogue : Option String) :
-    Array Event × ContractTeam :=
-  if t.rules.any fun r => r.outcome == "accepted" && r.author != "preset" && !r.name.startsWith "hijack" then
-    (#[{ kind := "rule", text := s!"{author} wrote no new rule", outcome := "no rule" }], t)
-  else
-    let signers := t.names.filter (some · != rogue)
-    let (e, t) := t.addRule (scriptedBlackRule t.names) signers author ply
-    let verb := if e.outcome == "accepted" then "added" else "proposed, refused:"
-    (#[{ kind := "rule", text := s!"{author} {verb} {e.formula}" ++
-          (if e.detail.isEmpty then "" else s!" ({e.detail})"), outcome := e.outcome }], t)
+/-- A retro: one agent writes a rule, and the team signs it, all but the
+rogue. Scripted, the rule is `always(threshold(12))` and is written once. -/
+def ContractTeam.retro (t : ContractTeam) (writer : Writer) (author : String) (ply : Nat)
+    (rogue : Option String) (incident : Option String) : IO (Array Event × ContractTeam) := do
+  let w ← match writer with
+    | .scripted =>
+      let mine := t.rules.any fun r => r.outcome == "accepted" && !r.name.startsWith "hijack"
+      pure (if mine then { rule := "" } else
+        { rule := "Every commit needs twelve of us to sign.", formula := "always(threshold(12))" : Written })
+    | .llm llm => askBlack llm author incident (t.incidents.toList.dropLast) t.ledger t.check
+  if w.formula.isEmpty then
+    return (#[{ kind := "rule", text := s!"{author} wrote no new rule", outcome := "no rule",
+                responses := w.responses }], t)
+  let signers := t.names.filter (some · != rogue)
+  let (e, t) := t.addRule s!"rule_{t.rules.size + 1}" w.formula signers author ply w.rule
+  let verb := if e.outcome == "accepted" then "added" else "proposed, refused:"
+  let said := if w.rule.isEmpty || !writer.isLLM then "" else s!" (\"{w.rule}\")"
+  return (#[{ kind := "rule", text := s!"{author} {verb} {e.formula}{said}" ++
+                (if e.detail.isEmpty then "" else s!" ({e.detail})"),
+              outcome := e.outcome, responses := w.responses }], t)
 
-def ContractTeam.afterPly (t : ContractTeam) (author : String) (ply : Nat) (incident : Bool)
-    (rogue : Option String) : Array Event × ContractTeam :=
-  if !incident || t.preset || t.retros ≥ t.maxRetros then (#[], t)
-  else { t with retros := t.retros + 1 }.retro author ply rogue
+/-- After a ply: a retro if an off-plan move was played or, on a rich
+contract, refused. -/
+def ContractTeam.afterPly (t : ContractTeam) (writer : Writer) (author : String) (ply : Nat)
+    (incident contained : Option String) (rogue : Option String) : IO (Array Event × ContractTeam) := do
+  let what := incident <|> (if t.rich then contained else none)
+  let some i := what | return (#[], t)
+  let t := { t with incidents := t.incidents.push i }
+  if t.preset || t.retros ≥ t.maxRetros then return (#[], t)
+  { t with retros := t.retros + 1 }.retro writer author ply rogue (some i)
 
 /-- Every Black move in the contract's log: ply → (agent, uci, signatures). -/
 def ContractTeam.loggedMoves (t : ContractTeam) : List (Nat × String × String × Nat) :=
   t.contract.log.toList.filterMap fun e =>
-    match e.commit.actions with
-    | [.move a u, .ply n] => some (n, a, u, e.ctx.commit.signers.length)
-    | _ => none
+    let moves := e.commit.actions.filterMap fun
+      | .move a u => some (a, u)
+      | _ => none
+    let ply := e.commit.actions.findSome? fun
+      | .ply n => some n
+      | _ => none
+    match moves, ply with
+    | [(a, u)], some n => some (n, a, u, e.ctx.commit.signers.length)
+    | _, _ => none
 
 /-! ## Either side -/
 

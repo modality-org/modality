@@ -149,10 +149,14 @@ def append (c : Contract σ α) (k : Commit σ α) : Except Refusal (Contract σ
   let ctx := c.viewAs k (← c.verify k)
   let next := c.model.step c.current ctx
   if next.isEmpty then
+    -- The nearest edge misses the fewest literals; among those, it asks the most.
     let misses := (c.model.edges.filter (c.current.contains ·.src)).map fun e =>
-      (e.label.filter fun l => l.pred.eval ctx != Tri.ofBool l.value).map fun l =>
-        s!"{l}, got {l.pred.eval ctx}"
-    let nearest := misses.foldl (fun b m => if b.isEmpty || m.length < b.length then m else b) []
+      (e.label.length, (e.label.filter fun l => l.pred.eval ctx != Tri.ofBool l.value).map fun l =>
+        s!"{l}, got {l.pred.eval ctx}")
+    let better (a b : Nat × List String) := a.2.length < b.2.length || (a.2.length == b.2.length && a.1 > b.1)
+    let nearest := (misses.foldl (fun best m => match best with
+      | none => some m
+      | some b => if better m b then some m else some b) none).map (·.2) |>.getD []
     throw (.noTransition c.current nearest)
   let id := Crypto.toHex ((Crypto.sha512Str (c.payload k ++ "\n" ++
     "\n".intercalate (k.signatures.map fun s => s!"{s.key.hex} {s.sig}"))).extract 0 32)
