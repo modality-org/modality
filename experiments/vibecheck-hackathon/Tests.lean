@@ -19,7 +19,7 @@ namespace Tests
 abbrev P := Pred Unit Unit
 
 def atomNames : Array String := #["a", "b"]
-def atomPred (n : String) : P := ⟨n, fun _ => .unknown⟩
+def atomPred (n : String) : P := ⟨n, fun _ => false⟩
 
 /-- A small linear congruential generator. -/
 structure Gen where

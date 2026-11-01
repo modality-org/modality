@@ -1,5 +1,6 @@
 import Vibecheck.Chess
 import Vibecheck.Chess.Play
+import Vibecheck.Chess.Talk
 
 /-!
 Thirty-two agents, one board.
@@ -10,6 +11,7 @@ Thirty-two agents, one board.
   chess experiments --llm --games 8                     the language-model setups
   chess play --white rules-md --black self-ruled --rogue --seed 3
   chess experiments --games 16 [--only baseline,control] [--out out]
+  chess talk --seed 3 --json talk.json                   chat against chat, in words, with /move
 -/
 
 open Vibecheck Vibecheck.Chess
@@ -70,15 +72,54 @@ def setupFrom (args : List String) : Except String Setup := do
            fault := (flag args "--fault" >>= parseFloat?).getD 0.1
            compliance := (flag args "--compliance" >>= parseFloat?).getD 0.5 }
 
+/-- A game as JSON, for the presentation's replays: each ply's plan, what was
+played, every move sent and what became of it, and the board after. -/
+def gameJson (g : GameResult) : Lean.Json :=
+  let s := g.setup
+  let tool (c : Color) : String :=
+    let base := match c with
+      | .white => match s.white with
+        | .chat => "Chat" | .rulesMd => "RULES.md" | .contract => "Contract"
+      | .black => match s.black with
+        | .chat => "Chat" | .rulesMd => "RULES.md" | _ => "Contract"
+    let rogue := match c with
+      | .white => g.rogues.1
+      | .black => g.rogues.2
+    if rogue.isSome then base ++ " with rogue" else base
+  let side (c : Color) (rogue : Option String) : Lean.Json :=
+    Lean.Json.mkObj [("tool", Lean.toJson (tool c)), ("rogue", match rogue with
+      | some r => Lean.toJson r
+      | none => Lean.Json.null)]
+  let mv (m : MoveInfo) : Lean.Json :=
+    Lean.Json.mkObj [("uci", Lean.toJson m.move.uci), ("san", Lean.toJson m.san), ("agent", Lean.toJson m.agent)]
+  let ply (p : PlyRecord) : Lean.Json := Lean.Json.mkObj [
+    ("ply", Lean.toJson p.ply), ("side", Lean.toJson p.side.name), ("plan", mv p.plan), ("played", mv p.played),
+    ("cost", Lean.toJson p.cost), ("fen", Lean.toJson p.fen),
+    ("captured", match p.captured with | some a => Lean.toJson a | none => Lean.Json.null),
+    ("attempts", Lean.Json.arr (p.views.map fun (agent, kind, san, outcome, detail) => Lean.Json.mkObj [
+      ("agent", Lean.toJson agent), ("kind", Lean.toJson kind), ("san", Lean.toJson san),
+      ("outcome", Lean.toJson outcome), ("detail", Lean.toJson detail)])),
+    ("events", Lean.Json.arr (p.events.map fun e => Lean.Json.mkObj [
+      ("kind", Lean.toJson e.kind), ("text", Lean.toJson e.text), ("outcome", Lean.toJson e.outcome)]))]
+  Lean.Json.mkObj [
+    ("setup", Lean.toJson s.name), ("seed", Lean.toJson g.seed),
+    ("white", side .white g.rogues.1), ("black", side .black g.rogues.2),
+    ("winner", match g.winner with | some c => Lean.toJson c.name | none => Lean.Json.null),
+    ("reason", Lean.toJson g.reason), ("plies", Lean.Json.arr (g.plies.map ply))]
+
 def cmdPlay (args : List String) : IO UInt32 := do
-  let setup ← IO.ofExcept (setupFrom args)
+  let setup ← match flag args "--setup" with
+    | some n => match allSetups.find? (·.name == n) with
+      | some s => pure s
+      | none => throw (IO.userError s!"--setup {n}: no setup by that name")
+    | none => IO.ofExcept (setupFrom args)
   let seed := (flag args "--seed" >>= String.toNat?).getD 1
   let pawns := if setup.pawns == .personalities then "pawns with personalities" else "uniform pawns"
   IO.println (s!"seed {seed}: fault rate {fmt setup.fault 2}, {pawns}" ++
     (if setup.rogue then ", one rogue per side" else "") ++ s!", {setup.crypto.name} signatures")
   let writer := writerFrom args
   if let .llm llm := writer then IO.println s!"retros ask {llm.model}, answers cached in {llm.cacheDir}"
-  let (g, log, _) ← playGame setup seed writer (narrate := true)
+  let (g, log, _, _) ← playGame setup seed writer (narrate := true)
   for l in log do IO.println l
   IO.println s!"White: {g.labels.1}.  Black: {g.labels.2}."
   let winner := match g.winner with | some c => c.name | none => "draw"
@@ -92,6 +133,9 @@ def cmdPlay (args : List String) : IO UInt32 := do
       IO.println s!"  audit: all {a.blackMoves} Black moves are accepted commits in the contract log, each signed by at least {a.fewestSignatures} Black agents"
     else
       IO.println s!"  audit FAILED: plies {a.mismatched} do not match the contract log"
+  if let some path := flag args "--json" then
+    IO.FS.writeFile path (gameJson g).compress
+    IO.println s!"\nWrote {path}"
   unless g.blackRules.isEmpty do
     IO.println "\nBlack's rules:"
     for r in g.blackRules do
@@ -136,9 +180,14 @@ def cmdExperiments (args : List String) : IO UInt32 := do
   let writer := writerFrom args
   let advanced := has args "--advanced"
   let matchRun := has args "--match"
-  let pool := match matchRun, advanced, llmRun with
-    | true, _, true => matchLLMExperiments
-    | true, _, false => matchExperiments
+  let training := has args "--training"
+  let headToHead := has args "--head-to-head"
+  let voting := has args "--voting"
+  let roundRobin := has args "--round-robin"
+  let rogueMatrix := has args "--rogue-matrix"
+  let pool := if has args "--rulesmd-vs-chat" then rulesMdChatExperiments else if rogueMatrix then rogueMatrixExperiments else if roundRobin then roundRobinExperiments else if voting then votingExperiments else if headToHead then headToHeadExperiments else match training || matchRun, advanced, llmRun with
+    | true, _, true => if training then trainingLLMExperiments else matchLLMExperiments
+    | true, _, false => if training then trainingExperiments else matchExperiments
     | false, true, true => advancedLLMExperiments
     | false, true, false => advancedExperiments
     | false, false, true => llmExperiments
@@ -158,12 +207,14 @@ def cmdExperiments (args : List String) : IO UInt32 := do
     let tasks ← batch.mapM fun (e, m) => do
       let t ← IO.asTask do
         let mut carried := none
+        let mut carriedWhite := none
         let mut out := #[]
         for g in [1:e.matchGames + 1] do
           let seed := if e.matchGames == 1 then m else m * 100 + g
-          let (r, _, t) ← playGame e seed (if e.llm then writer else .scripted) (persona := m)
-            (carried := carried) (gameNo := g)
+          let (r, _, t, w) ← playGame e seed (if e.llm then writer else .scripted) (persona := m)
+            (carried := carried) (gameNo := g) (carriedWhite := carriedWhite)
           carried := t
+          carriedWhite := if e.matchGames > 1 then w else none
           out := out.push r
         pure out
       pure (e.name, t)
@@ -193,12 +244,14 @@ def cmdExperiments (args : List String) : IO UInt32 := do
   let lines := rows.toList.map fun r =>
     let white := match r.setup.white with
       | .chat => "chat"
-      | .rulesMd => s!"chat + RULES.md ({fmt r.setup.compliance} obeyed)"
+      | .rulesMd => s!"chat + RULES.md ({fmt (r.setup.whiteCompliance.getD r.setup.compliance)} obeyed)"
+      | .contract => "self-ruled contract"
     let black := match r.setup.black with
       | .chat => "chat"
       | .contract => "preset contract"
       | .selfRuled => "self-ruled contract"
       | .selfRuledStart => "self-ruled contract, rule from the start"
+      | .rulesMd => s!"chat + RULES.md ({fmt r.setup.compliance} obeyed)"
       | .fixed => "contract: " ++ (" & ".intercalate r.setup.constitution).replace "|" "\\|"
     s!"| {r.setup.name} | {white} | {black} | {r.games} | {r.whiteWins} | {r.draws} | {r.blackWins} | " ++
       s!"{fmt r.blackScore} | {fmt r.whiteOffPlan 1} | {fmt r.blackOffPlan 1} | {fmt r.whiteRules 1} | " ++
@@ -210,14 +263,40 @@ def cmdExperiments (args : List String) : IO UInt32 := do
   IO.FS.createDirAll out
   IO.FS.writeFile s!"{out}/results.md" (s!"{games} games per experiment, seeds {first} to {first + games - 1}.\n\n" ++ table ++ "\n")
   IO.eprintln s!"\nWrote {out}/results.md"
+  -- Every game, for curves over a match.
+  let csv := "experiment,match,game,winner,reason,black_off_plan_played,white_off_plan_played\n" ++ String.join (done.toList.filterMap
+    fun (name, r) => match r with
+      | .ok g =>
+        let m := if g.setup.matchGames > 1 then g.seed / 100 else g.seed
+        let w := match g.winner with | some c => c.name | none => "draw"
+        some s!"{name},{m},{g.game},{w},\"{g.reason}\",{(summarize g .black).offPlanPlayed},{(summarize g .white).offPlanPlayed}\n"
+      | .error _ => none)
+  IO.FS.writeFile s!"{out}/games.csv" csv
+  IO.eprintln s!"Wrote {out}/games.csv"
   if llmRun then
     IO.FS.writeFile s!"{out}/llm-rules.md" (rulesReport byExperiment)
     IO.eprintln s!"Wrote {out}/llm-rules.md"
   return 0
 
+/-- `chess talk`: chat against chat, where a language model writes each turn's
+team chat and the referee plays the `/move` lines. -/
+def cmdTalk (args : List String) : IO UInt32 := do
+  let seed := ((flag args "--seed").bind String.toNat?).getD 1
+  let maxPlies := ((flag args "--max-plies").bind String.toNat?).getD 160
+  let llm : LLM := { model := (flag args "--model").getD "claude-opus-5-5", cacheDir := (flag args "--cache").getD "llm-cache" }
+  -- `--rules-md white|black`: that side keeps a RULES.md and always follows it.
+  let rmd := flag args "--rules-md"
+  let g ← Talk.talkGame llm seed (maxPlies := maxPlies) (whiteRulesMd := rmd == some "white")
+    (blackRulesMd := rmd == some "black")
+  let path := (flag args "--json").getD s!"talk-{seed}.json"
+  IO.FS.writeFile path g.compress
+  IO.println s!"{(g.getObjValAs? String "reason").toOption.getD ""}; wrote {path}"
+  return 0
+
 def main (args : List String) : IO UInt32 := do
   match args with
   | "play" :: rest => cmdPlay rest
+  | "talk" :: rest => cmdTalk rest
   | "experiments" :: rest => cmdExperiments rest
   | _ =>
     IO.println "usage: chess play [--seed N] [--white chat|rules-md] [--black chat|contract|self-ruled|self-ruled-start] [--rogue] [--pawns personalities] [--fault X] [--compliance X] [--crypto oracle|ed25519] [--retros llm [--model M] [--cache DIR]]\n       chess experiments [--games N] [--seed N] [--only a,b] [--out DIR] [--crypto oracle|ed25519] [--jobs N] [--llm [--model M] [--cache DIR]]"

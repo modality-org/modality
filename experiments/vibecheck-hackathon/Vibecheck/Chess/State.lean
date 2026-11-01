@@ -134,16 +134,16 @@ def TeamAct.isStrike : TeamAct → Bool
 
 /-! ## Predicates about what a commit writes -/
 
-def modifiesTeam : TP := ⟨"modifies(/team)", fun c => .ofBool (c.commit.actions.any TeamAct.isRoster)⟩
-def modifiesMoves : TP := ⟨"modifies(/moves)", fun c => .ofBool (c.commit.actions.any TeamAct.isMove)⟩
+def modifiesTeam : TP := ⟨"modifies(/team)", fun c => c.commit.actions.any TeamAct.isRoster⟩
+def modifiesMoves : TP := ⟨"modifies(/moves)", fun c => c.commit.actions.any TeamAct.isMove⟩
 def modifiesMove (k : String) : TP :=
-  ⟨s!"modifies(/moves/{k}.text)", fun c => .ofBool (c.commit.actions.any (TeamAct.moveBy k))⟩
+  ⟨s!"modifies(/moves/{k}.text)", fun c => c.commit.actions.any (TeamAct.moveBy k)⟩
 /-- A move of any piece but `k`. -/
 def movesBesides (k : String) : TP :=
-  ⟨s!"modifies(/moves/!{k})", fun c => .ofBool (c.commit.actions.any fun a => a.isMove && !a.moveBy k)⟩
-def recordsStrike : TP := ⟨"records_strike", fun c => .ofBool (c.commit.actions.any TeamAct.isStrike)⟩
+  ⟨s!"modifies(/moves/!{k})", fun c => c.commit.actions.any fun a => a.isMove && !a.moveBy k⟩
+def recordsStrike : TP := ⟨"records_strike", fun c => c.commit.actions.any TeamAct.isStrike⟩
 /-- `k`'s piece has not been captured, by the record before the commit. -/
-def alive (k : String) : TP := ⟨s!"alive({k})", fun c => .ofBool !(c.pre.captured.contains k)⟩
+def alive (k : String) : TP := ⟨s!"alive({k})", fun c => !(c.pre.captured.contains k)⟩
 
 theorem any_false_of_sub {xs : List TeamAct} {p q : TeamAct → Bool}
     (hpq : ∀ a, p a = true → q a = true) (h : xs.any q = false) : xs.any p = false := by
@@ -158,7 +158,6 @@ def besidesCovers (k j : String) (h : j ≠ k) : Implication TeamState TeamAct w
   sound := by
     intro c hp
     simp only [Lit.holds, Pred.neg, movesBesides, modifiesMove] at *
-    have hp := Tri.ofBool_inj hp
     rw [any_false_of_sub _ hp]
     intro a ha
     cases a with
@@ -175,7 +174,7 @@ def noneCovers (j : String) : Implication TeamState TeamAct where
   sound := by
     intro c hp
     simp only [Lit.holds, Pred.neg, modifiesMoves, modifiesMove] at *
-    rw [any_false_of_sub _ (Tri.ofBool_inj hp)]
+    rw [any_false_of_sub _ hp]
     intro a ha
     cases a <;> simp_all [TeamAct.moveBy, TeamAct.isMove]
 
@@ -205,7 +204,7 @@ structure Family where
   label : Nat → String
   measure : TCtx → Nat
 
-def Family.pred (f : Family) (n : Nat) : TP := ⟨f.label n, fun c => .ofBool (decide (n ≤ f.measure c))⟩
+def Family.pred (f : Family) (n : Nat) : TP := ⟨f.label n, fun c => decide (n ≤ f.measure c)⟩
 
 /-- Reaching `a` is reaching every `b ≤ a`. -/
 def Family.up (f : Family) (a b : Nat) (h : b ≤ a) : Implication TeamState TeamAct where
@@ -214,7 +213,7 @@ def Family.up (f : Family) (a b : Nat) (h : b ≤ a) : Implication TeamState Tea
   sound := by
     intro c hp
     simp only [Lit.holds, Pred.pos, Family.pred] at *
-    have ha : a ≤ f.measure c := of_decide_eq_true (Tri.ofBool_inj hp)
+    have ha : a ≤ f.measure c := of_decide_eq_true hp
     rw [decide_eq_true (Nat.le_trans h ha)]
 
 /-- Falling short of `b` is falling short of every `a ≥ b`. -/
@@ -224,14 +223,14 @@ def Family.down (f : Family) (a b : Nat) (h : b ≤ a) : Implication TeamState T
   sound := by
     intro c hp
     simp only [Lit.holds, Pred.neg, Family.pred] at *
-    have hb : ¬ b ≤ f.measure c := of_decide_eq_false (Tri.ofBool_inj hp)
+    have hb : ¬ b ≤ f.measure c := of_decide_eq_false hp
     rw [decide_eq_false (fun ha => hb (Nat.le_trans h ha))]
 
 def signedCount (names : List String) (c : TCtx) : Nat :=
-  (names.filter fun k => signedNow c k == some true).length
+  (names.filter fun k => signedNow c k).length
 
 def signedWeight (names : List String) (c : TCtx) : Nat :=
-  (names.filter fun k => signedNow c k == some true && !c.pre.captured.contains k).foldl
+  (names.filter fun k => signedNow c k && !c.pre.captured.contains k).foldl
     (fun s k => s + pieceValue k) 0
 
 def movers (c : TCtx) : List String :=
@@ -245,14 +244,14 @@ def moverStrikes (c : TCtx) : Nat := (movers c).foldl (fun m a => max m (c.pre.s
 contract's engine. A commit with no move gives up nothing. -/
 def evalLossAtMost (n : Nat) : TP :=
   ⟨s!"eval_loss_at_most({n})", fun c =>
-    .ofBool (decide ((if (movers c).isEmpty then 0 else c.post.lastLoss) ≤ n))⟩
+    decide ((if (movers c).isEmpty then 0 else c.post.lastLoss) ≤ n)⟩
 
 /-- At least `p/q` of the agents still on the board signed. -/
 def signedShareAtLeast (names : List String) (p q : Nat) : TP :=
   ⟨s!"signed_share_at_least({p}/{q})", fun c =>
     let living := names.filter (!c.pre.captured.contains ·)
-    let signed := living.filter fun k => signedNow c k == some true
-    .ofBool (decide (p * living.length ≤ q * signed.length))⟩
+    let signed := living.filter fun k => signedNow c k
+    decide (p * living.length ≤ q * signed.length)⟩
 
 def ballots (c : TCtx) : List (String × String) :=
   c.commit.actions.filterMap fun
@@ -275,11 +274,11 @@ def winsVote (weighted : Bool) : TP :=
       | .move _ u => some u
       | _ => none
     match tally w (ballots c), moved with
-    | some u, some m => .ofBool (u == m)
-    | _, _ => .false⟩
+    | some u, some m => u == m
+    | _, _ => false⟩
 
 def thresholdFamily (names : List String) : Family :=
-  ⟨"threshold", (s!"threshold({·}, black)"), signedCount names⟩
+  ⟨"threshold", (s!"threshold({·}, team)"), signedCount names⟩
 def weightFamily (names : List String) : Family :=
   ⟨"weight", (s!"weight_at_least({·})"), signedWeight names⟩
 def strikesFamily (k : String) : Family :=

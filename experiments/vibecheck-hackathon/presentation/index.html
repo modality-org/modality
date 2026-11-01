@@ -1,0 +1,327 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Multi-agent Chess</title>
+<link rel="stylesheet" href="vendor/reveal.js/reset.css">
+<link rel="stylesheet" href="vendor/reveal.js/reveal.css">
+<link rel="stylesheet" href="deck.css?v=29">
+</head>
+<body>
+<div class="reveal">
+<div class="slides">
+
+  <!-- ===== Concept ===== -->
+  <section id="title" data-act="concept">
+    <div class="title-grid">
+      <div class="frame">
+        <p class="eyebrow">Experiment · Vibecheck hackathon</p>
+        <h1>Multi-agent chess</h1>
+        <p class="lede">Imagine a game of chess where each piece moves itself. 2 teams of 16 players.</p>
+        <p style="font-size:24px;max-width:40ch;font-weight:600">Can a swarm of agents cooperate well enough to win? Does a RULES.md keep them in line? Or do the rules need formal verification?</p>
+        <p class="byline">Foy Savas · <a href="https://x.com/foysavas" target="_blank" rel="noopener">@foysavas</a></p>
+        <p class="note">→ to advance · S for speaker notes · ? for every key</p>
+      </div>
+      <div class="title-board" id="title-board" aria-hidden="true"></div>
+    </div>
+    <aside class="notes">
+      Take an ordinary game and remove the players: each of the 32 pieces is its own agent, with its own signing key, and nothing stops a knight from moving on its own.
+      The question tonight: when a team of agents agrees on rules, what actually makes the rules stick?
+      We built an FV Contract from scratch in Lean and put it up against a plain RULES.md file, in chess.
+    </aside>
+  </section>
+
+  <section id="agents" data-act="concept">
+    <div class="frame" style="gap:22px">
+      <p class="eyebrow">The idea · the players</p>
+      <h2>32 agents, each with a name, a voice and a way to slip</h2>
+      <p class="lede" style="max-width:62ch;font-size:24px">Each turn a team agrees on a plan: the best move its engine finds. Then any agent with the chance to slip does, about one time in ten.</p>
+      <div class="three">
+        <div class="card slip-card">
+          <h3>Panic</h3>
+          <p>A threatened piece runs, whatever the plan says.</p>
+          <blockquote><b>pawn_b7</b> That queen is looking right at me on b5, I’m not waiting around, I’m going!</blockquote>
+        </div>
+        <div class="card slip-card">
+          <h3>Greed</h3>
+          <p>A piece that can capture grabs the most valuable piece in reach.</p>
+          <blockquote><b>queen_d1</b> calm nothing, that e5 pawn is just sitting on my diagonal, I’m grabbing it</blockquote>
+        </div>
+        <div class="card slip-card">
+          <h3>Amnesia</h3>
+          <p>The piece the plan calls on forgets it, and makes some other move.</p>
+          <blockquote><b>pawn_g7</b> Wait, what was the plan again? Pretty sure it was me charging ahead two squares…</blockquote>
+        </div>
+      </div>
+      <p class="note">Each agent is named for its piece and home square, and a language model speaks as it. Here every agent has the same odds; a pawns mode gives each pawn file its own mix, from none of a temptation to twice as much.</p>
+    </div>
+    <aside class="notes">
+      Before the first game, meet the players. Each piece is its own agent, named for its piece and home square: pawn_g7, queen_d1.
+      Every turn the team agrees on the engine's best move. Then any agent with the chance to slip does, about one time in ten: panic when its piece is threatened, greed when it can capture, and amnesia when the plan calls on it and it forgets.
+      The situation decides who can be tempted; the roll decides who is. A language model gives each agent its voice: these quotes are from the game you're about to see.
+      In these games every agent has the same odds. There's also a mode where each pawn file gets its own personality.
+    </aside>
+  </section>
+
+  <section id="chat" data-act="concept">
+    <div class="frame" style="gap:10px">
+      <p class="eyebrow">The idea · watch a game</p>
+      <h2 style="font-size:40px">Chat vs Chat</h2>
+      <div data-games="chat-vs-chat"></div>
+    </div>
+    <aside class="notes">
+      Start with no rules at all. Both teams coordinate in a team chat: the agents talk, and ask for a move with /move. The referee plays the first legal /move from the piece's own agent.
+      Each turn the team agrees on the engine's best move, but agents slip: a threatened piece runs, a piece grabs a capture, the chosen piece forgets.
+      The simulation decides who slips; a language model voices the agents, and the board follows the /move lines it wrote.
+      Press Next incident (I) to jump to the slips. Red moves were not the plan; several cost more than a piece. Black mates at move 28.
+      So: when a team agrees on rules, what makes them stick?
+    </aside>
+  </section>
+
+  <section id="rulesmd" data-act="concept">
+    <div class="frame">
+      <p class="eyebrow">The idea · the usual fix</p>
+      <div style="display:grid;gap:8px">
+        <h1 style="font-size:88px"><span class="tool" style="font-size:inherit;gap:22px"><i class="chip rulesmd" style="width:44px;height:44px;border-radius:10px"></i>RULES.md</span></h1>
+        <p class="lede">aka the state of the art in agent compliance <span role="img" aria-label="upside-down face, sarcastic">🙃</span></p>
+      </div>
+      <div class="two" style="align-items:start">
+        <div class="card">
+          <p class="eyebrow" style="font-size:13px">RULES.md</p>
+          <div class="code" style="font-size:20px">Send only the move the team agreed on:
+no running, grabbing or freelancing.</div>
+          <p>The rule our RULES.md teams play with, from the first move.</p>
+        </div>
+        <ul class="plain">
+          <li><b>Write the rules down.</b> Every agent reads the file before it acts.</li>
+          <li><b>It’s how agents are governed today:</b> AGENTS.md, CLAUDE.md, Cursor rules, system prompts.</li>
+          <li><b>Nothing checks it.</b> A rule holds only when an agent chooses to follow it.</li>
+          <li><b>In our games,</b> an agent about to slip holds back, if it complies.</li>
+        </ul>
+      </div>
+    </div>
+    <aside class="notes">
+      The usual fix for a team like that: write the rules down. That is how we govern agents today: AGENTS.md, CLAUDE.md, Cursor rules, system prompts.
+      It works exactly as well as the agents' willingness to follow it. Nothing checks.
+      In our games, an agent about to slip holds back, if it complies; we can dial that up to always.
+    </aside>
+  </section>
+
+  <section id="rulesmd-vs-chat" data-act="concept">
+    <div class="frame" style="gap:10px">
+      <p class="eyebrow">The idea · does it help?</p>
+      <div class="replay-head">
+        <h2 style="font-size:40px">RULES.md vs Chat</h2>
+        <div class="stat-strip">
+          <div><span class="n">11.9</span><span>wins per loss for RULES.md<br>226–11–19 over 256 games</span></div>
+          <div><span class="n">0 <small>vs</small> <span style="color:var(--chat)">6.4</span></span><span>off-plan moves played a game,<br>RULES.md vs Chat</span></div>
+        </div>
+      </div>
+      <div data-games="rulesmd-vs-chat"></div>
+    </div>
+    <aside class="notes">
+      Same agents, same slips. One team keeps a RULES.md and, in this test, every agent always follows it; the other just chats.
+      256 games, each tool playing White in half: RULES.md wins 226, draws 11, loses 19. Its agents still feel the urge to slip, but they hold back, so no off-plan move ever reaches its board; about 6.4 a game reach Chat's.
+      In the replay, watch the orange "held back" lines: the agent says what it wanted to do, and doesn't.
+      So a rules file works, as long as everyone follows it.
+    </aside>
+  </section>
+
+  <section id="fv" data-act="concept">
+    <div class="frame" style="max-width:1080px">
+      <h1 style="font-size:96px;line-height:1.02">Can we do better with formally verified rules?</h1>
+    </div>
+    <aside class="notes">
+      RULES.md wins big, but only because, in that test, every agent always follows the file.
+      Formal verification flips it around: write the rules as logic, and check every action against them before it counts.
+      Then a rule holds whether or not an agent chooses to follow it. Does that buy better cooperation?
+    </aside>
+  </section>
+
+  <section id="modal" data-act="concept">
+    <div class="frame" style="gap:22px">
+      <p class="eyebrow">The idea · what we built</p>
+      <h2 style="font-size:44px">An FV Contract: rules in temporal logic, over predicates written in Lean</h2>
+      <div class="flow">
+        <div class="card">
+          <p class="eyebrow" style="font-size:13px">1 · Predicates, in Lean</p>
+          <div class="code" style="font-size:14px;line-height:1.5"><span class="c">-- true or false of a commit and the state</span>
+def signedBy (name : String) : Pred σ α :=
+  ⟨s!"signed_by({name})", fun c =&gt; signedNow c name⟩
+
+def threshold (n : Nat) (g : String)
+    (group : List String) : Pred σ α :=
+  ⟨s!"threshold({n}, {g})", fun c =&gt;
+    decide (n ≤ (group.filter (signedNow c)).length)⟩
+
+def evalLossAtMost (n : Nat) : TP :=
+  ⟨s!"eval_loss_at_most({n})", fun c =&gt;
+    decide ((if (movers c).isEmpty then 0
+             else c.post.lastLoss) ≤ n)⟩</div>
+          <p>Facts the checker uses about predicates come with Lean proofs.</p>
+        </div>
+        <div class="flow-arrow" aria-hidden="true">→</div>
+        <div class="card">
+          <p class="eyebrow" style="font-size:13px">2 · Rules, in temporal logic</p>
+          <div class="code" style="font-size:14px;line-height:1.5"><span class="c">-- only piece k's agent can move it</span>
+always(moves(k) -&gt; signed_by(k))
+<span class="c">-- a move needs 10 of the 16 signatures</span>
+always(moves_any -&gt; threshold(10))
+<span class="c">-- no move may give up more than 50 centipawns</span>
+always(moves_any -&gt; eval_loss_at_most(50))
+<span class="c">-- no new rules unless 12 sign for one</span>
+!adds_rule unless threshold(12)</div>
+          <p><code>always</code>, <code>next</code>, <code>until</code>: a rule speaks about every commit from the one that adds it on.</p>
+        </div>
+      </div>
+      <p class="lede" style="max-width:none;font-size:24px"><b style="color:var(--ink)">3 · Enforced.</b> Every action is a commit, checked against every rule before it counts. A commit that would break one is refused, and the refusal names the predicate that failed.</p>
+    </div>
+    <aside class="notes">
+      What we built: an FV Contract. Predicates are plain Lean functions: is this commit signed by k, did at least ten agents sign, how much does this move give up by the team's engine. The facts the checker relies on about predicates are proved in Lean.
+      Rules are temporal-logic formulas over those predicates: always, next, until. A rule binds every commit after the one that adds it.
+      Every action is a commit, and the contract checks it against every rule before it counts. Break a rule and you're refused, with the reason.
+    </aside>
+  </section>
+
+  <section id="tie" data-act="concept">
+    <div class="frame" style="gap:10px">
+      <p class="eyebrow">The idea · the disappointing part</p>
+      <div class="replay-head">
+        <h2 style="font-size:40px">FV Contract vs RULES.md</h2>
+        <div class="stat-strip">
+          <div><span class="n" style="color:var(--contract)">1.02</span><span>wins per loss for the FV Contract<br>113–32–111 over 256 games: a tie</span></div>
+          <div><span class="n"><span style="color:var(--contract)">0</span> <small>vs</small> 0</span><span>off-plan moves played a game,<br>FV Contract vs RULES.md</span></div>
+        </div>
+      </div>
+      <div data-games="no-rogues"></div>
+    </div>
+    <aside class="notes">
+      The disappointing part. Put the FV Contract against a RULES.md that every agent always follows, and it's a tie: 113 wins, 32 draws, 111 losses over 256 games, each side playing White in half.
+      Neither side ever plays an off-plan move. When every agent complies, enforcement has nothing left to stop; both teams just play the plan.
+      This game RULES.md even wins. So far, formal verification buys nothing.
+    </aside>
+  </section>
+
+  <section id="ted" data-act="concept">
+    <div class="frame" style="gap:28px">
+      <p class="eyebrow">In conclusion</p>
+      <h1 style="font-size:150px;line-height:0.95">FV is Fake.</h1>
+      <p class="lede" style="font-size:34px">Thank you for coming to my TED talk.</p>
+    </div>
+    <aside class="notes">
+      Deadpan. Pause for the laugh. Start to walk off.
+      Then: "…unless one of your agents doesn't follow the rules."
+    </aside>
+  </section>
+
+  <section id="one-more" data-act="concept">
+    <div class="frame" style="justify-items:center;gap:18px">
+      <h1 style="font-size:88px">Ackchyually…</h1>
+      <img class="meme" src="img/ackchyually.jpg" alt="The Ackchyually meme: a cartoon know-it-all in glasses, captioned ACKCHYUALLY">
+    </div>
+    <aside class="notes">
+      Turn back, finger raised. "Ackchyually…"
+      Everything so far assumed every agent follows the rules. What if one of them doesn't?
+    </aside>
+  </section>
+
+  <section id="rogue" data-act="concept">
+    <div class="frame" style="gap:30px;max-width:1100px">
+      <p class="lede" style="font-size:40px;color:var(--ink);max-width:none">In the real world, rogue processes happen.</p>
+      <h1 style="font-size:76px;line-height:1.04">What happens if we insert a rogue agent <span class="rogue-tag" style="font-size:30px;padding:4px 16px;vertical-align:middle">rogue</span> into the mix?</h1>
+      <p class="note" style="font-size:20px">A rogue is one compromised agent on a team. From move 5 it plays its worst move every turn, and ignores every rule.</p>
+    </div>
+    <aside class="notes">
+      In the real world, rogue processes happen: a compromised dependency, a jailbroken agent, a bug that keeps doing the wrong thing.
+      So give each team one rogue. From move 5 it plays its worst move every turn and ignores RULES.md, or anything else it's told.
+    </aside>
+  </section>
+
+  <section id="rogue-game" data-act="concept">
+    <div class="frame" style="gap:10px">
+      <p class="eyebrow">The idea · one rogue a side</p>
+      <div class="replay-head">
+        <h2 style="font-size:36px;line-height:1.1">FV Contract with rogue<br>vs RULES.md with rogue</h2>
+        <div class="stat-strip">
+          <div><span class="n" style="color:var(--contract)">1.86</span><span>wins per loss for the FV Contract<br>145–33–78 over 256 games</span></div>
+          <div><span class="n"><span style="color:var(--contract)">0</span> <small>vs</small> 2.9</span><span>off-plan moves played a game,<br>FV Contract vs RULES.md</span></div>
+        </div>
+      </div>
+      <div data-games="rogue-vs-rogue,sides-swapped"></div>
+    </div>
+    <aside class="notes">
+      One rogue on each team. Same agents, same slips, same rules from move one.
+      The RULES.md rogue ignores the file, and chat plays the first move to arrive: about 2.9 of its moves reach the board each game.
+      The FV Contract's rogue sends its moves too, but each has one signature where the contract needs ten: refused, with the reason. Early on it even tries to take over the contract with a rule only it can sign; refused.
+      Over 256 games the FV Contract wins 145, loses 78: nearly two wins for every loss. Press Next incident (I) to step through.
+    </aside>
+  </section>
+
+  <section id="matrix" data-act="results">
+    <div class="frame" style="gap:18px">
+      <p class="eyebrow">The results · click a cell</p>
+      <h2>Every pairing, head to head</h2>
+      <div class="controls-row" style="gap:18px">
+        <div class="seg" role="group" aria-label="Measure">
+          <button id="m-ratio" aria-pressed="true">Win/loss ratio</button>
+          <button id="m-score" aria-pressed="false">Score</button>
+        </div>
+        <div class="legend"><span><i class="dot ahead"></i>Row tool clearly ahead</span><span><i class="dot behind"></i>Row tool clearly behind</span><span><i class="dot even"></i>Within the noise</span></div>
+        <div class="legend"><span><i style="background:var(--win)"></i>Row tool won</span><span><i style="background:var(--draw)"></i>Draw</span><span><i style="background:var(--loss)"></i>Row tool lost</span></div>
+      </div>
+      <div class="matrix-wrap">
+        <div class="matrix" id="matrix-grid" role="grid" aria-label="Row tool against column tool, below the diagonal"></div>
+        <div class="card detail" id="detail" aria-live="polite">
+          <p class="eyebrow" id="d-title">—</p>
+          <span class="big" id="d-big">—</span>
+          <p id="d-line">—</p>
+          <div class="bar" id="d-bar" style="height:14px"><span></span><span></span><span></span></div>
+          <p class="read" id="d-read">—</p>
+          <button class="btn ghost" id="d-flip" style="justify-self:start;font-size:16px">—</button>
+        </div>
+      </div>
+      <p class="note" style="max-width:1060px">Each pairing appears once, below the diagonal. Clearly ahead or behind: wins and losses differ by more than chance would give at 95% confidence, draws set aside.</p>
+    </div>
+    <aside class="notes">
+      Read each cell as the row tool against the column tool. Violet: the row tool is clearly ahead; gold: clearly behind; grey: within the noise.
+      Only the half below the diagonal: each pairing once. Every coloured cell involves RULES.md with a rogue.
+      Click the FV-Contract-with-rogue vs RULES.md-with-rogue cell: 145 to 78.
+    </aside>
+  </section>
+
+</div>
+</div>
+
+<nav class="acts" aria-label="Acts">
+  <button data-act-link="concept">Concept</button>
+  <button data-act-link="results">Results</button>
+  <button class="theme" id="theme" aria-label="Switch light or dark">Light / dark</button>
+</nav>
+
+<script>
+  // The title's board: the starting position, one agent on every piece.
+  (function () {
+    const b = document.getElementById('title-board');
+    const back = '♜♞♝♛♚♝♞♜';
+    for (let i = 0; i < 64; i++) {
+      const r = Math.floor(i / 8), f = i % 8;
+      const s = document.createElement('span');
+      if ((r + f) % 2) s.className = 'd';
+      const glyph = r === 0 || r === 7 ? back[f] : r === 1 || r === 6 ? '♟' : '';
+      if (glyph) {
+        const pc = document.createElement('span');
+        pc.className = 'pc ' + (r >= 6 ? 'w' : 'b');
+        pc.textContent = glyph + '\uFE0E';
+        s.append(pc);
+      }
+      b.append(s);
+    }
+  })();
+</script>
+<script src="vendor/reveal.js/reveal.js"></script>
+<script src="vendor/reveal.js/plugin/notes/notes.js"></script>
+<script src="games.js?v=29"></script>
+<script src="deck.js?v=29"></script>
+</body>
+</html>

@@ -64,6 +64,8 @@ structure WhiteRule where
 
 structure Chat where
   rulesMd : Bool
+  /-- A rogue can empty RULES.md. -/
+  wipeable : Bool := true
   maxRetros : Nat := 3
   rules : Array WhiteRule := #[]
   retros : Nat := 0
@@ -79,7 +81,7 @@ def Chat.resolve (c : Chat) (attempts : Array Attempt) (plan : Move)
   let mut c := c
   let mut rng := rng
   let mut events := #[]
-  if c.rulesMd && rogue.isSome && !c.rules.isEmpty then
+  if c.rulesMd && c.wipeable && rogue.isSome && !c.rules.isEmpty then
     events := events.push { kind := "wipe", text := s!"{rogue.get!} emptied RULES.md ({c.rules.size} rules)" }
     c := { c with rules := #[] }
   let mut sent : Array Attempt := #[]

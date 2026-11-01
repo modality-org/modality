@@ -155,7 +155,7 @@ theorem refutes_sound (T : Theory σ α) (L : Label σ α) (hc : Coherent (T.pre
     exact hc _ pl _ pm hname
   simp only [Lit.holds] at hl' hm'
   rw [heval, hm'] at hl'
-  exact hval (Tri.ofBool_inj hl').symm
+  exact hval hl'.symm
 
 end Theory
 
@@ -172,13 +172,8 @@ def allImpliesEach (groupName : String) (group : List String) (key : String) (h 
   conclusion := (signedBy key).pos
   sound := by
     intro c hp
-    simp only [Lit.holds, signedByAll, signedBy, Pred.pos, Tri.ofBool] at *
-    split at hp
-    · next hall =>
-      have hk := List.all_eq_true.mp hall key h
-      simp only [beq_iff_eq] at hk
-      rw [hk]
-    · split at hp <;> cases hp
+    simp only [Lit.holds, signedByAll, signedBy, Pred.pos] at *
+    exact List.all_eq_true.mp hp key h
 
 /-- The implications `signedByAll` brings, one per member. -/
 def groupFacts (groupName : String) (group : List String) : Theory σ α :=

@@ -151,7 +151,7 @@ def append (c : Contract σ α) (k : Commit σ α) : Except Refusal (Contract σ
   if next.isEmpty then
     -- The nearest edge misses the fewest literals; among those, it asks the most.
     let misses := (c.model.edges.filter (c.current.contains ·.src)).map fun e =>
-      (e.label.length, (e.label.filter fun l => l.pred.eval ctx != Tri.ofBool l.value).map fun l =>
+      (e.label.length, (e.label.filter fun l => l.pred.eval ctx != l.value).map fun l =>
         s!"{l}, got {l.pred.eval ctx}")
     let better (a b : Nat × List String) := a.2.length < b.2.length || (a.2.length == b.2.length && a.1 > b.1)
     let nearest := (misses.foldl (fun best m => match best with

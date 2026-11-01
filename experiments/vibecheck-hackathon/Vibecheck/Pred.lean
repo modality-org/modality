@@ -2,11 +2,17 @@ import Vibecheck.Crypto
 
 /-!
 Predicates: Lean functions that read a commit and the contract state around
-it, and answer true, false, or unknown.
+it, and say whether it has a property: true or false.
 
 A commit is a multi-action: a list of actions, the keys that signed it, and
 any rules or model it adds. The contract state is a Lean value of any type
 `σ`, accumulated by folding the actions of every accepted commit.
+
+As in Modality, a predicate is a fact about the commit, and one that cannot
+be evaluated (a signer whose name has no key yet, a message it cannot judge)
+does not hold: it is false. What a transition asks of each predicate has a
+third value: an edge's label wants it true (`+p`), false (`-p`), or either,
+by leaving it off.
 
 A predicate is named for what it computes (`signed_by(alice)`), and its
 name is its identity: two predicates with one name must agree everywhere.
@@ -14,49 +20,6 @@ Every predicate below is built that way, and a custom one must be too.
 -/
 
 namespace Vibecheck
-
-/-- What a predicate says about a commit. `unknown` is the predicate's own
-ignorance, never a third truth: a commit always either has a property or
-not. -/
-inductive Tri where
-  | true
-  | false
-  | unknown
-  deriving DecidableEq, Repr, Inhabited
-
-namespace Tri
-
-def ofBool : Bool → Tri
-  | .true => .true
-  | .false => .false
-
-def not : Tri → Tri
-  | .true => .false
-  | .false => .true
-  | .unknown => .unknown
-
-/-- Kleene conjunction. -/
-def and : Tri → Tri → Tri
-  | .false, _ | _, .false => .false
-  | .true, .true => .true
-  | _, _ => .unknown
-
-/-- Kleene disjunction. -/
-def or : Tri → Tri → Tri
-  | .true, _ | _, .true => .true
-  | .false, .false => .false
-  | _, _ => .unknown
-
-instance : ToString Tri where
-  toString
-    | .true => "true"
-    | .false => "false"
-    | .unknown => "unknown"
-
-theorem ofBool_inj {a b : Bool} (h : ofBool a = ofBool b) : a = b := by
-  cases a <;> cases b <;> simp_all [ofBool]
-
-end Tri
 
 /-- What a predicate can see of a commit. -/
 structure CommitView (α : Type) where
@@ -80,9 +43,9 @@ structure Ctx (σ α : Type) where
 /-- A predicate function, written in Lean. -/
 structure Pred (σ α : Type) where
   name : String
-  eval : Ctx σ α → Tri
+  eval : Ctx σ α → Bool
 
-instance {σ α : Type} : Inhabited (Pred σ α) := ⟨⟨"", fun _ => .unknown⟩⟩
+instance {σ α : Type} : Inhabited (Pred σ α) := ⟨⟨"", fun _ => false⟩⟩
 instance {σ α : Type} : BEq (Pred σ α) := ⟨fun p q => p.name == q.name⟩
 instance {σ α : Type} : ToString (Pred σ α) := ⟨Pred.name⟩
 
@@ -95,7 +58,7 @@ namespace Lit
 
 variable {σ α : Type}
 
-def holds (l : Lit σ α) (c : Ctx σ α) : Prop := l.pred.eval c = Tri.ofBool l.value
+def holds (l : Lit σ α) (c : Ctx σ α) : Prop := l.pred.eval c = l.value
 
 /-- Two literals are the same claim when they name one predicate and want
 one value. -/
@@ -112,8 +75,9 @@ def Pred.pos {σ α : Type} (p : Pred σ α) : Lit σ α := ⟨p, true⟩
 def Pred.neg {σ α : Type} (p : Pred σ α) : Lit σ α := ⟨p, false⟩
 
 /-- A transition label: a map from predicates to the values a commit must
-give them. A commit takes the edge only when every predicate gives its value;
-`unknown` takes no edge. -/
+give them, `+p` true and `-p` false; a predicate the label leaves off may be
+either. A commit takes the edge only when every predicate on it gives its
+value. -/
 abbrev Label (σ α : Type) := List (Lit σ α)
 
 namespace Label
@@ -121,7 +85,7 @@ namespace Label
 variable {σ α : Type}
 
 def accepts (L : Label σ α) (c : Ctx σ α) : Bool :=
-  L.all fun l => l.pred.eval c == Tri.ofBool l.value
+  L.all fun l => l.pred.eval c == l.value
 
 def Holds (L : Label σ α) (c : Ctx σ α) : Prop := ∀ l ∈ L, l.holds c
 
@@ -142,7 +106,7 @@ the contract itself.
 A rule names a signer, not a key: `signed_by(alice)` asks for the key the
 contract state binds to `alice` before the commit, as Modality's
 `signed_by(/parties/alice.id)` reads the ID at that path. A commit cannot
-bind a key and sign with it in one step. A name with no key is unknown. -/
+bind a key and sign with it in one step. A name with no key has not signed. -/
 
 /-- Where a contract state keeps its named keys. -/
 class HasIds (σ : Type) where
@@ -152,27 +116,19 @@ section Builtin
 
 variable {σ α : Type} [HasIds σ]
 
-/-- Whether `name`'s key signed: unknown if `name` has no key. -/
-def signedNow (c : Ctx σ α) (name : String) : Option Bool :=
-  (HasIds.id? c.pre name).map c.commit.signers.contains
+/-- Whether `name`'s key signed: false if `name` has no key. -/
+def signedNow (c : Ctx σ α) (name : String) : Bool :=
+  (HasIds.id? c.pre name).any c.commit.signers.contains
 
-def signedBy (name : String) : Pred σ α :=
-  ⟨s!"signed_by({name})", fun c =>
-    match signedNow c name with
-    | some b => .ofBool b
-    | none => .unknown⟩
+def signedBy (name : String) : Pred σ α := ⟨s!"signed_by({name})", fun c => signedNow c name⟩
 
-/-- At least `n` of `group` signed. Members with no key cannot have signed. -/
+/-- At least `n` of `group` signed. -/
 def threshold (n : Nat) (groupName : String) (group : List String) : Pred σ α :=
-  ⟨s!"threshold({n}, {groupName})",
-   fun c => .ofBool (n ≤ (group.filter fun k => signedNow c k == some true).length)⟩
+  ⟨s!"threshold({n}, {groupName})", fun c => decide (n ≤ (group.filter (signedNow c)).length)⟩
 
 /-- Every member of `group` signed. -/
 def signedByAll (groupName : String) (group : List String) : Pred σ α :=
-  ⟨s!"signed_by_all({groupName})", fun c =>
-    if group.all fun k => signedNow c k == some true then .true
-    else if group.any fun k => signedNow c k == some false then .false
-    else .unknown⟩
+  ⟨s!"signed_by_all({groupName})", fun c => group.all (signedNow c)⟩
 
 end Builtin
 
@@ -180,9 +136,9 @@ section Structural
 
 variable {σ α : Type}
 
-def addsRule : Pred σ α := ⟨"adds_rule", fun c => .ofBool !c.commit.addsRules.isEmpty⟩
+def addsRule : Pred σ α := ⟨"adds_rule", fun c => !c.commit.addsRules.isEmpty⟩
 
-def replacesModel : Pred σ α := ⟨"replaces_model", fun c => .ofBool c.commit.replacesModel⟩
+def replacesModel : Pred σ α := ⟨"replaces_model", fun c => c.commit.replacesModel⟩
 
 end Structural
 

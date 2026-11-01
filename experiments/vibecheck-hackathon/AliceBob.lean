@@ -52,7 +52,7 @@ def bob : P := signedBy "bob"
 def both : P := signedByAll "parties" parties
 
 /-- A custom predicate, in Lean: a message in capitals. A message with no
-letters is neither, so the answer is unknown. -/
+letters has nothing to shout, so it is not shouting. -/
 def shouting : P where
   name := "shouting"
   eval c :=
@@ -60,19 +60,18 @@ def shouting : P where
       | .say _ t => some t
       | _ => none
     let letters := texts.map (·.toList.filter Char.isAlpha)
-    if letters.any (·.isEmpty) then .unknown
-    else .ofBool (letters.any fun l => l.all Char.isUpper)
+    letters.any fun l => !l.isEmpty && l.all Char.isUpper
 
 /-- A custom predicate that reads the state: the commit's author has spoken
-more than the other party. -/
+more than the other party. A commit that is not one message is not chatty. -/
 def chatty : P where
   name := "chatty"
   eval c :=
     match c.commit.actions with
     | [.say who _] =>
       let n (p : String) := (c.pre.said.lookup p).getD 0
-      .ofBool (parties.all fun p => p == who || n p < n who)
-    | _ => .unknown
+      parties.all fun p => p == who || n p < n who
+    | _ => false
 
 open LTL in
 def eitherSigns : Rule Chat Act := ⟨"either_signs", always (alice.ltl.or bob.ltl)⟩
@@ -187,7 +186,7 @@ def run (kind : SchemeKind) : IO Unit := do
   section_ "Under Alice's model"
   c ← attempt c "alice says the rules are in" (say "alice" "the rules are in") [aliceKey]
   let mine := say "bob" "my turn"
-  let rulesAllow := c.rules.all fun (r, _) => r.onCommit (c.viewAs mine [pk bobKey]) == some .true
+  let rulesAllow := c.rules.all fun (r, _) => r.onCommit (c.viewAs mine [pk bobKey]) == some true
   IO.println s!"  (the rules alone allow bob's next commit: {rulesAllow}; the model decides)"
   c ← attempt c "bob says my turn" mine [bobKey]
   c ← attempt c "bob posts his model, signed by bob" { model := some bobModel } [bobKey]
@@ -220,7 +219,7 @@ def run (kind : SchemeKind) : IO Unit := do
     c ← attempt c "no_shouting with the synthesized model, signed by both"
       { add with model := some sm } [aliceKey, bobKey]
   c ← attempt c "alice says HELLO" (say "alice" "HELLO") [aliceKey]
-  c ← attempt c "alice says 1234 (shouting is unknown)" (say "alice" "1234") [aliceKey]
+  c ← attempt c "alice says 1234 (no letters, so not shouting)" (say "alice" "1234") [aliceKey]
   c ← attempt c "alice says bye" (say "alice" "bye") [aliceKey]
 
   section_ "A predicate that reads the state"

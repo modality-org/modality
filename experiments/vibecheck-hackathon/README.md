@@ -4,6 +4,8 @@ A from-scratch Lean 4 rebuild of Modality's modal contracts, with rules in
 LTL, and a rerun of the [multi-agent chess](../../docs/multi-agent-chess.md)
 experiment on top of it. See [PLAN.md](PLAN.md) for the brief, and
 [demos/](demos/) for walkthroughs of everything below.
+The hackathon talk is a local reveal.js deck in
+[presentation/](presentation/).
 
 ## Headline: chat, RULES.md and a modal contract, in Elo
 
@@ -79,7 +81,7 @@ lake build tests && .lake/build/bin/tests   # checker vs brute force, perft, cry
 | File | What it does |
 | --- | --- |
 | [Vibecheck/Crypto/](Vibecheck/Crypto/), [Vibecheck/Crypto.lean](Vibecheck/Crypto.lean) | SHA-512 and Ed25519 (RFC 8032) from scratch; keys, signatures, and the two verifiers (ed25519 and the fast oracle) |
-| [Vibecheck/Pred.lean](Vibecheck/Pred.lean) | `Tri` (true, false, unknown); predicates as Lean functions of the state before, the commit, and the state after; labels as predicate → value maps; built-in `signed_by`, `threshold`, `signed_by_all`, `adds_rule`, `replaces_model` |
+| [Vibecheck/Pred.lean](Vibecheck/Pred.lean) | predicates as Boolean Lean functions of the state before, the commit, and the state after; labels as predicate → value maps; built-in `signed_by`, `threshold`, `signed_by_all`, `adds_rule`, `replaces_model` |
 | [Vibecheck/Theory.lean](Vibecheck/Theory.lean) | The predicate theory: implications between predicates, each carrying a Lean proof; label closure; `refutes_sound`, a theorem that a label the theory refutes is met by no commit |
 | [Vibecheck/LTL.lean](Vibecheck/LTL.lean) | LTL syntax over predicates, the standard trace semantics `Sat`, rules |
 | [Vibecheck/Model.lean](Vibecheck/Model.lean) | Models: labeled transition systems; stepping and replaying a history |
@@ -117,9 +119,10 @@ runs 3,000 random models and formulas against exact evaluation of every
 lasso trace up to 4 steps. It finds 0 unsound verdicts, and a short violating
 lasso confirms every refusal.
 
-**Predicates return true, false or unknown.** `unknown` is the predicate not
-knowing, so it takes no edge: a commit the model cannot judge is refused. In
-the demo, `shouting` is unknown on "1234", and that commit is refused.
+**Predicates are true or false, and labels allow either.** As in Modality, a
+predicate that can't be evaluated is false. An edge asks each predicate for
+`+p` (true) or `-p` (false), and one it leaves out may be either. In the demo,
+"1234" has no letters, so `shouting` is false and the commit is accepted.
 
 **Labels are maps of predicate functions.** An edge's label maps predicates to
 the values they must take. A state's outgoing edges are the set of labels a
@@ -165,8 +168,8 @@ ed25519.
 Rules name signers, not keys. `signed_by(alice)` asks for the key the
 contract state binds to `alice` before the commit, as Modality's
 `signed_by(/parties/alice.id)` reads the ID at a path. A commit can't bind a
-key and sign with it in the same step. A name with no key is unknown to
-`signed_by`; for `threshold` it simply hasn't signed. A state says where its
+key and sign with it in the same step. A name with no key has not
+signed, for `signed_by` and `threshold` alike. A state says where its
 names live by implementing `HasIds`.
 
 SHA-512 and Ed25519 are written in Lean, with Ed25519 on `Nat` arithmetic.
@@ -209,8 +212,8 @@ doesn't hold.
   key is accepted as a commit, since he may sign one, but this state binds a
   name only once, so `alice` keeps her key.
 - **A rule on a custom predicate:** together they add `no_shouting`, with a
-  model the synthesizer writes. Capitals are refused, and so is "1234",
-  where `shouting` is unknown.
+  model the synthesizer writes. Capitals are refused; "1234",
+  with no letters, is not shouting and is accepted.
 
 ## Synthesis
 
@@ -408,9 +411,37 @@ centipawns, which leaves room only for the single best move. Hand-written
 rules under the same conditions score 0.88 (⅔ of living) and 0.89 (⅔ of
 living plus the blunder ban with override), over 64 games each.
 
-**The contract is fresh each game.** Strikes and credit only build up over
-one game's 40 or so Black moves. A contract that lasted a whole match would
-give track records far more to work with.
+**Matches: a contract that lasts.** With `--match` or `--training`, Black's
+contract carries over from game to game: its rules, its keys, and its
+ledger of strikes and credit. So do the agents' personalities. A signed
+`new-game` commit resets the board and the captures.
+
+`--training` plays 24-game matches and scores only the last third, 32
+matches per rule, with pawn personalities and 4 colluders. Black plays
+against chat; White has no RULES.md.
+
+| Rule | Training games 1–16 | Evaluation games 17–24 |
+| --- | --- | --- |
+| Track record: 3 strikes, then 12 signatures | 0.79 (W/L 4.5) | **0.90** (W/L 11.2) |
+| At least 2 signatures | 0.48 | 0.50 |
+| Flat 12 signatures | 0.90 | 0.91 |
+| Plurality vote (depth-3 noisy judges, White without faults) | 0.90 | 0.89 |
+| Credit-weighted vote (same) | 0.92 | 0.90 |
+
+The track-record rule is the one thing that learns. It starts a match no
+better than at least 2, and by the evaluation third it matches a flat 12,
+while asking only repeat offenders for 12 signatures. In single games it
+does nothing (0.45, the same as at least 2), because strikes rarely reach 3
+within one game. Credit-weighted voting gains nothing from the longer
+memory: about forty judgments per agent within one game are already enough
+to rank the agents.
+
+Claude, writing the rules over four 12-game matches, did well in two (20
+wins, 1 draw and 3 losses in 24 games) and wrecked the other two. In each
+of those, an agent added a quality bound tighter than the team's own
+planning margin (`eval_loss_at_most(5)`, and `eval_loss_at_most(10)` in game
+1). Rules can't be removed, so Black forfeited every game after it: 19 of
+48 overall. A contract that lasts also keeps its mistakes.
 
 ## Not done
 

@@ -30,15 +30,16 @@ Before the story, the parts it is built from:
   Each signature covers the contract id, the parent commit, and everything
   in the commit.
 - **Predicates.** These are Lean functions that look at a commit and answer
-  true, false or unknown.
+  true or false. An edge asks each predicate for `+p` (true), `-p` (false),
+  or leaves it out (either).
   - `signed_by(alice)` looks up the key bound to `alice` in the state before
     the commit, and checks whether that key signed.
   - `signed_by_all(parties)` and `adds_rule` are also built in.
   - [`shouting`](../../AliceBob.lean#L56) and
-    [`chatty`](../../AliceBob.lean#L68) are custom predicates written for
+    [`chatty`](../../AliceBob.lean#L67) are custom predicates written for
     this demo.
 - **Rules.** These are LTL formulas over predicates, such as
-  [`either_signs`](../../AliceBob.lean#L78):
+  [`either_signs`](../../AliceBob.lean#L77):
   `always(signed_by(alice) | signed_by(bob))`. A rule binds every commit
   after the one that adds it.
 - **Models.** A model is a labeled transition system. Each edge carries a
@@ -107,7 +108,7 @@ model Contract {
 }
 ```
 
-[Alice's model](../../AliceBob.lean#L91) has two states:
+[Alice's model](../../AliceBob.lean#L90) has two states:
 
 - **`q0` is the past.** Any commit that doesn't add a rule loops there, so
   the model can replay the earlier history.
@@ -168,11 +169,11 @@ commit like any other, so it needs Alice's signature too.
 
 [`Contract.tryModel`](../../Vibecheck/Contract.lean) lets a party test a
 model before anyone signs it. Bob's
-[careless draft](../../AliceBob.lean#L106) drops the signature requirement
+[careless draft](../../AliceBob.lean#L105) drops the signature requirement
 on ordinary commits. The checker finds the unsigned loop that breaks
 `either_signs`.
 
-His [real model](../../AliceBob.lean#L98) has one ordinary edge for each
+His [real model](../../AliceBob.lean#L97) has one ordinary edge for each
 party, and it passes. Alice agrees to it, and it goes in as commit `#5`,
 signed by both:
 
@@ -239,21 +240,21 @@ validation as a hand-written model.
 ```
      refused    alice says HELLO
                no transition from [q2] matches the commit (nearest edge wants -shouting, got true)
-     refused    alice says 1234 (shouting is unknown)
-               no transition from [q2] matches the commit (nearest edge wants -shouting, got unknown)
-  #9 accepted   alice says bye  (model at [q2])
+  #9 accepted   alice says 1234 (no letters, so not shouting)  (model at [q2])
+  #10 accepted   alice says bye  (model at [q2])
 ```
 
-"1234" has no letters, so `shouting` returns **unknown**. Unknown never
-satisfies a label, so a commit the model can't judge is refused.
+"1234" has no letters, so there is nothing to shout: `shouting` is false and
+the commit meets `-shouting`. As in Modality, a predicate is true or false,
+and one that can't be evaluated counts as false.
 
 ## 8. State, and the log
 
 ```
-  said so far: [(alice, 3), (bob, 1), (carol, 1)]; chatty(alice) = true
+  said so far: [(alice, 4), (bob, 1), (carol, 1)]; chatty(alice) = true
 ```
 
-[`chatty`](../../AliceBob.lean#L68) reads the accumulated state, not just
+[`chatty`](../../AliceBob.lean#L67) reads the accumulated state, not just
 the commit: it is true when the author has spoken more than the other party.
 
 ```
@@ -263,7 +264,8 @@ the commit: it is true when the author has spoken more than the other party.
   #2 df66ee2b7dce [2a776f52…] carol: hey
   #3 62ffc183abcd [alice, bob] rules +rules [either_signs, both_for_rules] +model
   ...
-  #9 112e123f2c60 [alice] alice: bye
+  #9 aa286be871cf [alice] alice: 1234
+  #10 de1943cc41dc [alice] alice: bye
 
 Rules: [either_signs@#3, both_for_rules@#3, no_shouting@#8]
 ```

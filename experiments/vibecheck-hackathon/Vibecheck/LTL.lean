@@ -89,17 +89,17 @@ structure Rule (σ α : Type) where
 instance {σ α : Type} : ToString (Rule σ α) := ⟨fun r => s!"{r.name}: {r.formula}"⟩
 
 /-- A formula with no temporal operator, on one commit; `none` if temporal. -/
-def LTL.onCommit {σ α : Type} (c : Ctx σ α) : LTL (Pred σ α) → Option Tri
-  | .tt => some .true
-  | .ff => some .false
+def LTL.onCommit {σ α : Type} (c : Ctx σ α) : LTL (Pred σ α) → Option Bool
+  | .tt => some true
+  | .ff => some false
   | .atom p => some (p.eval c)
-  | .not φ => (onCommit c φ).map Tri.not
-  | .and φ ψ => do return Tri.and (← onCommit c φ) (← onCommit c ψ)
-  | .or φ ψ => do return Tri.or (← onCommit c φ) (← onCommit c ψ)
+  | .not φ => (onCommit c φ).map (!·)
+  | .and φ ψ => do return (← onCommit c φ) && (← onCommit c ψ)
+  | .or φ ψ => do return (← onCommit c φ) || (← onCommit c ψ)
   | .next _ | .U .. => none
 
 /-- For a rule `always(p)`: what `p` says of one commit. -/
-def Rule.onCommit {σ α : Type} (r : Rule σ α) (c : Ctx σ α) : Option Tri :=
+def Rule.onCommit {σ α : Type} (r : Rule σ α) (c : Ctx σ α) : Option Bool :=
   match r.formula with
   | .not (.U .tt (.not p)) => p.onCommit c
   | _ => none
