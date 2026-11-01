@@ -398,6 +398,16 @@ written as carefully as their triggers.
   plans, or carry an override.
 - **Before these predicates** it wrote only signature counts.
 
+**Claude with rules over time on offer** (`llm-until`, 16 games, with pawn
+personalities, silent captures and 4 colluders) never wrote one. Its 41
+accepted rules all used the new predicates, most often a quality-or-quorum
+rule it composed itself: `always(moves_any -> (threshold(6) |
+eval_loss_at_most(30)))`. It scored 0.72 with 4 forfeits. Again it
+tightened the quality bound late in the game, as far as 0, 1 or 2
+centipawns, which leaves room only for the single best move. Hand-written
+rules under the same conditions score 0.88 (⅔ of living) and 0.89 (⅔ of
+living plus the blunder ban with override), over 64 games each.
+
 **The contract is fresh each game.** Strikes and credit only build up over
 one game's 40 or so Black moves. A contract that lasted a whole match would
 give track records far more to work with.

@@ -164,6 +164,13 @@ def advancedExperiments : List Setup :=
        "always(records_strike -> ((moves_any -> signed_share_at_least(3, 4)) unless " ++
          "(moves_any & !records_strike & signed_share_at_least(3, 4))))"],
      note := "Captured agents silent, 4 co-signers; half the living, three quarters until a clean plan after a strike" }] ++
+  -- Hand-written rules under the llm-until conditions.
+  ([("share", ["always(moves_any -> signed_share_at_least(2, 3))"]),
+    ("share-banx", ["always(moves_any -> signed_share_at_least(2, 3))",
+      "always(moves_any -> eval_loss_at_most(150) | threshold(14))"])].map fun (n, rs) =>
+    { name := s!"pawns-silent-collude4-{n}", black := .fixed, capturedSilent := true, collusion := 4,
+      pawns := .personalities, constitution := rs,
+      note := "Pawns differ, captured agents silent, 4 co-signers; " ++ " & ".intercalate rs }) ++
   -- Agents who judge deeper than the shared engine, each with its own noise,
   -- against a White with no faults.
   [("shared", Judgment.shared), ("plurality", .plurality), ("credit", .credit), ("oracle", .oracle),
