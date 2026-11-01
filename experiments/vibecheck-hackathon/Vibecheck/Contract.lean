@@ -18,8 +18,10 @@ Lean values folded from their actions, rules, and a model.
 The commit itself is checked against the model in force before it, so a
 commit that adds a rule is bound by the rules already there.
 
-Signatures are ed25519, over the payload Modality signs: the contract id and
-the whole commit but its signatures, parent included. A signature holds for
+Signatures are over the payload Modality signs: the contract id and the
+whole commit but its signatures, parent included. A contract checks them
+with its `Verifier`: ed25519, as Modality does, or a fast signing oracle
+for experiments. A signature holds for
 one contract at one point in its log, so it cannot be replayed elsewhere,
 and a commit with any signature that does not verify is refused. Each commit
 is identified by the hash of its payload and signatures, and names the one
@@ -30,7 +32,7 @@ namespace Vibecheck
 
 structure Signature where
   key : PublicKey
-  /-- Hex ed25519 signature over the commit's payload. -/
+  /-- Hex signature over the commit's payload. -/
   sig : String
 
 structure Commit (σ α : Type) where
@@ -70,6 +72,7 @@ structure Contract (σ α : Type) where
   apply : σ → α → σ
   /-- How an action is written into the signed payload. -/
   encode : α → String
+  verifier : Verifier
   theory : Theory σ α := []
   state : σ
   log : Array (Entry σ α) := #[]
@@ -87,8 +90,8 @@ variable {σ α : Type}
 
 /-- A contract with no rules, whose open model accepts any commit. -/
 def create (id : String) (init : σ) (apply : σ → α → σ) (encode : α → String)
-    (theory : Theory σ α := []) : Contract σ α :=
-  { id, apply, encode, theory, state := init }
+    (theory : Theory σ α := []) (verifier : Verifier := .ed25519) : Contract σ α :=
+  { id, apply, encode, verifier, theory, state := init }
 
 /-- What a signature on `k` signs, were `k` appended now. -/
 def payload (c : Contract σ α) (k : Commit σ α) : String :=
@@ -118,7 +121,7 @@ def viewAs (c : Contract σ α) (k : Commit σ α) (signers : List PublicKey) : 
 def verify (c : Contract σ α) (k : Commit σ α) : Except Refusal (List PublicKey) := do
   let msg := c.payload k
   for s in k.signatures do
-    unless s.key.verifies msg s.sig do throw (.badSignature s.key)
+    unless c.verifier.verify s.key msg s.sig do throw (.badSignature s.key)
   return (k.signatures.map (·.key)).eraseDups
 
 /-- Check a model against rules over a history: it must replay every commit,

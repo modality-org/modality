@@ -150,6 +150,10 @@ def run : IO UInt32 := do
   let sig2 := Crypto.Ed25519.sign seed2 (un "72")
   let s2 := Crypto.leNat (sig2.extract 32 64)
   let malleable := sig2.extract 0 32 ++ Crypto.natLe (s2 + Crypto.Ed25519.L) 32
+  let oa := Keypair.ofPhrase "a" .oracle
+  let ob := Keypair.ofPhrase "b" .oracle
+  let stranger := Keypair.ofPhrase "c" .oracle
+  let oracle := Verifier.oracle [oa, ob]
   let crypto := [
     ("sha512 abc", hex (Crypto.sha512Str "abc") ==
       "ddaf35a193617abacc417349ae20413112e6fa4e89a97ea20a9eeee64b55d39a2192992a274fc1a836ba3c23a3feebbd454d4423643ce80e2a9ac94fa54ca49f"),
@@ -164,7 +168,12 @@ def run : IO UInt32 := do
     ("flipped R refused", !Crypto.Ed25519.verify pk2 (un "72") (flip sig2 3)),
     ("flipped S refused", !Crypto.Ed25519.verify pk2 (un "72") (flip sig2 40)),
     ("other key refused", !Crypto.Ed25519.verify (Crypto.Ed25519.publicKey seed1) (un "72") sig2),
-    ("S + L refused", !Crypto.Ed25519.verify pk2 (un "72") malleable)]
+    ("S + L refused", !Crypto.Ed25519.verify pk2 (un "72") malleable),
+    ("oracle verifies", oracle.verify oa.publicKey "m" (oa.sign "m")),
+    ("oracle: other message refused", !oracle.verify oa.publicKey "n" (oa.sign "m")),
+    ("oracle: other key's tag refused", !oracle.verify oa.publicKey "m" (ob.sign "m")),
+    ("oracle: unknown key refused", !oracle.verify stranger.publicKey "m" (stranger.sign "m")),
+    ("ed25519 verifier: oracle tag refused", !Verifier.ed25519.verify oa.publicKey "m" (oa.sign "m"))]
   for (name, ok) in crypto do
     unless ok do IO.println s!"crypto: {name} FAILED"
   let cryptoOk := crypto.all (·.2)

@@ -5,6 +5,7 @@ import Vibecheck.Chess.Play
 Thirty-two agents, one board.
 
   chess play --seed 7                                   one narrated game
+  chess play --seed 7 --crypto ed25519                  the same, with real ed25519 signatures
   chess play --white rules-md --black self-ruled --rogue --seed 3
   chess experiments --games 16 [--only baseline,control] [--out out]
 -/
@@ -36,6 +37,13 @@ def fmt (x : Float) (digits : Nat := 2) : String :=
   let fs := toString frac
   s!"{whole.toUInt64}." ++ "".pushn '0' (digits - fs.length) ++ fs
 
+/-- `--crypto oracle` (the default, fast) or `--crypto ed25519`. -/
+def cryptoFrom (args : List String) : Except String SchemeKind :=
+  let name := (flag args "--crypto").getD "oracle"
+  match SchemeKind.ofName? name with
+  | some k => .ok k
+  | none => .error s!"--crypto {name}: oracle or ed25519"
+
 def setupFrom (args : List String) : Except String Setup := do
   let white ← match flag args "--white" |>.getD "chat" with
     | "chat" => pure WhiteMode.chat
@@ -48,15 +56,16 @@ def setupFrom (args : List String) : Except String Setup := do
     | "self-ruled-start" => pure .selfRuledStart
     | b => throw s!"--black {b}: chat, contract, self-ruled or self-ruled-start"
   let pawns := if flag args "--pawns" == some "personalities" then PawnMode.personalities else .uniform
-  return { white, black, pawns, rogue := has args "--rogue"
+  return { white, black, pawns, rogue := has args "--rogue", crypto := ← cryptoFrom args
            fault := (flag args "--fault" >>= parseFloat?).getD 0.1
            compliance := (flag args "--compliance" >>= parseFloat?).getD 0.5 }
 
 def cmdPlay (args : List String) : IO UInt32 := do
   let setup ← IO.ofExcept (setupFrom args)
   let seed := (flag args "--seed" >>= String.toNat?).getD 1
-  IO.println (s!"seed {seed}: faults {setup.fault}, pawns {repr setup.pawns}" ++
-    (if setup.rogue then ", one rogue per side" else ""))
+  let pawns := if setup.pawns == .personalities then "pawns with personalities" else "uniform pawns"
+  IO.println (s!"seed {seed}: fault rate {fmt setup.fault 2}, {pawns}" ++
+    (if setup.rogue then ", one rogue per side" else "") ++ s!", {setup.crypto.name} signatures")
   let (g, log) ← IO.ofExcept (playGame setup seed (narrate := true))
   for l in log do IO.println l
   IO.println s!"White: {g.labels.1}.  Black: {g.labels.2}."
@@ -78,8 +87,9 @@ def cmdExperiments (args : List String) : IO UInt32 := do
   let first := (flag args "--seed" >>= String.toNat?).getD 1
   let out := (flag args "--out").getD "out"
   let only := (flag args "--only").map (·.splitOn ",")
-  let chosen := experiments.filter fun e => only.all (·.contains e.name)
-  IO.eprintln s!"{chosen.length * games} games to play"
+  let crypto ← IO.ofExcept (cryptoFrom args)
+  let chosen := (experiments.filter fun e => only.all (·.contains e.name)).map ({ · with crypto })
+  IO.eprintln s!"{chosen.length * games} games to play, {crypto.name} signatures"
   let tasks := chosen.map fun e =>
     (e, (List.range games).map fun i => Task.spawn fun _ => playGame e (first + i))
   let mut rows := #[]
@@ -119,5 +129,5 @@ def main (args : List String) : IO UInt32 := do
   | "play" :: rest => cmdPlay rest
   | "experiments" :: rest => cmdExperiments rest
   | _ =>
-    IO.println "usage: chess play [--seed N] [--white chat|rules-md] [--black chat|contract|self-ruled|self-ruled-start] [--rogue] [--pawns personalities] [--fault X] [--compliance X]\n       chess experiments [--games N] [--seed N] [--only a,b] [--out DIR]"
+    IO.println "usage: chess play [--seed N] [--white chat|rules-md] [--black chat|contract|self-ruled|self-ruled-start] [--rogue] [--pawns personalities] [--fault X] [--compliance X] [--crypto oracle|ed25519]\n       chess experiments [--games N] [--seed N] [--only a,b] [--out DIR] [--crypto oracle|ed25519]"
     return 1

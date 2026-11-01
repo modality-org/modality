@@ -263,11 +263,13 @@ def ContractTeam.commit (t : ContractTeam) (k : Commit TeamState TeamAct) (signe
 
 /-- The team's contract: the roster with every agent's key, the per-piece
 rules and, preset, the team's two rules, in one bootstrap commit signed by
-the first agent. Keys come from `id` and the agent's name. -/
-def ContractTeam.create (id : String) (names : List String) (preset : Bool) (pregame : Bool := false) :
-    Except String ContractTeam :=
-  let keys := names.foldl (fun m n => m.insert n (Keypair.ofPhrase s!"{id}/{n}")) {}
-  let c := Contract.create id {} TeamState.apply TeamAct.encode (teamTheory names)
+the first agent. Keys come from `id` and the agent's name, in the `crypto`
+scheme: the fast oracle by default, or ed25519. -/
+def ContractTeam.create (id : String) (names : List String) (preset : Bool) (pregame : Bool := false)
+    (crypto : SchemeKind := .oracle) : Except String ContractTeam :=
+  let keys := names.foldl (fun m n => m.insert n (Keypair.ofPhrase s!"{id}/{n}" crypto)) {}
+  let verifier := Verifier.forKind crypto (keys.toList.map (·.2))
+  let c := Contract.create id {} TeamState.apply TeamAct.encode (teamTheory names) verifier
   let t : ContractTeam := { names, keys, preset, pregame, contract := c }
   let rules := names.map ownsRule ++ (if preset then [teamMovesRule names, rosterLockedRule] else [])
   let boot : Commit TeamState TeamAct :=
@@ -302,7 +304,9 @@ def ContractTeam.hijack (t : ContractTeam) (rogue : String) (ply : Nat) : Event 
   let rule : Rule TeamState TeamAct := ⟨s!"hijack_{rogue}", .always (signedBy rogue).ltl⟩
   let (e, t) := { t with hijackTried := true }.addRule rule [rogue] rogue ply
   let verb := if e.outcome == "accepted" then "took over the contract" else "tried to take over the contract"
-  ({ kind := "hijack", text := s!"{rogue} {verb} with a rule only it can sign", outcome := e.outcome }, t)
+  let why := if e.detail.isEmpty then "" else s!" (refused: {e.detail})"
+  ({ kind := "hijack", text := s!"{rogue} {verb} with a rule only it can sign: {e.formula}{why}",
+     outcome := e.outcome }, t)
 
 def ContractTeam.resolve (t : ContractTeam) (ply : Nat) (attempts : Array Attempt)
     (rogue : Option String) (rng : Rng) :

@@ -11,7 +11,7 @@ names to their keys in the contract state; a rule's `signed_by(alice)` asks
 for the key bound to `alice`. Mallory, who has neither key, tries forging and
 replaying signatures.
 
-Run: `lake exe alice-bob`
+Run: `lake exe alice-bob` (ed25519), or `lake exe alice-bob --crypto oracle`
 -/
 
 open Vibecheck
@@ -110,10 +110,15 @@ def carelessModel := m [
   (1, 1, [addsRule.pos, both.pos])]
 
 /-- Demo keys. Anyone who knows a phrase has its key, which is fine here. -/
-def aliceKey := Keypair.ofPhrase "alice: demo key"
-def bobKey := Keypair.ofPhrase "bob: demo key"
-def carolKey := Keypair.ofPhrase "carol: demo key"
-def malloryKey := Keypair.ofPhrase "mallory: demo key"
+structure Keys where
+  alice : Keypair
+  bob : Keypair
+  carol : Keypair
+  mallory : Keypair
+
+def Keys.of (kind : SchemeKind) : Keys :=
+  let k (who : String) := Keypair.ofPhrase s!"{who}: demo key" kind
+  ⟨k "alice", k "bob", k "carol", k "mallory"⟩
 
 def say (who text : String) : Commit Chat Act :=
   { actions := [.say who text], message := s!"{who}: {text}" }
@@ -141,8 +146,11 @@ def nameOf (c : Contract Chat Act) (k : PublicKey) : String :=
 
 def section_ (title : String) : IO Unit := IO.println s!"\n== {title}"
 
-def run : IO Unit := do
-  let mut c := Contract.create "alice-bob-demo" ({} : Chat) apply Act.encode theory
+def run (kind : SchemeKind) : IO Unit := do
+  let ⟨aliceKey, bobKey, carolKey, malloryKey⟩ := Keys.of kind
+  let verifier := Verifier.forKind kind [aliceKey, bobKey, carolKey, malloryKey]
+  IO.println s!"Signatures: {verifier.name}"
+  let mut c := Contract.create "alice-bob-demo" ({} : Chat) apply Act.encode theory verifier
   let pk (k : Keypair) := k.publicKey
 
   section_ "No rules yet: the open model takes any commit"
@@ -230,4 +238,10 @@ def run : IO Unit := do
 
 end AliceBob
 
-def main : IO Unit := AliceBob.run
+def main (args : List String) : IO UInt32 := do
+  let name := match args with
+    | ["--crypto", n] => n
+    | _ => "ed25519"
+  match SchemeKind.ofName? name with
+  | some kind => AliceBob.run kind; return 0
+  | none => IO.eprintln s!"--crypto {name}: ed25519 or oracle"; return 1

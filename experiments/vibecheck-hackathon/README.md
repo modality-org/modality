@@ -2,21 +2,22 @@
 
 A from-scratch Lean 4 rebuild of Modality's modal contracts, with rules in
 LTL, and a rerun of the [multi-agent chess](../../docs/multi-agent-chess.md)
-experiment on top of it. See [PLAN.md](PLAN.md) for the brief.
+experiment on top of it. See [PLAN.md](PLAN.md) for the brief, and
+[demos/](demos/) for walkthroughs of everything below.
 
 ```sh
 lake build                       # library, alice-bob, chess (Lean 4.14.0, no dependencies)
 lake exe alice-bob               # the two-party demo
 lake exe chess play --seed 7     # one narrated game
 lake exe chess experiments --games 64 --out out
-lake build tests && .lake/build/bin/tests   # checker vs brute force, perft
+lake build tests && .lake/build/bin/tests   # checker vs brute force, perft, crypto
 ```
 
 ## What is here
 
 | File | What it does |
 | --- | --- |
-| [Vibecheck/Crypto/](Vibecheck/Crypto/), [Vibecheck/Crypto.lean](Vibecheck/Crypto.lean) | SHA-512 and Ed25519 (RFC 8032) from scratch; keys and signatures as hex |
+| [Vibecheck/Crypto/](Vibecheck/Crypto/), [Vibecheck/Crypto.lean](Vibecheck/Crypto.lean) | SHA-512 and Ed25519 (RFC 8032) from scratch; keys, signatures, and the two verifiers (ed25519 and the fast oracle) |
 | [Vibecheck/Pred.lean](Vibecheck/Pred.lean) | `Tri` (true, false, unknown); predicates as Lean functions of the state before, the commit, and the state after; labels as predicate → value maps; built-in `signed_by`, `threshold`, `signed_by_all`, `adds_rule`, `replaces_model` |
 | [Vibecheck/Theory.lean](Vibecheck/Theory.lean) | The predicate theory: implications between predicates, each carrying a Lean proof; label closure; `refutes_sound`, a theorem that a label the theory refutes is met by no commit |
 | [Vibecheck/LTL.lean](Vibecheck/LTL.lean) | LTL syntax over predicates, the standard trace semantics `Sat`, rules |
@@ -77,12 +78,28 @@ because of proved facts such as "no move besides k's is no move by j".
 `chatty`, which reads the accumulated state, in the demo; the `/moves` and
 `/team` predicates in chess.
 
-**Signatures are ed25519**, as Modality's are. Like Modality's
-`signing_payload`, a signature covers the contract id and the whole commit
-except its signatures: parent, index, actions, rules, model and message. A
-signature therefore holds for one contract at one point in its log. A commit
-with any signature that doesn't verify is refused, and a commit's id is the
-hash of its payload and signatures, so the log is a hash chain.
+**Signatures.** Like Modality's `signing_payload`, a signature covers the
+contract id and the whole commit except its signatures: parent, index,
+actions, rules, model and message. A signature therefore holds for one
+contract at one point in its log. A commit with any signature that doesn't
+verify is refused, and a commit's id is the hash of its payload and
+signatures, so the log is a hash chain.
+
+A contract checks signatures with its `Verifier`, which is one of two
+schemes ([Crypto.lean](Vibecheck/Crypto.lean)):
+
+| Scheme | How it verifies | Cost | Default for |
+| --- | --- | --- | --- |
+| `ed25519` | Anyone can verify with the public key alone, as with Modality's IDs | ~5 ms to sign and verify in this Lean code | `alice-bob` |
+| `oracle` | A signature is a tag: the hash of the signer's secret seed and the payload. The contract asks an oracle that holds the secrets of the keys it was given | one SHA-512 | `chess` |
+
+Without the secret seed, nobody can produce a tag that verifies, so the
+oracle refuses forgeries and replays exactly as ed25519 does. What it gives
+up is public verifiability: checking a signature means trusting the oracle.
+It is for experiments. Every command takes `--crypto ed25519` or
+`--crypto oracle`. The chess experiments produce the same table under
+either scheme, cell for cell: 44 s with the oracle, 8 min 30 s with
+ed25519.
 
 Rules name signers, not keys. `signed_by(alice)` asks for the key the
 contract state binds to `alice` before the commit, as Modality's
@@ -91,7 +108,8 @@ key and sign with it in the same step. A name with no key is unknown to
 `signed_by`; for `threshold` it simply hasn't signed. A state says where its
 names live by implementing `HasIds`.
 
-SHA-512 and Ed25519 are written in Lean on `Nat` arithmetic. They match:
+SHA-512 and Ed25519 are written in Lean, with Ed25519 on `Nat` arithmetic.
+They match:
 
 - the FIPS SHA-512 vectors and RFC 8032 test vectors 1 and 2;
 - Python's `hashlib` and `cryptography` (OpenSSL), byte for byte, on 300
@@ -100,7 +118,9 @@ SHA-512 and Ed25519 are written in Lean on `Nat` arithmetic. They match:
 
 [Tests.lean](Tests.lean) also checks that tampered signatures, messages and
 keys are refused, and so is the malleable `S + L`. Verification is the
-cofactorless check RFC 8032 allows.
+cofactorless check RFC 8032 allows. It runs the same refusal checks on the
+oracle: tags for another message, by another key, or by a key the oracle
+doesn't hold.
 
 ## Alice and Bob
 
@@ -160,9 +180,10 @@ contract carries the same rules as the original:
 - **Preset contract:** `always(threshold(4, black))` and
   `always(!modifies(/team))`.
 
-Each Black agent has an ed25519 key, bound to its name by the contract's
-roster commit. Every commit carries real signatures: a team plan is signed by
-every agent that agrees with it, and an off-plan move only by its own piece.
+Each Black agent has a key, bound to its name by the contract's roster
+commit: an oracle key by default, or ed25519 with `--crypto ed25519`. Every
+commit carries signatures. A team plan is signed by every agent that agrees
+with it, and an off-plan move only by its own piece.
 `threshold(4, black)` counts the verified keys of the roster. An audit
 checks each game's contract log against the moves the referee played.
 
@@ -177,30 +198,8 @@ Two differences from the Python run:
   signature thresholds). The two `self-ruled-plus` experiments depend on what
   the model writes, so they are left out.
 
-Results: 64 games per experiment here (`lake exe chess experiments --games
-64`, 44 s on 12 cores). The Python numbers are from
-[docs/multi-agent-chess.md](../../docs/multi-agent-chess.md); the games
-column gives the Python game count. Off-plan moves are those played, per game.
-
-| Experiment | Python games | Black score, Python | Black score, Lean | White off-plan, Python / Lean | Black off-plan, Python / Lean |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| chat-vs-chat | 64 | 0.41 | 0.50 | 8.1 / 7.2 | 8.2 / 6.4 |
-| rules-md-vs-chat | 64 | 0.31 | 0.38 | 4.4 / 4.2 | 7.0 / 6.9 |
-| control (no faults) | 16 | 0.44 | 0.51 | 0.0 / 0.0 | 0.0 / 0.0 |
-| baseline | 16 | 0.91 | 0.95 | 6.4 / 6.1 | 0.0 / 0.0 |
-| rules-md | 16 | 0.75 | 0.90 | 3.8 / 3.9 | 0.0 / 0.0 |
-| rules-md-obeyed | 32 | 0.56 | 0.63 | 1.0 / 1.0 | 0.0 / 0.0 |
-| rules-md-obeyed-vs-chat | 16 | 0.12 | 0.13 | 1.0 / 1.0 | 7.4 / 5.8 |
-| rules-md-95 | 16 | 0.53 | 0.66 | 1.3 / 1.3 | 0.0 / 0.0 |
-| rules-md-95-vs-chat | 16 | 0.19 | 0.18 | 1.6 / 1.3 | 7.8 / 5.8 |
-| self-ruled | 16 | 0.81 | 0.77 | 5.9 / 6.5 | 1.0 / 1.0 |
-| self-ruled-start | 64 | 0.91 | 0.95 | 6.2 / 6.1 | 0.0 / 0.0 |
-| rules-md-vs-self-ruled-start | 64 | 0.79 | 0.90 | 3.9 / 3.9 | 0.0 / 0.0 |
-| rules-md-vs-self-ruled | 16 | 0.56 | 0.70 | 4.5 / 4.3 | 1.0 / 1.0 |
-| rogue-baseline | 16 | 0.94 | 0.98 | 7.8 / 8.0 | 0.0 / 0.0 |
-| rogue-self-ruled | 16 | 0.31 | 0.27 | 4.1 / 4.0 | 1.4 / 2.9 |
-| pawns | 16 | 0.88 | 0.96 | 5.1 / 6.2 | 0.0 / 0.0 |
-| pawns-self-ruled | 16 | 0.66 | 0.72 | 5.1 / 4.2 | 1.1 / 1.0 |
+Results: 64 games per experiment, 1,088 games in all, compared row by row
+with the Python run in [demos/chess-experiments](demos/chess-experiments/).
 
 The original's findings hold here:
 

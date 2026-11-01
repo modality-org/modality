@@ -33,6 +33,8 @@ structure Setup where
   rogueFrom : Nat := 10
   maxRetros : Nat := 3
   note : String := ""
+  /-- How Black's agents sign: the fast oracle, or ed25519. -/
+  crypto : SchemeKind := .oracle
 
 /-- Every setup the Python experiment runs that needs no language model to
 reproduce, and the ones whose retros are scripted here. -/
@@ -135,10 +137,10 @@ def playGame (setup : Setup) (seed : Nat) (depth : Nat := 2) (margin : Int := 20
   let mut pregame := #[]
   match setup.black with
   | .chat => coords := coords.push (.chat { rulesMd := false })
-  | .contract => coords := coords.push (.contract (← ContractTeam.create s!"black-{seed}" blackNames true))
-  | .selfRuled => coords := coords.push (.contract (← ContractTeam.create s!"black-{seed}" blackNames false))
+  | .contract => coords := coords.push (.contract (← ContractTeam.create s!"black-{seed}" blackNames true (crypto := setup.crypto)))
+  | .selfRuled => coords := coords.push (.contract (← ContractTeam.create s!"black-{seed}" blackNames false (crypto := setup.crypto)))
   | .selfRuledStart =>
-    let t ← ContractTeam.create s!"black-{seed}" blackNames false (pregame := true)
+    let t ← ContractTeam.create s!"black-{seed}" blackNames false (pregame := true) (crypto := setup.crypto)
     let (ev, t) := t.retro "king_e8" 0 none
     pregame := ev
     coords := coords.push (.contract t)
@@ -215,6 +217,8 @@ def playGame (setup : Setup) (seed : Nat) (depth : Nat := 2) (margin : Int := 20
       | forfeit := some side
         forfeitEvents := events
         if narrate then
+          let n := (ply + 1) / 2
+          log := log.push s!"{n}{if side == .white then "." else "..."} {side.name} plan: {at_.at plan.fromSq} {game.pos.san plan}"
           for e in events do log := log.push s!"    * {e.text}"
           log := log.push s!"ply {ply}: {side.name} could get no move accepted and forfeits"
         break
@@ -266,6 +270,9 @@ where
     let stray := (r.earlier ++ r.sent).filter (·.attempt.kind != .plan)
     if stray.isEmpty && r.events.isEmpty then return #[]
     let mut out := #[s!"{moveNumber r} {r.side.name} plan: {r.plan.agent} {r.plan.san}"]
+    -- A takeover or a wipe happens before any move is sent.
+    let first (e : Event) := e.kind == "hijack" || e.kind == "wipe"
+    for e in r.events.filter first do out := out.push s!"    * {e.text}"
     for s in stray do
       let why := match s.outcome with
         | .refused w => s!" ({w})"
@@ -274,7 +281,7 @@ where
       out := out.push s!"    {s.attempt.agent} ({s.attempt.kind.name}) sent {s.attempt.move.uci}: {s.outcome.name}{why}"
     if r.played.move != r.plan.move then
       out := out.push s!"    played {r.played.san} instead, {describeCost r}"
-    for e in r.events do out := out.push s!"    * {e.text}"
+    for e in r.events.filter (!first ·) do out := out.push s!"    * {e.text}"
     return out
 
 /-! ## Summaries, as `summarize` and `row_for` -/
