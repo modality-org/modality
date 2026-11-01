@@ -41,6 +41,9 @@ inductive TeamAct where
   | credit (agent : String)
   /-- How deep the contract's engine scores each move; 0 scores none. -/
   | setEvalDepth (depth : Nat)
+  /-- Game `n` of a match begins: the board and the captures start over; the
+  ledger of strikes and credit carries on. -/
+  | newGame (n : Nat)
 
 structure TeamState where
   /-- Each agent's key. -/
@@ -59,6 +62,8 @@ structure TeamState where
   lastLoss : Nat := 0
   /-- Good recommendations on record, per agent. -/
   credits : List (String × Nat) := []
+  /-- Which game of the match. -/
+  game : Nat := 1
 
 def TeamState.strikesOf (s : TeamState) (agent : String) : Nat := (s.strikes.lookup agent).getD 0
 
@@ -87,6 +92,8 @@ def TeamState.apply (s : TeamState) : TeamAct → TeamState
   | .ballot .. => s
   | .credit a => { s with credits := (a, (s.credits.lookup a).getD 0 + 1) :: s.credits.filter (·.1 != a) }
   | .setEvalDepth d => { s with evalDepth := d }
+  | .newGame n =>
+    { s with pos := Position.start, moves := [], ply := 0, captured := [], lastLoss := 0, game := n }
   | .ply n => { s with ply := n }
   | .strike a => { s with strikes := (a, s.strikesOf a + 1) :: s.strikes.filter (·.1 != a) }
   | .captured a => if s.captured.contains a then s else { s with captured := s.captured ++ [a] }
@@ -103,6 +110,7 @@ def TeamAct.encode : TeamAct → String
   | .ballot a u => s!"ballot {a} {u}"
   | .credit a => s!"credit {a}"
   | .setEvalDepth d => s!"eval-depth {d}"
+  | .newGame n => s!"new-game {n}"
 
 abbrev TP := Pred TeamState TeamAct
 abbrev TLabel := Label TeamState TeamAct

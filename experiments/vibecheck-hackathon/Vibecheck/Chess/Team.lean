@@ -158,6 +158,10 @@ structure ContractTeam where
   capturedSilent : Bool := false
   /-- Agents whose pieces White has captured. -/
   lost : List String := []
+  /-- Where this game's commits begin in the log. -/
+  gameStart : Nat := 0
+  game : Nat := 1
+  matchGames : Nat := 1
   hijackTried : Bool := false
   accepted : Nat := 0
   refused : Nat := 0
@@ -324,7 +328,7 @@ def ContractTeam.resolve (t : ContractTeam) (ply : Nat) (attempts : Array Attemp
 
 def ContractTeam.ledger (t : ContractTeam) : Ledger :=
   { names := t.names, strikes := t.contract.state.strikes, captured := t.contract.state.captured
-    collusion := t.collusion
+    collusion := t.collusion, game := t.game, matchGames := t.matchGames
     rules := (t.rules.filter (·.outcome == "accepted")).toList.map fun r => (r.words, r.formula) }
 
 /-- A retro: one agent writes a rule, and the team signs it, all but the
@@ -358,9 +362,21 @@ def ContractTeam.afterPly (t : ContractTeam) (writer : Writer) (author : String)
   if t.preset || t.retros ≥ t.maxRetros then return (#[], t)
   { t with retros := t.retros + 1 }.retro writer author ply rogue (some i)
 
-/-- Every Black move in the contract's log: ply → (agent, uci, signatures). -/
+/-- The next game of a match: one commit, signed by every agent but the
+rogue, starts the board over. Rules, keys and the ledger carry on. -/
+def ContractTeam.startGame (t : ContractTeam) (n : Nat) (rogue : Option String) :
+    Except String ContractTeam := do
+  let signers := t.names.filter (some · != rogue)
+  let k : Commit TeamState TeamAct := { actions := t.pending ++ [.newGame n], message := s!"game {n}" }
+  match t.commit k signers with
+  | .ok c =>
+    return { t with contract := c, accepted := t.accepted + 1, game := n, gameStart := c.log.size,
+                    pending := [], sync := [], lost := [], retros := 0, incidents := #[] }
+  | .error e => throw s!"game {n} could not start: {e}"
+
+/-- Every Black move this game in the contract's log: ply → (agent, uci, signatures). -/
 def ContractTeam.loggedMoves (t : ContractTeam) : List (Nat × String × String × Nat) :=
-  t.contract.log.toList.filterMap fun e =>
+  (t.contract.log.toList.drop t.gameStart).filterMap fun e =>
     let moves := e.commit.actions.filterMap fun
       | .move a u => some (a, u)
       | _ => none

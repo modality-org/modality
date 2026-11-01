@@ -62,6 +62,9 @@ structure Setup where
   /-- Captured Black agents no longer sign. -/
   capturedSilent : Bool := false
   judgment : Judgment := .shared
+  /-- Games per match: Black's contract, its rules and its ledger, and every
+  agent's personality, carry over from one game of a match to the next. -/
+  matchGames : Nat := 1
   /-- How deep each agent's own judgment searches, beneath its noise. -/
   judgeDepth : Nat := 2
   /-- White's fault rate, when it differs from Black's. -/
@@ -182,6 +185,28 @@ def advancedExperiments : List Setup :=
         else "always(moves_any -> threshold(10))"],
       note := s!"Agents judge at depth 3 with their own noise; plan by {n}; White has no faults" }
 
+/-- A rule with a long memory: a piece with three strikes needs twelve signatures. -/
+def strikeRule := "always(moves($k) & strikes_at_least($k, 3) -> threshold(12))"
+
+/-- Setups played as matches, where Black's contract and its ledger last
+across games, against the same setups one game at a time. -/
+def matchExperiments : List Setup :=
+  ([1, 8].flatMap fun m =>
+    [("track", [min2Rule, strikeRule]), ("min2", [min2Rule]), ("flat12", [flat12Rule])].map fun (n, rs) =>
+    { name := s!"match{m}-{n}", black := .fixed, collusion := 4, pawns := .personalities, matchGames := m,
+      constitution := rs, note := s!"Matches of {m}; pawns differ, 4 co-signers; " ++ " & ".intercalate rs }) ++
+  ([1, 8].flatMap fun m =>
+    [("plurality", Judgment.plurality, "always(moves_any -> threshold(10) & wins_vote)"),
+     ("credit", .credit, "always(moves_any -> threshold(10) & wins_credit_vote)")].map fun (n, j, r) =>
+    { name := s!"match{m}-deep-{n}", black := .fixed, judgment := j, judgeDepth := 3, whiteFault := some 0.0,
+      matchGames := m, constitution := [r],
+      note := s!"Matches of {m}; agents judge at depth 3 with their own noise; plan by {n}" })
+
+def matchLLMExperiments : List Setup := [
+  { name := "llm-match8", black := .selfRuledStart, rich := true, llm := true, collusion := 4,
+    pawns := .personalities, matchGames := 8,
+    note := "Matches of 8; pawns differ, 4 co-signers; a language model writes Black's rules, which carry over" }]
+
 /-- The language-model versions: does the model find these rules itself? -/
 def advancedLLMExperiments : List Setup := [
   { name := "llm-gov-none", white := .rulesMd, black := .selfRuled, rogue := true, rich := true, llm := true,
@@ -239,6 +264,8 @@ structure Audit where
 
 structure GameResult where
   seed : Nat
+  /-- Which game of its match. -/
+  game : Nat := 1
   setup : Setup
   labels : String × String
   rogues : Option String × Option String
@@ -287,9 +314,14 @@ def describeContained (r : PlyRecord) (san : Move → String) : Option String :=
     some (s!"On move {moveNumber r} the team planned {r.plan.san} ({r.plan.agent}), and {who} instead. " ++
       s!"The contract refused {if refused.size == 1 then "it" else "them"}, and {r.played.san} was played.")
 
+/-- One game. In a match, `persona` fixes who the agents are (their faults,
+their judgment, the rogue) for every game, and `carried` is Black's
+contract from the game before, rules and ledger included. Returns Black's
+contract as the game leaves it. -/
 def playGame (setup : Setup) (seed : Nat) (writer : Writer := .scripted) (depth : Nat := 2)
-    (margin : Int := 20) (maxPlies : Nat := 160) (narrate : Bool := false) :
-    IO (GameResult × Array String) := do
+    (margin : Int := 20) (maxPlies : Nat := 160) (narrate : Bool := false) (persona : Nat := seed)
+    (carried : Option ContractTeam := none) (gameNo : Nat := 1) :
+    IO (GameResult × Array String × Option ContractTeam) := do
   let mut game := Game.start
   let mut at_ := initialAgents game.pos
   let mut rngs := #[Rng.ofSeed s!"{seed}-white", Rng.ofSeed s!"{seed}-black"]
@@ -298,42 +330,46 @@ def playGame (setup : Setup) (seed : Nat) (writer : Writer := .scripted) (depth 
       if game.pos.colorAt sq == some c then some (at_.at sq) else none).toArray.qsort (· < ·)
   let rosters := #[rosterOf .white, rosterOf .black]
   let traits := match setup.whiteFault with
-    | none => makeTraits (rosters[0]! ++ rosters[1]!) setup.fault setup.compliance setup.pawns seed
+    | none => makeTraits (rosters[0]! ++ rosters[1]!) setup.fault setup.compliance setup.pawns persona
     | some wf =>
-      (makeTraits rosters[1]! setup.fault setup.compliance setup.pawns seed).insertMany
-        (makeTraits rosters[0]! wf setup.compliance setup.pawns seed).toList
-  let rogues := rosters.map fun r => if setup.rogue then some (chooseRogue seed r) else none
+      (makeTraits rosters[1]! setup.fault setup.compliance setup.pawns persona).insertMany
+        (makeTraits rosters[0]! wf setup.compliance setup.pawns persona).toList
+  let rogues := rosters.map fun r => if setup.rogue then some (chooseRogue persona r) else none
   let blackNames := rosters[1]!.toList
   let mut coords : Array Coord := #[.chat { rulesMd := setup.white == .rulesMd, maxRetros := setup.maxRetros }]
   let mut pregame := #[]
   let evalDepth := if setup.llm then 2 else 0
   -- With noisy judgment, each Black agent has its own noise, from 25 to 400 centipawns.
-  let noiseRng := Rng.ofSeed s!"{seed}-judgment"
+  let noiseRng := Rng.ofSeed s!"{persona}-judgment"
   let (sigmas, _) := blackNames.foldl (fun (acc, r) n =>
     let (i, r) := r.below 5
     (acc.insert n (#[25.0, 50.0, 100.0, 200.0, 400.0][i]!), r)) (({} : Std.HashMap String Float), noiseRng)
-  match setup.black with
-  | .chat => coords := coords.push (.chat { rulesMd := false })
-  | .contract =>
+  match carried, setup.black with
+  | some t, _ =>
+    coords := coords.push (.contract (← IO.ofExcept (t.startGame gameNo (if setup.rogue then rogues[1]! else none))))
+  | none, .chat => coords := coords.push (.chat { rulesMd := false })
+  | none, .contract =>
     coords := coords.push (.contract (← IO.ofExcept
       (ContractTeam.create s!"black-{seed}" blackNames true (crypto := setup.crypto))))
-  | .selfRuled =>
+  | none, .selfRuled =>
     coords := coords.push (.contract (← IO.ofExcept
       (ContractTeam.create s!"black-{seed}" blackNames false (rich := setup.rich) (crypto := setup.crypto)
         (constitution := setup.constitution) (collusion := setup.collusion)
         (capturedSilent := setup.capturedSilent) (evalDepth := evalDepth))))
-  | .fixed =>
+  | none, .fixed =>
     let t ← IO.ofExcept (ContractTeam.create s!"black-{seed}" blackNames false (crypto := setup.crypto)
       (constitution := setup.constitution) (collusion := setup.collusion)
       (capturedSilent := setup.capturedSilent))
     coords := coords.push (.contract { t with maxRetros := 0 })
-  | .selfRuledStart =>
+  | none, .selfRuledStart =>
     let t ← IO.ofExcept (ContractTeam.create s!"black-{seed}" blackNames false (pregame := true)
       (rich := setup.rich) (crypto := setup.crypto) (constitution := setup.constitution)
       (collusion := setup.collusion) (capturedSilent := setup.capturedSilent) (evalDepth := evalDepth))
-    let (ev, t) ← t.retro writer "king_e8" 0 none none
+    let (ev, t) ← { t with matchGames := setup.matchGames }.retro writer "king_e8" 0 none none
     pregame := ev
     coords := coords.push (.contract t)
+  if let .contract t := coords[1]! then
+    coords := coords.set! 1 (.contract { t with matchGames := setup.matchGames })
   let mut log := #[]
   let mut plies : Array PlyRecord := #[]
   let mut forfeit : Option Color := none
@@ -499,8 +535,11 @@ def playGame (setup : Setup) (seed : Nat) (writer : Writer := .scripted) (depth 
               | .chat _ => #[]
             whiteRules := match coords[0]! with
               | .chat c => c.rules.map (·.text)
-              | .contract _ => #[] },
-          log)
+              | .contract _ => #[]
+            game := gameNo },
+          log, match coords[1]! with
+            | .contract t => some t
+            | .chat _ => none)
 where
   narratePly (r : PlyRecord) : Array String := Id.run do
     let stray := (r.earlier ++ r.sent).filter (·.attempt.kind != .plan)
@@ -575,6 +614,9 @@ structure Row where
   /-- Centipawns per Black move given up against the engine's best. -/
   blackLossPerMove : Float := 0
   blackStalls : Float := 0
+  /-- Black's score in the first and second halves of its matches. -/
+  earlyScore : Float := 0
+  lateScore : Float := 0
 
 def row (setup : Setup) (games : Array GameResult) : Row :=
   let n := games.size
@@ -599,6 +641,14 @@ def row (setup : Setup) (games : Array GameResult) : Row :=
       let moves := ss.foldl (fun acc (x : SideSummary) => acc + x.moves) 0
       let loss := ss.foldl (fun acc (x : SideSummary) => acc + x.lossTotal) 0
       if moves == 0 then 0 else loss.toNat.toFloat / moves.toFloat
-    blackStalls := avg fun g => (summarize g .black).stalls }
+    blackStalls := avg fun g => (summarize g .black).stalls
+    earlyScore := scoreOf' (games.filter (·.game * 2 ≤ setup.matchGames))
+    lateScore := scoreOf' (games.filter (·.game * 2 > setup.matchGames)) }
+where
+  scoreOf' (gs : Array GameResult) : Float :=
+    if gs.isEmpty then 0 else
+      let b := (gs.filter (·.winner == some .black)).size
+      let w := (gs.filter (·.winner == some .white)).size
+      (b.toFloat + (gs.size - b - w).toFloat / 2) / gs.size.toFloat
 
 end Vibecheck.Chess

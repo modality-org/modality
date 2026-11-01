@@ -78,7 +78,7 @@ def cmdPlay (args : List String) : IO UInt32 := do
     (if setup.rogue then ", one rogue per side" else "") ++ s!", {setup.crypto.name} signatures")
   let writer := writerFrom args
   if let .llm llm := writer then IO.println s!"retros ask {llm.model}, answers cached in {llm.cacheDir}"
-  let (g, log) ← playGame setup seed writer (narrate := true)
+  let (g, log, _) ← playGame setup seed writer (narrate := true)
   for l in log do IO.println l
   IO.println s!"White: {g.labels.1}.  Black: {g.labels.2}."
   let winner := match g.winner with | some c => c.name | none => "draw"
@@ -135,26 +135,44 @@ def cmdExperiments (args : List String) : IO UInt32 := do
   let llmRun := has args "--llm"
   let writer := writerFrom args
   let advanced := has args "--advanced"
-  let pool := match advanced, llmRun with
-    | true, true => advancedLLMExperiments
-    | true, false => advancedExperiments
-    | false, true => llmExperiments
-    | false, false => experiments
+  let matchRun := has args "--match"
+  let pool := match matchRun, advanced, llmRun with
+    | true, _, true => matchLLMExperiments
+    | true, _, false => matchExperiments
+    | false, true, true => advancedLLMExperiments
+    | false, true, false => advancedExperiments
+    | false, false, true => llmExperiments
+    | false, false, false => experiments
   let chosen := (pool.filter fun e => only.all (·.contains e.name)).map ({ · with crypto })
   let jobs := (flag args "--jobs" >>= String.toNat?).getD (if llmRun then 8 else 16)
   IO.eprintln (s!"{chosen.length * games} games to play, {crypto.name} signatures" ++
     (match writer with | .llm l => s!", retros by {l.model}" | .scripted => ""))
-  -- Run `jobs` games at a time: with a language model, that is also how many
-  -- questions are open at once.
-  let work := chosen.flatMap fun e => (List.range games).map fun i => (e, first + i)
+  -- Run `jobs` matches at a time: with a language model, that is also how many
+  -- questions are open at once. A match plays its games in order, Black's
+  -- contract carried from each to the next; a lone game is a match of one.
+  let work := chosen.flatMap fun e =>
+    (List.range ((games + e.matchGames - 1) / e.matchGames)).map fun i => (e, first + i)
   let mut done : Array (String × Except IO.Error GameResult) := #[]
+  let mut played := 0
   for batch in (List.range ((work.length + jobs - 1) / jobs)).map fun b => (work.drop (b * jobs)).take jobs do
-    let tasks ← batch.mapM fun (e, seed) => do
-      let t ← IO.asTask (do let (g, _) ← playGame e seed (if e.llm then writer else .scripted); pure g)
+    let tasks ← batch.mapM fun (e, m) => do
+      let t ← IO.asTask do
+        let mut carried := none
+        let mut out := #[]
+        for g in [1:e.matchGames + 1] do
+          let seed := if e.matchGames == 1 then m else m * 100 + g
+          let (r, _, t) ← playGame e seed (if e.llm then writer else .scripted) (persona := m)
+            (carried := carried) (gameNo := g)
+          carried := t
+          out := out.push r
+        pure out
       pure (e.name, t)
     for (name, t) in tasks do
-      done := done.push (name, t.get)
-    IO.eprintln s!"  {done.size}/{work.length} games"
+      match t.get with
+      | .ok rs => for r in rs do done := done.push (name, .ok r)
+      | .error e => done := done.push (name, .error e)
+    played := played + batch.length
+    IO.eprintln s!"  {played}/{work.length} matches"
   let mut rows := #[]
   let mut byExperiment := []
   for e in chosen do
@@ -170,8 +188,8 @@ def cmdExperiments (args : List String) : IO UInt32 := do
     rows := rows.push r
   let header := "| Experiment | White | Black | Games | White wins | Draws | Black wins | Black score | " ++
     "White off-plan played | Black off-plan played | White rules | Black rules | Hijacks | Forfeits W/B | Audit failures | " ++
-    "Black loss/move | Black stalls |"
-  let sep := "| --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |"
+    "Black loss/move | Black stalls | Black score, early / late games |"
+  let sep := "| --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |"
   let lines := rows.toList.map fun r =>
     let white := match r.setup.white with
       | .chat => "chat"
@@ -185,7 +203,8 @@ def cmdExperiments (args : List String) : IO UInt32 := do
     s!"| {r.setup.name} | {white} | {black} | {r.games} | {r.whiteWins} | {r.draws} | {r.blackWins} | " ++
       s!"{fmt r.blackScore} | {fmt r.whiteOffPlan 1} | {fmt r.blackOffPlan 1} | {fmt r.whiteRules 1} | " ++
       s!"{fmt r.blackRules 1} | {r.hijacks} | {r.forfeits.1}/{r.forfeits.2} | {r.auditFailures} | " ++
-      s!"{fmt r.blackLossPerMove 1} | {fmt r.blackStalls 1} |"
+      s!"{fmt r.blackLossPerMove 1} | {fmt r.blackStalls 1} | " ++
+      (if r.setup.matchGames > 1 then s!"{fmt r.earlyScore} / {fmt r.lateScore} |" else "– |")
   let table := "\n".intercalate (header :: sep :: lines)
   IO.println table
   IO.FS.createDirAll out

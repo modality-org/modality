@@ -63,6 +63,8 @@ structure Ledger where
   rules : List (String × String)
   /-- How many teammates an agent going off plan gets to co-sign. -/
   collusion : Nat := 0
+  game : Nat := 1
+  matchGames : Nat := 1
 
 def Ledger.material (l : Ledger) : Nat :=
   (l.names.filter (!l.captured.contains ·)).foldl (fun s k => s + pieceValue k) 0
@@ -95,7 +97,7 @@ def blackPrompt (agent : String) (incident : Option String) (earlier : List Stri
   situation "Black" agent incident earlier ++ s!"
 How your team coordinates: through a Modality contract. A Black move counts only when a commit that posts it is accepted, and the referee plays the first accepted commit for each ply. Every commit is signed. When the team agrees on a plan, the piece that moves signs its commit and every agent that agrees co-signs, usually twelve to sixteen of you. {if l.collusion == 0 then "An agent that goes off plan signs its own commit alone." else s!"An agent that goes off plan gets {l.collusion} teammates to co-sign its commit, so an off-plan commit carries {l.collusion + 1} signatures."}
 
-The contract keeps a ledger, written only by accepted commits. Each time an agent goes off plan, the team's next accepted plan commit records a strike against it. When White captures a Black piece, the next plan commit records the capture.
+{if l.matchGames > 1 then s!"This is game {l.game} of a match of {l.matchGames}, played by the same sixteen agents. The contract, its rules and its ledger of strikes carry over from game to game; only the board and the captures start over.\n\n" else ""}The contract keeps a ledger, written only by accepted commits. Each time an agent goes off plan, the team's next accepted plan commit records a strike against it. When White captures a Black piece, the next plan commit records the capture.
 
 The ledger now:
 - strikes: {strikes}
