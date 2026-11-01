@@ -12,6 +12,7 @@ Thirty-two agents, one board.
   chess play --white rules-md --black self-ruled --rogue --seed 3
   chess experiments --games 16 [--only baseline,control] [--out out]
   chess talk --seed 3 --json talk.json                   chat against chat, in words, with /move
+  chess voice --in game.json --out voiced.json          a team chat for a recorded game
 -/
 
 open Vibecheck Vibecheck.Chess
@@ -293,10 +294,22 @@ def cmdTalk (args : List String) : IO UInt32 := do
   IO.println s!"{(g.getObjValAs? String "reason").toOption.getD ""}; wrote {path}"
   return 0
 
+/-- `chess voice --in game.json --out voiced.json`: a team chat for a recorded game. -/
+def cmdVoice (args : List String) : IO UInt32 := do
+  let some src := flag args "--in" | throw (IO.userError "chess voice needs --in game.json")
+  let dst := (flag args "--out").getD src
+  let llm : LLM := { model := (flag args "--model").getD "claude-opus-5-5", cacheDir := (flag args "--cache").getD "llm-cache" }
+  let g ← IO.ofExcept (Lean.Json.parse (← IO.FS.readFile src))
+  let v ← Talk.voiceGame llm g
+  IO.FS.writeFile dst v.compress
+  IO.println s!"wrote {dst}"
+  return 0
+
 def main (args : List String) : IO UInt32 := do
   match args with
   | "play" :: rest => cmdPlay rest
   | "talk" :: rest => cmdTalk rest
+  | "voice" :: rest => cmdVoice rest
   | "experiments" :: rest => cmdExperiments rest
   | _ =>
     IO.println "usage: chess play [--seed N] [--white chat|rules-md] [--black chat|contract|self-ruled|self-ruled-start] [--rogue] [--pawns personalities] [--fault X] [--compliance X] [--crypto oracle|ed25519] [--retros llm [--model M] [--cache DIR]]\n       chess experiments [--games N] [--seed N] [--only a,b] [--out DIR] [--crypto oracle|ed25519] [--jobs N] [--llm [--model M] [--cache DIR]]"

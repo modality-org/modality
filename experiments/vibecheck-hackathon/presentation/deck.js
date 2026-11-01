@@ -155,9 +155,10 @@
     p.events.some((e) => e.kind === 'hijack');
   const incident = (p) => offPlan(p) || stopped(p) || p.events.some((e) => e.kind === 'stall');
 
-  function stats(g, s) {
+  // A side's counts so far: up to and including ply `upto`.
+  function stats(g, s, upto) {
     const out = { off: 0, rogueRefused: 0, takeover: null };
-    g.plies.filter((p) => p.side === s).forEach((p) => {
+    g.plies.filter((p) => p.side === s && p.ply <= upto).forEach((p) => {
       if (offPlan(p)) out.off++;
       p.attempts.forEach((a) => { if (a.kind === 'rogue' && a.outcome === 'refused') out.rogueRefused++; });
       p.events.forEach((e) => { if (e.kind === 'hijack') out.takeover = e.outcome; });
@@ -212,21 +213,27 @@
   function Replay(host) {
     const games = host.dataset.games.split(',').map((k) => GAMES.find((g) => g.key === k)).filter(Boolean);
     if (!games.length) return null;
+    // data-start='{"key": ply}': where each game opens; ⏮ goes back to the start.
+    let starts = {};
+    try { starts = JSON.parse(host.dataset.start || '{}'); } catch (e) { /* none */ }
     host.innerHTML = SKELETON;
     const r = (name) => host.querySelector(`[data-r="${name}"]`);
     let game = games[0], cur = 0, timer = null;
 
     function drawSides() {
       for (const [s, slot] of [['black', 'top'], ['white', 'bottom']]) {
-        const st = stats(game, s);
+        const st = stats(game, s, cur);
         const parts = [`${st.off} off plan`];
-        if (kindOf(game[s].tool) === 'contract' && game[s].rogue) parts.push(`${st.rogueRefused} rogue moves refused`);
+        if (kindOf(game[s].tool) === 'contract' && game[s].rogue) parts.push(`${st.rogueRefused} rogue ${st.rogueRefused === 1 ? 'move' : 'moves'} refused`);
         if (st.takeover) parts.push(`takeover ${st.takeover}`);
         r(slot).replaceChildren(el('span', 'pieces ' + (s === 'white' ? 'w' : 'b'), '♚︎'), sideTool(game, s), el('span', 'stat', parts.join(' · ')));
       }
       const same = game.white.tool === game.black.tool;
       const w = !game.winner ? null : same ? `${game.winner === 'white' ? 'White' : 'Black'} (${shown(game[game.winner].tool)})` : shown(game[game.winner].tool);
-      r('result').textContent = (w ? `${w} wins` : 'Draw') + ` (${game.reason}), ${game.plies.length} plies. Seed ${game.seed}.`;
+      // The result shows only once the game has been played to the end.
+      r('result').textContent = cur < game.plies.length
+        ? `${game.plies.length} plies. Seed ${game.seed}.`
+        : (w ? `${w} wins` : 'Draw') + ` (${game.reason}), ${game.plies.length} plies. Seed ${game.seed}.`;
     }
 
     function drawBoard() {
@@ -275,12 +282,21 @@
         const row = el('div', 'say ' + (cls || ''));
         const head = el('div', 'who');
         head.append(el('b', '', who));
-        const body = el('div', text.startsWith('/move') ? 'cmd' : 'text', text);
+        const body = el('div', text.startsWith('/move') || text.startsWith('/rule') ? 'cmd' : 'text', text);
         row.append(head, body);
         panel.append(row);
         return body;
       };
-      panel.append(el('p', 'chat-note', 'Team chat. A language model voices the agents; the referee plays the first legal /move.'));
+      panel.append(el('p', 'chat-note', game.voiced
+        ? 'Team chat, voiced by a language model. Every move is from the game’s record.'
+        : 'Team chat. A language model voices the agents; the referee plays the first legal /move.'));
+      const contract = kindOf(game[p.side].tool) === 'contract';
+      const judge = contract ? 'FV Contract' : 'referee';
+      // A refusal reads "… (nearest edge wants +threshold(10, team), got false)"; keep the reason.
+      const reason = (d) => {
+        const m = d.match(/nearest edge wants (.*)\)$/);
+        return m ? 'wants ' + m[1] : d.startsWith('RULES.md') ? '' : d;
+      };
       const kinds = Object.fromEntries(p.attempts.map((a) => [a.agent, a.kind]));
       // An agent that held back under RULES.md: its last line that isn't a /move says so.
       const held = new Set(p.attempts.filter((a) => a.outcome === 'held back').map((a) => a.agent));
@@ -296,11 +312,19 @@
         const k = kinds[c.agent];
         if (k && k !== 'plan') body.append(' ', el('span', 'kind', k));
         body.append(' ', el('span', 'badge ' + (BADGE[c.outcome] || 'quiet'), c.outcome));
-        if (c.detail) body.append(' ', el('span', 'aside', c.detail));
+        if (c.detail && reason(c.detail)) body.append(' ', el('span', 'aside', reason(c.detail)));
       }
-      for (const e of p.events) say('referee', e.text, 'ref');
+      for (const e of p.events) {
+        if (e.kind === 'rule' && e.outcome === 'no rule') continue;
+        const m = e.kind === 'hijack' && e.text.match(/^(\S+) tried .*?can sign: (.*?) \(refused/);
+        say(judge, m ? `Refused ${m[1]}’s rule ${m[2]}: a new rule needs 9 of the 16 signatures.` : e.text, 'ref');
+      }
       const late = p.attempts.filter((a) => a.outcome === 'too late').length;
-      say('referee', `First /move in: ${p.played.san} from ${p.played.agent}, played.` + (late ? ` ${late === 1 ? 'One other came' : `${late} others came`} too late.` : ''), 'ref');
+      const refused = p.attempts.filter((a) => a.outcome === 'refused').length;
+      say(judge, (contract
+        ? `Accepted ${p.played.san} from ${p.played.agent}: the team signed it.` + (refused ? ` Refused ${refused === 1 ? 'a move' : `${refused} moves`} signed alone.` : '')
+        : `First /move in: ${p.played.san} from ${p.played.agent}, played.`) +
+        (late ? ` ${late === 1 ? 'One other came' : `${late} others came`} too late.` : ''), 'ref');
       if (p.captured) say('referee', `${p.captured} is off the board.`, 'ref');
       if (offPlan(p)) say('referee', `Off plan: the team wanted ${p.plan.san}. That cost ${p.cost} centipawns.`, 'ref');
       if (p.played.san.endsWith('#')) say('referee', 'Checkmate.', 'ref');
@@ -377,10 +401,14 @@
       cur = Math.max(0, Math.min(game.plies.length, i));
       r('slider').value = String(cur);
       r('pos').textContent = `${cur} / ${game.plies.length}`;
+      drawSides();
       drawBoard();
       drawPanel();
       const box = r('moves');
-      box.querySelectorAll('button').forEach((b) => b.classList.toggle('cur', +b.dataset.i === cur));
+      box.querySelectorAll('button').forEach((b) => {
+        b.classList.toggle('cur', +b.dataset.i === cur);
+        b.classList.toggle('future', +b.dataset.i > cur);
+      });
       // Scroll the move list by hand: scrollIntoView would also scroll reveal's viewport.
       const now = box.querySelector('button.cur');
       if (!now) { box.scrollTop = 0; return; }
@@ -395,11 +423,23 @@
       timer = null;
       r('play').textContent = 'Play';
     }
+    // Autoplay runs from the first move and pauses once, on the game's key moment.
+    let pauseAt = 0;
     function play() {
       if (timer) return stop();
       if (cur >= game.plies.length) go(0);
       r('play').textContent = 'Pause';
-      timer = setInterval(() => { if (cur >= game.plies.length) stop(); else go(cur + 1); }, 650);
+      timer = setInterval(() => {
+        if (cur >= game.plies.length) return stop();
+        go(cur + 1);
+        if (pauseAt && cur === pauseAt) { pauseAt = 0; stop(); }
+      }, 650);
+    }
+    function autoplay() {
+      stop();
+      go(0);
+      pauseAt = starts[game.key] || 0;
+      play();
     }
     function choose(key) {
       stop();
@@ -412,7 +452,7 @@
       const file = r('file');
       file.hidden = kindOf(game.white.tool) !== 'rulesmd' && kindOf(game.black.tool) !== 'rulesmd';
       file.querySelector('.file-body').textContent = RULES_MD;
-      go(0);
+      go(starts[game.key] || 0);
     }
 
     if (games.length > 1) {
@@ -437,6 +477,7 @@
       step: (d) => { stop(); go(cur + d); },
       incident: () => { stop(); nextIncident(); },
       stop,
+      autoplay,
       choose,
       go,
     };
@@ -450,6 +491,8 @@
     if (q.get('game')) target.choose(q.get('game'));
     if (q.get('ply')) target.go(+q.get('ply'));
   }
+  // A game plays itself when its slide comes up, unless the address asked for a move.
+  const linked = q.has('ply');
 
   // ---------------------------------------------------------------- deck
 
@@ -474,6 +517,12 @@
     document.querySelectorAll('[data-act-link]').forEach((b) => b.setAttribute('aria-current', String(b.dataset.actLink === act)));
     replays.forEach((x) => { if (x !== here()) x.stop(); });
   }
+  function arrive() {
+    const x = here();
+    if (x && !linked) x.autoplay();
+  }
+  Reveal.on('ready', arrive);
+  Reveal.on('slidechanged', arrive);
   Reveal.on('ready', markAct);
   Reveal.on('slidechanged', markAct);
   document.querySelectorAll('[data-act-link]').forEach((b) => b.addEventListener('click', () => {

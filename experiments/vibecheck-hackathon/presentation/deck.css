@@ -110,6 +110,9 @@ ul.plain b { color: var(--ink); }
 /* The meme */
 .meme { width: 820px; max-width: 100%; border-radius: 14px; border: 1px solid var(--line); display: block; }
 
+/* The word rogue, in the rogue's red */
+.rogue-word { color: var(--rogue); }
+
 /* Pipeline */
 .pipe { display: grid; gap: 12px; grid-template-columns: repeat(5, minmax(0, 1fr)); }
 .pipe .card { padding: 18px; font-size: 19px; }
@@ -231,6 +234,7 @@ ul.plain b { color: var(--ink); }
 .moves button.off { background: var(--rogue); color: #fff; font-weight: 700; }
 .moves button.stop-contract { color: var(--contract); font-weight: 700; }
 .moves button.stop-rulesmd { color: var(--rulesmd); font-weight: 700; }
+.moves button.future { opacity: 0.3; }
 .moves button.cur { background: var(--ink); color: var(--paper); outline: 2px solid var(--ink); outline-offset: 1px; }
 .replay-legend { display: grid; gap: 4px; font-size: 13px; color: var(--muted); margin-top: 8px; }
 .replay-legend span { display: inline-flex; gap: 6px; align-items: center; }
@@ -244,8 +248,53 @@ ul.plain b { color: var(--ink); }
 .stat-strip .n small { font-size: 20px; color: var(--muted); }
 .stat-strip > div > span:last-child { font-size: 14px; color: var(--muted); line-height: 1.3; }
 
+/* What a rogue costs: a dumbbell per tool, share of points before and after */
+.dumbbell { display: grid; gap: 58px; padding: 48px 0 0; }
+.db-axis { position: relative; height: 16px; margin: -30px 170px 0 260px; font-family: var(--mono); font-size: 13px; color: var(--muted); }
+.db-axis span { position: absolute; transform: translateX(-50%); white-space: nowrap; }
+.db-row { display: grid; grid-template-columns: 260px minmax(0, 1fr) 170px; align-items: center; }
+.db-label { display: grid; gap: 2px; font-size: 22px; font-weight: 600; }
+.db-label small { font-size: 15px; font-weight: 400; color: var(--muted); }
+.db-track { position: relative; height: 64px; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.db-even { position: absolute; top: 0; bottom: 0; width: 0; border-left: 2px dashed var(--draw); }
+.db-line { position: absolute; top: 50%; height: 4px; margin-top: -2px; border-radius: 2px; opacity: 0.55; }
+.db-dot { position: absolute; top: 50%; width: 20px; height: 20px; margin: -10px 0 0 -10px; border-radius: 50%; box-shadow: 0 0 0 2px var(--paper); }
+.db-dot.hollow { background: var(--paper); border: 3px solid; }
+.db-dot b, .db-dot small { position: absolute; left: 50%; transform: translateX(-50%); white-space: nowrap; }
+.db-dot b { bottom: 24px; font-family: var(--display); font-size: 24px; }
+.db-dot small { bottom: 50px; font-size: 12px; color: var(--muted); }
+.db-dot.low b { bottom: auto; top: 24px; }
+.db-dot.low small { bottom: auto; top: 52px; }
+.db-verdict { padding-left: 18px; font-size: 16px; color: var(--muted); }
+.db-verdict.behind { color: var(--behind); font-weight: 600; }
+
+.mechanism { font-size: 19px; color: var(--ink); }
+.built .card { padding: 18px 20px; gap: 6px; }
+.built .big { font-size: 40px; color: var(--contract); }
+.built h3 { font-size: 20px; }
+.built p { font-size: 16px; }
+.end-links { display: flex; gap: 28px; font-size: 24px; font-weight: 600; }
+.end-links a { color: var(--contract); text-decoration: none; }
+.end-links a:hover { text-decoration: underline; }
+
+.answer { font-size: 25px; line-height: 1.4; color: var(--ink); max-width: 64ch; }
+.answer b { font-family: var(--display); font-size: 34px; margin-right: 6px; }
+
+/* The fake ending, staged like a TED talk: a dark room, a spotlight, the red
+   carpet and the red letters. Always dark, whatever the theme. */
+.ted-stage { position: relative; height: 760px; }
+.ted-carpet { position: absolute; left: 42%; bottom: 36px; width: 720px; height: 130px; transform: translateX(-50%); border-radius: 50%;
+  background: radial-gradient(ellipse at 50% 40%, #ef3b2d, #b8180c 62%, #6d0d06); box-shadow: 0 24px 60px rgba(0, 0, 0, 0.7), 0 0 90px rgba(235, 40, 20, 0.18); }
+.ted-letters { position: absolute; right: 40px; bottom: 120px; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; font-weight: 900; font-size: 230px;
+  line-height: 0.8; letter-spacing: -0.06em; color: #e62b1e; text-shadow: 0 0 40px rgba(230, 43, 30, 0.35); transform: perspective(900px) rotateY(-14deg); transform-origin: right center; }
+.ted-letters::after { content: ""; position: absolute; left: 4%; right: 2%; bottom: -26px; height: 22px; border-radius: 50%; background: radial-gradient(ellipse, rgba(230, 43, 30, 0.35), transparent 70%); }
+.ted-words { position: absolute; left: 56px; top: 110px; display: grid; gap: 22px; }
+.ted-eyebrow { font-family: var(--mono); font-size: 16px; letter-spacing: 0.1em; text-transform: uppercase; color: #9aa3ad; }
+.ted-words h1 { color: #fff !important; font-size: 150px; line-height: 0.92; }
+.ted-thanks { font-size: 36px; color: #e8e2d8; }
+
 /* Bottom bar: the three acts and the theme switch; reveal draws the rest. */
 .acts { position: fixed; left: 14px; bottom: 10px; display: flex; gap: 6px; z-index: 40; font-family: var(--body); font-size: 14px; }
 .acts button { background: transparent; color: var(--muted); border: 1px solid transparent; border-radius: 999px; padding: 4px 11px; cursor: pointer; font: inherit; }
 .acts button[aria-current="true"] { color: var(--ink); border-color: var(--line); background: var(--panel); }
-.acts .theme { margin-left: 8px; border-color: var(--line); }
+.acts .theme { border-color: var(--line); }

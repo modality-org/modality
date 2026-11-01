@@ -7,13 +7,15 @@ offline. Open `index.html` in a browser. No server and no build step needed.
 open presentation/index.html
 ```
 
-The deck runs in 13 slides:
+The deck runs in 17 slides:
 
 - the players, and a Chat vs Chat game where the agents talk and post `/move`;
 - RULES.md, and RULES.md vs Chat;
-- the FV Contract, which ties with RULES.md;
-- one rogue a side, the FV Contract with rogue vs RULES.md with rogue;
-- the head-to-head matrix, showing only the half below the diagonal.
+- the FV Contract, which ties with RULES.md; a fake ending; "Ackchyually…";
+- one rogue a side: a game, what a rogue costs each tool, and the matrix (only the half below the diagonal);
+- the objection ("a controller agent with extra steps?"), how it's built, and the real conclusion.
+
+Each game replay opens on its key moment; ⏮ goes back to the start.
 
 ## Keys
 
@@ -42,10 +44,12 @@ opens a replay at a given move.
 
 ## Regenerating the games
 
-The opening game is `chess talk`: chat against chat, where a language model
+The Chat vs Chat and RULES.md vs Chat games are `chess talk`: chat against chat, where a language model
 writes each turn's team chat (from the simulation's decisions) and the referee
 plays the `/move` lines. Its answers are cached under `llm-cache/`, so a rerun
-asks nothing new. The rest are `chess play` runs with `--json`. `games.js` wraps them in a
+asks nothing new. The rest are `chess play` runs with `--json`, given a team chat afterwards by
+`chess voice --in game.json --out voiced.json`. Voicing never changes a move:
+each `/move` line is checked against the recorded move it stands for. `games.js` wraps them in a
 list, each game given a `key` the slides refer to:
 
 ```
@@ -54,6 +58,7 @@ lake exe chess talk --seed 2 --rules-md white --json talk-rmc2.json
 lake exe chess play --setup rm-rulesmd-rogue-vs-contract-rogue --seed 1 --json a1.json
 lake exe chess play --setup rm-contract-rogue-vs-rulesmd-rogue --seed 1 --json b1.json
 lake exe chess play --setup rm-rulesmd-vs-contract --seed 3 --json c3.json
+lake exe chess voice --in a1.json --out a1.json   # and b1, c3
 ```
 
 The matrix numbers are in `deck.js` (`CELLS`), from
