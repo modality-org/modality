@@ -140,7 +140,36 @@ def run : IO UInt32 := do
   let kiwi := (Chess.Position.ofFen? Chess.kiwipeteFen).map (Chess.perft · 3)
   let perftOk := start == 197281 && kiwi == some 97862
   IO.println s!"perft: start depth 4 = {start}, kiwipete depth 3 = {kiwi.getD 0}: {if perftOk then "ok" else "WRONG"}"
-  return if unsound == 0 && perftOk then 0 else 1
+  -- SHA-512 and RFC 8032 vectors, and tampering.
+  let hex (b : ByteArray) := Crypto.toHex b
+  let un (h : String) := (Crypto.ofHex? h).getD ByteArray.empty
+  let flip (b : ByteArray) (i : Nat) := b.set! i (b.get! i ^^^ 1)
+  let seed1 := un "9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60"
+  let seed2 := un "4ccd089b28ff96da9db6c346ec114e0f5b8a319f35aba624da8cf6ed4fb8a6fb"
+  let pk2 := Crypto.Ed25519.publicKey seed2
+  let sig2 := Crypto.Ed25519.sign seed2 (un "72")
+  let s2 := Crypto.leNat (sig2.extract 32 64)
+  let malleable := sig2.extract 0 32 ++ Crypto.natLe (s2 + Crypto.Ed25519.L) 32
+  let crypto := [
+    ("sha512 abc", hex (Crypto.sha512Str "abc") ==
+      "ddaf35a193617abacc417349ae20413112e6fa4e89a97ea20a9eeee64b55d39a2192992a274fc1a836ba3c23a3feebbd454d4423643ce80e2a9ac94fa54ca49f"),
+    ("rfc8032 1 key", hex (Crypto.Ed25519.publicKey seed1) ==
+      "d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a"),
+    ("rfc8032 1 sig", hex (Crypto.Ed25519.sign seed1 ByteArray.empty) ==
+      "e5564300c360ac729086e2cc806e828a84877f1eb8e5d974d873e065224901555fb8821590a33bacc61e39701cf9b46bd25bf5f0595bbe24655141438e7a100b"),
+    ("rfc8032 2 sig", hex sig2 ==
+      "92a009a9f0d4cab8720e820b5f642540a2b27b5416503f8fb3762223ebdb69da085ac1e43e15996e458f3613d0f11d8c387b2eaeb4302aeeb00d291612bb0c00"),
+    ("verifies", Crypto.Ed25519.verify pk2 (un "72") sig2),
+    ("other message refused", !Crypto.Ed25519.verify pk2 (un "73") sig2),
+    ("flipped R refused", !Crypto.Ed25519.verify pk2 (un "72") (flip sig2 3)),
+    ("flipped S refused", !Crypto.Ed25519.verify pk2 (un "72") (flip sig2 40)),
+    ("other key refused", !Crypto.Ed25519.verify (Crypto.Ed25519.publicKey seed1) (un "72") sig2),
+    ("S + L refused", !Crypto.Ed25519.verify pk2 (un "72") malleable)]
+  for (name, ok) in crypto do
+    unless ok do IO.println s!"crypto: {name} FAILED"
+  let cryptoOk := crypto.all (·.2)
+  IO.println s!"crypto: {(crypto.filter (·.2)).length}/{crypto.length} vectors and tamper checks pass"
+  return if unsound == 0 && perftOk && cryptoOk then 0 else 1
 
 end Tests
 

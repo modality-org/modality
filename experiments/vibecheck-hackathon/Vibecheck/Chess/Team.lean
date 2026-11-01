@@ -14,7 +14,9 @@ gets. With RULES.md the team also keeps rules that nothing checks; an agent
 about to go off plan follows one that covers it with its compliance.
 
 Contract: a move is the `move` action of an accepted commit, and the referee
-plays the first accepted commit for the ply. The preset contract adds two
+plays the first accepted commit for the ply. Each agent has an ed25519 key,
+bound to its name by the roster commit; every commit is signed by the keys
+of the agents that back it, and the contract verifies each signature. The preset contract adds two
 rules from the first commit: four of the sixteen Black agents sign every
 commit, and the roster never changes. A self-ruled contract starts with only
 the per-piece rules; its agents add more at retros.
@@ -30,20 +32,29 @@ namespace Vibecheck.Chess
 /-! ## The contract's state and actions -/
 
 inductive TeamAct where
-  | roster (names : List String)
+  /-- The team, each agent with its key. -/
+  | roster (members : List (String × PublicKey))
   | move (agent uci : String)
   | ply (n : Nat)
 
 structure TeamState where
-  roster : List String := []
+  /-- Each agent's key. -/
+  roster : List (String × PublicKey) := []
   /-- Each piece's last move. -/
   moves : List (String × String) := []
   ply : Nat := 0
 
 def TeamState.apply (s : TeamState) : TeamAct → TeamState
-  | .roster names => { s with roster := names }
+  | .roster members => { s with roster := members }
   | .move agent uci => { s with moves := (agent, uci) :: s.moves.filter (·.1 != agent) }
   | .ply n => { s with ply := n }
+
+instance : HasIds TeamState := ⟨fun s n => s.roster.lookup n⟩
+
+def TeamAct.encode : TeamAct → String
+  | .roster members => "roster " ++ " ".intercalate (members.map fun (n, k) => s!"{n}={k.hex}")
+  | .move agent uci => s!"move {agent} {uci}"
+  | .ply n => s!"ply {n}"
 
 abbrev TP := Pred TeamState TeamAct
 abbrev TLabel := Label TeamState TeamAct
@@ -223,6 +234,7 @@ structure RuleEntry where
 
 structure ContractTeam where
   names : List String
+  keys : Std.HashMap String Keypair
   preset : Bool
   pregame : Bool := false
   maxRetros : Nat := 3
@@ -244,17 +256,24 @@ def ContractTeam.label (t : ContractTeam) : String :=
   else if t.pregame then "self-ruled contract, rules from the start (scripted retros)"
   else "self-ruled contract (scripted retros)"
 
-/-- The team's contract: the roster, the per-piece rules and, preset, the
-team's two rules, in one bootstrap commit signed by the first agent. -/
-def ContractTeam.create (names : List String) (preset : Bool) (pregame : Bool := false) :
+/-- Sign `k` with the keys of `signers` and append it. -/
+def ContractTeam.commit (t : ContractTeam) (k : Commit TeamState TeamAct) (signers : List String) :
+    Except Refusal (Contract TeamState TeamAct) :=
+  t.contract.append (t.contract.sign k (signers.filterMap t.keys.get?))
+
+/-- The team's contract: the roster with every agent's key, the per-piece
+rules and, preset, the team's two rules, in one bootstrap commit signed by
+the first agent. Keys come from `id` and the agent's name. -/
+def ContractTeam.create (id : String) (names : List String) (preset : Bool) (pregame : Bool := false) :
     Except String ContractTeam :=
-  let c := Contract.create {} TeamState.apply (teamTheory names)
-  let t : ContractTeam := { names, preset, pregame, contract := c }
+  let keys := names.foldl (fun m n => m.insert n (Keypair.ofPhrase s!"{id}/{n}")) {}
+  let c := Contract.create id {} TeamState.apply TeamAct.encode (teamTheory names)
+  let t : ContractTeam := { names, keys, preset, pregame, contract := c }
   let rules := names.map ownsRule ++ (if preset then [teamMovesRule names, rosterLockedRule] else [])
   let boot : Commit TeamState TeamAct :=
-    { actions := [.roster names], signers := [names.head!], rules,
+    { actions := [.roster (names.filterMap fun n => (keys.get? n).map (n, ·.publicKey))], rules,
       model := some (epochModel t.base []), message := "team roster" }
-  match c.append boot with
+  match t.commit boot [names.head!] with
   | .ok c => .ok { t with contract := c, accepted := 1 }
   | .error e => .error s!"the bootstrap commit was refused: {e}"
 
@@ -270,7 +289,7 @@ def ContractTeam.addRule (t : ContractTeam) (rule : Rule TeamState TeamAct) (sig
     | let e := { entry with outcome := "refused", detail := "no witness model" }
       return (e, { t with rules := t.rules.push e })
   let m := epochModel t.base (t.added ++ [cubes])
-  match t.contract.append { rules := [rule], model := some m, signers, message := s!"ply {ply}: rule from {author}" } with
+  match t.commit { rules := [rule], model := some m, message := s!"ply {ply}: rule from {author}" } signers with
   | .ok c =>
     let e := { entry with outcome := "accepted" }
     return (e, { t with contract := c, added := t.added ++ [cubes], rules := t.rules.push e,
@@ -307,9 +326,9 @@ def ContractTeam.resolve (t : ContractTeam) (ply : Nat) (attempts : Array Attemp
     -- The piece proposes its own move; on the plan, every agent that agrees co-signs.
     let signers := if a.kind == .plan then (a.agent :: endorsers).eraseDups else [a.agent]
     let k : Commit TeamState TeamAct :=
-      { actions := [.move a.agent a.move.uci, .ply ply], signers,
+      { actions := [.move a.agent a.move.uci, .ply ply],
         message := s!"ply {ply}: {if a.kind == .plan then "team plan" else a.agent ++ " (" ++ a.kind.name ++ ")"}" }
-    match t.contract.append k with
+    match t.commit k signers with
     | .ok c =>
       t := { t with contract := c, accepted := t.accepted + 1 }
       played := some a
@@ -345,7 +364,7 @@ def ContractTeam.afterPly (t : ContractTeam) (author : String) (ply : Nat) (inci
 def ContractTeam.loggedMoves (t : ContractTeam) : List (Nat × String × String × Nat) :=
   t.contract.log.toList.filterMap fun e =>
     match e.commit.actions with
-    | [.move a u, .ply n] => some (n, a, u, e.commit.signers.length)
+    | [.move a u, .ply n] => some (n, a, u, e.ctx.commit.signers.length)
     | _ => none
 
 /-! ## Either side -/

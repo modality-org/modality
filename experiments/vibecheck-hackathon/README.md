@@ -16,21 +16,22 @@ lake build tests && .lake/build/bin/tests   # checker vs brute force, perft
 
 | File | What it does |
 | --- | --- |
+| [Vibecheck/Crypto/](Vibecheck/Crypto/), [Vibecheck/Crypto.lean](Vibecheck/Crypto.lean) | SHA-512 and Ed25519 (RFC 8032) from scratch; keys and signatures as hex |
 | [Vibecheck/Pred.lean](Vibecheck/Pred.lean) | `Tri` (true, false, unknown); predicates as Lean functions of the state before, the commit, and the state after; labels as predicate → value maps; built-in `signed_by`, `threshold`, `signed_by_all`, `adds_rule`, `replaces_model` |
 | [Vibecheck/Theory.lean](Vibecheck/Theory.lean) | The predicate theory: implications between predicates, each carrying a Lean proof; label closure; `refutes_sound`, a theorem that a label the theory refutes is met by no commit |
 | [Vibecheck/LTL.lean](Vibecheck/LTL.lean) | LTL syntax over predicates, the standard trace semantics `Sat`, rules |
 | [Vibecheck/Model.lean](Vibecheck/Model.lean) | Models: labeled transition systems; stepping and replaying a history |
 | [Vibecheck/Check.lean](Vibecheck/Check.lean) | LTL model checker: tableau of `¬φ` in product with the model, fair-cycle search, counterexamples |
-| [Vibecheck/Contract.lean](Vibecheck/Contract.lean) | The modal contract: append-only log, accumulated state, anchored rules, model validation over the full history |
+| [Vibecheck/Contract.lean](Vibecheck/Contract.lean) | The modal contract: append-only hash chain of signed commits, accumulated state, anchored rules, model validation over the full history |
 | [Vibecheck/Synth.lean](Vibecheck/Synth.lean) | Model synthesis, per rule and fitted to a contract's history |
 | [AliceBob.lean](AliceBob.lean) | The multi-agent demo |
 | [Vibecheck/Chess/](Vibecheck/Chess/) | Chess from scratch (board, legal moves, the experiment's engine and agents), the two ways to coordinate, the game loop |
-| [ChessMain.lean](ChessMain.lean), [Tests.lean](Tests.lean) | The chess CLI; the checker and move-generation tests |
+| [ChessMain.lean](ChessMain.lean), [Tests.lean](Tests.lean) | The chess CLI; the checker, move-generation and crypto tests |
 
 ## How the plan's points were read
 
-**Modal contract.** A commit is a multi-action: a list of actions, the keys
-that signed it, and any rules or model it adds. The contract's state is a
+**Modal contract.** A commit is a multi-action: a list of actions, any rules
+or model it adds, and the signatures on it. The contract's state is a
 Lean value of any type, folded from the actions of accepted commits. A commit
 must take an edge of the model in force from the states the history has
 reached: every predicate on the edge's label must give the value the label
@@ -76,15 +77,42 @@ because of proved facts such as "no move besides k's is no move by j".
 `chatty`, which reads the accumulated state, in the demo; the `/moves` and
 `/team` predicates in chess.
 
-**Signatures** are key names taken as given. This experiment is about rules,
-not cryptography.
+**Signatures are ed25519**, as Modality's are. Like Modality's
+`signing_payload`, a signature covers the contract id and the whole commit
+except its signatures: parent, index, actions, rules, model and message. A
+signature therefore holds for one contract at one point in its log. A commit
+with any signature that doesn't verify is refused, and a commit's id is the
+hash of its payload and signatures, so the log is a hash chain.
+
+Rules name signers, not keys. `signed_by(alice)` asks for the key the
+contract state binds to `alice` before the commit, as Modality's
+`signed_by(/parties/alice.id)` reads the ID at a path. A commit can't bind a
+key and sign with it in the same step. A name with no key is unknown to
+`signed_by`; for `threshold` it simply hasn't signed. A state says where its
+names live by implementing `HasIds`.
+
+SHA-512 and Ed25519 are written in Lean on `Nat` arithmetic. They match:
+
+- the FIPS SHA-512 vectors and RFC 8032 test vectors 1 and 2;
+- Python's `hashlib` and `cryptography` (OpenSSL), byte for byte, on 300
+  SHA-512 message lengths spanning every padding boundary and 60 Ed25519
+  key and signature pairs.
+
+[Tests.lean](Tests.lean) also checks that tampered signatures, messages and
+keys are refused, and so is the malleable `S + L`. Verification is the
+cofactorless check RFC 8032 allows.
 
 ## Alice and Bob
 
 `lake exe alice-bob` runs the plan's story:
 
-- **No rules yet:** the open model accepts commits from Alice, Bob and a
-  stranger.
+- **No rules yet:** Alice and Bob bind their names to their keys in one
+  commit they both sign. The open model accepts commits from them and from
+  Carol, a stranger.
+- **Mallory tries to sign as Alice:** Mallory has no key of Alice's. Three
+  attempts are refused because the signature doesn't verify: Mallory's
+  signature under Alice's key, Alice's signature on "hello" copied onto a new
+  message, and "hello" replayed whole at the new head.
 - **Rules agreed:** Alice and Bob agree on `either_signs` and
   `both_for_rules`, and Alice posts her model. It meets both rules, but its
   only ordinary edge is `+signed_by(alice)`.
@@ -96,7 +124,9 @@ not cryptography.
   -signed_by(bob)`). His real model passes and goes in with Alice's
   co-signature.
 - **Under Bob's model:** either party can sign ordinary commits, and a rule
-  Bob tries to add alone is refused.
+  Bob tries to add alone is refused. Bob binding the name `alice` to his own
+  key is accepted as a commit, since he may sign one, but this state binds a
+  name only once, so `alice` keeps her key.
 - **A rule on a custom predicate:** together they add `no_shouting`, with a
   model the synthesizer writes. Capitals are refused, and so is "1234",
   where `shouting` is unknown.
@@ -130,8 +160,11 @@ contract carries the same rules as the original:
 - **Preset contract:** `always(threshold(4, black))` and
   `always(!modifies(/team))`.
 
-An audit checks each game's contract log against the moves the referee
-played.
+Each Black agent has an ed25519 key, bound to its name by the contract's
+roster commit. Every commit carries real signatures: a team plan is signed by
+every agent that agrees with it, and an off-plan move only by its own piece.
+`threshold(4, black)` counts the verified keys of the roster. An audit
+checks each game's contract log against the moves the referee played.
 
 Two differences from the Python run:
 
@@ -194,6 +227,9 @@ games, so part of the gap may be sampling.
   experiments are left out.
 - **The LTL checker is tested, not proved sound.** `LTL.Sat` is the
   specification it would be proved against.
+- **The crypto is for this experiment, not for real keys.** Its `Nat`
+  arithmetic is not constant-time, and the demo keys come from public
+  phrases.
 - **Predicate names are identities.** `refutes_sound` assumes that
   predicates sharing a name agree, which every predicate here is built to
   keep.

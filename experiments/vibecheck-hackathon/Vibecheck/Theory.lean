@@ -163,7 +163,7 @@ end Theory
 
 section Facts
 
-variable {σ α : Type}
+variable {σ α : Type} [HasIds σ]
 
 /-- Whoever signs for all of a group signs for each member. -/
 def allImpliesEach (groupName : String) (group : List String) (key : String) (h : key ∈ group) :
@@ -175,10 +175,10 @@ def allImpliesEach (groupName : String) (group : List String) (key : String) (h 
     simp only [Lit.holds, signedByAll, signedBy, Pred.pos, Tri.ofBool] at *
     split at hp
     · next hall =>
-      have hk : key ∈ c.commit.signers := by
-        simpa using List.all_eq_true.mp hall key h
-      simp [hk]
-    · cases hp
+      have hk := List.all_eq_true.mp hall key h
+      simp only [beq_iff_eq] at hk
+      rw [hk]
+    · split at hp <;> cases hp
 
 /-- The implications `signedByAll` brings, one per member. -/
 def groupFacts (groupName : String) (group : List String) : Theory σ α :=

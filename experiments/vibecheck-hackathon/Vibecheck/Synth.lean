@@ -106,9 +106,11 @@ def witnesses (T : Theory σ α) (r : Rule σ α) (limit : Nat := 4) : List (Mod
         if found.length ≥ limit then return found
   return found
 
-/-- A model for a contract that adds `rules` in its next commit `k`: one
-epoch per rule-adding commit, the witnesses of active rules in product. -/
-def forContract (c : Contract σ α) (k : Commit σ α) : Option (Model σ α) := Id.run do
+/-- A model for a contract that adds `rules` in its next commit `k`, to be
+signed by `signers`: one epoch per rule-adding commit, the witnesses of
+active rules in product. -/
+def forContract (c : Contract σ α) (k : Commit σ α) (signers : List PublicKey) :
+    Option (Model σ α) := Id.run do
   let rules := c.rules ++ (k.rules.map (·, c.log.size)).toArray
   let anchors := (rules.toList.map (·.2)).eraseDups.toArray.qsort (· < ·)
   let epochOf (a : Nat) := (anchors.findIdx? (· == a)).getD 0 + 1
@@ -155,7 +157,7 @@ def forContract (c : Contract σ α) (k : Commit σ α) : Option (Model σ α) :
                 pure (ids.size - 1)
             edges := edges ++ [⟨sid, tid, l⟩]
     let m : Model σ α := { edges := prune edges }
-    if (c.tryModel k m).toOption.isSome then return some m
+    if (c.tryModel k m signers).toOption.isSome then return some m
   return none
 
 end Vibecheck.Synth

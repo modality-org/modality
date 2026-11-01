@@ -1,3 +1,5 @@
+import Vibecheck.Crypto
+
 /-!
 Predicates: Lean functions that read a commit and the contract state around
 it, and answer true, false, or unknown.
@@ -61,7 +63,8 @@ structure CommitView (α : Type) where
   /-- Position in the log, from 0. -/
   index : Nat
   actions : List α
-  signers : List String
+  /-- The keys whose signatures over the commit verified. -/
+  signers : List PublicKey
   /-- Names of the rules this commit adds. -/
   addsRules : List String
   replacesModel : Bool
@@ -134,28 +137,53 @@ end Label
 /-! ## Built-in predicates
 
 The ones every contract shares: who signed, and what a commit changes about
-the contract itself. -/
+the contract itself.
+
+A rule names a signer, not a key: `signed_by(alice)` asks for the key the
+contract state binds to `alice` before the commit, as Modality's
+`signed_by(/parties/alice.id)` reads the ID at that path. A commit cannot
+bind a key and sign with it in one step. A name with no key is unknown. -/
+
+/-- Where a contract state keeps its named keys. -/
+class HasIds (σ : Type) where
+  id? : σ → String → Option PublicKey
 
 section Builtin
 
-variable {σ α : Type}
+variable {σ α : Type} [HasIds σ]
 
-def signedBy (key : String) : Pred σ α :=
-  ⟨s!"signed_by({key})", fun c => .ofBool (c.commit.signers.contains key)⟩
+/-- Whether `name`'s key signed: unknown if `name` has no key. -/
+def signedNow (c : Ctx σ α) (name : String) : Option Bool :=
+  (HasIds.id? c.pre name).map c.commit.signers.contains
 
-/-- At least `n` of `group` signed. -/
+def signedBy (name : String) : Pred σ α :=
+  ⟨s!"signed_by({name})", fun c =>
+    match signedNow c name with
+    | some b => .ofBool b
+    | none => .unknown⟩
+
+/-- At least `n` of `group` signed. Members with no key cannot have signed. -/
 def threshold (n : Nat) (groupName : String) (group : List String) : Pred σ α :=
   ⟨s!"threshold({n}, {groupName})",
-   fun c => .ofBool (n ≤ (group.filter c.commit.signers.contains).length)⟩
+   fun c => .ofBool (n ≤ (group.filter fun k => signedNow c k == some true).length)⟩
 
-/-- Every key in `group` signed. -/
+/-- Every member of `group` signed. -/
 def signedByAll (groupName : String) (group : List String) : Pred σ α :=
-  ⟨s!"signed_by_all({groupName})", fun c => .ofBool (group.all c.commit.signers.contains)⟩
+  ⟨s!"signed_by_all({groupName})", fun c =>
+    if group.all fun k => signedNow c k == some true then .true
+    else if group.any fun k => signedNow c k == some false then .false
+    else .unknown⟩
+
+end Builtin
+
+section Structural
+
+variable {σ α : Type}
 
 def addsRule : Pred σ α := ⟨"adds_rule", fun c => .ofBool !c.commit.addsRules.isEmpty⟩
 
 def replacesModel : Pred σ α := ⟨"replaces_model", fun c => .ofBool c.commit.replacesModel⟩
 
-end Builtin
+end Structural
 
 end Vibecheck

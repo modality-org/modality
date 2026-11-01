@@ -135,10 +135,10 @@ def playGame (setup : Setup) (seed : Nat) (depth : Nat := 2) (margin : Int := 20
   let mut pregame := #[]
   match setup.black with
   | .chat => coords := coords.push (.chat { rulesMd := false })
-  | .contract => coords := coords.push (.contract (← ContractTeam.create blackNames true))
-  | .selfRuled => coords := coords.push (.contract (← ContractTeam.create blackNames false))
+  | .contract => coords := coords.push (.contract (← ContractTeam.create s!"black-{seed}" blackNames true))
+  | .selfRuled => coords := coords.push (.contract (← ContractTeam.create s!"black-{seed}" blackNames false))
   | .selfRuledStart =>
-    let t ← ContractTeam.create blackNames false (pregame := true)
+    let t ← ContractTeam.create s!"black-{seed}" blackNames false (pregame := true)
     let (ev, t) := t.retro "king_e8" 0 none
     pregame := ev
     coords := coords.push (.contract t)
