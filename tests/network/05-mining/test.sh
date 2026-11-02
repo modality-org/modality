@@ -120,6 +120,11 @@ sleep 3
 
 # Verify it can mine more blocks
 assert_success "test_wait_for_log '$LOG_DIR/${CURRENT_TEST}_miner-restart.log' 'Block .* mined' 120" "Should mine blocks after restart"
+# A fresh chain can satisfy the new-block log check. Catch a restart that
+# loses the existing block count before mining resumes.
+RESTART_BLOCK_COUNT=$(modal node inspect --dir ./tmp/miner | sed -n 's/^Total Blocks: \([0-9][0-9]*\).*/\1/p')
+[[ "$RESTART_BLOCK_COUNT" =~ ^[0-9]+$ ]] || test_fail "Restarted miner should report a block count"
+assert_number "$RESTART_BLOCK_COUNT" ">=" "$BLOCK_COUNT" "Restart should retain blocks mined before shutdown"
 
 # Finalize test
 test_finalize
