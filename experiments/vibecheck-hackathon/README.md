@@ -1,11 +1,13 @@
 # Vibecheck: modal contracts in Lean 4
 
+**Presentation:** [foysavas.github.io/vibecheck-multi-agent-chess/presentation](https://foysavas.github.io/vibecheck-multi-agent-chess/presentation/)
+
 A from-scratch Lean 4 rebuild of Modality's modal contracts, with rules in
 LTL, and a rerun of the [multi-agent chess](../../docs/multi-agent-chess.md)
 experiment on top of it. See [PLAN.md](PLAN.md) for the brief, and
 [demos/](demos/) for walkthroughs of everything below.
-The hackathon talk is a local reveal.js deck in
-[presentation/](presentation/).
+The hackathon talk is a reveal.js deck in [presentation/](presentation/);
+it also runs offline from `presentation/index.html`.
 
 ## Headline: chat, RULES.md and a modal contract, in Elo
 
