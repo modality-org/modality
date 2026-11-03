@@ -45,23 +45,28 @@ assert_success "kill -0 $NODE1_PID" "Node1 should still be running"
 assert_success "kill -0 $NODE2_PID" "Node2 should still be running"
 assert_success "kill -0 $NODE3_PID" "Node3 should still be running"
 
-# Test 5: Check for peer connections in logs
+# Test 5: Prove both advertised bootstrap addresses answer a request. The
+# ping CLI uses an ephemeral client, so this checks reachability, not a
+# persistent connection between the sequencers.
 echo ""
-echo "Test 5: Checking for peer connections..."
-NODE1_LOG="$LOG_DIR/${CURRENT_TEST}_node1.log"
-if [ -f "$NODE1_LOG" ]; then
-    echo "Node1 log excerpt:" >> "$CURRENT_LOG"
-    tail -n 20 "$NODE1_LOG" >> "$CURRENT_LOG" 2>&1 || true
-    
-    if grep -q "peer" "$NODE1_LOG" 2>/dev/null || grep -q "connect" "$NODE1_LOG" 2>/dev/null; then
-        TESTS_RUN=$((TESTS_RUN + 1))
-        TESTS_PASSED=$((TESTS_PASSED + 1))
-        echo -e "  ${GREEN}✓${NC} Nodes should establish peer connections"
-    else
-        TESTS_RUN=$((TESTS_RUN + 1))
-        echo -e "  ${YELLOW}⊘${NC} Peer connections not detected in logs (may need more time)"
-    fi
-fi
+echo "Test 5: Pinging both advertised bootstrap addresses..."
+ping_with_retry() {
+    local target="$1"
+    local attempt
+    for attempt in 1 2 3 4 5; do
+        if modal node ping --dir ./tmp/node1 --target "$target" --times 1; then
+            return 0
+        fi
+        sleep 2
+    done
+    return 1
+}
+assert_success \
+    "ping_with_retry /ip4/127.0.0.1/tcp/10302/ws/p2p/12D3KooW9pypLnRn67EFjiWgEiDdqo8YizaPn8yKe5cNJd3PGnMB" \
+    "Node2 advertised address should answer ping"
+assert_success \
+    "ping_with_retry /ip4/127.0.0.1/tcp/10303/ws/p2p/12D3KooW9qGaMuW7k2a5iEQ37gWgtjfFC4B3j5R1kKJPZofS62Se" \
+    "Node3 advertised address should answer ping"
 
 # Finalize test
 test_finalize
