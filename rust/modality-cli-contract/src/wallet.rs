@@ -487,14 +487,54 @@ async fn create(opts: &CreateOpts) -> Result<()> {
     Ok(())
 }
 
+fn local_address(opts: &WalletOpts) -> Result<String> {
+    let dir = wallet_dir(&opts.dir)?;
+    let store = ContractStore::open(&dir)
+        .with_context(|| format!("no wallet at {}; run `modal wallet create`", dir.display()))?;
+    let _: WalletFile = serde_json::from_str(
+        &std::fs::read_to_string(store.contract_dir().join(WALLET_FILE))
+            .with_context(|| format!("{} is a contract, not a wallet", dir.display()))?,
+    )?;
+    Ok(store.load_config()?.contract_id)
+}
+
 fn address(opts: &WalletOpts) -> Result<()> {
-    let wallet = Wallet::open(opts)?;
+    // Sharing an address only needs local wallet metadata, not a configured node.
+    let id = local_address(opts)?;
     if opts.output == "json" {
-        println!("{}", json!({ "address": wallet.id }));
+        println!("{}", json!({ "address": id }));
     } else {
-        println!("{}", wallet.id);
+        println!("{}", id);
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod address_tests {
+    use super::*;
+
+    #[test]
+    fn address_does_not_require_a_remote() -> Result<()> {
+        let dir = tempfile::tempdir()?;
+        let store = ContractStore::init(dir.path(), "wallet-id".to_string())?;
+        std::fs::write(
+            store.contract_dir().join(WALLET_FILE),
+            serde_json::to_string(&WalletFile {
+                key: dir.path().join("owner.mod_passfile"),
+            })?,
+        )?;
+        let opts = WalletOpts {
+            dir: Some(dir.path().to_path_buf()),
+            remote: None,
+            output: "text".to_string(),
+        };
+        assert_eq!(local_address(&opts)?, "wallet-id");
+        assert!(
+            Wallet::open(&opts).is_err(),
+            "network commands still need a remote"
+        );
+        Ok(())
+    }
 }
 
 async fn balance(opts: &WalletOpts) -> Result<()> {
