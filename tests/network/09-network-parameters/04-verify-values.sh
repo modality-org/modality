@@ -1,45 +1,24 @@
 #!/usr/bin/env bash
-set -e
+set -euo pipefail
 
 echo "Verifying parameter values..."
 
-# Check if parameters were stored (they should be after round 0 is processed)
-if [ -f ./tmp/test-network-params/name.txt ]; then
-    NAME=$(cat ./tmp/test-network-params/name.txt)
-    echo "  Network name: $NAME"
-    
-    if echo "$NAME" | grep -q "devnet1"; then
-        echo "  ✓ Name contains 'devnet1'"
-    else
-        echo "  ✗ Name does not contain 'devnet1'"
-        exit 1
-    fi
-fi
+python3 - <<'PYVERIFY'
+import json
+from pathlib import Path
 
-if [ -f ./tmp/test-network-params/difficulty.txt ]; then
-    DIFFICULTY=$(cat ./tmp/test-network-params/difficulty.txt)
-    echo "  Difficulty: $DIFFICULTY"
-    
-    if echo "$DIFFICULTY" | grep -q "1"; then
-        echo "  ✓ Difficulty is 1"
-    else
-        echo "  ✗ Difficulty is not 1"
-        exit 1
-    fi
-fi
+config = json.loads(Path("../../../fixtures/network-configs/devnet1/config.json").read_text())
+results = Path("./tmp/test-network-params")
+expected = {
+    "name.txt": config["name"],
+    "difficulty.txt": str(config["latest_parameters"]["difficulty"]),
+    "sequencer0.txt": config["latest_parameters"]["sequencers"][0],
+}
+for filename, value in expected.items():
+    actual = (results / filename).read_text().strip()
+    if actual != value:
+        raise SystemExit(f"{filename}: expected {value!r}, got {actual!r}")
+    print(f"  ✓ {filename}: {actual}")
+PYVERIFY
 
-if [ -f ./tmp/test-network-params/sequencer0.txt ]; then
-    SEQUENCER=$(cat ./tmp/test-network-params/sequencer0.txt)
-    echo "  Sequencer 0: $SEQUENCER"
-    
-    if echo "$SEQUENCER" | grep -q "12D3KooW"; then
-        echo "  ✓ Sequencer ID looks valid"
-    else
-        echo "  ✗ Sequencer ID doesn't look valid"
-        exit 1
-    fi
-fi
-
-echo ""
 echo "✓ All parameter values verified"
-
