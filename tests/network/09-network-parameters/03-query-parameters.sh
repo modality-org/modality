@@ -13,21 +13,21 @@ echo "Checking for /network/name..."
 modal node inspect \
     --config ./tmp/test-network-params/config.json \
     datastore-get "/contracts/$GENESIS_CONTRACT_ID/network/name.text" \
-    > ./tmp/test-network-params/name.txt 2>&1 || echo "(not found yet)"
+    > ./tmp/test-network-params/name.txt
 
 echo ""
 echo "Checking for /network/difficulty..."
 modal node inspect \
     --config ./tmp/test-network-params/config.json \
     datastore-get "/contracts/$GENESIS_CONTRACT_ID/network/difficulty.number" \
-    > ./tmp/test-network-params/difficulty.txt 2>&1 || echo "(not found yet)"
+    > ./tmp/test-network-params/difficulty.txt
 
 echo ""
 echo "Checking for /network/sequencers/0..."
 modal node inspect \
     --config ./tmp/test-network-params/config.json \
     datastore-get "/contracts/$GENESIS_CONTRACT_ID/network/sequencers/0.text" \
-    > ./tmp/test-network-params/sequencer0.txt 2>&1 || echo "(not found yet)"
+    > ./tmp/test-network-params/sequencer0.txt
 
 echo ""
 echo "✓ Parameter query complete"
