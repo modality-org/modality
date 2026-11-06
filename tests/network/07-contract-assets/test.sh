@@ -134,19 +134,24 @@ fi
 ALICE_ID=$(cd tmp/alice && modal contract id)
 BOB_ID=$(cd tmp/bob && modal contract id)
 
-if [[ "$ALICE_ID" =~ ^12D3KooW ]]; then
-    echo "${GREEN}✓ Alice's contract ID is valid format${NC}"
+# Contract IDs are lowercase base32 RCIDs, not legacy libp2p peer IDs.
+# Also check that the CLI reports the ID recorded in each contract config.
+ALICE_CONFIG_ID=$(python3 -c 'import json; print(json.load(open("tmp/alice/.contract/config.json"))["contract_id"])')
+BOB_CONFIG_ID=$(python3 -c 'import json; print(json.load(open("tmp/bob/.contract/config.json"))["contract_id"])')
+
+if [[ "$ALICE_ID" =~ ^[a-z2-7]+$ ]] && [ "$ALICE_ID" = "$ALICE_CONFIG_ID" ]; then
+    echo "${GREEN}✓ Alice's contract ID is a matching RCID${NC}"
     TESTS_PASSED=$((TESTS_PASSED + 1))
 else
-    echo "${RED}✗ Alice's contract ID format invalid${NC}"
+    echo "${RED}✗ Alice's contract ID is not a matching RCID${NC}"
     TESTS_FAILED=$((TESTS_FAILED + 1))
 fi
 
-if [[ "$BOB_ID" =~ ^12D3KooW ]]; then
-    echo "${GREEN}✓ Bob's contract ID is valid format${NC}"
+if [[ "$BOB_ID" =~ ^[a-z2-7]+$ ]] && [ "$BOB_ID" = "$BOB_CONFIG_ID" ] && [ "$BOB_ID" != "$ALICE_ID" ]; then
+    echo "${GREEN}✓ Bob's contract ID is a distinct matching RCID${NC}"
     TESTS_PASSED=$((TESTS_PASSED + 1))
 else
-    echo "${RED}✗ Bob's contract ID format invalid${NC}"
+    echo "${RED}✗ Bob's contract ID is not a distinct matching RCID${NC}"
     TESTS_FAILED=$((TESTS_FAILED + 1))
 fi
 
