@@ -159,6 +159,13 @@ jobs:
           export PATH="$GITHUB_WORKSPACE/rust/target/debug:$PATH"
           bash ./test.sh
 
+      - name: Sync miner blocks between local nodes
+        working-directory: tests/network/04-sync-miner-blocks
+        timeout-minutes: 5
+        run: |
+          export PATH="$GITHUB_WORKSPACE/rust/target/debug:$PATH"
+          bash ./test.sh
+
       - name: Mine and persist a local block
         working-directory: tests/network/05-mining
         timeout-minutes: 6
