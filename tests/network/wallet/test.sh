@@ -78,7 +78,8 @@ echo ""
 echo "A bank sends to an address that has no wallet yet..."
 assert_success "modal id create --path ./tmp/alice.mod_passfile" "Should create Alice's key"
 assert_success "modal id create --path ./tmp/mallory.mod_passfile" "Should create Mallory's key"
-ALICE_ID=$(python3 -c "import json; print(json.load(open('./tmp/alice.mod_passfile'))['id'])")
+# The passfile stores a libp2p peer ID; wallet addresses use canonical RCIDs.
+ALICE_ID=$(modal id get --path ./tmp/alice.mod_passfile)
 modal contract create --dir "$BANK" >> "$CURRENT_LOG"
 BANK_ID=$(modal contract id --dir "$BANK")
 modal contract commit --dir "$BANK" --method create --asset-id tok --quantity 100000 --divisibility 1 --decimals 2 \
