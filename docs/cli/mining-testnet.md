@@ -27,12 +27,16 @@ inbound peers. `run-miner` mines and gossips blocks; use `run-hybrid` instead if
 this node should also run a sequencer. Do not use a Foundation node template as
 an independent operator identity.
 
-From a **second** node directory, ping a bootstrapper using its full address
-from `modal net info testnet` (including `/p2p/<peer-id>`):
+From a **second** node directory, ping the first configured bootstrapper:
 
 ```bash
-modal node ping --dir ./ping-node --target '<bootstrapper-multiaddr>'
+modal node create --dir ./ping-node --testnet
+modal node ping --dir ./ping-node
 ```
+
+Use `--target '<bootstrapper-multiaddr>'` to choose a different peer; get its
+full address (including `/p2p/<peer-id>`) from `./ping-node/config.json` or
+`modal net info testnet`.
 
 A successful ping proves transport to that peer, not that your blocks became
 canonical. Check the miner logs for mined blocks, then compare the chain tip and
