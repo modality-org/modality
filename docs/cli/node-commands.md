@@ -278,7 +278,7 @@ modal node logs [OPTIONS]
 ### Ping
 
 ```bash
-modal node ping --target <MULTIADDR> [OPTIONS]
+modal node ping [--target <MULTIADDR>] [OPTIONS]
 ```
 
 Ping a remote Modality node.
@@ -286,7 +286,7 @@ Ping a remote Modality node.
 **Options:**
 | Option | Description |
 |--------|-------------|
-| `--target <MULTIADDR>` | Peer multiaddr to ping |
+| `--target <MULTIADDR>` | Peer multiaddr to ping; defaults to the first configured bootstrapper |
 | `--times <COUNT>` | Number of ping attempts; defaults to `1` |
 | `--config <CONFIG>` | Path to `config.json` |
 | `--dir <DIR>` | Node directory containing `config.json` |

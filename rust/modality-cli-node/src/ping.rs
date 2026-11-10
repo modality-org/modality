@@ -1,8 +1,9 @@
-use anyhow::Result;
+use anyhow::{Context, Result};
 use clap::Parser;
 use std::path::PathBuf;
 
 use modality_node::actions;
+use modality_node::config_resolution::load_config_with_node_dir;
 use modality_node::logging;
 use rand::Rng;
 use std::time::Instant;
@@ -20,8 +21,9 @@ pub struct Opts {
     #[clap(long)]
     dir: Option<PathBuf>,
 
+    /// Peer multiaddr to ping (defaults to the first configured bootstrapper)
     #[clap(long)]
-    target: String,
+    target: Option<String>,
 
     #[clap(long, default_value = "1")]
     times: u32,
@@ -31,9 +33,24 @@ pub async fn run(opts: &Opts) -> Result<()> {
     // Use None for log_level to allow RUST_LOG env var to control verbosity
     logging::init_logging(None, Some(false), None)?;
 
+    let target = match &opts.target {
+        Some(target) => target.clone(),
+        None => {
+            let dir = if opts.config.is_none() && opts.dir.is_none() {
+                Some(std::env::current_dir()?)
+            } else {
+                opts.dir.clone()
+            };
+            let config = load_config_with_node_dir(opts.config.clone(), dir)?;
+            config
+                .bootstrappers
+                .and_then(|peers| peers.into_iter().next())
+                .context("No bootstrapper configured; provide --target or add a bootstrapper to config.json")?
+                .to_string()
+        }
+    };
     let mut client = ephemeral_client::open(opts.config.clone(), opts.dir.clone()).await?;
     log::info!("Pinging from node: {:?}", client.node.peerid);
-    let target = opts.target.clone();
     let times_to_ping = opts.times;
     let start = Instant::now();
     let random_hex = generate_random_hex_string();
