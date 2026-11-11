@@ -74,10 +74,20 @@ assert_output_contains \
     "successful" \
     "Ping should succeed"
 
-# Test 8: Verify ping response time is reasonable
+# Test 8: Verify a separate ping succeeds and reports timing statistics
 echo ""
-echo "Test 8: Checking ping response time..."
-PING_OUTPUT=$(modal node ping --dir ./tmp/node2 --target /ip4/127.0.0.1/tcp/10101/ws/p2p/12D3KooW9pte76rpnggcLYkFaawuTEs5DC5axHkg3cK3cewGxxHd --times 1 2>&1 || true)
+echo "Test 8: Checking single-ping statistics..."
+TESTS_RUN=$((TESTS_RUN + 1))
+if PING_OUTPUT=$(modal node ping --dir ./tmp/node2 --target /ip4/127.0.0.1/tcp/10101/ws/p2p/12D3KooW9pte76rpnggcLYkFaawuTEs5DC5axHkg3cK3cewGxxHd --times 1 2>&1) && \
+   [[ "$PING_OUTPUT" == *"Ping 1 successful:"* ]] && \
+   [[ "$PING_OUTPUT" == *"Total pings: 1"* ]] && \
+   [[ "$PING_OUTPUT" == *"Average time:"* ]]; then
+    TESTS_PASSED=$((TESTS_PASSED + 1))
+    echo -e "  ${GREEN}✓${NC} Single ping should succeed and report timing"
+else
+    TESTS_FAILED=$((TESTS_FAILED + 1))
+    echo -e "  ${RED}✗${NC} Single ping should succeed and report timing"
+fi
 echo "Ping output: $PING_OUTPUT" >> "$CURRENT_LOG"
 
 # Finalize test
