@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-cd $(dirname -- "$0")
-SCRIPT_DIR=$(pwd)
-set -x
+set -euo pipefail
+SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+cd "$SCRIPT_DIR"
 
 # Create node3 if it doesn't exist
 if [ ! -f "./tmp/node3/config.json" ]; then
@@ -14,5 +14,5 @@ if [ ! -f "./tmp/node3/config.json" ]; then
         --bootstrappers "/ip4/127.0.0.1/tcp/10301/ws/p2p/12D3KooW9pte76rpnggcLYkFaawuTEs5DC5axHkg3cK3cewGxxHd,/ip4/127.0.0.1/tcp/10302/ws/p2p/12D3KooW9pypLnRn67EFjiWgEiDdqo8YizaPn8yKe5cNJd3PGnMB"
 fi
 
-modal node clear-storage --dir ./tmp/node3 --yes
-modal node run-sequencer --dir ./tmp/node3
+modal node clear-storage --dir "${SCRIPT_DIR}/tmp/node3" --yes
+modal node run-sequencer --dir "${SCRIPT_DIR}/tmp/node3"
