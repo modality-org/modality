@@ -209,88 +209,47 @@ else
     echo "Error: $PUSH_OUTPUT" >> "$CURRENT_LOG"
 fi
 
-# Test 11: Test pull command (may not find anything, but should not crash)
+# Test 11: Pull sequenced commits into a second directory. A push is only
+# queued initially, so allow a few consensus rounds before checking the copy.
 echo ""
-echo "Test 11: Testing contract pull command..."
-
-# Create a second contract directory for pull test
+echo "Test 11: Pulling contract from the sequencer..."
 CLONE_DIR="./tmp/test-contract-clone"
 mkdir -p "$CLONE_DIR"
+PULL_OUTPUT=""
+PULL_SUCCEEDED=false
 
-# Copy contract metadata to simulate a clone
-mkdir -p "$CLONE_DIR/.contract"
-if [ -f "$CONTRACT_DIR/.contract/config.json" ]; then
-    cp "$CONTRACT_DIR/.contract/config.json" "$CLONE_DIR/.contract/"
-fi
-if [ -f "$CONTRACT_DIR/.contract/genesis.json" ]; then
-    cp "$CONTRACT_DIR/.contract/genesis.json" "$CLONE_DIR/.contract/"
-fi
-if [ -f "$CONTRACT_DIR/.contract/HEAD" ]; then
-    cp "$CONTRACT_DIR/.contract/HEAD" "$CLONE_DIR/.contract/"
-fi
+for attempt in $(seq 1 16); do
+    PULL_STATUS=0
+    if [ "$attempt" -eq 1 ]; then
+        PULL_OUTPUT=$(modal contract pull --dir "$CLONE_DIR" --contract-id "$CONTRACT_ID" --remote "$REMOTE" --output json 2>&1) || PULL_STATUS=$?
+    else
+        sleep 2
+        PULL_OUTPUT=$(modal contract pull --dir "$CLONE_DIR" --remote "$REMOTE" --output json 2>&1) || PULL_STATUS=$?
+    fi
+    if [ "$PULL_STATUS" -eq 0 ] && [ -n "$COMMIT1_ID" ] && [ -n "$COMMIT2_ID" ] && [ -n "$COMMIT3_ID" ] &&
+       [ -f "$CLONE_DIR/.contract/commits/${COMMIT1_ID}.json" ] &&
+       [ -f "$CLONE_DIR/.contract/commits/${COMMIT2_ID}.json" ] &&
+       [ -f "$CLONE_DIR/.contract/commits/${COMMIT3_ID}.json" ]; then
+        PULL_SUCCEEDED=true
+        break
+    fi
+    # No initialized copy means a pull error that another round cannot fix.
+    [ -d "$CLONE_DIR/.contract" ] || break
+done
 
-# Try to pull - this may or may not succeed, but should not crash
-PULL_OUTPUT=$(cd "$CLONE_DIR" && modal contract pull --output json 2>&1 || echo '{"status":"attempted"}')
 echo "Pull output: $PULL_OUTPUT" >> "$CURRENT_LOG"
-
 TESTS_RUN=$((TESTS_RUN + 1))
-if echo "$PULL_OUTPUT" | grep -q "contract_id\|status\|pulled\|attempted"; then
+if [ "$PULL_SUCCEEDED" = true ]; then
     TESTS_PASSED=$((TESTS_PASSED + 1))
-    echo -e "  ${GREEN}✓${NC} Contract pull command executed"
+    echo -e "  ${GREEN}✓${NC} Independent copy pulled all three commits from the sequencer"
 else
     TESTS_FAILED=$((TESTS_FAILED + 1))
-    echo -e "  ${RED}✗${NC} Contract pull command failed unexpectedly"
+    echo -e "  ${RED}✗${NC} Independent copy did not pull all three commits"
 fi
 
-# Simulate a successful pull by copying commits (for testing purposes)
-# In a real network, pull would fetch these from sequencers
-if [ -d "$CONTRACT_DIR/.contract/commits" ] && [ ! -d "$CLONE_DIR/.contract/commits" ]; then
-    echo "Simulating pull by copying commits for testing..." >> "$CURRENT_LOG"
-    cp -r "$CONTRACT_DIR/.contract/commits" "$CLONE_DIR/.contract/"
-fi
-
-# Test 12: Verify pulled commit IDs match original commits
+# Test 12: Verify JSON output is valid
 echo ""
-echo "Test 12: Verifying pulled commit IDs match original..."
-# Check if commits directory exists in clone after pull
-if [ -d "$CLONE_DIR/.contract/commits" ]; then
-    # Count commits in clone
-    CLONE_COMMIT_COUNT=$(ls -1 "$CLONE_DIR/.contract/commits"/*.json 2>/dev/null | wc -l | tr -d ' ')
-    echo "Commits in clone: $CLONE_COMMIT_COUNT" >> "$CURRENT_LOG"
-    
-    # Check if original commit IDs exist in clone
-    MATCHING_COMMITS=0
-    if [ -n "$COMMIT1_ID" ] && [ -f "$CLONE_DIR/.contract/commits/${COMMIT1_ID}.json" ]; then
-        MATCHING_COMMITS=$((MATCHING_COMMITS + 1))
-        echo "Found COMMIT1_ID in clone: $COMMIT1_ID" >> "$CURRENT_LOG"
-    fi
-    if [ -n "$COMMIT2_ID" ] && [ -f "$CLONE_DIR/.contract/commits/${COMMIT2_ID}.json" ]; then
-        MATCHING_COMMITS=$((MATCHING_COMMITS + 1))
-        echo "Found COMMIT2_ID in clone: $COMMIT2_ID" >> "$CURRENT_LOG"
-    fi
-    if [ -n "$COMMIT3_ID" ] && [ -f "$CLONE_DIR/.contract/commits/${COMMIT3_ID}.json" ]; then
-        MATCHING_COMMITS=$((MATCHING_COMMITS + 1))
-        echo "Found COMMIT3_ID in clone: $COMMIT3_ID" >> "$CURRENT_LOG"
-    fi
-    
-    TESTS_RUN=$((TESTS_RUN + 1))
-    if [ "$MATCHING_COMMITS" -eq 3 ]; then
-        TESTS_PASSED=$((TESTS_PASSED + 1))
-        echo -e "  ${GREEN}✓${NC} Pulled commits have matching IDs ($MATCHING_COMMITS commits verified)"
-    else
-        TESTS_FAILED=$((TESTS_FAILED + 1))
-        echo -e "  ${RED}✗${NC} Pulled commits don't match original IDs (only $MATCHING_COMMITS/3 found)"
-    fi
-else
-    echo "Clone commits directory not found, skipping ID verification" >> "$CURRENT_LOG"
-    TESTS_RUN=$((TESTS_RUN + 1))
-    TESTS_PASSED=$((TESTS_PASSED + 1))
-    echo -e "  ${GREEN}✓${NC} Skipping commit ID verification (pull may not have synced commits yet)"
-fi
-
-# Test 13: Verify JSON output is valid
-echo ""
-echo "Test 13: Verifying JSON outputs are valid..."
+echo "Test 12: Verifying JSON outputs are valid..."
 JSON_VALID=true
 
 for json_file in "$CONTRACT_DIR/create_result.json" "$CONTRACT_DIR/commit1.json" "$CONTRACT_DIR/status.json"; do
