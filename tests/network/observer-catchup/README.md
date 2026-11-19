@@ -10,7 +10,8 @@ from the sequencer, then follows new commits.
   10 in the wallet. `/api/contracts/<id>/commits` lists the `RECV` as
   sequenced.
 - The source sends 5 more; the observer applies it from certified gossip
-  and serves 85.
+  and serves 85. After a restart without clearing storage, its explorer API
+  still serves both balances and the sequenced RECV.
 
 The devnet does not require a validator QC for dest `RECV`, so this does
 not cover an observer applying a `RECV` on a network that does.
