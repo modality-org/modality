@@ -87,7 +87,7 @@ cfg["listeners"] = ["/ip4/0.0.0.0/tcp/10111/ws"]
 cfg["status_port"] = port
 json.dump(cfg, open(path, "w"), indent=2)
 PY
-test_start_process "cd $OBSERVER_DIR && modal node run-observer" "observer" >/dev/null
+OBSERVER_PID=$(test_start_process "cd $OBSERVER_DIR && modal node run-observer" "observer")
 assert_success "test_wait_for_port $OBSERVER_STATUS_PORT" "Observer status server should listen"
 expect_in_log "$OBSERVER_LOG" "Contract catch-up applied" "The observer pulls the sequenced history" || true
 
@@ -149,6 +149,37 @@ SECOND_SEND=$(cat "$SOURCE/.contract/HEAD")
 push "$SOURCE"
 expect_in_log "$SEQUENCER_LOG" "Sequenced commit $SECOND_SEND" "The second SEND is sequenced" || true
 expect_balance "$SOURCE_ID" 85 "The observer follows it to 85 drops"
+
+echo ""
+echo "Restarting the observer without clearing its storage..."
+kill "$OBSERVER_PID"
+for _ in $(seq 1 30); do
+    if ! kill -0 "$OBSERVER_PID" 2>/dev/null &&
+       ! lsof -i ":$OBSERVER_STATUS_PORT" -sTCP:LISTEN -t >/dev/null 2>&1; then
+        break
+    fi
+    sleep 1
+done
+if kill -0 "$OBSERVER_PID" 2>/dev/null ||
+   lsof -i ":$OBSERVER_STATUS_PORT" -sTCP:LISTEN -t >/dev/null 2>&1; then
+    test_fail "Observer did not stop before restart"
+fi
+OBSERVER_PID=$(test_start_process "cd $OBSERVER_DIR && modal node run-observer" "observer-restarted")
+assert_success "test_wait_for_port $OBSERVER_STATUS_PORT" "Restarted observer should listen"
+expect_balance "$SOURCE_ID" 85 "The restarted observer retains the source's 85 drops"
+expect_balance "$WALLET_ID" 10 "The restarted observer retains the wallet's 10 drops"
+TESTS_RUN=$((TESTS_RUN + 1))
+if curl -fsS -m 5 "http://127.0.0.1:$OBSERVER_STATUS_PORT/api/contracts/$WALLET_ID/commits" | python3 -c "
+import json, sys
+commits = json.load(sys.stdin)
+assert any(c['commit_id'] == '$RECV_ID' and c['sequenced'] for c in commits), commits
+"; then
+    TESTS_PASSED=$((TESTS_PASSED + 1))
+    echo -e "  ${GREEN}✓${NC} The restarted observer retains the sequenced RECV"
+else
+    TESTS_FAILED=$((TESTS_FAILED + 1))
+    echo -e "  ${RED}✗${NC} The restarted observer retains the sequenced RECV"
+fi
 
 test_finalize
 exit $?
