@@ -7,11 +7,7 @@ on:
       - 'docs/**'
       - 'rust/**'
       - 'scripts/ci/**'
-      - 'tests/network/01-ping-node/**'
-      - 'tests/network/02-run-devnet1/**'
-      - 'tests/network/05-mining/**'
-      - 'tests/network/observer-catchup/**'
-      - 'tests/network/test-lib.sh'
+      - 'tests/network/**'
       - '.github/workflows/ci.yml'
   pull_request:
     branches: [main]
@@ -19,11 +15,7 @@ on:
       - 'docs/**'
       - 'rust/**'
       - 'scripts/ci/**'
-      - 'tests/network/01-ping-node/**'
-      - 'tests/network/02-run-devnet1/**'
-      - 'tests/network/05-mining/**'
-      - 'tests/network/observer-catchup/**'
-      - 'tests/network/test-lib.sh'
+      - 'tests/network/**'
       - '.github/workflows/ci.yml'
   # The release workflow runs the whole of CI on the commit it builds.
   workflow_call:
