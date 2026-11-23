@@ -74,10 +74,18 @@ assert_output_contains \
     "successful" \
     "Ping should succeed"
 
-# Test 8: Verify ping response time is reasonable
+# Test 8: Verify ping reports an average response time
 echo ""
 echo "Test 8: Checking ping response time..."
-PING_OUTPUT=$(modal node ping --dir ./tmp/node2 --target /ip4/127.0.0.1/tcp/10101/ws/p2p/12D3KooW9pte76rpnggcLYkFaawuTEs5DC5axHkg3cK3cewGxxHd --times 1 2>&1 || true)
+TESTS_RUN=$((TESTS_RUN + 1))
+if PING_OUTPUT=$(modal node ping --dir ./tmp/node2 --target /ip4/127.0.0.1/tcp/10101/ws/p2p/12D3KooW9pte76rpnggcLYkFaawuTEs5DC5axHkg3cK3cewGxxHd --times 1 2>&1) &&
+   grep -Eq 'Average time: [0-9]+(\.[0-9]+)?(ns|µs|ms|s)' <<< "$PING_OUTPUT"; then
+    TESTS_PASSED=$((TESTS_PASSED + 1))
+    echo -e "  ${GREEN}✓${NC} Ping reports an average response time"
+else
+    TESTS_FAILED=$((TESTS_FAILED + 1))
+    echo -e "  ${RED}✗${NC} Ping must succeed and report an average response time"
+fi
 echo "Ping output: $PING_OUTPUT" >> "$CURRENT_LOG"
 
 # Finalize test
