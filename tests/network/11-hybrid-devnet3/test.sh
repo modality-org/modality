@@ -41,17 +41,12 @@ sleep 5
 # Test 2: Verify all nodes are mining
 echo ""
 echo "Test 2: Verifying all nodes are mining blocks..."
-sleep 15 # Wait for blocks to be mined
 for i in 1 2 3; do
     NODE_LOG="$LOG_DIR/${CURRENT_TEST}_node${i}.log"
-    if [ -f "$NODE_LOG" ]; then
-        if grep -q "Mined block" "$NODE_LOG"; then
-            echo "✅ Node${i} is mining blocks"
-        else
-            echo "❌ Node${i} is not mining"
-            test_fail "All nodes should be mining"
-        fi
+    if ! test_wait_for_log "$NODE_LOG" "Mined block" 90; then
+        test_fail "Node${i} should mine a block (log missing or no mining activity)"
     fi
+    echo "✅ Node${i} is mining blocks"
 done
 
 # Test 3: Wait for epoch 2
@@ -82,7 +77,7 @@ while [ $ELAPSED -lt $TIMEOUT ]; do
     for i in 1 2 3; do
         NODE_LOG="$LOG_DIR/${CURRENT_TEST}_node${i}.log"
         if [ -f "$NODE_LOG" ]; then
-            BLOCK=$(grep "Mined block" "$NODE_LOG" | tail -1 | grep -oE "block [0-9]+" | grep -oE "[0-9]+")
+            BLOCK=$(grep "Mined block" "$NODE_LOG" | tail -1 | grep -oE "block [0-9]+" | grep -oE "[0-9]+" || true)
             if [ -n "$BLOCK" ]; then
                 if [ -z "$LATEST_BLOCK" ] || [ "$BLOCK" -gt "$LATEST_BLOCK" ]; then
                     LATEST_BLOCK="$BLOCK"
