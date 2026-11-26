@@ -35,9 +35,26 @@ modal node ping --dir ./ping-node --target '<bootstrapper-multiaddr>'
 ```
 
 A successful ping proves transport to that peer, not that your blocks became
-canonical. Check the miner logs for mined blocks, then compare the chain tip and
-recent blocks with a separately running observer. Keep a dated run log if
-you are publishing evidence of an external join. The
+canonical. To check a mined block independently, stop the miner, add
+`"status_port": 1337` to `./my-node/config.json` (choose another free port if
+needed), and restart it. The HTTP status server is optional; leave the P2P
+listener on TCP 4040 unchanged. With `curl` and `jq` installed:
+
+```bash
+curl -fsS http://127.0.0.1:1337/chain.json > miner-chain.json
+curl -fsS https://node0.testnet.modality.network/chain.json > observer-chain.json
+jq -r '.blocks[] | select(.canonical) | [.index, .hash, .nominee] | @tsv' miner-chain.json
+jq -r '.blocks[] | select(.canonical) | [.index, .hash, .nominee] | @tsv' observer-chain.json
+```
+
+Find one of your mined blocks in **both** outputs with the same index and
+hash. The observer must mark it canonical; a matching height with a different
+hash does not count. The endpoint reports only recent canonical blocks and
+orphans, so compare soon after mining. If the observer is behind, wait for it
+to catch up and query again; if the block has aged out of its recent window,
+this endpoint can no longer prove that particular block. A local log line or
+local chain alone proves neither propagation nor independent canonical inclusion. Keep a
+dated copy of both responses if publishing external-join evidence. The
 [network checklist](../roadmaps/roadmap.md) keeps that evidence open until an
 external trace exists.
 
