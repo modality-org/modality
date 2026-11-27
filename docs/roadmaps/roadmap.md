@@ -55,9 +55,9 @@ For live access, start with [Join the public testnet](../cli/join-testnet.md).
   [join guide](../cli/join-testnet.md) describe posting a contract through a
   sequencer. The [verifier rejection reference](../reference/verifier-rejections.md)
   describes checks that can reject a modeled commit.
-- [x] The public [observer/explorer instructions](../cli/join-testnet.md)
-  identify the node0 instance and say another observer can serve the same HTTP
-  interface. A documented endpoint is not an uptime guarantee.
+- [x] The public [observer runbook](../cli/observe-testnet.md)
+  shows how to run an independent observer and inspect its local chain and
+  contract views. A documented endpoint is not an uptime guarantee.
 - [x] The [wallet commands](../cli/wallet-commands.md) document creating a
   wallet, receiving mined MOD, querying balance, and taking testnet faucet MOD.
 - [ ] Publish a dated end-to-end trace from an external node: mine or faucet,
